@@ -1,12 +1,16 @@
 """Application configuration via environment variables."""
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
     # ── Database ──
-    db_connection_url: str = "postgresql://astro:astro@localhost:5432/astro_db"
+    db_connection_url: str = Field(
+        default="postgresql://astro:astro@localhost:5432/astro_db",
+        validation_alias="APP_DB_URL"
+    )
 
     # ── AI providers ──
     openai_api_key: str = ""
