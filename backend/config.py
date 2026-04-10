@@ -6,7 +6,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # ── Database ──
-    database_url: str = "postgresql://astro:astro@localhost:5432/astro_db"
+    db_connection_url: str = "postgresql://astro:astro@localhost:5432/astro_db"
 
     # ── AI providers ──
     openai_api_key: str = ""
