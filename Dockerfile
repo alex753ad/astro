@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -e ".[dev]" 2>/dev/null || \
 
 # Copy application
 COPY backend/ /app/backend/
-COPY data/ /app/data/
+COPY data/ephe/ /app/data/ephe/
 
 EXPOSE 8000
 
