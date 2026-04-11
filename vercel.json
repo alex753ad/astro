@@ -1,10 +1,6 @@
 {
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "https://astro-production-e070.up.railway.app/api/$1"
-    },
-    {
       "handle": "filesystem"
     },
     {
