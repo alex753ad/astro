@@ -39,7 +39,7 @@ export default function AstroCalendar() {
     setError(null);
     try {
       const monthStr = `${year}-${String(month).padStart(2,'0')}`;
-      const res = await fetch(`/api/v1/calendar/monthly?month=${monthStr}`);
+      const res = await fetch(`https://astro-production-e070.up.railway.app/api/v1/calendar/monthly?month=${monthStr}`);
       if (!res.ok) throw new Error(`${res.status}`);
       setData(await res.json());
     } catch(e) {
