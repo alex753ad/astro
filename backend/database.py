@@ -3,8 +3,12 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
+from backend.config import get_settings
+
+settings = get_settings()
+
 engine = create_engine(
-    "postgresql://postgres:VJVcpmWekkVJjgnWCibvtqujtJoGkLLO@mainline.proxy.rlwy.net:29754/railway",
+    settings.database_url,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
