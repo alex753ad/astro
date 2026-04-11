@@ -19,6 +19,8 @@ const TABS = [
   { key: 'planner',  label: 'Планировщик'     },
 ];
 
+const API_BASE = 'https://astro-production-e070.up.railway.app/api/v1';
+
 export default function ChartPage({ currentUser }) {
   const { chartId } = useParams();
 
@@ -37,7 +39,7 @@ export default function ChartPage({ currentUser }) {
     if (!chartId) return;
     setLoading(true);
     const token = localStorage.getItem('astro_access_token');
-    fetch(`/api/v1/chart/${chartId}`, {
+    fetch(`${API_BASE}/chart/${chartId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => { if (!r.ok) throw new Error('Карта не найдена'); return r.json(); })
