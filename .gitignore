@@ -9,7 +9,6 @@ build/
 .ruff_cache/
 .pytest_cache/
 node_modules/
-frontend/dist/
-data/ephe/*.se1
+
 *.db
 .DS_Store
