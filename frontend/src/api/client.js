@@ -7,7 +7,7 @@
  * - Error handling with retry
  */
 
-const API_BASE = '/api/v1';
+const API_BASE = 'https://astro-production-e070.up.railway.app/api/v1';
 
 class ApiError extends Error {
   constructor(message, status, detail) {
@@ -141,7 +141,6 @@ function _connectSSE(url, onChunk, onDone, onError) {
 
   eventSource.onerror = () => {
     eventSource.close();
-    // Если [DONE] уже получен или есть данные — это нормальное закрытие соединения
     if (isDone || hasData) {
       onDone?.();
     } else {
