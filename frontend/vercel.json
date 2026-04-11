@@ -7,6 +7,10 @@
     {
       "source": "/health",
       "destination": "https://astro-production-e070.up.railway.app/health"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
