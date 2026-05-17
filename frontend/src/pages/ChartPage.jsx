@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
@@ -23,6 +23,7 @@ const API_BASE = 'https://astro-production-e070.up.railway.app/api/v1';
 
 export default function ChartPage({ currentUser }) {
   const { chartId } = useParams();
+  const navigate = useNavigate();
 
   const [chart, setChart]                   = useState(null);
   const [transitPlanets, setTransitPlanets] = useState([]);
@@ -66,9 +67,17 @@ export default function ChartPage({ currentUser }) {
           <h1 style={s.title}>{chart.name ?? 'Натальная карта'}</h1>
           <p style={s.subtitle}>{chart.birth_date} · {chart.birth_place}</p>
         </div>
-        {activeTab === 'chart' && (
-          <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={() => navigate(`/planner/${chartId}`)}
+            style={s.plannerLinkBtn}
+          >
+            📅 Планер на месяц
+          </button>
+          {activeTab === 'chart' && (
+            <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
+          )}
+        </div>
       </header>
 
       {/* ── Вкладки ── */}
@@ -217,4 +226,18 @@ const s = {
   plannerHead: { marginBottom: '14px' },
   plannerTitle: { fontSize: '15px', fontWeight: '500', color: 'var(--color-text-primary)', display: 'block' },
   plannerSub:   { fontSize: '12px', color: 'var(--color-text-tertiary)', display: 'block', marginTop: '2px' },
+
+  plannerLinkBtn: {
+    padding: '8px 14px',
+    fontSize: '13px',
+    fontWeight: '500',
+    background: 'var(--color-background-tertiary, #1e293b)',
+    color: 'var(--color-text-primary, #e2e8f0)',
+    border: '0.5px solid var(--color-border-tertiary, #334155)',
+    borderRadius: 'var(--border-radius-md, 8px)',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    transition: 'background 0.15s',
+  },
 };

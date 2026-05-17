@@ -1112,3 +1112,149 @@ async def get_monthly_forecast(
         raise HTTPException(status_code=500, detail=f"Failed to parse forecast: {e}")
 
     return {"from_date": from_date, "to_date": to_date, "forecast": forecast}
+
+
+# ═══════════════════════════════════════════════════════════
+# PLANNER: MONTHLY (в формате методички)
+# ═══════════════════════════════════════════════════════════
+
+@app.get(
+    "/api/v1/chart/{chart_id}/planner/monthly",
+    tags=["forecast"],
+    summary="Monthly personal planner (in the style of the planning example)",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_monthly_planner(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+):
+    import calendar as cal_mod
+    from datetime import date as date_type, datetime as dt_type, timedelta
+    from backend.transit.engine import calculate_transits
+    from backend.transit.forecast_prompt import (
+        build_monthly_planner_prompt,
+        parse_forecast_response,
+    )
+    import httpx, os
+
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    # Диапазон: текущий месяц + 30 дней вперёд (чтобы захватить переходы планет)
+    today        = date_type.today()
+    month_start  = today.replace(day=1)
+    last_day     = cal_mod.monthrange(today.year, today.month)[1]
+    month_end    = today.replace(day=last_day)
+    extended_end = month_end + timedelta(days=30)
+
+    from_str = month_start.isoformat()
+    to_str   = month_end.isoformat()
+
+    # ── Cache lookup: ключ = chart_id + текущий месяц, TTL = до конца месяца ──
+    cache_key = f"planner:{chart_id}:{today.year}-{today.month:02d}"
+    cached = transit_cache.get(cache_key)
+    if cached:
+        logger.info("Planner cache hit: %s", cache_key)
+        return cached
+
+    events = calculate_transits(
+        natal_planets=chart.planets,
+        from_date=month_start,
+        to_date=extended_end,
+    )
+    events_dicts = [
+        {
+            "transit_planet": e.transit_planet,
+            "natal_planet":   e.natal_planet,
+            "aspect_type":    e.aspect_type,
+            "transit_sign":   e.transit_sign,
+            "peak_date":      e.peak_date,
+            "start_date":     e.start_date,
+            "end_date":       e.end_date,
+            "peak_orb":       e.peak_orb,
+        }
+        for e in events
+    ]
+
+    natal_profile = {
+        "planets":      chart.planets,
+        "houses":       chart.houses,
+        "ascendant":    chart.ascendant,
+        "midheaven":    chart.midheaven,
+        "time_unknown": chart.time_unknown,
+    }
+
+    prompt = build_monthly_planner_prompt(
+        transit_events=events_dicts,
+        natal_profile=natal_profile,
+        from_date=from_str,
+        to_date=to_str,
+    )
+
+    raw = ""
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+
+    if os.getenv("ANTHROPIC_API_KEY"):
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key":         os.getenv("ANTHROPIC_API_KEY"),
+                        "anthropic-version": "2023-06-01",
+                        "content-type":      "application/json",
+                    },
+                    json={
+                        "model":      "claude-sonnet-4-20250514",
+                        "max_tokens": 3000,
+                        "messages":   [{"role": "user", "content": prompt}],
+                    },
+                )
+                data = resp.json()
+                raw  = data["content"][0]["text"]
+        except Exception as e:
+            logger.warning(f"Anthropic monthly planner failed: {e}")
+
+    if not raw and openai_key:
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openai_key}",
+                        "Content-Type":  "application/json",
+                    },
+                    json={
+                        "model":           "gpt-4o",
+                        "messages":        [{"role": "user", "content": prompt}],
+                        "max_tokens":      3000,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                data = resp.json()
+                raw  = data["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.warning(f"OpenAI monthly planner failed: {e}")
+
+    if not raw:
+        raise HTTPException(status_code=503, detail="AI planner unavailable.")
+
+    try:
+        planner = parse_forecast_response(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Parse error: {e}")
+
+    response = {
+        "from_date": from_str,
+        "to_date":   to_str,
+        "planner":   planner,
+    }
+
+    # Cache до конца месяца (TTL в секундах от now до 23:59:59 последнего дня)
+    end_of_month_dt = dt_type.combine(month_end, dt_type.max.time())
+    ttl_seconds = max(60, int((end_of_month_dt - dt_type.now()).total_seconds()))
+    transit_cache.set(cache_key, response, ttl=ttl_seconds)
+
+    return response

@@ -1,0 +1,218 @@
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+
+const API_BASE = "https://astro-production-e070.up.railway.app";
+
+function getMonthName(date) {
+  return date.toLocaleString("ru-RU", { month: "long", year: "numeric" });
+}
+
+const PLANET_COLORS = {
+  sun: "#f59e0b", mercury: "#6ee7b7", venus: "#f472b6",
+  mars: "#f87171", jupiter: "#a78bfa", saturn: "#94a3b8",
+  uranus: "#38bdf8", neptune: "#818cf8", pluto: "#e879f9", moon: "#c4b5fd",
+};
+
+function TabBar({ tabs, active, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: 2, background: "#0f172a", borderRadius: 10, padding: 4, marginBottom: 24 }}>
+      {tabs.map((tab) => (
+        <button key={tab.key} onClick={() => onChange(tab.key)} style={{
+          flex: 1, padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+          fontSize: 13, fontWeight: 500, transition: "all 0.15s",
+          background: active === tab.key ? "#1e293b" : "transparent",
+          color: active === tab.key ? "#e2e8f0" : "#64748b",
+        }}>{tab.label}</button>
+      ))}
+    </div>
+  );
+}
+
+function SectionHeader({ emoji, title, subtitle }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 18 }}>{emoji}</span>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>{title}</h3>
+      </div>
+      {subtitle && <div style={{ fontSize: 12, color: "#64748b", marginLeft: 26 }}>{subtitle}</div>}
+    </div>
+  );
+}
+
+function PeriodBlock({ planet, emoji, period, items }) {
+  const color = PLANET_COLORS[planet] || "#64748b";
+  return (
+    <div style={{ background: "#1e293b", border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 16 }}>{emoji}</span>
+        <span style={{ fontSize: 12, color, fontWeight: 500 }}>Период {period}</span>
+      </div>
+      <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>Лучшее время для:</div>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {items.map((item, i) => (
+          <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 5, fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
+            <span style={{ color, marginTop: 2, flexShrink: 0 }}>•</span>{item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function WeekDayBlock({ date, time, house, items }) {
+  const color = PLANET_COLORS.moon;
+  return (
+    <div style={{ background: "#1e293b", border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color, fontWeight: 600 }}>{date}</span>
+        {time && <span style={{ fontSize: 12, color: "#64748b" }}>{time}</span>}
+        <span style={{ marginLeft: "auto", fontSize: 11, background: `${color}20`, color, padding: "2px 8px", borderRadius: 12 }}>
+          🌙 Луна в {house} доме
+        </span>
+      </div>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {items.map((item, i) => (
+          <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4, fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
+            <span style={{ color, marginTop: 2, flexShrink: 0 }}>•</span>{item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LongTermBlock({ planet, emoji, period, items, warning }) {
+  const color = PLANET_COLORS[planet] || "#64748b";
+  return (
+    <div style={{ background: "#1e293b", border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", marginBottom: 10 }}>
+      {warning && <div style={{ fontSize: 11, color: "#f59e0b", marginBottom: 8 }}>⚠️ {warning}</div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 16 }}>{emoji}</span>
+        <span style={{ fontSize: 13, color, fontWeight: 600 }}>{period}</span>
+      </div>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+        {items.map((item, i) => (
+          <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 5, fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
+            <span style={{ color, marginTop: 2, flexShrink: 0 }}>•</span>{item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LoadingState() {
+  const [dots, setDots] = useState(".");
+  useEffect(() => {
+    const t = setInterval(() => setDots((d) => (d.length >= 3 ? "." : d + ".")), 500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 16 }}>
+      <div style={{ fontSize: 32 }}>✨</div>
+      <div style={{ fontSize: 14, color: "#64748b" }}>Составляем ваш план{dots}</div>
+    </div>
+  );
+}
+
+export default function PlannerPage() {
+  const { id } = useParams();
+  const [tab, setTab] = useState("month");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [planData, setPlanData] = useState(null);
+
+  useEffect(() => { loadPlan(); }, [id]);
+
+  async function loadPlan() {
+    setLoading(true);
+    setError(null);
+    setPlanData(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/chart/${id}/planner/monthly`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Ошибка ${res.status}`);
+      }
+      const data = await res.json();
+      setPlanData(data.planner);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const tabs = [
+    { key: "month",    label: "📅 Месяц"       },
+    { key: "week",     label: "🌙 Неделя"      },
+    { key: "longterm", label: "🪐 Долгосрочно"  },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px" }}>
+
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#f8fafc" }}>
+            {planData?.month_title || `Планер на ${getMonthName(new Date())}`}
+          </h1>
+          <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>Персональный астрологический план</div>
+        </div>
+
+        {loading ? (
+          <LoadingState />
+        ) : error ? (
+          <div style={{ background: "#1e293b", border: "1px solid #ef444430", borderRadius: 8, padding: 20, color: "#f87171", fontSize: 14 }}>
+            <div style={{ marginBottom: 8 }}>⚠️ {error}</div>
+            <button onClick={loadPlan} style={{ background: "#ef4444", color: "white", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}>
+              Повторить
+            </button>
+          </div>
+        ) : (
+          <>
+            <TabBar tabs={tabs} active={tab} onChange={setTab} />
+
+            {tab === "month" && (planData?.month_sections || []).map((section, si) => (
+              <div key={si} style={{ marginBottom: 28 }}>
+                <SectionHeader emoji={section.emoji} title={`${section.planet_name} — приоритеты месяца`} />
+                {(section.periods || []).map((p, pi) => (
+                  <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji} period={p.period} items={p.items || []} />
+                ))}
+              </div>
+            ))}
+
+            {tab === "week" && (
+              <div>
+                <SectionHeader emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
+                {(planData?.week_days || []).map((day, i) => (
+                  <WeekDayBlock key={i} date={day.date} time={day.time} house={day.house} items={day.items || []} />
+                ))}
+              </div>
+            )}
+
+            {tab === "longterm" && (
+              <div>
+                <SectionHeader emoji="🪐" title={planData?.longterm_title || "Долгосрочные транзиты"} subtitle="Социальные и высшие планеты — тренды на годы" />
+                {(planData?.longterm || []).map((lt, i) => (
+                  <LongTermBlock
+                    key={i} planet={lt.planet} emoji={lt.emoji}
+                    period={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
+                    items={lt.items || []} warning={lt.warning}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid #1e293b" }}>
+              <button onClick={loadPlan} style={{ width: "100%", padding: "10px", background: "transparent", border: "1px solid #334155", borderRadius: 8, color: "#64748b", fontSize: 13, cursor: "pointer" }}>
+                🔄 Пересчитать план
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

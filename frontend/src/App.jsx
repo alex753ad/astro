@@ -4,6 +4,7 @@ import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
 import HomePage from './pages/HomePage';
 import ChartPage from './pages/ChartPage';
+import PlannerPage from './PlannerPage';
 
 function Header() {
   return (
@@ -37,6 +38,7 @@ function AppRoutes() {
           <Route path="/" element={<HomePage />} />
           {/* currentUser пробрасывается в ChartPage для синхронизации режима эксперта */}
           <Route path="/chart/:chartId" element={<ChartPage currentUser={user} />} />
+          <Route path="/planner/:id" element={<PlannerPage />} />
         </Routes>
       </main>
       <footer className="border-t border-brand-accent/10 py-6 text-center text-brand-muted text-xs">
