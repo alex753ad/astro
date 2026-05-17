@@ -633,23 +633,90 @@ def build_monthly_planner_prompt(
     natal_profile: dict,
     from_date: str,
     to_date: str,
+    precomputed_periods: dict | None = None,
 ) -> str:
     """Промпт для персонального планера на месяц.
 
-    Результат — JSON в формате образца из методички:
-    - month_sections: Солнце, Меркурий, Венера, Марс по периодам с датами
-    - week_days: Луна по домам на текущую неделю (7 дней)
-    - longterm: Юпитер, Сатурн, Уран, Нептун, Плутон
+    Если передан precomputed_periods (из house_passages.compute_planner_periods),
+    модель не угадывает даты переходов планет по домам — она получает уже готовую
+    структуру и пишет только тексты рекомендаций.
+
+    Результат — JSON в формате образца из методички.
     """
     import json as _json
-    from datetime import date as _date
 
     natal_text = _compact_natal(natal_profile)
     events_json = _json.dumps(transit_events[:30], ensure_ascii=False, indent=2)
     meanings_json = _json.dumps(PLANET_HOUSE_MEANINGS, ensure_ascii=False)
     moon_actions_json = _json.dumps(MOON_HOUSE_ACTIONS, ensure_ascii=False)
 
-    # Текущая неделя
+    if precomputed_periods:
+        periods_json = _json.dumps(precomputed_periods, ensure_ascii=False, indent=2)
+
+        return f"""Ты астролог-планировщик. Составь персональный план на месяц по уже готовой структуре.
+
+ПЕРИОД: {from_date} — {to_date}
+
+НАТАЛЬНЫЙ ПРОФИЛЬ:
+{natal_text}
+
+ТРАНЗИТЫ МЕСЯЦА (для контекста, аспекты):
+{events_json}
+
+ЗНАЧЕНИЯ ТРАНЗИТОВ ПО ДОМАМ (методичка):
+{meanings_json}
+
+ДЕЙСТВИЯ ЛУНЫ ПО ДОМАМ (методичка):
+{moon_actions_json}
+
+ГОТОВЫЕ ПЕРИОДЫ — РАССЧИТАНЫ ТОЧНО ПО ЭФЕМЕРИДАМ. НЕ МЕНЯЙ ДАТЫ И НОМЕРА ДОМОВ:
+{periods_json}
+
+ИНСТРУКЦИЯ:
+1. month_sections — для КАЖДОЙ быстрой планеты (Sun, Mercury, Venus, Mars):
+   - Используй periods из fast_planets[i].periods КАК ЕСТЬ. period и house копируй один-в-один.
+   - Для каждого периода добавь 3–5 рекомендаций items на основе значения транзита по дому из методички.
+
+2. week_days — Луна на текущую неделю по структуре moon_week:
+   - На каждый день из moon_week создай элемент week_days.
+   - Если за день у Луны несколько домов (house_starts > 1), укажи время перехода в поле time (формат "с HH:MM до HH:MM" или "с HH:MM Луна в N доме, c HH:MM в N+1").
+   - Поле house = первый дом дня (house_starts[0].house) или основной по времени.
+   - items — рекомендации из MOON_HOUSE_ACTIONS по этому дому, 3–4 пункта.
+
+3. longterm — медленные планеты по slow_planets:
+   - planet/planet_name/emoji/house из структуры. Период — из period_label.
+   - items — 3 рекомендации из методички PLANET_HOUSE_MEANINGS по этому дому.
+   - warning: "Закладываем тренд заранее" для Юпитера и Сатурна, иначе null.
+
+ОТВЕТ — строго JSON без markdown:
+{{
+  "month_title": "План на [название месяца на русском]",
+  "month_sections": [
+    {{
+      "planet": "sun",
+      "planet_name": "Солнце",
+      "emoji": "☀️",
+      "periods": [
+        {{ "period": "01.05 — 17.05", "house": 3, "items": ["...", "...", "..."] }}
+      ]
+    }}
+  ],
+  "week_title": "План на неделю (Транзитная Луна по домам)",
+  "week_days": [
+    {{ "date": "19.05 Пн", "time": "с 00:00 до 14:30", "house": 5, "items": ["...", "...", "..."] }}
+  ],
+  "longterm_title": "Долгосрочные транзиты",
+  "longterm": [
+    {{ "planet": "jupiter", "planet_name": "Юпитер", "emoji": "♃",
+       "period": "...", "house": 7, "warning": null, "items": ["...", "...", "..."] }}
+  ]
+}}
+
+Верни ТОЛЬКО валидный JSON. Все тексты на русском. Даты и номера домов НЕ ИЗМЕНЯЙ."""
+
+    # Fallback на старый промпт (если periods не посчитаны — например, время рождения неизвестно)
+    from datetime import date as _date
+
     today = _date.today()
     week_dates = [
         (today.replace() if i == 0 else _date.fromordinal(today.toordinal() + i))
@@ -682,119 +749,35 @@ def build_monthly_planner_prompt(
    - Определи по транзитам когда и в каком доме планета находится
    - Разбей на периоды с конкретными датами (формат "ДД.ММ — ДД.ММ")
    - Для каждого периода: 3–5 конкретных рекомендаций из методички по данному дому
-   - Используй PLANET_HOUSE_MEANINGS для точности рекомендаций
 
 2. week_days — Луна на текущую неделю ({week_str}):
    - Для каждого дня определи в каком доме транзитная Луна
    - Используй MOON_HOUSE_ACTIONS для рекомендаций
-   - Укажи время если Луна меняет дом в течение дня
 
 3. longterm — медленные планеты (Юпитер, Сатурн, Уран, Нептун, Плутон):
    - Укажи в каком доме находится каждая из них сейчас
    - Период влияния
    - Конкретные рекомендации из методички
-   - warning: "Закладываем тренд заранее" для Юпитера и Сатурна если они близко к куспиду
 
 ОТВЕТ — строго JSON без markdown:
 {{
   "month_title": "План на [название месяца]",
   "month_sections": [
-    {{
-      "planet": "sun",
-      "planet_name": "Солнце",
-      "emoji": "☀️",
-      "periods": [
-        {{
-          "period": "01.05 — 17.05",
-          "house": 3,
-          "items": ["рекомендация 1", "рекомендация 2", "рекомендация 3"]
-        }},
-        {{
-          "period": "18.05 — 07.06",
-          "house": 4,
-          "items": ["рекомендация 1", "рекомендация 2", "рекомендация 3"]
-        }}
-      ]
-    }},
-    {{
-      "planet": "mercury",
-      "planet_name": "Меркурий",
-      "emoji": "⚕️",
-      "periods": [ ... ]
-    }},
-    {{
-      "planet": "venus",
-      "planet_name": "Венера",
-      "emoji": "♀️",
-      "periods": [ ... ]
-    }},
-    {{
-      "planet": "mars",
-      "planet_name": "Марс",
-      "emoji": "🔴",
-      "periods": [ ... ]
-    }}
+    {{ "planet": "sun", "planet_name": "Солнце", "emoji": "☀️",
+       "periods": [{{ "period": "...", "house": 0, "items": ["..."] }}] }}
   ],
   "week_title": "План на неделю (Транзитная Луна по домам)",
   "week_days": [
-    {{
-      "date": "19.05 Пн",
-      "time": "с 00:00 до Вт 15:00",
-      "house": 5,
-      "items": ["рекомендация 1", "рекомендация 2", "рекомендация 3", "рекомендация 4"]
-    }}
+    {{ "date": "...", "time": "", "house": 0, "items": ["..."] }}
   ],
   "longterm_title": "Долгосрочные транзиты",
   "longterm": [
-    {{
-      "planet": "jupiter",
-      "planet_name": "Юпитер",
-      "emoji": "♃",
-      "period": "28.06.2026 — 30.10.2027",
-      "house": 7,
-      "warning": "Закладываем тренд заранее — за 3° до куспида",
-      "items": ["рекомендация 1", "рекомендация 2", "рекомендация 3"]
-    }},
-    {{
-      "planet": "saturn",
-      "planet_name": "Сатурн",
-      "emoji": "♄",
-      "period": "...",
-      "house": 2,
-      "warning": null,
-      "items": [ ... ]
-    }},
-    {{
-      "planet": "uranus",
-      "planet_name": "Уран",
-      "emoji": "♅",
-      "period": "...",
-      "house": 4,
-      "warning": null,
-      "items": [ ... ]
-    }},
-    {{
-      "planet": "neptune",
-      "planet_name": "Нептун",
-      "emoji": "♆",
-      "period": "...",
-      "house": 2,
-      "warning": null,
-      "items": [ ... ]
-    }},
-    {{
-      "planet": "pluto",
-      "planet_name": "Плутон",
-      "emoji": "♇",
-      "period": "...",
-      "house": 1,
-      "warning": null,
-      "items": [ ... ]
-    }}
+    {{ "planet": "...", "planet_name": "...", "emoji": "...",
+       "period": "...", "house": 0, "warning": null, "items": ["..."] }}
   ]
 }}
 
-Верни ТОЛЬКО валидный JSON. Без пояснений. Все тексты на русском языке."""
+Верни ТОЛЬКО валидный JSON. Все тексты на русском языке."""
 
 
 # ══════════════════════════════════════════════════════════════════════════════

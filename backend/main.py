@@ -1136,6 +1136,7 @@ async def get_monthly_planner(
         build_monthly_planner_prompt,
         parse_forecast_response,
     )
+    from backend.transit.house_passages import compute_planner_periods
     import httpx, os
 
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
@@ -1186,11 +1187,22 @@ async def get_monthly_planner(
         "time_unknown": chart.time_unknown,
     }
 
+    # Точные даты переходов транзитных планет по натальным домам.
+    # Если время рождения неизвестно — куспидов нет, periods будут пустыми
+    # и промпт упадёт на старую (менее точную) логику.
+    precomputed_periods = compute_planner_periods(
+        natal_profile=natal_profile,
+        from_date=month_start,
+        to_date=month_end,
+        today=today,
+    )
+
     prompt = build_monthly_planner_prompt(
         transit_events=events_dicts,
         natal_profile=natal_profile,
         from_date=from_str,
         to_date=to_str,
+        precomputed_periods=precomputed_periods if not chart.time_unknown else None,
     )
 
     raw = ""
