@@ -21,7 +21,7 @@ from backend.ephemeris.calculator import (
 
 # Шаги сканирования по скорости планет
 STEP_HOURS = {
-    "Moon":    1,    # ~13°/сут — нужен мелкий шаг
+    "Moon":    0.5,  # ~13°/сут — шаг 30 мин для точности бисекции
     "Sun":     6,
     "Mercury": 4,    # умеет тормозить и идти ретроградно
     "Venus":   6,
@@ -165,6 +165,7 @@ def compute_planner_periods(
     from_date: date,
     to_date: date,
     today: Optional[date] = None,
+    user_timezone: Optional[str] = None,
 ) -> dict:
     """Готовая структура для промпта планера: уже посчитанные периоды по домам.
 
@@ -220,26 +221,42 @@ def compute_planner_periods(
         })
 
     # ── Луна на 7 дней от today ──
-    week_dt_start = datetime(today.year, today.month, today.day, 0, 0)
-    week_dt_end = week_dt_start + timedelta(days=7) - timedelta(minutes=1)
-    moon_passages = calculate_house_passages("Moon", cusps, week_dt_start, week_dt_end)
+    # Сканирование всегда в UTC; сдвиг для отображения считается отдельно
+    import pytz
+    tz_offset = timedelta(0)
+    if user_timezone:
+        try:
+            tz = pytz.timezone(user_timezone)
+            tz_offset = tz.utcoffset(datetime.utcnow())
+        except Exception:
+            tz_offset = timedelta(0)
 
-    # Группируем по дням
+    # today в локальном времени пользователя — переводим начало дня в UTC для сканирования
+    local_day_start = datetime(today.year, today.month, today.day, 0, 0)
+    week_dt_start_utc = local_day_start - tz_offset
+    week_dt_end_utc = week_dt_start_utc + timedelta(days=7) - timedelta(minutes=1)
+    moon_passages = calculate_house_passages("Moon", cusps, week_dt_start_utc, week_dt_end_utc)
+
+    # Группируем по дням (в локальном времени пользователя)
     moon_week = []
     for i in range(7):
-        day_start = week_dt_start + timedelta(days=i)
-        day_end = day_start + timedelta(days=1) - timedelta(minutes=1)
-        day_label = f"{day_start.strftime('%d.%m')} {DAY_RU_SHORT[day_start.weekday()]}"
+        day_start_local = local_day_start + timedelta(days=i)
+        day_end_local = day_start_local + timedelta(days=1) - timedelta(minutes=1)
+        day_label = f"{day_start_local.strftime('%d.%m')} {DAY_RU_SHORT[day_start_local.weekday()]}"
+
+        day_start_utc = day_start_local - tz_offset
+        day_end_utc = day_end_local - tz_offset
 
         # Какие куски проходов луны затрагивают этот день?
         day_starts = []
         for p in moon_passages:
-            if p["end_dt"] < day_start or p["start_dt"] > day_end:
+            if p["end_dt"] < day_start_utc or p["start_dt"] > day_end_utc:
                 continue
-            from_time = p["start_dt"] if p["start_dt"] >= day_start else day_start
+            from_time_utc = p["start_dt"] if p["start_dt"] >= day_start_utc else day_start_utc
+            from_time_local = from_time_utc + tz_offset
             day_starts.append({
                 "house":     p["house"],
-                "from_time": from_time.strftime("%H:%M"),
+                "from_time": from_time_local.strftime("%H:%M"),
             })
 
         moon_week.append({
