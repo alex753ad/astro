@@ -28,19 +28,20 @@ function TabBar({ tabs, active, onChange }) {
   );
 }
 
-function SectionHeader({ emoji, title, subtitle }) {
+function SectionHeader({ emoji, title, subtitle, planetSubtitle }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 18 }}>{emoji}</span>
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>{title}</h3>
       </div>
+      {planetSubtitle && <div style={{ fontSize: 12, color: "#94a3b8", marginLeft: 26, fontStyle: "italic", marginBottom: 2 }}>{planetSubtitle}</div>}
       {subtitle && <div style={{ fontSize: 12, color: "#64748b", marginLeft: 26 }}>{subtitle}</div>}
     </div>
   );
 }
 
-function PeriodBlock({ planet, emoji, period, items }) {
+function PeriodBlock({ planet, emoji, period, items, subtitle }) {
   const color = PLANET_COLORS[planet] || "#64748b";
   return (
     <div style={{ background: "#1e293b", border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", marginBottom: 10 }}>
@@ -48,7 +49,7 @@ function PeriodBlock({ planet, emoji, period, items }) {
         <span style={{ fontSize: 16 }}>{emoji}</span>
         <span style={{ fontSize: 12, color, fontWeight: 500 }}>Период {period}</span>
       </div>
-      <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>Лучшее время для:</div>
+      {subtitle && <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 8 }}>{subtitle}</div>}
       <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
         {items.map((item, i) => (
           <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 5, fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
@@ -82,15 +83,16 @@ function WeekDayBlock({ date, time, house, items }) {
   );
 }
 
-function LongTermBlock({ planet, emoji, period, items, warning }) {
+function LongTermBlock({ planet, emoji, period, items, warning, subtitle }) {
   const color = PLANET_COLORS[planet] || "#64748b";
   return (
     <div style={{ background: "#1e293b", border: `1px solid ${color}30`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "14px 16px", marginBottom: 10 }}>
       {warning && <div style={{ fontSize: 11, color: "#f59e0b", marginBottom: 8 }}>⚠️ {warning}</div>}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 16 }}>{emoji}</span>
         <span style={{ fontSize: 13, color, fontWeight: 600 }}>{period}</span>
       </div>
+      {subtitle && <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8, fontStyle: "italic" }}>{subtitle}</div>}
       <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
         {items.map((item, i) => (
           <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 5, fontSize: 13, color: "#cbd5e1", lineHeight: 1.5 }}>
@@ -176,9 +178,13 @@ export default function PlannerPage() {
 
             {tab === "month" && (planData?.month_sections || []).map((section, si) => (
               <div key={si} style={{ marginBottom: 28 }}>
-                <SectionHeader emoji={section.emoji} title={`${section.planet_name} — приоритеты месяца`} />
+                <SectionHeader
+                  emoji={section.emoji}
+                  title={`${section.planet_name} — приоритеты месяца`}
+                  planetSubtitle={section.planet_subtitle}
+                />
                 {(section.periods || []).map((p, pi) => (
-                  <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji} period={p.period} items={p.items || []} />
+                  <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji} period={p.period} items={p.items || []} subtitle={section.planet_subtitle} />
                 ))}
               </div>
             ))}
@@ -199,7 +205,7 @@ export default function PlannerPage() {
                   <LongTermBlock
                     key={i} planet={lt.planet} emoji={lt.emoji}
                     period={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
-                    items={lt.items || []} warning={lt.warning}
+                    items={lt.items || []} warning={lt.warning} subtitle={lt.planet_subtitle}
                   />
                 ))}
               </div>
