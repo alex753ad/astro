@@ -6,9 +6,10 @@ import HomePage from './pages/HomePage';
 import ChartPage from './pages/ChartPage';
 import PlannerPage from './PlannerPage';
 import ProfilePage from './pages/ProfilePage';
-import ProfilePage from './pages/ProfilePage';
 
 function Header() {
+  const { user, logout } = useAuth();
+
   return (
     <header className="border-b border-brand-accent/10 bg-brand-dark/80 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -22,13 +23,17 @@ function Header() {
           <Link to="/" className="hover:text-brand-text transition-colors">Главная</Link>
           <a href="/api/docs" target="_blank" rel="noopener"
              className="hover:text-brand-text transition-colors">API Docs</a>
+          {user && (
+            <Link to="/profile" className="hover:text-brand-text transition-colors">
+              Профиль
+            </Link>
+          )}
         </nav>
       </div>
     </header>
   );
 }
 
-// Отдельный компонент внутри AuthProvider — чтобы useAuth работал
 function AppRoutes() {
   const { user } = useAuth();
 
@@ -38,10 +43,8 @@ function AppRoutes() {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          {/* currentUser пробрасывается в ChartPage для синхронизации режима эксперта */}
           <Route path="/chart/:chartId" element={<ChartPage currentUser={user} />} />
           <Route path="/planner/:id" element={<PlannerPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Routes>
       </main>
