@@ -264,8 +264,30 @@ def compute_planner_periods(
                               and to_time_local.hour == 23 and to_time_local.minute >= 58,
             })
 
+        # Строим строку времени в Python — не доверяем ИИ форматирование
+        if not day_starts:
+            time_str = ""
+            house_main = 0
+        elif len(day_starts) == 1:
+            e = day_starts[0]
+            if e["from_time"] == "00:00" and e["to_time"] >= "23:58":
+                time_str = "весь день"
+            elif e["from_time"] == "00:00":
+                time_str = f"с 00:00 до {e['to_time']}"
+            else:
+                time_str = f"с {e['from_time']}"
+            house_main = e["house"]
+        else:
+            parts = []
+            for e in day_starts:
+                parts.append(f"с {e['from_time']} Луна в {e['house']} доме")
+            time_str = ", ".join(parts)
+            house_main = day_starts[0]["house"]
+
         moon_week.append({
             "date":         day_label,
+            "time":         time_str,
+            "house":        house_main,
             "house_starts": day_starts,
         })
 

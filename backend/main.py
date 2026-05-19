@@ -1144,7 +1144,18 @@ async def get_monthly_planner(
         raise HTTPException(status_code=404, detail="Chart not found")
 
     # Диапазон: текущий месяц + 30 дней вперёд (чтобы захватить переходы планет)
-    today        = date_type.today()
+    # today должен быть локальным днём пользователя, а не UTC-сервера
+    _chart_tz = getattr(chart, "timezone", None)
+    if _chart_tz:
+        try:
+            import pytz as _pytz
+            _tz = _pytz.timezone(_chart_tz)
+            from datetime import datetime as _dt
+            today = _dt.now(_tz).date()
+        except Exception:
+            today = date_type.today()
+    else:
+        today = date_type.today()
     month_start  = today.replace(day=1)
     last_day     = cal_mod.monthrange(today.year, today.month)[1]
     month_end    = today.replace(day=last_day)
