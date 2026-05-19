@@ -679,9 +679,14 @@ def build_monthly_planner_prompt(
 
 2. week_days — Луна на текущую неделю по структуре moon_week:
    - На каждый день из moon_week создай элемент week_days.
-   - Если за день у Луны несколько домов (house_starts > 1), укажи время перехода в поле time (формат "с HH:MM до HH:MM" или "с HH:MM Луна в N доме, c HH:MM в N+1").
-   - Поле house = первый дом дня (house_starts[0].house) или основной по времени.
-   - items — рекомендации из MOON_HOUSE_ACTIONS по этому дому, 3–4 пункта.
+   - Случай А — один дом весь день (house_starts содержит 1 запись с all_day=true):
+     time = "весь день", house = house_starts[0].house
+   - Случай Б — один дом, но не с 00:00 (переход внутри дня, house_starts содержит 1 запись):
+     time = "с HH:MM", house = house_starts[0].house
+   - Случай В — несколько домов за день (house_starts > 1):
+     time = "с HH:MM Луна в N доме, с HH:MM в M доме" — используй from_time каждой записи.
+     house = house_starts[0].house (первый дом дня).
+   - items — рекомендации из MOON_HOUSE_ACTIONS по основному дому дня (house), 3–4 пункта.
 
 3. longterm — медленные планеты по slow_planets:
    - planet/planet_name/emoji/house из структуры. Период — из period_label.
