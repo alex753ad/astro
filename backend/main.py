@@ -1195,6 +1195,7 @@ async def get_monthly_planner(
         from_date=month_start,
         to_date=month_end,
         today=today,
+        user_timezone=getattr(chart, "timezone", None),
     )
 
     prompt = build_monthly_planner_prompt(
