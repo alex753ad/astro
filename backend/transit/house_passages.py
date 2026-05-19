@@ -253,10 +253,15 @@ def compute_planner_periods(
             if p["end_dt"] < day_start_utc or p["start_dt"] > day_end_utc:
                 continue
             from_time_utc = p["start_dt"] if p["start_dt"] >= day_start_utc else day_start_utc
+            to_time_utc   = p["end_dt"]   if p["end_dt"]   <= day_end_utc   else day_end_utc
             from_time_local = from_time_utc + tz_offset
+            to_time_local   = to_time_utc   + tz_offset
             day_starts.append({
-                "house":     p["house"],
-                "from_time": from_time_local.strftime("%H:%M"),
+                "house":      p["house"],
+                "from_time":  from_time_local.strftime("%H:%M"),
+                "to_time":    to_time_local.strftime("%H:%M"),
+                "all_day":    from_time_local.hour == 0 and from_time_local.minute == 0
+                              and to_time_local.hour == 23 and to_time_local.minute >= 58,
             })
 
         moon_week.append({
