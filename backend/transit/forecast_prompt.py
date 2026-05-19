@@ -651,6 +651,8 @@ def build_monthly_planner_prompt(
     moon_actions_json = _json.dumps(MOON_HOUSE_ACTIONS, ensure_ascii=False)
 
     if precomputed_periods:
+        import sys
+        print("DEBUG moon_week:", _json.dumps(precomputed_periods.get("moon_week"), ensure_ascii=False, indent=2), file=sys.stderr)
         periods_json = _json.dumps(precomputed_periods, ensure_ascii=False, indent=2)
 
         return f"""Ты астролог-планировщик. Составь персональный план на месяц по уже готовой структуре.
