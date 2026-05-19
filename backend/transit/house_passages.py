@@ -48,6 +48,18 @@ PLANET_NAMES_RU = {
     "Pluto":   ("Плутон",   "pluto",   "♇"),
 }
 
+PLANET_SUBTITLES = {
+    "Sun":     "Приоритетные сферы месяца",
+    "Mercury": "Лучшее время для сбора информации, полезных коммуникаций, наведения порядка и ремонта в темах",
+    "Venus":   "Лучшее время для наполнения ресурсом и получения удовольствия через",
+    "Mars":    "Лучшее время для проявления активности и инициативности в темах",
+    "Jupiter": "Лучшее время для повышения авторитета, расширения, увеличения, привнесения чего-то нового в темах",
+    "Saturn":  "Лучшее время для определения зоны ответственности, обретения власти и статуса",
+    "Uranus":  "Лучшее время для вливания новых возможностей и мощностей, быстрого развития в темах",
+    "Neptune": "Лучшее время чтобы быть осторожным, скрытным в темах",
+    "Pluto":   "Лучшее время для осознанной трансформации, разрешения старого ради крутого нового в темах",
+}
+
 
 def _extract_cusps(natal_profile: dict) -> list[float]:
     """Достать 12 куспидов натальных домов как list[float] (эклиптические долготы)."""
@@ -208,9 +220,10 @@ def compute_planner_periods(
         passages = calculate_house_passages(planet, cusps, period_start_dt, period_end_dt)
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         fast_result.append({
-            "planet_name": name_ru,
-            "planet_key":  key,
-            "emoji":       emoji,
+            "planet_name":    name_ru,
+            "planet_key":     key,
+            "emoji":          emoji,
+            "planet_subtitle": PLANET_SUBTITLES.get(planet, ""),
             "periods": [
                 {
                     "period": _fmt_period(p["start_dt"], p["end_dt"]),
@@ -306,11 +319,12 @@ def compute_planner_periods(
         if main is None:
             continue
         slow_result.append({
-            "planet_name":  name_ru,
-            "planet_key":   key,
-            "emoji":        emoji,
-            "house":        main["house"],
-            "period_label": _fmt_period(main["start_dt"], main["end_dt"]),
+            "planet_name":     name_ru,
+            "planet_key":      key,
+            "emoji":           emoji,
+            "house":           main["house"],
+            "period_label":    _fmt_period(main["start_dt"], main["end_dt"]),
+            "planet_subtitle": PLANET_SUBTITLES.get(planet, ""),
         })
 
     return {
