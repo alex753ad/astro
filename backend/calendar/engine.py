@@ -123,8 +123,17 @@ def get_moon_phases(year: int, month: int) -> list[CalendarEvent]:
         (180, "full_moon", "🌕"),
     ]:
         found = _find_phase(jd0, jd1, target)
+        seen_dates = set()
         for jd in found:
             dt, tm = _jd_to_dt(jd)
+            # Фильтр: только даты текущего месяца, без дублей
+            event_month = int(dt[5:7])
+            event_year  = int(dt[:4])
+            if event_year != year or event_month != month:
+                continue
+            if dt in seen_dates:
+                continue
+            seen_dates.add(dt)
             sign  = _sign(_lon(jd, "Moon"))
             label = "Новолуние" if etype == "new_moon" else "Полнолуние"
             events.append(CalendarEvent(
