@@ -112,7 +112,6 @@ def _find_phase(jd_start: float, jd_end: float, target: float) -> list[float]:
 def get_moon_phases(year: int, month: int) -> list[CalendarEvent]:
     from calendar import monthrange
     _, days = monthrange(year, month)
-    # hour=0 первого дня до hour=0 первого дня следующего месяца
     jd0 = _jd(date(year, month, 1), 0)
     if month == 12:
         jd1 = _jd(date(year + 1, 1, 1), 0)
@@ -123,9 +122,12 @@ def get_moon_phases(year: int, month: int) -> list[CalendarEvent]:
         (0,   "new_moon",  "🌑"),
         (180, "full_moon", "🌕"),
     ]:
-        for jd in _find_phase(jd0, jd1, target):
+        found = _find_phase(jd0, jd1, target)
+        # Берём только одно событие — ближайшее к середине месяца
+        if found:
+            mid_month = (jd0 + jd1) / 2
+            jd = min(found, key=lambda x: abs(x - mid_month))
             dt, tm = _jd_to_dt(jd)
-            # Берём знак точно в момент фазы
             sign  = _sign(_lon(jd, "Moon"))
             label = "Новолуние" if etype == "new_moon" else "Полнолуние"
             events.append(CalendarEvent(
