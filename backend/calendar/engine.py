@@ -65,11 +65,10 @@ def _jd(d: date, hour: float = 12.0) -> float:
     return swe.julday(d.year, d.month, d.day, hour)
 
 def _jd_to_dt(jd: float) -> tuple[str, str]:
-    y, mo, d_f = swe.revjul(jd)[:3]
-    d_int  = int(d_f)
-    h_frac = (d_f - d_int) * 24
-    h, m   = int(h_frac), int((h_frac % 1) * 60)
-    return f"{int(y):04d}-{int(mo):02d}-{d_int:02d}", f"{h:02d}:{m:02d}"
+    y, mo, d, h_float = swe.revjul(jd)
+    h = int(h_float)
+    m = int((h_float - h) * 60)
+    return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}", f"{h:02d}:{m:02d}"
 
 def _lon(jd: float, planet: str) -> float:
     r, _ = swe.calc_ut(jd, PLANET_IDS[planet], swe.FLG_SWIEPH)
@@ -112,29 +111,30 @@ def _find_phase(jd_start: float, jd_end: float, target: float) -> list[float]:
 def get_moon_phases(year: int, month: int) -> list[CalendarEvent]:
     from calendar import monthrange
     _, days = monthrange(year, month)
+    # hour=0 первого дня до hour=0 первого дня следующего месяца
     jd0 = _jd(date(year, month, 1), 0)
     if month == 12:
         jd1 = _jd(date(year + 1, 1, 1), 0)
     else:
         jd1 = _jd(date(year, month + 1, 1), 0)
     events = []
+    mid_jd = (jd0 + jd1) / 2
     for target, etype, emoji in [
         (0,   "new_moon",  "🌑"),
         (180, "full_moon", "🌕"),
     ]:
         found = _find_phase(jd0, jd1, target)
-        # Берём только одно событие — ближайшее к середине месяца
-        if found:
-            mid_month = (jd0 + jd1) / 2
-            jd = min(found, key=lambda x: abs(x - mid_month))
-            dt, tm = _jd_to_dt(jd)
-            sign  = _sign(_lon(jd, "Moon"))
-            label = "Новолуние" if etype == "new_moon" else "Полнолуние"
-            events.append(CalendarEvent(
-                date=dt, time=f"{tm} UTC", type=etype,
-                planet="Moon", sign=sign, emoji=emoji,
-                description=f"{label} в {sign}",
-            ))
+        if not found:
+            continue
+        jd = min(found, key=lambda x: abs(x - mid_jd))
+        dt, tm = _jd_to_dt(jd)
+        sign  = _sign(_lon(jd, "Moon"))
+        label = "Новолуние" if etype == "new_moon" else "Полнолуние"
+        events.append(CalendarEvent(
+            date=dt, time=f"{tm} UTC", type=etype,
+            planet="Moon", sign=sign, emoji=emoji,
+            description=f"{label} в {sign}",
+        ))
     return events
 
 
