@@ -93,7 +93,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+# ── Routers ──
+from backend.auth.router import router as auth_router
+from backend.profile.router import router as profile_router
+app.include_router(auth_router)
+app.include_router(profile_router)
 
 # ═══════════════════════════════════════════════════════════
 # HEALTH ENDPOINTS
@@ -1282,3 +1286,68 @@ async def get_monthly_planner(
     transit_cache.set(cache_key, response, ttl=ttl_seconds)
 
     return response
+
+# ═══════════════════════════════════════════════════════════
+# LUNAR CALENDAR
+# ═══════════════════════════════════════════════════════════
+
+@app.get(
+    "/api/v1/calendar/lunar",
+    tags=["calendar"],
+    summary="Lunar calendar: moon phases + moon sign per day",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_lunar_calendar(
+    request: Request,
+    year: int = None,
+    month: int = None,
+):
+    """
+    Возвращает новолуния/полнолуния месяца, знак Луны на каждый день,
+    и текущее положение Луны (знак + градус).
+
+    Query params: year (int), month (int) — по умолчанию текущий месяц.
+    """
+    from datetime import date as date_type, datetime as dt_type
+    from backend.calendar.engine import get_moon_phases, ZODIAC_SIGNS
+    import swisseph as swe
+    import calendar as cal_mod
+
+    today = date_type.today()
+    year  = year  or today.year
+    month = month or today.month
+
+    # Фазы луны месяца
+    phases = get_moon_phases(year, month)
+
+    # Знак Луны на каждый день месяца (полдень UTC)
+    _, days_in_month = cal_mod.monthrange(year, month)
+    daily_signs = []
+    for day in range(1, days_in_month + 1):
+        d = date_type(year, month, day)
+        jd = swe.julday(d.year, d.month, d.day, 12.0)
+        lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        sign = ZODIAC_SIGNS[int(lon[0] // 30) % 12]
+        daily_signs.append({
+            "date": d.isoformat(),
+            "sign": sign,
+            "longitude": round(lon[0], 2),
+        })
+
+    # Текущее положение Луны
+    now = dt_type.utcnow()
+    jd_now = swe.julday(now.year, now.month, now.day, now.hour + now.minute / 60)
+    lon_now, _ = swe.calc_ut(jd_now, swe.MOON, swe.FLG_SWIEPH)
+    current_sign   = ZODIAC_SIGNS[int(lon_now[0] // 30) % 12]
+    current_degree = round(lon_now[0] % 30, 1)
+
+    return {
+        "year":  year,
+        "month": month,
+        "current_moon": {
+            "sign":   current_sign,
+            "degree": current_degree,
+        },
+        "phases":      [p.to_dict() if hasattr(p, "to_dict") else p for p in phases],
+        "daily_signs": daily_signs,
+    }
