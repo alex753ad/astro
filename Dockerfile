@@ -9,11 +9,13 @@ RUN apt-get update && \
 
 # Python deps
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e ".[dev]" 2>/dev/null || \
+RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
+    pip install --no-cache-dir -e ".[dev]" 2>/dev/null || \
     pip install --no-cache-dir \
-    fastapi uvicorn[standard] pyswisseph sqlalchemy alembic \
+    fastapi "uvicorn[standard]" pyswisseph sqlalchemy alembic \
     psycopg2-binary httpx pydantic pydantic-settings slowapi \
-    python-jose[cryptography] passlib[bcrypt] timezonefinder pytz geopy \
+    "python-jose[cryptography]" "passlib[bcrypt]" "bcrypt>=3.2.0,<4.0.0" \
+    timezonefinder pytz geopy \
     pytest pytest-asyncio
 
 # Copy application
