@@ -4,7 +4,7 @@
 
 1. Импорт (после строки 67 — после settings_router):
 ────────────────────────────────────────────────────
-from backend.calendar.engine import get_monthly_calendar
+from backend.calendar.lunar_engine import get_monthly_calendar
 
 2. Три новых эндпоинта — вставить ПОСЛЕ строки 824 (конец get_monthly_forecast):
 ──────────────────────────────────────────────────────────────────────────────────
