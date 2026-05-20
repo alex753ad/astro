@@ -1169,3 +1169,60 @@ async def get_monthly_planner(
     )
 
     return {"planner": planner}
+
+
+# ═══════════════════════════════════════════════════════════
+# LUNAR CALENDAR
+# ═══════════════════════════════════════════════════════════
+
+@app.get(
+    "/api/v1/calendar/lunar",
+    tags=["calendar"],
+    summary="Lunar calendar: moon phases + moon sign per day",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_lunar_calendar(
+    request: Request,
+    year: int = None,
+    month: int = None,
+):
+    from datetime import date as date_type, datetime as dt_type
+    from backend.calendar.engine import get_moon_phases, ZODIAC_SIGNS
+    import swisseph as swe
+    import calendar as cal_mod
+
+    today = date_type.today()
+    year  = year  or today.year
+    month = month or today.month
+
+    phases = get_moon_phases(year, month)
+
+    _, days_in_month = cal_mod.monthrange(year, month)
+    daily_signs = []
+    for day in range(1, days_in_month + 1):
+        d = date_type(year, month, day)
+        jd = swe.julday(d.year, d.month, d.day, 12.0)
+        lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        sign = ZODIAC_SIGNS[int(lon[0] // 30) % 12]
+        daily_signs.append({
+            "date": d.isoformat(),
+            "sign": sign,
+            "longitude": round(lon[0], 2),
+        })
+
+    now = dt_type.utcnow()
+    jd_now = swe.julday(now.year, now.month, now.day, now.hour + now.minute / 60)
+    lon_now, _ = swe.calc_ut(jd_now, swe.MOON, swe.FLG_SWIEPH)
+    current_sign   = ZODIAC_SIGNS[int(lon_now[0] // 30) % 12]
+    current_degree = round(lon_now[0] % 30, 1)
+
+    return {
+        "year":  year,
+        "month": month,
+        "current_moon": {
+            "sign":   current_sign,
+            "degree": current_degree,
+        },
+        "phases":      [p.to_dict() if hasattr(p, "to_dict") else p for p in phases],
+        "daily_signs": daily_signs,
+    }
