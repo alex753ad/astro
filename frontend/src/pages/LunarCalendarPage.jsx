@@ -190,9 +190,9 @@ export default function LunarCalendarPage() {
     else setMonth(m => m + 1);
   };
 
-  const phases   = data?.phases ?? [];
-  const newMoon  = phases.find(p => p.type === 'new_moon');
-  const fullMoon = phases.find(p => p.type === 'full_moon');
+  const phases    = data?.phases ?? [];
+  const newMoons  = phases.filter(p => p.type === 'new_moon');
+  const fullMoons = phases.filter(p => p.type === 'full_moon');
 
   return (
     <div style={s.page}>
@@ -210,8 +210,8 @@ export default function LunarCalendarPage() {
       {/* Info row: current moon + phases */}
       <div style={s.infoRow}>
         <CurrentMoonCard moon={data?.current_moon} />
-        {(newMoon || loading)  && <PhaseCard phase={newMoon}  />}
-        {(fullMoon || loading) && <PhaseCard phase={fullMoon} />}
+        {newMoons.map((p, i)  => <PhaseCard key={`nm-${i}`} phase={p} />)}
+        {fullMoons.map((p, i) => <PhaseCard key={`fm-${i}`} phase={p} />)}
       </div>
 
       {/* Month navigator */}
