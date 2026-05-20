@@ -93,11 +93,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ── Routers ──
-from backend.auth.router import router as auth_router
-from backend.profile.router import router as profile_router
-app.include_router(auth_router)
-app.include_router(profile_router)
+
 
 # ═══════════════════════════════════════════════════════════
 # HEALTH ENDPOINTS
@@ -1118,14 +1114,11 @@ async def get_monthly_forecast(
     return {"from_date": from_date, "to_date": to_date, "forecast": forecast}
 
 
-# ═══════════════════════════════════════════════════════════
-# PLANNER: MONTHLY (в формате методички)
-# ═══════════════════════════════════════════════════════════
-
+# ── Planner: monthly (no AI) ──────────────────────────────────────────────────
 @app.get(
     "/api/v1/chart/{chart_id}/planner/monthly",
-    tags=["forecast"],
-    summary="Monthly personal planner (in the style of the planning example)",
+    tags=["planner"],
+    summary="Monthly planner without AI — pure Python interpretation",
 )
 @limiter.limit(settings.rate_limit_anon)
 async def get_monthly_planner(
@@ -1134,220 +1127,45 @@ async def get_monthly_planner(
     db: Session = Depends(get_db),
 ):
     import calendar as cal_mod
-    from datetime import date as date_type, datetime as dt_type, timedelta
-    from backend.transit.engine import calculate_transits
-    from backend.transit.forecast_prompt import (
-        build_monthly_planner_prompt,
-        parse_forecast_response,
-    )
-    from backend.transit.house_passages import compute_planner_periods
-    import httpx, os
+    from datetime import date as date_type
+    from backend.transit.planner_engine import build_planner
 
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
 
-    # Диапазон: текущий месяц + 30 дней вперёд (чтобы захватить переходы планет)
-    # today должен быть локальным днём пользователя, а не UTC-сервера
-    _chart_tz = getattr(chart, "timezone", None)
-    if _chart_tz:
+    if chart.time_unknown:
+        return {"planner": {"error": "Время рождения неизвестно — планер недоступен."}}
+
+    # today в timezone пользователя
+    _tz = getattr(chart, "timezone", None)
+    if _tz:
         try:
             import pytz as _pytz
-            _tz = _pytz.timezone(_chart_tz)
             from datetime import datetime as _dt
-            today = _dt.now(_tz).date()
+            today = _dt.now(_pytz.timezone(_tz)).date()
         except Exception:
             today = date_type.today()
     else:
         today = date_type.today()
-    month_start  = today.replace(day=1)
-    last_day     = cal_mod.monthrange(today.year, today.month)[1]
-    month_end    = today.replace(day=last_day)
-    extended_end = month_end + timedelta(days=30)
 
-    from_str = month_start.isoformat()
-    to_str   = month_end.isoformat()
-
-    # ── Cache lookup: ключ = chart_id + текущий месяц, TTL = до конца месяца ──
-    cache_key = f"planner:{chart_id}:{today.year}-{today.month:02d}"
-    cached = transit_cache.get(cache_key)
-    if cached:
-        logger.info("Planner cache hit: %s", cache_key)
-        return cached
-
-    events = calculate_transits(
-        natal_planets=chart.planets,
-        from_date=month_start,
-        to_date=extended_end,
-    )
-    events_dicts = [
-        {
-            "transit_planet": e.transit_planet,
-            "natal_planet":   e.natal_planet,
-            "aspect_type":    e.aspect_type,
-            "transit_sign":   e.transit_sign,
-            "peak_date":      e.peak_date,
-            "start_date":     e.start_date,
-            "end_date":       e.end_date,
-            "peak_orb":       e.peak_orb,
-        }
-        for e in events
-    ]
+    month_start = today.replace(day=1)
+    last_day = cal_mod.monthrange(today.year, today.month)[1]
+    month_end = today.replace(day=last_day)
 
     natal_profile = {
-        "planets":      chart.planets,
-        "houses":       chart.houses,
-        "ascendant":    chart.ascendant,
-        "midheaven":    chart.midheaven,
-        "time_unknown": chart.time_unknown,
+        "planets":   chart.planets,
+        "houses":    chart.houses,
+        "ascendant": chart.ascendant,
+        "midheaven": chart.midheaven,
     }
 
-    # Точные даты переходов транзитных планет по натальным домам.
-    # Если время рождения неизвестно — куспидов нет, periods будут пустыми
-    # и промпт упадёт на старую (менее точную) логику.
-    precomputed_periods = compute_planner_periods(
+    planner = build_planner(
         natal_profile=natal_profile,
         from_date=month_start,
         to_date=month_end,
         today=today,
-        user_timezone=getattr(chart, "timezone", None),
+        user_timezone=_tz,
     )
 
-    prompt = build_monthly_planner_prompt(
-        transit_events=events_dicts,
-        natal_profile=natal_profile,
-        from_date=from_str,
-        to_date=to_str,
-        precomputed_periods=precomputed_periods if not chart.time_unknown else None,
-    )
-
-    raw = ""
-    openai_key = os.getenv("OPENAI_API_KEY", "")
-
-    if os.getenv("ANTHROPIC_API_KEY"):
-        try:
-            async with httpx.AsyncClient(timeout=90) as client:
-                resp = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key":         os.getenv("ANTHROPIC_API_KEY"),
-                        "anthropic-version": "2023-06-01",
-                        "content-type":      "application/json",
-                    },
-                    json={
-                        "model":      "claude-sonnet-4-20250514",
-                        "max_tokens": 3000,
-                        "messages":   [{"role": "user", "content": prompt}],
-                    },
-                )
-                data = resp.json()
-                raw  = data["content"][0]["text"]
-        except Exception as e:
-            logger.warning(f"Anthropic monthly planner failed: {e}")
-
-    if not raw and openai_key:
-        try:
-            async with httpx.AsyncClient(timeout=90) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {openai_key}",
-                        "Content-Type":  "application/json",
-                    },
-                    json={
-                        "model":           "gpt-4o",
-                        "messages":        [{"role": "user", "content": prompt}],
-                        "max_tokens":      3000,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
-                data = resp.json()
-                raw  = data["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.warning(f"OpenAI monthly planner failed: {e}")
-
-    if not raw:
-        raise HTTPException(status_code=503, detail="AI planner unavailable.")
-
-    try:
-        planner = parse_forecast_response(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Parse error: {e}")
-
-    response = {
-        "from_date": from_str,
-        "to_date":   to_str,
-        "planner":   planner,
-    }
-
-    # Cache до конца месяца (TTL в секундах от now до 23:59:59 последнего дня)
-    end_of_month_dt = dt_type.combine(month_end, dt_type.max.time())
-    ttl_seconds = max(60, int((end_of_month_dt - dt_type.now()).total_seconds()))
-    transit_cache.set(cache_key, response, ttl=ttl_seconds)
-
-    return response
-
-# ═══════════════════════════════════════════════════════════
-# LUNAR CALENDAR
-# ═══════════════════════════════════════════════════════════
-
-@app.get(
-    "/api/v1/calendar/lunar",
-    tags=["calendar"],
-    summary="Lunar calendar: moon phases + moon sign per day",
-)
-@limiter.limit(settings.rate_limit_anon)
-async def get_lunar_calendar(
-    request: Request,
-    year: int = None,
-    month: int = None,
-):
-    """
-    Возвращает новолуния/полнолуния месяца, знак Луны на каждый день,
-    и текущее положение Луны (знак + градус).
-
-    Query params: year (int), month (int) — по умолчанию текущий месяц.
-    """
-    from datetime import date as date_type, datetime as dt_type
-    from backend.calendar.engine import get_moon_phases, ZODIAC_SIGNS
-    import swisseph as swe
-    import calendar as cal_mod
-
-    today = date_type.today()
-    year  = year  or today.year
-    month = month or today.month
-
-    # Фазы луны месяца
-    phases = get_moon_phases(year, month)
-
-    # Знак Луны на каждый день месяца (полдень UTC)
-    _, days_in_month = cal_mod.monthrange(year, month)
-    daily_signs = []
-    for day in range(1, days_in_month + 1):
-        d = date_type(year, month, day)
-        jd = swe.julday(d.year, d.month, d.day, 12.0)
-        lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
-        sign = ZODIAC_SIGNS[int(lon[0] // 30) % 12]
-        daily_signs.append({
-            "date": d.isoformat(),
-            "sign": sign,
-            "longitude": round(lon[0], 2),
-        })
-
-    # Текущее положение Луны
-    now = dt_type.utcnow()
-    jd_now = swe.julday(now.year, now.month, now.day, now.hour + now.minute / 60)
-    lon_now, _ = swe.calc_ut(jd_now, swe.MOON, swe.FLG_SWIEPH)
-    current_sign   = ZODIAC_SIGNS[int(lon_now[0] // 30) % 12]
-    current_degree = round(lon_now[0] % 30, 1)
-
-    return {
-        "year":  year,
-        "month": month,
-        "current_moon": {
-            "sign":   current_sign,
-            "degree": current_degree,
-        },
-        "phases":      [p.to_dict() if hasattr(p, "to_dict") else p for p in phases],
-        "daily_signs": daily_signs,
-    }
+    return {"planner": planner}
