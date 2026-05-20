@@ -74,6 +74,12 @@ export default function ChartPage({ currentUser }) {
           >
             📅 Планер на месяц
           </button>
+          <button
+            onClick={() => navigate(`/lunar?chartId=${chartId}`)}
+            style={s.plannerLinkBtn}
+          >
+            🌙 Лунный календарь
+          </button>
           {activeTab === 'chart' && (
             <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
           )}

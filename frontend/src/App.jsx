@@ -7,6 +7,7 @@ import ChartPage from './pages/ChartPage';
 import PlannerPage from './PlannerPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
+import LunarCalendarPage from './pages/LunarCalendarPage';
 
 function Header() {
   const { user, logout } = useAuth();
@@ -25,6 +26,7 @@ function Header() {
 
           <nav className="flex items-center gap-4 text-sm text-brand-muted">
             <Link to="/" className="hover:text-brand-text transition-colors">Главная</Link>
+            <Link to="/lunar" className="hover:text-brand-text transition-colors">🌙 Луна</Link>
             <a href="/api/docs" target="_blank" rel="noopener"
                className="hover:text-brand-text transition-colors">API Docs</a>
 
@@ -83,6 +85,7 @@ function AppRoutes() {
           <Route path="/chart/:chartId" element={<ChartPage currentUser={user} />} />
           <Route path="/planner/:id" element={<PlannerPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/lunar" element={<LunarCalendarPage />} />
         </Routes>
       </main>
       <footer className="border-t border-brand-accent/10 py-6 text-center text-brand-muted text-xs">

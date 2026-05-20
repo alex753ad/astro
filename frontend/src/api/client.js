@@ -151,4 +151,13 @@ function _connectSSE(url, onChunk, onDone, onError) {
   return () => eventSource.close();
 }
 
+// ── Lunar Calendar API ──
+
+export async function getLunarCalendar(year, month) {
+  const params = new URLSearchParams();
+  if (year)  params.set('year', year);
+  if (month) params.set('month', month);
+  return request(`/calendar/lunar?${params}`);
+}
+
 export { ApiError };
