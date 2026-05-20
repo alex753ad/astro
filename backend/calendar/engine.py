@@ -118,23 +118,20 @@ def get_moon_phases(year: int, month: int) -> list[CalendarEvent]:
     else:
         jd1 = _jd(date(year, month + 1, 1), 0)
     events = []
-    mid_jd = (jd0 + jd1) / 2
     for target, etype, emoji in [
         (0,   "new_moon",  "🌑"),
         (180, "full_moon", "🌕"),
     ]:
         found = _find_phase(jd0, jd1, target)
-        if not found:
-            continue
-        jd = min(found, key=lambda x: abs(x - mid_jd))
-        dt, tm = _jd_to_dt(jd)
-        sign  = _sign(_lon(jd, "Moon"))
-        label = "Новолуние" if etype == "new_moon" else "Полнолуние"
-        events.append(CalendarEvent(
-            date=dt, time=f"{tm} UTC", type=etype,
-            planet="Moon", sign=sign, emoji=emoji,
-            description=f"{label} в {sign}",
-        ))
+        for jd in found:
+            dt, tm = _jd_to_dt(jd)
+            sign  = _sign(_lon(jd, "Moon"))
+            label = "Новолуние" if etype == "new_moon" else "Полнолуние"
+            events.append(CalendarEvent(
+                date=dt, time=f"{tm} UTC", type=etype,
+                planet="Moon", sign=sign, emoji=emoji,
+                description=f"{label} в {sign}",
+            ))
     return events
 
 
