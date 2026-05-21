@@ -233,77 +233,59 @@ def compute_planner_periods(
             ],
         })
 
-    # ── Луна на 7 дней от today ──
+    # ── Луна на 14 дней от today (периоды нахождения по домам) ──
     import logging as _logging
     _logging.getLogger('astro.house_passages').info('CUSPS: %s', cusps)
-    # Сканирование всегда в UTC; сдвиг для отображения считается отдельно
+    # Сканирование в UTC; сдвиг для отображения применяется к каждому периоду
     import pytz
     tz_offset = timedelta(0)
     if user_timezone:
         try:
             tz = pytz.timezone(user_timezone)
-            tz_offset = tz.utcoffset(datetime.utcnow())
+            # FIX: используем дату начала сканирования, а не utcnow(),
+            # чтобы корректно учитывать переход на летнее/зимнее время
+            local_day_start_probe = datetime(today.year, today.month, today.day, 0, 0)
+            tz_offset = tz.utcoffset(local_day_start_probe)
         except Exception:
             tz_offset = timedelta(0)
 
     # today в локальном времени пользователя — переводим начало дня в UTC для сканирования
     local_day_start = datetime(today.year, today.month, today.day, 0, 0)
     week_dt_start_utc = local_day_start - tz_offset
-    week_dt_end_utc = week_dt_start_utc + timedelta(days=7) - timedelta(minutes=1)
-    moon_passages = calculate_house_passages("Moon", cusps, week_dt_start_utc, week_dt_end_utc)
+    # FIX: расширяем окно до 14 дней — Луна меняет дом каждые ~2.5 дня,
+    # 7 дней не хватало чтобы показать полные периоды
+    week_dt_end_utc = week_dt_start_utc + timedelta(days=14) - timedelta(minutes=1)
+    moon_passages_raw = calculate_house_passages("Moon", cusps, week_dt_start_utc, week_dt_end_utc)
 
-    # Группируем по дням (в локальном времени пользователя)
+    # FIX: возвращаем периоды нахождения Луны по домам (не группируем по дням).
+    # Каждый элемент — один непрерывный период в одном доме со временем входа и выхода.
     moon_week = []
-    for i in range(7):
-        day_start_local = local_day_start + timedelta(days=i)
-        day_end_local = day_start_local + timedelta(days=1) - timedelta(minutes=1)
-        day_label = f"{day_start_local.strftime('%d.%m')} {DAY_RU_SHORT[day_start_local.weekday()]}"
+    for p in moon_passages_raw:
+        start_local = p["start_dt"] + tz_offset
+        end_local   = p["end_dt"]   + tz_offset
 
-        day_start_utc = day_start_local - tz_offset
-        day_end_utc = day_end_local - tz_offset
-
-        # Какие куски проходов луны затрагивают этот день?
-        day_starts = []
-        for p in moon_passages:
-            if p["end_dt"] < day_start_utc or p["start_dt"] > day_end_utc:
-                continue
-            from_time_utc = p["start_dt"] if p["start_dt"] >= day_start_utc else day_start_utc
-            to_time_utc   = p["end_dt"]   if p["end_dt"]   <= day_end_utc   else day_end_utc
-            from_time_local = from_time_utc + tz_offset
-            to_time_local   = to_time_utc   + tz_offset
-            day_starts.append({
-                "house":      p["house"],
-                "from_time":  from_time_local.strftime("%H:%M"),
-                "to_time":    to_time_local.strftime("%H:%M"),
-                "all_day":    from_time_local.hour == 0 and from_time_local.minute == 0
-                              and to_time_local.hour == 23 and to_time_local.minute >= 58,
-            })
-
-        # Строим строку времени в Python — не доверяем ИИ форматирование
-        if not day_starts:
-            time_str = ""
-            house_main = 0
-        elif len(day_starts) == 1:
-            e = day_starts[0]
-            if e["from_time"] == "00:00" and e["to_time"] >= "23:58":
-                time_str = "весь день"
-            elif e["from_time"] == "00:00":
-                time_str = f"с 00:00 до {e['to_time']}"
-            else:
-                time_str = f"с {e['from_time']}"
-            house_main = e["house"]
-        else:
-            parts = []
-            for e in day_starts:
-                parts.append(f"с {e['from_time']} Луна в {e['house']} доме")
-            time_str = ", ".join(parts)
-            house_main = day_starts[0]["house"]
+        # Метка входа: "21.05 Чт 03:22"
+        start_label = (
+            f"{start_local.strftime('%d.%m')} "
+            f"{DAY_RU_SHORT[start_local.weekday()]} "
+            f"{start_local.strftime('%H:%M')}"
+        )
+        # Метка выхода: "25.05 Пн 01:03"
+        end_label = (
+            f"{end_local.strftime('%d.%m')} "
+            f"{DAY_RU_SHORT[end_local.weekday()]} "
+            f"{end_local.strftime('%H:%M')}"
+        )
 
         moon_week.append({
-            "date":         day_label,
-            "time":         time_str,
-            "house":        house_main,
-            "house_starts": day_starts,
+            # date = момент входа Луны в дом (для совместимости с planner_engine)
+            "date":  start_label,
+            # time = метка "до <дата выхода>" — используется в planner_engine как подзаголовок
+            "time":  f"до {end_label}",
+            "house": p["house"],
+            # Сохраняем полные datetime для возможной дальнейшей обработки
+            "start_dt": start_local.isoformat(),
+            "end_dt":   end_local.isoformat(),
         })
 
     # ── Медленные планеты: Юпитер..Плутон — берём дом на середину месяца ──
