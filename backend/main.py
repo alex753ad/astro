@@ -1295,7 +1295,12 @@ async def get_lunar_calendar(
     year  = year  or today.year
     month = month or today.month
 
-    # Точный расчёт фаз через swisseph mooncross_ut
+    # Точный расчёт фаз через бисекцию
+    def _moon_angle(jd):
+        sun, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
+        moon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        return (moon[0] - sun[0]) % 360
+
     jd_m0 = swe.julday(year, month, 1, 0)
     jd_m1 = swe.julday(year + 1, 1, 1, 0) if month == 12 else swe.julday(year, month + 1, 1, 0)
     phases = []
@@ -1304,37 +1309,49 @@ async def get_lunar_calendar(
         (180, "full_moon", "🌕", "Полнолуние"),
     ]:
         jd = jd_m0 - 32
-        while True:
-            exact = swe.mooncross_ut(target, jd, swe.FLG_SWIEPH)
-            if exact > jd_m1 + 2:
-                break
-            jd = exact + 27
-            y2, mo2, d2, h2 = swe.revjul(exact)
-            h2_gmt3 = h2 + 3
-            d2_gmt3 = int(d2)
-            mo2_gmt3 = int(mo2)
-            y2_gmt3 = int(y2)
-            if h2_gmt3 >= 24:
-                h2_gmt3 -= 24
-                d2_gmt3 += 1
-                import calendar as _cal
-                _, max_day = _cal.monthrange(y2_gmt3, mo2_gmt3)
-                if d2_gmt3 > max_day:
-                    d2_gmt3 = 1
-                    mo2_gmt3 += 1
-                    if mo2_gmt3 > 12:
-                        mo2_gmt3 = 1
-                        y2_gmt3 += 1
-            hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
-            moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
-            sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
-            phases.append({
-                "date": f"{y2_gmt3:04d}-{mo2_gmt3:02d}-{d2_gmt3:02d}",
-                "time": f"{hh:02d}:{mm:02d} GMT+3",
-                "type": etype, "planet": "Moon",
-                "sign": sign, "emoji": emoji,
-                "description": f"{label} в {sign}",
-            })
+        prev = None
+        while jd < jd_m1 + 2:
+            val = (_moon_angle(jd) - target) % 360
+            if val > 180: val -= 360
+            if prev is not None and prev * val < 0:
+                lo, hi = jd - 1.0, jd
+                for _ in range(60):
+                    mid = (lo + hi) / 2
+                    v = (_moon_angle(mid) - target) % 360
+                    if v > 180: v -= 360
+                    if prev * v > 0:
+                        lo = mid
+                    else:
+                        hi = mid
+                exact = (lo + hi) / 2
+                y2, mo2, d2, h2 = swe.revjul(exact)
+                h2_gmt3 = h2 + 3
+                d2_gmt3 = int(d2)
+                mo2_gmt3 = int(mo2)
+                y2_gmt3 = int(y2)
+                if h2_gmt3 >= 24:
+                    h2_gmt3 -= 24
+                    d2_gmt3 += 1
+                    import calendar as _cal
+                    _, max_day = _cal.monthrange(y2_gmt3, mo2_gmt3)
+                    if d2_gmt3 > max_day:
+                        d2_gmt3 = 1
+                        mo2_gmt3 += 1
+                        if mo2_gmt3 > 12:
+                            mo2_gmt3 = 1
+                            y2_gmt3 += 1
+                hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
+                moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
+                sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
+                phases.append({
+                    "date": f"{y2_gmt3:04d}-{mo2_gmt3:02d}-{d2_gmt3:02d}",
+                    "time": f"{hh:02d}:{mm:02d} GMT+3",
+                    "type": etype, "planet": "Moon",
+                    "sign": sign, "emoji": emoji,
+                    "description": f"{label} в {sign}",
+                })
+            prev = val
+            jd += 1.0
         # Оставляем только фазы текущего месяца
     month_prefix = f"{year:04d}-{month:02d}-"
     phases = [p for p in phases if p["date"].startswith(month_prefix)]
