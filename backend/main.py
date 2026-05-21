@@ -1309,6 +1309,7 @@ async def get_lunar_calendar(
             "sign":   current_sign,
             "degree": current_degree,
         },
-        "phases":      [p.to_dict() if hasattr(p, "to_dict") else p for p in phases],
+        "phases":      [p.to_dict() if hasattr(p, "to_dict") else p for p in phases
+                        if (p.to_dict() if hasattr(p, "to_dict") else p).get("date", "")[5:7] == f"{month:02d}"],
         "daily_signs": daily_signs,
     }
