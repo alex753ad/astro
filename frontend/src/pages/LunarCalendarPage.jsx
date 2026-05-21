@@ -77,7 +77,7 @@ function PhaseCard({ phase }) {
         <span style={{ fontSize: 32, lineHeight: 1 }}>{emoji}</span>
         <div>
           <div style={s.infoValue}>{phase.sign}</div>
-          <div style={s.infoSub}>{day}.{mo} · {time} UTC</div>
+          <div style={s.infoSub}>{day}.{mo} · {time} GMT+3</div>
         </div>
       </div>
     </div>
