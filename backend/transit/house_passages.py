@@ -234,6 +234,8 @@ def compute_planner_periods(
         })
 
     # ── Луна на 7 дней от today ──
+    import logging as _logging
+    _logging.getLogger('astro.house_passages').info('CUSPS: %s', cusps)
     # Сканирование всегда в UTC; сдвиг для отображения считается отдельно
     import pytz
     tz_offset = timedelta(0)
