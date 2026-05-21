@@ -116,12 +116,16 @@ def build_planner(
         })
 
     # ── week_days: луна ───────────────────────────────────────────────────────
+    # moon_week теперь содержит периоды нахождения Луны в доме (не дни недели).
+    # date  = "21.05 Чт 03:22"  (момент входа в дом)
+    # time  = "до 25.05 Пн 01:03"  (момент выхода из дома)
+    # house = номер дома
     week_days = []
-    for day in periods.get("moon_week", []):
-        house = day.get("house", 0)
+    for passage in periods.get("moon_week", []):
+        house = passage.get("house", 0)
         week_days.append({
-            "date":  day["date"],
-            "time":  day.get("time", ""),
+            "date":  passage["date"],
+            "time":  passage.get("time", ""),
             "house": house,
             "items": _moon_items(house) if house else [],
         })
