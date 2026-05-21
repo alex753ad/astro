@@ -196,17 +196,32 @@ def assign_houses(planets: list[PlanetResult], houses: list[HouseResult]) -> lis
 
 
 def _find_house(longitude: float, cusps: list[float]) -> int:
-    """Determine which house a given longitude falls in."""
-    for i in range(12):
-        cusp_start = cusps[i]
-        cusp_end = cusps[(i + 1) % 12]
+    """Determine which house a given longitude falls in.
 
-        if cusp_start < cusp_end:
-            if cusp_start <= longitude < cusp_end:
-                return i + 1
-        else:
-            # Wraps around 0° Aries
-            if longitude >= cusp_start or longitude < cusp_end:
+    Normalises all cusps relative to cusp[0] so the comparison works
+    correctly even when the sequence wraps around 0° Aries or when
+    Placidus produces non-monotonic cusp sequences.
+    """
+    lon = longitude % 360
+    asc = cusps[0] % 360
+
+    # Shift longitude and all cusps so that cusp[0] = 0
+    def _norm(x: float) -> float:
+        return (x - asc) % 360
+
+    lon_n = _norm(lon)
+
+    for i in range(12):
+        start_n = _norm(cusps[i])
+        end_n   = _norm(cusps[(i + 1) % 12])
+
+        # In the normalised frame the sector always runs start_n → end_n
+        # with end_n > start_n (because we shifted by asc).
+        # The only exception is the last house which wraps back to 360.
+        if end_n == 0:
+            end_n = 360
+        if start_n < end_n:
+            if start_n <= lon_n < end_n:
                 return i + 1
 
     return 1  # fallback
