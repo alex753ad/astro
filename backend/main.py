@@ -1329,6 +1329,12 @@ async def get_lunar_calendar(
                     else:
                         hi = mid
                 exact = (lo + hi) / 2
+                # Проверяем что нашли реальную фазу, а не разрыв функции
+                real_angle = _moon_angle(exact)
+                if abs((real_angle - target + 180) % 360 - 180) > 10:
+                    prev = val
+                    jd += 1.0
+                    continue
                 y2, mo2, d2, h2 = swe.revjul(exact)
                 h2_gmt3 = h2 + 3
                 d2_gmt3 = int(d2)
