@@ -1323,7 +1323,18 @@ async def get_lunar_calendar(
             ).days))
             return [filtered[0]]
         else:
-            return filtered  # возвращаем все реальные полнолуния (1 или 2 в месяц)
+            # Убираем ложные: минимум 20 дней между полнолуниями
+            result = []
+            for p in filtered:
+                if not result:
+                    result.append(p)
+                else:
+                    from datetime import datetime as _dt2
+                    diff = abs((_dt2.strptime(p["date"], "%Y-%m-%d") -
+                                _dt2.strptime(result[-1]["date"], "%Y-%m-%d")).days)
+                    if diff >= 20:
+                        result.append(p)
+            return result[:2]  # максимум 2 полнолуния в месяц
     phases = _keep_phases(phases, "new_moon") + _keep_phases(phases, "full_moon")
     phases.sort(key=lambda x: x["date"])
   
