@@ -1282,12 +1282,12 @@ async def get_lunar_calendar(
         (0,   "new_moon",  "🌑", "Новолуние"),
         (180, "full_moon", "🌕", "Полнолуние"),
     ]:
-        jd, prev_val = jd_m0, None
-        while jd < jd_m1:
+        jd, prev_val = jd_m0 - 1, None
+        while jd < jd_m1 + 1:
             val = (_moon_angle(jd) - target) % 360
             if val > 180: val -= 360
             if prev_val is not None and prev_val * val < 0:
-                lo, hi = jd - 0.5, jd
+                lo, hi = jd - 1.0, jd
                 for _ in range(60):
                     mid = (lo + hi) / 2
                     v = (_moon_angle(mid) - target) % 360
@@ -1324,7 +1324,7 @@ async def get_lunar_calendar(
                     "description": f"{label} в {sign}",
                 })
             prev_val = val
-            jd += 0.5
+            jd += 1.0
     phases.sort(key=lambda x: x["date"])
     # Фильтр: 1 новолуние (ближайшее к середине), полнолуния — первое и последнее
     from datetime import datetime as _dt
