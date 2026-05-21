@@ -1288,12 +1288,15 @@ async def get_lunar_calendar(
             if val > 180: val -= 360
             if prev_val is not None and prev_val * val < 0:
                 lo, hi = jd - 0.25, jd
+                sign_lo = prev_val  # знак на lo
                 for _ in range(60):
                     mid = (lo + hi) / 2
                     v = (_moon_angle(mid) - target) % 360
                     if v > 180: v -= 360
-                    if v > 0: hi = mid
-                    else: lo = mid
+                    if (v * sign_lo) > 0:
+                        lo = mid
+                    else:
+                        hi = mid
                 exact = (lo + hi) / 2
                 y2, mo2, d2, h2 = swe.revjul(exact)
                 # Конвертируем UTC -> GMT+3
