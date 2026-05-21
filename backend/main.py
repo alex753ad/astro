@@ -1172,6 +1172,23 @@ async def get_monthly_planner(
     return {"planner": planner}
 
 
+
+@app.get('/api/v1/debug/moon', tags=['debug'])
+async def debug_moon():
+    import swisseph as swe, os
+    swe.set_ephe_path(os.getenv('EPHE_PATH', 'data/ephe'))
+    jd0 = swe.julday(2026, 4, 29, 0)
+    result = []
+    for target in [0, 180]:
+        jd = jd0
+        for _ in range(3):
+            exact = swe.mooncross_ut(target, jd, swe.FLG_SWIEPH)
+            y, mo, d, h = swe.revjul(exact)
+            result.append({'target': target, 'date': f"{int(y)}-{int(mo):02d}-{int(d):02d}", 'hour_utc': round(h, 4)})
+            jd = exact + 27
+    return result
+
+
 # ═══════════════════════════════════════════════════════════
 # GENERAL CALENDAR — бесплатный, без натальной карты
 # ═══════════════════════════════════════════════════════════
