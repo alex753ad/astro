@@ -1294,7 +1294,7 @@ async def get_lunar_calendar(
         (0,   "new_moon",  "🌑", "Новолуние"),
         (180, "full_moon", "🌕", "Полнолуние"),
     ]:
-        jd = jd_m0 - 2
+        jd = jd_m0 - 32
         while True:
             exact = swe.mooncross_ut(target, jd, swe.FLG_SWIEPH)
             if exact > jd_m1 + 2:
