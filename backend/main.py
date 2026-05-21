@@ -1270,20 +1270,19 @@ async def get_lunar_calendar(
     month = month or today.month
 
     raw_phases = get_moon_phases(year, month)
-    # Фильтр: только фазы текущего месяца, без дублей по дате+тип
     seen = set()
     phases = []
     for p in raw_phases:
         pd = p.to_dict() if hasattr(p, "to_dict") else p
         date_str = pd.get("date", "")
-        ptype    = pd.get("type", "")
+        ptype = pd.get("type", "")
         pm = int(date_str[5:7]) if len(date_str) >= 7 else 0
-        py = int(date_str[:4])  if len(date_str) >= 4 else 0
+        py = int(date_str[:4]) if len(date_str) >= 4 else 0
         key = f"{date_str}_{ptype}"
         if py == year and pm == month and key not in seen:
             seen.add(key)
             phases.append(p)
-
+  
     _, days_in_month = cal_mod.monthrange(year, month)
     daily_signs = []
     for day in range(1, days_in_month + 1):
