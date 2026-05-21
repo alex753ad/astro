@@ -1315,12 +1315,14 @@ async def get_lunar_calendar(
             if val > 180: val -= 360
             if prev is not None and prev * val < 0:
                 lo, hi = jd - 1.0, jd
+                val_lo = prev  # знак на левой границе
                 for _ in range(60):
                     mid = (lo + hi) / 2
                     v = (_moon_angle(mid) - target) % 360
                     if v > 180: v -= 360
-                    if prev * v > 0:
+                    if val_lo * v > 0:
                         lo = mid
+                        val_lo = v
                     else:
                         hi = mid
                 exact = (lo + hi) / 2
