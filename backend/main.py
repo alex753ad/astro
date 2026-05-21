@@ -1265,8 +1265,6 @@ async def get_lunar_calendar(
     import swisseph as swe
     import calendar as cal_mod
 
-    swe.set_ephe_path("/app/data/ephe")
-
     today = date_type.today()
     year  = year  or today.year
     month = month or today.month
@@ -1310,6 +1308,22 @@ async def get_lunar_calendar(
                 })
             prev_val = val
             jd += 0.5
+    phases.sort(key=lambda x: x["date"])
+    # Убираем дубли: оставляем одно новолуние и макс 2 полнолуния
+    from datetime import datetime as _dt
+    def _keep_phases(ph_list, etype):
+        filtered = [p for p in ph_list if p["type"] == etype]
+        if len(filtered) <= (2 if etype == "full_moon" else 1):
+            return filtered
+        # Оставляем ближайшие к середине месяца
+        mid = f"{year:04d}-{month:02d}-15"
+        filtered.sort(key=lambda p: abs((
+            _dt.strptime(p["date"], "%Y-%m-%d") -
+            _dt.strptime(mid, "%Y-%m-%d")
+        ).days))
+        return sorted(filtered[:2 if etype == "full_moon" else 1],
+                      key=lambda p: p["date"])
+    phases = _keep_phases(phases, "new_moon") + _keep_phases(phases, "full_moon")
     phases.sort(key=lambda x: x["date"])
   
     _, days_in_month = cal_mod.monthrange(year, month)
