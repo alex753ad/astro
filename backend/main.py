@@ -1269,12 +1269,7 @@ async def get_lunar_calendar(
     year  = year  or today.year
     month = month or today.month
 
-    # Точный расчёт фаз через swisseph бисекцией
-    def _moon_angle(jd):
-        sun_lon, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
-        moon_lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
-        return (moon_lon[0] - sun_lon[0]) % 360
-
+    # Точный расчёт фаз через swisseph mooncross_ut
     jd_m0 = swe.julday(year, month, 1, 0)
     jd_m1 = swe.julday(year + 1, 1, 1, 0) if month == 12 else swe.julday(year, month + 1, 1, 0)
     phases = []
@@ -1282,53 +1277,39 @@ async def get_lunar_calendar(
         (0,   "new_moon",  "🌑", "Новолуние"),
         (180, "full_moon", "🌕", "Полнолуние"),
     ]:
-        jd, prev_val = jd_m0 - 1, None
-        while jd < jd_m1 + 1:
-            val = (_moon_angle(jd) - target) % 360
-            if val > 180: val -= 360
-            if prev_val is not None and prev_val * val < 0:
-                lo, hi = jd - 0.25, jd
-                sign_lo = prev_val  # знак на lo
-                for _ in range(60):
-                    mid = (lo + hi) / 2
-                    v = (_moon_angle(mid) - target) % 360
-                    if v > 180: v -= 360
-                    if (v * sign_lo) > 0:
-                        lo = mid
-                    else:
-                        hi = mid
-                exact = (lo + hi) / 2
-                y2, mo2, d2, h2 = swe.revjul(exact)
-                # Конвертируем UTC -> GMT+3
-                h2_gmt3 = h2 + 3
-                d2_gmt3 = d2
-                mo2_gmt3 = mo2
-                y2_gmt3 = y2
-                if h2_gmt3 >= 24:
-                    h2_gmt3 -= 24
-                    d2_gmt3 += 1
-                    import calendar as _cal
-                    _, max_day = _cal.monthrange(int(y2), int(mo2))
-                    if d2_gmt3 > max_day:
-                        d2_gmt3 = 1
-                        mo2_gmt3 += 1
-                        if mo2_gmt3 > 12:
-                            mo2_gmt3 = 1
-                            y2_gmt3 += 1
-                y2, mo2, d2 = y2_gmt3, mo2_gmt3, d2_gmt3
-                hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
-                moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
-                sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
-                phases.append({
-                    "date": f"{int(y2):04d}-{int(mo2):02d}-{int(d2):02d}",
-                    "time": f"{hh:02d}:{mm:02d} GMT+3",
-                    "type": etype, "planet": "Moon",
-                    "sign": sign, "emoji": emoji,
-                    "description": f"{label} в {sign}",
-                })
-            prev_val = val
-            jd += 0.25
-    # Оставляем только фазы текущего месяца
+        jd = jd_m0 - 2
+        while True:
+            exact = swe.mooncross_ut(target, jd, swe.FLG_SWIEPH)
+            if exact > jd_m1 + 2:
+                break
+            jd = exact + 27
+            y2, mo2, d2, h2 = swe.revjul(exact)
+            h2_gmt3 = h2 + 3
+            d2_gmt3 = int(d2)
+            mo2_gmt3 = int(mo2)
+            y2_gmt3 = int(y2)
+            if h2_gmt3 >= 24:
+                h2_gmt3 -= 24
+                d2_gmt3 += 1
+                import calendar as _cal
+                _, max_day = _cal.monthrange(y2_gmt3, mo2_gmt3)
+                if d2_gmt3 > max_day:
+                    d2_gmt3 = 1
+                    mo2_gmt3 += 1
+                    if mo2_gmt3 > 12:
+                        mo2_gmt3 = 1
+                        y2_gmt3 += 1
+            hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
+            moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
+            sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
+            phases.append({
+                "date": f"{y2_gmt3:04d}-{mo2_gmt3:02d}-{d2_gmt3:02d}",
+                "time": f"{hh:02d}:{mm:02d} GMT+3",
+                "type": etype, "planet": "Moon",
+                "sign": sign, "emoji": emoji,
+                "description": f"{label} в {sign}",
+            })
+        # Оставляем только фазы текущего месяца
     month_prefix = f"{year:04d}-{month:02d}-"
     phases = [p for p in phases if p["date"].startswith(month_prefix)]
     phases.sort(key=lambda x: x["date"])
