@@ -1190,7 +1190,7 @@ async def debug_moon():
             result.append({'target': target, 'date': f"{int(y)}-{int(mo):02d}-{int(d):02d}", 'hour_utc': round(h, 4)})
             jd = exact + 27
     # Прямая проверка: положение Луны и Солнца на 1 мая 2026 17:22 UTC (полнолуние по факту)
-    jd_check = swe.julday(2026, 4, 30, 17, 22)
+    jd_check = swe.julday(2026, 4, 30, 17 + 22/60)
     sun, _ = swe.calc_ut(jd_check, swe.SUN, swe.FLG_SWIEPH)
     moon, _ = swe.calc_ut(jd_check, swe.MOON, swe.FLG_SWIEPH)
     angle = (moon[0] - sun[0]) % 360
