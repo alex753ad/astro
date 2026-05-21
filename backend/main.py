@@ -1265,6 +1265,8 @@ async def get_lunar_calendar(
     import swisseph as swe
     import calendar as cal_mod
 
+    swe.set_ephe_path("/app/data/ephe")
+
     today = date_type.today()
     year  = year  or today.year
     month = month or today.month
