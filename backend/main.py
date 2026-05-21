@@ -1296,12 +1296,29 @@ async def get_lunar_calendar(
                     else: lo = mid
                 exact = (lo + hi) / 2
                 y2, mo2, d2, h2 = swe.revjul(exact)
-                hh, mm = int(h2), int((h2 % 1) * 60)
+                # Конвертируем UTC -> GMT+3
+                h2_gmt3 = h2 + 3
+                d2_gmt3 = d2
+                mo2_gmt3 = mo2
+                y2_gmt3 = y2
+                if h2_gmt3 >= 24:
+                    h2_gmt3 -= 24
+                    d2_gmt3 += 1
+                    import calendar as _cal
+                    _, max_day = _cal.monthrange(int(y2), int(mo2))
+                    if d2_gmt3 > max_day:
+                        d2_gmt3 = 1
+                        mo2_gmt3 += 1
+                        if mo2_gmt3 > 12:
+                            mo2_gmt3 = 1
+                            y2_gmt3 += 1
+                y2, mo2, d2 = y2_gmt3, mo2_gmt3, d2_gmt3
+                hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
                 moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
                 sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
                 phases.append({
                     "date": f"{int(y2):04d}-{int(mo2):02d}-{int(d2):02d}",
-                    "time": f"{hh:02d}:{mm:02d} UTC",
+                    "time": f"{hh:02d}:{mm:02d} GMT+3",
                     "type": etype, "planet": "Moon",
                     "sign": sign, "emoji": emoji,
                     "description": f"{label} в {sign}",
