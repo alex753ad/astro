@@ -1178,24 +1178,27 @@ async def debug_moon():
     import swisseph as swe, os
     ephe_path = os.getenv('EPHE_PATH', 'data/ephe')
     swe.set_ephe_path(ephe_path)
-    files = os.listdir(ephe_path) if os.path.exists(ephe_path) else []
-    cwd = os.getcwd()
-    jd0 = swe.julday(2026, 4, 29, 0)
-    result = []
-    for target in [0, 180]:
-        jd = jd0
-        for _ in range(3):
-            exact = swe.mooncross_ut(target, jd, swe.FLG_SWIEPH)
-            y, mo, d, h = swe.revjul(exact)
-            result.append({'target': target, 'date': f"{int(y)}-{int(mo):02d}-{int(d):02d}", 'hour_utc': round(h, 4)})
-            jd = exact + 27
-    # Прямая проверка: положение Луны и Солнца на 1 мая 2026 17:22 UTC (полнолуние по факту)
-    jd_check = swe.julday(2026, 4, 30, 17 + 22/60)
-    sun, _ = swe.calc_ut(jd_check, swe.SUN, swe.FLG_SWIEPH)
-    moon, _ = swe.calc_ut(jd_check, swe.MOON, swe.FLG_SWIEPH)
-    angle = (moon[0] - sun[0]) % 360
-    return {'ephe_path': ephe_path, 'cwd': cwd, 'files': sorted(files), 'phases': result,
-            'check_1may': {'sun_lon': round(sun[0],2), 'moon_lon': round(moon[0],2), 'angle': round(angle,2)}}
+
+    def _moon_angle(jd):
+        sun, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
+        moon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        return (moon[0] - sun[0]) % 360
+
+    # Проверим значения угла вокруг 1 мая и 16 мая
+    checks = []
+    for label, y, mo, d, h in [
+        ("30apr_17utc", 2026, 4, 30, 17.0),
+        ("01may_00utc", 2026, 5, 1, 0.0),
+        ("15may_20utc", 2026, 5, 15, 20.0),
+        ("16may_06utc", 2026, 5, 16, 6.0),
+        ("30may_08utc", 2026, 5, 30, 8.0),
+        ("31may_08utc", 2026, 5, 31, 8.0),
+    ]:
+        jd = swe.julday(y, mo, d, h)
+        angle = _moon_angle(jd)
+        checks.append({"label": label, "angle": round(angle, 2)})
+
+    return {"checks": checks}
 
 
 # ═══════════════════════════════════════════════════════════
