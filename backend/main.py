@@ -1323,9 +1323,7 @@ async def get_lunar_calendar(
             ).days))
             return [filtered[0]]
         else:
-            if len(filtered) <= 2:
-                return filtered
-            return [filtered[0], filtered[-1]]
+            return filtered  # возвращаем все реальные полнолуния (1 или 2 в месяц)
     phases = _keep_phases(phases, "new_moon") + _keep_phases(phases, "full_moon")
     phases.sort(key=lambda x: x["date"])
   
