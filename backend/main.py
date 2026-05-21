@@ -1269,53 +1269,46 @@ async def get_lunar_calendar(
     year  = year  or today.year
     month = month or today.month
 
-    # Расчёт фаз через swisseph напрямую
-    import math
-    phases_raw = []
-    SYNODIC = 29.530588853
-    # Известное новолуние: 2 Jan 2022 18:33 UTC (JD 2459582.274)
-    BASE_NM_JD = 2459582.274
+    # Точный расчёт фаз через swisseph бисекцией
+    def _moon_angle(jd):
+        sun_lon, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
+        moon_lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        return (moon_lon[0] - sun_lon[0]) % 360
 
     jd_m0 = swe.julday(year, month, 1, 0)
-    if month == 12:
-        jd_m1 = swe.julday(year + 1, 1, 1, 0)
-    else:
-        jd_m1 = swe.julday(year, month + 1, 1, 0)
-
-    n_start = math.floor((jd_m0 - BASE_NM_JD) / SYNODIC) - 1
-    for n in range(n_start, n_start + 4):
-        # Новолуние
-        nm_jd = BASE_NM_JD + n * SYNODIC
-        if jd_m0 <= nm_jd < jd_m1:
-            y2, mo2, d2, h2 = swe.revjul(nm_jd)
-            hh, mm = int(h2), int((h2 % 1) * 60)
-            lon_m, _ = swe.calc_ut(nm_jd, swe.MOON, swe.FLG_SWIEPH)
-            sign_idx = int(lon_m[0] // 30) % 12
-            sign = ZODIAC_SIGNS[sign_idx]
-            phases_raw.append({
-                "date": f"{int(y2):04d}-{int(mo2):02d}-{int(d2):02d}",
-                "time": f"{hh:02d}:{mm:02d} UTC",
-                "type": "new_moon", "planet": "Moon",
-                "sign": sign, "emoji": "🌑",
-                "description": f"Новолуние в {sign}",
-            })
-        # Полнолуние
-        fm_jd = BASE_NM_JD + (n + 0.5) * SYNODIC
-        if jd_m0 <= fm_jd < jd_m1:
-            y2, mo2, d2, h2 = swe.revjul(fm_jd)
-            hh, mm = int(h2), int((h2 % 1) * 60)
-            lon_m, _ = swe.calc_ut(fm_jd, swe.MOON, swe.FLG_SWIEPH)
-            sign_idx = int(lon_m[0] // 30) % 12
-            sign = ZODIAC_SIGNS[sign_idx]
-            phases_raw.append({
-                "date": f"{int(y2):04d}-{int(mo2):02d}-{int(d2):02d}",
-                "time": f"{hh:02d}:{mm:02d} UTC",
-                "type": "full_moon", "planet": "Moon",
-                "sign": sign, "emoji": "🌕",
-                "description": f"Полнолуние в {sign}",
-            })
-    phases_raw.sort(key=lambda x: x["date"])
-    phases = phases_raw
+    jd_m1 = swe.julday(year + 1, 1, 1, 0) if month == 12 else swe.julday(year, month + 1, 1, 0)
+    phases = []
+    for target, etype, emoji, label in [
+        (0,   "new_moon",  "🌑", "Новолуние"),
+        (180, "full_moon", "🌕", "Полнолуние"),
+    ]:
+        jd, prev_val = jd_m0, None
+        while jd < jd_m1:
+            val = (_moon_angle(jd) - target) % 360
+            if val > 180: val -= 360
+            if prev_val is not None and prev_val * val < 0:
+                lo, hi = jd - 0.5, jd
+                for _ in range(60):
+                    mid = (lo + hi) / 2
+                    v = (_moon_angle(mid) - target) % 360
+                    if v > 180: v -= 360
+                    if v > 0: hi = mid
+                    else: lo = mid
+                exact = (lo + hi) / 2
+                y2, mo2, d2, h2 = swe.revjul(exact)
+                hh, mm = int(h2), int((h2 % 1) * 60)
+                moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
+                sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
+                phases.append({
+                    "date": f"{int(y2):04d}-{int(mo2):02d}-{int(d2):02d}",
+                    "time": f"{hh:02d}:{mm:02d} UTC",
+                    "type": etype, "planet": "Moon",
+                    "sign": sign, "emoji": emoji,
+                    "description": f"{label} в {sign}",
+                })
+            prev_val = val
+            jd += 0.5
+    phases.sort(key=lambda x: x["date"])
   
     _, days_in_month = cal_mod.monthrange(year, month)
     daily_signs = []
