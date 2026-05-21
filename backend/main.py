@@ -1176,7 +1176,10 @@ async def get_monthly_planner(
 @app.get('/api/v1/debug/moon', tags=['debug'])
 async def debug_moon():
     import swisseph as swe, os
-    swe.set_ephe_path(os.getenv('EPHE_PATH', 'data/ephe'))
+    ephe_path = os.getenv('EPHE_PATH', 'data/ephe')
+    swe.set_ephe_path(ephe_path)
+    files = os.listdir(ephe_path) if os.path.exists(ephe_path) else []
+    cwd = os.getcwd()
     jd0 = swe.julday(2026, 4, 29, 0)
     result = []
     for target in [0, 180]:
@@ -1186,7 +1189,7 @@ async def debug_moon():
             y, mo, d, h = swe.revjul(exact)
             result.append({'target': target, 'date': f"{int(y)}-{int(mo):02d}-{int(d):02d}", 'hour_utc': round(h, 4)})
             jd = exact + 27
-    return result
+    return {'ephe_path': ephe_path, 'cwd': cwd, 'files': sorted(files), 'phases': result}
 
 
 # ═══════════════════════════════════════════════════════════
