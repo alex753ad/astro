@@ -1325,40 +1325,9 @@ async def get_lunar_calendar(
                 })
             prev_val = val
             jd += 0.25
-    phases.sort(key=lambda x: x["date"])
-    # Фильтр: 1 новолуние (ближайшее к середине), полнолуния — первое и последнее
-    from datetime import datetime as _dt
-    def _keep_phases(ph_list, etype):
-        filtered = sorted([p for p in ph_list if p["type"] == etype], key=lambda p: p["date"])
-        if etype == "new_moon":
-            if len(filtered) <= 1:
-                return filtered
-            mid = f"{year:04d}-{month:02d}-15"
-            filtered.sort(key=lambda p: abs((
-                _dt.strptime(p["date"], "%Y-%m-%d") -
-                _dt.strptime(mid, "%Y-%m-%d")
-            ).days))
-            return [filtered[0]]
-        else:
-            # Полнолуние ~через 14-15 дней после новолуния
-            # Берём все кандидаты с интервалом >= 20 дней друг от друга
-            result = []
-            for p in filtered:
-                pd = _dt.strptime(p["date"], "%Y-%m-%d")
-                if not result:
-                    result.append(p)
-                else:
-                    last_d = _dt.strptime(result[-1]["date"], "%Y-%m-%d")
-                    if abs((pd - last_d).days) >= 20:
-                        result.append(p)
-            # Если нашли 0 — берём просто ближайшее к середине месяца
-            if not result and filtered:
-                mid = _dt.strptime(f"{year:04d}-{month:02d}-15", "%Y-%m-%d")
-                result = [min(filtered, key=lambda p: abs(
-                    (_dt.strptime(p["date"], "%Y-%m-%d") - mid).days
-                ))]
-            return result[:2]
-    phases = _keep_phases(phases, "new_moon") + _keep_phases(phases, "full_moon")
+    # Оставляем только фазы текущего месяца
+    month_prefix = f"{year:04d}-{month:02d}-"
+    phases = [p for p in phases if p["date"].startswith(month_prefix)]
     phases.sort(key=lambda x: x["date"])
   
     _, days_in_month = cal_mod.monthrange(year, month)
