@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
     pytest pytest-asyncio
 
 # Copy application
+ARG CACHE_BUST=1
 COPY backend/ /app/backend/
 COPY data/ephe/ /app/data/ephe/
 
