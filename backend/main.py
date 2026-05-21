@@ -1340,18 +1340,22 @@ async def get_lunar_calendar(
             ).days))
             return [filtered[0]]
         else:
-            # Убираем ложные: минимум 20 дней между полнолуниями
+            # Убираем ложные: полнолуние должно быть ~14 дней от новолуния
+            new_moon_dates = [_dt.strptime(p["date"], "%Y-%m-%d")
+                              for p in ph_list if p["type"] == "new_moon"]
             result = []
             for p in filtered:
-                if not result:
-                    result.append(p)
-                else:
-                    from datetime import datetime as _dt2
-                    diff = abs((_dt2.strptime(p["date"], "%Y-%m-%d") -
-                                _dt2.strptime(result[-1]["date"], "%Y-%m-%d")).days)
-                    if diff >= 20:
+                pd = _dt.strptime(p["date"], "%Y-%m-%d")
+                # Проверяем что полнолуние минимум 10 дней от любого новолуния
+                min_dist = min((abs((pd - nd).days) for nd in new_moon_dates), default=99)
+                if min_dist >= 10:
+                    if not result:
                         result.append(p)
-            return result[:2]  # максимум 2 полнолуния в месяц
+                    else:
+                        diff = abs((pd - _dt.strptime(result[-1]["date"], "%Y-%m-%d")).days)
+                        if diff >= 20:
+                            result.append(p)
+            return result[:2]
     phases = _keep_phases(phases, "new_moon") + _keep_phases(phases, "full_moon")
     phases.sort(key=lambda x: x["date"])
   
