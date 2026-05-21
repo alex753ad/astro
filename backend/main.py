@@ -1189,7 +1189,13 @@ async def debug_moon():
             y, mo, d, h = swe.revjul(exact)
             result.append({'target': target, 'date': f"{int(y)}-{int(mo):02d}-{int(d):02d}", 'hour_utc': round(h, 4)})
             jd = exact + 27
-    return {'ephe_path': ephe_path, 'cwd': cwd, 'files': sorted(files), 'phases': result}
+    # Прямая проверка: положение Луны и Солнца на 1 мая 2026 17:22 UTC (полнолуние по факту)
+    jd_check = swe.julday(2026, 4, 30, 17, 22)
+    sun, _ = swe.calc_ut(jd_check, swe.SUN, swe.FLG_SWIEPH)
+    moon, _ = swe.calc_ut(jd_check, swe.MOON, swe.FLG_SWIEPH)
+    angle = (moon[0] - sun[0]) % 360
+    return {'ephe_path': ephe_path, 'cwd': cwd, 'files': sorted(files), 'phases': result,
+            'check_1may': {'sun_lon': round(sun[0],2), 'moon_lon': round(moon[0],2), 'angle': round(angle,2)}}
 
 
 # ═══════════════════════════════════════════════════════════
