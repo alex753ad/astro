@@ -149,6 +149,8 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
     <svg
       viewBox={`${-PADDING} ${-PADDING} ${VSIZE} ${VSIZE}`}
       width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
       style={{ display: 'block', maxWidth: 560, margin: '0 auto', background: 'transparent' }}
       aria-label="Натальная карта"
       role="img"
