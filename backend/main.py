@@ -1397,3 +1397,16 @@ async def get_lunar_calendar(
         "phases":      phases,
         "daily_signs": daily_signs,
     }
+
+
+# ── DEBUG: show house cusps ───────────────────────────────────────────────────
+@app.get("/api/v1/chart/{chart_id}/debug/cusps", tags=["debug"])
+async def get_chart_cusps(chart_id: str, db: Session = Depends(get_db)):
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return {
+        "timezone": getattr(chart, "timezone", None),
+        "house_system": getattr(chart, "house_system", "unknown"),
+        "houses": chart.houses,
+    }
