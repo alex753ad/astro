@@ -57,7 +57,7 @@ export default function Interpretation({ chartId }) {
   const scrollRef   = useRef(null);
   const closeSSERef = useRef(null);
 
-  const start = useCallback(() => {
+  const start = useCallback((retryCount = 0) => {
     if (!chartId) return;
     setText('');
     setDone(false);
@@ -65,17 +65,31 @@ export default function Interpretation({ chartId }) {
     setStreaming(true);
     setStarted(true);
 
-    closeSSERef.current = streamInterpretation(
+    let receivedAny = false;
+
+    const close = streamInterpretation(
       chartId,
       (chunk) => {
+        receivedAny = true;
         setText(prev => prev + chunk);
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
       },
       () => { setStreaming(false); setDone(true); },
-      (err) => { setError(String(err)); setStreaming(false); },
+      (err) => {
+        // Reconnect up to 3 times if connection dropped mid-stream
+        if (!receivedAny && retryCount < 3) {
+          console.warn(`SSE retry ${retryCount + 1}`);
+          setTimeout(() => start(retryCount + 1), 1500 * (retryCount + 1));
+          return;
+        }
+        setError(String(err));
+        setStreaming(false);
+      },
     );
+
+    closeSSERef.current = close;
   }, [chartId]);
 
   // ── Не запускались — показываем кнопку ──
