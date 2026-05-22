@@ -1,0 +1,111 @@
+
+# 2026-05-18 21:59:48.849951
++yes
+
+# 2026-05-18 22:00:19.835180
++no
+
+# 2026-05-18 22:02:06.437512
++      
+
+# 2026-05-18 22:02:25.609611
++  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 121, in __exit__
+
+# 2026-05-18 22:02:26.767791
++    raise exc_value.with_traceback(exc_tb)
+
+# 2026-05-18 22:02:27.986326
++  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 896, in __connect
+
+# 2026-05-18 22:02:29.525534
++    self.dbapi_connection = connection = pool._invoke_creator(self)
+
+# 2026-05-18 22:02:31.274547
++                                         
+
+# 2026-05-18 22:02:32.790687
++  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/create.py", line 667, in connect
+
+# 2026-05-18 22:02:34.215690
++    return dialect.connect(*cargs_tup, **cparams)
+
+# 2026-05-18 22:02:35.446698
++           
+
+# 2026-05-18 22:02:36.864337
++  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 630, in connect
+
+# 2026-05-18 22:02:38.802021
++    return self.loaded_dbapi.connect(*cargs, **cparams)   type: ignoreno-any-return   NOQA: E501
+
+# 2026-05-18 22:02:42.255137
++           
+
+# 2026-05-18 22:02:43.300245
++  File "/usr/local/lib/python3.12/site-packages/psycopg2/__init__.py", line 122, in connect
+
+# 2026-05-18 22:02:45.334254
++    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+
+# 2026-05-18 22:02:49.286799
++           
+
+# 2026-05-18 22:02:51.126578
++sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at "containers-us-west-XXX.railway.app" (34.107.141.139), port 5432 failed: Connection timed out
+
+# 2026-05-18 22:02:57.868309
++Is the server running on that host and accepting TCP/IP connections?
+
+# 2026-05-18 22:06:34.386238
++e "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 896, in __connect
+
+# 2026-05-18 22:07:07.936235
++    self.dbapi_connection = connection = pool._invoke_creator(self)
+
+# 2026-05-18 22:07:12.400100
++                                         
+
+# 2026-05-18 22:08:01.055162
++    self.dbapi_connection = connection = pool._invoke_creator(self)
+
+# 2026-05-18 22:08:19.500750
++                                         
+
+# 2026-05-18 22:08:19.649754
++  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/create.py", line 667, in connect
+
+# 2026-05-18 22:08:19.734748
++    return dialect.connect(*cargs_tup, **cparams)
+
+# 2026-05-18 22:08:19.797751
++           
+
+# 2026-05-18 22:08:19.912761
++  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 630, in connect
+
+# 2026-05-18 22:08:20.047750
++    return self.loaded_dbapi.connect(*cargs, **cparams)   type: ignoreno-any-return   NOQA: E501
+
+# 2026-05-18 22:08:20.099765
++           
+
+# 2026-05-18 22:08:20.235750
++  File "/usr/local/lib/python3.12/site-packages/psycopg2/__init__.py", line 122, in connect
+
+# 2026-05-18 22:08:20.487752
++    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+
+# 2026-05-18 22:08:20.533755
++           
+
+# 2026-05-18 22:08:20.714751
++sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at "containers-us-west-XXX.railway.app" (34.107.141.139), port 5432 failed: Connection timed out
+
+# 2026-05-19 09:24:38.780826
++задеплой forecast_prompts
+
+# 2026-05-19 09:26:18.786064
++задеплой backend\transit\forecast_prompt.py
+
+# 2026-05-19 09:26:26.961189
++yes

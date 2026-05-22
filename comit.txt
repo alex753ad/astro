@@ -1,0 +1,20 @@
+import anthropic
+import subprocess
+
+client = anthropic.Anthropic()
+
+# Спрашиваем у Claude сообщение для коммита
+message = client.messages.create(
+    model="claude-haiku-4-5-20251001",
+    max_tokens=256,
+    messages=[
+        {"role": "user", "content": "Придумай короткое сообщение для git commit: добавил авторизацию через Google"}
+    ]
+)
+
+commit_msg = message.content[0].text
+print(f"Сообщение: {commit_msg}")
+
+# Делаем коммит
+subprocess.run(["git", "add", "."])
+subprocess.run(["git", "commit", "-m", commit_msg])
