@@ -50,6 +50,18 @@ export default function ChartPage({ currentUser }) {
       .finally(() => setLoading(false));
   }, [chartId]);
 
+  // Загружаем транзитные позиции при открытии вкладки транзитов
+  useEffect(() => {
+    if (activeTab !== 'transits' || !chart || !chartId || transitPlanets.length > 0) return;
+    const token = localStorage.getItem('astro_access_token');
+    fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.planets?.length) setTransitPlanets(data.planets); })
+      .catch(() => {});
+  }, [activeTab, chart, chartId]);
+
   const handleDateSelect = (date, dayEvents, positions) => {
     setTransitPlanets(positions ?? []);
     if (date) setSelectedDate(date);
@@ -152,9 +164,25 @@ export default function ChartPage({ currentUser }) {
 
       {/* ── Вкладка: Транзиты ── */}
       {activeTab === 'transits' && (
-        <div style={s.tabContent}>
-          <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
-        </div>
+        <main style={s.main}>
+          <section style={s.card}>
+            <div style={s.transitDateLabel}>
+              Транзиты на {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </div>
+            <NatalChart
+              planets={chart.planets}
+              houses={chart.houses}
+              aspects={chart.aspects}
+              ascendant={chart.ascendant}
+              midheaven={chart.midheaven}
+              timeUnknown={chart.time_unknown}
+              transitPlanets={transitPlanets}
+            />
+          </section>
+          <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+            <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
+          </section>
+        </main>
       )}
 
       {/* ── Вкладка: Планировщик ── */}
@@ -433,6 +461,12 @@ const s = {
   },
   tabContent: {
     maxWidth: '900px', margin: '0 auto',
+  },
+  transitDateLabel: {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: 'var(--color-text-secondary)',
+    marginBottom: '14px',
   },
   card: {
     background: 'var(--color-background-primary)',
