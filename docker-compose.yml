@@ -18,6 +18,19 @@ services:
       timeout: 3s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api:
     build: .
     restart: unless-stopped
@@ -25,9 +38,12 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://astro:astro@db:5432/astro_db
+      REDIS_URL: redis://redis:6379/0
       EPHE_PATH: /app/data/ephe
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./backend:/app/backend
@@ -36,3 +52,4 @@ services:
 
 volumes:
   pgdata:
+  redis_data:
