@@ -531,6 +531,38 @@ async def get_transits(
     )
 
 
+
+@app.get(
+    "/api/v1/chart/{chart_id}/transits/positions",
+    tags=["transits"],
+    summary="Current transit planet positions for a given date",
+)
+async def get_transit_positions(
+    chart_id: str,
+    on_date: str,
+    db: Session = Depends(get_db),
+):
+    """Return ecliptic longitudes of all transit planets for the given date.
+
+    Used by the frontend to render transit planets on the natal wheel.
+    chart_id is validated but positions are date-only (no chart dependency).
+    """
+    from datetime import date as date_type
+    from backend.transit.engine import get_planet_positions_for_date
+
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+
+    try:
+        query_date = date_type.fromisoformat(on_date)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    planets = get_planet_positions_for_date(query_date)
+    return {"date": on_date, "planets": planets}
+
+
 @app.get(
     "/api/v1/chart/{chart_id}/transits/interpret",
     tags=["transits"],
