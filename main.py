@@ -55,6 +55,7 @@ from backend.ephemeris.geo import (
     AmbiguousTimeError,
 )
 from backend.cache import interpretation_cache, transit_cache, make_profile_hash
+from backend.calendar.lunar_engine import get_monthly_calendar
 
 logger = logging.getLogger("astro")
 settings = get_settings()
@@ -1112,3 +1113,287 @@ async def get_monthly_forecast(
         raise HTTPException(status_code=500, detail=f"Failed to parse forecast: {e}")
 
     return {"from_date": from_date, "to_date": to_date, "forecast": forecast}
+
+
+# ── Planner: monthly (no AI) ──────────────────────────────────────────────────
+@app.get(
+    "/api/v1/chart/{chart_id}/planner/monthly",
+    tags=["planner"],
+    summary="Monthly planner without AI — pure Python interpretation",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_monthly_planner(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+):
+    import calendar as cal_mod
+    from datetime import date as date_type
+    from backend.transit.planner_engine import build_planner
+
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    if chart.time_unknown:
+        return {"planner": {"error": "Время рождения неизвестно — планер недоступен."}}
+
+    # today в timezone пользователя
+    _tz = getattr(chart, "timezone", None)
+    if _tz:
+        try:
+            import pytz as _pytz
+            from datetime import datetime as _dt
+            today = _dt.now(_pytz.timezone(_tz)).date()
+        except Exception:
+            today = date_type.today()
+    else:
+        today = date_type.today()
+
+    month_start = today.replace(day=1)
+    last_day = cal_mod.monthrange(today.year, today.month)[1]
+    month_end = today.replace(day=last_day)
+
+    natal_profile = {
+        "planets":   chart.planets,
+        "houses":    chart.houses,
+        "ascendant": chart.ascendant,
+        "midheaven": chart.midheaven,
+    }
+
+    planner = build_planner(
+        natal_profile=natal_profile,
+        from_date=month_start,
+        to_date=month_end,
+        today=today,
+        user_timezone=_tz,
+    )
+
+    return {"planner": planner}
+
+
+
+@app.get('/api/v1/debug/moon', tags=['debug'])
+async def debug_moon():
+    import swisseph as swe, os
+    ephe_path = os.getenv('EPHE_PATH', 'data/ephe')
+    swe.set_ephe_path(ephe_path)
+
+    def _moon_angle(jd):
+        sun, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
+        moon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        return (moon[0] - sun[0]) % 360
+
+    # Проверим значения угла вокруг 1 мая и 16 мая
+    checks = []
+    for label, y, mo, d, h in [
+        ("30apr_17utc", 2026, 4, 30, 17.0),
+        ("01may_00utc", 2026, 5, 1, 0.0),
+        ("15may_20utc", 2026, 5, 15, 20.0),
+        ("16may_06utc", 2026, 5, 16, 6.0),
+        ("30may_08utc", 2026, 5, 30, 8.0),
+        ("31may_08utc", 2026, 5, 31, 8.0),
+    ]:
+        jd = swe.julday(y, mo, d, h)
+        angle = _moon_angle(jd)
+        checks.append({"label": label, "angle": round(angle, 2)})
+
+    return {"checks": checks}
+
+
+# ═══════════════════════════════════════════════════════════
+# GENERAL CALENDAR — бесплатный, без натальной карты
+# ═══════════════════════════════════════════════════════════
+
+@app.get(
+    "/api/v1/calendar/monthly",
+    tags=["calendar"],
+    summary="General astro calendar for a month (free tier)",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_general_calendar(
+    request: Request,
+    month: str,           # формат: "2025-12"
+):
+    """Общий астро-календарь — новолуния, полнолуния, ингрессы, аспекты.
+    Не требует натальной карты. Бесплатный уровень.
+    Возвращает: список событий + AI-обзор месяца.
+    """
+    import httpx, os
+    from backend.transit.forecast_prompt import build_general_calendar_prompt, parse_forecast_response
+
+    try:
+        year, mon = map(int, month.split("-"))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Формат: YYYY-MM (напр. 2025-12)")
+
+    # 1. Вычислить события месяца
+    key_events = get_monthly_calendar(year, mon)
+
+    # 2. Сформировать обзор через AI
+    month_names_ru = {
+        1:"Январь",2:"Февраль",3:"Март",4:"Апрель",5:"Май",6:"Июнь",
+        7:"Июль",8:"Август",9:"Сентябрь",10:"Октябрь",11:"Ноябрь",12:"Декабрь",
+    }
+    month_label = f"{month_names_ru[mon]} {year}"
+    prompt = build_general_calendar_prompt(month_label=month_label, key_events=key_events)
+
+    raw = ""
+    if os.getenv("ANTHROPIC_API_KEY"):
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": os.getenv("ANTHROPIC_API_KEY"),
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 3000,
+                        "messages": [{"role": "user", "content": prompt}],
+                    }
+                )
+                data = resp.json()
+                raw = data["content"][0]["text"]
+        except Exception as e:
+            logger.warning(f"General calendar AI failed: {e}")
+
+    overview = None
+    if raw:
+        try:
+            overview = parse_forecast_response(raw)
+        except Exception as e:
+            logger.warning(f"Failed to parse calendar overview: {e}")
+
+    return {
+        "month": month,
+        "events": key_events,
+        "overview": overview,
+    }
+
+
+# ═══════════════════════════════════════════════════════════
+# LUNAR CALENDAR
+# ═══════════════════════════════════════════════════════════
+
+@app.get(
+    "/api/v1/calendar/lunar",
+    tags=["calendar"],
+    summary="Lunar calendar: moon phases + moon sign per day",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_lunar_calendar(
+    request: Request,
+    year: int = None,
+    month: int = None,
+):
+    from datetime import date as date_type, datetime as dt_type
+    from backend.calendar.lunar_engine import get_moon_phases, ZODIAC_SIGNS
+    import swisseph as swe
+    import calendar as cal_mod
+
+    today = date_type.today()
+    year  = year  or today.year
+    month = month or today.month
+
+    # Точный расчёт фаз через бисекцию
+    def _moon_angle(jd):
+        sun, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
+        moon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        return (moon[0] - sun[0]) % 360
+
+    jd_m0 = swe.julday(year, month, 1, 0)
+    jd_m1 = swe.julday(year + 1, 1, 1, 0) if month == 12 else swe.julday(year, month + 1, 1, 0)
+    phases = []
+    for target, etype, emoji, label in [
+        (0,   "new_moon",  "🌑", "Новолуние"),
+        (180, "full_moon", "🌕", "Полнолуние"),
+    ]:
+        jd = jd_m0 - 32
+        prev = None
+        while jd < jd_m1 + 2:
+            val = (_moon_angle(jd) - target) % 360
+            if val > 180: val -= 360
+            if prev is not None and prev * val < 0:
+                lo, hi = jd - 1.0, jd
+                val_lo = prev  # знак на левой границе
+                for _ in range(60):
+                    mid = (lo + hi) / 2
+                    v = (_moon_angle(mid) - target) % 360
+                    if v > 180: v -= 360
+                    if val_lo * v > 0:
+                        lo = mid
+                        val_lo = v
+                    else:
+                        hi = mid
+                exact = (lo + hi) / 2
+                # Проверяем что нашли реальную фазу, а не разрыв функции
+                real_angle = _moon_angle(exact)
+                if abs((real_angle - target + 180) % 360 - 180) > 10:
+                    prev = val
+                    jd += 1.0
+                    continue
+                y2, mo2, d2, h2 = swe.revjul(exact)
+                h2_gmt3 = h2 + 3
+                d2_gmt3 = int(d2)
+                mo2_gmt3 = int(mo2)
+                y2_gmt3 = int(y2)
+                if h2_gmt3 >= 24:
+                    h2_gmt3 -= 24
+                    d2_gmt3 += 1
+                    import calendar as _cal
+                    _, max_day = _cal.monthrange(y2_gmt3, mo2_gmt3)
+                    if d2_gmt3 > max_day:
+                        d2_gmt3 = 1
+                        mo2_gmt3 += 1
+                        if mo2_gmt3 > 12:
+                            mo2_gmt3 = 1
+                            y2_gmt3 += 1
+                hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
+                moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
+                sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
+                phases.append({
+                    "date": f"{y2_gmt3:04d}-{mo2_gmt3:02d}-{d2_gmt3:02d}",
+                    "time": f"{hh:02d}:{mm:02d} GMT+3",
+                    "type": etype, "planet": "Moon",
+                    "sign": sign, "emoji": emoji,
+                    "description": f"{label} в {sign}",
+                })
+            prev = val
+            jd += 1.0
+        # Оставляем только фазы текущего месяца
+    month_prefix = f"{year:04d}-{month:02d}-"
+    phases = [p for p in phases if p["date"].startswith(month_prefix)]
+    phases.sort(key=lambda x: x["date"])
+  
+    _, days_in_month = cal_mod.monthrange(year, month)
+    daily_signs = []
+    for day in range(1, days_in_month + 1):
+        d = date_type(year, month, day)
+        jd = swe.julday(d.year, d.month, d.day, 12.0)
+        lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
+        sign = ZODIAC_SIGNS[int(lon[0] // 30) % 12]
+        daily_signs.append({
+            "date": d.isoformat(),
+            "sign": sign,
+            "longitude": round(lon[0], 2),
+        })
+
+    now = dt_type.utcnow()
+    jd_now = swe.julday(now.year, now.month, now.day, now.hour + now.minute / 60)
+    lon_now, _ = swe.calc_ut(jd_now, swe.MOON, swe.FLG_SWIEPH)
+    current_sign   = ZODIAC_SIGNS[int(lon_now[0] // 30) % 12]
+    current_degree = round(lon_now[0] % 30, 1)
+
+    return {
+        "year":  year,
+        "month": month,
+        "current_moon": {
+            "sign":   current_sign,
+            "degree": current_degree,
+        },
+        "phases":      phases,
+        "daily_signs": daily_signs,
+    }
