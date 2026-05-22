@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # ── Ephemeris ──
     ephe_path: str = "data/ephe"
 
+    # ── Redis ──
+    redis_url: str = "redis://localhost:6379/0"
+
     # ── Stripe ──
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
@@ -41,6 +44,7 @@ class Settings(BaseSettings):
     # ── General ──
     debug: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
+    # В .env: CORS_ORIGINS=["https://yourdomain.com"]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
