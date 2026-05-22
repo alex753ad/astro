@@ -11,6 +11,7 @@ import Interpretation from '../components/Interpretation';
 import TransitTimeline from '../components/TransitTimeline';
 import ExpertModeToggle from '../components/ExpertModeToggle';
 import ForecastScale from '../components/ForecastScale';
+import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 
 const TABS = [
@@ -48,6 +49,18 @@ export default function ChartPage({ currentUser }) {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [chartId]);
+
+  // Загружаем транзитные позиции при открытии вкладки транзитов
+  useEffect(() => {
+    if (activeTab !== 'transits' || !chart || !chartId || transitPlanets.length > 0) return;
+    const token = localStorage.getItem('astro_access_token');
+    fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.planets?.length) setTransitPlanets(data.planets); })
+      .catch(() => {});
+  }, [activeTab, chart, chartId]);
 
   const handleDateSelect = (date, dayEvents, positions) => {
     setTransitPlanets(positions ?? []);
@@ -132,6 +145,10 @@ export default function ChartPage({ currentUser }) {
           </section>
 
           <section style={s.card}>
+            <AspectGrid aspects={chart.aspects} planets={chart.planets} />
+          </section>
+
+          <section style={s.card}>
             <AspectTableWrapper
               expertMode={expertMode}
               aspects={chart.aspects}
@@ -147,9 +164,25 @@ export default function ChartPage({ currentUser }) {
 
       {/* ── Вкладка: Транзиты ── */}
       {activeTab === 'transits' && (
-        <div style={s.tabContent}>
-          <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
-        </div>
+        <main style={s.main}>
+          <section style={s.card}>
+            <div style={s.transitDateLabel}>
+              Транзиты на {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </div>
+            <NatalChart
+              planets={chart.planets}
+              houses={chart.houses}
+              aspects={chart.aspects}
+              ascendant={chart.ascendant}
+              midheaven={chart.midheaven}
+              timeUnknown={chart.time_unknown}
+              transitPlanets={transitPlanets}
+            />
+          </section>
+          <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+            <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
+          </section>
+        </main>
       )}
 
       {/* ── Вкладка: Планировщик ── */}
@@ -194,17 +227,18 @@ const SIGN_GLYPHS = {
 };
 
 const SIGN_NAMES_RU = {
-  Aries: 'Ове', Taurus: 'Тел', Gemini: 'Бли', Cancer: 'Рак',
-  Leo: 'Лев', Virgo: 'Дев', Libra: 'Вес', Scorpio: 'Ско',
-  Sagittarius: 'Стр', Capricorn: 'Коз', Aquarius: 'Вод', Pisces: 'Рыб',
+  Aries: 'Овен', Taurus: 'Телец', Gemini: 'Близнецы', Cancer: 'Рак',
+  Leo: 'Лев', Virgo: 'Дева', Libra: 'Весы', Scorpio: 'Скорпион',
+  Sagittarius: 'Стрелец', Capricorn: 'Козерог', Aquarius: 'Водолей', Pisces: 'Рыбы',
 };
 
 function formatDeg(deg) {
   if (deg == null) return '';
   const d = Math.floor(deg);
-  const mTotal = Math.round((deg - d) * 60);
-  const m = String(mTotal).padStart(2, '0');
-  return `${d}° ${m}'`;
+  const rem = (deg - d) * 60;
+  const m = Math.floor(rem);
+  const s = Math.round((rem - m) * 60);
+  return `${d}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}''`;
 }
 
 function PlanetTable({ planets = [], ascendant, midheaven }) {
@@ -427,6 +461,12 @@ const s = {
   },
   tabContent: {
     maxWidth: '900px', margin: '0 auto',
+  },
+  transitDateLabel: {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: 'var(--color-text-secondary)',
+    marginBottom: '14px',
   },
   card: {
     background: 'var(--color-background-primary)',
