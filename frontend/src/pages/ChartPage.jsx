@@ -11,6 +11,7 @@ import Interpretation from '../components/Interpretation';
 import TransitTimeline from '../components/TransitTimeline';
 import ExpertModeToggle from '../components/ExpertModeToggle';
 import ForecastScale from '../components/ForecastScale';
+import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 
 const TABS = [
@@ -129,6 +130,10 @@ export default function ChartPage({ currentUser }) {
 
           <section style={s.card}>
             <ChartSummary planets={chart.planets} houses={chart.houses} />
+          </section>
+
+          <section style={s.card}>
+            <AspectGrid aspects={chart.aspects} planets={chart.planets} />
           </section>
 
           <section style={s.card}>
