@@ -194,17 +194,18 @@ const SIGN_GLYPHS = {
 };
 
 const SIGN_NAMES_RU = {
-  Aries: 'Ове', Taurus: 'Тел', Gemini: 'Бли', Cancer: 'Рак',
-  Leo: 'Лев', Virgo: 'Дев', Libra: 'Вес', Scorpio: 'Ско',
-  Sagittarius: 'Стр', Capricorn: 'Коз', Aquarius: 'Вод', Pisces: 'Рыб',
+  Aries: 'Овен', Taurus: 'Телец', Gemini: 'Близнецы', Cancer: 'Рак',
+  Leo: 'Лев', Virgo: 'Дева', Libra: 'Весы', Scorpio: 'Скорпион',
+  Sagittarius: 'Стрелец', Capricorn: 'Козерог', Aquarius: 'Водолей', Pisces: 'Рыбы',
 };
 
 function formatDeg(deg) {
   if (deg == null) return '';
   const d = Math.floor(deg);
-  const mTotal = Math.round((deg - d) * 60);
-  const m = String(mTotal).padStart(2, '0');
-  return `${d}° ${m}'`;
+  const rem = (deg - d) * 60;
+  const m = Math.floor(rem);
+  const s = Math.round((rem - m) * 60);
+  return `${d}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}''`;
 }
 
 function PlanetTable({ planets = [], ascendant, midheaven }) {
