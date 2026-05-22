@@ -251,10 +251,10 @@ def compute_planner_periods(
 
     # today в локальном времени пользователя — переводим начало дня в UTC для сканирования
     local_day_start = datetime(today.year, today.month, today.day, 0, 0)
-    week_dt_start_utc = local_day_start - tz_offset
-    # FIX: расширяем окно до 14 дней — Луна меняет дом каждые ~2.5 дня,
-    # 7 дней не хватало чтобы показать полные периоды
-    week_dt_end_utc = week_dt_start_utc + timedelta(days=14) - timedelta(minutes=1)
+    # Начинаем на 3 дня раньше today — чтобы захватить текущий период Луны
+    # (Луна меняет дом каждые ~2.5 дня, период мог начаться до сегодня)
+    week_dt_start_utc = local_day_start - tz_offset - timedelta(days=3)
+    week_dt_end_utc = week_dt_start_utc + timedelta(days=17) - timedelta(minutes=1)
     moon_passages_raw = calculate_house_passages("Moon", cusps, week_dt_start_utc, week_dt_end_utc)
 
     # FIX: возвращаем периоды нахождения Луны по домам (не группируем по дням).
