@@ -1,76 +1,84 @@
-"""In-memory cache with TTL.
+"""backend/cache.py — Redis-backed cache.
 
-Simple dict-based cache for variant A (single server).
-Interface is designed for drop-in replacement with Redis later.
+Заменяет in-memory TTLCache. При недоступности Redis падает в no-op кеш
+(логирует предупреждение, приложение продолжает работу без кеширования).
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import time
-import threading
-from typing import Any, Optional
+import logging
+import os
+from typing import Any
+
+logger = logging.getLogger("astro.cache")
+
+# ── TTL constants ──
+TTL_INTERPRETATION = 30 * 24 * 3600   # 30 дней
+TTL_TRANSIT        =  7 * 24 * 3600   #  7 дней
 
 
-class TTLCache:
-    """Thread-safe in-memory cache with per-key TTL.
+class RedisCache:
+    """Тонкая обёртка над redis-py с JSON-сериализацией и fallback."""
 
-    Usage:
-        cache = TTLCache()
-        cache.set("key", value, ttl=3600)
-        val = cache.get("key")  # None if expired
-    """
+    def __init__(self, prefix: str, default_ttl: int):
+        self._prefix = prefix
+        self._default_ttl = default_ttl
+        self._redis = self._connect()
 
-    def __init__(self, max_size: int = 10_000):
-        self._data: dict[str, tuple[Any, float]] = {}  # key → (value, expire_at)
-        self._max_size = max_size
-        self._lock = threading.Lock()
+    def _connect(self):
+        url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        try:
+            import redis
+            client = redis.from_url(url, decode_responses=True, socket_connect_timeout=2)
+            client.ping()
+            logger.info("Redis connected: %s (prefix=%s)", url, self._prefix)
+            return client
+        except Exception as e:
+            logger.warning("Redis unavailable (%s) — cache disabled for %s", e, self._prefix)
+            return None
 
-    def get(self, key: str) -> Optional[Any]:
-        with self._lock:
-            entry = self._data.get(key)
-            if entry is None:
-                return None
-            value, expire_at = entry
-            if expire_at > 0 and time.time() > expire_at:
-                del self._data[key]
-                return None
-            return value
+    def _key(self, key: str) -> str:
+        return f"{self._prefix}:{key}"
 
-    def set(self, key: str, value: Any, ttl: int = 0) -> None:
-        """Store a value. ttl=0 means no expiration."""
-        expire_at = time.time() + ttl if ttl > 0 else 0
-        with self._lock:
-            if len(self._data) >= self._max_size:
-                self._evict_expired()
-            self._data[key] = (value, expire_at)
+    def get(self, key: str) -> Any | None:
+        if self._redis is None:
+            return None
+        try:
+            raw = self._redis.get(self._key(key))
+            return json.loads(raw) if raw is not None else None
+        except Exception as e:
+            logger.warning("Cache GET error: %s", e)
+            return None
 
-    def delete(self, key: str) -> bool:
-        with self._lock:
-            return self._data.pop(key, None) is not None
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
+        if self._redis is None:
+            return
+        try:
+            self._redis.setex(
+                self._key(key),
+                ttl or self._default_ttl,
+                json.dumps(value, ensure_ascii=False),
+            )
+        except Exception as e:
+            logger.warning("Cache SET error: %s", e)
 
-    def clear(self) -> None:
-        with self._lock:
-            self._data.clear()
-
-    def _evict_expired(self) -> None:
-        """Remove all expired entries."""
-        now = time.time()
-        expired = [k for k, (_, exp) in self._data.items() if exp > 0 and now > exp]
-        for k in expired:
-            del self._data[k]
-
-    def __len__(self) -> int:
-        return len(self._data)
+    def delete(self, key: str) -> None:
+        if self._redis is None:
+            return
+        try:
+            self._redis.delete(self._key(key))
+        except Exception as e:
+            logger.warning("Cache DELETE error: %s", e)
 
 
-# ── Global cache instances ──
-interpretation_cache = TTLCache(max_size=5_000)
-transit_cache = TTLCache(max_size=2_000)
+# ── Singleton instances (импортируются из main.py) ──
+interpretation_cache = RedisCache("interp", TTL_INTERPRETATION)
+transit_cache        = RedisCache("transit", TTL_TRANSIT)
 
 
 def make_profile_hash(profile: dict) -> str:
-    """Create a deterministic SHA-256 hash of a natal profile for cache key."""
-    serialized = json.dumps(profile, sort_keys=True, default=str)
-    return hashlib.sha256(serialized.encode()).hexdigest()
+    """Стабильный хеш натального профиля для ключа кеша интерпретации."""
+    serialized = json.dumps(profile, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(serialized.encode()).hexdigest()[:16]
