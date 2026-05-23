@@ -1,11 +1,13 @@
 /**
  * AstroCalendar.jsx
+ * Редизайн: «Дыхание космоса» — светлая пастельная тема.
  *
- * Общий астро-календарь (бесплатный уровень).
- * Загружает /api/v1/calendar/monthly?month=YYYY-MM
- * Отображает: обзор месяца, новолуние/полнолуние, события, по неделям.
- *
- * Props: нет (месяц выбирается внутри)
+ * Изменения:
+ * - Все карточки на белом фоне (bg-astro-card / #FFFFFF)
+ * - Скругления rounded-3xl / rounded-2xl
+ * - Навигация по месяцам — лёгкие кнопки
+ * - Фазы луны — пастельные бейджи вместо тёмных
+ * - Убраны все var(--color-*) → инлайн пастельная палитра
  */
 
 import React, { useState, useEffect } from 'react';
@@ -15,11 +17,12 @@ const MONTHS_RU = [
   'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь',
 ];
 
-const EVENT_STYLES = {
-  new_moon:  { emoji: '🌑', label: 'Новолуние',  bg: '#1a1a2e', color: '#a78bfa' },
-  full_moon: { emoji: '🌕', label: 'Полнолуние', bg: '#1a1a2e', color: '#fbbf24' },
-  ingress:   { emoji: '➡️', label: 'Вход в знак', bg: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' },
-  aspect:    { emoji: '⚡',  label: 'Аспект',     bg: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' },
+// Цвета для типов событий
+const EVENT_BADGE = {
+  new_moon:  { emoji: '🌑', label: 'Новолуние',     bg: '#F0EAF8', color: '#7040A8' },
+  full_moon: { emoji: '🌕', label: 'Полнолуние',    bg: '#FFF5D6', color: '#A07010' },
+  ingress:   { emoji: '➡️', label: 'Вход в знак',  bg: '#EAF4FF', color: '#2060A0' },
+  aspect:    { emoji: '⚡',  label: 'Аспект',        bg: '#FFF0F5', color: '#A03060' },
 };
 
 export default function AstroCalendar() {
@@ -30,16 +33,16 @@ export default function AstroCalendar() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
-  useEffect(() => {
-    load();
-  }, [year, month]);
+  useEffect(() => { load(); }, [year, month]);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
       const monthStr = `${year}-${String(month).padStart(2,'0')}`;
-      const res = await fetch(`https://astro-production-e070.up.railway.app/api/v1/calendar/monthly?month=${monthStr}`);
+      const res = await fetch(
+        `https://astro-production-e070.up.railway.app/api/v1/calendar/monthly?month=${monthStr}`
+      );
       if (!res.ok) throw new Error(`${res.status}`);
       setData(await res.json());
     } catch(e) {
@@ -58,19 +61,20 @@ export default function AstroCalendar() {
     else setMonth(m => m + 1);
   }
 
-  const overview = data?.overview;
-  const events   = data?.events || [];
-  const newMoon  = events.find(e => e.type === 'new_moon');
-  const fullMoon = events.find(e => e.type === 'full_moon');
+  const overview  = data?.overview;
+  const events    = data?.events || [];
+  const newMoon   = events.find(e => e.type === 'new_moon');
+  const fullMoon  = events.find(e => e.type === 'full_moon');
   const ingresses = events.filter(e => e.type === 'ingress');
   const aspects   = events.filter(e => e.type === 'aspect');
 
   return (
     <div style={s.root}>
-      {/* Навигация по месяцам */}
+
+      {/* ── Навигация ──────────────────────────────────────── */}
       <div style={s.nav}>
         <button onClick={prev} style={s.navBtn}>‹</button>
-        <h2 style={s.navTitle}>{MONTHS_RU[month-1]} {year}</h2>
+        <h2 style={s.navTitle}>{MONTHS_RU[month - 1]} {year}</h2>
         <button onClick={next} style={s.navBtn}>›</button>
       </div>
 
@@ -80,17 +84,18 @@ export default function AstroCalendar() {
       {!loading && data && (
         <div style={s.content}>
 
-          {/* Обзор месяца от AI */}
+          {/* ── Обзор месяца ─────────────────────────────── */}
           {overview && (
             <section style={s.card}>
-              <h3 style={s.cardTitle}>{overview.month_title || `${MONTHS_RU[month-1]} ${year}`}</h3>
+              <h3 style={s.cardTitle}>
+                {overview.month_title || `${MONTHS_RU[month-1]} ${year}`}
+              </h3>
               {overview.month_tagline && (
                 <p style={s.tagline}>{overview.month_tagline}</p>
               )}
 
-              {/* Ключевые темы */}
               {overview.key_themes?.length > 0 && (
-                <div style={s.themes}>
+                <div style={{ marginTop: 12 }}>
                   <p style={s.sectionLabel}>⚡️ Главные темы</p>
                   <ul style={s.themeList}>
                     {overview.key_themes.map((t, i) => (
@@ -100,9 +105,8 @@ export default function AstroCalendar() {
                 </div>
               )}
 
-              {/* По неделям */}
               {overview.week_by_week?.length > 0 && (
-                <div style={{ marginTop: '16px' }}>
+                <div style={{ marginTop: 16 }}>
                   <p style={s.sectionLabel}>Неделя за неделей</p>
                   {overview.week_by_week.map((w, i) => (
                     <div key={i} style={s.weekRow}>
@@ -114,32 +118,23 @@ export default function AstroCalendar() {
                 </div>
               )}
 
-              {/* Аффирмация */}
               {overview.affirmation && (
                 <div style={s.affirmation}>✨ {overview.affirmation}</div>
               )}
             </section>
           )}
 
-          {/* Новолуние */}
+          {/* ── Новолуние ─────────────────────────────────── */}
           {(newMoon || overview?.new_moon) && (
-            <MoonCard
-              type="new_moon"
-              event={newMoon}
-              detail={overview?.new_moon}
-            />
+            <MoonCard type="new_moon" event={newMoon} detail={overview?.new_moon} />
           )}
 
-          {/* Полнолуние */}
+          {/* ── Полнолуние ────────────────────────────────── */}
           {(fullMoon || overview?.full_moon) && (
-            <MoonCard
-              type="full_moon"
-              event={fullMoon}
-              detail={overview?.full_moon}
-            />
+            <MoonCard type="full_moon" event={fullMoon} detail={overview?.full_moon} />
           )}
 
-          {/* Смена знаков планетами */}
+          {/* ── Переходы планет ───────────────────────────── */}
           {ingresses.length > 0 && (
             <section style={s.card}>
               <p style={s.sectionLabel}>➡️ Переходы планет в знаки</p>
@@ -157,7 +152,7 @@ export default function AstroCalendar() {
             </section>
           )}
 
-          {/* Аспекты между медленными планетами */}
+          {/* ── Аспекты ───────────────────────────────────── */}
           {aspects.length > 0 && (
             <section style={s.card}>
               <p style={s.sectionLabel}>⚡ Значимые аспекты</p>
@@ -175,22 +170,22 @@ export default function AstroCalendar() {
   );
 }
 
-
-// ── Карточка луны ─────────────────────────────────────────────────────────────
+// ── Карточка луны ─────────────────────────────────────────
 
 function MoonCard({ type, event, detail }) {
-  const cfg  = EVENT_STYLES[type];
-  const date = event?.date?.slice(5) || detail?.date || '';
-  const sign = event?.sign || detail?.sign || '';
+  const cfg   = EVENT_BADGE[type];
+  const date  = event?.date?.slice(5) || detail?.date || '';
+  const sign  = event?.sign || detail?.sign || '';
   const title = detail?.title || `${cfg.label} в ${sign}`;
   const desc  = detail?.description || '';
-  const ritual = detail?.ritual;
-  const practice = detail?.practice;
+
+  // Цвет левой полосы по типу
+  const borderColor = type === 'new_moon' ? '#C0A0E8' : '#E8C040';
 
   return (
-    <section style={{ ...s.card, ...s.moonCard }}>
+    <section style={{ ...s.card, borderLeft: `3px solid ${borderColor}` }}>
       <div style={s.moonHeader}>
-        <span style={{ fontSize: '24px' }}>{cfg.emoji}</span>
+        <span style={{ fontSize: 24 }}>{cfg.emoji}</span>
         <div>
           <p style={{ ...s.cardTitle, margin: 0 }}>{title}</p>
           {date && <p style={s.moonDate}>{date} UTC</p>}
@@ -199,100 +194,114 @@ function MoonCard({ type, event, detail }) {
 
       {desc && <p style={s.moonDesc}>{desc}</p>}
 
-      {/* Темы новолуния */}
       {detail?.key_themes?.length > 0 && (
         <ul style={s.themeList}>
           {detail.key_themes.map((t, i) => <li key={i} style={s.themeItem}>• {t}</li>)}
         </ul>
       )}
 
-      {/* Что делать / не делать */}
       {detail?.do && (
-        <div style={{ marginTop: '12px' }}>
+        <div style={{ marginTop: 12 }}>
           <p style={s.sectionLabel}>✅ Что делать</p>
           {Object.entries(detail.do).map(([k, items]) =>
             (items || []).map((item, i) => <p key={`${k}${i}`} style={s.listItem}>{item}</p>)
           )}
         </div>
       )}
+
       {detail?.avoid?.length > 0 && (
-        <div style={{ marginTop: '8px' }}>
+        <div style={{ marginTop: 8 }}>
           <p style={s.sectionLabel}>⚠️ Чего избегать</p>
           {detail.avoid.map((item, i) => <p key={i} style={s.listItem}>{item}</p>)}
         </div>
       )}
 
-      {ritual && (
-        <div style={s.ritualBox}>
-          🌑 Ритуал новолуния: {ritual}
-        </div>
+      {detail?.ritual && (
+        <div style={s.ritualBox}>🌑 Ритуал новолуния: {detail.ritual}</div>
       )}
-      {practice && (
-        <div style={s.ritualBox}>
-          🌕 Практика на полнолуние: {practice}
-        </div>
+      {detail?.practice && (
+        <div style={s.ritualBox}>🌕 Практика на полнолуние: {detail.practice}</div>
       )}
     </section>
   );
 }
 
-
-// ── Стили ─────────────────────────────────────────────────────────────────────
+// ── Стили ─────────────────────────────────────────────────
 
 const s = {
-  root: { display: 'flex', flexDirection: 'column', gap: '0' },
+  root: {
+    display: 'flex', flexDirection: 'column', gap: 0,
+    fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif",
+  },
   nav: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: '20px',
+    marginBottom: 20,
   },
   navBtn: {
-    background: 'none', border: '0.5px solid var(--color-border-secondary)',
-    borderRadius: '8px', padding: '6px 14px', fontSize: '18px',
-    color: 'var(--color-text-secondary)', cursor: 'pointer',
+    background: 'none',
+    border: '1px solid #E2D9F3',
+    borderRadius: 12,
+    padding: '6px 16px',
+    fontSize: 18,
+    color: '#9B7DC8',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   },
-  navTitle: { margin: 0, fontSize: '18px', fontWeight: '500', color: 'var(--color-text-primary)' },
-  content: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  navTitle: {
+    margin: 0, fontSize: 18, fontWeight: 600, color: '#2D2540',
+  },
+  content: { display: 'flex', flexDirection: 'column', gap: 16 },
+
+  // Белые карточки с пастельной тенью
   card: {
-    background: 'var(--color-background-primary)', padding: '18px 20px',
-    borderRadius: 'var(--border-radius-lg)', border: '0.5px solid var(--color-border-tertiary)',
+    background: '#FFFFFF',
+    padding: '18px 20px',
+    borderRadius: 20,
+    boxShadow: '0 4px 16px -4px rgba(224,195,252,0.25)',
+    border: '1px solid #F0EAF8',
   },
-  moonCard: { borderLeft: '3px solid var(--color-border-info)' },
-  cardTitle: { fontSize: '16px', fontWeight: '500', color: 'var(--color-text-primary)', margin: '0 0 6px' },
-  tagline: { margin: '0 0 12px', fontSize: '14px', color: 'var(--color-text-secondary)', fontStyle: 'italic' },
+  cardTitle: {
+    fontSize: 16, fontWeight: 600, color: '#2D2540', margin: '0 0 6px',
+  },
+  tagline: {
+    margin: '0 0 12px', fontSize: 14, color: '#7060A0', fontStyle: 'italic',
+  },
   sectionLabel: {
-    margin: '0 0 6px', fontSize: '11px', fontWeight: '500',
-    letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)',
+    margin: '0 0 6px', fontSize: 11, fontWeight: 600,
+    letterSpacing: '0.06em', textTransform: 'uppercase', color: '#A090C0',
   },
-  themes: { marginTop: '12px' },
   themeList: { margin: 0, padding: 0, listStyle: 'none' },
-  themeItem: { fontSize: '13px', lineHeight: '1.7', color: 'var(--color-text-primary)' },
+  themeItem: { fontSize: 13, lineHeight: 1.7, color: '#3D3560' },
   weekRow: {
-    display: 'flex', alignItems: 'center', gap: '10px',
-    padding: '6px 0', borderBottom: '0.5px solid var(--color-border-tertiary)',
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '6px 0', borderBottom: '1px solid #F5F0FC',
   },
-  weekNum:   { fontSize: '12px', fontWeight: '500', color: 'var(--color-text-secondary)', width: '56px', flexShrink: 0 },
-  weekDates: { fontSize: '12px', color: 'var(--color-text-tertiary)', width: '48px', flexShrink: 0 },
-  weekTone:  { fontSize: '13px', color: 'var(--color-text-primary)' },
+  weekNum:   { fontSize: 12, fontWeight: 600, color: '#9B7DC8', width: 56, flexShrink: 0 },
+  weekDates: { fontSize: 12, color: '#B0A0C8', width: 48, flexShrink: 0 },
+  weekTone:  { fontSize: 13, color: '#3D3560' },
   affirmation: {
-    marginTop: '14px', padding: '10px 14px', borderRadius: 'var(--border-radius-md)',
-    background: 'var(--color-background-info)', fontSize: '14px',
-    fontStyle: 'italic', color: 'var(--color-text-info)', textAlign: 'center',
+    marginTop: 14, padding: '10px 14px', borderRadius: 12,
+    background: '#F5F0FF',
+    fontSize: 14, fontStyle: 'italic', color: '#7040A8', textAlign: 'center',
   },
-  moonHeader: { display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '10px' },
-  moonDate: { margin: '2px 0 0', fontSize: '12px', color: 'var(--color-text-tertiary)' },
-  moonDesc: { margin: '0 0 10px', fontSize: '14px', lineHeight: '1.6', color: 'var(--color-text-primary)' },
+  moonHeader: {
+    display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10,
+  },
+  moonDate: { margin: '2px 0 0', fontSize: 12, color: '#B0A0C8' },
+  moonDesc: { margin: '0 0 10px', fontSize: 14, lineHeight: 1.6, color: '#3D3560' },
   ritualBox: {
-    marginTop: '10px', padding: '10px 14px', background: 'var(--color-background-secondary)',
-    borderRadius: 'var(--border-radius-md)', fontSize: '13px', color: 'var(--color-text-primary)',
+    marginTop: 10, padding: '10px 14px',
+    background: '#FAF5FF',
+    borderRadius: 12, fontSize: 13, color: '#5A3880',
   },
   eventRow: {
-    display: 'flex', alignItems: 'flex-start', gap: '10px',
-    padding: '6px 0', borderBottom: '0.5px solid var(--color-border-tertiary)',
+    display: 'flex', alignItems: 'flex-start', gap: 10,
+    padding: '6px 0', borderBottom: '1px solid #F5F0FC',
   },
-  eventDate:    { fontSize: '12px', color: 'var(--color-text-tertiary)', width: '36px', flexShrink: 0 },
-  eventDesc:    { fontSize: '13px', color: 'var(--color-text-primary)', flex: 1 },
-  eventMeaning: { fontSize: '12px', color: 'var(--color-text-secondary)', flex: 1 },
-  listItem: { margin: '2px 0', fontSize: '13px', lineHeight: '1.5', color: 'var(--color-text-primary)' },
-  muted:  { color: 'var(--color-text-tertiary)', fontSize: '13px' },
-  danger: { color: 'var(--color-text-danger)',   fontSize: '13px' },
+  eventDate:    { fontSize: 12, color: '#B0A0C8', width: 36, flexShrink: 0 },
+  eventDesc:    { fontSize: 13, color: '#3D3560', flex: 1 },
+  eventMeaning: { fontSize: 12, color: '#9B7DC8', flex: 1 },
+  listItem: { margin: '2px 0', fontSize: 13, lineHeight: 1.5, color: '#3D3560' },
+  muted:    { color: '#B0A0C8', fontSize: 13 },
+  danger:   { color: '#E05070', fontSize: 13 },
 };

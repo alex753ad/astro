@@ -1,31 +1,31 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════
-// MOCK DATA (replace with API calls in production)
+// MOCK DATA
 // ═══════════════════════════════════════════════════════════
 
 const MOCK_EVENTS = [
-  { date: "2026-04-03", transit_planet: "Venus", natal_planet: "Sun", aspect_type: "trine", orb: 0.4, exact_date: "2026-04-03T14:22", transit_sign: "Pisces", natal_sign: "Capricorn" },
-  { date: "2026-04-05", transit_planet: "Mercury", natal_planet: "Jupiter", aspect_type: "sextile", orb: 1.1, exact_date: "2026-04-05T08:15", transit_sign: "Aries", natal_sign: "Sagittarius" },
-  { date: "2026-04-07", transit_planet: "Mars", natal_planet: "Moon", aspect_type: "square", orb: 0.8, exact_date: "2026-04-07T19:40", transit_sign: "Cancer", natal_sign: "Cancer" },
-  { date: "2026-04-09", transit_planet: "Sun", natal_planet: "Saturn", aspect_type: "square", orb: 1.5, exact_date: "2026-04-09T06:10", transit_sign: "Aries", natal_sign: "Capricorn" },
-  { date: "2026-04-11", transit_planet: "Jupiter", natal_planet: "Sun", aspect_type: "conjunction", orb: 0.2, exact_date: "2026-04-11T11:33", transit_sign: "Cancer", natal_sign: "Capricorn" },
-  { date: "2026-04-13", transit_planet: "Saturn", natal_planet: "Venus", aspect_type: "trine", orb: 0.9, exact_date: "2026-04-13T22:05", transit_sign: "Aries", natal_sign: "Aquarius" },
-  { date: "2026-04-15", transit_planet: "Venus", natal_planet: "Mars", aspect_type: "opposition", orb: 0.6, exact_date: "2026-04-15T16:48", transit_sign: "Aries", natal_sign: "Taurus" },
-  { date: "2026-04-17", transit_planet: "Mercury", natal_planet: "Neptune", aspect_type: "conjunction", orb: 1.3, exact_date: "2026-04-17T03:20", transit_sign: "Aries", natal_sign: "Aquarius" },
-  { date: "2026-04-18", transit_planet: "Uranus", natal_planet: "Mercury", aspect_type: "square", orb: 0.3, exact_date: "2026-04-18T09:55", transit_sign: "Gemini", natal_sign: "Sagittarius" },
-  { date: "2026-04-20", transit_planet: "Mars", natal_planet: "Sun", aspect_type: "opposition", orb: 1.0, exact_date: "2026-04-20T12:30", transit_sign: "Cancer", natal_sign: "Capricorn" },
-  { date: "2026-04-22", transit_planet: "Neptune", natal_planet: "Moon", aspect_type: "trine", orb: 0.7, exact_date: "2026-04-22T07:15", transit_sign: "Aries", natal_sign: "Cancer" },
-  { date: "2026-04-24", transit_planet: "Pluto", natal_planet: "Saturn", aspect_type: "conjunction", orb: 0.1, exact_date: "2026-04-24T18:40", transit_sign: "Aquarius", natal_sign: "Capricorn" },
-  { date: "2026-04-26", transit_planet: "Sun", natal_planet: "Uranus", aspect_type: "square", orb: 1.8, exact_date: "2026-04-26T15:00", transit_sign: "Taurus", natal_sign: "Aquarius" },
-  { date: "2026-04-28", transit_planet: "Venus", natal_planet: "Jupiter", aspect_type: "conjunction", orb: 0.5, exact_date: "2026-04-28T10:22", transit_sign: "Aries", natal_sign: "Sagittarius" },
-  { date: "2026-04-30", transit_planet: "Saturn", natal_planet: "Moon", aspect_type: "square", orb: 1.2, exact_date: "2026-04-30T21:45", transit_sign: "Aries", natal_sign: "Cancer" },
+  { date: "2026-04-03", transit_planet: "Venus",   natal_planet: "Sun",    aspect_type: "trine",       orb: 0.4, exact_date: "2026-04-03T14:22", transit_sign: "Pisces",   natal_sign: "Capricorn" },
+  { date: "2026-04-05", transit_planet: "Mercury", natal_planet: "Jupiter",aspect_type: "sextile",     orb: 1.1, exact_date: "2026-04-05T08:15", transit_sign: "Aries",    natal_sign: "Sagittarius" },
+  { date: "2026-04-07", transit_planet: "Mars",    natal_planet: "Moon",   aspect_type: "square",      orb: 0.8, exact_date: "2026-04-07T19:40", transit_sign: "Cancer",   natal_sign: "Cancer" },
+  { date: "2026-04-09", transit_planet: "Sun",     natal_planet: "Saturn", aspect_type: "square",      orb: 1.5, exact_date: "2026-04-09T06:10", transit_sign: "Aries",    natal_sign: "Capricorn" },
+  { date: "2026-04-11", transit_planet: "Jupiter", natal_planet: "Sun",    aspect_type: "conjunction", orb: 0.2, exact_date: "2026-04-11T11:33", transit_sign: "Cancer",   natal_sign: "Capricorn" },
+  { date: "2026-04-13", transit_planet: "Saturn",  natal_planet: "Venus",  aspect_type: "trine",       orb: 0.9, exact_date: "2026-04-13T22:05", transit_sign: "Aries",    natal_sign: "Aquarius" },
+  { date: "2026-04-15", transit_planet: "Venus",   natal_planet: "Mars",   aspect_type: "opposition",  orb: 0.6, exact_date: "2026-04-15T16:48", transit_sign: "Aries",    natal_sign: "Taurus" },
+  { date: "2026-04-17", transit_planet: "Mercury", natal_planet: "Neptune",aspect_type: "conjunction", orb: 1.3, exact_date: "2026-04-17T03:20", transit_sign: "Aries",    natal_sign: "Aquarius" },
+  { date: "2026-04-18", transit_planet: "Uranus",  natal_planet: "Mercury",aspect_type: "square",      orb: 0.3, exact_date: "2026-04-18T09:55", transit_sign: "Gemini",   natal_sign: "Sagittarius" },
+  { date: "2026-04-20", transit_planet: "Mars",    natal_planet: "Sun",    aspect_type: "opposition",  orb: 1.0, exact_date: "2026-04-20T12:30", transit_sign: "Cancer",   natal_sign: "Capricorn" },
+  { date: "2026-04-22", transit_planet: "Neptune", natal_planet: "Moon",   aspect_type: "trine",       orb: 0.7, exact_date: "2026-04-22T07:15", transit_sign: "Aries",    natal_sign: "Cancer" },
+  { date: "2026-04-24", transit_planet: "Pluto",   natal_planet: "Saturn", aspect_type: "conjunction", orb: 0.1, exact_date: "2026-04-24T18:40", transit_sign: "Aquarius", natal_sign: "Capricorn" },
+  { date: "2026-04-26", transit_planet: "Sun",     natal_planet: "Uranus", aspect_type: "square",      orb: 1.8, exact_date: "2026-04-26T15:00", transit_sign: "Taurus",   natal_sign: "Aquarius" },
+  { date: "2026-04-28", transit_planet: "Venus",   natal_planet: "Jupiter",aspect_type: "conjunction", orb: 0.5, exact_date: "2026-04-28T10:22", transit_sign: "Aries",    natal_sign: "Sagittarius" },
+  { date: "2026-04-30", transit_planet: "Saturn",  natal_planet: "Moon",   aspect_type: "square",      orb: 1.2, exact_date: "2026-04-30T21:45", transit_sign: "Aries",    natal_sign: "Cancer" },
 ];
 
 const MOCK_INTERPRETATIONS = {
-  "Jupiter conjunction Sun": "Транзит Юпитера в соединении с вашим натальным Солнцем — один из самых благоприятных транзитов, который случается раз в 12 лет.\n\nЭто период расширения возможностей, когда ваша уверенность в себе растёт, а жизнь словно открывает перед вами новые двери. Юпитер усиливает всё, к чему прикасается, и в данном случае он усиливает вашу жизненную силу, самовыражение и чувство цели.\n\nОбратите внимание на возможности в сфере карьеры и личного развития. Это не время скромничать — Юпитер вознаграждает смелость и оптимизм. Путешествия, обучение, юридические дела — всё это находится под покровительством этого транзита.\n\nРекомендация: используйте этот период для запуска проектов, которые давно откладывали. Энергия благоприятствует масштабному мышлению.",
-  "Pluto conjunction Saturn": "Транзит Плутона в соединении с вашим натальным Сатурном — глубокий и трансформирующий процесс, который затрагивает сами основы вашей жизненной структуры.\n\nСатурн отвечает за правила, границы, дисциплину и то, как вы организуете свою жизнь. Плутон приходит и проверяет: насколько эти структуры подлинны? Что построено на прочном фундаменте, а что — на страхе?\n\nЭтот транзит может ощущаться как давление со стороны обстоятельств: карьерные изменения, перестройка жизненных приоритетов, столкновение с авторитетами. Но его цель — не разрушение, а обновление.\n\nТо, что выдержит этот транзит, станет несокрушимым фундаментом для следующего этапа вашей жизни. Отпустите то, что держится только на привычке.",
-  "Uranus square Mercury": "Транзит Урана в квадрате к вашему натальному Меркурию вносит электрическое напряжение в сферу мышления и коммуникации.\n\nВы можете обнаружить, что привычные способы думать и общаться перестают работать. Неожиданные идеи, внезапные озарения, но также нервозность и рассеянность — всё это проявления этого аспекта.\n\nВажные решения лучше не принимать импульсивно. Дайте новым идеям «отлежаться» хотя бы несколько дней. При этом будьте открыты к нестандартным решениям — Уран часто приносит гениальные прозрения именно через дискомфорт.\n\nРекомендация: записывайте идеи, но не торопитесь с их реализацией. Перепроверяйте важные документы и договоры.",
+  "Jupiter conjunction Sun": "Транзит Юпитера в соединении с вашим натальным Солнцем — один из самых благоприятных транзитов, который случается раз в 12 лет.\n\nЭто период расширения возможностей, когда ваша уверенность в себе растёт, а жизнь словно открывает перед вами новые двери. Юпитер усиливает всё, к чему прикасается, и в данном случае он усиливает вашу жизненную силу, самовыражение и чувство цели.\n\nОбратите внимание на возможности в сфере карьеры и личного развития. Это не время скромничать — Юпитер вознаграждает смелость и оптимизм.\n\nРекомендация: используйте этот период для запуска проектов, которые давно откладывали. Энергия благоприятствует масштабному мышлению.",
+  "Pluto conjunction Saturn": "Транзит Плутона в соединении с вашим натальным Сатурном — глубокий и трансформирующий процесс, который затрагивает сами основы вашей жизненной структуры.\n\nСатурн отвечает за правила, границы, дисциплину и то, как вы организуете свою жизнь. Плутон приходит и проверяет: насколько эти структуры подлинны?\n\nЭтот транзит может ощущаться как давление со стороны обстоятельств: карьерные изменения, перестройка жизненных приоритетов. Но его цель — не разрушение, а обновление.\n\nТо, что выдержит этот транзит, станет несокрушимым фундаментом для следующего этапа вашей жизни.",
+  "Uranus square Mercury": "Транзит Урана в квадрате к вашему натальному Меркурию вносит электрическое напряжение в сферу мышления и коммуникации.\n\nВы можете обнаружить, что привычные способы думать и общаться перестают работать. Неожиданные идеи, внезапные озарения, но также нервозность и рассеянность — всё это проявления этого аспекта.\n\nРекомендация: записывайте идеи, но не торопитесь с их реализацией. Перепроверяйте важные документы и договоры.",
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -42,28 +42,41 @@ const ASPECT_SYMBOLS = {
   conjunction: "☌", sextile: "⚹", square: "□", trine: "△", opposition: "☍",
 };
 
+// Пастельные цвета аспектов (светлая тема)
 const ASPECT_COLORS = {
-  conjunction: "#F59E0B",
-  sextile: "#3B82F6",
-  square: "#EF4444",
-  trine: "#3B82F6",
-  opposition: "#EF4444",
+  conjunction: "#C08020",
+  sextile:     "#3068B0",
+  square:      "#C03030",
+  trine:       "#3068B0",
+  opposition:  "#C03030",
 };
 
 const ASPECT_BG = {
-  conjunction: "rgba(245,158,11,0.08)",
-  sextile: "rgba(59,130,246,0.08)",
-  square: "rgba(239,68,68,0.08)",
-  trine: "rgba(59,130,246,0.08)",
-  opposition: "rgba(239,68,68,0.08)",
+  conjunction: "rgba(192,128,32,0.08)",
+  sextile:     "rgba(48,104,176,0.08)",
+  square:      "rgba(192,48,48,0.08)",
+  trine:       "rgba(48,104,176,0.08)",
+  opposition:  "rgba(192,48,48,0.08)",
+};
+
+// Левый border-l акцент по планете (цвет)
+const PLANET_ACCENT = {
+  Sun:          "#D4840A",
+  Moon:         "#7A8BA0",
+  Mercury:      "#7060C0",
+  Venus:        "#C04870",
+  Mars:         "#B83030",
+  Jupiter:      "#3868B0",
+  Saturn:       "#6A6050",
+  Uranus:       "#2090A8",
+  Neptune:      "#6050B8",
+  Pluto:        "#902020",
+  "North Node": "#308858",
 };
 
 const ASPECT_LABELS_RU = {
-  conjunction: "Соединение",
-  sextile: "Секстиль",
-  square: "Квадрат",
-  trine: "Трин",
-  opposition: "Оппозиция",
+  conjunction: "Соединение", sextile: "Секстиль", square: "Квадрат",
+  trine: "Трин", opposition: "Оппозиция",
 };
 
 const PLANET_LABELS_RU = {
@@ -86,23 +99,18 @@ function formatExactTime(exactDate) {
   return parts[1] || "";
 }
 
-function isHarmonic(aspect) {
-  return aspect === "trine" || aspect === "sextile";
-}
-
-function isTense(aspect) {
-  return aspect === "square" || aspect === "opposition";
-}
+function isHarmonic(aspect) { return aspect === "trine" || aspect === "sextile"; }
+function isTense(aspect)    { return aspect === "square" || aspect === "opposition"; }
 
 // ═══════════════════════════════════════════════════════════
 // SKELETON LOADER
 // ═══════════════════════════════════════════════════════════
 
-function Skeleton({ width = "100%", height = 16, radius = 6, style = {} }) {
+function Skeleton({ width = "100%", height = 16, radius = 8, style = {} }) {
   return (
     <div style={{
       width, height, borderRadius: radius,
-      background: "linear-gradient(90deg, var(--sk1) 25%, var(--sk2) 50%, var(--sk1) 75%)",
+      background: "linear-gradient(90deg, #F0EAF8 25%, #F8F3FF 50%, #F0EAF8 75%)",
       backgroundSize: "200% 100%",
       animation: "shimmer 1.8s ease-in-out infinite",
       ...style,
@@ -113,10 +121,10 @@ function Skeleton({ width = "100%", height = 16, radius = 6, style = {} }) {
 function EventCardSkeleton() {
   return (
     <div style={{
-      padding: "14px 16px", borderRadius: 10,
-      border: "1px solid var(--border)",
-      background: "var(--card-bg)",
+      padding: "16px 18px", borderRadius: 16,
+      border: "1px solid #F0EAF8", background: "#FFFFFF",
       display: "flex", flexDirection: "column", gap: 8,
+      borderLeft: "4px solid #E8DEF8",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Skeleton width={80} height={12} />
@@ -129,64 +137,54 @@ function EventCardSkeleton() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// FILTER BAR
+// FILTER BAR — пастельный стиль
 // ═══════════════════════════════════════════════════════════
 
 function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilter, orbFilter, setOrbFilter }) {
   const [expandedSection, setExpandedSection] = useState(null);
-
-  const toggle = (section) => setExpandedSection(prev => prev === section ? null : section);
+  const toggle = (s) => setExpandedSection(prev => prev === s ? null : s);
 
   const chipStyle = (active) => ({
-    padding: "5px 12px",
+    padding: "5px 13px",
     borderRadius: 20,
-    border: `1.5px solid ${active ? "var(--accent)" : "var(--border)"}`,
-    background: active ? "var(--accent-bg)" : "transparent",
-    color: active ? "var(--accent)" : "var(--text-secondary)",
+    border: `1.5px solid ${active ? "#C0A0E8" : "#E8DEF8"}`,
+    background: active ? "#F0E8FF" : "transparent",
+    color: active ? "#7040A8" : "#9080B0",
     fontSize: 13,
     fontWeight: active ? 600 : 400,
     cursor: "pointer",
     transition: "all 0.2s ease",
     whiteSpace: "nowrap",
     userSelect: "none",
+    fontFamily: "inherit",
   });
 
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
-      padding: "12px 16px",
-      background: "var(--card-bg)",
-      borderRadius: 12,
-      border: "1px solid var(--border)",
+      padding: "14px 16px",
+      background: "#FFFFFF",
+      borderRadius: 16,
+      border: "1px solid #F0EAF8",
+      boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)",
     }}>
-      {/* Planet filter */}
+      {/* Планеты */}
       <div>
-        <button
-          onClick={() => toggle("planets")}
-          style={{
-            background: "none", border: "none", color: "var(--text-secondary)",
-            fontSize: 12, fontWeight: 600, letterSpacing: "0.05em",
-            textTransform: "uppercase", cursor: "pointer", padding: 0,
-            display: "flex", alignItems: "center", gap: 6,
-          }}
-        >
+        <button onClick={() => toggle("planets")} style={filterLabelStyle}>
           <span>Планеты</span>
           <span style={{ fontSize: 10, transform: expandedSection === "planets" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
           {planetFilter.length > 0 && planetFilter.length < ALL_PLANETS.length && (
-            <span style={{
-              background: "var(--accent)", color: "#fff",
-              borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700,
-            }}>{planetFilter.length}</span>
+            <span style={{ background: "#C0A0E8", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
+              {planetFilter.length}
+            </span>
           )}
         </button>
         {expandedSection === "planets" && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
             {ALL_PLANETS.map(p => (
-              <button key={p} style={chipStyle(planetFilter.includes(p))} onClick={() => {
-                setPlanetFilter(prev =>
-                  prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-                );
-              }}>
+              <button key={p} style={chipStyle(planetFilter.includes(p))} onClick={() =>
+                setPlanetFilter(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
+              }>
                 {PLANET_GLYPHS[p]} {PLANET_LABELS_RU[p]}
               </button>
             ))}
@@ -194,28 +192,18 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
         )}
       </div>
 
-      {/* Aspect filter */}
+      {/* Аспекты */}
       <div>
-        <button
-          onClick={() => toggle("aspects")}
-          style={{
-            background: "none", border: "none", color: "var(--text-secondary)",
-            fontSize: 12, fontWeight: 600, letterSpacing: "0.05em",
-            textTransform: "uppercase", cursor: "pointer", padding: 0,
-            display: "flex", alignItems: "center", gap: 6,
-          }}
-        >
+        <button onClick={() => toggle("aspects")} style={filterLabelStyle}>
           <span>Аспекты</span>
           <span style={{ fontSize: 10, transform: expandedSection === "aspects" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
         </button>
         {expandedSection === "aspects" && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
             {ALL_ASPECTS.map(a => (
-              <button key={a} style={chipStyle(aspectFilter.includes(a))} onClick={() => {
-                setAspectFilter(prev =>
-                  prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]
-                );
-              }}>
+              <button key={a} style={chipStyle(aspectFilter.includes(a))} onClick={() =>
+                setAspectFilter(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])
+              }>
                 <span style={{ color: ASPECT_COLORS[a] }}>{ASPECT_SYMBOLS[a]}</span> {ASPECT_LABELS_RU[a]}
               </button>
             ))}
@@ -223,17 +211,9 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
         )}
       </div>
 
-      {/* Orb filter */}
+      {/* Орб */}
       <div>
-        <button
-          onClick={() => toggle("orb")}
-          style={{
-            background: "none", border: "none", color: "var(--text-secondary)",
-            fontSize: 12, fontWeight: 600, letterSpacing: "0.05em",
-            textTransform: "uppercase", cursor: "pointer", padding: 0,
-            display: "flex", alignItems: "center", gap: 6,
-          }}
-        >
+        <button onClick={() => toggle("orb")} style={filterLabelStyle}>
           <span>Орб ≤ {orbFilter}°</span>
           <span style={{ fontSize: 10, transform: expandedSection === "orb" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
         </button>
@@ -243,21 +223,22 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
               type="range" min={0.5} max={3} step={0.5}
               value={orbFilter}
               onChange={e => setOrbFilter(Number(e.target.value))}
-              style={{ flex: 1 }}
+              style={{ flex: 1, accentColor: "#C0A0E8" }}
             />
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", minWidth: 28 }}>{orbFilter}°</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#5A3880", minWidth: 28 }}>{orbFilter}°</span>
           </div>
         )}
       </div>
 
-      {/* Reset */}
+      {/* Сброс */}
       {(planetFilter.length > 0 || aspectFilter.length > 0 || orbFilter !== 2.0) && (
         <button
           onClick={() => { setPlanetFilter([]); setAspectFilter([]); setOrbFilter(2.0); }}
           style={{
             alignSelf: "flex-start", background: "none",
-            border: "1px solid var(--border)", color: "var(--text-secondary)",
-            borderRadius: 8, padding: "4px 12px", fontSize: 12, cursor: "pointer",
+            border: "1px solid #E8DEF8", color: "#9080B0",
+            borderRadius: 10, padding: "4px 12px", fontSize: 12,
+            cursor: "pointer", fontFamily: "inherit",
           }}
         >
           Сбросить фильтры
@@ -266,6 +247,13 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
     </div>
   );
 }
+
+const filterLabelStyle = {
+  background: "none", border: "none", color: "#9080B0",
+  fontSize: 12, fontWeight: 600, letterSpacing: "0.05em",
+  textTransform: "uppercase", cursor: "pointer", padding: 0,
+  display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit",
+};
 
 // ═══════════════════════════════════════════════════════════
 // DATE NAV
@@ -278,8 +266,7 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
     if (activeDate && scrollRef.current) {
       const idx = dates.indexOf(activeDate);
       if (idx >= 0) {
-        const el = scrollRef.current.children[idx];
-        el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+        scrollRef.current.children[idx]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
       }
     }
   }, [activeDate, dates]);
@@ -287,37 +274,31 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
   return (
     <div ref={scrollRef} style={{
       display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6,
-      scrollbarWidth: "none",
-      msOverflowStyle: "none",
+      scrollbarWidth: "none", msOverflowStyle: "none",
     }}>
       {dates.map(d => {
-        const active = d === activeDate;
-        const count  = eventCountByDate[d] || 0;
-        const dt     = new Date(d + "T00:00:00");
-        const dayNum = dt.getDate();
+        const active  = d === activeDate;
+        const count   = eventCountByDate[d] || 0;
+        const dt      = new Date(d + "T00:00:00");
+        const dayNum  = dt.getDate();
         const dayName = dt.toLocaleDateString("ru-RU", { weekday: "short" });
 
         return (
-          <button
-            key={d}
-            onClick={() => onDateClick(d)}
-            style={{
-              minWidth: 48, flexShrink: 0,
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-              padding: "8px 6px", borderRadius: 10,
-              border: `1.5px solid ${active ? "var(--accent)" : "var(--border)"}`,
-              background: active ? "var(--accent-bg)" : "var(--card-bg)",
-              color: active ? "var(--accent)" : "var(--text-secondary)",
-              cursor: "pointer", transition: "all 0.2s",
-              fontFamily: "inherit",
-            }}
-          >
+          <button key={d} onClick={() => onDateClick(d)} style={{
+            minWidth: 48, flexShrink: 0,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+            padding: "8px 6px", borderRadius: 12,
+            border: `1.5px solid ${active ? "#C0A0E8" : "#E8DEF8"}`,
+            background: active ? "#F0E8FF" : "#FFFFFF",
+            color: active ? "#7040A8" : "#9080B0",
+            cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
+          }}>
             <span style={{ fontSize: 11, opacity: 0.7 }}>{dayName}</span>
             <span style={{ fontSize: 15, fontWeight: active ? 700 : 500 }}>{dayNum}</span>
             {count > 0 && (
               <span style={{
                 width: 6, height: 6, borderRadius: 3,
-                background: active ? "var(--accent)" : "var(--border)",
+                background: active ? "#C0A0E8" : "#D8CEF0",
               }} />
             )}
           </button>
@@ -336,23 +317,24 @@ function StatsSummary({ events }) {
   const tenseCount    = events.filter(e => isTense(e.aspect_type)).length;
   const conjCount     = events.filter(e => e.aspect_type === "conjunction").length;
 
+  const stats = [
+    { label: "Всего",        value: events.length, color: "#7040A8", bg: "#F5F0FF" },
+    { label: "Гармоничных",  value: harmonicCount,  color: "#3068B0", bg: "#EAF1FF" },
+    { label: "Напряжённых",  value: tenseCount,     color: "#C03030", bg: "#FFF0F0" },
+    { label: "Соединений",   value: conjCount,      color: "#C08020", bg: "#FFF8E8" },
+  ];
+
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      {[
-        { label: "Всего", value: events.length, color: "var(--accent)" },
-        { label: "Гармоничных", value: harmonicCount, color: "#3B82F6" },
-        { label: "Напряжённых", value: tenseCount, color: "#EF4444" },
-        { label: "Соединений", value: conjCount, color: "#F59E0B" },
-      ].map(({ label, value, color }) => (
+      {stats.map(({ label, value, color, bg }) => (
         <div key={label} style={{
-          flex: "1 1 80px",
-          padding: "10px 14px",
-          borderRadius: 10, border: "1px solid var(--border)",
-          background: "var(--card-bg)",
+          flex: "1 1 80px", padding: "12px 14px",
+          borderRadius: 14, border: "1px solid #F0EAF8",
+          background: bg,
           display: "flex", flexDirection: "column", gap: 3,
         }}>
-          <span style={{ fontSize: 20, fontWeight: 800, color }}>{value}</span>
-          <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{label}</span>
+          <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
+          <span style={{ fontSize: 11, color: "#9080B0" }}>{label}</span>
         </div>
       ))}
     </div>
@@ -360,37 +342,41 @@ function StatsSummary({ events }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// EVENT CARD
+// EVENT CARD — белая карточка с цветным border-l
 // ═══════════════════════════════════════════════════════════
 
 function EventCard({ event, index, isSelected, onClick }) {
-  const aspectColor = ASPECT_COLORS[event.aspect_type] || "var(--accent)";
-  const aspectBg    = ASPECT_BG[event.aspect_type]    || "var(--accent-bg)";
-  const displayDate = event.peak_date || event.exact_date || event.date || "";
+  const aspectColor  = ASPECT_COLORS[event.aspect_type] || "#7040A8";
+  const aspectBg     = ASPECT_BG[event.aspect_type]    || "rgba(112,64,168,0.06)";
+  const planetAccent = PLANET_ACCENT[event.transit_planet] || "#C0A0E8";
+  const displayDate  = event.peak_date || event.exact_date || event.date || "";
 
   return (
     <div
       onClick={onClick}
       style={{
-        padding: "14px 16px", borderRadius: 10, cursor: "pointer",
-        border: `1px solid ${isSelected ? aspectColor : "var(--border)"}`,
-        background: isSelected ? aspectBg : "var(--card-bg)",
+        padding: "14px 16px",
+        borderRadius: 16,
+        cursor: "pointer",
+        border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
+        borderLeft: `4px solid ${planetAccent}`,
+        background: isSelected ? aspectBg : "#FFFFFF",
+        boxShadow: isSelected
+          ? "0 8px 20px -6px rgba(224,195,252,0.35)"
+          : "0 2px 8px -4px rgba(200,180,240,0.15)",
         transition: "all 0.2s ease",
         animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
+        fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif",
       }}
     >
-      {/* Top row */}
+      {/* Верхняя строка: дата + орб */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{
-            fontSize: 11, fontWeight: 600,
-            color: "var(--text-secondary)",
-            letterSpacing: "0.04em",
-          }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#9080B0", letterSpacing: "0.04em" }}>
             {displayDate ? formatDate(displayDate) : ""}
           </span>
           {event.exact_date && (
-            <span style={{ fontSize: 10, color: "var(--text-secondary)", opacity: 0.6 }}>
+            <span style={{ fontSize: 10, color: "#B0A0C8", opacity: 0.7 }}>
               {formatExactTime(event.exact_date)}
             </span>
           )}
@@ -399,40 +385,40 @@ function EventCard({ event, index, isSelected, onClick }) {
           {event.applying !== undefined && (
             <span style={{
               fontSize: 10, padding: "2px 7px", borderRadius: 8,
-              border: `1px solid ${event.applying ? "rgba(59,130,246,0.3)" : "var(--border)"}`,
-              color: event.applying ? "#3B82F6" : "var(--text-secondary)",
-              background: event.applying ? "rgba(59,130,246,0.06)" : "transparent",
+              border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "#E8DEF8"}`,
+              color: event.applying ? "#3068B0" : "#9080B0",
+              background: event.applying ? "rgba(48,104,176,0.06)" : "transparent",
             }}>
               {event.applying ? "→ точный" : "← отходит"}
             </span>
           )}
-          <span style={{ fontSize: 11, color: "var(--text-secondary)", opacity: 0.6 }}>
+          <span style={{ fontSize: 11, color: "#B0A0C8", opacity: 0.7 }}>
             орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°
           </span>
         </div>
       </div>
 
-      {/* Planet pair */}
+      {/* Пара планет */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.transit_planet] || "★"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>
           {PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}
         </span>
         <span style={{ fontSize: 16, color: aspectColor, fontWeight: 700 }}>
           {ASPECT_SYMBOLS[event.aspect_type] || "·"}
         </span>
-        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+        <span style={{ fontSize: 13, color: "#9080B0" }}>
           {ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}
         </span>
         <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.natal_planet] || "☽"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>
           {PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}
         </span>
       </div>
 
-      {/* Signs */}
+      {/* Знаки */}
       {(event.transit_sign || event.natal_sign) && (
-        <div style={{ marginTop: 5, fontSize: 12, color: "var(--text-secondary)" }}>
+        <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>
           {event.transit_sign} → {event.natal_sign}
         </div>
       )}
@@ -450,16 +436,13 @@ function EventCard({ event, index, isSelected, onClick }) {
 // INTERPRETATION PANEL
 // ═══════════════════════════════════════════════════════════
 
-const SPHERE_ICONS = { work: "💼", love: "💕", health: "🌿", finance: "💰", personal: "✨", social: "🤝", spiritual: "🔮" };
-const SPHERE_LABELS = { work: "Работа", love: "Отношения", health: "Здоровье", finance: "Финансы", personal: "Личность", social: "Социум", spiritual: "Духовность" };
-
 function InterpretationPanel({ event, onClose }) {
-  const [text, setText]       = useState("");
+  const [text,    setText]    = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [error,   setError]   = useState(null);
   const scrollRef = useRef(null);
 
-  const key = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
+  const key     = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
   const mockKey = `${event.transit_planet} ${event.aspect_type} ${event.natal_planet}`;
 
   useEffect(() => {
@@ -478,7 +461,7 @@ function InterpretationPanel({ event, onClose }) {
 
     if (!event.chartId) {
       setTimeout(() => {
-        setText(`Интерпретация транзита: ${key}.\n\nЭтот аспект влияет на сферу жизни, связанную с натальной планетой. Рекомендуется обратить внимание на события этого периода и использовать энергию транзита осознанно.`);
+        setText(`Интерпретация транзита: ${key}.\n\nЭтот аспект влияет на сферу жизни, связанную с натальной планетой. Рекомендуется обратить внимание на события этого периода.`);
         setLoading(false);
       }, 800);
       return;
@@ -488,15 +471,8 @@ function InterpretationPanel({ event, onClose }) {
     const ctrl  = new AbortController();
     fetch(`https://astro-production-e070.up.railway.app/api/v1/chart/${event.chartId}/transits/event/interpret`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        transit_planet: event.transit_planet,
-        natal_planet:   event.natal_planet,
-        aspect_type:    event.aspect_type,
-      }),
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ transit_planet: event.transit_planet, natal_planet: event.natal_planet, aspect_type: event.aspect_type }),
       signal: ctrl.signal,
     })
       .then(async r => {
@@ -527,18 +503,22 @@ function InterpretationPanel({ event, onClose }) {
 
   return (
     <div style={{
-      background: "var(--card-bg)", borderRadius: 14,
-      border: "1px solid var(--border)",
+      background: "#FFFFFF",
+      borderRadius: 18,
+      border: "1px solid #E8DEF8",
+      boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)",
       animation: "fadeSlideIn 0.3s ease",
     }}>
       <div style={{
-        padding: "12px 16px", borderBottom: "1px solid var(--border)",
+        padding: "12px 16px",
+        borderBottom: "1px solid #F0EAF8",
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{key}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#2D2540" }}>{key}</div>
         <button onClick={onClose} style={{
-          background: "none", border: "none", color: "var(--text-secondary)",
-          fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 6,
+          background: "none", border: "none", color: "#B0A0C8",
+          fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8,
+          fontFamily: "inherit",
         }}>✕</button>
       </div>
       <div ref={scrollRef} style={{ padding: 16, maxHeight: 400, overflowY: "auto" }}>
@@ -547,14 +527,14 @@ function InterpretationPanel({ event, onClose }) {
             {[90, 70, 85, 60].map((w, i) => <Skeleton key={i} width={`${w}%`} height={13} />)}
           </div>
         )}
-        {error && <div style={{ color: "#EF4444", fontSize: 13 }}>{error}</div>}
+        {error && <div style={{ color: "#C03030", fontSize: 13 }}>{error}</div>}
         {text && (
-          <div style={{ fontSize: 13, lineHeight: 1.75, color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 13, lineHeight: 1.75, color: "#2D2540", whiteSpace: "pre-wrap" }}>
             {text}
             {loading && (
               <span style={{
                 display: "inline-block", width: 6, height: 14,
-                background: "var(--accent)", marginLeft: 2, borderRadius: 2,
+                background: "#C0A0E8", marginLeft: 2, borderRadius: 2,
                 animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom",
               }} />
             )}
@@ -570,25 +550,20 @@ function InterpretationPanel({ event, onClose }) {
 // ═══════════════════════════════════════════════════════════
 
 export default function TransitTimeline({ chartId, onDateSelect }) {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [events,        setEvents]        = useState([]);
+  const [loading,       setLoading]       = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [planetFilter, setPlanetFilter] = useState([]);
-  const [aspectFilter, setAspectFilter] = useState([]);
-  const [orbFilter, setOrbFilter] = useState(2.0);
-  const [activeDate, setActiveDate] = useState(null);
+  const [planetFilter,  setPlanetFilter]  = useState([]);
+  const [aspectFilter,  setAspectFilter]  = useState([]);
+  const [orbFilter,     setOrbFilter]     = useState(2.0);
+  const [activeDate,    setActiveDate]    = useState(null);
 
-  // Load transits from API
   useEffect(() => {
-    if (!chartId) {
-      setEvents(MOCK_EVENTS);
-      setLoading(false);
-      return;
-    }
+    if (!chartId) { setEvents(MOCK_EVENTS); setLoading(false); return; }
     setLoading(true);
     const today = new Date();
-    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const to   = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
+    const from  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    const to    = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
     fetch(`https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`)
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoading(false); })
@@ -598,7 +573,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
       if (planetFilter.length > 0 && !planetFilter.includes(e.transit_planet)) return false;
-      if (aspectFilter.length > 0 && !aspectFilter.includes(e.aspect_type)) return false;
+      if (aspectFilter.length > 0 && !aspectFilter.includes(e.aspect_type))    return false;
       if ((e.peak_orb ?? e.orb) > orbFilter) return false;
       if (activeDate) {
         const s  = e.start_date || e.date;
@@ -609,10 +584,10 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
     });
   }, [events, planetFilter, aspectFilter, orbFilter, activeDate]);
 
-  const dates = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
+  const dates           = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
-    events.forEach(e => { counts[e.peak_date||e.date] = (counts[e.peak_date||e.date] || 0) + 1; });
+    events.forEach(e => { counts[e.peak_date || e.date] = (counts[e.peak_date || e.date] || 0) + 1; });
     return counts;
   }, [events]);
 
@@ -636,10 +611,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
     if (chartId) {
       try {
         const resp = await fetch(`https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          positions = data.planets || [];
-        }
+        if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }
       } catch {}
     }
     onDateSelect(next, dayEvents, positions);
@@ -647,60 +619,33 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
 
   return (
     <div style={{
-      fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
-      maxWidth: 900,
-      margin: "0 auto",
-      padding: "24px 16px",
-      color: "var(--text-primary)",
+      fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif",
+      maxWidth: 900, margin: "0 auto", padding: "24px 16px",
+      color: "#2D2540",
     }}>
       <style>{`
-        :root {
-          --bg: #0C0E14;
-          --card-bg: #141620;
-          --border: #1E2235;
-          --text-primary: #E8EAF0;
-          --text-secondary: #8B8FA3;
-          --accent: #7C6CFF;
-          --accent-bg: rgba(124,108,255,0.1);
-          --sk1: #1A1D2E;
-          --sk2: #242840;
-        }
-        @media (prefers-color-scheme: light) {
-          :root {
-            --bg: #F7F7FB;
-            --card-bg: #FFFFFF;
-            --border: #E4E5EC;
-            --text-primary: #1A1C24;
-            --text-secondary: #6B6F80;
-            --accent: #6551E8;
-            --accent-bg: rgba(101,81,232,0.08);
-            --sk1: #EEEEF3;
-            --sk2: #E0E1EA;
-          }
-        }
-        body { background: var(--bg); margin: 0; }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes shimmer     { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes blink       { 50% { opacity: 0; } }
         * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-        input[type="range"] { height: 4px; border-radius: 2px; appearance: auto; }
+        ::-webkit-scrollbar-thumb { background: #E8DEF8; border-radius: 3px; }
+        button:focus-visible { outline: 2px solid #C0A0E8; outline-offset: 2px; }
+        input[type="range"] { height: 4px; border-radius: 2px; }
       `}</style>
 
-      {/* Title */}
+      {/* Заголовок */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{
           fontSize: 26, fontWeight: 700, margin: 0,
-          background: "linear-gradient(135deg, var(--accent), #A78BFA)",
+          background: "linear-gradient(135deg, #9060C8, #E080B0)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           letterSpacing: "-0.02em",
         }}>
           Транзиты
         </h1>
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "6px 0 0" }}>
+        <p style={{ fontSize: 14, color: "#9080B0", margin: "6px 0 0" }}>
           {new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
         </p>
       </div>
@@ -720,9 +665,9 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
 
       <div style={{ margin: "12px 0 16px" }}>
         <FilterBar
-          planetFilter={planetFilter} setPlanetFilter={setPlanetFilter}
-          aspectFilter={aspectFilter} setAspectFilter={setAspectFilter}
-          orbFilter={orbFilter} setOrbFilter={setOrbFilter}
+          planetFilter={planetFilter}  setPlanetFilter={setPlanetFilter}
+          aspectFilter={aspectFilter}  setAspectFilter={setAspectFilter}
+          orbFilter={orbFilter}        setOrbFilter={setOrbFilter}
         />
       </div>
 
@@ -737,8 +682,9 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : filteredEvents.length === 0 ? (
             <div style={{
-              padding: 40, textAlign: "center", color: "var(--text-secondary)",
-              fontSize: 14, borderRadius: 12, border: "1px dashed var(--border)",
+              padding: 40, textAlign: "center", color: "#9080B0",
+              fontSize: 14, borderRadius: 16,
+              border: "1.5px dashed #E8DEF8", background: "#FDFBF9",
             }}>
               Нет транзитов с текущими фильтрами.
               <br />
@@ -766,10 +712,10 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
       {!loading && (
         <div style={{
           marginTop: 32, padding: "16px 0",
-          borderTop: "1px solid var(--border)",
-          fontSize: 12, color: "var(--text-secondary)", textAlign: "center", opacity: 0.6,
+          borderTop: "1px solid #F0EAF8",
+          fontSize: 12, color: "#B0A0C8", textAlign: "center", opacity: 0.8,
         }}>
-          Транзитные орбы: соединение/оппозиция ≤ 2° • квадрат ≤ 2° • трин/секстиль ≤ 1.5°
+          Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°
           <br />
           Нажмите на транзит для AI-интерпретации
         </div>
