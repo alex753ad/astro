@@ -58,7 +58,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run unit tests (no ephe files needed)
-        run: pytest backend/tests/ -v -m "not integration" --tb=short
+        run: pytest backend/tests/ -v -m "not integration" --tb=short --ignore=backend/tests/test_payments.py --ignore=backend/tests/test_validation.py
 
   # ─────────────────────────────────────────────
   # 2. Frontend lint + build

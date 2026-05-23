@@ -20,6 +20,9 @@ dependencies = [
     "timezonefinder>=6.5.0",
     "pytz>=2024.1",
     "geopy>=2.4.1",
+    "stripe>=8.0.0",
+    "redis>=5.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -29,10 +32,6 @@ dev = [
     "ruff>=0.4.0",
     "mypy>=1.10.0",
 ]
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["backend*"]
 
 [tool.ruff]
 line-length = 100
