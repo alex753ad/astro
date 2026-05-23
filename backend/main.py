@@ -56,6 +56,8 @@ from backend.ephemeris.geo import (
 )
 from backend.cache import interpretation_cache, transit_cache, make_profile_hash
 from backend.calendar.lunar_engine import get_monthly_calendar
+from backend.auth.router import router as auth_router
+from backend.profile.router import router as profile_router
 
 logger = logging.getLogger("astro")
 settings = get_settings()
@@ -94,6 +96,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Routers ──
+app.include_router(auth_router)
+app.include_router(profile_router)
 
 
 # ═══════════════════════════════════════════════════════════
