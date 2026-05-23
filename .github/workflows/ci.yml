@@ -100,9 +100,9 @@ jobs:
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service api --detach
+        run: railway up --service astro --detach
 
       - name: Run Alembic migrations
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway run --service api alembic upgrade head
+        run: railway run --service astro alembic upgrade head
