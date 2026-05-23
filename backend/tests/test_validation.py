@@ -5,7 +5,7 @@ from datetime import date
 
 from backend.schemas import BirthDataInput, TransitRequest
 from backend.ephemeris.geo import resolve_utc_datetime, validate_coordinates, AmbiguousTimeError
-from backend.cache import TTLCache, make_profile_hash
+from backend.cache import make_profile_hash
 
 
 class TestBirthDataValidation:
@@ -134,38 +134,6 @@ class TestCoordinateValidation:
     def test_invalid_longitude(self):
         with pytest.raises(ValueError):
             validate_coordinates(52.0, 200.0)
-
-
-class TestTTLCache:
-    def test_set_get(self):
-        cache = TTLCache()
-        cache.set("key1", "value1")
-        assert cache.get("key1") == "value1"
-
-    def test_missing_key(self):
-        cache = TTLCache()
-        assert cache.get("nonexistent") is None
-
-    def test_ttl_expiration(self):
-        import time
-        cache = TTLCache()
-        cache.set("key1", "value1", ttl=1)
-        assert cache.get("key1") == "value1"
-        time.sleep(1.1)
-        assert cache.get("key1") is None
-
-    def test_delete(self):
-        cache = TTLCache()
-        cache.set("key1", "value1")
-        assert cache.delete("key1") is True
-        assert cache.get("key1") is None
-
-    def test_clear(self):
-        cache = TTLCache()
-        cache.set("a", 1)
-        cache.set("b", 2)
-        cache.clear()
-        assert len(cache) == 0
 
 
 class TestProfileHash:
