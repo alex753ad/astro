@@ -117,7 +117,7 @@ def calculate_transits(
         for p in natal_planets
     }
 
-    transit_planet_names = set(PLANETS.keys())
+    transit_planet_names = set(PLANETS.keys()) - {"North Node"}
     if planet_filter:
         transit_planet_names &= set(planet_filter)
 
