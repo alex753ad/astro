@@ -1,53 +1,44 @@
-"""Pytest fixtures for Astro SPA tests."""
+"""backend/tests/conftest.py — shared pytest fixtures."""
 
-import os
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_astro.db"
-
 from backend.database import Base, get_db
 from backend.main import app
-from fastapi.testclient import TestClient
+
+# ── In-memory SQLite for tests ────────────────────────────
+TEST_DATABASE_URL = "sqlite:///./test.db"
+
+engine = create_engine(
+    TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-@pytest.fixture(scope="session")
-def test_engine():
-    engine = create_engine(
-        "sqlite:///./test_astro.db",
-        connect_args={"check_same_thread": False},
-    )
+@pytest.fixture(scope="function")
+def db():
+    """Fresh DB session per test with rollback on teardown."""
     Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
-    engine.dispose()
+    session = TestingSessionLocal()
     try:
-        if os.path.exists("test_astro.db"):
-            os.remove("test_astro.db")
-    except PermissionError:
-        pass
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+        Base.metadata.drop_all(bind=engine)
 
 
-@pytest.fixture
-def db(test_engine):
-    Session = sessionmaker(bind=test_engine)
-    session = Session()
-    yield session
-    session.rollback()
-    session.close()
-
-
-# Алиас для обратной совместимости
-@pytest.fixture
-def db_session(db):
-    return db
-
-
-@pytest.fixture
+@pytest.fixture(scope="function")
 def client(db):
+    """FastAPI TestClient with DB dependency overridden."""
     def override_get_db():
-        yield db
+        try:
+            yield db
+        finally:
+            pass
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
