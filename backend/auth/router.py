@@ -202,8 +202,6 @@ async def google_oauth(data: GoogleOAuthRequest, db: Session = Depends(get_db)):
 
     Creates a new account if the email doesn't exist yet.
     """
-    from backend.auth.oauth import exchange_google_code, OAuthError
-
     try:
         google_user = await exchange_google_code(
             code=data.code,
