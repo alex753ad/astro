@@ -37,6 +37,7 @@ from backend.auth.jwt import (
 )
 from backend.auth.passwords import hash_password, verify_password
 from backend.auth.dependencies import get_current_user
+from backend.auth.oauth import exchange_google_code, OAuthError
 
 logger = logging.getLogger("astro.auth")
 
