@@ -229,6 +229,7 @@ async def delete_all_data(
     )
 
     db.commit()
+    db.expire_all()
     logger.info(
         "GDPR data deletion: user=%s deleted %d charts",
         user.id,

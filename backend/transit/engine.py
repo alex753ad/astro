@@ -196,7 +196,7 @@ def calculate_transits(
             exact_dt = _find_exact_aspect(t_id, n_lon, exact_angle, w.peak_dt, step_h)
             closed_events.append(_make_event(w, exact_dt))
 
-    closed_events.sort(key=lambda e: (e.start_date, e.peak_orb))
+    closed_events.sort(key=lambda e: (e.peak_date, e.peak_orb))
 
     logger.info(
         "Calculated %d transit periods for %s → %s",
