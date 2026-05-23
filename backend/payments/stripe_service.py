@@ -22,8 +22,10 @@ from backend.models import User, Subscription
 settings = get_settings()
 logger = logging.getLogger("astro.stripe")
 
-# Initialize Stripe SDK
-stripe.api_key = settings.stripe_secret_key
+# Initialize Stripe SDK lazily to avoid silent failures when key is missing at import
+def _init_stripe() -> None:
+    if not stripe.api_key:
+        stripe.api_key = settings.stripe_secret_key
 
 # ── Tier ↔ Price mapping ──
 # In production these would be Stripe Price IDs from the dashboard.
@@ -42,6 +44,7 @@ PRICE_TIER_MAP: dict[str, str] = {v: k for k, v in TIER_PRICE_MAP.items() if v}
 
 def get_or_create_customer(user: User, db: Session) -> str:
     """Return existing Stripe customer ID, or create one and persist it."""
+    _init_stripe()
     if user.stripe_customer_id:
         return user.stripe_customer_id
 
@@ -138,6 +141,14 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     user.stripe_customer_id = customer_id
 
     # Create or update subscription record
+    from datetime import datetime
+    period_end = None
+    try:
+        stripe_sub = stripe.Subscription.retrieve(subscription_id)
+        period_end = datetime.fromtimestamp(stripe_sub["current_period_end"])
+    except Exception as e:
+        logger.warning("Could not retrieve subscription period_end: %s", e)
+
     sub = (
         db.query(Subscription)
         .filter(Subscription.user_id == user_id)
@@ -148,6 +159,7 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
         sub.stripe_price_id = TIER_PRICE_MAP.get(tier, "")
         sub.status = "active"
         sub.tier = tier
+        sub.current_period_end = period_end
     else:
         sub = Subscription(
             user_id=user_id,
@@ -156,6 +168,7 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
             stripe_price_id=TIER_PRICE_MAP.get(tier, ""),
             status="active",
             tier=tier,
+            current_period_end=period_end,
         )
         db.add(sub)
 
@@ -202,6 +215,29 @@ def handle_subscription_updated(event: dict, db: Session) -> None:
         logger.warning(
             "Subscription %s not found in DB for update event", subscription_id
         )
+
+
+def handle_subscription_deleted(event: dict, db: Session) -> None:
+    """Process customer.subscription.deleted — downgrade user to free."""
+    subscription = event["data"]["object"]
+    subscription_id = subscription["id"]
+    customer_id = subscription.get("customer")
+
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.stripe_subscription_id == subscription_id)
+        .first()
+    )
+    if sub:
+        sub.status = "canceled"
+        sub.tier = "free"
+        user = db.query(User).filter(User.id == sub.user_id).first()
+        if user:
+            user.tier = "free"
+        db.commit()
+        logger.info("Subscription deleted: user=%s → free", sub.user_id)
+    else:
+        logger.warning("Subscription %s not found for deletion event", subscription_id)
 
 
 def handle_payment_failed(event: dict, db: Session) -> None:
