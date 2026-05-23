@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
