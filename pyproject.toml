@@ -40,3 +40,7 @@ target-version = "py311"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["backend/tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
