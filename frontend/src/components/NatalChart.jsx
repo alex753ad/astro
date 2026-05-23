@@ -1,15 +1,18 @@
 /**
  * NatalChart — Professional natal chart wheel.
+ * Redesign: «Дыхание космоса» — пастельная светлая тема.
  *
- * Changes v2:
- * 1. House cusp lines extend all the way through zodiac to outer edge
- * 2. Zodiac ring width reduced by 50% (thinner band, same outer radius)
- * 3. Degree tick scale added inside zodiac ring (1°, 5°, 10° ticks)
+ * Изменения:
+ * - Пастельные цвета секторов стихий (коралловый / оливковый / кремовый / голубой)
+ * - Белая заливка внутреннего круга
+ * - Белые подложки под планетами (r=12, fill="#FFFFFF")
+ * - Тонкие пастельные границы кольца
+ * - Светлый фон карты (#FDFBF9)
  */
 
 import { useMemo } from 'react';
 
-// ── Astrology data ────────────────────────────────────────
+// ── Astrology data ─────────────────────────────────────────
 
 const PLANET_GLYPHS = {
   Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂',
@@ -18,35 +21,42 @@ const PLANET_GLYPHS = {
 };
 
 const PLANET_COLORS = {
-  Sun: '#E8A020', Moon: '#9BA8B8', Mercury: '#8B7EC8',
-  Venus: '#D4607A', Mars: '#C84040', Jupiter: '#4878C0',
-  Saturn: '#7A7060', Uranus: '#30A8B8', Neptune: '#7060C0',
-  Pluto: '#A02828', 'North Node': '#40A870',
+  Sun:          '#D4840A',
+  Moon:         '#7A8BA0',
+  Mercury:      '#7060C0',
+  Venus:        '#C04870',
+  Mars:         '#B83030',
+  Jupiter:      '#3868B0',
+  Saturn:       '#6A6050',
+  Uranus:       '#2090A8',
+  Neptune:      '#6050B8',
+  Pluto:        '#902020',
+  'North Node': '#308858',
 };
 
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 
 // Element: 0=Fire, 1=Earth, 2=Air, 3=Water
+// Пастельная тема «Дыхание космоса»
 const ELEMENT_COLORS = {
-  fill:   ['#F8D8D0','#D0E8D0','#F8EDD0','#C8DCF0'],
-  stroke: ['#C06040','#407850','#A08030','#3060A0'],
-  text:   ['#903020','#306030','#806020','#204880'],
+  //          Огонь-коралл   Земля-олива    Воздух-крем    Вода-голубой
+  fill:   ['#FCCFBE',      '#D4E8C8',     '#FAF0D0',     '#C8DCF0'],
+  stroke: ['#D07050',      '#60905A',     '#C09040',     '#5080B0'],
+  text:   ['#A04020',      '#3A6830',     '#806020',     '#2060A0'],
 };
 const SIGN_ELEMENT = [0,1,2,3, 0,1,2,3, 0,1,2,3];
 
 const ASPECT_COLORS = {
-  conjunction: '#D4A020',
-  sextile:     '#2060B0',
-  trine:       '#2060B0',
-  square:      '#B02020',
-  opposition:  '#B02020',
+  conjunction: '#C09020',
+  sextile:     '#4070B0',
+  trine:       '#4070B0',
+  square:      '#B03030',
+  opposition:  '#B03030',
 };
 
 const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
 // ── Math helpers ──────────────────────────────────────────
-// ASC at 9 o'clock (180°). Longitude increases CCW on screen.
-// SVG angle = 180 + (longitude - ascLon)
 
 function polarToXY(cx, cy, r, angleDeg) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -81,7 +91,7 @@ function pushApart(positions, minGapDeg = 8) {
     for (let i = 0; i < result.length; i++) {
       for (let j = i + 1; j < result.length; j++) {
         let diff = result[j].displayLon - result[i].displayLon;
-        while (diff > 180) diff -= 360;
+        while (diff >  180) diff -= 360;
         while (diff < -180) diff += 360;
         const absDiff = Math.abs(diff);
         if (absDiff < minGapDeg) {
@@ -101,33 +111,28 @@ function pushApart(positions, minGapDeg = 8) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-export default function NatalChart({ planets = [], houses = [], aspects = [], ascendant, midheaven, timeUnknown, transitPlanets = [] }) {
-  const SIZE = 560;
-  const cx = SIZE / 2;
-  const cy = SIZE / 2;
-  // Extra padding for transit outer ring (38px on each side)
+export default function NatalChart({
+  planets = [], houses = [], aspects = [],
+  ascendant, midheaven, timeUnknown, transitPlanets = [],
+}) {
+  const SIZE    = 560;
+  const cx      = SIZE / 2;
+  const cy      = SIZE / 2;
   const PADDING = transitPlanets.length > 0 ? 38 : 4;
-  const VSIZE = SIZE + PADDING * 2;
+  const VSIZE   = SIZE + PADDING * 2;
 
-  const R_OUT      = SIZE / 2 - 4;   // outer chart edge
+  const R_OUT     = SIZE / 2 - 4;
+  const R_ZOD_OUT = R_OUT;
+  const R_ZOD_IN  = R_OUT * 0.89;
+  const R_ZOD_MID = (R_ZOD_OUT + R_ZOD_IN) / 2;
 
-  // Zodiac ring: original width ≈ 22% of R_OUT (R_ZOD_IN was 0.78).
-  // Reduced by 50% → new width ≈ 11% → R_ZOD_IN = 0.89
-  const R_ZOD_OUT  = R_OUT;          // zodiac outer edge (unchanged)
-  const R_ZOD_IN   = R_OUT * 0.89;   // zodiac inner edge (thinner ring)
-  const R_ZOD_MID  = (R_ZOD_OUT + R_ZOD_IN) / 2; // glyph midpoint
-
-  // Degree tick scale band just inside the zodiac ring
   const R_TICK_OUT = R_ZOD_IN;
-  const R_TICK_IN  = R_ZOD_IN * 0.962; // ~3.8% band for ticks
+  const R_TICK_IN  = R_ZOD_IN * 0.962;
 
-  // Rings inside tick scale
   const R_PLANET   = R_OUT * 0.645;
   const R_HOUSE_IN = R_OUT * 0.56;
   const R_ASPECT   = R_OUT * 0.52;
   const R_NUM      = R_OUT * 0.665;
-
-  // Transit outer ring (outside zodiac)
   const R_TRANSIT  = R_ZOD_OUT + 22;
 
   const SIGN_ORDER = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo',
@@ -136,9 +141,9 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
   const ascLon = ascendant?.longitude ?? 0;
   const mcLon  = midheaven?.longitude  ?? (ascLon + 90);
 
-  const planetPositions = useMemo(() => {
-    return pushApart(planets.map(p => ({ ...p, displayLon: p.longitude })));
-  }, [planets]);
+  const planetPositions = useMemo(() =>
+    pushApart(planets.map(p => ({ ...p, displayLon: p.longitude }))),
+  [planets]);
 
   const houseCusps = useMemo(() => {
     if (timeUnknown || houses.length === 0) return [];
@@ -156,37 +161,32 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
       role="img"
       fontFamily="'Segoe UI', system-ui, sans-serif"
     >
-      {/* ── Background fill for entire chart area ── */}
-      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#F8F6F0" stroke="none" />
+      {/* ── Основной фон карты (пастельный, не белый) ── */}
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
-      {/* ── Full-depth element sectors: outer edge → inner house circle (behind everything) ── */}
+      {/* ── Полные сектора стихий от внешнего края до круга домов (прозрачный слой) ── */}
       {SIGN_GLYPHS.map((_, i) => {
-        const lon1 = i * 30;
-        const lon2 = (i + 1) * 30;
-        const el   = SIGN_ELEMENT[i];
+        const el = SIGN_ELEMENT[i];
         return (
           <path
             key={`sector-full-${i}`}
-            d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, lon1, lon2, ascLon)}
+            d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, i * 30, (i + 1) * 30, ascLon)}
             fill={ELEMENT_COLORS.fill[el]}
             stroke="none"
-            opacity={0.35}
+            opacity={0.30}
           />
         );
       })}
 
-      {/* ── Zodiac sign sectors — full opacity ring (on top of transparent inner fill) ── */}
+      {/* ── Пастельные сектора зодиакального кольца (непрозрачные) ── */}
       {SIGN_GLYPHS.map((glyph, i) => {
-        const lon1   = i * 30;
-        const lon2   = (i + 1) * 30;
         const el     = SIGN_ELEMENT[i];
         const midLon = i * 30 + 15;
         const midPos = lonToXY(cx, cy, R_ZOD_MID, midLon, ascLon);
         return (
           <g key={`sign-${i}`}>
-            {/* Fill sector fully, no stroke (prevents inter-sector gaps) */}
             <path
-              d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, lon1, lon2, ascLon)}
+              d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
               fill={ELEMENT_COLORS.fill[el]}
               stroke="none"
               opacity={1}
@@ -203,60 +203,53 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
         );
       })}
 
-      {/* ── Zodiac sign divider lines (radial, on top of sectors) ── */}
+      {/* ── Радиальные линии-разделители знаков ── */}
       {Array.from({ length: 12 }, (_, i) => {
-        const lon = i * 30;
-        const p1 = lonToXY(cx, cy, R_ZOD_OUT, lon, ascLon);
-        const p2 = lonToXY(cx, cy, R_ZOD_IN,  lon, ascLon);
+        const p1 = lonToXY(cx, cy, R_ZOD_OUT, i * 30, ascLon);
+        const p2 = lonToXY(cx, cy, R_ZOD_IN,  i * 30, ascLon);
         return (
           <line key={`zdiv-${i}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-            stroke="#B8A070" strokeWidth={0.75}
+            stroke="#C8B8A8" strokeWidth={0.75}
           />
         );
       })}
 
-      {/* ── Outer zodiac border circle (on top to seal the ring) ── */}
-      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="none" stroke="#C0B898" strokeWidth={1.5} />
+      {/* ── Внешняя и внутренняя границы зодиакального кольца ── */}
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="none" stroke="#D0C0B0" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="none" stroke="#C8B8A8" strokeWidth={1} />
 
-      {/* ── Zodiac inner border ── */}
-      <circle cx={cx} cy={cy} r={R_ZOD_IN} fill="none" stroke="#B8A878" strokeWidth={1} />
-
-      {/* ── Degree tick scale ── */}
+      {/* ── Шкала градусов ── */}
       {Array.from({ length: 360 }, (_, deg) => {
         const isTen  = deg % 10 === 0;
         const isFive = !isTen && deg % 5 === 0;
         const tickLen = isTen ? R_ZOD_IN * 0.052 : isFive ? R_ZOD_IN * 0.033 : R_ZOD_IN * 0.016;
-        const rOut  = R_TICK_OUT;
-        const rIn   = R_TICK_OUT - tickLen;
-        const svgDeg = 180 + (deg - ascLon);
-        const p1 = polarToXY(cx, cy, rOut, svgDeg);
-        const p2 = polarToXY(cx, cy, rIn,  svgDeg);
+        const svgDeg  = 180 + (deg - ascLon);
+        const p1 = polarToXY(cx, cy, R_TICK_OUT,           svgDeg);
+        const p2 = polarToXY(cx, cy, R_TICK_OUT - tickLen, svgDeg);
         return (
           <line
             key={`tick-${deg}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-            stroke={isTen ? '#887060' : '#C0B090'}
+            stroke={isTen ? '#A09080' : '#C8B8A8'}
             strokeWidth={isTen ? 0.9 : isFive ? 0.65 : 0.35}
           />
         );
       })}
 
-      {/* ── Tick scale inner ring ── */}
-      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="#FAFAF7" stroke="#C8B890" strokeWidth={0.5} />
+      {/* ── Граница шкалы градусов ── */}
+      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="#FDFBF9" stroke="#D0C4B8" strokeWidth={0.5} />
 
-      {/* ── House cusp lines (extended from house inner circle through to outer zodiac edge) ── */}
+      {/* ── Линии домов (от внутреннего круга до внешнего края зодиака) ── */}
       {!timeUnknown && houseCusps.length === 12 && houseCusps.map((house, i) => {
         const nextHouse = houseCusps[(i + 1) % 12];
-        const lon1 = house.lon;
+        let lon1 = house.lon;
         let lon2 = nextHouse.lon;
         if (lon2 <= lon1) lon2 += 360;
 
-        const isAngular = [1,4,7,10].includes(house.number);
+        const isAngular = [1, 4, 7, 10].includes(house.number);
         const midLon = lon1 + (lon2 - lon1) / 2;
         const numPos = lonToXY(cx, cy, R_NUM, midLon, ascLon);
-
-        // Cusp line: from inner house circle all the way to outer zodiac edge
         const p1 = lonToXY(cx, cy, R_HOUSE_IN, house.lon, ascLon);
         const p2 = lonToXY(cx, cy, R_ZOD_OUT,  house.lon, ascLon);
 
@@ -264,13 +257,13 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
           <g key={`house-${house.number}`}>
             <line
               x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-              stroke={isAngular ? '#604080' : '#B0A090'}
+              stroke={isAngular ? '#9070C0' : '#C0B0A0'}
               strokeWidth={isAngular ? 1.5 : 0.75}
             />
             <text
               x={numPos.x} y={numPos.y}
               textAnchor="middle" dominantBaseline="central"
-              fontSize={8.5} fill="#907860" fontStyle="italic"
+              fontSize={8.5} fill="#A090C0" fontStyle="italic"
             >
               {ROMAN[house.number - 1]}
             </text>
@@ -278,21 +271,21 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
         );
       })}
 
-      {/* ── Inner circle (aspect area background) ── */}
-      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#F5F2EC" stroke="#C0B080" strokeWidth={0.75} />
+      {/* ── Внутренний круг (область аспектов) — белая заливка ── */}
+      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FFFFFF" stroke="#D8C8E0" strokeWidth={0.75} />
 
-      {/* ── Aspect lines ── */}
+      {/* ── Линии аспектов ── */}
       {aspects
         .filter(asp => ['conjunction','sextile','trine','square','opposition'].includes(asp.aspect_type))
         .map((asp, i) => {
           const p1 = planets.find(p => p.name === asp.planet1);
           const p2 = planets.find(p => p.name === asp.planet2);
           if (!p1 || !p2) return null;
-          const pt1 = lonToXY(cx, cy, R_ASPECT, p1.longitude, ascLon);
-          const pt2 = lonToXY(cx, cy, R_ASPECT, p2.longitude, ascLon);
-          const color = ASPECT_COLORS[asp.aspect_type];
-          const isHarmonic = asp.aspect_type === 'trine' || asp.aspect_type === 'sextile';
-          const opacity = isHarmonic ? 0.5 : asp.aspect_type === 'conjunction' ? 0.7 : 0.6;
+          const pt1     = lonToXY(cx, cy, R_ASPECT, p1.longitude, ascLon);
+          const pt2     = lonToXY(cx, cy, R_ASPECT, p2.longitude, ascLon);
+          const color   = ASPECT_COLORS[asp.aspect_type];
+          const isHarm  = asp.aspect_type === 'trine' || asp.aspect_type === 'sextile';
+          const opacity = isHarm ? 0.45 : asp.aspect_type === 'conjunction' ? 0.65 : 0.55;
           return (
             <line
               key={i}
@@ -305,19 +298,19 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
           );
         })}
 
-      {/* ── Center dot ── */}
-      <circle cx={cx} cy={cy} r={2.5} fill="#807060" />
+      {/* ── Центральная точка ── */}
+      <circle cx={cx} cy={cy} r={2.5} fill="#C0A8D8" />
 
-      {/* ── Planet glyphs ── */}
+      {/* ── Планеты ── */}
       {planetPositions.map((planet) => {
         const glyphPos = lonToXY(cx, cy, R_PLANET, planet.displayLon, ascLon);
         const realPos  = lonToXY(cx, cy, R_TICK_IN - 4, planet.longitude, ascLon);
-        const color = PLANET_COLORS[planet.name] || '#606060';
+        const color    = PLANET_COLORS[planet.name] || '#606060';
         const showLine = Math.abs(planet.displayLon - planet.longitude) > 2;
 
         return (
           <g key={planet.name}>
-            {/* Tick on tick-scale inner border */}
+            {/* Тик на шкале градусов */}
             {(() => {
               const t1 = lonToXY(cx, cy, R_TICK_IN + 1, planet.longitude, ascLon);
               const t2 = lonToXY(cx, cy, R_TICK_IN - 5, planet.longitude, ascLon);
@@ -328,12 +321,16 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
               <line
                 x1={realPos.x} y1={realPos.y}
                 x2={glyphPos.x} y2={glyphPos.y}
-                stroke={color} strokeWidth={0.5} strokeOpacity={0.4}
+                stroke={color} strokeWidth={0.5} strokeOpacity={0.35}
               />
             )}
 
-            <circle cx={glyphPos.x} cy={glyphPos.y} r={10}
-              fill="rgba(248,246,240,0.9)" stroke={color} strokeWidth={0.75} />
+            {/* Белая подложка под планетой — выделяется поверх линий аспектов */}
+            <circle cx={glyphPos.x} cy={glyphPos.y} r={12} fill="#FFFFFF" />
+
+            {/* Цветной обод планеты */}
+            <circle cx={glyphPos.x} cy={glyphPos.y} r={12}
+              fill="none" stroke={color} strokeWidth={0.75} />
 
             <text
               x={glyphPos.x} y={glyphPos.y}
@@ -343,13 +340,13 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
               {PLANET_GLYPHS[planet.name] || '?'}
             </text>
 
-            {/* Degree label */}
+            {/* Градус */}
             {(() => {
               const degPos = lonToXY(cx, cy, R_PLANET - 16, planet.displayLon, ascLon);
               return (
                 <text x={degPos.x} y={degPos.y}
                   textAnchor="middle" dominantBaseline="central"
-                  fontSize={7} fill={color} opacity={0.8}
+                  fontSize={7} fill={color} opacity={0.75}
                 >
                   {Math.floor(planet.degree_in_sign)}°
                 </text>
@@ -364,38 +361,39 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
         );
       })}
 
-      {/* ── ASC / DSC / MC / IC labels (outside zodiac ring) ── */}
+      {/* ── Метки ASC / DSC / MC / IC снаружи кольца ── */}
       {!timeUnknown && ascendant && (
         <>
           {[
-            { lon: ascLon,                label: 'Asc', color: '#803060' },
-            { lon: (ascLon + 180) % 360,  label: 'Dsc', color: '#803060' },
+            { lon: ascLon,                label: 'Asc', color: '#8040A0' },
+            { lon: (ascLon + 180) % 360,  label: 'Dsc', color: '#8040A0' },
             ...(midheaven ? [
-              { lon: mcLon,               label: 'MC',  color: '#204880' },
-              { lon: (mcLon + 180) % 360, label: 'IC',  color: '#204880' },
+              { lon: mcLon,               label: 'MC',  color: '#3060A0' },
+              { lon: (mcLon + 180) % 360, label: 'IC',  color: '#3060A0' },
             ] : []),
           ].map(({ lon, label, color }) => {
             const pos = lonToXY(cx, cy, R_ZOD_OUT + 14, lon, ascLon);
             return (
               <text key={label} x={pos.x} y={pos.y}
                 textAnchor="middle" dominantBaseline="central"
-                fontSize={9} fontWeight="700" fill={color}>{label}</text>
+                fontSize={9} fontWeight="700" fill={color}>
+                {label}
+              </text>
             );
           })}
         </>
       )}
 
-      {/* ── Time unknown notice ── */}
+      {/* ── Время неизвестно ── */}
       {timeUnknown && (
         <text x={cx} y={cy + R_HOUSE_IN - 20} textAnchor="middle"
-          fontSize={10} fill="#A09070" fontStyle="italic">
+          fontSize={10} fill="#B0A0C0" fontStyle="italic">
           Время неизвестно — дома не показаны
         </text>
       )}
 
-      {/* ── Transit outer ring ── */}
+      {/* ── Транзитное внешнее кольцо ── */}
       {transitPlanets.length > 0 && (() => {
-        // Use real longitude if available, else approximate from sign
         const withLon = transitPlanets.map(tp => ({
           ...tp,
           longitude: (tp.longitude != null && tp.longitude !== 0)
@@ -406,45 +404,47 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
 
         return (
           <g>
-            {/* Outer ring background circle */}
+            {/* Внешнее кольцо транзитов — светлое */}
             <circle cx={cx} cy={cy} r={R_TRANSIT + 16}
-              fill="rgba(20,15,50,0.45)" stroke="rgba(124,108,255,0.3)"
+              fill="rgba(253,251,249,0.80)"
+              stroke="rgba(224,195,252,0.50)"
               strokeWidth={1} strokeDasharray="3 3" />
 
-            {/* Aspect lines: transit planet → natal planet */}
+            {/* Линии аспектов транзит → натал */}
             {spread.map((tp, i) => {
               if (!tp.aspect_type || !tp.natal_planet) return null;
               const natalPlanet = planets.find(p => p.name === tp.natal_planet);
               if (!natalPlanet) return null;
               const ptTransit = lonToXY(cx, cy, R_TRANSIT, tp.displayLon, ascLon);
               const ptNatal   = lonToXY(cx, cy, R_ASPECT,  natalPlanet.longitude, ascLon);
-              const color = ASPECT_COLORS[tp.aspect_type] || '#8888AA';
+              const color     = ASPECT_COLORS[tp.aspect_type] || '#A898CC';
               return (
                 <line key={`tl-${i}`}
                   x1={ptTransit.x} y1={ptTransit.y}
                   x2={ptNatal.x}   y2={ptNatal.y}
-                  stroke={color} strokeWidth={1} strokeOpacity={0.55}
+                  stroke={color} strokeWidth={1} strokeOpacity={0.45}
                   strokeDasharray="4 3"
                 />
               );
             })}
 
-            {/* Transit planet glyphs — all planets on the outer ring */}
+            {/* Транзитные планеты */}
             {spread.map((tp, i) => {
-              const pos        = lonToXY(cx, cy, R_TRANSIT, tp.displayLon, ascLon);
-              const color      = PLANET_COLORS[tp.name] || '#A070C0';
-              const hasAspect  = !!tp.aspect_type;
+              const pos       = lonToXY(cx, cy, R_TRANSIT, tp.displayLon, ascLon);
+              const color     = PLANET_COLORS[tp.name] || '#A070C0';
+              const hasAspect = !!tp.aspect_type;
               return (
                 <g key={`tg-${i}`}>
-                  {/* Degree line from zodiac edge to planet */}
                   {(() => {
                     const inner = lonToXY(cx, cy, R_ZOD_OUT, tp.longitude, ascLon);
                     return <line x1={inner.x} y1={inner.y} x2={pos.x} y2={pos.y}
-                      stroke={color} strokeWidth={0.5} strokeOpacity={0.3} />;
+                      stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />;
                   })()}
 
+                  {/* Белая подложка транзитной планеты */}
+                  <circle cx={pos.x} cy={pos.y} r={12} fill="#FFFFFF" />
                   <circle cx={pos.x} cy={pos.y} r={12}
-                    fill="rgba(12,10,30,0.92)"
+                    fill="none"
                     stroke={color}
                     strokeWidth={hasAspect ? 2 : 1}
                     strokeOpacity={hasAspect ? 1 : 0.45}
@@ -456,7 +456,6 @@ export default function NatalChart({ planets = [], houses = [], aspects = [], as
                     {PLANET_GLYPHS[tp.name] || '?'}
                   </text>
 
-                  {/* Retrograde marker */}
                   {tp.retrograde && (
                     <text x={pos.x + 10} y={pos.y - 9}
                       fontSize={8} fill="#C04040" fontWeight="700">℞</text>
