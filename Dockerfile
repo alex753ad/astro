@@ -22,7 +22,11 @@ RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
 ARG CACHE_BUST=1
 COPY backend/ /app/backend/
 COPY data/ephe/ /app/data/ephe/
+COPY alembic/ /app/alembic/
+COPY alembic.ini /app/alembic.ini
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/start.sh"]
