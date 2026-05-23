@@ -1,5 +1,5 @@
-﻿/**
- * ChartPage.jsx — три вкладки: Натальная карта / Транзиты / Планировщик
+/**
+ * ChartPage.jsx — две вкладки: Натальная карта / Транзиты
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,14 +10,12 @@ import AspectTableWrapper from '../components/AspectTableWrapper';
 import Interpretation from '../components/Interpretation';
 import TransitTimeline from '../components/TransitTimeline';
 import ExpertModeToggle from '../components/ExpertModeToggle';
-import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 
 const TABS = [
   { key: 'chart',    label: 'Натальная карта' },
   { key: 'transits', label: 'Транзиты'        },
-  { key: 'planner',  label: 'Планировщик'     },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -50,7 +48,6 @@ export default function ChartPage({ currentUser }) {
       .finally(() => setLoading(false));
   }, [chartId]);
 
-  // Загружаем транзитные позиции при открытии вкладки транзитов
   useEffect(() => {
     if (activeTab !== 'transits' || !chart || !chartId || transitPlanets.length > 0) return;
     const token = localStorage.getItem('astro_access_token');
@@ -81,12 +78,6 @@ export default function ChartPage({ currentUser }) {
           <p style={s.subtitle}>{chart.birth_date} · {chart.birth_place}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            onClick={() => navigate(`/planner/${chartId}`)}
-            style={s.plannerLinkBtn}
-          >
-            📅 Планер на месяц
-          </button>
           <button
             onClick={() => navigate(`/lunar?chartId=${chartId}`)}
             style={s.plannerLinkBtn}
@@ -185,26 +176,10 @@ export default function ChartPage({ currentUser }) {
         </main>
       )}
 
-      {/* ── Вкладка: Планировщик ── */}
-      {activeTab === 'planner' && (
-        <main style={s.main}>
-          <section style={s.card}>
-            <div style={s.plannerHead}>
-              <span style={s.plannerTitle}>Планировщик</span>
-              <span style={s.plannerSub}>
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-            </div>
-            <ForecastScale chartId={chartId} selectedDate={selectedDate} />
-          </section>
-        </main>
-      )}
-
     </div>
   );
 }
 
-// ── Символы и русские названия планет ──
 const PLANET_GLYPHS = {
   Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂',
   Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇',
@@ -242,15 +217,12 @@ function formatDeg(deg) {
 }
 
 function PlanetTable({ planets = [], ascendant, midheaven }) {
-  // Build rows: planets first, then ascendant and midheaven
   const rows = [
     ...planets,
     ...(ascendant ? [{ name: 'Ascendant', longitude: ascendant.longitude, sign: ascendant.sign, degree_in_sign: ascendant.degree_in_sign, retrograde: false }] : []),
     ...(midheaven ? [{ name: 'Midheaven', longitude: midheaven.longitude, sign: midheaven.sign, degree_in_sign: midheaven.degree_in_sign, retrograde: false }] : []),
   ];
-
   if (!rows.length) return null;
-
   return (
     <div style={sp.wrap}>
       <table style={sp.table}>
@@ -272,63 +244,25 @@ function PlanetTable({ planets = [], ascendant, midheaven }) {
 }
 
 const sp = {
-  wrap: {
-    overflowX: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: '12px',
-  },
-  row: {
-    borderBottom: '0.5px solid #EDE8F5',
-  },
-  glyph: {
-    padding: '4px 6px 4px 0',
-    color: '#7060A0',
-    fontSize: '14px',
-    width: '20px',
-  },
-  nameCell: {
-    padding: '4px 8px 4px 0',
-    color: '#1E1A2E',
-    whiteSpace: 'nowrap',
-  },
-  signGlyph: {
-    padding: '4px 4px 4px 0',
-    fontSize: '14px',
-    color: '#7060A0',
-    width: '20px',
-  },
-  signName: {
-    padding: '4px 6px 4px 0',
-    color: '#7060A0',
-  },
-  deg: {
-    padding: '4px 6px 4px 0',
-    color: '#1E1A2E',
-    fontVariantNumeric: 'tabular-nums',
-    whiteSpace: 'nowrap',
-  },
-  retro: {
-    padding: '4px 0',
-    width: '16px',
-    textAlign: 'center',
-  },
-  retroMark: {
-    color: '#e05050',
-    fontWeight: '700',
-    fontSize: '11px',
-  },
+  wrap: { overflowX: 'auto' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px' },
+  row: { borderBottom: '0.5px solid #EDE8F5' },
+  glyph: { padding: '4px 6px 4px 0', color: '#7060A0', fontSize: '14px', width: '20px' },
+  nameCell: { padding: '4px 8px 4px 0', color: '#1E1A2E', whiteSpace: 'nowrap' },
+  signGlyph: { padding: '4px 4px 4px 0', fontSize: '14px', color: '#7060A0', width: '20px' },
+  signName: { padding: '4px 6px 4px 0', color: '#7060A0' },
+  deg: { padding: '4px 6px 4px 0', color: '#1E1A2E', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+  retro: { padding: '4px 0', width: '16px', textAlign: 'center' },
+  retroMark: { color: '#e05050', fontWeight: '700', fontSize: '11px' },
 };
 
 const ASPECT_LEGEND = [
-  { symbol: '☌', name: 'Соединение 0°',   type: 'harmonic', deg: 0   },
-  { symbol: '△', name: 'Трин 120°',        type: 'harmonic', deg: 120 },
-  { symbol: '⚹', name: 'Секстиль 60°',    type: 'harmonic', deg: 60  },
-  { symbol: '✶', name: 'Квинконс 150°',   type: 'harmonic', deg: 150 },
-  { symbol: '□', name: 'Квадрат 90°',     type: 'tense',    deg: 90  },
-  { symbol: '☍', name: 'Оппозиция 180°',  type: 'tense',    deg: 180 },
+  { symbol: '☌', name: 'Соединение 0°',  type: 'harmonic' },
+  { symbol: '△', name: 'Трин 120°',       type: 'harmonic' },
+  { symbol: '⚹', name: 'Секстиль 60°',   type: 'harmonic' },
+  { symbol: '✶', name: 'Квинконс 150°',  type: 'harmonic' },
+  { symbol: '□', name: 'Квадрат 90°',    type: 'tense'    },
+  { symbol: '☍', name: 'Оппозиция 180°', type: 'tense'    },
 ];
 
 function AspectLegend() {
@@ -336,9 +270,7 @@ function AspectLegend() {
     <div style={sl.wrap}>
       {ASPECT_LEGEND.map(({ symbol, name, type }) => (
         <div key={name} style={sl.row}>
-          <span style={{ ...sl.sym, color: type === 'tense' ? '#C84040' : '#2060B0' }}>
-            {symbol}
-          </span>
+          <span style={{ ...sl.sym, color: type === 'tense' ? '#C84040' : '#2060B0' }}>{symbol}</span>
           <span style={sl.label}>{name}</span>
           <span style={{ ...sl.tag, color: type === 'tense' ? '#C84040' : '#2060B0' }}>
             {type === 'tense' ? 'Напряж.' : 'Гарм.'}
@@ -354,67 +286,25 @@ function AspectLegend() {
 }
 
 const sl = {
-  wrap: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '3px',
-    marginTop: '8px',
-    borderTop: '0.5px solid #EDE8F5',
-    paddingTop: '10px',
-  },
-  row: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '11px',
-  },
-  sym: {
-    width: '16px',
-    textAlign: 'center',
-    fontSize: '14px',
-    flexShrink: 0,
-  },
-  label: {
-    flex: 1,
-    color: '#7060A0',
-  },
-  tag: {
-    fontSize: '10px',
-    opacity: 0.8,
-  },
-  retroRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '11px',
-    marginTop: '4px',
-  },
-  retroR: {
-    width: '16px',
-    textAlign: 'center',
-    color: '#e05050',
-    fontWeight: '700',
-    fontSize: '12px',
-    flexShrink: 0,
-  },
+  wrap: { display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '8px', borderTop: '0.5px solid #EDE8F5', paddingTop: '10px' },
+  row: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' },
+  sym: { width: '16px', textAlign: 'center', fontSize: '14px', flexShrink: 0 },
+  label: { flex: 1, color: '#7060A0' },
+  tag: { fontSize: '10px', opacity: 0.8 },
+  retroRow: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', marginTop: '4px' },
+  retroR: { width: '16px', textAlign: 'center', color: '#e05050', fontWeight: '700', fontSize: '12px', flexShrink: 0 },
 };
 
 function Centered({ text, danger }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
-      <p style={{ color: danger ? '#C03030' : '#7060A0', fontSize: '14px' }}>
-        {text}
-      </p>
+      <p style={{ color: danger ? '#C03030' : '#7060A0', fontSize: '14px' }}>{text}</p>
     </div>
   );
 }
 
 const s = {
-  page: {
-    minHeight: '100vh',
-    background: '#F4F0FA',
-    paddingBottom: '60px',
-  },
+  page: { minHeight: '100vh', background: '#F4F0FA', paddingBottom: '60px' },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '18px 24px 14px',
@@ -424,14 +314,11 @@ const s = {
   },
   title:    { margin: 0, fontSize: '18px', fontWeight: '500', color: '#1E1A2E' },
   subtitle: { margin: '2px 0 0', fontSize: '12px', color: '#7060A0' },
-
-  // Вкладки
   tabBar: {
     display: 'flex',
     background: '#FFFFFF',
     borderBottom: '0.5px solid #EDE8F5',
     padding: '0 24px',
-    gap: '0',
   },
   tabBtn: {
     position: 'relative',
@@ -443,67 +330,25 @@ const s = {
     transition: 'color 0.15s',
     whiteSpace: 'nowrap',
   },
-  tabBtnActive: {
-    color: '#1E1A2E',
-    fontWeight: '500',
-  },
+  tabBtnActive: { color: '#1E1A2E', fontWeight: '500' },
   tabUnderline: {
     position: 'absolute', bottom: -1, left: '20px', right: '20px', height: 2,
-    background: '#1E1A2E',
-    borderRadius: '2px 2px 0 0',
-    display: 'block',
+    background: '#1E1A2E', borderRadius: '2px 2px 0 0', display: 'block',
   },
-
   main: {
     maxWidth: '900px', margin: '0 auto',
     padding: '20px 16px',
     display: 'flex', flexDirection: 'column', gap: '16px',
   },
-  tabContent: {
-    maxWidth: '900px', margin: '0 auto',
-  },
-  transitDateLabel: {
-    fontSize: '13px',
-    fontWeight: '500',
-    color: '#7060A0',
-    marginBottom: '14px',
-  },
-  card: {
-    background: '#FFFFFF',
-    borderRadius: '16px',
-    border: '0.5px solid #EDE8F5',
-    padding: '20px',
-  },
-
-  plannerHead: { marginBottom: '14px' },
-  plannerTitle: { fontSize: '15px', fontWeight: '500', color: '#1E1A2E', display: 'block' },
-  plannerSub:   { fontSize: '12px', color: '#9080B0', display: 'block', marginTop: '2px' },
-
-  chartWithData: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '16px',
-    alignItems: 'flex-start',
-  },
-  chartSidePanel: {
-    flex: '1 1 260px',
-    minWidth: '220px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-
+  transitDateLabel: { fontSize: '13px', fontWeight: '500', color: '#7060A0', marginBottom: '14px' },
+  card: { background: '#FFFFFF', borderRadius: '16px', border: '0.5px solid #EDE8F5', padding: '20px' },
+  chartWithData: { display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' },
+  chartSidePanel: { flex: '1 1 260px', minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '16px' },
   plannerLinkBtn: {
-    padding: '8px 14px',
-    fontSize: '13px',
-    fontWeight: '500',
-    background: '#F4F0FA',
-    color: '#1E1A2E',
-    border: '0.5px solid #EDE8F5',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    whiteSpace: 'nowrap',
-    transition: 'background 0.15s',
+    padding: '8px 14px', fontSize: '13px', fontWeight: '500',
+    background: '#F4F0FA', color: '#1E1A2E',
+    border: '0.5px solid #EDE8F5', borderRadius: '8px',
+    cursor: 'pointer', fontFamily: 'inherit',
+    whiteSpace: 'nowrap', transition: 'background 0.15s',
   },
 };
