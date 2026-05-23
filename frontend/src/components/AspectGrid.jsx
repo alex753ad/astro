@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AspectGrid.jsx — треугольная матрица аспектов
  */
 import React from 'react';

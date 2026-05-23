@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useExpertMode.js
  *
  * Управляет режимом эксперта (показ AspectTable).

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AstroCalendar.jsx
  * Редизайн: «Дыхание космоса» — светлая пастельная тема.
  *
@@ -41,7 +41,7 @@ export default function AstroCalendar() {
     try {
       const monthStr = `${year}-${String(month).padStart(2,'0')}`;
       const res = await fetch(
-        `https://astro-production-e070.up.railway.app/api/v1/calendar/monthly?month=${monthStr}`
+        `https://astro-production-abcc.up.railway.app/api/v1/calendar/monthly?month=${monthStr}`
       );
       if (!res.ok) throw new Error(`${res.status}`);
       setData(await res.json());

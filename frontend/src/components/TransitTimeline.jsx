@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -469,7 +469,7 @@ function InterpretationPanel({ event, onClose }) {
 
     const token = localStorage.getItem('astro_access_token');
     const ctrl  = new AbortController();
-    fetch(`https://astro-production-e070.up.railway.app/api/v1/chart/${event.chartId}/transits/event/interpret`, {
+    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${event.chartId}/transits/event/interpret`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ transit_planet: event.transit_planet, natal_planet: event.natal_planet, aspect_type: event.aspect_type }),
@@ -564,7 +564,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
     const today = new Date();
     const from  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
     const to    = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
-    fetch(`https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`)
+    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`)
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoading(false); })
       .catch(() => { setEvents([]); setLoading(false); });
@@ -610,7 +610,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
     let positions = [];
     if (chartId) {
       try {
-        const resp = await fetch(`https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`);
+        const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`);
         if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }
       } catch {}
     }
