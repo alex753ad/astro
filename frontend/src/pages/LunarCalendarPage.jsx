@@ -1,479 +1,459 @@
-﻿/**
+/**
  * LunarCalendarPage.jsx
- * Route: /lunar
- * Route with chart context: /lunar?chartId=<id>
- *
- * Блоки:
- * 1. Текущее положение Луны в знаке + градус
- * 2. Ближайшие Новолуние и Полнолуние месяца
- * 3. Календарная сетка: знак Луны на каждый день + метки фаз
+ * Редизайн: «Минималистичный Квадратный Календарь»
+ * Путь: src/pages/LunarCalendarPage.jsx
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { getLunarCalendar } from '../api/client';
+import React, { useState, useEffect, useMemo } from 'react';
 
-// ── Константы ──────────────────────────────────────────────
+// ── Знаки зодиака ──────────────────────────────────────────
 
-const SIGN_SYMBOLS = {
-  'Овен':     '♈', 'Телец':    '♉', 'Близнецы': '♊',
-  'Рак':      '♋', 'Лев':      '♌', 'Дева':     '♍',
-  'Весы':     '♎', 'Скорпион': '♏', 'Стрелец':  '♐',
-  'Козерог':  '♑', 'Водолей':  '♒', 'Рыбы':     '♓',
+const SIGNS_RU = {
+  Aries:       { name: 'Овен',      glyph: '♈', color: '#E06050', bg: '#FFF0EE' },
+  Taurus:      { name: 'Телец',     glyph: '♉', color: '#70A030', bg: '#F2FAE8' },
+  Gemini:      { name: 'Близнецы',  glyph: '♊', color: '#D09010', bg: '#FFF8E0' },
+  Cancer:      { name: 'Рак',       glyph: '♋', color: '#5090C0', bg: '#E8F5FF' },
+  Leo:         { name: 'Лев',       glyph: '♌', color: '#D07020', bg: '#FFF2E0' },
+  Virgo:       { name: 'Дева',      glyph: '♍', color: '#609050', bg: '#EDFAE8' },
+  Libra:       { name: 'Весы',      glyph: '♎', color: '#A060C0', bg: '#F8EEFF' },
+  Scorpio:     { name: 'Скорпион',  glyph: '♏', color: '#903050', bg: '#FFE8F0' },
+  Sagittarius: { name: 'Стрелец',   glyph: '♐', color: '#C05020', bg: '#FFF0E4' },
+  Capricorn:   { name: 'Козерог',   glyph: '♑', color: '#506080', bg: '#EEF2F8' },
+  Aquarius:    { name: 'Водолей',   glyph: '♒', color: '#3080B0', bg: '#E8F4FF' },
+  Pisces:      { name: 'Рыбы',      glyph: '♓', color: '#7050B0', bg: '#F0EAFF' },
 };
 
-const MONTH_NAMES_RU = [
-  '', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
+const SIGN_KEYS = [
+  'Aries','Taurus','Gemini','Cancer','Leo','Virgo',
+  'Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces',
 ];
 
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const MONTHS_RU = [
+  'Январь','Февраль','Март','Апрель','Май','Июнь',
+  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь',
+];
 
-// ── Helpers ────────────────────────────────────────────────
+const DOW_RU = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
-function isoToday() {
-  return new Date().toISOString().slice(0, 10);
+// Приближённый знак Луны (меняется каждые ~2.46 дня)
+// Якорь: 1 мая 2026 → Стрелец (индекс 8)
+const ANCHOR_MS   = new Date('2026-05-01').getTime();
+const ANCHOR_IDX  = 8;
+
+function approxMoonSign(dateStr) {
+  const ms   = new Date(dateStr + 'T12:00:00').getTime();
+  const days = (ms - ANCHOR_MS) / 86400000;
+  const idx  = ((ANCHOR_IDX + Math.floor(days / 2.46)) % 12 + 12) % 12;
+  return SIGN_KEYS[idx];
 }
 
-// Возвращает 0=Пн … 6=Вс для первого дня месяца
-function firstDayOfWeek(year, month) {
-  const d = new Date(Date.UTC(year, month - 1, 1));
-  return (d.getUTCDay() + 6) % 7;
+function buildCalendarDays(year, month) {
+  const firstDay = new Date(year, month - 1, 1);
+  const total    = new Date(year, month, 0).getDate();
+  let startDow   = firstDay.getDay();
+  startDow = startDow === 0 ? 6 : startDow - 1; // Monday-first
+
+  const days = Array(startDow).fill(null);
+  for (let d = 1; d <= total; d++) {
+    const mm = String(month).padStart(2,'0');
+    const dd = String(d).padStart(2,'0');
+    days.push(`${year}-${mm}-${dd}`);
+  }
+  return days;
 }
 
-// ── CurrentMoonCard ────────────────────────────────────────
-
-function CurrentMoonCard({ moon }) {
-  if (!moon) return <div style={s.skeleton} />;
-  const sym = SIGN_SYMBOLS[moon.sign] ?? '🌙';
-  return (
-    <div style={s.infoCard}>
-      <div style={s.infoLabel}>Луна сейчас</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 32, lineHeight: 1 }}>{sym}</span>
-        <div>
-          <div style={s.infoValue}>{moon.sign}</div>
-          <div style={s.infoSub}>{moon.degree}°</div>
-        </div>
-      </div>
-    </div>
-  );
+function sameDay(a, b) {
+  return a && b && a.slice(0,10) === b.slice(0,10);
 }
 
-// ── PhaseCard ──────────────────────────────────────────────
-
-function PhaseCard({ phase }) {
-  if (!phase) return null;
-  const isNew  = phase.type === 'new_moon';
-  const emoji  = isNew ? '🌑' : '🌕';
-  const label  = isNew ? 'Новолуние' : 'Полнолуние';
-  const day    = phase.date?.slice(8, 10);
-  const mo     = phase.date?.slice(5, 7);
-  const time   = phase.time?.slice(0, 5);
-  return (
-    <div style={{ ...s.infoCard, flex: '1 1 180px' }}>
-      <div style={s.infoLabel}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 32, lineHeight: 1 }}>{emoji}</span>
-        <div>
-          <div style={s.infoValue}>{phase.sign}</div>
-          <div style={s.infoSub}>{day}.{mo} · {time} GMT+3</div>
-        </div>
-      </div>
-    </div>
-  );
+function fmtPhaseTime(event) {
+  if (!event) return '';
+  const src = event.exact_date || event.date;
+  if (!src) return '';
+  const d  = new Date(src);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mo = String(d.getMonth()+1).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}.${mo} - ${hh}:${mi} ОМТ+3`;
 }
 
-// ── CalendarGrid ───────────────────────────────────────────
-
-function CalendarGrid({ year, month, dailySigns, phases, today }) {
-  const phaseLookup = {};
-  (phases ?? []).forEach(p => { phaseLookup[p.date] = p; });
-
-  const daysInMonth = dailySigns.length;
-  const offset      = firstDayOfWeek(year, month);
-
-  const cells = [];
-  for (let i = 0; i < offset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  return (
-    <div style={s.calCard}>
-      <div style={s.calGrid}>
-        {WEEKDAYS.map(wd => (
-          <div key={wd} style={s.calWeekday}>{wd}</div>
-        ))}
-
-        {cells.map((day, idx) => {
-          if (!day) return <div key={`pad-${idx}`} />;
-
-          const dateStr  = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          const signData = dailySigns[day - 1];
-          const sign     = signData?.sign ?? '';
-          const sym      = SIGN_SYMBOLS[sign] ?? '';
-          const phase    = phaseLookup[dateStr];
-          const isToday  = dateStr === today;
-          const isNew    = phase?.type === 'new_moon';
-          const isFull   = phase?.type === 'full_moon';
-
-          return (
-            <div
-              key={day}
-              style={{
-                ...s.calCell,
-                ...(isToday ? s.calCellToday : {}),
-                ...(isNew   ? s.calCellNew   : {}),
-                ...(isFull  ? s.calCellFull  : {}),
-              }}
-            >
-              <div style={{
-                ...s.calDayNum,
-                ...(isToday ? { color: 'var(--color-text-primary)', fontWeight: 600 } : {}),
-              }}>
-                {day}
-              </div>
-
-              <div style={s.calSym}>{sym}</div>
-              <div style={s.calSignName}>{sign}</div>
-
-              {phase && (
-                <div style={s.calPhaseIcon} title={phase.description}>
-                  {isNew ? '🌑' : '🌕'}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// MAIN
+// ══════════════════════════════════════════════════════════
 
 export default function LunarCalendarPage() {
-  const [searchParams]   = useSearchParams();
-  const navigate         = useNavigate();
-  const chartId          = searchParams.get('chartId') ?? null;
+  const now      = new Date();
+  const todayStr = now.toISOString().slice(0,10);
 
-  const now = new Date();
   const [year,    setYear]    = useState(now.getFullYear());
   const [month,   setMonth]   = useState(now.getMonth() + 1);
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState('');
+  const [error,   setError]   = useState(null);
+  const [dailyMap,setDailyMap]= useState({});
 
-  const today = isoToday();
+  useEffect(() => { load(); }, [year, month]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  async function load() {
+    setLoading(true); setError(null);
     try {
-      const res = await getLunarCalendar(year, month);
-      setData(res);
-    } catch (err) {
-      setError(err.message || 'Ошибка загрузки данных');
+      const ms  = `${year}-${String(month).padStart(2,'0')}`;
+      const res = await fetch(
+        `https://astro-production-abcc.up.railway.app/api/v1/calendar/monthly?month=${ms}`
+      );
+      if (!res.ok) throw new Error(res.status);
+      setData(await res.json());
+
+      // Пробуем ежедневные знаки
+      try {
+        const r2 = await fetch(
+          `https://astro-production-abcc.up.railway.app/api/v1/lunar/daily?month=${ms}`
+        );
+        if (r2.ok) {
+          const j2  = await r2.json();
+          const map = {};
+          (j2.days || []).forEach(d => { if (d.date && d.moon_sign) map[d.date] = d.moon_sign; });
+          setDailyMap(map);
+        } else setDailyMap({});
+      } catch { setDailyMap({}); }
+
+    } catch(e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }
 
-  useEffect(() => { load(); }, [load]);
+  function prev() {
+    if (month === 1) { setYear(y => y-1); setMonth(12); }
+    else setMonth(m => m-1);
+  }
+  function next() {
+    if (month === 12) { setYear(y => y+1); setMonth(1); }
+    else setMonth(m => m+1);
+  }
 
-  const prevMonth = () => {
-    if (month === 1) { setYear(y => y - 1); setMonth(12); }
-    else setMonth(m => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 12) { setYear(y => y + 1); setMonth(1); }
-    else setMonth(m => m + 1);
-  };
+  const events   = data?.events    || [];
+  const overview = data?.overview;
+  const newMoons = events.filter(e => e.type === 'new_moon');
+  const fullMoons= events.filter(e => e.type === 'full_moon');
 
-  const phases    = data?.phases ?? [];
-  const newMoons  = phases.filter(p => p.type === 'new_moon');
-  const fullMoons = phases.filter(p => p.type === 'full_moon');
+  const todaySign     = dailyMap[todayStr] || approxMoonSign(todayStr);
+  const todaySignData = SIGNS_RU[todaySign] || SIGNS_RU.Leo;
+
+  const calDays = useMemo(() => buildCalendarDays(year, month), [year, month]);
 
   return (
-    <div style={s.page}>
+    <div style={pg.page}>
+      {/* Декоративные блобы */}
+      <div style={pg.blob1} aria-hidden="true" />
+      <div style={pg.blob2} aria-hidden="true" />
 
-      {/* Header */}
-      <div style={s.header}>
-        {chartId ? (
-          <Link to={`/chart/${chartId}`} style={s.backLink}>← Назад к карте</Link>
-        ) : (
-          <Link to="/" style={s.backLink}>← Главная</Link>
-        )}
-        <h1 style={s.title}>🌙 Лунный календарь</h1>
-      </div>
+      <div style={pg.wrap}>
+        <div style={pg.card}>
 
-      {/* Info row: current moon + phases */}
-      <div style={s.infoRow}>
-        <CurrentMoonCard moon={data?.current_moon} />
-        {newMoons.map((p, i)  => <PhaseCard key={`nm-${i}`} phase={p} />)}
-        {fullMoons.map((p, i) => <PhaseCard key={`fm-${i}`} phase={p} />)}
-      </div>
+          {/* ── Заголовок ─────────────────────────────── */}
+          <div style={pg.cardHead}>
+            <span style={{ fontSize: 18 }}>🌙</span>
+            <span style={pg.cardTitle}>Лунный календарь</span>
+          </div>
 
-      {/* Month navigator */}
-      <div style={s.navRow}>
-        <button onClick={prevMonth} style={s.navBtn} aria-label="Предыдущий месяц">←</button>
-        <span style={s.navTitle}>{MONTH_NAMES_RU[month]} {year}</span>
-        <button onClick={nextMonth} style={s.navBtn} aria-label="Следующий месяц">→</button>
-      </div>
+          {/* ── Шапка фаз ─────────────────────────────── */}
+          {loading
+            ? <SkeletonRow />
+            : <PhaseHeader
+                todaySign={todaySign}
+                todaySignData={todaySignData}
+                newMoons={newMoons}
+                fullMoons={fullMoons}
+                overview={overview}
+              />
+          }
 
-      {/* Error */}
-      {error && (
-        <div style={s.errorBox}>
-          {error}
-          <button onClick={load} style={s.retryBtn}>Повторить</button>
+          <div style={pg.hr} />
+
+          {/* ── Навигация ─────────────────────────────── */}
+          <div style={pg.nav}>
+            <button onClick={prev} style={pg.navBtn}>‹</button>
+            <span style={pg.navMonth}>{MONTHS_RU[month-1]} {year}</span>
+            <button onClick={next} style={pg.navBtn}>›</button>
+          </div>
+
+          {/* ── Сетка календаря ───────────────────────── */}
+          <div style={pg.grid}>
+            {DOW_RU.map(d => (
+              <div key={d} style={pg.dow}>{d}</div>
+            ))}
+
+            {calDays.map((dateStr, i) => {
+              if (!dateStr) return <div key={`e${i}`} />;
+
+              const dayNum     = parseInt(dateStr.slice(8), 10);
+              const isToday    = dateStr === todayStr;
+              const isNewMoon  = newMoons.some(e => sameDay(e.date, dateStr));
+              const isFullMoon = fullMoons.some(e => sameDay(e.date, dateStr));
+              const signKey    = dailyMap[dateStr] || approxMoonSign(dateStr);
+              const signData   = SIGNS_RU[signKey] || SIGNS_RU.Leo;
+
+              return (
+                <DayCell
+                  key={dateStr}
+                  dayNum={dayNum}
+                  isToday={isToday}
+                  isNewMoon={isNewMoon}
+                  isFullMoon={isFullMoon}
+                  signData={signData}
+                />
+              );
+            })}
+          </div>
+
+          {/* ── Легенда ───────────────────────────────── */}
+          <div style={pg.legend}>
+            <LegendDot fill="#C3CFFC" border="#8898D8" label="Сегодня" />
+            <LegendDot fill="#2A2A3A" border="none"    label="Новолуние" />
+            <LegendDot fill="#F5C842" border="#C0980A" label="Полнолуние" />
+          </div>
+
         </div>
-      )}
 
-      {/* Loading */}
-      {loading && (
-        <div style={s.loadingBox}>Загрузка данных…</div>
-      )}
+        {error && (
+          <p style={{ color:'#C03030', fontSize:12, textAlign:'center', marginTop:8 }}>
+            Ошибка: {error}
+          </p>
+        )}
+      </div>
 
-      {/* Calendar grid */}
-      {!loading && data && (
-        <CalendarGrid
-          year={year}
-          month={month}
-          dailySigns={data.daily_signs}
-          phases={phases}
-          today={today}
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Шапка фаз ─────────────────────────────────────────────
+
+function PhaseHeader({ todaySign, todaySignData, newMoons, fullMoons, overview }) {
+  const nm  = newMoons[0];
+  const fm1 = fullMoons[0];
+  const fm2 = fullMoons[1];
+
+  const nmSign  = nm?.sign  || overview?.new_moon?.sign  || '';
+  const fm1Sign = fm1?.sign || overview?.full_moon?.sign || '';
+  const fm2Sign = fm2?.sign || '';
+
+  return (
+    <div>
+      {/* Ряд 1 */}
+      <div style={ph.row}>
+        <PhaseBlock
+          label="ЛУНА СЕЙЧАС"
+          signData={todaySignData}
+          extra={overview?.moon_degree ? `${overview.moon_degree}°` : ''}
         />
-      )}
+        {nm && (
+          <PhaseBlock
+            label="НОВОЛУНИЕ"
+            signData={SIGNS_RU[nmSign] || SIGNS_RU.Taurus}
+            extra={fmtPhaseTime(nm)}
+            dark
+          />
+        )}
+        {fm1 && (
+          <PhaseBlock
+            label="ПОЛНОЛУНИЕ"
+            signData={SIGNS_RU[fm1Sign] || SIGNS_RU.Scorpio}
+            extra={fmtPhaseTime(fm1)}
+            gold
+          />
+        )}
+      </div>
 
-      {/* Legend */}
-      {!loading && (
-        <div style={s.legend}>
-          <span style={s.legendItem}>
-            <span style={s.legendDotToday} /> Сегодня
-          </span>
-          <span style={s.legendItem}>🌑 Новолуние</span>
-          <span style={s.legendItem}>🌕 Полнолуние</span>
+      {/* Ряд 2 — если есть второе полнолуние */}
+      {fm2 && (
+        <div style={{ ...ph.row, marginTop: 8 }}>
+          <PhaseBlock
+            label="ПОЛНОЛУНИЕ"
+            signData={SIGNS_RU[fm2Sign] || SIGNS_RU.Sagittarius}
+            extra={fmtPhaseTime(fm2)}
+            gold
+          />
         </div>
       )}
     </div>
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────
+function PhaseBlock({ label, signData, extra, dark, gold }) {
+  const iconBg    = dark ? '#1E1E2E' : gold ? '#FFF0A0' : signData.bg;
+  const iconColor = dark ? '#FFFFFF' : gold ? '#8A6200' : signData.color;
 
-const s = {
+  return (
+    <div style={ph.block}>
+      <span style={ph.label}>{label}</span>
+      <div style={ph.inner}>
+        <div style={{ ...ph.icon, background: iconBg }}>
+          <span style={{ fontSize: 15, color: iconColor }}>{signData.glyph}</span>
+        </div>
+        <div>
+          <div style={ph.name}>{signData.name}</div>
+          {extra && <div style={ph.extra}>{extra}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <div style={{ display: 'flex', gap: 10, margin: '8px 0' }}>
+      {[1,2,3].map(i => (
+        <div key={i} style={{
+          flex: 1, height: 52, borderRadius: 12,
+          background: 'linear-gradient(90deg,#F0EAF8 25%,#FAF5FF 50%,#F0EAF8 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.6s ease-in-out infinite',
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// ── Ячейка дня ────────────────────────────────────────────
+
+function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData }) {
+  const numBg    = isToday    ? '#C3CFFC'
+                 : isNewMoon  ? '#2A2A3A'
+                 : isFullMoon ? '#F5C842'
+                 : 'transparent';
+  const numColor = isToday    ? '#1A2D90'
+                 : isNewMoon  ? '#FFFFFF'
+                 : isFullMoon ? '#7A5400'
+                 : '#2D2540';
+  const iconBg   = isNewMoon  ? '#3A3A50'
+                 : isFullMoon ? '#FFF3C0'
+                 : signData.bg;
+  const iconColor= isNewMoon  ? '#FFFFFF'
+                 : isFullMoon ? '#8A6200'
+                 : signData.color;
+
+  return (
+    <div style={dc.root}>
+      <div style={{ ...dc.num, background: numBg, color: numColor,
+                    fontWeight: (isToday||isNewMoon||isFullMoon) ? 600 : 400 }}>
+        {dayNum}
+      </div>
+      <div style={{ ...dc.icon, background: iconBg }}>
+        <span style={{ color: iconColor, fontSize: 13, lineHeight: 1 }}>
+          {signData.glyph}
+        </span>
+      </div>
+      <div style={dc.name}>{signData.name}</div>
+    </div>
+  );
+}
+
+// ── Легенда ───────────────────────────────────────────────
+
+function LegendDot({ fill, border, label }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+      <div style={{
+        width: 11, height: 11, borderRadius: '50%',
+        background: fill,
+        border: border !== 'none' ? `1.5px solid ${border}` : 'none',
+        flexShrink: 0,
+      }} />
+      <span style={{ fontSize: 11, color: '#9080B0' }}>{label}</span>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// СТИЛИ
+// ══════════════════════════════════════════════════════════
+
+const pg = {
   page: {
-    maxWidth: 760,
-    margin: '0 auto',
-    padding: '24px 16px 64px',
+    position: 'relative', minHeight: '100vh', background: '#FDFBF9',
+    overflow: 'hidden', display: 'flex', justifyContent: 'center',
+    padding: '28px 16px 48px',
+    fontFamily: "'Space Grotesk','Inter',system-ui,sans-serif",
   },
-
-  header: {
-    marginBottom: 20,
+  blob1: {
+    position:'absolute', top:-60, right:-160,
+    width:500, height:500, borderRadius:'50%',
+    background:'radial-gradient(circle,#FFF0C3 0%,#FCE0EE 45%,#E0C3FC 80%,transparent 100%)',
+    filter:'blur(80px)', opacity:0.65, pointerEvents:'none', zIndex:0,
   },
-  backLink: {
-    fontSize: 13,
-    color: 'var(--color-text-secondary)',
-    textDecoration: 'none',
-    display: 'inline-block',
-    marginBottom: 8,
+  blob2: {
+    position:'absolute', bottom:-80, left:-100,
+    width:360, height:360, borderRadius:'50%',
+    background:'radial-gradient(circle,#C3E0FC 0%,#E0C3FC 70%,transparent 100%)',
+    filter:'blur(80px)', opacity:0.50, pointerEvents:'none', zIndex:0,
   },
-  title: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
+  wrap: { position:'relative', zIndex:1, width:'100%', maxWidth:500 },
+  card: {
+    background:'#FFFFFF', borderRadius:24,
+    padding:'20px 18px 16px',
+    boxShadow:'0 12px 40px -8px rgba(224,195,252,0.28),0 2px 8px rgba(0,0,0,0.04)',
+    border:'1px solid #F0EAF8',
   },
-
-  // Info cards
-  infoRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
+  cardHead:  { display:'flex', alignItems:'center', gap:7, marginBottom:12 },
+  cardTitle: { fontSize:16, fontWeight:700, color:'#1E1A2E' },
+  hr:        { height:1, background:'#F0EAF8', margin:'10px 0 0' },
+  nav: {
+    display:'flex', alignItems:'center', justifyContent:'center',
+    gap:12, margin:'10px 0 12px',
   },
-  infoCard: {
-    flex: '1 1 160px',
-    background: 'var(--color-background-primary)',
-    border: '0.5px solid var(--color-border-tertiary)',
-    borderRadius: 'var(--border-radius-lg, 12px)',
-    padding: '14px 16px',
+  navBtn:   { background:'none', border:'none', fontSize:22, color:'#B0A0C8', cursor:'pointer', padding:'0 4px', lineHeight:1 },
+  navMonth: { fontSize:14, fontWeight:600, color:'#1E1A2E', minWidth:110, textAlign:'center' },
+  grid: {
+    display:'grid', gridTemplateColumns:'repeat(7,1fr)',
+    gap:'1px 0',
   },
-  skeleton: {
-    flex: '1 1 160px',
-    height: 80,
-    borderRadius: 'var(--border-radius-lg, 12px)',
-    background: 'var(--color-background-primary)',
-    border: '0.5px solid var(--color-border-tertiary)',
+  dow: {
+    textAlign:'center', fontSize:10, fontWeight:600,
+    color:'#B0A0C8', paddingBottom:6,
+    letterSpacing:'0.02em',
   },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    color: 'var(--color-text-tertiary)',
-    marginBottom: 8,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-  },
-  infoSub: {
-    fontSize: 12,
-    color: 'var(--color-text-secondary)',
-    marginTop: 2,
-  },
-
-  // Nav
-  navRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    marginBottom: 14,
-  },
-  navBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    border: '0.5px solid var(--color-border-tertiary)',
-    background: 'var(--color-background-primary)',
-    color: 'var(--color-text-primary)',
-    fontSize: 16,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navTitle: {
-    fontSize: 17,
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-    minWidth: 170,
-    textAlign: 'center',
-  },
-
-  // Calendar
-  calCard: {
-    background: 'var(--color-background-primary)',
-    border: '0.5px solid var(--color-border-tertiary)',
-    borderRadius: 'var(--border-radius-lg, 12px)',
-    padding: '16px',
-    marginBottom: 14,
-  },
-  calGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(7, 1fr)',
-    gap: 3,
-  },
-  calWeekday: {
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--color-text-tertiary)',
-    padding: '4px 0 10px',
-  },
-  calCell: {
-    position: 'relative',
-    borderRadius: 8,
-    padding: '5px 3px 6px',
-    minHeight: 68,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    border: '0.5px solid transparent',
-  },
-  calCellToday: {
-    background: 'rgba(124,108,255,0.12)',
-    border: '0.5px solid rgba(124,108,255,0.4)',
-  },
-  calCellNew: {
-    background: 'rgba(15,17,40,0.7)',
-  },
-  calCellFull: {
-    background: 'rgba(255,210,80,0.06)',
-  },
-  calDayNum: {
-    fontSize: 11,
-    color: 'var(--color-text-tertiary)',
-    alignSelf: 'flex-start',
-    marginLeft: 3,
-    lineHeight: 1,
-  },
-  calSym: {
-    fontSize: 20,
-    lineHeight: 1,
-    marginTop: 4,
-  },
-  calSignName: {
-    fontSize: 9,
-    color: 'var(--color-text-tertiary)',
-    textAlign: 'center',
-    marginTop: 2,
-    lineHeight: 1.2,
-  },
-  calPhaseIcon: {
-    position: 'absolute',
-    top: 3,
-    right: 4,
-    fontSize: 11,
-    lineHeight: 1,
-    cursor: 'default',
-  },
-
-  // Misc
-  loadingBox: {
-    textAlign: 'center',
-    color: 'var(--color-text-secondary)',
-    padding: '40px 0',
-    fontSize: 14,
-  },
-  errorBox: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '12px 16px',
-    borderRadius: 10,
-    background: 'rgba(239,68,68,0.08)',
-    border: '1px solid rgba(239,68,68,0.2)',
-    color: '#FCA5A5',
-    fontSize: 13,
-    marginBottom: 14,
-  },
-  retryBtn: {
-    marginLeft: 'auto',
-    background: 'none',
-    border: '1px solid rgba(239,68,68,0.4)',
-    borderRadius: 6,
-    color: '#FCA5A5',
-    fontSize: 12,
-    padding: '3px 10px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-
   legend: {
-    display: 'flex',
-    gap: 20,
-    fontSize: 12,
-    color: 'var(--color-text-secondary)',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    gap:14, marginTop:12,
   },
-  legendItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
+};
+
+const ph = {
+  row:   { display:'flex', gap:6, flexWrap:'wrap' },
+  block: { flex:'1 1 120px', display:'flex', flexDirection:'column', gap:3 },
+  label: { fontSize:8, fontWeight:700, color:'#B0A0C8', letterSpacing:'0.08em', textTransform:'uppercase' },
+  inner: { display:'flex', alignItems:'center', gap:6 },
+  icon:  { width:32, height:32, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  name:  { fontSize:13, fontWeight:700, color:'#1E1A2E', lineHeight:1.2 },
+  extra: { fontSize:9, color:'#9080B0', marginTop:1 },
+};
+
+const dc = {
+  root: {
+    display:'flex', flexDirection:'column', alignItems:'center',
+    gap:2, padding:'4px 1px 5px',
   },
-  legendDotToday: {
-    display: 'inline-block',
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    background: 'rgba(124,108,255,0.25)',
-    border: '1px solid rgba(124,108,255,0.5)',
-    verticalAlign: 'middle',
+  num: {
+    width:20, height:20, borderRadius:10,
+    display:'flex', alignItems:'center', justifyContent:'center',
+    fontSize:11, lineHeight:1,
+  },
+  icon: {
+    width:26, height:26, borderRadius:8,
+    display:'flex', alignItems:'center', justifyContent:'center',
+  },
+  name: {
+    fontSize:7.5, color:'#9080B0',
+    textAlign:'center', lineHeight:1.2,
+    maxWidth:38, wordBreak:'break-word',
   },
 };
