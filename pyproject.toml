@@ -30,6 +30,10 @@ dev = [
     "mypy>=1.10.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
