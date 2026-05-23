@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API client for Astro SPA backend.
  * 
  * Handles:
@@ -7,7 +7,7 @@
  * - Error handling with retry
  */
 
-const API_BASE = 'https://astro-production-e070.up.railway.app/api/v1';
+const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
 
 class ApiError extends Error {
   constructor(message, status, detail) {
