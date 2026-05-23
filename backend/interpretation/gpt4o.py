@@ -1,4 +1,4 @@
-"""GPT-4o interpretation engine.
+﻿"""GPT-4o interpretation engine.
 
 Primary AI provider. Supports streaming via SSE.
 """
@@ -43,7 +43,7 @@ class GPT4oEngine(InterpretationEngine):
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Напиши интерпретацию натальной карты по указанным сферам."},
+                {"role": "user", "content": "апиши интерпретацию натальной карты по указанным сферам."},
             ],
             "max_tokens": 3000,
             "temperature": 0.7,
