@@ -281,32 +281,32 @@ const sp = {
     fontSize: '12px',
   },
   row: {
-    borderBottom: '0.5px solid var(--color-border-tertiary)',
+    borderBottom: '0.5px solid #EDE8F5',
   },
   glyph: {
     padding: '4px 6px 4px 0',
-    color: 'var(--color-text-secondary)',
+    color: '#7060A0',
     fontSize: '14px',
     width: '20px',
   },
   nameCell: {
     padding: '4px 8px 4px 0',
-    color: 'var(--color-text-primary)',
+    color: '#1E1A2E',
     whiteSpace: 'nowrap',
   },
   signGlyph: {
     padding: '4px 4px 4px 0',
     fontSize: '14px',
-    color: 'var(--color-text-secondary)',
+    color: '#7060A0',
     width: '20px',
   },
   signName: {
     padding: '4px 6px 4px 0',
-    color: 'var(--color-text-secondary)',
+    color: '#7060A0',
   },
   deg: {
     padding: '4px 6px 4px 0',
-    color: 'var(--color-text-primary)',
+    color: '#1E1A2E',
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
   },
@@ -359,7 +359,7 @@ const sl = {
     flexDirection: 'column',
     gap: '3px',
     marginTop: '8px',
-    borderTop: '0.5px solid var(--color-border-tertiary)',
+    borderTop: '0.5px solid #EDE8F5',
     paddingTop: '10px',
   },
   row: {
@@ -376,7 +376,7 @@ const sl = {
   },
   label: {
     flex: 1,
-    color: 'var(--color-text-secondary)',
+    color: '#7060A0',
   },
   tag: {
     fontSize: '10px',
@@ -402,7 +402,7 @@ const sl = {
 function Centered({ text, danger }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
-      <p style={{ color: danger ? 'var(--color-text-danger)' : 'var(--color-text-secondary)', fontSize: '14px' }}>
+      <p style={{ color: danger ? '#C03030' : '#7060A0', fontSize: '14px' }}>
         {text}
       </p>
     </div>
@@ -412,24 +412,24 @@ function Centered({ text, danger }) {
 const s = {
   page: {
     minHeight: '100vh',
-    background: 'var(--color-background-tertiary)',
+    background: '#F4F0FA',
     paddingBottom: '60px',
   },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '18px 24px 14px',
-    background: 'var(--color-background-primary)',
-    borderBottom: '0.5px solid var(--color-border-tertiary)',
+    background: '#FFFFFF',
+    borderBottom: '0.5px solid #EDE8F5',
     flexWrap: 'wrap', gap: '10px',
   },
-  title:    { margin: 0, fontSize: '18px', fontWeight: '500', color: 'var(--color-text-primary)' },
-  subtitle: { margin: '2px 0 0', fontSize: '12px', color: 'var(--color-text-secondary)' },
+  title:    { margin: 0, fontSize: '18px', fontWeight: '500', color: '#1E1A2E' },
+  subtitle: { margin: '2px 0 0', fontSize: '12px', color: '#7060A0' },
 
   // Вкладки
   tabBar: {
     display: 'flex',
-    background: 'var(--color-background-primary)',
-    borderBottom: '0.5px solid var(--color-border-tertiary)',
+    background: '#FFFFFF',
+    borderBottom: '0.5px solid #EDE8F5',
     padding: '0 24px',
     gap: '0',
   },
@@ -437,19 +437,19 @@ const s = {
     position: 'relative',
     padding: '12px 20px',
     background: 'none', border: 'none',
-    color: 'var(--color-text-secondary)',
+    color: '#7060A0',
     fontSize: '14px', fontWeight: '400',
     cursor: 'pointer', fontFamily: 'inherit',
     transition: 'color 0.15s',
     whiteSpace: 'nowrap',
   },
   tabBtnActive: {
-    color: 'var(--color-text-primary)',
+    color: '#1E1A2E',
     fontWeight: '500',
   },
   tabUnderline: {
     position: 'absolute', bottom: -1, left: '20px', right: '20px', height: 2,
-    background: 'var(--color-text-primary)',
+    background: '#1E1A2E',
     borderRadius: '2px 2px 0 0',
     display: 'block',
   },
@@ -465,19 +465,19 @@ const s = {
   transitDateLabel: {
     fontSize: '13px',
     fontWeight: '500',
-    color: 'var(--color-text-secondary)',
+    color: '#7060A0',
     marginBottom: '14px',
   },
   card: {
-    background: 'var(--color-background-primary)',
-    borderRadius: 'var(--border-radius-lg)',
-    border: '0.5px solid var(--color-border-tertiary)',
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    border: '0.5px solid #EDE8F5',
     padding: '20px',
   },
 
   plannerHead: { marginBottom: '14px' },
-  plannerTitle: { fontSize: '15px', fontWeight: '500', color: 'var(--color-text-primary)', display: 'block' },
-  plannerSub:   { fontSize: '12px', color: 'var(--color-text-tertiary)', display: 'block', marginTop: '2px' },
+  plannerTitle: { fontSize: '15px', fontWeight: '500', color: '#1E1A2E', display: 'block' },
+  plannerSub:   { fontSize: '12px', color: '#9080B0', display: 'block', marginTop: '2px' },
 
   chartWithData: {
     display: 'flex',
@@ -497,10 +497,10 @@ const s = {
     padding: '8px 14px',
     fontSize: '13px',
     fontWeight: '500',
-    background: 'var(--color-background-tertiary, #1e293b)',
-    color: 'var(--color-text-primary, #e2e8f0)',
-    border: '0.5px solid var(--color-border-tertiary, #334155)',
-    borderRadius: 'var(--border-radius-md, 8px)',
+    background: '#F4F0FA',
+    color: '#1E1A2E',
+    border: '0.5px solid #EDE8F5',
+    borderRadius: '8px',
     cursor: 'pointer',
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
