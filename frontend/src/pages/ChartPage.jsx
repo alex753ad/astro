@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ChartPage.jsx — три вкладки: Натальная карта / Транзиты / Планировщик
  */
 
@@ -20,7 +20,7 @@ const TABS = [
   { key: 'planner',  label: 'Планировщик'     },
 ];
 
-const API_BASE = 'https://astro-production-e070.up.railway.app/api/v1';
+const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
 
 export default function ChartPage({ currentUser }) {
   const { chartId } = useParams();

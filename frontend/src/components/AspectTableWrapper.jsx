@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AspectTableWrapper.jsx
  *
  * Анимированная обёртка для AspectTable.

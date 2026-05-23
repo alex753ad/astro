@@ -1,4 +1,4 @@
-/**
+﻿/**
  * NatalChart — Professional natal chart wheel.
  * Redesign: «Дыхание космоса» — пастельная светлая тема.
  *

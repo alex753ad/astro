@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ProfilePage — личный кабинет пользователя.
  *
  * Копировать в: frontend/src/pages/ProfilePage.jsx

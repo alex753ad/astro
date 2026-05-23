@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TransitEventDetail — Interpretation panel for a single transit event.
  * 
  * Production version: connects to real SSE endpoint

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useAuth — central authentication hook.
  *
  * Manages:

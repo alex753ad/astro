@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ForecastScale.jsx
  *
  * Планировщик с прокруткой дней месяца.
@@ -74,19 +74,19 @@ export default function ForecastScale({ chartId, selectedDate: externalDate }) {
     try {
       let url;
       if (scale === 'day') {
-        url = `https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/forecast/daily?on_date=${selectedDate}`;
+        url = `https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/forecast/daily?on_date=${selectedDate}`;
       } else if (scale === 'week') {
         const monday = getMonday(selectedDate);
         const d      = new Date(monday + 'T00:00:00');
         d.setDate(d.getDate() + 6);
         const sunday = d.toISOString().slice(0, 10);
-        url = `https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/forecast/weekly?week_start=${monday}&week_end=${sunday}`;
+        url = `https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/forecast/weekly?week_start=${monday}&week_end=${sunday}`;
       } else {
         const d     = new Date(selectedDate + 'T00:00:00');
         const y     = d.getFullYear();
         const m     = String(d.getMonth() + 1).padStart(2, '0');
         const last  = new Date(y, d.getMonth() + 1, 0).getDate();
-        url = `https://astro-production-e070.up.railway.app/api/v1/chart/${chartId}/forecast/monthly?from_date=${y}-${m}-01&to_date=${y}-${m}-${last}`;
+        url = `https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/forecast/monthly?from_date=${y}-${m}-01&to_date=${y}-${m}-${last}`;
       }
 
       const res  = await fetch(url, { headers });

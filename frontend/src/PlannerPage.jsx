@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
-const API_BASE = "https://astro-production-e070.up.railway.app";
+const API_BASE = "https://astro-production-abcc.up.railway.app";
 
 function getMonthName(date) {
   return date.toLocaleString("ru-RU", { month: "long", year: "numeric" });
