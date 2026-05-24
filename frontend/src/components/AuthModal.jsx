@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import useAuth from '../hooks/useAuth.jsx';
 
 export default function AuthModal({ onClose }) {
@@ -47,7 +47,7 @@ export default function AuthModal({ onClose }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
 
         <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'#64748b', fontSize:22, cursor:'pointer' }}>×</button>
