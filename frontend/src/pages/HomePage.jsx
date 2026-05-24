@@ -47,56 +47,18 @@ function TooltipBadge({ term }) {
   );
 }
 
-// Баннер «Сохраните карту» после расчёта для анонима
-function SaveChartBanner({ onLogin }) {
-  return (
-    <div style={{
-      margin: '24px auto', maxWidth: 480,
-      padding: '18px 24px', borderRadius: 16,
-      background: 'linear-gradient(135deg, rgba(124,108,255,0.12), rgba(192,96,160,0.12))',
-      border: '1.5px solid rgba(124,108,255,0.3)',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      gap: 16, flexWrap: 'wrap',
-    }}>
-      <div>
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#E8EAF0', marginBottom: 4 }}>
-          ✦ Сохраните свою карту
-        </div>
-        <div style={{ fontSize: 12, color: '#8B8FA3', lineHeight: 1.5 }}>
-          Войдите или зарегистрируйтесь, чтобы не потерять результат
-        </div>
-      </div>
-      <button
-        onClick={onLogin}
-        style={{
-          padding: '9px 20px', borderRadius: 10, border: 'none',
-          background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
-          color: '#fff', fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', whiteSpace: 'nowrap',
-          boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
-        }}
-      >
-        Войти / Регистрация
-      </button>
-    </div>
-  );
-}
-
 export default function HomePage({ currentUser, onShowAuth }) {
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
-  const [chartDone, setChartDone]   = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (data) => {
     setLoading(true);
     setError('');
-    setChartDone(false);
 
     try {
       const chart = await calculateChart(data);
       if (!currentUser) {
-        // Анонимный пользователь — переходим на карту, показываем баннер там
         sessionStorage.setItem('pending_chart_id', chart.id);
       }
       navigate(`/chart/${chart.id}`);
@@ -143,11 +105,6 @@ export default function HomePage({ currentUser, onShowAuth }) {
         </div>
       )}
 
-      {/* Баннер сохранения для анонима */}
-      {!currentUser && !loading && (
-        <SaveChartBanner onLogin={onShowAuth || (() => {})} />
-      )}
-
       {/* Features */}
       <div className="grid md:grid-cols-3 gap-6 mt-16 text-center">
         {[
@@ -155,19 +112,16 @@ export default function HomePage({ currentUser, onShowAuth }) {
             icon: '⚙️',
             title: 'Swiss Ephemeris',
             desc: 'Погрешность < 1 угловой секунды. Золотой стандарт расчётов.',
-            tip: null,
           },
           {
             icon: '✦',
             title: 'AI-интерпретация',
             desc: 'Персонализированный нарратив от GPT-4o. Не шаблоны.',
-            tip: null,
           },
           {
             icon: '🔒',
             title: 'Приватность',
             desc: 'Данные хранятся в зашифрованной базе. Удаление в один клик.',
-            tip: null,
           },
         ].map((f) => (
           <div key={f.title} className="glass-card p-6">
