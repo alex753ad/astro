@@ -132,22 +132,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
         ))}
       </div>
 
-      {/* Астро-глоссарий с подсказками */}
-      <div style={{
-        marginTop: 40, padding: '20px 24px', borderRadius: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-      }}>
-        <p style={{ fontSize: 12, color: '#8B8FA3', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          Что означают термины в карте
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-          {Object.keys(TOOLTIPS).map(term => (
-            <span key={term} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#C8CAD8' }}>
-              {term} <TooltipBadge term={term} />
-            </span>
-          ))}
-        </div>
-      </div>
+
     </div>
   );
 }

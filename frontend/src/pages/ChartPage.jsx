@@ -223,6 +223,10 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           <section style={s.card}>
             <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
           </section>
+
+          <section style={s.card}>
+            <AstroGlossary />
+          </section>
         </main>
       )}
 
@@ -398,6 +402,67 @@ const sl = {
   retroRow: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', marginTop: '4px' },
   retroR: { width: '16px', textAlign: 'center', color: '#e05050', fontWeight: '700', fontSize: '12px', flexShrink: 0 },
 };
+
+// ── Астро-глоссарий ──
+const TOOLTIPS = {
+  ASC: 'Асцендент (ASC) — точка горизонта на востоке в момент рождения. Показывает, как вы воспринимаетесь окружающими.',
+  MC:  'Середина Неба (MC) — высшая точка неба в момент рождения. Связана с карьерой и жизненным призванием.',
+  'аспекты': 'Аспекты — угловые соотношения между планетами. Трин и секстиль — гармоничные, квадрат и оппозиция — напряжённые.',
+  'дома': 'Дома — 12 секторов карты, каждый отвечает за свою сферу жизни: 1-й — личность, 7-й — партнёрство, 10-й — карьера.',
+};
+
+function TooltipBadge({ term }) {
+  const [visible, setVisible] = React.useState(false);
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      <span
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onClick={() => setVisible(v => !v)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 16, height: 16, borderRadius: 8,
+          background: 'rgba(112,96,160,0.15)', color: '#7060A0',
+          fontSize: 10, fontWeight: 700, cursor: 'help',
+          border: '1px solid rgba(112,96,160,0.3)',
+          userSelect: 'none',
+        }}
+      >?</span>
+      {visible && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: 6, zIndex: 100,
+          background: '#1E1A2E', border: '1px solid rgba(112,96,160,0.3)',
+          borderRadius: 10, padding: '10px 14px',
+          width: 220, fontSize: 12, lineHeight: 1.6,
+          color: '#C8CAD8', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          pointerEvents: 'none',
+        }}>
+          <strong style={{ color: '#A090D0' }}>{term}</strong><br />
+          {TOOLTIPS[term]}
+        </div>
+      )}
+    </span>
+  );
+}
+
+function AstroGlossary() {
+  return (
+    <>
+      <p style={{ fontSize: 12, color: '#9080B0', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+        Что означают термины в карте
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+        {Object.keys(TOOLTIPS).map(term => (
+          <span key={term} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#1E1A2E' }}>
+            {term} <TooltipBadge term={term} />
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
 
 function Centered({ text, danger }) {
   return (
