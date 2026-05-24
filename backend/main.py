@@ -58,6 +58,9 @@ from backend.cache import interpretation_cache, transit_cache, make_profile_hash
 from backend.calendar.lunar_engine import get_monthly_calendar
 from backend.auth.router import router as auth_router
 from backend.profile.router import router as profile_router
+from backend.auth.dependencies import get_current_user_optional
+from backend.auth.rate_limits import tier_limiter
+from backend.models import User
 
 logger = logging.getLogger("astro")
 settings = get_settings()
@@ -321,12 +324,18 @@ async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_d
     summary="Stream AI interpretation (SSE)",
 )
 @limiter.limit(settings.rate_limit_anon)
-async def interpret_chart(request: Request, chart_id: str, db: Session = Depends(get_db)):
+async def interpret_chart(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
     """Stream an AI-generated interpretation of a natal chart via Server-Sent Events.
 
     The response is streamed token-by-token for a smooth UX.
     Fallback chain: GPT-4o → DeepSeek V3 → Template engine.
     """
+    tier_limiter.check_interpretation_limit(user)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
@@ -374,11 +383,17 @@ async def interpret_chart(request: Request, chart_id: str, db: Session = Depends
     summary="Generate full interpretation (non-streaming)",
 )
 @limiter.limit(settings.rate_limit_anon)
-async def interpret_chart_full(request: Request, chart_id: str, db: Session = Depends(get_db)):
+async def interpret_chart_full(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
     """Generate a complete AI interpretation of a natal chart.
 
     Returns the full text at once (no streaming).
     """
+    tier_limiter.check_interpretation_limit(user)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
@@ -437,6 +452,7 @@ async def get_transits(
     planet: str | None = None,
     max_orb: float | None = None,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """Calculate transit aspects to a natal chart for a given date range.
 
@@ -448,6 +464,7 @@ async def get_transits(
 
     Returns array of transit events sorted by date.
     """
+    tier_limiter.check_transit_access(user)
     from datetime import date as date_type
     from backend.transit.engine import calculate_transits
     from backend.cache import transit_cache, make_profile_hash
@@ -581,12 +598,14 @@ async def interpret_transits(
     from_date: str,
     to_date: str,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """Stream an AI interpretation of all transits for a period.
 
     First calculates transits, then generates an overview interpretation
     via the AI fallback chain (GPT-4o → DeepSeek → templates).
     """
+    tier_limiter.check_transit_access(user)
     from datetime import date as date_type
     from backend.transit.engine import calculate_transits, get_transit_summary
     from backend.transit.prompts import build_transit_period_prompt, get_template_transit_text
@@ -729,12 +748,14 @@ async def interpret_transit_event(
     request: Request,
     chart_id: str,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """Stream AI interpretation of a single transit event.
 
     Request body: transit event data (from /transits response).
     Used when user clicks on a specific event in the timeline.
     """
+    tier_limiter.check_transit_access(user)
     from backend.transit.prompts import (
         build_transit_event_prompt,
         get_template_transit_text,
