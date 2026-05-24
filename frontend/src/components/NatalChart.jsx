@@ -447,12 +447,12 @@ export default function NatalChart({
                     fill="none"
                     stroke={color}
                     strokeWidth={hasAspect ? 2 : 1}
-                    strokeOpacity={hasAspect ? 1 : 0.45}
+                    strokeOpacity={1}
                   />
                   <text x={pos.x} y={pos.y}
                     textAnchor="middle" dominantBaseline="central"
                     fontSize={13} fontWeight="700"
-                    fill={color} fillOpacity={hasAspect ? 1 : 0.5}>
+                    fill={color}>
                     {PLANET_GLYPHS[tp.name] || '?'}
                   </text>
 
