@@ -193,7 +193,7 @@ export default function ChartPage({ currentUser }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={showPaywall} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={!currentUser || currentUser.tier === 'free'} />
               </section>
             </main>
           </div>
@@ -416,3 +416,4 @@ const s = {
     transition: 'background 0.15s',
   },
 };
+
