@@ -22,8 +22,7 @@ class Settings(BaseSettings):
     # ── Rate limiting ──
     rate_limit_anon: str = "30/minute"
     rate_limit_auth: str = "100/minute"
-    rate_limit_free_charts_per_day: int = 5
-    rate_limit_free_interpretations_per_day: int = 2
+    # Tier limits moved to TIER_FLAGS in auth/rate_limits.py
 
     # ── Ephemeris ──
     ephe_path: str = "data/ephe"
@@ -44,7 +43,6 @@ class Settings(BaseSettings):
     # ── General ──
     debug: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
-    # В .env: CORS_ORIGINS=["https://yourdomain.com"]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import NatalChart, User, Subscription
 from backend.auth.dependencies import get_current_user
+from backend.auth.rate_limits import get_feature_flags
 from backend.schemas import MessageResponse
 
 logger = logging.getLogger("astro.profile")
@@ -187,14 +188,7 @@ async def get_subscription(
             if sub and getattr(sub, "current_period_end", None)
             else None
         ),
-        # Feature flags per tier
-        "features": {
-            "transits": user.tier in ("pro", "premium"),
-            "unlimited_interpretations": user.tier in ("pro", "premium"),
-            "pdf_reports": user.tier == "premium",
-            "synastry": user.tier == "premium",
-            "history": user.tier in ("pro", "premium"),
-        },
+        "features": get_feature_flags(user),
     }
 
 
