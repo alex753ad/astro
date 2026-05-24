@@ -161,3 +161,14 @@ export async function getLunarCalendar(year, month) {
 }
 
 export { ApiError };
+
+// ── Payments API ──
+
+export async function createCheckoutSession(tier, billing, chartId) {
+  const token = localStorage.getItem('astro_access_token');
+  return request('/payments/checkout', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: JSON.stringify({ tier, billing, chart_id: chartId }),
+  });
+}
