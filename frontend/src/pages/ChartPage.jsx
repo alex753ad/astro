@@ -199,7 +199,7 @@ export default function ChartPage({ currentUser }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={!currentUser} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={!currentUser || currentUser.tier === 'free'} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
               </section>
             </main>
           </div>
