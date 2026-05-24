@@ -1,8 +1,8 @@
-﻿{
+{
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://astro-production-abcc.up.railway.app/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "https://astro-production-abcc.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",
