@@ -1,5 +1,5 @@
 /**
- * ChartPage.jsx — три вкладки: Натальная карта / Транзиты / Планировщик
+ * ChartPage.jsx — вкладки: Карта / Интерпретация / Аспекты / Транзиты / Планировщик
  */
 
 import React, { useState, useEffect } from 'react';
@@ -16,9 +16,11 @@ import { useExpertMode } from '../hooks/useExpertMode.js';
 import PaywallModal from '../components/PaywallModal';
 
 const TABS = [
-  { key: 'chart',    label: 'Натальная карта' },
-  { key: 'transits', label: 'Транзиты'        },
-  { key: 'planner',  label: 'Планировщик'     },
+  { key: 'chart',          label: 'Карта'           },
+  { key: 'interpretation', label: 'Интерпретация'   },
+  { key: 'aspects',        label: 'Аспекты'         },
+  { key: 'transits',       label: 'Транзиты'        },
+  { key: 'planner',        label: 'Планировщик'     },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -58,6 +60,16 @@ function SaveChartBanner({ onLogin }) {
   );
 }
 
+// ── Хук тёмной темы ──
+function useDarkMode() {
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+  return [dark, () => setDark(d => !d)];
+}
+
 export default function ChartPage({ currentUser, onShowAuth }) {
   const { chartId } = useParams();
   const navigate = useNavigate();
@@ -67,12 +79,21 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [selectedDate, setSelectedDate]     = useState(
     new Date().toISOString().slice(0, 10)
   );
-  const [activeTab, setActiveTab] = useState('chart');
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [activeTab, setActiveTab]     = useState('chart');
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [copied, setCopied]           = useState(false);
+  const [dark, toggleDark]            = useDarkMode();
 
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
+
+  function handleShare() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   useEffect(() => {
     if (!chartId) return;
@@ -138,18 +159,18 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           <h1 style={s.title}>{chart.name ?? 'Натальная карта'}</h1>
           <p style={s.subtitle}>{chart.birth_date} · {chart.birth_place}</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            onClick={() => navigate(`/planner/${chartId}`)}
-            style={s.plannerLinkBtn}
-          >
-            📅 Планер на месяц
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button onClick={() => navigate(`/planner/${chartId}`)} style={s.plannerLinkBtn}>
+            📅 Планер
           </button>
-          <button
-            onClick={() => navigate(`/lunar?chartId=${chartId}`)}
-            style={s.plannerLinkBtn}
-          >
-            🌙 Лунный календарь
+          <button onClick={() => navigate(`/lunar?chartId=${chartId}`)} style={s.plannerLinkBtn}>
+            🌙 Луна
+          </button>
+          <button onClick={handleShare} style={s.plannerLinkBtn} title="Скопировать ссылку">
+            {copied ? '✓ Скопировано' : '🔗 Поделиться'}
+          </button>
+          <button onClick={toggleDark} style={s.plannerLinkBtn} title="Сменить тему">
+            {dark ? '☀️' : '🌙'}
           </button>
           {activeTab === 'chart' && (
             <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
@@ -208,10 +229,25 @@ export default function ChartPage({ currentUser, onShowAuth }) {
             <ChartSummary planets={chart.planets} houses={chart.houses} />
           </section>
 
+        </main>
+      )}
+
+      {/* ── Вкладка: Интерпретация ── */}
+      {activeTab === 'interpretation' && (
+        <main style={s.main}>
+          {isAnon && <SaveChartBanner onLogin={handleShowAuth} />}
+          <section style={s.card}>
+            <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+          </section>
+        </main>
+      )}
+
+      {/* ── Вкладка: Аспекты ── */}
+      {activeTab === 'aspects' && (
+        <main style={s.main}>
           <section style={s.card}>
             <AspectGrid aspects={chart.aspects} planets={chart.planets} />
           </section>
-
           <section style={s.card}>
             <AspectTableWrapper
               expertMode={expertMode}
@@ -219,11 +255,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               planets={chart.planets}
             />
           </section>
-
-          <section style={s.card}>
-            <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
-          </section>
-
           <section style={s.card}>
             <AstroGlossary />
           </section>
