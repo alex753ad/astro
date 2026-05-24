@@ -100,6 +100,15 @@ function formatExactTime(exactDate) {
 function isHarmonic(aspect) { return aspect === "trine" || aspect === "sextile"; }
 function isTense(aspect)    { return aspect === "square" || aspect === "opposition"; }
 
+// Возвращает индекс события, которое открыто для free-пользователей
+// (первый транзит Венеры или Юпитера с позитивным аспектом)
+function getFreeUnlockedIndex(events) {
+  const idx = events.findIndex(
+    e => (e.transit_planet === "Venus" || e.transit_planet === "Jupiter") && isHarmonic(e.aspect_type)
+  );
+  return idx >= 0 ? idx : 0; // fallback — первое событие
+}
+
 // ═══════════════════════════════════════════════════════════
 // SKELETON LOADER
 // ═══════════════════════════════════════════════════════════
@@ -289,25 +298,66 @@ function StatsSummary({ events }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// FREE PLAN BANNER
+// ═══════════════════════════════════════════════════════════
+
+function FreePlanBanner({ lockedCount, onUpgrade }) {
+  return (
+    <div style={{
+      margin: "8px 0", padding: "16px 20px", borderRadius: 16,
+      background: "linear-gradient(135deg, #F5F0FF, #FFF0F8)",
+      border: "1.5px solid #E0D0F8",
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+    }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#5A2880", marginBottom: 3 }}>
+          ✨ Ещё {lockedCount} активных транзитов скрыто
+        </div>
+        <div style={{ fontSize: 12, color: "#9070B0" }}>
+          Перейдите на Pro, чтобы видеть полный прогноз
+        </div>
+      </div>
+      <button onClick={onUpgrade} style={{
+        padding: "9px 20px", borderRadius: 12, border: "none",
+        background: "linear-gradient(135deg, #9060C8, #C060A0)",
+        color: "#fff", fontSize: 13, fontWeight: 700,
+        cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
+        boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
+      }}>
+        Открыть Pro
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // EVENT CARD
 // ═══════════════════════════════════════════════════════════
 
-function EventCard({ event, index, isSelected, onClick }) {
+function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
   const aspectColor  = ASPECT_COLORS[event.aspect_type] || "#7040A8";
   const aspectBg     = ASPECT_BG[event.aspect_type]    || "rgba(112,64,168,0.06)";
   const planetAccent = PLANET_ACCENT[event.transit_planet] || "#C0A0E8";
   const displayDate  = event.peak_date || event.exact_date || event.date || "";
 
   return (
-    <div onClick={onClick} style={{
-      padding: "14px 16px", borderRadius: 16, cursor: "pointer",
-      border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
-      borderLeft: `4px solid ${planetAccent}`,
-      background: isSelected ? aspectBg : "#FFFFFF",
-      boxShadow: isSelected ? "0 8px 20px -6px rgba(224,195,252,0.35)" : "0 2px 8px -4px rgba(200,180,240,0.15)",
-      transition: "all 0.2s ease",
-      animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
-    }}>
+    <div
+      onClick={blurred ? onUpgrade : onClick}
+      style={{
+        padding: "14px 16px", borderRadius: 16, cursor: "pointer",
+        border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
+        borderLeft: `4px solid ${planetAccent}`,
+        background: isSelected ? aspectBg : "#FFFFFF",
+        boxShadow: isSelected ? "0 8px 20px -6px rgba(224,195,252,0.35)" : "0 2px 8px -4px rgba(200,180,240,0.15)",
+        transition: "all 0.2s ease",
+        animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
+        // blur для заблокированных карточек
+        filter: blurred ? "blur(4px)" : "none",
+        userSelect: blurred ? "none" : "auto",
+        pointerEvents: blurred ? "auto" : "auto",
+        position: "relative",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#9080B0" }}>{displayDate ? formatDate(displayDate) : ""}</span>
@@ -333,7 +383,7 @@ function EventCard({ event, index, isSelected, onClick }) {
       {(event.transit_sign || event.natal_sign) && (
         <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{event.transit_sign} → {event.natal_sign}</div>
       )}
-      {isSelected && <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>Нажмите для интерпретации ↓</div>}
+      {isSelected && !blurred && <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>Нажмите для интерпретации ↓</div>}
     </div>
   );
 }
@@ -435,7 +485,7 @@ function InterpretationPanel({ event, onClose }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
+export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade }) {
   const [events,        setEvents]        = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -443,6 +493,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
   const [aspectFilter,  setAspectFilter]  = useState([]);
   const [orbFilter,     setOrbFilter]     = useState(2.0);
   const [activeDate,    setActiveDate]    = useState(null);
+
+  const isFree = userTier === "free";
 
   useEffect(() => {
     if (!chartId || mockMode) { setEvents(MOCK_EVENTS); setLoading(false); return; }
@@ -469,6 +521,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
       return true;
     });
   }, [events, planetFilter, aspectFilter, orbFilter, activeDate]);
+
+  // Индекс открытого транзита для free (считаем по всем events, не по filteredEvents)
+  const freeUnlockedIndex = useMemo(() => getFreeUnlockedIndex(filteredEvents), [filteredEvents]);
 
   const dates            = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
   const eventCountByDate = useMemo(() => {
@@ -502,6 +557,12 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
     }
     onDateSelect(next, dayEvents, positions);
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
+
+  const handleUpgrade = useCallback(() => {
+    if (onUpgrade) onUpgrade();
+  }, [onUpgrade]);
+
+  const lockedCount = isFree ? Math.max(0, filteredEvents.length - 1) : 0;
 
   return (
     <div style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "#2D2540" }}>
@@ -538,6 +599,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
         <FilterBar planetFilter={planetFilter} setPlanetFilter={setPlanetFilter} aspectFilter={aspectFilter} setAspectFilter={setAspectFilter} orbFilter={orbFilter} setOrbFilter={setOrbFilter} />
       </div>
 
+      {!loading && isFree && lockedCount > 0 && (
+        <FreePlanBanner lockedCount={lockedCount} onUpgrade={handleUpgrade} />
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {loading ? (
@@ -548,14 +613,19 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте увеличить орб или сбросить фильтры.</span>
             </div>
           ) : (
-            filteredEvents.map((event, idx) => (
-              <EventCard
-                key={`${event.peak_date||event.start_date||event.date}-${event.transit_planet}-${event.natal_planet}-${event.aspect_type}`}
-                event={event} index={idx}
-                isSelected={selectedEvent === event}
-                onClick={() => handleEventClick(event)}
-              />
-            ))
+            filteredEvents.map((event, idx) => {
+              const blurred = isFree && idx !== freeUnlockedIndex;
+              return (
+                <EventCard
+                  key={`${event.peak_date||event.start_date||event.date}-${event.transit_planet}-${event.natal_planet}-${event.aspect_type}`}
+                  event={event} index={idx}
+                  isSelected={selectedEvent === event}
+                  onClick={() => handleEventClick(event)}
+                  blurred={blurred}
+                  onUpgrade={handleUpgrade}
+                />
+              );
+            })
           )}
         </div>
         {selectedEvent && (
