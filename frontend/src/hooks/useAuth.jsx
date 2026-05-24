@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useAuth — central authentication hook.
  *
  * Manages:
@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { ApiError } from '../api/client';
 
-const API_BASE = '/api/v1/auth';
+const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1/auth';
 
 // ── Storage keys ──────────────────────────────────────────
 const ACCESS_TOKEN_KEY  = 'astro_access_token';
