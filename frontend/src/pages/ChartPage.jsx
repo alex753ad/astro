@@ -23,7 +23,42 @@ const TABS = [
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
 
-export default function ChartPage({ currentUser }) {
+// Баннер «Сохраните карту» для анонимного пользователя
+function SaveChartBanner({ onLogin }) {
+  return (
+    <div style={{
+      margin: '0 0 16px',
+      padding: '18px 24px', borderRadius: 16,
+      background: 'linear-gradient(135deg, rgba(124,108,255,0.12), rgba(192,96,160,0.12))',
+      border: '1.5px solid rgba(124,108,255,0.3)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 16, flexWrap: 'wrap',
+    }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#1E1A2E', marginBottom: 4 }}>
+          ✦ Сохраните свою карту
+        </div>
+        <div style={{ fontSize: 12, color: '#7060A0', lineHeight: 1.5 }}>
+          Войдите или зарегистрируйтесь, чтобы не потерять результат
+        </div>
+      </div>
+      <button
+        onClick={onLogin}
+        style={{
+          padding: '9px 20px', borderRadius: 10, border: 'none',
+          background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+          color: '#fff', fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
+        }}
+      >
+        Войти / Регистрация
+      </button>
+    </div>
+  );
+}
+
+export default function ChartPage({ currentUser, onShowAuth }) {
   const { chartId } = useParams();
   const navigate = useNavigate();
 
@@ -84,9 +119,15 @@ export default function ChartPage({ currentUser }) {
     if (date) setSelectedDate(date);
   }
 
+  function handleShowAuth() {
+    onShowAuth?.();
+  }
+
   if (loading) return <Centered text="Загружаем карту…" />;
   if (error)   return <Centered text={error} danger />;
   if (!chart)  return null;
+
+  const isAnon = !currentUser;
 
   return (
     <div style={s.page}>
@@ -133,6 +174,12 @@ export default function ChartPage({ currentUser }) {
       {/* ── Вкладка: Натальная карта ── */}
       {activeTab === 'chart' && (
         <main style={s.main}>
+
+          {/* Баннер сохранения для анонима */}
+          {isAnon && (
+            <SaveChartBanner onLogin={handleShowAuth} />
+          )}
+
           <section style={s.card}>
             <div style={s.chartWithData}>
               <NatalChart
@@ -400,7 +447,6 @@ const s = {
     padding: '20px 16px',
     display: 'flex', flexDirection: 'column', gap: '16px',
   },
-  tabContent: { maxWidth: '900px', margin: '0 auto' },
   transitDateLabel: { fontSize: '13px', fontWeight: '500', color: '#7060A0', marginBottom: '14px' },
   card: { background: '#FFFFFF', borderRadius: '16px', border: '0.5px solid #EDE8F5', padding: '20px' },
   plannerHead: { marginBottom: '14px' },
@@ -422,5 +468,3 @@ const s = {
     transition: 'background 0.15s',
   },
 };
-
-

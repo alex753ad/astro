@@ -9,104 +9,100 @@ import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
 
-function Header() {
+function Header({ onShowAuth }) {
   const { user, logout } = useAuth();
-  const [showAuth, setShowAuth] = useState(false);
 
   return (
-    <>
-      <header className="
-        sticky top-0 z-50
-        bg-white/80 backdrop-blur-md
-        border-b border-astro-purple/20
-        shadow-sm
-      ">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <header className="
+      sticky top-0 z-50
+      bg-white/80 backdrop-blur-md
+      border-b border-astro-purple/20
+      shadow-sm
+    ">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
 
-          {/* Логотип */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <span className="text-xl text-violet-400">✦</span>
-            <span className="
-              font-display text-lg font-bold text-slate-800
-              group-hover:text-violet-500 transition-colors duration-200
-            ">
-              Astro SPA
-            </span>
+        {/* Логотип */}
+        <Link to="/" className="flex items-center gap-2 group">
+          <span className="text-xl text-violet-400">✦</span>
+          <span className="
+            font-display text-lg font-bold text-slate-800
+            group-hover:text-violet-500 transition-colors duration-200
+          ">
+            Astro SPA
+          </span>
+        </Link>
+
+        {/* Навигация */}
+        <nav className="flex items-center gap-1 text-sm">
+          <Link
+            to="/"
+            className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
+                       hover:bg-astro-purple/20 transition-all duration-200"
+          >
+            Главная
           </Link>
+          <Link
+            to="/lunar"
+            className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
+                       hover:bg-astro-blue/40 transition-all duration-200"
+          >
+            🌙 Луна
+          </Link>
+          <a
+            href="/api/docs"
+            target="_blank"
+            rel="noopener"
+            className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
+                       hover:bg-slate-100 transition-all duration-200"
+          >
+            API Docs
+          </a>
 
-          {/* Навигация */}
-          <nav className="flex items-center gap-1 text-sm">
-            <Link
-              to="/"
-              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                         hover:bg-astro-purple/20 transition-all duration-200"
-            >
-              Главная
-            </Link>
-            <Link
-              to="/lunar"
-              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                         hover:bg-astro-blue/40 transition-all duration-200"
-            >
-              🌙 Луна
-            </Link>
-            <a
-              href="/api/docs"
-              target="_blank"
-              rel="noopener"
-              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                         hover:bg-slate-100 transition-all duration-200"
-            >
-              API Docs
-            </a>
-
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
-                             text-slate-600 hover:text-slate-900 hover:bg-slate-100
-                             transition-all duration-200"
-                >
-                  <span>👤</span>
-                  <span>{user.email?.split('@')[0]}</span>
-                </Link>
-                <button
-                  onClick={logout}
-                  className="
-                    px-4 py-1.5 rounded-full text-sm font-medium
-                    text-slate-500 border border-slate-200
-                    hover:border-slate-300 hover:text-slate-700
-                    transition-all duration-200
-                  "
-                >
-                  Выйти
-                </button>
-              </>
-            ) : (
+          {user ? (
+            <>
+              <Link
+                to="/profile"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                           text-slate-600 hover:text-slate-900 hover:bg-slate-100
+                           transition-all duration-200"
+              >
+                <span>👤</span>
+                <span>{user.email?.split('@')[0]}</span>
+              </Link>
               <button
-                onClick={() => setShowAuth(true)}
+                onClick={logout}
                 className="
-                  px-5 py-1.5 rounded-full text-sm font-semibold text-white
-                  bg-gradient-to-r from-astro-purple to-astro-pink
-                  hover:shadow-pastel hover:-translate-y-0.5
-                  transition-all duration-300
+                  px-4 py-1.5 rounded-full text-sm font-medium
+                  text-slate-500 border border-slate-200
+                  hover:border-slate-300 hover:text-slate-700
+                  transition-all duration-200
                 "
               >
-                Войти
+                Выйти
               </button>
-            )}
-          </nav>
-        </div>
-      </header>
-
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-    </>
+            </>
+          ) : (
+            <button
+              onClick={onShowAuth}
+              className="
+                px-5 py-1.5 rounded-full text-sm font-semibold text-white
+                bg-gradient-to-r from-astro-purple to-astro-pink
+                hover:shadow-pastel hover:-translate-y-0.5
+                transition-all duration-300
+              "
+            >
+              Войти
+            </button>
+          )}
+        </nav>
+      </div>
+    </header>
   );
 }
 
 function AppRoutes() {
   const { user } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
 
   return (
     <div className="relative min-h-screen bg-astro-bg text-slate-800 overflow-x-hidden">
@@ -137,12 +133,12 @@ function AppRoutes() {
 
       {/* Основной контент поверх блобов */}
       <div className="relative z-10 flex flex-col min-h-screen">
-        <Header />
+        <Header onShowAuth={() => setShowAuth(true)} />
 
         <main className="flex-1">
           <Routes>
-            <Route path="/"               element={<HomePage />} />
-            <Route path="/chart/:chartId" element={<ChartPage currentUser={user} />} />
+            <Route path="/"               element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+            <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/planner/:id"    element={<PlannerPage />} />
             <Route path="/profile"        element={<ProfilePage />} />
             <Route path="/lunar"          element={<LunarCalendarPage />} />
@@ -157,6 +153,8 @@ function AppRoutes() {
           Astro SPA © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
         </footer>
       </div>
+
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </div>
   );
 }
