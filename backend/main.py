@@ -58,6 +58,7 @@ from backend.cache import interpretation_cache, transit_cache, make_profile_hash
 from backend.calendar.lunar_engine import get_monthly_calendar
 from backend.auth.router import router as auth_router
 from backend.profile.router import router as profile_router
+from backend.profile.settings_router import router as settings_router
 from backend.auth.dependencies import get_current_user_optional
 from backend.auth.rate_limits import tier_limiter
 from backend.models import User
@@ -103,6 +104,7 @@ app.add_middleware(
 # ── Routers ──
 app.include_router(auth_router)
 app.include_router(profile_router)
+app.include_router(settings_router)
 
 
 # ═══════════════════════════════════════════════════════════
