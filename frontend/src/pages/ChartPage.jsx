@@ -60,15 +60,7 @@ function SaveChartBanner({ onLogin }) {
   );
 }
 
-// ── Хук тёмной темы ──
-function useDarkMode() {
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('theme', dark ? 'dark' : 'light');
-  }, [dark]);
-  return [dark, () => setDark(d => !d)];
-}
+// ── Хук тёмной темы перенесён в App.jsx ──
 
 export default function ChartPage({ currentUser, onShowAuth }) {
   const { chartId } = useParams();
@@ -84,7 +76,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [copied, setCopied]           = useState(false);
-  const [dark, toggleDark]            = useDarkMode();
 
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
 
@@ -168,9 +159,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           </button>
           <button onClick={handleShare} style={s.plannerLinkBtn} title="Скопировать ссылку">
             {copied ? '✓ Скопировано' : '🔗 Поделиться'}
-          </button>
-          <button onClick={toggleDark} style={s.plannerLinkBtn} title="Сменить тему">
-            {dark ? '☀️' : '🌙'}
           </button>
           {activeTab === 'chart' && (
             <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
