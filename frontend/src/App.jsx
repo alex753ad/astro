@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
@@ -9,7 +9,16 @@ import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
 
-function Header({ onShowAuth }) {
+function useDarkMode() {
+  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+  return [dark, () => setDark(d => !d)];
+}
+
+function Header({ onShowAuth, dark, toggleDark }) {
   const { user, logout } = useAuth();
 
   return (
@@ -94,6 +103,14 @@ function Header({ onShowAuth }) {
               Войти
             </button>
           )}
+
+          <button
+            onClick={toggleDark}
+            title="Сменить тему"
+            className="px-2 py-1.5 rounded-full text-slate-500 hover:bg-slate-100 transition-all duration-200"
+          >
+            {dark ? '☀️' : '🌙'}
+          </button>
         </nav>
       </div>
     </header>
@@ -103,6 +120,7 @@ function Header({ onShowAuth }) {
 function AppRoutes() {
   const { user } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  const [dark, toggleDark] = useDarkMode();
 
   return (
     <div className="relative min-h-screen bg-astro-bg text-slate-800 overflow-x-hidden">
@@ -133,7 +151,7 @@ function AppRoutes() {
 
       {/* Основной контент поверх блобов */}
       <div className="relative z-10 flex flex-col min-h-screen">
-        <Header onShowAuth={() => setShowAuth(true)} />
+        <Header onShowAuth={() => setShowAuth(true)} dark={dark} toggleDark={toggleDark} />
 
         <main className="flex-1">
           <Routes>
