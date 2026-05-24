@@ -174,7 +174,7 @@ export default function ChartPage({ currentUser }) {
           </section>
 
           <section style={s.card}>
-            <Interpretation chartId={chartId} />
+            <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
           </section>
         </main>
       )}
