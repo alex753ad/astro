@@ -193,7 +193,7 @@ export default function ChartPage({ currentUser }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={showPaywall} />
               </section>
             </main>
           </div>

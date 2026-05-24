@@ -42,7 +42,6 @@ const ASPECT_SYMBOLS = {
   conjunction: "☌", sextile: "⚹", square: "□", trine: "△", opposition: "☍",
 };
 
-// Пастельные цвета аспектов (светлая тема)
 const ASPECT_COLORS = {
   conjunction: "#C08020",
   sextile:     "#3068B0",
@@ -59,7 +58,6 @@ const ASPECT_BG = {
   opposition:  "rgba(192,48,48,0.08)",
 };
 
-// Левый border-l акцент по планете (цвет)
 const PLANET_ACCENT = {
   Sun:          "#D4840A",
   Moon:         "#7A8BA0",
@@ -137,7 +135,7 @@ function EventCardSkeleton() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// FILTER BAR — пастельный стиль
+// FILTER BAR
 // ═══════════════════════════════════════════════════════════
 
 function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilter, orbFilter, setOrbFilter }) {
@@ -145,38 +143,28 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
   const toggle = (s) => setExpandedSection(prev => prev === s ? null : s);
 
   const chipStyle = (active) => ({
-    padding: "5px 13px",
-    borderRadius: 20,
+    padding: "5px 13px", borderRadius: 20,
     border: `1.5px solid ${active ? "#C0A0E8" : "#E8DEF8"}`,
     background: active ? "#F0E8FF" : "transparent",
     color: active ? "#7040A8" : "#9080B0",
-    fontSize: 13,
-    fontWeight: active ? 600 : 400,
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-    whiteSpace: "nowrap",
-    userSelect: "none",
-    fontFamily: "inherit",
+    fontSize: 13, fontWeight: active ? 600 : 400,
+    cursor: "pointer", transition: "all 0.2s ease",
+    whiteSpace: "nowrap", userSelect: "none", fontFamily: "inherit",
   });
 
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
-      padding: "14px 16px",
-      background: "#FFFFFF",
-      borderRadius: 16,
-      border: "1px solid #F0EAF8",
+      padding: "14px 16px", background: "#FFFFFF",
+      borderRadius: 16, border: "1px solid #F0EAF8",
       boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)",
     }}>
-      {/* Планеты */}
       <div>
         <button onClick={() => toggle("planets")} style={filterLabelStyle}>
           <span>Планеты</span>
           <span style={{ fontSize: 10, transform: expandedSection === "planets" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
           {planetFilter.length > 0 && planetFilter.length < ALL_PLANETS.length && (
-            <span style={{ background: "#C0A0E8", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
-              {planetFilter.length}
-            </span>
+            <span style={{ background: "#C0A0E8", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{planetFilter.length}</span>
           )}
         </button>
         {expandedSection === "planets" && (
@@ -184,15 +172,11 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
             {ALL_PLANETS.map(p => (
               <button key={p} style={chipStyle(planetFilter.includes(p))} onClick={() =>
                 setPlanetFilter(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])
-              }>
-                {PLANET_GLYPHS[p]} {PLANET_LABELS_RU[p]}
-              </button>
+              }>{PLANET_GLYPHS[p]} {PLANET_LABELS_RU[p]}</button>
             ))}
           </div>
         )}
       </div>
-
-      {/* Аспекты */}
       <div>
         <button onClick={() => toggle("aspects")} style={filterLabelStyle}>
           <span>Аспекты</span>
@@ -203,15 +187,11 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
             {ALL_ASPECTS.map(a => (
               <button key={a} style={chipStyle(aspectFilter.includes(a))} onClick={() =>
                 setAspectFilter(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])
-              }>
-                <span style={{ color: ASPECT_COLORS[a] }}>{ASPECT_SYMBOLS[a]}</span> {ASPECT_LABELS_RU[a]}
-              </button>
+              }><span style={{ color: ASPECT_COLORS[a] }}>{ASPECT_SYMBOLS[a]}</span> {ASPECT_LABELS_RU[a]}</button>
             ))}
           </div>
         )}
       </div>
-
-      {/* Орб */}
       <div>
         <button onClick={() => toggle("orb")} style={filterLabelStyle}>
           <span>Орб ≤ {orbFilter}°</span>
@@ -219,30 +199,20 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
         </button>
         {expandedSection === "orb" && (
           <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-            <input
-              type="range" min={0.5} max={3} step={0.5}
-              value={orbFilter}
+            <input type="range" min={0.5} max={3} step={0.5} value={orbFilter}
               onChange={e => setOrbFilter(Number(e.target.value))}
-              style={{ flex: 1, accentColor: "#C0A0E8" }}
-            />
+              style={{ flex: 1, accentColor: "#C0A0E8" }} />
             <span style={{ fontSize: 13, fontWeight: 600, color: "#5A3880", minWidth: 28 }}>{orbFilter}°</span>
           </div>
         )}
       </div>
-
-      {/* Сброс */}
       {(planetFilter.length > 0 || aspectFilter.length > 0 || orbFilter !== 2.0) && (
-        <button
-          onClick={() => { setPlanetFilter([]); setAspectFilter([]); setOrbFilter(2.0); }}
-          style={{
-            alignSelf: "flex-start", background: "none",
-            border: "1px solid #E8DEF8", color: "#9080B0",
-            borderRadius: 10, padding: "4px 12px", fontSize: 12,
-            cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          Сбросить фильтры
-        </button>
+        <button onClick={() => { setPlanetFilter([]); setAspectFilter([]); setOrbFilter(2.0); }} style={{
+          alignSelf: "flex-start", background: "none",
+          border: "1px solid #E8DEF8", color: "#9080B0",
+          borderRadius: 10, padding: "4px 12px", fontSize: 12,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>Сбросить фильтры</button>
       )}
     </div>
   );
@@ -265,24 +235,16 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
   useEffect(() => {
     if (activeDate && scrollRef.current) {
       const idx = dates.indexOf(activeDate);
-      if (idx >= 0) {
-        scrollRef.current.children[idx]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-      }
+      if (idx >= 0) scrollRef.current.children[idx]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     }
   }, [activeDate, dates]);
 
   return (
-    <div ref={scrollRef} style={{
-      display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6,
-      scrollbarWidth: "none", msOverflowStyle: "none",
-    }}>
+    <div ref={scrollRef} style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", msOverflowStyle: "none" }}>
       {dates.map(d => {
         const active  = d === activeDate;
         const count   = eventCountByDate[d] || 0;
         const dt      = new Date(d + "T00:00:00");
-        const dayNum  = dt.getDate();
-        const dayName = dt.toLocaleDateString("ru-RU", { weekday: "short" });
-
         return (
           <button key={d} onClick={() => onDateClick(d)} style={{
             minWidth: 48, flexShrink: 0,
@@ -293,14 +255,9 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
             color: active ? "#7040A8" : "#9080B0",
             cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
           }}>
-            <span style={{ fontSize: 11, opacity: 0.7 }}>{dayName}</span>
-            <span style={{ fontSize: 15, fontWeight: active ? 700 : 500 }}>{dayNum}</span>
-            {count > 0 && (
-              <span style={{
-                width: 6, height: 6, borderRadius: 3,
-                background: active ? "#C0A0E8" : "#D8CEF0",
-              }} />
-            )}
+            <span style={{ fontSize: 11, opacity: 0.7 }}>{dt.toLocaleDateString("ru-RU", { weekday: "short" })}</span>
+            <span style={{ fontSize: 15, fontWeight: active ? 700 : 500 }}>{dt.getDate()}</span>
+            {count > 0 && <span style={{ width: 6, height: 6, borderRadius: 3, background: active ? "#C0A0E8" : "#D8CEF0" }} />}
           </button>
         );
       })}
@@ -313,26 +270,16 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
 // ═══════════════════════════════════════════════════════════
 
 function StatsSummary({ events }) {
-  const harmonicCount = events.filter(e => isHarmonic(e.aspect_type)).length;
-  const tenseCount    = events.filter(e => isTense(e.aspect_type)).length;
-  const conjCount     = events.filter(e => e.aspect_type === "conjunction").length;
-
   const stats = [
-    { label: "Всего",        value: events.length, color: "#7040A8", bg: "#F5F0FF" },
-    { label: "Гармоничных",  value: harmonicCount,  color: "#3068B0", bg: "#EAF1FF" },
-    { label: "Напряжённых",  value: tenseCount,     color: "#C03030", bg: "#FFF0F0" },
-    { label: "Соединений",   value: conjCount,      color: "#C08020", bg: "#FFF8E8" },
+    { label: "Всего",        value: events.length,                                          color: "#7040A8", bg: "#F5F0FF" },
+    { label: "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "#3068B0", bg: "#EAF1FF" },
+    { label: "Напряжённых",  value: events.filter(e => isTense(e.aspect_type)).length,      color: "#C03030", bg: "#FFF0F0" },
+    { label: "Соединений",   value: events.filter(e => e.aspect_type === "conjunction").length, color: "#C08020", bg: "#FFF8E8" },
   ];
-
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {stats.map(({ label, value, color, bg }) => (
-        <div key={label} style={{
-          flex: "1 1 80px", padding: "12px 14px",
-          borderRadius: 14, border: "1px solid #F0EAF8",
-          background: bg,
-          display: "flex", flexDirection: "column", gap: 3,
-        }}>
+        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 14, border: "1px solid #F0EAF8", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
           <span style={{ fontSize: 11, color: "#9080B0" }}>{label}</span>
         </div>
@@ -342,7 +289,7 @@ function StatsSummary({ events }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// EVENT CARD — белая карточка с цветным border-l
+// EVENT CARD
 // ═══════════════════════════════════════════════════════════
 
 function EventCard({ event, index, isSelected, onClick }) {
@@ -352,82 +299,41 @@ function EventCard({ event, index, isSelected, onClick }) {
   const displayDate  = event.peak_date || event.exact_date || event.date || "";
 
   return (
-    <div
-      onClick={onClick}
-      style={{
-        padding: "14px 16px",
-        borderRadius: 16,
-        cursor: "pointer",
-        border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
-        borderLeft: `4px solid ${planetAccent}`,
-        background: isSelected ? aspectBg : "#FFFFFF",
-        boxShadow: isSelected
-          ? "0 8px 20px -6px rgba(224,195,252,0.35)"
-          : "0 2px 8px -4px rgba(200,180,240,0.15)",
-        transition: "all 0.2s ease",
-        animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
-        fontFamily: "'Space Grotesk', 'Inter', system-ui, sans-serif",
-      }}
-    >
-      {/* Верхняя строка: дата + орб */}
+    <div onClick={onClick} style={{
+      padding: "14px 16px", borderRadius: 16, cursor: "pointer",
+      border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
+      borderLeft: `4px solid ${planetAccent}`,
+      background: isSelected ? aspectBg : "#FFFFFF",
+      boxShadow: isSelected ? "0 8px 20px -6px rgba(224,195,252,0.35)" : "0 2px 8px -4px rgba(200,180,240,0.15)",
+      transition: "all 0.2s ease",
+      animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
+    }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#9080B0", letterSpacing: "0.04em" }}>
-            {displayDate ? formatDate(displayDate) : ""}
-          </span>
-          {event.exact_date && (
-            <span style={{ fontSize: 10, color: "#B0A0C8", opacity: 0.7 }}>
-              {formatExactTime(event.exact_date)}
-            </span>
-          )}
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#9080B0" }}>{displayDate ? formatDate(displayDate) : ""}</span>
+          {event.exact_date && <span style={{ fontSize: 10, color: "#B0A0C8", opacity: 0.7 }}>{formatExactTime(event.exact_date)}</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {event.applying !== undefined && (
-            <span style={{
-              fontSize: 10, padding: "2px 7px", borderRadius: 8,
-              border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "#E8DEF8"}`,
-              color: event.applying ? "#3068B0" : "#9080B0",
-              background: event.applying ? "rgba(48,104,176,0.06)" : "transparent",
-            }}>
+            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 8, border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "#E8DEF8"}`, color: event.applying ? "#3068B0" : "#9080B0", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
               {event.applying ? "→ точный" : "← отходит"}
             </span>
           )}
-          <span style={{ fontSize: 11, color: "#B0A0C8", opacity: 0.7 }}>
-            орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°
-          </span>
+          <span style={{ fontSize: 11, color: "#B0A0C8", opacity: 0.7 }}>орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°</span>
         </div>
       </div>
-
-      {/* Пара планет */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.transit_planet] || "★"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>
-          {PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}
-        </span>
-        <span style={{ fontSize: 16, color: aspectColor, fontWeight: 700 }}>
-          {ASPECT_SYMBOLS[event.aspect_type] || "·"}
-        </span>
-        <span style={{ fontSize: 13, color: "#9080B0" }}>
-          {ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}
-        </span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>{PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}</span>
+        <span style={{ fontSize: 16, color: aspectColor, fontWeight: 700 }}>{ASPECT_SYMBOLS[event.aspect_type] || "·"}</span>
+        <span style={{ fontSize: 13, color: "#9080B0" }}>{ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}</span>
         <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.natal_planet] || "☽"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>
-          {PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}
-        </span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
       </div>
-
-      {/* Знаки */}
       {(event.transit_sign || event.natal_sign) && (
-        <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>
-          {event.transit_sign} → {event.natal_sign}
-        </div>
+        <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{event.transit_sign} → {event.natal_sign}</div>
       )}
-
-      {isSelected && (
-        <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>
-          Нажмите для интерпретации ↓
-        </div>
-      )}
+      {isSelected && <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>Нажмите для интерпретации ↓</div>}
     </div>
   );
 }
@@ -437,9 +343,9 @@ function EventCard({ event, index, isSelected, onClick }) {
 // ═══════════════════════════════════════════════════════════
 
 function InterpretationPanel({ event, onClose }) {
-  const [text,    setText]    = useState("");
+  const [text, setText]       = useState("");
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [error, setError]     = useState(null);
   const scrollRef = useRef(null);
 
   const key     = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
@@ -502,24 +408,10 @@ function InterpretationPanel({ event, onClose }) {
   }, [text]);
 
   return (
-    <div style={{
-      background: "#FFFFFF",
-      borderRadius: 18,
-      border: "1px solid #E8DEF8",
-      boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)",
-      animation: "fadeSlideIn 0.3s ease",
-    }}>
-      <div style={{
-        padding: "12px 16px",
-        borderBottom: "1px solid #F0EAF8",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
+    <div style={{ background: "#FFFFFF", borderRadius: 18, border: "1px solid #E8DEF8", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid #F0EAF8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#2D2540" }}>{key}</div>
-        <button onClick={onClose} style={{
-          background: "none", border: "none", color: "#B0A0C8",
-          fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8,
-          fontFamily: "inherit",
-        }}>✕</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#B0A0C8", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
       </div>
       <div ref={scrollRef} style={{ padding: 16, maxHeight: 400, overflowY: "auto" }}>
         {loading && !text && (
@@ -531,13 +423,7 @@ function InterpretationPanel({ event, onClose }) {
         {text && (
           <div style={{ fontSize: 13, lineHeight: 1.75, color: "#2D2540", whiteSpace: "pre-wrap" }}>
             {text}
-            {loading && (
-              <span style={{
-                display: "inline-block", width: 6, height: 14,
-                background: "#C0A0E8", marginLeft: 2, borderRadius: 2,
-                animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom",
-              }} />
-            )}
+            {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "#C0A0E8", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
           </div>
         )}
       </div>
@@ -549,7 +435,7 @@ function InterpretationPanel({ event, onClose }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-export default function TransitTimeline({ chartId, onDateSelect }) {
+export default function TransitTimeline({ chartId, onDateSelect, mockMode }) {
   const [events,        setEvents]        = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -559,7 +445,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
   const [activeDate,    setActiveDate]    = useState(null);
 
   useEffect(() => {
-    if (!chartId) { setEvents(MOCK_EVENTS); setLoading(false); return; }
+    if (!chartId || mockMode) { setEvents(MOCK_EVENTS); setLoading(false); return; }
     setLoading(true);
     const today = new Date();
     const from  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
@@ -568,7 +454,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoading(false); })
       .catch(() => { setEvents([]); setLoading(false); });
-  }, [chartId]);
+  }, [chartId, mockMode]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
@@ -584,7 +470,7 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
     });
   }, [events, planetFilter, aspectFilter, orbFilter, activeDate]);
 
-  const dates           = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
+  const dates            = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
     events.forEach(e => { counts[e.peak_date || e.date] = (counts[e.peak_date || e.date] || 0) + 1; });
@@ -608,21 +494,17 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
     });
 
     let positions = [];
-    if (chartId) {
+    if (chartId && !mockMode) {
       try {
         const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`);
         if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }
       } catch {}
     }
     onDateSelect(next, dayEvents, positions);
-  }, [activeDate, events, onDateSelect, chartId]);
+  }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   return (
-    <div style={{
-      fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif",
-      maxWidth: 900, margin: "0 auto", padding: "24px 16px",
-      color: "#2D2540",
-    }}>
+    <div style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "#2D2540" }}>
       <style>{`
         @keyframes shimmer     { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -635,14 +517,8 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
         input[type="range"] { height: 4px; border-radius: 2px; }
       `}</style>
 
-      {/* Заголовок */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{
-          fontSize: 26, fontWeight: 700, margin: 0,
-          background: "linear-gradient(135deg, #9060C8, #E080B0)",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          letterSpacing: "-0.02em",
-        }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, background: "linear-gradient(135deg, #9060C8, #E080B0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
           Транзиты
         </h1>
         <p style={{ fontSize: 14, color: "#9080B0", margin: "6px 0 0" }}>
@@ -654,40 +530,21 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
 
       {!loading && dates.length > 0 && (
         <div style={{ margin: "16px 0" }}>
-          <DateNav
-            dates={dates}
-            activeDate={activeDate}
-            onDateClick={d => handleDateClick(d)}
-            eventCountByDate={eventCountByDate}
-          />
+          <DateNav dates={dates} activeDate={activeDate} onDateClick={d => handleDateClick(d)} eventCountByDate={eventCountByDate} />
         </div>
       )}
 
       <div style={{ margin: "12px 0 16px" }}>
-        <FilterBar
-          planetFilter={planetFilter}  setPlanetFilter={setPlanetFilter}
-          aspectFilter={aspectFilter}  setAspectFilter={setAspectFilter}
-          orbFilter={orbFilter}        setOrbFilter={setOrbFilter}
-        />
+        <FilterBar planetFilter={planetFilter} setPlanetFilter={setPlanetFilter} aspectFilter={aspectFilter} setAspectFilter={setAspectFilter} orbFilter={orbFilter} setOrbFilter={setOrbFilter} />
       </div>
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr",
-        gap: 16, alignItems: "start",
-        transition: "grid-template-columns 0.3s ease",
-      }}>
+      <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : filteredEvents.length === 0 ? (
-            <div style={{
-              padding: 40, textAlign: "center", color: "#9080B0",
-              fontSize: 14, borderRadius: 16,
-              border: "1.5px dashed #E8DEF8", background: "#FDFBF9",
-            }}>
-              Нет транзитов с текущими фильтрами.
-              <br />
+            <div style={{ padding: 40, textAlign: "center", color: "#9080B0", fontSize: 14, borderRadius: 16, border: "1.5px dashed #E8DEF8", background: "#FDFBF9" }}>
+              Нет транзитов с текущими фильтрами.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте увеличить орб или сбросить фильтры.</span>
             </div>
           ) : (
@@ -701,7 +558,6 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
             ))
           )}
         </div>
-
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>
             <InterpretationPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} />
@@ -710,13 +566,8 @@ export default function TransitTimeline({ chartId, onDateSelect }) {
       </div>
 
       {!loading && (
-        <div style={{
-          marginTop: 32, padding: "16px 0",
-          borderTop: "1px solid #F0EAF8",
-          fontSize: 12, color: "#B0A0C8", textAlign: "center", opacity: 0.8,
-        }}>
-          Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°
-          <br />
+        <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid #F0EAF8", fontSize: 12, color: "#B0A0C8", textAlign: "center", opacity: 0.8 }}>
+          Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°<br />
           Нажмите на транзит для AI-интерпретации
         </div>
       )}
