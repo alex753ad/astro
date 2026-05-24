@@ -210,7 +210,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 ascendant={chart.ascendant}
                 midheaven={chart.midheaven}
                 timeUnknown={chart.time_unknown}
-                transitPlanets={transitPlanets}
+                transitPlanets={[]}
               />
               <div style={s.chartSidePanel}>
                 <PlanetTable
