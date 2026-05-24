@@ -66,6 +66,7 @@ export default function ChartPage({ currentUser }) {
 
   function handleTabChange(key) {
     if (key === 'transits' && (!currentUser || currentUser.tier === 'free')) {
+      setActiveTab(key);
       setShowPaywall(true);
       return;
     }
@@ -174,25 +175,29 @@ export default function ChartPage({ currentUser }) {
 
       {/* ── Вкладка: Транзиты ── */}
       {activeTab === 'transits' && (
-        <main style={s.main}>
-          <section style={s.card}>
-            <div style={s.transitDateLabel}>
-              Транзиты на {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </div>
-            <NatalChart
-              planets={chart.planets}
-              houses={chart.houses}
-              aspects={chart.aspects}
-              ascendant={chart.ascendant}
-              midheaven={chart.midheaven}
-              timeUnknown={chart.time_unknown}
-              transitPlanets={transitPlanets}
-            />
-          </section>
-          <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-            <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
-          </section>
-        </main>
+        <div style={{ position: 'relative' }}>
+          <div style={showPaywall ? { filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
+            <main style={s.main}>
+              <section style={s.card}>
+                <div style={s.transitDateLabel}>
+                  Транзиты на {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+                <NatalChart
+                  planets={chart.planets}
+                  houses={chart.houses}
+                  aspects={chart.aspects}
+                  ascendant={chart.ascendant}
+                  midheaven={chart.midheaven}
+                  timeUnknown={chart.time_unknown}
+                  transitPlanets={transitPlanets}
+                />
+              </section>
+              <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} />
+              </section>
+            </main>
+          </div>
+        </div>
       )}
 
       {/* ── Вкладка: Планировщик ── */}
