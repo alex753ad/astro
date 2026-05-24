@@ -1,10 +1,46 @@
-﻿/**
+/**
  * Interpretation.jsx — AI-интерпретация натальной карты.
  * Запускается ТОЛЬКО по кнопке, автозагрузки нет.
  */
 
 import { useState, useRef, useCallback } from 'react';
 import { streamInterpretation } from '../api/client';
+
+// Ключевые слова для определения точки обрыва (эмоционально значимые темы)
+const CUTOFF_KEYWORDS = [
+  '## Отношения', '### Отношения',
+  '## Любовь', '### Любовь',
+  '## Венера', '### Венера',
+  '## Луна', '### Луна',
+  '## 7 дом', '### 7 дом',
+  '## VII дом', '### VII дом',
+  '## Партнёрство', '### Партнёрство',
+];
+
+// Возвращает текст до точки обрыва (конец второй секции)
+function getCutoffText(text) {
+  const lines = text.split('\n');
+  let sectionCount = 0;
+  let cutoffLine = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Считаем секции (## или ###)
+    if (line.startsWith('## ') || line.startsWith('### ')) {
+      sectionCount++;
+      // Обрываем в начале третьей секции если это эмоц. тема,
+      // или принудительно после второй секции
+      const isEmotional = CUTOFF_KEYWORDS.some(k => line.includes(k.replace(/^#+\s/, '')));
+      if (sectionCount >= 3 || (sectionCount >= 2 && isEmotional)) {
+        cutoffLine = i;
+        break;
+      }
+    }
+  }
+
+  if (cutoffLine === -1) return null; // текст ещё короткий — не обрываем
+  return lines.slice(0, cutoffLine).join('\n');
+}
 
 function renderMarkdown(text) {
   const lines = text.split('\n');
@@ -47,15 +83,17 @@ function renderMarkdown(text) {
   });
 }
 
-export default function Interpretation({ chartId }) {
+export default function Interpretation({ chartId, userTier, onUpgrade }) {
   const [text,      setText]      = useState('');
   const [streaming, setStreaming] = useState(false);
   const [done,      setDone]      = useState(false);
   const [error,     setError]     = useState(null);
-  const [started,   setStarted]   = useState(false); // ← ключевое: не стартовали
+  const [started,   setStarted]   = useState(false);
 
   const scrollRef   = useRef(null);
   const closeSSERef = useRef(null);
+
+  const isFree = userTier === 'free' || !userTier;
 
   const start = useCallback((retryCount = 0) => {
     if (!chartId) return;
@@ -78,7 +116,6 @@ export default function Interpretation({ chartId }) {
       },
       () => { setStreaming(false); setDone(true); },
       (err) => {
-        // Reconnect up to 3 times if connection dropped mid-stream
         if (!receivedAny && retryCount < 3) {
           console.warn(`SSE retry ${retryCount + 1}`);
           setTimeout(() => start(retryCount + 1), 1500 * (retryCount + 1));
@@ -123,6 +160,11 @@ export default function Interpretation({ chartId }) {
     );
   }
 
+  // Определяем что показывать для free
+  const cutoffText = isFree && done ? getCutoffText(text) : null;
+  const displayText = cutoffText ?? text;
+  const isCut = !!cutoffText;
+
   return (
     <div className="glass-card p-6">
       {/* Header */}
@@ -131,7 +173,7 @@ export default function Interpretation({ chartId }) {
           <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
           AI-интерпретация
         </h2>
-        {done && (
+        {done && !isCut && (
           <button
             onClick={start}
             style={{
@@ -198,15 +240,18 @@ export default function Interpretation({ chartId }) {
       )}
 
       {/* Text */}
-      {text && (
+      {displayText && (
         <div
           ref={scrollRef}
           style={{
             fontSize: 14, color: 'var(--text-primary, #E8EAF0)',
-            lineHeight: 1.75, maxHeight: 520, overflowY: 'auto', paddingRight: 4,
+            lineHeight: 1.75,
+            maxHeight: isCut ? 'none' : 520,
+            overflowY: isCut ? 'visible' : 'auto',
+            paddingRight: 4,
           }}
         >
-          {renderMarkdown(text)}
+          {renderMarkdown(displayText)}
           {streaming && (
             <span style={{
               display: 'inline-block', width: 7, height: 17,
@@ -217,6 +262,41 @@ export default function Interpretation({ chartId }) {
             }} />
           )}
           <style>{`@keyframes blink { 50%{opacity:0} }`}</style>
+        </div>
+      )}
+
+      {/* Paywall cut — fade + CTA */}
+      {isCut && (
+        <div style={{ position: 'relative', marginTop: -60 }}>
+          {/* Fade gradient */}
+          <div style={{
+            height: 80,
+            background: 'linear-gradient(to bottom, transparent, var(--bg-card, #0F1117))',
+            pointerEvents: 'none',
+          }} />
+          {/* CTA */}
+          <div style={{
+            padding: '20px 0 4px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
+              Это только начало. Полная интерпретация раскрывает<br />
+              <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>Луну, Венеру, 7-й дом и отношения</strong> — самые важные темы вашей карты.
+            </p>
+            <button
+              onClick={onUpgrade}
+              style={{
+                padding: '11px 28px', borderRadius: 12, border: 'none',
+                background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
+              }}
+            >
+              ✦ Читать полную интерпретацию
+            </button>
+          </div>
         </div>
       )}
     </div>
