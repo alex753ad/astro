@@ -406,7 +406,7 @@ export default function NatalChart({
           <g>
             {/* Внешнее кольцо транзитов — светлое */}
             <circle cx={cx} cy={cy} r={R_TRANSIT + 16}
-              fill="rgba(253,251,249,0.80)"
+              fill="none"
               stroke="rgba(224,195,252,0.50)"
               strokeWidth={1} strokeDasharray="3 3" />
 
