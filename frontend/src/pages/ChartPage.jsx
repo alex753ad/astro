@@ -64,6 +64,12 @@ export default function ChartPage({ currentUser }) {
       .catch(() => {});
   }, [activeTab, chart, chartId]);
 
+  useEffect(() => {
+    if (activeTab === 'transits' && (!currentUser || currentUser.tier === 'free')) {
+      setShowPaywall(true);
+    }
+  }, [activeTab, currentUser]);
+
   function handleTabChange(key) {
     if (key === 'transits' && (!currentUser || currentUser.tier === 'free')) {
       setActiveTab(key);
@@ -416,4 +422,5 @@ const s = {
     transition: 'background 0.15s',
   },
 };
+
 
