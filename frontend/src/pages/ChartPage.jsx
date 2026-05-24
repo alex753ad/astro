@@ -13,6 +13,7 @@ import ExpertModeToggle from '../components/ExpertModeToggle';
 import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
+import PaywallModal from '../components/PaywallModal';
 
 const TABS = [
   { key: 'chart',    label: 'Натальная карта' },
@@ -34,6 +35,7 @@ export default function ChartPage({ currentUser }) {
   const [activeTab, setActiveTab] = useState('chart');
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
 
@@ -62,7 +64,13 @@ export default function ChartPage({ currentUser }) {
       .catch(() => {});
   }, [activeTab, chart, chartId]);
 
-  const handleDateSelect = (date, dayEvents, positions) => {
+  function handleTabChange(key) {
+    if (key === 'transits' && (!currentUser || currentUser.tier === 'free')) {
+      setShowPaywall(true);
+      return;
+    }
+    setActiveTab(key);
+  }
     setTransitPlanets(positions ?? []);
     if (date) setSelectedDate(date);
   };
@@ -104,7 +112,7 @@ export default function ChartPage({ currentUser }) {
         {TABS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => handleTabChange(key)}
             style={{ ...s.tabBtn, ...(activeTab === key ? s.tabBtnActive : {}) }}
           >
             {label}
@@ -198,6 +206,13 @@ export default function ChartPage({ currentUser }) {
             <ForecastScale chartId={chartId} selectedDate={selectedDate} />
           </section>
         </main>
+      )}
+
+      {showPaywall && (
+        <PaywallModal
+          chartId={chartId}
+          onClose={() => setShowPaywall(false)}
+        />
       )}
 
     </div>
