@@ -20,7 +20,7 @@ const TABS = [
   { key: 'interpretation', label: 'Интерпретация'   },
   { key: 'aspects',        label: 'Аспекты'         },
   { key: 'transits',       label: 'Транзиты'        },
-  { key: 'planner',        label: 'Планировщик'     },
+  // { key: 'planner',     label: 'Планировщик'     }, // скрыто
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
