@@ -1,26 +1,108 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BirthForm from '../components/BirthForm';
 import { calculateChart } from '../api/client';
 
-export default function HomePage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+// Tooltip-подсказки для астро-терминов
+const TOOLTIPS = {
+  ASC: 'Асцендент (ASC) — точка горизонта на востоке в момент рождения. Показывает, как вы воспринимаетесь окружающими.',
+  MC:  'Середина Неба (MC) — высшая точка неба в момент рождения. Связана с карьерой и жизненным призванием.',
+  'аспекты': 'Аспекты — угловые соотношения между планетами. Трин и секстиль — гармоничные, квадрат и оппозиция — напряжённые.',
+  'дома': 'Дома — 12 секторов карты, каждый отвечает за свою сферу жизни: 1-й — личность, 7-й — партнёрство, 10-й — карьера.',
+};
+
+function TooltipBadge({ term }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      <span
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onClick={() => setVisible(v => !v)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 16, height: 16, borderRadius: 8,
+          background: 'rgba(124,108,255,0.2)', color: '#7C6CFF',
+          fontSize: 10, fontWeight: 700, cursor: 'help',
+          border: '1px solid rgba(124,108,255,0.4)',
+          userSelect: 'none',
+        }}
+      >?</span>
+      {visible && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: '50%',
+          transform: 'translateX(-50%)',
+          marginBottom: 6, zIndex: 100,
+          background: '#1a1a2e', border: '1px solid rgba(124,108,255,0.3)',
+          borderRadius: 10, padding: '10px 14px',
+          width: 220, fontSize: 12, lineHeight: 1.6,
+          color: '#C8CAD8', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          pointerEvents: 'none',
+        }}>
+          <strong style={{ color: '#7C6CFF' }}>{term}</strong><br />
+          {TOOLTIPS[term]}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// Баннер «Сохраните карту» после расчёта для анонима
+function SaveChartBanner({ onLogin }) {
+  return (
+    <div style={{
+      margin: '24px auto', maxWidth: 480,
+      padding: '18px 24px', borderRadius: 16,
+      background: 'linear-gradient(135deg, rgba(124,108,255,0.12), rgba(192,96,160,0.12))',
+      border: '1.5px solid rgba(124,108,255,0.3)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 16, flexWrap: 'wrap',
+    }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#E8EAF0', marginBottom: 4 }}>
+          ✦ Сохраните свою карту
+        </div>
+        <div style={{ fontSize: 12, color: '#8B8FA3', lineHeight: 1.5 }}>
+          Войдите или зарегистрируйтесь, чтобы не потерять результат
+        </div>
+      </div>
+      <button
+        onClick={onLogin}
+        style={{
+          padding: '9px 20px', borderRadius: 10, border: 'none',
+          background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+          color: '#fff', fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
+        }}
+      >
+        Войти / Регистрация
+      </button>
+    </div>
+  );
+}
+
+export default function HomePage({ currentUser, onShowAuth }) {
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  const [chartDone, setChartDone]   = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (data) => {
     setLoading(true);
     setError('');
+    setChartDone(false);
 
     try {
       const chart = await calculateChart(data);
+      if (!currentUser) {
+        // Анонимный пользователь — переходим на карту, показываем баннер там
+        sessionStorage.setItem('pending_chart_id', chart.id);
+      }
       navigate(`/chart/${chart.id}`);
     } catch (err) {
-      // Handle ambiguous time error
       if (err.data?.type === 'ambiguous_time') {
-        setError(
-          `${err.data.message}\nВарианты: ${err.data.options?.join(' или ')}`
-        );
+        setError(`${err.data.message}\nВарианты: ${err.data.options?.join(' или ')}`);
       } else {
         setError(err.message || 'Ошибка расчёта. Попробуйте ещё раз.');
       }
@@ -44,6 +126,11 @@ export default function HomePage() {
           Точные астрономические расчёты Swiss Ephemeris + персонализированная интерпретация
           от GPT-4o. Укажите данные рождения и получите полный анализ за секунды.
         </p>
+        {!currentUser && (
+          <p style={{ fontSize: 13, color: '#7C6CFF', marginTop: 10 }}>
+            Регистрация не нужна — просто введите данные рождения ↓
+          </p>
+        )}
       </div>
 
       {/* Form */}
@@ -56,12 +143,32 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Баннер сохранения для анонима */}
+      {!currentUser && !loading && (
+        <SaveChartBanner onLogin={onShowAuth || (() => {})} />
+      )}
+
       {/* Features */}
       <div className="grid md:grid-cols-3 gap-6 mt-16 text-center">
         {[
-          { icon: '⚙️', title: 'Swiss Ephemeris', desc: 'Погрешность < 1 угловой секунды. Золотой стандарт расчётов.' },
-          { icon: '✦', title: 'AI-интерпретация', desc: 'Персонализированный нарратив от GPT-4o. Не шаблоны.' },
-          { icon: '🔒', title: 'Приватность', desc: 'Данные хранятся в зашифрованной базе. Удаление в один клик.' },
+          {
+            icon: '⚙️',
+            title: 'Swiss Ephemeris',
+            desc: 'Погрешность < 1 угловой секунды. Золотой стандарт расчётов.',
+            tip: null,
+          },
+          {
+            icon: '✦',
+            title: 'AI-интерпретация',
+            desc: 'Персонализированный нарратив от GPT-4o. Не шаблоны.',
+            tip: null,
+          },
+          {
+            icon: '🔒',
+            title: 'Приватность',
+            desc: 'Данные хранятся в зашифрованной базе. Удаление в один клик.',
+            tip: null,
+          },
         ].map((f) => (
           <div key={f.title} className="glass-card p-6">
             <div className="text-2xl mb-3">{f.icon}</div>
@@ -69,6 +176,23 @@ export default function HomePage() {
             <p className="text-sm text-brand-muted">{f.desc}</p>
           </div>
         ))}
+      </div>
+
+      {/* Астро-глоссарий с подсказками */}
+      <div style={{
+        marginTop: 40, padding: '20px 24px', borderRadius: 16,
+        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <p style={{ fontSize: 12, color: '#8B8FA3', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          Что означают термины в карте
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+          {Object.keys(TOOLTIPS).map(term => (
+            <span key={term} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#C8CAD8' }}>
+              {term} <TooltipBadge term={term} />
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
