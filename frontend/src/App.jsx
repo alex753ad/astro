@@ -8,6 +8,7 @@ import PlannerPage from './PlannerPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
+import { ToastProvider } from './src/components/Toast';
 
 function useDarkMode() {
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -179,8 +180,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ToastProvider>
   );
 }
