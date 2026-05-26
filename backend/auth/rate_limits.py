@@ -56,7 +56,13 @@ TIER_FLAGS: dict[str, dict] = {
 def get_feature_flags(user: Optional[User]) -> dict:
     """Return feature flags for the given user's tier."""
     tier = user.tier if user else "free"
-    return {"tier": tier, **TIER_FLAGS.get(tier, TIER_FLAGS["free"])}
+    flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+    return {
+        "tier": tier,
+        **flags,
+        "transits": flags["transits_months"] > 0,
+        "pdf_reports": flags["pdf_export"],
+    }
 
 
 @dataclass
