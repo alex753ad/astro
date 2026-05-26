@@ -41,7 +41,6 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET: test-secret-for-ci
       EPHE_PATH: data/ephe
-      # AI ключи не нужны — integration тесты отмечены @pytest.mark.integration и пропускаются
       OPENAI_API_KEY: ""
       STRIPE_SECRET_KEY: ""
       STRIPE_WEBHOOK_SECRET: ""
@@ -57,11 +56,75 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Run unit tests (no ephe files needed)
+      - name: Run unit tests
         run: pytest backend/tests/ -v -m "not integration" --tb=short --ignore=backend/tests/test_payments.py --ignore=backend/tests/test_validation.py
 
   # ─────────────────────────────────────────────
-  # 2. Frontend lint + build
+  # 2. Alembic autogenerate (только PR)
+  #    Проверяет что все модели покрыты миграциями.
+  #    Если alembic обнаружит изменения — шаг упадёт.
+  # ─────────────────────────────────────────────
+  check-migrations:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: astro
+          POSTGRES_PASSWORD: astro
+          POSTGRES_DB: astro_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U astro -d astro_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://astro:astro@localhost:5432/astro_test
+      JWT_SECRET: test-secret-for-ci
+      EPHE_PATH: data/ephe
+      OPENAI_API_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Apply existing migrations
+        run: alembic upgrade head
+
+      - name: Check for unapplied model changes
+        # Генерируем миграцию во временный файл.
+        # Если изменения есть — файл будет непустым и шаг упадёт с понятным сообщением.
+        run: |
+          alembic revision --autogenerate -m "ci_check" 2>&1 | tee /tmp/alembic_out.txt
+          # Найти сгенерированный файл
+          MIGRATION=$(ls -t alembic/versions/ | head -1)
+          echo "Generated: $MIGRATION"
+          # Если в файле есть реальные изменения (не только pass) — упасть
+          if grep -qE "op\.(create_table|add_column|drop_column|alter_column|create_index|drop_index|drop_table)" "alembic/versions/$MIGRATION"; then
+            echo "❌ Найдены модели без миграций! Запусти: alembic revision --autogenerate -m 'your message'"
+            cat "alembic/versions/$MIGRATION"
+            exit 1
+          else
+            echo "✅ Все модели покрыты миграциями"
+            # Удалить пустую миграцию
+            rm "alembic/versions/$MIGRATION"
+          fi
+
+  # ─────────────────────────────────────────────
+  # 3. Frontend lint + build
   # ─────────────────────────────────────────────
   test-frontend:
     runs-on: ubuntu-latest
@@ -84,15 +147,53 @@ jobs:
         run: npm run build
 
   # ─────────────────────────────────────────────
-  # 3. Deploy to Railway (только main ветка)
+  # 4. Deploy to Railway (только main ветка)
+  #    Перед деплоем: alembic upgrade head
   # ─────────────────────────────────────────────
   deploy:
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: astro
+          POSTGRES_PASSWORD: astro
+          POSTGRES_DB: astro_deploy
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U astro -d astro_deploy"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      # Production DATABASE_URL из секретов GitHub
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      EPHE_PATH: data/ephe
+      OPENAI_API_KEY: ""
+      STRIPE_SECRET_KEY: ""
+      STRIPE_WEBHOOK_SECRET: ""
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run migrations on production DB
+        run: |
+          echo "Running alembic upgrade head on production..."
+          alembic upgrade head
+          echo "✅ Migrations applied"
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
