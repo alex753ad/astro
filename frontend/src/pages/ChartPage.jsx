@@ -14,6 +14,74 @@ import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import PaywallModal from '../components/PaywallModal';
+import { createReportCheckoutSession } from '../api/client';
+
+const REPORT_OPTIONS = [
+  { type: 'basic',    label: 'Базовый натальный отчёт',        price: '$5', desc: 'Карта + интерпретация + главные аспекты' },
+  { type: 'extended', label: 'Расширенный отчёт с транзитами', price: '$9', desc: 'Карта + детальный анализ + транзиты на 6 мес' },
+  { type: 'synastry', label: 'Отчёт о совместимости',          price: '$9', desc: 'Синастрия двух карт + межаспектная сетка' },
+];
+
+function ReportModal({ chartId, onClose }) {
+  const [loading, setLoading] = React.useState(null);
+  const [error, setError] = React.useState(null);
+
+  async function handleBuy(type) {
+    setLoading(type);
+    setError(null);
+    try {
+      const { checkout_url } = await createReportCheckoutSession(type, chartId);
+      window.location.href = checkout_url;
+    } catch {
+      setError('Не удалось открыть страницу оплаты. Попробуйте позже.');
+      setLoading(null);
+    }
+  }
+
+  return (
+    <div style={sr.overlay} onClick={onClose}>
+      <div style={sr.modal} onClick={e => e.stopPropagation()}>
+        <button style={sr.close} onClick={onClose}>✕</button>
+        <h2 style={sr.title}>📄 PDF-отчёт</h2>
+        <p style={sr.sub}>Разовая покупка — без подписки</p>
+        <div style={sr.list}>
+          {REPORT_OPTIONS.map(opt => (
+            <div key={opt.type} style={sr.item}>
+              <div style={{ flex: 1 }}>
+                <div style={sr.itemTitle}>{opt.label}</div>
+                <div style={sr.itemDesc}>{opt.desc}</div>
+              </div>
+              <button
+                style={{ ...sr.btn, opacity: loading && loading !== opt.type ? 0.5 : 1 }}
+                onClick={() => handleBuy(opt.type)}
+                disabled={!!loading}
+              >
+                {loading === opt.type ? '…' : opt.price}
+              </button>
+            </div>
+          ))}
+        </div>
+        {error && <p style={sr.error}>{error}</p>}
+        <p style={sr.legal}>Оплата через Stripe. Безопасно.</p>
+      </div>
+    </div>
+  );
+}
+
+const sr = {
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(30,26,46,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 },
+  modal: { background: '#FFFFFF', borderRadius: 20, border: '0.5px solid #EDE8F5', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', boxShadow: '0 20px 60px rgba(112,96,160,0.15)' },
+  close: { position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: '#9080B0', fontSize: 16, cursor: 'pointer' },
+  title: { margin: '0 0 4px', fontSize: 18, fontWeight: 600, color: '#1E1A2E', textAlign: 'center' },
+  sub: { margin: '0 0 20px', fontSize: 13, color: '#7060A0', textAlign: 'center' },
+  list: { display: 'flex', flexDirection: 'column', gap: 10 },
+  item: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid #EDE8F5', background: '#F9F7FD' },
+  itemTitle: { fontSize: 13, fontWeight: 500, color: '#1E1A2E', marginBottom: 2 },
+  itemDesc: { fontSize: 11, color: '#7060A0' },
+  btn: { padding: '8px 16px', background: '#1E1A2E', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  error: { margin: '12px 0 0', fontSize: 12, color: '#C03030', textAlign: 'center' },
+  legal: { margin: '14px 0 0', fontSize: 11, color: '#9080B0', textAlign: 'center' },
+};
 
 const TABS = [
   { key: 'chart',          label: 'Карта'           },
@@ -75,6 +143,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showReport, setShowReport]   = useState(false);
   const [copied, setCopied]           = useState(false);
 
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
@@ -159,6 +228,9 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           </button>
           <button onClick={handleShare} style={s.plannerLinkBtn} title="Скопировать ссылку">
             {copied ? '✓ Скопировано' : '🔗 Поделиться'}
+          </button>
+          <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: '#1E1A2E', color: '#fff' }}>
+            📄 PDF-отчёт
           </button>
           {activeTab === 'chart' && (
             <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
@@ -292,10 +364,11 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       )}
 
       {showPaywall && (
-        <PaywallModal
-          chartId={chartId}
-          onClose={() => setShowPaywall(false)}
-        />
+        <PaywallModal chartId={chartId} onClose={() => setShowPaywall(false)} />
+      )}
+
+      {showReport && (
+        <ReportModal chartId={chartId} onClose={() => setShowReport(false)} />
       )}
 
     </div>

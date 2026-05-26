@@ -172,3 +172,12 @@ export async function createCheckoutSession(tier, billing, chartId) {
     body: JSON.stringify({ tier, billing, chart_id: chartId }),
   });
 }
+
+export async function createReportCheckoutSession(reportType, chartId) {
+  const token = localStorage.getItem('astro_access_token');
+  return request('/payments/checkout/report', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: JSON.stringify({ report_type: reportType, chart_id: chartId }),
+  });
+}
