@@ -1,9 +1,9 @@
-﻿/**
+/**
  * API client for Astro SPA backend.
- * 
+ *
  * Handles:
  * - REST calls (chart, transits)
- * - SSE streaming (AI interpretations)
+ * - SSE streaming (AI interpretations) with Last-Event-ID reconnect
  * - Error handling with retry
  */
 
@@ -60,6 +60,69 @@ export async function getTransits(chartId, fromDate, toDate, options = {}) {
 
 // ── SSE Streaming ──
 
+function _connectSSE(url, onChunk, onDone, onError) {
+  let lastEventId = null;
+  let hasData     = false;
+  let isDone      = false;
+  let attempt     = 0;
+  let eventSource = null;
+  let retryTimeout = null;
+  const maxRetries = 3;
+
+  function connect() {
+    const connectUrl = lastEventId
+      ? url + (url.includes('?') ? '&' : '?') + 'last_event_id=' + encodeURIComponent(lastEventId)
+      : url;
+
+    eventSource = new EventSource(connectUrl);
+
+    eventSource.onmessage = (event) => {
+      if (event.lastEventId) lastEventId = event.lastEventId;
+
+      if (event.data === '[DONE]') {
+        isDone = true;
+        eventSource.close();
+        onDone?.();
+        return;
+      }
+      try {
+        const parsed = JSON.parse(event.data);
+        if (parsed.text) {
+          hasData = true;
+          onChunk(parsed.text);
+        }
+        if (parsed.error) {
+          onError?.(parsed.error);
+          eventSource.close();
+        }
+      } catch { /* skip */ }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+
+      if (isDone) { onDone?.(); return; }
+
+      if (attempt < maxRetries) {
+        const delay = 1500 * (attempt + 1);
+        console.warn(`SSE connection lost. Reconnect attempt ${attempt + 1}/${maxRetries} in ${delay}ms…`);
+        attempt++;
+        retryTimeout = setTimeout(connect, delay);
+      } else {
+        // Если данные уже получены — считаем done, иначе — error
+        if (hasData) { onDone?.(); } else { onError?.('Connection lost'); }
+      }
+    };
+  }
+
+  connect();
+
+  return () => {
+    clearTimeout(retryTimeout);
+    eventSource?.close();
+  };
+}
+
 export function streamInterpretation(chartId, onChunk, onDone, onError) {
   const url = `${API_BASE}/chart/${chartId}/interpret`;
   return _connectSSE(url, onChunk, onDone, onError);
@@ -96,10 +159,7 @@ export async function streamTransitEventInterpretation(chartId, transitEvent, on
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
-          if (data === '[DONE]') {
-            onDone?.();
-            return;
-          }
+          if (data === '[DONE]') { onDone?.(); return; }
           try {
             const parsed = JSON.parse(data);
             if (parsed.text) onChunk(parsed.text);
@@ -112,43 +172,6 @@ export async function streamTransitEventInterpretation(chartId, transitEvent, on
   } catch (err) {
     onError?.(err.message);
   }
-}
-
-function _connectSSE(url, onChunk, onDone, onError) {
-  const eventSource = new EventSource(url);
-  let hasData = false;
-  let isDone = false;
-
-  eventSource.onmessage = (event) => {
-    if (event.data === '[DONE]') {
-      isDone = true;
-      eventSource.close();
-      onDone?.();
-      return;
-    }
-    try {
-      const parsed = JSON.parse(event.data);
-      if (parsed.text) {
-        hasData = true;
-        onChunk(parsed.text);
-      }
-      if (parsed.error) {
-        onError?.(parsed.error);
-        eventSource.close();
-      }
-    } catch { /* skip */ }
-  };
-
-  eventSource.onerror = () => {
-    eventSource.close();
-    if (isDone || hasData) {
-      onDone?.();
-    } else {
-      onError?.('Connection lost');
-    }
-  };
-
-  return () => eventSource.close();
 }
 
 // ── Lunar Calendar API ──

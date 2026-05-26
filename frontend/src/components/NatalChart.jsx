@@ -1,16 +1,15 @@
-﻿/**
+/**
  * NatalChart — Professional natal chart wheel.
  * Redesign: «Дыхание космоса» — пастельная светлая тема.
  *
- * Изменения:
- * - Пастельные цвета секторов стихий (коралловый / оливковый / кремовый / голубой)
- * - Белая заливка внутреннего круга
- * - Белые подложки под планетами (r=12, fill="#FFFFFF")
- * - Тонкие пастельные границы кольца
- * - Светлый фон карты (#FDFBF9)
+ * Изменения v2:
+ * - Skeleton-обёртка (проп loading)
+ * - Touch-зум и вращение (pinch + double-tap reset)
+ * - Compact-вид на мобильных < 768px (SIZE=320, без тиков и аспект-линий)
+ * - Кнопка «Показать полную карту» в compact-режиме
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 
 // ── Astrology data ─────────────────────────────────────────
 
@@ -36,13 +35,10 @@ const PLANET_COLORS = {
 
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 
-// Element: 0=Fire, 1=Earth, 2=Air, 3=Water
-// Пастельная тема «Дыхание космоса»
 const ELEMENT_COLORS = {
-  //          Огонь-коралл   Земля-олива    Воздух-крем    Вода-голубой
-  fill:   ['#FCCFBE',      '#D4E8C8',     '#FAF0D0',     '#C8DCF0'],
-  stroke: ['#D07050',      '#60905A',     '#C09040',     '#5080B0'],
-  text:   ['#A04020',      '#3A6830',     '#806020',     '#2060A0'],
+  fill:   ['#FCCFBE', '#D4E8C8', '#FAF0D0', '#C8DCF0'],
+  stroke: ['#D07050', '#60905A', '#C09040', '#5080B0'],
+  text:   ['#A04020', '#3A6830', '#806020', '#2060A0'],
 };
 const SIGN_ELEMENT = [0,1,2,3, 0,1,2,3, 0,1,2,3];
 
@@ -107,15 +103,47 @@ function pushApart(positions, minGapDeg = 8) {
   return result;
 }
 
+function getTouchDist(t1, t2) {
+  const dx = t1.clientX - t2.clientX;
+  const dy = t1.clientY - t2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getTouchAngle(t1, t2) {
+  return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * (180 / Math.PI);
+}
+
+// ── Skeleton ──────────────────────────────────────────────
+
+function ChartSkeleton() {
+  return (
+    <>
+      <style>{`
+        @keyframes chart-shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+      <div style={{
+        width: '100%', aspectRatio: '1', borderRadius: 16,
+        background: 'linear-gradient(90deg,#1E2235 25%,rgba(255,255,255,0.04) 50%,#1E2235 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'chart-shimmer 1.8s ease-in-out infinite',
+      }} />
+    </>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// INNER CHART COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-export default function NatalChart({
+function NatalChartInner({
   planets = [], houses = [], aspects = [],
   ascendant, midheaven, timeUnknown, transitPlanets = [],
+  isCompact,
 }) {
-  const SIZE    = 560;
+  const SIZE    = isCompact ? 320 : 560;
   const cx      = SIZE / 2;
   const cy      = SIZE / 2;
   const PADDING = transitPlanets.length > 0 ? 38 : 4;
@@ -156,15 +184,13 @@ export default function NatalChart({
       width="100%"
       height="100%"
       preserveAspectRatio="xMidYMid meet"
-      style={{ display: 'block', maxWidth: 560, margin: '0 auto', background: 'transparent' }}
+      style={{ display: 'block', maxWidth: isCompact ? 320 : 560, margin: '0 auto', background: 'transparent' }}
       aria-label="Натальная карта"
       role="img"
       fontFamily="'Segoe UI', system-ui, sans-serif"
     >
-      {/* ── Основной фон карты (пастельный, не белый) ── */}
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
-      {/* ── Полные сектора стихий от внешнего края до круга домов (прозрачный слой) ── */}
       {SIGN_GLYPHS.map((_, i) => {
         const el = SIGN_ELEMENT[i];
         return (
@@ -178,7 +204,6 @@ export default function NatalChart({
         );
       })}
 
-      {/* ── Пастельные сектора зодиакального кольца (непрозрачные) ── */}
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
         const midLon = i * 30 + 15;
@@ -194,7 +219,7 @@ export default function NatalChart({
             <text
               x={midPos.x} y={midPos.y}
               textAnchor="middle" dominantBaseline="central"
-              fontSize={11} fontWeight="600"
+              fontSize={isCompact ? 9 : 11} fontWeight="600"
               fill={ELEMENT_COLORS.text[el]}
             >
               {glyph}
@@ -203,7 +228,6 @@ export default function NatalChart({
         );
       })}
 
-      {/* ── Радиальные линии-разделители знаков ── */}
       {Array.from({ length: 12 }, (_, i) => {
         const p1 = lonToXY(cx, cy, R_ZOD_OUT, i * 30, ascLon);
         const p2 = lonToXY(cx, cy, R_ZOD_IN,  i * 30, ascLon);
@@ -215,12 +239,11 @@ export default function NatalChart({
         );
       })}
 
-      {/* ── Внешняя и внутренняя границы зодиакального кольца ── */}
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="none" stroke="#D0C0B0" strokeWidth={1.5} />
       <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="none" stroke="#C8B8A8" strokeWidth={1} />
 
-      {/* ── Шкала градусов ── */}
-      {Array.from({ length: 360 }, (_, deg) => {
+      {/* Шкала градусов — только в полном режиме */}
+      {!isCompact && Array.from({ length: 360 }, (_, deg) => {
         const isTen  = deg % 10 === 0;
         const isFive = !isTen && deg % 5 === 0;
         const tickLen = isTen ? R_ZOD_IN * 0.052 : isFive ? R_ZOD_IN * 0.033 : R_ZOD_IN * 0.016;
@@ -237,10 +260,8 @@ export default function NatalChart({
         );
       })}
 
-      {/* ── Граница шкалы градусов ── */}
       <circle cx={cx} cy={cy} r={R_TICK_IN} fill="#FDFBF9" stroke="#D0C4B8" strokeWidth={0.5} />
 
-      {/* ── Линии домов (от внутреннего круга до внешнего края зодиака) ── */}
       {!timeUnknown && houseCusps.length === 12 && houseCusps.map((house, i) => {
         const nextHouse = houseCusps[(i + 1) % 12];
         let lon1 = house.lon;
@@ -260,22 +281,23 @@ export default function NatalChart({
               stroke={isAngular ? '#9070C0' : '#C0B0A0'}
               strokeWidth={isAngular ? 1.5 : 0.75}
             />
-            <text
-              x={numPos.x} y={numPos.y}
-              textAnchor="middle" dominantBaseline="central"
-              fontSize={8.5} fill="#A090C0" fontStyle="italic"
-            >
-              {ROMAN[house.number - 1]}
-            </text>
+            {!isCompact && (
+              <text
+                x={numPos.x} y={numPos.y}
+                textAnchor="middle" dominantBaseline="central"
+                fontSize={8.5} fill="#A090C0" fontStyle="italic"
+              >
+                {ROMAN[house.number - 1]}
+              </text>
+            )}
           </g>
         );
       })}
 
-      {/* ── Внутренний круг (область аспектов) — белая заливка ── */}
       <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FFFFFF" stroke="#D8C8E0" strokeWidth={0.75} />
 
-      {/* ── Линии аспектов ── */}
-      {aspects
+      {/* Аспекты — только в полном режиме */}
+      {!isCompact && aspects
         .filter(asp => ['conjunction','sextile','trine','square','opposition'].includes(asp.aspect_type))
         .map((asp, i) => {
           const p1 = planets.find(p => p.name === asp.planet1);
@@ -298,19 +320,17 @@ export default function NatalChart({
           );
         })}
 
-      {/* ── Центральная точка ── */}
       <circle cx={cx} cy={cy} r={2.5} fill="#C0A8D8" />
 
-      {/* ── Планеты ── */}
       {planetPositions.map((planet) => {
         const glyphPos = lonToXY(cx, cy, R_PLANET, planet.displayLon, ascLon);
         const realPos  = lonToXY(cx, cy, R_TICK_IN - 4, planet.longitude, ascLon);
         const color    = PLANET_COLORS[planet.name] || '#606060';
         const showLine = Math.abs(planet.displayLon - planet.longitude) > 2;
+        const r        = isCompact ? 10 : 12;
 
         return (
           <g key={planet.name}>
-            {/* Тик на шкале градусов */}
             {(() => {
               const t1 = lonToXY(cx, cy, R_TICK_IN + 1, planet.longitude, ascLon);
               const t2 = lonToXY(cx, cy, R_TICK_IN - 5, planet.longitude, ascLon);
@@ -325,23 +345,19 @@ export default function NatalChart({
               />
             )}
 
-            {/* Белая подложка под планетой — выделяется поверх линий аспектов */}
-            <circle cx={glyphPos.x} cy={glyphPos.y} r={12} fill="#FFFFFF" />
-
-            {/* Цветной обод планеты */}
-            <circle cx={glyphPos.x} cy={glyphPos.y} r={12}
+            <circle cx={glyphPos.x} cy={glyphPos.y} r={r} fill="#FFFFFF" />
+            <circle cx={glyphPos.x} cy={glyphPos.y} r={r}
               fill="none" stroke={color} strokeWidth={0.75} />
 
             <text
               x={glyphPos.x} y={glyphPos.y}
               textAnchor="middle" dominantBaseline="central"
-              fontSize={12} fontWeight="600" fill={color}
+              fontSize={isCompact ? 10 : 12} fontWeight="600" fill={color}
             >
               {PLANET_GLYPHS[planet.name] || '?'}
             </text>
 
-            {/* Градус */}
-            {(() => {
+            {!isCompact && (() => {
               const degPos = lonToXY(cx, cy, R_PLANET - 16, planet.displayLon, ascLon);
               return (
                 <text x={degPos.x} y={degPos.y}
@@ -361,7 +377,6 @@ export default function NatalChart({
         );
       })}
 
-      {/* ── Метки ASC / DSC / MC / IC снаружи кольца ── */}
       {!timeUnknown && ascendant && (
         <>
           {[
@@ -384,7 +399,6 @@ export default function NatalChart({
         </>
       )}
 
-      {/* ── Время неизвестно ── */}
       {timeUnknown && (
         <text x={cx} y={cy + R_HOUSE_IN - 20} textAnchor="middle"
           fontSize={10} fill="#B0A0C0" fontStyle="italic">
@@ -392,7 +406,6 @@ export default function NatalChart({
         </text>
       )}
 
-      {/* ── Транзитное внешнее кольцо ── */}
       {transitPlanets.length > 0 && (() => {
         const withLon = transitPlanets.map(tp => ({
           ...tp,
@@ -404,13 +417,11 @@ export default function NatalChart({
 
         return (
           <g>
-            {/* Внешнее кольцо транзитов — светлое */}
             <circle cx={cx} cy={cy} r={R_TRANSIT + 16}
               fill="none"
               stroke="rgba(224,195,252,0.50)"
               strokeWidth={1} strokeDasharray="3 3" />
 
-            {/* Линии аспектов транзит → натал */}
             {spread.map((tp, i) => {
               if (!tp.aspect_type || !tp.natal_planet) return null;
               const natalPlanet = planets.find(p => p.name === tp.natal_planet);
@@ -428,7 +439,6 @@ export default function NatalChart({
               );
             })}
 
-            {/* Транзитные планеты */}
             {spread.map((tp, i) => {
               const pos       = lonToXY(cx, cy, R_TRANSIT, tp.displayLon, ascLon);
               const color     = PLANET_COLORS[tp.name] || '#A070C0';
@@ -441,7 +451,6 @@ export default function NatalChart({
                       stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />;
                   })()}
 
-                  {/* Белая подложка транзитной планеты */}
                   <circle cx={pos.x} cy={pos.y} r={12} fill="#FFFFFF" />
                   <circle cx={pos.x} cy={pos.y} r={12}
                     fill="none"
@@ -467,5 +476,102 @@ export default function NatalChart({
         );
       })()}
     </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// WRAPPER: skeleton + touch + compact
+// ═══════════════════════════════════════════════════════════
+
+export default function NatalChart({ loading = false, compact: compactProp, ...props }) {
+  // Определение compact по ширине окна
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
+  useEffect(() => {
+    const handler = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  const autoCompact = compactProp !== undefined ? compactProp : windowWidth < 768;
+  const [showFull, setShowFull] = useState(false);
+  const isCompact = autoCompact && !showFull;
+
+  // Touch state
+  const containerRef = useRef(null);
+  const [scale,    setScale]    = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const touchState = useRef({ active: false, initDist: 0, initAngle: 0, initScale: 1, initRot: 0 });
+  const lastTap    = useRef(0);
+
+  function handleTouchStart(e) {
+    if (e.touches.length === 2) {
+      touchState.current = {
+        active:    true,
+        initDist:  getTouchDist(e.touches[0], e.touches[1]),
+        initAngle: getTouchAngle(e.touches[0], e.touches[1]),
+        initScale: scale,
+        initRot:   rotation,
+      };
+    }
+    if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - lastTap.current < 300) { setScale(1); setRotation(0); }
+      lastTap.current = now;
+    }
+  }
+
+  function handleTouchMove(e) {
+    if (!touchState.current.active || e.touches.length !== 2) return;
+    e.preventDefault();
+    const dist  = getTouchDist(e.touches[0], e.touches[1]);
+    const angle = getTouchAngle(e.touches[0], e.touches[1]);
+    setScale(Math.min(4, Math.max(1, touchState.current.initScale * (dist / touchState.current.initDist))));
+    setRotation(touchState.current.initRot + (angle - touchState.current.initAngle));
+  }
+
+  function handleTouchEnd() {
+    touchState.current.active = false;
+  }
+
+  if (loading) return <ChartSkeleton />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      <div
+        ref={containerRef}
+        style={{ touchAction: 'none', width: '100%' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div style={{
+          transform: `scale(${scale}) rotate(${rotation}deg)`,
+          transformOrigin: 'center center',
+          transition: touchState.current.active ? 'none' : 'transform 0.3s ease',
+          willChange: 'transform',
+        }}>
+          <NatalChartInner {...props} isCompact={isCompact} />
+        </div>
+      </div>
+
+      {autoCompact && (
+        <button
+          onClick={() => setShowFull(v => !v)}
+          style={{
+            background: 'rgba(124,108,255,0.1)',
+            border: '1px solid rgba(124,108,255,0.3)',
+            borderRadius: 8,
+            color: '#7C6CFF',
+            padding: '6px 16px',
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          {showFull ? '↑ Свернуть карту' : '↓ Показать полную карту'}
+        </button>
+      )}
+    </div>
   );
 }
