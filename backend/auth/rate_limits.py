@@ -40,7 +40,7 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 6,
         "profiles_limit": 10,
         "synastry": False,
-        "pdf_export": True,
+        "pdf_export": False,
     },
     "premium": {
         "interpretation_word_limit": 5000,
@@ -61,6 +61,7 @@ def get_feature_flags(user: Optional[User]) -> dict:
         "tier": tier,
         **flags,
         "transits": flags["transits_months"] > 0,
+        "unlimited_interpretations": flags["interpretations_per_day"] is None,
         "pdf_reports": flags["pdf_export"],
     }
 
