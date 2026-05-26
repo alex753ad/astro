@@ -1,12 +1,61 @@
 /**
  * Interpretation.jsx — AI-интерпретация натальной карты.
  * Запускается ТОЛЬКО по кнопке, автозагрузки нет.
+ *
+ * v2:
+ * - Toast при сетевой ошибке
+ * - Progress bar с этапами вместо skeleton
+ * - Retry-кнопка при неудаче
  */
 
 import { useState, useRef, useCallback } from 'react';
 import { streamInterpretation } from '../api/client';
+import { useToast } from './Toast';
 
-// Ключевые слова для определения точки обрыва (эмоционально значимые темы)
+// ── Этапы прогресса ────────────────────────────────────────
+
+const STAGES = [
+  'Рассчитываем позиции планет...',
+  'Строим аспекты...',
+  'Готовим интерпретацию...',
+];
+
+function StreamingProgress() {
+  const [stageIdx, setStageIdx] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  // Сдвигаем этап каждые 1.2 сек
+  const timerRef = useRef(null);
+  if (!timerRef.current) {
+    STAGES.forEach((_, i) => {
+      timerRef.current = setTimeout(() => {
+        setStageIdx(i);
+        setProgress([33, 66, 90][i]);
+      }, (i + 1) * 1200);
+    });
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', minHeight: 18 }}>
+        {STAGES[stageIdx]}
+      </div>
+      <div style={{
+        width: '100%', height: 4, borderRadius: 2,
+        background: 'var(--border, #1E2235)', overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%', width: `${progress}%`, borderRadius: 2,
+          background: 'linear-gradient(90deg, var(--accent, #7C6CFF), #C060A0)',
+          transition: 'width 1s cubic-bezier(0.4,0,0.2,1)',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Paywall helpers ────────────────────────────────────────
+
 const CUTOFF_KEYWORDS = [
   '## Отношения', '### Отношения',
   '## Любовь', '### Любовь',
@@ -17,7 +66,6 @@ const CUTOFF_KEYWORDS = [
   '## Партнёрство', '### Партнёрство',
 ];
 
-// Возвращает текст до точки обрыва (конец второй секции)
 function getCutoffText(text) {
   const lines = text.split('\n');
   let sectionCount = 0;
@@ -25,11 +73,8 @@ function getCutoffText(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Считаем секции (## или ###)
     if (line.startsWith('## ') || line.startsWith('### ')) {
       sectionCount++;
-      // Обрываем в начале третьей секции если это эмоц. тема,
-      // или принудительно после второй секции
       const isEmotional = CUTOFF_KEYWORDS.some(k => line.includes(k.replace(/^#+\s/, '')));
       if (sectionCount >= 3 || (sectionCount >= 2 && isEmotional)) {
         cutoffLine = i;
@@ -38,7 +83,7 @@ function getCutoffText(text) {
     }
   }
 
-  if (cutoffLine === -1) return null; // текст ещё короткий — не обрываем
+  if (cutoffLine === -1) return null;
   return lines.slice(0, cutoffLine).join('\n');
 }
 
@@ -83,7 +128,13 @@ function renderMarkdown(text) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════
+
 export default function Interpretation({ chartId, userTier, onUpgrade }) {
+  const toast = useToast();
+
   const [text,      setText]      = useState('');
   const [streaming, setStreaming] = useState(false);
   const [done,      setDone]      = useState(false);
@@ -121,15 +172,18 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           setTimeout(() => start(retryCount + 1), 1500 * (retryCount + 1));
           return;
         }
-        setError(String(err));
+        const msg = String(err);
+        setError(msg);
         setStreaming(false);
+        toast.error('Не удалось загрузить интерпретацию');
       },
     );
 
     closeSSERef.current = close;
-  }, [chartId]);
+  }, [chartId, toast]);
 
-  // ── Не запускались — показываем кнопку ──
+  // ── Не запускались ──
+
   if (!started) {
     return (
       <div className="glass-card p-6">
@@ -140,10 +194,10 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           </h2>
         </div>
         <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #8B8FA3)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Персональный разбор натальной карты — характер, таланты, жизненные темы. Генерируется на основе положений всех планет и домов.
+          Персональный разбор натальной карты — характер, таланты, жизненные темы.
         </p>
         <button
-          onClick={start}
+          onClick={() => start()}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 20px', borderRadius: 10,
@@ -160,7 +214,6 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
     );
   }
 
-  // Определяем что показывать для free
   const cutoffText = isFree && done ? getCutoffText(text) : null;
   const displayText = cutoffText ?? text;
   const isCut = !!cutoffText;
@@ -175,7 +228,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </h2>
         {done && !isCut && (
           <button
-            onClick={start}
+            onClick={() => start()}
             style={{
               background: 'none', border: '1px solid var(--border, #1E2235)',
               color: 'var(--text-secondary, #8B8FA3)',
@@ -204,20 +257,8 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </div>
       )}
 
-      {/* Skeleton while starting */}
-      {streaming && !text && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[80, 100, 60, 90, 75].map((w, i) => (
-            <div key={i} style={{
-              height: 13, width: `${w}%`, borderRadius: 4,
-              background: 'linear-gradient(90deg, var(--border, #1E2235) 25%, rgba(255,255,255,0.04) 50%, var(--border, #1E2235) 75%)',
-              backgroundSize: '200% 100%',
-              animation: `shimmer 1.8s ease-in-out ${i * 0.1}s infinite`,
-            }} />
-          ))}
-          <style>{`@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`}</style>
-        </div>
-      )}
+      {/* Progress bar пока нет первого чанка */}
+      {streaming && !text && <StreamingProgress />}
 
       {/* Error */}
       {error && (
@@ -229,12 +270,12 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           <p style={{ margin: 0, fontSize: 13, color: '#FCA5A5' }}>
             Не удалось загрузить интерпретацию: {error}
           </p>
-          <button onClick={start} style={{
+          <button onClick={() => start()} style={{
             marginTop: 10, padding: '6px 16px', borderRadius: 8,
             border: '1px solid rgba(239,68,68,0.4)', background: 'transparent',
             color: '#FCA5A5', fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
-            Попробовать снова
+            ↺ Попробовать снова
           </button>
         </div>
       )}
@@ -265,16 +306,14 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </div>
       )}
 
-      {/* Paywall cut — fade + CTA */}
+      {/* Paywall */}
       {isCut && (
         <div style={{ position: 'relative', marginTop: -60 }}>
-          {/* Fade gradient */}
           <div style={{
             height: 80,
             background: 'linear-gradient(to bottom, transparent, var(--bg-card, #0F1117))',
             pointerEvents: 'none',
           }} />
-          {/* CTA */}
           <div style={{
             padding: '20px 0 4px',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
@@ -282,7 +321,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
               Это только начало. Полная интерпретация раскрывает<br />
-              <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>Луну, Венеру, 7-й дом и отношения</strong> — самые важные темы вашей карты.
+              <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>Луну, Венеру, 7-й дом и отношения</strong>.
             </p>
             <button
               onClick={onUpgrade}
