@@ -35,8 +35,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first для остальных API
+  // Network-first только для GET API (POST/PUT не кэшируем)
   if (url.pathname.startsWith('/api/')) {
+    if (request.method !== 'GET') return; // пропускаем POST/PUT как есть
     event.respondWith(networkFirst(request));
     return;
   }
@@ -56,11 +57,11 @@ self.addEventListener('fetch', (event) => {
 
 // ── Стратегии ─────────────────────────────────────────────────────────────────
 
-/** Network-first: пробуем сеть, при ошибке — кэш */
+/** Network-first: пробуем сеть, при ошибке — кэш (только GET) */
 async function networkFirst(request) {
   try {
     const res = await fetch(request);
-    if (res.ok) {
+    if (res.ok && request.method === 'GET') {
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, res.clone());
     }
