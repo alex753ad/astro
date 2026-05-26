@@ -109,7 +109,6 @@ function _connectSSE(url, onChunk, onDone, onError) {
         attempt++;
         retryTimeout = setTimeout(connect, delay);
       } else {
-        // Если данные уже получены — считаем done, иначе — error
         if (hasData) { onDone?.(); } else { onError?.('Connection lost'); }
       }
     };
@@ -176,10 +175,6 @@ export async function streamTransitEventInterpretation(chartId, transitEvent, on
 
 // ── Async Tasks API ──
 
-/**
- * Запустить асинхронный расчёт транзитов.
- * Возвращает { task_id, status }.
- */
 export async function startTransitsAsync(chartId, fromDate, toDate, options = {}) {
   const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
   if (options.planet) params.set('planet', options.planet);
@@ -187,31 +182,14 @@ export async function startTransitsAsync(chartId, fromDate, toDate, options = {}
   return request(`/chart/${chartId}/transits/async?${params}`, { method: 'POST' });
 }
 
-/**
- * Запустить асинхронную генерацию PDF.
- * Возвращает { task_id, status }.
- */
 export async function startPdfGeneration(chartId) {
   return request(`/chart/${chartId}/pdf`, { method: 'POST' });
 }
 
-/**
- * Поллинг статуса задачи.
- * Возвращает { status, step?, result?, error? }.
- */
 export async function getTaskStatus(taskId) {
   return request(`/tasks/${taskId}/status`);
 }
 
-/**
- * Поллинг до завершения задачи.
- *
- * @param {string} taskId
- * @param {function} onProgress — вызывается при каждом poll с { status, step }
- * @param {number} intervalMs — интервал поллинга (по умолчанию 1500ms)
- * @param {number} timeoutMs — таймаут (по умолчанию 120000ms)
- * @returns {Promise<any>} — result задачи при успехе
- */
 export function pollTask(taskId, onProgress, intervalMs = 1500, timeoutMs = 120_000) {
   return new Promise((resolve, reject) => {
     const start = Date.now();
@@ -228,7 +206,6 @@ export function pollTask(taskId, onProgress, intervalMs = 1500, timeoutMs = 120_
         if (data.status === 'success') return resolve(data.result);
         if (data.status === 'failure') return reject(new Error(data.error || 'Task failed'));
 
-        // pending | started — продолжаем поллить
         setTimeout(tick, intervalMs);
       } catch (err) {
         reject(err);
