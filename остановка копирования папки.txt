@@ -1,0 +1,162 @@
+1. папка с которой должно копироваться C:\Users\User\Desktop\ASTRO> 2. папка в которую должно копироваться  clone astro
+
+MoClaw
+11:12
+
+Думаю
+The user wants:
+1. Source: `C:\Users\User\Desktop\ASTRO`
+2. Destination: `clone astro` - this seems to be a folder name, likely on the desktop or somewhere. Let me create the script with destination as `C:\Users\User\Desktop\clone astro` since they said "clone astro" as the folder name.
+
+Actually, "clone astro" might mean a folder called "clone astro" - I'll put it on the Desktop as well, or maybe on another drive. Let me ask... actually no, let me just make it `C:\Users\User\Desktop\clone astro` and note it clearly.
+Вот готовый скрипт под твои пути:
+
+Шаг 1 — Создай папку для скрипта
+Открой PowerShell и выполни:
+
+powershell
+
+New-Item -ItemType Directory -Force -Path "C:\Scripts"
+Шаг 2 — Создай файл скрипта
+Вставь это целиком в PowerShell:
+
+powershell
+
+$content = @'
+$source = "C:\Users\User\Desktop\ASTRO"
+$backupRoot = "C:\Users\User\Desktop\clone astro"
+$maxCopies = 24
+
+$timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm"
+$dest = Join-Path $backupRoot $timestamp
+
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+robocopy $source $dest /MIR /R:3 /W:5 /LOG+:"$backupRoot\backup.log"
+
+$copies = Get-ChildItem $backupRoot -Directory | Sort-Object Name
+if ($copies.Count -gt $maxCopies) {
+    $copies | Select-Object -First ($copies.Count - $maxCopies) | Remove-Item -Recurse -Force
+}
+'@
+$content | Out-File -FilePath "C:\Scripts\backup.ps1" -Encoding UTF8
+Шаг 3 — Разреши скрипты (один раз, от администратора)
+powershell
+
+Set-ExecutionPolicy RemoteSigned -Scope LocalMachine
+Шаг 4 — Создай задачу в планировщике (от администратора)
+powershell
+
+$action = New-ScheduledTaskAction `
+  -Execute "powershell.exe" `
+  -Argument "-NonInteractive -WindowStyle Hidden -File C:\Scripts\backup.ps1"
+
+$trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Hours 1) `
+  -Once -At (Get-Date)
+
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
+
+Register-ScheduledTask `
+  -TaskName "HourlyBackup_ASTRO" `
+  -Action $action `
+  -Trigger $trigger `
+  -Settings $settings `
+  -RunLevel Highest `
+  -Force
+Шаг 5 — Тест (запусти и проверь)
+powershell
+
+Start-ScheduledTask -TaskName "HourlyBackup_ASTRO"
+Через несколько секунд на рабочем столе появится папка:
+
+
+clone astro\
+└── 2026-05-24_13-00\   ← первая копия папки ASTRO
+    ├── файл1
+    ├── файл2
+    └── ...
+Каждый час будет создаваться новая копия. Хранятся последние 24 штуки (за сутки), старые удаляются автоматически. Лог операций — clone astro\backup.log 👍
+
+как мне запускать это после выключения компа?
+
+MoClaw
+11:15
+
+Думаю
+The user is asking how to make the backup task run automatically after the computer is turned off and then turned back on. The scheduled task should automatically start when Windows boots up, or resume its hourly schedule after the PC is restarted.
+Задача уже запустится сама — но нужно донастроить
+Текущая настройка запускает задачу каждый час от момента создания. После перезагрузки ПК расписание может сбиться. Вот как это исправить:
+
+Пересоздай задачу с правильными флагами (от администратора)
+powershell
+
+# Удалить старую задачу
+Unregister-ScheduledTask -TaskName "HourlyBackup_ASTRO" -Confirm:$false
+
+# Создать новую — правильную
+$action = New-ScheduledTaskAction `
+  -Execute "powershell.exe" `
+  -Argument "-NonInteractive -WindowStyle Hidden -File C:\Scripts\backup.ps1"
+
+$trigger = New-ScheduledTaskTrigger `
+  -RepetitionInterval (New-TimeSpan -Hours 1) `
+  -Once -At "00:00"
+
+$settings = New-ScheduledTaskSettingsSet `
+  -StartWhenAvailable `
+  -ExecutionTimeLimit (New-TimeSpan -Minutes 30) `
+  -RestartCount 3 `
+  -RestartInterval (New-TimeSpan -Minutes 1)
+
+Register-ScheduledTask `
+  -TaskName "HourlyBackup_ASTRO" `
+  -Action $action `
+  -Trigger $trigger `
+  -Settings $settings `
+  -RunLevel Highest `
+  -Force
+Что делает каждый флаг:
+
+Флаг	Что делает
+-StartWhenAvailable	✅ Если пропустил запуск пока ПК был выключен — запустится сразу при включении
+-ExecutionTimeLimit	Ограничение на 30 мин (на случай зависания)
+-RestartCount 3	Перезапустит задачу 3 раза если вдруг упала с ошибкой
+Сценарии:
+
+Ситуация	Что произойдёт
+ПК включён постоянно	Копия каждый час ✅
+Выключил в 14:00, включил в 17:00	Копия сделается сразу при включении ✅
+Перезагрузка	Задача продолжает работать автоматически ✅
+Проверить что задача активна:
+powershell
+
+Get-ScheduledTask -TaskName "HourlyBackup_ASTRO" | Select-Object TaskName, State
+Должно показать State: Ready — всё работает 👍
+
+как отключитькопирование?
+
+MoClaw
+11:21
+
+Думаю
+The user wants to know how to disable/stop the backup task.
+3 варианта на выбор:
+⏸️ Приостановить (можно потом включить обратно)
+
+powershell
+
+Disable-ScheduledTask -TaskName "HourlyBackup_ASTRO"
+▶️ Включить снова
+
+powershell
+
+Enable-ScheduledTask -TaskName "HourlyBackup_ASTRO"
+🗑️ Удалить насовсем
+
+powershell
+
+Unregister-ScheduledTask -TaskName "HourlyBackup_ASTRO" -Confirm:$false
+Или через интерфейс (без команд):
+Нажми Win + R → введи taskschd.msc → Enter
+Слева выбери Task Scheduler Library
+Найди задачу HourlyBackup_ASTRO
+Правой кнопкой → Disable (приостановить) или Delete (удалить)
