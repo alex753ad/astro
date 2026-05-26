@@ -1,11 +1,4 @@
-"""Stripe payments API router.
-
-Endpoints:
-  POST /api/v1/payments/checkout       — create Stripe Checkout session
-  POST /api/v1/payments/portal         — create Stripe Customer Portal session
-  POST /api/v1/payments/webhook        — Stripe webhook receiver
-  GET  /api/v1/payments/subscription   — current subscription info
-"""
+"""Stripe payments API router."""
 
 from __future__ import annotations
 
@@ -14,6 +7,7 @@ import logging
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.config import get_settings
@@ -31,6 +25,7 @@ from backend.auth.dependencies import get_current_user
 from backend.payments.stripe_service import (
     create_checkout_session,
     create_portal_session,
+    create_report_checkout_session,
     handle_checkout_completed,
     handle_subscription_updated,
     handle_payment_failed,
@@ -43,47 +38,64 @@ router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
 
 # ═══════════════════════════════════════════════════════════
-# CHECKOUT
+# CHECKOUT — подписка
 # ═══════════════════════════════════════════════════════════
 
-@router.post(
-    "/checkout",
-    response_model=CheckoutResponse,
-    summary="Create Stripe Checkout session",
-)
+@router.post("/checkout", response_model=CheckoutResponse)
 async def checkout(
     data: CheckoutRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a Stripe Checkout session.
-
-    Returns a URL to redirect the user to Stripe's hosted checkout page.
-    """
     if data.tier not in ("pro", "premium"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tier must be 'pro' or 'premium'.",
-        )
-
+        raise HTTPException(status_code=400, detail="Tier must be 'pro' or 'premium'.")
     if user.tier == data.tier:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You are already on the {data.tier} plan.",
-        )
+        raise HTTPException(status_code=400, detail=f"You are already on the {data.tier} plan.")
 
     try:
         url = create_checkout_session(
-            user=user,
-            tier=data.tier,
-            success_url=data.success_url,
-            cancel_url=data.cancel_url,
-            db=db,
+            user=user, tier=data.tier,
+            success_url=data.success_url, cancel_url=data.cancel_url, db=db,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except stripe.error.StripeError as e:
-        logger.exception("Stripe checkout error")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {e.user_message}")
+
+    return CheckoutResponse(checkout_url=url)
+
+
+# ═══════════════════════════════════════════════════════════
+# CHECKOUT — разовая покупка PDF-отчёта
+# ═══════════════════════════════════════════════════════════
+
+class ReportCheckoutRequest(BaseModel):
+    report_type: str   # "basic" | "extended" | "synastry"
+    chart_id: str
+    success_url: str = ""
+    cancel_url: str = ""
+
+
+@router.post("/checkout/report", response_model=CheckoutResponse)
+async def checkout_report(
+    data: ReportCheckoutRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Разовая покупка PDF-отчёта (mode=payment, не subscription)."""
+    if data.report_type not in ("basic", "extended", "synastry"):
+        raise HTTPException(status_code=400, detail="Unknown report_type.")
+
+    try:
+        url = create_report_checkout_session(
+            user=user,
+            report_type=data.report_type,
+            chart_id=data.chart_id,
+            success_url=data.success_url,
+            cancel_url=data.cancel_url,
+            db=db,
+        )
+    except stripe.error.StripeError as e:
         raise HTTPException(status_code=502, detail=f"Stripe error: {e.user_message}")
 
     return CheckoutResponse(checkout_url=url)
@@ -93,30 +105,18 @@ async def checkout(
 # CUSTOMER PORTAL
 # ═══════════════════════════════════════════════════════════
 
-@router.post(
-    "/portal",
-    response_model=PortalResponse,
-    summary="Create Stripe Customer Portal session",
-)
+@router.post("/portal", response_model=PortalResponse)
 async def portal(
     data: PortalRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a Stripe Customer Portal session.
-
-    Allows users to manage billing, update payment method, or cancel.
-    """
     if not user.stripe_customer_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active subscription found.",
-        )
+        raise HTTPException(status_code=400, detail="No active subscription found.")
 
     try:
         url = create_portal_session(user, data.return_url, db)
     except stripe.error.StripeError as e:
-        logger.exception("Stripe portal error")
         raise HTTPException(status_code=502, detail=f"Stripe error: {e.user_message}")
 
     return PortalResponse(portal_url=url)
@@ -126,22 +126,12 @@ async def portal(
 # SUBSCRIPTION INFO
 # ═══════════════════════════════════════════════════════════
 
-@router.get(
-    "/subscription",
-    response_model=SubscriptionResponse,
-    summary="Get current subscription",
-)
+@router.get("/subscription", response_model=SubscriptionResponse)
 async def get_subscription(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return the current user's subscription status."""
-    sub = (
-        db.query(Subscription)
-        .filter(Subscription.user_id == user.id)
-        .first()
-    )
-
+    sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
     return SubscriptionResponse(
         tier=user.tier,
         status=sub.status if sub else "none",
@@ -154,21 +144,8 @@ async def get_subscription(
 # WEBHOOK
 # ═══════════════════════════════════════════════════════════
 
-@router.post(
-    "/webhook",
-    summary="Stripe webhook receiver",
-    include_in_schema=False,  # Don't expose in OpenAPI docs
-)
+@router.post("/webhook", include_in_schema=False)
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    """Receive and process Stripe webhook events.
-
-    Verifies the webhook signature to ensure authenticity.
-
-    Handled events:
-    - checkout.session.completed   → activate subscription
-    - customer.subscription.updated → plan change / cancellation
-    - invoice.payment_failed       → log + notify
-    """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
@@ -177,19 +154,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     try:
         event = stripe.Webhook.construct_event(
-            payload=payload,
-            sig_header=sig_header,
+            payload=payload, sig_header=sig_header,
             secret=settings.stripe_webhook_secret,
         )
     except stripe.error.SignatureVerificationError:
-        logger.warning("Invalid Stripe webhook signature")
         raise HTTPException(status_code=400, detail="Invalid signature")
     except ValueError:
-        logger.warning("Invalid Stripe webhook payload")
         raise HTTPException(status_code=400, detail="Invalid payload")
 
     event_type = event.get("type", "")
-    logger.info("Stripe webhook received: %s", event_type)
+    logger.info("Stripe webhook: %s", event_type)
 
     try:
         if event_type == "checkout.session.completed":
@@ -198,11 +172,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             handle_subscription_updated(event, db)
         elif event_type == "invoice.payment_failed":
             handle_payment_failed(event, db)
-        else:
-            logger.debug("Unhandled Stripe event: %s", event_type)
     except Exception:
         logger.exception("Error processing Stripe event %s", event_type)
-        # Return 200 anyway — Stripe retries on non-2xx,
-        # and we don't want infinite retries for a processing bug.
 
     return JSONResponse(content={"received": True}, status_code=200)
