@@ -7,9 +7,11 @@ import { createContext, useCallback, useContext, useRef, useState } from 'react'
 
 const ToastContext = createContext(null);
 
+const NOOP = { error: () => {}, success: () => {}, info: () => {} };
+
 export function useToast() {
   const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used inside ToastProvider');
+  if (!ctx) return NOOP;
   return ctx;
 }
 
