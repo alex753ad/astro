@@ -14,7 +14,12 @@ import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import PaywallModal from '../components/PaywallModal';
-import { createReportCheckoutSession } from '../api/client';
+import {
+  createReportCheckoutSession,
+  startPdfGeneration,
+  startTransitsAsync,
+  pollTask,
+} from '../api/client';
 
 const REPORT_OPTIONS = [
   { type: 'basic',    label: 'Базовый натальный отчёт',        price: '$5', desc: 'Карта + интерпретация + главные аспекты' },
@@ -24,8 +29,45 @@ const REPORT_OPTIONS = [
 
 function ReportModal({ chartId, onClose }) {
   const [loading, setLoading] = React.useState(null);
-  const [error, setError] = React.useState(null);
+  const [error, setError]     = React.useState(null);
+  const [pdfStep, setPdfStep] = React.useState('');  // прогресс генерации PDF
 
+  // ── Скачать бесплатный PDF через Celery ──
+  async function handleDownloadFree() {
+    setLoading('free');
+    setError(null);
+    setPdfStep('Запускаем генерацию…');
+    try {
+      const { task_id } = await startPdfGeneration(chartId);
+      const result = await pollTask(
+        task_id,
+        ({ status, step }) => setPdfStep(
+          step === 'loading_chart'  ? 'Загружаем данные карты…' :
+          step === 'rendering_pdf'  ? 'Рендерим PDF…'           :
+          'Обрабатываем…'
+        ),
+      );
+      // Декодируем base64 и скачиваем
+      const binary = atob(result.pdf_base64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (e) {
+      setError('Не удалось сгенерировать PDF: ' + e.message);
+    } finally {
+      setLoading(null);
+      setPdfStep('');
+    }
+  }
+
+  // ── Купить расширенный PDF через Stripe ──
   async function handleBuy(type) {
     setLoading(type);
     setError(null);
@@ -43,7 +85,24 @@ function ReportModal({ chartId, onClose }) {
       <div style={sr.modal} onClick={e => e.stopPropagation()}>
         <button style={sr.close} onClick={onClose}>✕</button>
         <h2 style={sr.title}>📄 PDF-отчёт</h2>
-        <p style={sr.sub}>Разовая покупка — без подписки</p>
+        <p style={sr.sub}>Скачайте карту или купите расширенный отчёт</p>
+
+        {/* ── Бесплатный PDF ── */}
+        <div style={{ ...sr.item, marginBottom: 12, background: 'rgba(124,108,255,0.06)', border: '1px solid rgba(124,108,255,0.2)' }}>
+          <div style={{ flex: 1 }}>
+            <div style={sr.itemTitle}>Базовый PDF — бесплатно</div>
+            <div style={sr.itemDesc}>Натальная карта + позиции планет + аспекты</div>
+            {pdfStep && <div style={{ fontSize: 11, color: '#7C6CFF', marginTop: 4 }}>{pdfStep}</div>}
+          </div>
+          <button
+            style={{ ...sr.btn, background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', opacity: loading ? 0.6 : 1 }}
+            onClick={handleDownloadFree}
+            disabled={!!loading}
+          >
+            {loading === 'free' ? '…' : '⬇ Скачать'}
+          </button>
+        </div>
+
         <div style={sr.list}>
           {REPORT_OPTIONS.map(opt => (
             <div key={opt.type} style={sr.item}>
@@ -62,7 +121,7 @@ function ReportModal({ chartId, onClose }) {
           ))}
         </div>
         {error && <p style={sr.error}>{error}</p>}
-        <p style={sr.legal}>Оплата через Stripe. Безопасно.</p>
+        <p style={sr.legal}>Платные отчёты — через Stripe. Безопасно.</p>
       </div>
     </div>
   );
@@ -146,7 +205,41 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [showReport, setShowReport]   = useState(false);
   const [copied, setCopied]           = useState(false);
 
+  // Async-транзиты (Celery)
+  const [asyncTransits, setAsyncTransits]     = useState(null);   // результат
+  const [asyncTransitStep, setAsyncTransitStep] = useState('');   // шаг прогресса
+  const [asyncTransitLoading, setAsyncTransitLoading] = useState(false);
+
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
+
+  // Запустить расчёт транзитов за 12 месяцев через Celery
+  async function loadTransitsAsync() {
+    const from = new Date().toISOString().slice(0, 10);
+    const to   = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    setAsyncTransitLoading(true);
+    setAsyncTransitStep('Отправляем запрос…');
+    setAsyncTransits(null);
+    try {
+      const { task_id } = await startTransitsAsync(chartId, from, to);
+      const result = await pollTask(
+        task_id,
+        ({ status, step }) => setAsyncTransitStep(
+          step === 'loading_chart' ? 'Загружаем карту…'      :
+          step === 'calculating'   ? 'Считаем транзиты…'     :
+          step === 'serializing'   ? 'Подготавливаем данные…' :
+          'Обрабатываем…'
+        ),
+        2000,
+        180_000,
+      );
+      setAsyncTransits(result.events);
+      setAsyncTransitStep('');
+    } catch (e) {
+      setAsyncTransitStep('Ошибка: ' + e.message);
+    } finally {
+      setAsyncTransitLoading(false);
+    }
+  }
 
   function handleShare() {
     navigator.clipboard.writeText(window.location.href).then(() => {
@@ -342,6 +435,59 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
                 <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={!currentUser || currentUser.tier === 'free'} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+              </section>
+
+              {/* ── Async расчёт транзитов за 12 месяцев ── */}
+              <section style={s.card}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#1E1A2E' }}>Транзиты на 12 месяцев</div>
+                    <div style={{ fontSize: 12, color: '#7060A0', marginTop: 2 }}>
+                      Полный расчёт выполняется в фоне (~5–8 сек)
+                    </div>
+                    {asyncTransitStep && (
+                      <div style={{ fontSize: 12, color: '#7C6CFF', marginTop: 4 }}>{asyncTransitStep}</div>
+                    )}
+                  </div>
+                  <button
+                    onClick={loadTransitsAsync}
+                    disabled={asyncTransitLoading}
+                    style={{
+                      padding: '9px 20px', borderRadius: 10, border: 'none',
+                      background: asyncTransitLoading
+                        ? 'rgba(124,108,255,0.3)'
+                        : 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+                      color: '#fff', fontSize: 13, fontWeight: 600,
+                      cursor: asyncTransitLoading ? 'default' : 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {asyncTransitLoading ? '⏳ Считаем…' : '🔄 Рассчитать'}
+                  </button>
+                </div>
+
+                {/* Результат: список транзитов */}
+                {asyncTransits && asyncTransits.length > 0 && (
+                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
+                    {asyncTransits.map((e, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px', borderRadius: 8,
+                        background: '#F9F7FD', border: '0.5px solid #EDE8F5',
+                        fontSize: 12,
+                      }}>
+                        <span style={{ color: '#7060A0', minWidth: 90 }}>{e.peak_date}</span>
+                        <span style={{ fontWeight: 500, color: '#1E1A2E' }}>{e.transit_planet}</span>
+                        <span style={{ color: '#9080B0' }}>{e.aspect_type}</span>
+                        <span style={{ fontWeight: 500, color: '#1E1A2E' }}>{e.natal_planet}</span>
+                        <span style={{ color: '#9080B0', marginLeft: 'auto' }}>орб {e.peak_orb?.toFixed(1)}°</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {asyncTransits && asyncTransits.length === 0 && (
+                  <div style={{ marginTop: 12, fontSize: 13, color: '#9080B0' }}>Транзитов за период не найдено.</div>
+                )}
               </section>
             </main>
           </div>
