@@ -14,6 +14,10 @@ from timezonefinder import TimezoneFinder
 
 _tf = TimezoneFinder()
 
+# ── Geocoding cache (24h TTL) ──
+from backend.cache import RedisCache
+_geo_cache = RedisCache("geo", 24 * 3600)
+
 
 @dataclass
 class GeoResult:
@@ -41,8 +45,15 @@ async def geocode_place(place: str) -> GeoResult:
 
     Returns GeoResult with lat, lon, display name, and timezone.
     Raises GeocodingError if place cannot be found.
+    Results are cached for 24 hours.
     """
     import httpx
+
+    # Check cache first
+    cache_key = place.lower().strip()
+    cached = _geo_cache.get(cache_key)
+    if cached:
+        return GeoResult(**cached)
 
     url = "https://nominatim.openstreetmap.org/search"
     params = {
@@ -71,17 +82,26 @@ async def geocode_place(place: str) -> GeoResult:
     lon = float(data[0]["lon"])
     display = data[0].get("display_name", place)
 
-    # Resolve timezone
     tz_name = _tf.timezone_at(lat=lat, lng=lon)
     if not tz_name:
         tz_name = "UTC"
 
-    return GeoResult(
+    result = GeoResult(
         latitude=round(lat, 6),
         longitude=round(lon, 6),
         display_name=display,
         timezone=tz_name,
     )
+
+    # Store in cache
+    _geo_cache.set(cache_key, {
+        "latitude": result.latitude,
+        "longitude": result.longitude,
+        "display_name": result.display_name,
+        "timezone": result.timezone,
+    })
+
+    return result
 
 
 def resolve_utc_datetime(
@@ -115,11 +135,8 @@ def resolve_utc_datetime(
     naive_dt = datetime(year, month, day, hour, minute, 0)
 
     try:
-        # is_dst=None raises exception for ambiguous times
         local_dt = tz.localize(naive_dt, is_dst=None)
     except pytz.exceptions.AmbiguousTimeError:
-        # DST overlap: this time occurred twice
-        # Try both interpretations
         dt_dst = tz.localize(naive_dt, is_dst=True)
         dt_std = tz.localize(naive_dt, is_dst=False)
 
@@ -135,8 +152,6 @@ def resolve_utc_datetime(
             ],
         )
     except pytz.exceptions.NonExistentTimeError:
-        # DST spring-forward gap: this time never existed
-        # Use the time after the gap (post-transition)
         local_dt = tz.localize(naive_dt, is_dst=True)
         warnings.append(
             f"The time {birth_time} on {birth_date} did not exist in timezone {timezone} "
