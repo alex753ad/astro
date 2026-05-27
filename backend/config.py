@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # ── JWT ──
     jwt_secret: str = "CHANGE-ME-IN-PRODUCTION"
+    jwt_secret_prev: str = ""  # Previous secret for rotation
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
