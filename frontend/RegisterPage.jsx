@@ -28,6 +28,10 @@ export default function RegisterPage() {
       setLocalErr('Пароль должен быть не менее 8 символов');
       return;
     }
+    if (/^\d+$/.test(password)) {
+      setLocalErr('Пароль не может состоять только из цифр');
+      return;
+    }
 
     try {
       await register(email, password);

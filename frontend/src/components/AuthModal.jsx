@@ -18,6 +18,7 @@ export default function AuthModal({ onClose }) {
     if (!email.includes('@')) { setLocalErr('Введите корректный email'); return; }
     if (mode === 'register') {
       if (password.length < 8) { setLocalErr('Пароль минимум 8 символов'); return; }
+      if (/^\d+$/.test(password)) { setLocalErr('Пароль не может состоять только из цифр'); return; }
       if (password !== password2) { setLocalErr('Пароли не совпадают'); return; }
     }
     try {
