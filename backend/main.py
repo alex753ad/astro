@@ -115,6 +115,9 @@ app.include_router(profile_router)
 app.include_router(settings_router)
 app.include_router(onboarding_router)
 
+from backend.payments.payments_router import router as payments_router
+app.include_router(payments_router)
+
 
 # ── TierMiddleware — кладёт tier в request.state до вызова rate-limit декораторов ──
 from starlette.middleware.base import BaseHTTPMiddleware
