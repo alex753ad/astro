@@ -26,11 +26,9 @@ async function request(path, options = {}) {
 
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new ApiError(
-      body.detail || resp.statusText,
-      resp.status,
-      body,
-    );
+    let msg = body.detail || resp.statusText;
+    if (Array.isArray(msg)) msg = msg.map(e => e.msg?.replace(/^Value error, /, '') ?? JSON.stringify(e)).join('; ');
+    throw new ApiError(msg, resp.status, body);
   }
 
   return resp.json();
