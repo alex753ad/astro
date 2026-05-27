@@ -8,6 +8,7 @@ import PlannerPage from './PlannerPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
+import SharePage from './pages/SharePage';
 import { ToastProvider } from './components/Toast';
 
 function useDarkMode() {
@@ -157,6 +158,7 @@ function AppRoutes() {
         <main className="flex-1">
           <Routes>
             <Route path="/"               element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+            <Route path="/chart/share/:token" element={<SharePage />} />
             <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/planner/:id"    element={<PlannerPage />} />
             <Route path="/profile"        element={<ProfilePage />} />

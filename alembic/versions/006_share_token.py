@@ -1,0 +1,29 @@
+"""Add public_token to natal_charts
+
+Revision ID: 006_share_token
+Revises: 005_fix_users_not_null
+Create Date: 2026-05-27
+"""
+from alembic import op
+import sqlalchemy as sa
+
+revision = "006_share_token"
+down_revision = "005_fix_users_not_null"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.add_column(
+        "natal_charts",
+        sa.Column("public_token", sa.String(64), nullable=True, unique=True, index=True),
+    )
+    op.add_column(
+        "natal_charts",
+        sa.Column("share_name", sa.String(100), nullable=True),
+    )
+
+
+def downgrade() -> None:
+    op.drop_column("natal_charts", "share_name")
+    op.drop_column("natal_charts", "public_token")

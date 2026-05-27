@@ -204,6 +204,8 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [showPaywall, setShowPaywall] = useState(false);
   const [showReport, setShowReport]   = useState(false);
   const [copied, setCopied]           = useState(false);
+  const [shareUrl, setShareUrl]        = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
 
   // Async-транзиты (Celery)
   const [asyncTransits, setAsyncTransits]     = useState(null);   // результат
@@ -241,11 +243,61 @@ export default function ChartPage({ currentUser, onShowAuth }) {
     }
   }
 
-  function handleShare() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
+  async function handleShare() {
+    const token = localStorage.getItem('astro_access_token');
+    if (!token) {
+      // анонимный — просто копируем текущий URL
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+      return;
+    }
+    setShareLoading(true);
+    try {
+      const resp = await fetch(
+        `${API_BASE}/charts/${chartId}/share`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!resp.ok) throw new Error('Ошибка генерации ссылки');
+      const data = await resp.json();
+      setShareUrl(data.share_url);
+      navigator.clipboard.writeText(data.share_url).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      });
+    } catch (e) {
+      navigator.clipboard.writeText(window.location.href);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function handleDownloadCard() {
+    const token = localStorage.getItem('astro_access_token');
+    if (!token) { alert('Войдите, чтобы скачать карточку'); return; }
+    // получаем токен если нет
+    let url = shareUrl;
+    if (!url) {
+      const resp = await fetch(
+        `${API_BASE}/charts/${chartId}/share`,
+        { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        setShareUrl(data.share_url);
+        url = data.share_url;
+      }
+    }
+    if (!url) return;
+    const shareToken = url.split('/').pop();
+    const backendBase = API_BASE.replace('/api/v1', '');
+    const a = document.createElement('a');
+    a.href = `${backendBase}/share/${shareToken}/card.png`;
+    a.download = 'astrea-timeline-card.png';
+    a.click();
   }
 
   useEffect(() => {
@@ -319,9 +371,14 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           <button onClick={() => navigate(`/lunar?chartId=${chartId}`)} style={s.plannerLinkBtn}>
             🌙 Луна
           </button>
-          <button onClick={handleShare} style={s.plannerLinkBtn} title="Скопировать ссылку">
-            {copied ? '✓ Скопировано' : '🔗 Поделиться'}
+          <button onClick={handleShare} style={s.plannerLinkBtn} title="Скопировать ссылку" disabled={shareLoading}>
+            {shareLoading ? '⏳' : copied ? '✓ Скопировано' : '🔗 Поделиться'}
           </button>
+          {currentUser && (
+            <button onClick={handleDownloadCard} style={s.plannerLinkBtn} title="Скачать карточку для Stories">
+              🖼 Карточка
+            </button>
+          )}
           <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: '#1E1A2E', color: '#fff' }}>
             📄 PDF-отчёт
           </button>
