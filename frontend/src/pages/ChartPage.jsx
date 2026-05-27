@@ -382,9 +382,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: '#1E1A2E', color: '#fff' }}>
             📄 PDF-отчёт
           </button>
-          {activeTab === 'chart' && (
-            {/* ExpertModeToggle hidden */}
-          )}
+          {/* ExpertModeToggle hidden */}
         </div>
       </header>
 
