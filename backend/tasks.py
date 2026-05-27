@@ -243,7 +243,7 @@ def _render_pdf(chart: NatalChart) -> bytes:
         # ── Футер ──
         elements.append(Spacer(1, 1*cm))
         elements.append(Paragraph(
-            "Создано Astro SPA · Swiss Ephemeris · astro-navy-one.vercel.app",
+            "Создано Astrea Timeline · Swiss Ephemeris · astro-navy-one.vercel.app",
             ParagraphStyle("footer", parent=body_style, fontSize=8,
                            textColor=colors.grey, alignment=1),
         ))
@@ -274,5 +274,5 @@ def _render_plain_text_pdf(chart: NatalChart) -> bytes:
             f"{p.get('name',''):<14} {p.get('sign',''):<12} {p.get('degree_in_sign',0):.1f}°"
             + (" R" if p.get("retrograde") else "")
         )
-    lines += ["", "Создано Astro SPA"]
+    lines += ["", "Создано Astrea Timeline"]
     return "\n".join(lines).encode("utf-8")

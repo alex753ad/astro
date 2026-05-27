@@ -38,7 +38,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             font-display text-lg font-bold text-slate-800
             group-hover:text-violet-500 transition-colors duration-200
           ">
-            Astro SPA
+            Astrea Timeline
           </span>
         </Link>
 
@@ -169,7 +169,7 @@ function AppRoutes() {
           text-center text-slate-400 text-xs
           bg-white/50 backdrop-blur-sm
         ">
-          Astro SPA © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
+          Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
         </footer>
       </div>
 

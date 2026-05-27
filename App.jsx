@@ -19,7 +19,7 @@ function Header() {
           <Link to="/" className="flex items-center gap-3 group">
             <span className="text-2xl">✦</span>
             <span className="font-display text-xl font-bold text-brand-glow group-hover:text-white transition-colors">
-              Astro SPA
+              Astrea Timeline
             </span>
           </Link>
 
@@ -86,7 +86,7 @@ function AppRoutes() {
         </Routes>
       </main>
       <footer className="border-t border-brand-accent/10 py-6 text-center text-brand-muted text-xs">
-        Astro SPA © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
+        Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
       </footer>
     </div>
   );

@@ -1,5 +1,5 @@
 /**
- * API client for Astro SPA backend.
+ * API client for Astrea Timeline backend.
  *
  * Handles:
  * - REST calls (chart, transits)

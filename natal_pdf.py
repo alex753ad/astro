@@ -215,7 +215,7 @@ def _page_cover(c, d):
     _divider(c, W*0.25, by-16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont("Helvetica", 7.5)
     hs = d.get("house_system","Placidus").capitalize()
-    c.drawCentredString(W/2, by-28, f"Система домов: {hs}  ·  Astro SPA")
+    c.drawCentredString(W/2, by-28, f"Система домов: {hs}  ·  Astrea Timeline")
 
     c.restoreState(); _page_num(c, 1, 3)
 
@@ -449,7 +449,7 @@ def generate_pdf_bytes(chart, interpretation: str = "") -> bytes:
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"Натальная карта — {data['birth_place']}")
-    c.setAuthor("Astro SPA")
+    c.setAuthor("Astrea Timeline")
 
     _page_cover(c, data)
     c.showPage()
