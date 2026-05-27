@@ -63,11 +63,8 @@ from backend.onboarding_router import router as onboarding_router
 from backend.auth.dependencies import get_current_user_optional
 from backend.auth.rate_limits import (
     tier_limiter, limiter,
-    chart_rate_key, chart_rate_limit,
-    interpret_rate_key, interpret_rate_limit,
-    CHART_LIMIT_FREE, CHART_LIMIT_PRO,
-    INTERPRET_LIMIT_FREE, INTERPRET_LIMIT_PRO,
-    _base_key as _rate_limit_key,
+    chart_free_key, chart_pro_key,
+    interpret_free_key, interpret_pro_key,
 )
 from backend.models import User
 
@@ -176,7 +173,8 @@ def health_db(db: Session = Depends(get_db)):
     tags=["chart"],
     summary="Calculate natal chart",
 )
-@limiter.limit(chart_rate_limit, key_func=chart_rate_key)
+@limiter.limit("10/minute", key_func=chart_free_key)
+@limiter.limit("60/minute", key_func=chart_pro_key)
 async def calculate_chart(
     request: Request,
     data: BirthDataInput,
@@ -365,7 +363,8 @@ async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_d
     tags=["interpretation"],
     summary="Stream AI interpretation (SSE)",
 )
-@limiter.limit(interpret_rate_limit, key_func=interpret_rate_key)
+@limiter.limit("1/minute",  key_func=interpret_free_key)
+@limiter.limit("20/minute", key_func=interpret_pro_key)
 async def interpret_chart(
     request: Request,
     chart_id: str,
@@ -424,7 +423,8 @@ async def interpret_chart(
     tags=["interpretation"],
     summary="Generate full interpretation (non-streaming)",
 )
-@limiter.limit(interpret_rate_limit, key_func=interpret_rate_key)
+@limiter.limit("1/minute",  key_func=interpret_free_key)
+@limiter.limit("20/minute", key_func=interpret_pro_key)
 async def interpret_chart_full(
     request: Request,
     chart_id: str,
