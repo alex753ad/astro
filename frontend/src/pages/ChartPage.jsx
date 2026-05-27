@@ -383,7 +383,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
             📄 PDF-отчёт
           </button>
           {activeTab === 'chart' && (
-            <ExpertModeToggle enabled={expertMode} onToggle={toggleExpertMode} />
+            {/* ExpertModeToggle hidden */}
           )}
         </div>
       </header>
