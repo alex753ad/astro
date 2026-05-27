@@ -62,7 +62,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
       () => setStreaming(false),
       // onError
       (err) => {
-        setError(err);
+        setError(typeof err === 'string' ? err : err?.message || 'Ошибка загрузки');
         setStreaming(false);
       },
     );
