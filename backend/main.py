@@ -23,10 +23,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
-from slowapi import _rate_limit_exceeded_handler
+from fastapi.responses import JSONResponse, StreamingResponse, Response
+from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -61,17 +61,14 @@ from backend.profile.router import router as profile_router
 from backend.profile.settings_router import router as settings_router
 from backend.onboarding_router import router as onboarding_router
 from backend.auth.dependencies import get_current_user_optional
-from backend.auth.rate_limits import (
-    tier_limiter, limiter,
-    chart_free_key, chart_pro_key,
-    interpret_free_key, interpret_pro_key,
-)
+from backend.auth.rate_limits import tier_limiter
 from backend.models import User
 
 logger = logging.getLogger("astro")
 settings = get_settings()
 
-# ── Rate limiter (определён в auth/rate_limits.py) ──
+# ── Rate limiter ──
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Lifespan ──
@@ -96,14 +93,10 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ── HTTPS redirect (только для продакшна) ──
-if settings.https_only:
-    app.add_middleware(HTTPSRedirectMiddleware)
-
-# ── CORS — origins из env-переменной ALLOWED_ORIGINS ──
+# ── CORS ──
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -115,35 +108,16 @@ app.include_router(profile_router)
 app.include_router(settings_router)
 app.include_router(onboarding_router)
 
-from backend.payments.payments_router import router as payments_router
-app.include_router(payments_router)
 
+# ═══════════════════════════════════════════════════════════
+# PROMETHEUS METRICS
+# ═══════════════════════════════════════════════════════════
 
-# ── TierMiddleware — кладёт tier в request.state до вызова rate-limit декораторов ──
-from starlette.middleware.base import BaseHTTPMiddleware
-from backend.auth.jwt import decode_token
-from jose import JWTError as _JWTError
-
-class TierMiddleware(BaseHTTPMiddleware):
-    """Декодирует JWT из Authorization и кладёт tier в request.state.user_tier.
-
-    Это позволяет rate-limit ключам (chart_rate_key / interpret_rate_key)
-    строить раздельные счётчики для free / pro / premium.
-    Ошибки токена игнорируются — лимит применяется как для free.
-    """
-    async def dispatch(self, request: Request, call_next):
-        tier = "free"
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            try:
-                token_data = decode_token(auth[7:])
-                tier = token_data.tier
-            except _JWTError:
-                pass
-        request.state.user_tier = tier
-        return await call_next(request)
-
-app.add_middleware(TierMiddleware)
+@app.get("/metrics", tags=["monitoring"], summary="Prometheus metrics endpoint")
+def metrics():
+    """Expose Prometheus metrics."""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -176,13 +150,11 @@ def health_db(db: Session = Depends(get_db)):
     tags=["chart"],
     summary="Calculate natal chart",
 )
-@limiter.limit("10/minute", key_func=chart_free_key)
-@limiter.limit("60/minute", key_func=chart_pro_key)
+@limiter.limit(settings.rate_limit_anon)
 async def calculate_chart(
     request: Request,
     data: BirthDataInput,
     db: Session = Depends(get_db),
-    user: User | None = Depends(get_current_user_optional),
 ):
     """Calculate a natal chart from birth data.
 
@@ -366,8 +338,7 @@ async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_d
     tags=["interpretation"],
     summary="Stream AI interpretation (SSE)",
 )
-@limiter.limit("1/minute",  key_func=interpret_free_key)
-@limiter.limit("20/minute", key_func=interpret_pro_key)
+@limiter.limit(settings.rate_limit_anon)
 async def interpret_chart(
     request: Request,
     chart_id: str,
@@ -426,8 +397,7 @@ async def interpret_chart(
     tags=["interpretation"],
     summary="Generate full interpretation (non-streaming)",
 )
-@limiter.limit("1/minute",  key_func=interpret_free_key)
-@limiter.limit("20/minute", key_func=interpret_pro_key)
+@limiter.limit(settings.rate_limit_anon)
 async def interpret_chart_full(
     request: Request,
     chart_id: str,
@@ -470,11 +440,14 @@ async def interpret_chart_full(
 
 @app.get("/health/ai", tags=["health"], summary="AI providers health")
 async def health_ai():
-    """Check availability of all AI interpretation engines."""
-    from backend.interpretation.router import get_router
-    router = get_router()
-    status = await router.get_status()
-    return {"status": "ok", "engines": status}
+    """Check availability of all AI providers and infrastructure services.
+    
+    Returns:
+        - status: "ok" | "degraded" | "down"
+        - services: detailed status for OpenAI, DeepSeek, Redis, PostgreSQL
+    """
+    from backend.health import check_all_services
+    return await check_all_services()
 
 
 # ═══════════════════════════════════════════════════════════
