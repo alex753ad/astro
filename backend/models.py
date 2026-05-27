@@ -56,6 +56,8 @@ class NatalChart(Base):
     ascendant = Column(JSON, nullable=True)
     midheaven = Column(JSON, nullable=True)
     house_system = Column(String(20), default="placidus")
+    public_token = Column(String(64), nullable=True, unique=True, index=True)
+    share_name   = Column(String(100), nullable=True)  # имя для публичной страницы
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

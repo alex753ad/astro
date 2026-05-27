@@ -24,6 +24,7 @@ dependencies = [
     "redis>=5.0.0",
     "python-dotenv>=1.0.0",
     "prometheus-client>=0.20.0",
+    "Pillow>=10.3.0",
 ]
 
 [project.optional-dependencies]
