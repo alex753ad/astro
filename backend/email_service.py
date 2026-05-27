@@ -135,24 +135,82 @@ async def _send(to: str, subject: str, html: str) -> bool:
 
 # ───────────────────────────── templates ─────────────────────────────────────
 
-async def send_welcome_email(to: str) -> bool:
-    """Welcome — сразу после регистрации."""
+# Инсайты по Солнцу — одно предложение на знак
+_SUN_INSIGHTS: dict[str, str] = {
+    "Aries":       "Вы рождены действовать первым — ваша энергия заражает и двигает людей вперёд.",
+    "Taurus":      "Вы строите надёжное и красивое — терпение и вкус это ваши суперсилы.",
+    "Gemini":      "Вы мыслите быстро и умеете находить связи там, где другие видят хаос.",
+    "Cancer":      "Вы чувствуете глубже других — и именно это делает вас незаменимым для близких.",
+    "Leo":         "Вы рождены светить — ваша щедрость и харизма притягивают людей.",
+    "Virgo":       "Вы видите детали, которые меняют всё — ваша точность создаёт настоящее качество.",
+    "Libra":       "Вы умеете находить баланс и гармонию — это редкий дар в мире крайностей.",
+    "Scorpio":     "Вы видите суть вещей — за вашей интенсивностью стоит невероятная глубина.",
+    "Sagittarius": "Вы ищете смысл и горизонт — ваш оптимизм открывает двери там, где другие сдаются.",
+    "Capricorn":   "Вы строите на годы вперёд — ваша дисциплина превращает амбиции в реальность.",
+    "Aquarius":    "Вы думаете иначе — и именно это делает вас источником идей, которые меняют мир.",
+    "Pisces":      "Вы чувствуете невидимое — интуиция и сострадание ваши главные инструменты.",
+}
+
+_SIGN_RU: dict[str, str] = {
+    "Aries": "Овен", "Taurus": "Телец", "Gemini": "Близнецы",
+    "Cancer": "Рак", "Leo": "Лев", "Virgo": "Дева",
+    "Libra": "Весы", "Scorpio": "Скорпион", "Sagittarius": "Стрелец",
+    "Capricorn": "Козерог", "Aquarius": "Водолей", "Pisces": "Рыбы",
+}
+
+
+def _get_sun_sign(planets: list[dict]) -> str | None:
+    """Извлекает знак Солнца из списка планет."""
+    for p in planets:
+        if p.get("name") == "Sun":
+            return p.get("sign")
+    return None
+
+
+async def send_welcome_email(to: str, planets: list[dict] | None = None, name: str | None = None) -> bool:
+    """Welcome — отправляется после расчёта первой карты.
+
+    Если planets переданы — включает инсайт по Солнцу.
+    """
+    greeting = f"Привет, {name}!" if name else "Добро пожаловать в Astrea Timeline ✦"
+
+    if planets:
+        sun_sign = _get_sun_sign(planets)
+        sun_sign_ru = _SIGN_RU.get(sun_sign, sun_sign) if sun_sign else None
+        insight = _SUN_INSIGHTS.get(sun_sign, "") if sun_sign else ""
+    else:
+        sun_sign_ru = None
+        insight = ""
+
+    if sun_sign_ru and insight:
+        sun_block = (
+            f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
+            f'padding:16px 20px;margin:16px 0 24px;">'
+            f'  <div style="color:#9060C8;font-size:12px;font-weight:700;'
+            f'text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">'
+            f'    ☀ Ваше Солнце · {sun_sign_ru}'
+            f'  </div>'
+            f'  <div style="color:#2D2540;font-size:15px;line-height:1.7;">{insight}</div>'
+            f'</div>'
+        )
+        subject_line = f"☀ Ваша натальная карта готова — Солнце в {sun_sign_ru}"
+        preview = f"Солнце в {sun_sign_ru}: {insight[:60]}..."
+    else:
+        sun_block = ""
+        subject_line = "✨ Добро пожаловать в Astrea Timeline"
+        preview = "Ваша натальная карта ждёт — откройте её прямо сейчас"
+
     body = (
-        _h2("Добро пожаловать в Astrea Timeline ✦")
-        + _p(
-            "Вы получили доступ к персональному астрологическому анализу на основе AI. "
-            "Рассчитайте натальную карту — и узнайте ключевые темы своей жизни."
-        )
-        + _p(
-            "Каждый транзит интерпретируется с учётом вашей уникальной карты. "
-            "Никаких общих прогнозов — только то, что актуально для вас."
-        )
+        _h2(greeting)
+        + _p("Ваша натальная карта рассчитана. Вот первый инсайт — специально для вас:")
+        + sun_block
+        + _p("Откройте карту, чтобы увидеть все планеты, дома и AI-интерпретацию.")
         + _btn("✦ Открыть мою карту", APP_URL)
     )
     return await _send(
         to,
-        "✨ Добро пожаловать в Astrea Timeline",
-        _base("Добро пожаловать", "Ваша натальная карта ждёт — откройте её прямо сейчас", body),
+        subject_line,
+        _base("Ваша карта готова", preview, body),
     )
 
 

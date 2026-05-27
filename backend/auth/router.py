@@ -38,7 +38,6 @@ from backend.auth.jwt import (
 from backend.auth.passwords import hash_password, verify_password
 from backend.auth.dependencies import get_current_user
 from backend.auth.oauth import exchange_google_code, OAuthError
-from backend.email_service import send_welcome_email
 
 logger = logging.getLogger("astro.auth")
 
@@ -88,12 +87,6 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
         user.email,
         confirm_token[:20] + "...",
     )
-    # Send welcome email (non-blocking)
-    try:
-        await send_welcome_email(user.email)
-    except Exception as e:
-        logger.warning("Welcome email failed: %s", e)
-
     tokens = create_token_pair(user.id, user.email, user.tier)
     return TokenResponse(
         access_token=tokens.access_token,
