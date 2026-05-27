@@ -1,4 +1,13 @@
-"""Email service via Resend API."""
+"""Email service via Resend API — Astrea Timeline.
+
+Templates:
+  send_welcome_email        — сразу после регистрации
+  send_retention_day2       — день 2, актуальный транзит
+  send_retention_day7       — день 7, апгрейд-нудж
+  send_trial_ending_email   — за 2 дня до конца триала
+  send_weekly_digest_email  — еженедельный дайджест транзитов
+  send_transit_alert_email  — точечное уведомление о важном транзите
+"""
 
 from __future__ import annotations
 import logging
@@ -8,9 +17,101 @@ import httpx
 logger = logging.getLogger("astro.email")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", "onboarding@resend.dev")
-APP_URL = os.getenv("APP_URL", "https://astro-qnbq.vercel.app")
+FROM_EMAIL     = os.getenv("FROM_EMAIL", "noreply@astreatime.ru")
+APP_URL        = os.getenv("APP_URL", "https://astreatime.ru")
 
+# ───────────────────────────── base template ─────────────────────────────────
+
+def _base(title: str, preview: str, body: str) -> str:
+    """Универсальный базовый шаблон: хедер + контент + футер."""
+    return f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{title}</title>
+  <meta name="x-apple-message-highlight-color" content="#9060C8"/>
+</head>
+<body style="margin:0;padding:0;background:#0e0c1a;font-family:'Segoe UI',Arial,sans-serif;">
+  <!-- preview text -->
+  <span style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{preview}</span>
+
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0e0c1a;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#2d1b4e 0%,#1a1030 100%);
+                     border-radius:16px 16px 0 0;padding:32px 40px;text-align:center;">
+            <div style="font-size:28px;letter-spacing:4px;margin-bottom:8px;">
+              ☽ ✦ ☾
+            </div>
+            <div style="color:#c9a8ff;font-size:20px;font-weight:700;letter-spacing:1px;">
+              Astrea Timeline
+            </div>
+            <div style="color:rgba(201,168,255,0.55);font-size:12px;margin-top:4px;letter-spacing:2px;">
+              АСТРОЛОГИЯ · AI · ТРАНЗИТЫ
+            </div>
+          </td>
+        </tr>
+
+        <!-- BODY -->
+        <tr>
+          <td style="background:#f8f5ff;padding:36px 40px;border-radius:0 0 16px 16px;">
+            {body}
+
+            <!-- FOOTER -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="margin-top:32px;border-top:1px solid #e8e0f4;padding-top:20px;">
+              <tr>
+                <td style="text-align:center;font-size:11px;color:#a090c0;line-height:1.7;">
+                  <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">
+                    Astrea Timeline
+                  </a>
+                  &nbsp;·&nbsp;astreatime.ru<br/>
+                  <a href="{APP_URL}/unsubscribe" style="color:#b0a0d0;text-decoration:none;">
+                    Отписаться
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def _btn(text: str, url: str) -> str:
+    """Кнопка CTA."""
+    return f"""
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin:28px 0;">
+      <tr><td align="center">
+        <a href="{url}"
+           style="display:inline-block;background:linear-gradient(135deg,#9060C8,#C060A0);
+                  color:#fff;padding:14px 36px;border-radius:12px;
+                  text-decoration:none;font-weight:700;font-size:15px;
+                  letter-spacing:0.3px;">
+          {text}
+        </a>
+      </td></tr>
+    </table>"""
+
+
+def _h2(text: str) -> str:
+    return f'<h2 style="color:#2D2540;font-size:20px;margin:0 0 16px;font-weight:700;">{text}</h2>'
+
+
+def _p(text: str) -> str:
+    return f'<p style="color:#3d3060;font-size:15px;line-height:1.75;margin:0 0 16px;">{text}</p>'
+
+
+# ───────────────────────────── transport ─────────────────────────────────────
 
 async def _send(to: str, subject: str, html: str) -> bool:
     if not RESEND_API_KEY:
@@ -23,7 +124,7 @@ async def _send(to: str, subject: str, html: str) -> bool:
                 headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
                 json={"from": FROM_EMAIL, "to": [to], "subject": subject, "html": html},
             )
-            if resp.status_code != 200:
+            if resp.status_code not in (200, 201):
                 logger.error("Resend error %s: %s", resp.status_code, resp.text)
                 return False
             return True
@@ -32,85 +133,174 @@ async def _send(to: str, subject: str, html: str) -> bool:
         return False
 
 
+# ───────────────────────────── templates ─────────────────────────────────────
+
 async def send_welcome_email(to: str) -> bool:
-    """Welcome-письмо сразу после регистрации."""
-    subject = "✨ Добро пожаловать в Astro"
-    html = f"""
-    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a2e;">
-      <div style="background: linear-gradient(135deg, #9060C8, #C060A0); padding: 32px; border-radius: 16px 16px 0 0; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 24px;">✦ Добро пожаловать</h1>
-        <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0;">Ваша натальная карта ждёт</p>
-      </div>
-      <div style="background: #f8f5ff; padding: 32px; border-radius: 0 0 16px 16px;">
-        <p style="font-size: 15px; line-height: 1.7; margin: 0 0 20px;">
-          Вы только что получили доступ к персональному астрологическому анализу на основе AI.
-          Рассчитайте свою натальную карту и откройте ключевые темы своей жизни.
-        </p>
-        <div style="text-align: center; margin: 28px 0;">
-          <a href="{APP_URL}" style="background: linear-gradient(135deg, #9060C8, #C060A0); color: #fff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px;">
-            ✦ Открыть мою карту
-          </a>
-        </div>
-        <p style="font-size: 12px; color: #9080B0; margin: 24px 0 0; text-align: center;">
-          Astro · <a href="{APP_URL}" style="color: #9080B0;">{APP_URL}</a>
-        </p>
-      </div>
-    </div>
+    """Welcome — сразу после регистрации."""
+    body = (
+        _h2("Добро пожаловать в Astrea Timeline ✦")
+        + _p(
+            "Вы получили доступ к персональному астрологическому анализу на основе AI. "
+            "Рассчитайте натальную карту — и узнайте ключевые темы своей жизни."
+        )
+        + _p(
+            "Каждый транзит интерпретируется с учётом вашей уникальной карты. "
+            "Никаких общих прогнозов — только то, что актуально для вас."
+        )
+        + _btn("✦ Открыть мою карту", APP_URL)
+    )
+    return await _send(
+        to,
+        "✨ Добро пожаловать в Astrea Timeline",
+        _base("Добро пожаловать", "Ваша натальная карта ждёт — откройте её прямо сейчас", body),
+    )
+
+
+async def send_retention_day2(to: str, transit_text: str) -> bool:
+    """Retention Day 2 — актуальный транзит для карты пользователя."""
+    body = (
+        _h2("🌙 Ваш транзит на сегодня")
+        + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
+          f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
+          f'{transit_text}</div>'
+        + _p("Откройте Astrea Timeline, чтобы увидеть все активные транзиты и AI-интерпретацию.")
+        + _btn("Смотреть полный прогноз", APP_URL)
+    )
+    return await _send(
+        to,
+        "🌙 Ваш астрологический прогноз на сегодня",
+        _base("Прогноз на сегодня", "Персональный транзит по вашей карте", body),
+    )
+
+
+# Обратная совместимость
+send_retention_email = send_retention_day2
+
+
+async def send_retention_day7(to: str, locked_count: int) -> bool:
+    """Retention Day 7 — апгрейд-нудж для free-пользователей."""
+    body = (
+        _h2("⭐ Не пропустите важные периоды")
+        + _p(
+            f"В ближайший месяц для вашей карты активно "
+            f"<strong>{locked_count} транзитов</strong> — периоды, влияющие на карьеру, "
+            f"отношения и финансы."
+        )
+        + _p(
+            "С планом <strong>Pro</strong> вы видите полный прогноз и получаете "
+            "AI-интерпретацию каждого периода."
+        )
+        + _btn("Попробовать Pro", f"{APP_URL}/pricing")
+    )
+    return await _send(
+        to,
+        f"⭐ Вы пропускаете {locked_count} активных транзитов",
+        _base("Важные транзиты закрыты", "Откройте полный прогноз на месяц", body),
+    )
+
+
+# Обратная совместимость
+send_upgrade_nudge_email = send_retention_day7
+
+
+async def send_trial_ending_email(to: str, days_left: int, plan: str = "Pro") -> bool:
+    """Trial Ending — за 1–2 дня до окончания триала."""
+    days_str = "завтра" if days_left == 1 else f"через {days_left} дня"
+    body = (
+        _h2(f"⏳ Ваш триал заканчивается {days_str}")
+        + _p(
+            f"Вы пользуетесь <strong>Astrea Timeline {plan}</strong>. "
+            f"Триальный период заканчивается {days_str}."
+        )
+        + _p(
+            "Чтобы сохранить доступ к полным транзитам, AI-интерпретациям и еженедельным "
+            "дайджестам — продлите подписку сейчас."
+        )
+        + f'<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:10px;'
+          f'padding:14px 18px;margin:0 0 20px;color:#5d4000;font-size:14px;line-height:1.6;">'
+          f'💡 Подпишитесь сегодня и получите первый месяц без перебоев в прогнозах.</div>'
+        + _btn(f"Продолжить {plan}", f"{APP_URL}/pricing")
+    )
+    return await _send(
+        to,
+        f"⏳ Ваш триал Astrea Timeline заканчивается {days_str}",
+        _base("Триал заканчивается", f"Продлите доступ к Pro — осталось {days_left} дн.", body),
+    )
+
+
+async def send_weekly_digest_email(
+    to: str,
+    week_label: str,
+    highlights: list[dict],
+) -> bool:
+    """Weekly Digest — топ-3 транзита на предстоящую неделю.
+
+    highlights: [{"date": "2 июня", "planet": "Венера", "aspect": "трин", "natal": "Луна",
+                   "text": "...короткое описание..."}]
     """
-    return await _send(to, subject, html)
+    items_html = ""
+    for h in highlights[:3]:
+        items_html += f"""
+        <tr>
+          <td style="padding:12px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">
+            <div style="color:#9060C8;font-size:12px;font-weight:700;
+                        text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">
+              {h.get("date", "")}
+            </div>
+            <div style="color:#2D2540;font-size:15px;font-weight:600;margin-bottom:4px;">
+              {h.get("planet", "")} {h.get("aspect", "")} → {h.get("natal", "")}
+            </div>
+            <div style="color:#5a4a7a;font-size:14px;line-height:1.6;">
+              {h.get("text", "")}
+            </div>
+          </td>
+        </tr>"""
+
+    body = (
+        _h2(f"🔭 Ваш дайджест на {week_label}")
+        + _p("Главные астрологические события предстоящей недели по вашей карте:")
+        + f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+          f' style="margin:0 0 20px;">{items_html}</table>'
+        + _btn("Открыть полный календарь", f"{APP_URL}/calendar")
+    )
+    return await _send(
+        to,
+        f"🔭 Астро-дайджест на {week_label} · Astrea Timeline",
+        _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
+    )
 
 
-async def send_retention_email(to: str, transit_text: str) -> bool:
-    """Retention-письмо на день 2 — актуальный транзит."""
-    subject = "🌙 Ваш астрологический прогноз на сегодня"
-    html = f"""
-    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a2e;">
-      <div style="background: linear-gradient(135deg, #1a1a2e, #2d1b4e); padding: 32px; border-radius: 16px 16px 0 0; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 22px;">🌙 Активный транзит</h1>
-        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">Персонально для вашей карты</p>
-      </div>
-      <div style="background: #f8f5ff; padding: 32px; border-radius: 0 0 16px 16px;">
-        <p style="font-size: 15px; line-height: 1.75; margin: 0 0 24px; color: #2D2540;">
-          {transit_text}
-        </p>
-        <div style="text-align: center; margin: 24px 0;">
-          <a href="{APP_URL}" style="background: linear-gradient(135deg, #9060C8, #C060A0); color: #fff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px;">
-            Смотреть полный прогноз
-          </a>
-        </div>
-        <p style="font-size: 12px; color: #9080B0; margin: 24px 0 0; text-align: center;">
-          Astro · <a href="{APP_URL}" style="color: #9080B0;">{APP_URL}</a>
-        </p>
-      </div>
-    </div>
-    """
-    return await _send(to, subject, html)
-
-
-async def send_upgrade_nudge_email(to: str, locked_count: int) -> bool:
-    """Письмо на день 7 — если не перешёл в Pro."""
-    subject = f"⭐ Вы пропускаете {locked_count} активных транзитов"
-    html = f"""
-    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a2e;">
-      <div style="background: linear-gradient(135deg, #9060C8, #E080B0); padding: 32px; border-radius: 16px 16px 0 0; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 22px;">⭐ Не пропустите важные периоды</h1>
-      </div>
-      <div style="background: #f8f5ff; padding: 32px; border-radius: 0 0 16px 16px;">
-        <p style="font-size: 15px; line-height: 1.75; margin: 0 0 16px; color: #2D2540;">
-          В ближайший месяц для вашей карты активно <strong>{locked_count} транзитов</strong> — периоды, которые влияют на карьеру, отношения и финансы.
-        </p>
-        <p style="font-size: 15px; line-height: 1.75; margin: 0 0 24px; color: #2D2540;">
-          С планом Pro вы видите полный прогноз и получаете AI-интерпретацию каждого периода.
-        </p>
-        <div style="text-align: center; margin: 24px 0;">
-          <a href="{APP_URL}/pricing" style="background: linear-gradient(135deg, #9060C8, #C060A0); color: #fff; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 15px;">
-            Попробовать Pro
-          </a>
-        </div>
-        <p style="font-size: 12px; color: #9080B0; margin: 24px 0 0; text-align: center;">
-          Astro · <a href="{APP_URL}" style="color: #9080B0;">{APP_URL}</a>
-        </p>
-      </div>
-    </div>
-    """
-    return await _send(to, subject, html)
+async def send_transit_alert_email(
+    to: str,
+    planet: str,
+    aspect: str,
+    natal_planet: str,
+    date_str: str,
+    description: str,
+    is_peak: bool = True,
+) -> bool:
+    """Transit Alert — точечное уведомление об важном транзите (пик или начало)."""
+    badge = (
+        '<span style="background:#9060C8;color:#fff;font-size:11px;font-weight:700;'
+        'padding:2px 8px;border-radius:4px;margin-left:8px;">ПИК</span>'
+        if is_peak else ""
+    )
+    body = (
+        _h2(f"🌟 Важный транзит{' — сегодня пик' if is_peak else ''}")
+        + f'<div style="background:#f0ebff;border-radius:12px;padding:20px 24px;margin:0 0 20px;">'
+          f'  <div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:8px;">'
+          f'    {date_str}{badge}'
+          f'  </div>'
+          f'  <div style="color:#2D2540;font-size:17px;font-weight:700;margin-bottom:10px;">'
+          f'    {planet} {aspect} {natal_planet}'
+          f'  </div>'
+          f'  <div style="color:#5a4a7a;font-size:14px;line-height:1.7;">{description}</div>'
+          f'</div>'
+        + _p("Откройте приложение, чтобы получить полную AI-интерпретацию этого транзита.")
+        + _btn("Читать интерпретацию →", APP_URL)
+    )
+    return await _send(
+        to,
+        f"🌟 {planet} {aspect} {natal_planet} — {date_str} · Astrea Timeline",
+        _base("Важный транзит", f"{planet} {aspect} {natal_planet} — {date_str}", body),
+    )
