@@ -65,11 +65,11 @@ async def create_share_link(
     user=Depends(get_current_user),
 ):
     """Генерирует public_token для карты. Повторный вызов возвращает тот же токен."""
-    chart = db.query(NatalChart).filter(
-        NatalChart.id == chart_id,
-        NatalChart.user_id == user.id,
-    ).first()
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    # Allow: own chart OR anonymous chart (user_id=None)
+    if chart.user_id is not None and chart.user_id != user.id:
         raise HTTPException(status_code=404, detail="Chart not found")
 
     if not chart.public_token:
