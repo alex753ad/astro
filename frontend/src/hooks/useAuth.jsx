@@ -69,7 +69,11 @@ async function apiFetch(path, options = {}) {
     ...options,
   });
   const body = await resp.json().catch(() => ({ detail: resp.statusText }));
-  if (!resp.ok) throw new ApiError(body.detail || resp.statusText, resp.status, body);
+  if (!resp.ok) {
+    let msg = body.detail || resp.statusText;
+    if (Array.isArray(msg)) msg = msg.map(e => e.msg?.replace(/^Value error, /, '') ?? e.msg ?? JSON.stringify(e)).join('; ');
+    throw new ApiError(msg, resp.status, body);
+  }
   return body;
 }
 
