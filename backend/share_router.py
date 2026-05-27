@@ -231,57 +231,62 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
     draw.ellipse([-140, -140, 340, 340], outline=(112, 80, 200, 30), width=1)
     draw.ellipse([920, 350, 1380, 810], outline=(192, 96, 160, 40), width=1)
 
-    # ── шрифты ──
-    CJK_FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-    FALLBACK = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    # ── шрифты (NotoSans поддерживает кириллицу) ──
+    FONT_REGULAR = "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
+    FONT_BOLD    = "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
+    FONT_MEDIUM  = "/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf"
+    FALLBACK     = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
-    def load_font(size: int) -> ImageFont.FreeTypeFont:
-        for path in [CJK_FONT, FALLBACK]:
+    def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+        candidates = [FONT_BOLD if bold else FONT_MEDIUM, FONT_REGULAR, FALLBACK]
+        for path in candidates:
             try:
                 return ImageFont.truetype(path, size)
             except Exception:
                 pass
         return ImageFont.load_default()
 
-    font_logo   = load_font(22)
-    font_title  = load_font(52)
-    font_label  = load_font(20)
-    font_planet = load_font(34)
-    font_small  = load_font(18)
+    font_logo   = load_font(20)
+    font_title  = load_font(56, bold=True)
+    font_label  = load_font(18)
+    font_planet = load_font(32, bold=True)
+    font_small  = load_font(17)
 
     # ── логотип ──
-    draw.text((60, 44), "☽ ✦ ☾", font=font_logo, fill=(201, 168, 255))
-    draw.text((60, 74), "ASTREA TIMELINE", font=font_small, fill=(128, 100, 180))
+    draw.text((60, 44), "ASTREA TIMELINE", font=font_logo, fill=(180, 150, 255))
 
     # ── имя / заголовок ──
-    draw.text((60, 140), name, font=font_title, fill=(240, 230, 255))
+    draw.text((60, 100), name, font=font_title, fill=(255, 248, 255))
 
     # ── планеты ──
-    y_row = 260
+    y_row = 270
     pairs = [
-        (f"☀ Солнце", f"{sun_emoji} {sun_sign}" if sun_sign else "—"),
-        (f"☽ Луна",   f"{moon_emoji} {moon_sign}" if moon_sign else "—"),
-        (f"↑ Асц.",   f"{asc_emoji} {asc_sign}" if asc_sign else "—"),
+        ("Солнце",    f"{sun_emoji} {sun_sign}"   if sun_sign   else "—"),
+        ("Луна",      f"{moon_emoji} {moon_sign}" if moon_sign  else "—"),
+        ("Асцендент", f"{asc_emoji} {asc_sign}"   if asc_sign   else "—"),
     ]
-    col_x = [60, 420, 780]
+    col_x = [60, 440, 820]
     for i, (label, value) in enumerate(pairs):
         x = col_x[i]
-        # разделитель
-        draw.rectangle([x, y_row - 8, x + 280, y_row - 7], fill=(112, 80, 200, 80))
-        draw.text((x, y_row),      label, font=font_label,  fill=(160, 130, 220))
-        draw.text((x, y_row + 30), value, font=font_planet, fill=(240, 220, 255))
+        draw.rectangle([x, y_row - 10, x + 320, y_row - 8], fill=(140, 100, 240))
+        draw.text((x, y_row),      label, font=font_label,  fill=(180, 155, 255))
+        draw.text((x, y_row + 32), value, font=font_planet, fill=(255, 248, 255))
 
-    # ── дата + birth_place ──
-    place = (chart.birth_place or "")[:40]
-    draw.text((60, 420), chart.birth_date or "", font=font_small, fill=(100, 85, 150))
+    # ── дата + место ──
+    place = (chart.birth_place or "")[:50]
+    birth = chart.birth_date or ""
+    info_y = 410
+    if birth:
+        draw.text((60, info_y), birth, font=font_small, fill=(200, 185, 235))
+        info_y += 28
     if place:
-        draw.text((60, 446), place, font=font_small, fill=(100, 85, 150))
+        draw.text((60, info_y), place, font=font_small, fill=(200, 185, 235))
 
     # ── CTA-полоска внизу ──
-    draw.rectangle([0, H - 80, W, H], fill=(45, 27, 78))
-    draw.text((60, H - 56), "astreatime.ru · Узнай свою карту →",
-              font=font_small, fill=(201, 168, 255))
-    draw.text((W - 300, H - 56), today_str, font=font_small, fill=(128, 100, 180))
+    draw.rectangle([0, H - 80, W, H], fill=(38, 22, 70))
+    draw.text((60, H - 54), "astreatime.ru  ·  Узнай свою карту",
+              font=font_small, fill=(200, 170, 255))
+    draw.text((W - 220, H - 54), today_str, font=font_small, fill=(160, 140, 210))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
