@@ -155,6 +155,7 @@ async def calculate_chart(
     request: Request,
     data: BirthDataInput,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """Calculate a natal chart from birth data.
 
@@ -252,6 +253,7 @@ async def calculate_chart(
 
     # 6. Persist to database
     chart_record = NatalChart(
+        user_id=user.id if user else None,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
@@ -271,6 +273,22 @@ async def calculate_chart(
     db.add(chart_record)
     db.commit()
     db.refresh(chart_record)
+
+    # Welcome-письмо после первой карты
+    if user:
+        prev_charts = db.query(NatalChart).filter(
+            NatalChart.user_id == user.id,
+            NatalChart.id != chart_record.id,
+        ).count()
+        if prev_charts == 0:
+            from backend.email_service import send_welcome_email
+            try:
+                await send_welcome_email(
+                    to=user.email,
+                    planets=[p.model_dump() for p in planets_resp],
+                )
+            except Exception as e:
+                logger.warning("Welcome email failed: %s", e)
 
     return NatalChartResponse(
         id=chart_record.id,
