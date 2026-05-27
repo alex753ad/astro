@@ -412,27 +412,29 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           )}
 
           <section style={s.card}>
-            <div style={s.chartWithData}>
-              <NatalChart
-                planets={chart.planets}
-                houses={chart.houses}
-                aspects={chart.aspects}
-                ascendant={chart.ascendant}
-                midheaven={chart.midheaven}
-                timeUnknown={chart.time_unknown}
-                transitPlanets={[]}
-              />
-              <div style={s.chartSidePanel}>
-                <PlanetTable
-                  planets={chart.planets}
-                  ascendant={chart.ascendant}
-                  midheaven={chart.midheaven}
-                  northNode={chart.north_node}
-                  extra={chart.extra_points}
-                />
-                <AspectLegend />
-              </div>
-            </div>
+            <NatalChart
+              planets={chart.planets}
+              houses={chart.houses}
+              aspects={chart.aspects}
+              ascendant={chart.ascendant}
+              midheaven={chart.midheaven}
+              timeUnknown={chart.time_unknown}
+              transitPlanets={[]}
+            />
+          </section>
+
+          <section style={s.card}>
+            <PlanetTable
+              planets={chart.planets}
+              ascendant={chart.ascendant}
+              midheaven={chart.midheaven}
+              northNode={chart.north_node}
+              extra={chart.extra_points}
+            />
+          </section>
+
+          <section style={s.card}>
+            <AspectLegend />
           </section>
 
           <section style={s.card}>
