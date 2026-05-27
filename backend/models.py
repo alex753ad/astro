@@ -21,9 +21,9 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=gen_uuid)
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=True)  # nullable for OAuth users
-    is_active = Column(Boolean, default=True)
-    is_email_confirmed = Column(Boolean, default=False)
-    tier = Column(String(20), default="free")  # free / pro / premium
+    is_active = Column(Boolean, default=True, nullable=False, server_default="true")
+    is_email_confirmed = Column(Boolean, default=False, nullable=False, server_default="false")
+    tier = Column(String(20), default="free", nullable=False, server_default="free")  # free / pro / premium
     google_sub = Column(String(255), nullable=True, unique=True)
     stripe_customer_id = Column(String(255), nullable=True, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
