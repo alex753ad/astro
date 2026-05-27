@@ -109,7 +109,8 @@ async def share_data(token: str, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/share/{token}", response_class=HTMLResponse)async def share_page(token: str, db: Session = Depends(get_db)):
+@router.get("/share/{token}", response_class=HTMLResponse)
+async def share_page(token: str, db: Session = Depends(get_db)):
     """Публичная страница карты с Open Graph мета-тегами.
 
     Мессенджеры читают OG-теги и показывают красивое превью.
