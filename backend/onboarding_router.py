@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User, NatalChart
-from backend.email_service import send_retention_email, send_upgrade_nudge_email
+from backend.email_service import send_retention_day2, send_retention_day7
 
 logger = logging.getLogger("astro.onboarding")
 
@@ -96,7 +96,7 @@ async def send_onboarding_emails(
             event = _pick_best_transit(events)
             if not event:
                 continue
-            await send_retention_email(user.email, _build_transit_text(event))
+            await send_retention_day2(user.email, _build_transit_text(event))
             sent_day2 += 1
         except Exception as e:
             logger.warning("Day2 email failed for %s: %s", user.email, e)
@@ -111,7 +111,7 @@ async def send_onboarding_emails(
             from backend.transit.engine import calculate_transits
             today = date_type.today()
             events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30))
-            await send_upgrade_nudge_email(user.email, max(0, len(events) - 1))
+            await send_retention_day7(user.email, max(0, len(events) - 1))
             sent_day7 += 1
         except Exception as e:
             logger.warning("Day7 email failed for %s: %s", user.email, e)
