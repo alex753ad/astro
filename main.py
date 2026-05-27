@@ -1,4 +1,4 @@
-"""Astro SPA — FastAPI application entry point."""
+"""Astrea Timeline — FastAPI application entry point."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Astro SPA API",
+    title="Astrea Timeline API",
     version="0.1.0",
     description="Natal chart calculation, transits, AI interpretations",
     lifespan=lifespan,

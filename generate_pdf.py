@@ -259,7 +259,7 @@ def draw_cover(c, data):
     draw_divider(c, W*0.25, badge_y-16, W*0.5, C_GOLD)
     c.setFillColor(C_MUTED); c.setFont("Helvetica", 7.5)
     c.drawCentredString(W/2, badge_y-28,
-        f"Система домов: {data['house_system'].capitalize()}  ·  Astro SPA")
+        f"Система домов: {data['house_system'].capitalize()}  ·  Astrea Timeline")
 
     c.restoreState()
     draw_page_number(c, 1, 3)
@@ -460,7 +460,7 @@ def generate(output_path="natal_chart.pdf", data=None):
         data = CHART_DATA
     c = canvas.Canvas(output_path, pagesize=A4)
     c.setTitle(f"Натальная карта — {data['name']}")
-    c.setAuthor("Astro SPA")
+    c.setAuthor("Astrea Timeline")
     draw_cover(c, data)
     c.showPage()
     draw_data_page(c, data)
