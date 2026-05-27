@@ -23,10 +23,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -61,14 +61,20 @@ from backend.profile.router import router as profile_router
 from backend.profile.settings_router import router as settings_router
 from backend.onboarding_router import router as onboarding_router
 from backend.auth.dependencies import get_current_user_optional
-from backend.auth.rate_limits import tier_limiter
+from backend.auth.rate_limits import (
+    tier_limiter, limiter,
+    chart_rate_key, chart_rate_limit,
+    interpret_rate_key, interpret_rate_limit,
+    CHART_LIMIT_FREE, CHART_LIMIT_PRO,
+    INTERPRET_LIMIT_FREE, INTERPRET_LIMIT_PRO,
+    _base_key as _rate_limit_key,
+)
 from backend.models import User
 
 logger = logging.getLogger("astro")
 settings = get_settings()
 
-# ── Rate limiter ──
-limiter = Limiter(key_func=get_remote_address)
+# ── Rate limiter (определён в auth/rate_limits.py) ──
 
 
 # ── Lifespan ──
@@ -93,10 +99,14 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ── CORS ──
+# ── HTTPS redirect (только для продакшна) ──
+if settings.https_only:
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+# ── CORS — origins из env-переменной ALLOWED_ORIGINS ──
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -107,6 +117,33 @@ app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(settings_router)
 app.include_router(onboarding_router)
+
+
+# ── TierMiddleware — кладёт tier в request.state до вызова rate-limit декораторов ──
+from starlette.middleware.base import BaseHTTPMiddleware
+from backend.auth.jwt import decode_token
+from jose import JWTError as _JWTError
+
+class TierMiddleware(BaseHTTPMiddleware):
+    """Декодирует JWT из Authorization и кладёт tier в request.state.user_tier.
+
+    Это позволяет rate-limit ключам (chart_rate_key / interpret_rate_key)
+    строить раздельные счётчики для free / pro / premium.
+    Ошибки токена игнорируются — лимит применяется как для free.
+    """
+    async def dispatch(self, request: Request, call_next):
+        tier = "free"
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            try:
+                token_data = decode_token(auth[7:])
+                tier = token_data.tier
+            except _JWTError:
+                pass
+        request.state.user_tier = tier
+        return await call_next(request)
+
+app.add_middleware(TierMiddleware)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -139,11 +176,12 @@ def health_db(db: Session = Depends(get_db)):
     tags=["chart"],
     summary="Calculate natal chart",
 )
-@limiter.limit(settings.rate_limit_anon)
+@limiter.limit(chart_rate_limit, key_func=chart_rate_key)
 async def calculate_chart(
     request: Request,
     data: BirthDataInput,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """Calculate a natal chart from birth data.
 
@@ -327,7 +365,7 @@ async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_d
     tags=["interpretation"],
     summary="Stream AI interpretation (SSE)",
 )
-@limiter.limit(settings.rate_limit_anon)
+@limiter.limit(interpret_rate_limit, key_func=interpret_rate_key)
 async def interpret_chart(
     request: Request,
     chart_id: str,
@@ -386,7 +424,7 @@ async def interpret_chart(
     tags=["interpretation"],
     summary="Generate full interpretation (non-streaming)",
 )
-@limiter.limit(settings.rate_limit_anon)
+@limiter.limit(interpret_rate_limit, key_func=interpret_rate_key)
 async def interpret_chart_full(
     request: Request,
     chart_id: str,

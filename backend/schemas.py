@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, AnyHttpUrl
 
 
 # ═══════════════════════════════════════════════════════════
@@ -30,11 +30,11 @@ class BirthDataInput(BaseModel):
     @classmethod
     def validate_date_range(cls, v: date) -> date:
         if v.year < 1900:
-            raise ValueError("Dates before 1900 are not supported (ephemeris data limitation).")
+            raise ValueError("Даты до 1900 не поддерживаются (ограничение эфемерид).")
         if v.year > 2100:
-            raise ValueError("Dates after 2100 are not supported.")
+            raise ValueError("Даты после 2100 не поддерживаются.")
         if v > date.today():
-            raise ValueError("Birth date cannot be in the future.")
+            raise ValueError("Дата рождения не может быть в будущем.")
         return v
 
     @field_validator("birth_time")
@@ -45,8 +45,36 @@ class BirthDataInput(BaseModel):
         parts = v.split(":")
         hour, minute = int(parts[0]), int(parts[1])
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            raise ValueError(f"Invalid time: {v}. Expected HH:MM (00:00–23:59).")
+            raise ValueError(f"Неверное время: {v}. Ожидается HH:MM (00:00–23:59).")
         return v
+
+    @field_validator("birth_place")
+    @classmethod
+    def validate_place(cls, v: str) -> str:
+        v = v.strip()
+        # Запрещаем служебные символы, которые могут сломать геокодер
+        if re.search(r"[<>{}\[\]\\]", v):
+            raise ValueError("Название места содержит недопустимые символы.")
+        return v
+
+
+class CoordinatesInput(BaseModel):
+    """Прямое указание координат (альтернатива геокодингу)."""
+    latitude: float = Field(..., ge=-90.0, le=90.0, description="Широта (-90..90)")
+    longitude: float = Field(..., ge=-180.0, le=180.0, description="Долгота (-180..180)")
+
+    @field_validator("latitude")
+    @classmethod
+    def lat_not_pole(cls, v: float) -> float:
+        # Вычисления нестабильны на полюсах
+        if abs(v) > 89.9:
+            raise ValueError("Широта слишком близка к полюсу (|lat| ≤ 89.9°).")
+        return round(v, 6)
+
+    @field_validator("longitude")
+    @classmethod
+    def lon_precision(cls, v: float) -> float:
+        return round(v, 6)
 
 
 class TransitRequest(BaseModel):
@@ -56,10 +84,10 @@ class TransitRequest(BaseModel):
     @model_validator(mode="after")
     def validate_date_range(self) -> "TransitRequest":
         if self.to_date <= self.from_date:
-            raise ValueError("to_date must be after from_date.")
+            raise ValueError("to_date должна быть позже from_date.")
         delta = (self.to_date - self.from_date).days
         if delta > 366:
-            raise ValueError("Transit period cannot exceed 1 year (366 days).")
+            raise ValueError("Период транзитов не может превышать 1 год (366 дней).")
         return self
 
 
@@ -68,15 +96,26 @@ class TransitRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════
 
 class RegisterRequest(BaseModel):
-    email: str = Field(..., description="User email address")
-    password: str = Field(..., min_length=8, description="Password (min 8 chars)")
+    email: str = Field(..., description="Email пользователя")
+    password: str = Field(..., min_length=8, max_length=128, description="Пароль (мин. 8 символов)")
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
-        if "@" not in v or "." not in v.split("@")[-1]:
-            raise ValueError("Invalid email address.")
-        return v.lower().strip()
+        v = v.lower().strip()
+        # Простая проверка формата без внешних зависимостей
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$", v):
+            raise ValueError("Некорректный email-адрес.")
+        if len(v) > 254:
+            raise ValueError("Email слишком длинный (макс. 254 символа).")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        if v.isdigit():
+            raise ValueError("Пароль не может состоять только из цифр.")
+        return v
 
 
 class LoginRequest(BaseModel):
@@ -89,8 +128,8 @@ class RefreshRequest(BaseModel):
 
 
 class GoogleOAuthRequest(BaseModel):
-    code: str
-    redirect_uri: str
+    code: str = Field(..., min_length=1, max_length=1024)
+    redirect_uri: str = Field(..., max_length=2048)
 
 
 class TokenResponse(BaseModel):
@@ -120,22 +159,46 @@ class MessageResponse(BaseModel):
 # PAYMENTS SCHEMAS
 # ═══════════════════════════════════════════════════════════
 
+_VALID_TIERS = {"pro", "premium"}
+
+
 class CheckoutRequest(BaseModel):
-    tier: str = Field(..., description="Subscription tier: pro or premium")
-    success_url: str
-    cancel_url: str
+    tier: str = Field(..., description="Тариф: pro или premium")
+    success_url: str = Field(..., max_length=2048)
+    cancel_url: str = Field(..., max_length=2048)
+
+    @field_validator("tier")
+    @classmethod
+    def validate_tier(cls, v: str) -> str:
+        if v not in _VALID_TIERS:
+            raise ValueError(f"Tier должен быть одним из: {', '.join(_VALID_TIERS)}.")
+        return v
+
+    @field_validator("success_url", "cancel_url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        if not re.match(r"^https?://", v):
+            raise ValueError("URL должен начинаться с http:// или https://.")
+        return v
 
 
 class CheckoutResponse(BaseModel):
-    url: str
+    checkout_url: str
 
 
 class PortalRequest(BaseModel):
-    return_url: str
+    return_url: str = Field(..., max_length=2048)
+
+    @field_validator("return_url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        if not re.match(r"^https?://", v):
+            raise ValueError("return_url должен начинаться с http:// или https://.")
+        return v
 
 
 class PortalResponse(BaseModel):
-    url: str
+    portal_url: str
 
 
 class SubscriptionResponse(BaseModel):
@@ -152,32 +215,32 @@ class SubscriptionResponse(BaseModel):
 
 class PlanetPosition(BaseModel):
     name: str
-    longitude: float
+    longitude: float = Field(..., ge=0.0, lt=360.0)
     sign: str
-    degree_in_sign: float
-    house: Optional[int] = None
+    degree_in_sign: float = Field(..., ge=0.0, lt=30.0)
+    house: Optional[int] = Field(None, ge=1, le=12)
     retrograde: bool = False
 
 
 class HouseData(BaseModel):
-    number: int
+    number: int = Field(..., ge=1, le=12)
     sign: str
-    degree: float
+    degree: float = Field(..., ge=0.0, lt=360.0)
 
 
 class AspectData(BaseModel):
     planet1: str
     planet2: str
     aspect_type: str
-    angle: float
-    orb: float
+    angle: float = Field(..., ge=0.0, le=360.0)
+    orb: float = Field(..., ge=0.0, le=15.0)
     applying: bool
 
 
 class PointData(BaseModel):
     sign: str
-    degree: float
-    longitude: float
+    degree: float = Field(..., ge=0.0, lt=30.0)
+    longitude: float = Field(..., ge=0.0, lt=360.0)
 
 
 class NatalChartResponse(BaseModel):
@@ -185,8 +248,8 @@ class NatalChartResponse(BaseModel):
     birth_date: str
     birth_time: Optional[str]
     birth_place: str
-    latitude: float
-    longitude: float
+    latitude: float = Field(..., ge=-90.0, le=90.0)
+    longitude: float = Field(..., ge=-180.0, le=180.0)
     timezone: str
     time_unknown: bool
     house_system: str
@@ -207,11 +270,10 @@ class TransitEvent(BaseModel):
     natal_planet: str
     natal_sign: str = ""
     aspect_type: str
-    peak_orb: float
+    peak_orb: float = Field(..., ge=0.0, le=15.0)
     exact_date: Optional[str] = None
     applying: bool = True
 
-    # backward-compat aliases
     @property
     def date(self) -> str:
         return self.peak_date
@@ -223,9 +285,9 @@ class TransitEvent(BaseModel):
 
 class TransitPlanetPosition(BaseModel):
     name: str
-    longitude: float
+    longitude: float = Field(..., ge=0.0, lt=360.0)
     sign: str
-    degree_in_sign: float
+    degree_in_sign: float = Field(..., ge=0.0, lt=30.0)
     retrograde: bool
     glyph: str
 

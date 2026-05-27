@@ -2,6 +2,12 @@
 
 Access token  — short-lived (15 min), used for API requests.
 Refresh token — longer-lived (7 days), used to obtain new access tokens.
+
+Ротация секрета без даунтайма:
+  1. Добавь JWT_SECRET_PREV=<старый секрет> в .env
+  2. Смени JWT_SECRET=<новый секрет>
+  3. Выкатывай деплой — старые токены ещё работают через jwt_secret_prev
+  4. После истечения самого долгого refresh-токена (7д) убери JWT_SECRET_PREV
 """
 
 from __future__ import annotations
@@ -35,6 +41,34 @@ class TokenPair(BaseModel):
     expires_in: int  # seconds until access token expires
 
 
+# ── Internal helpers ───────────────────────────────────────
+
+def _secrets() -> list[str]:
+    """Return [current_secret] or [current, prev] for rotation window."""
+    secrets = [settings.jwt_secret]
+    if settings.jwt_secret_prev:
+        secrets.append(settings.jwt_secret_prev)
+    return secrets
+
+
+def _decode_with_fallback(token: str) -> dict:
+    """Try decoding with current secret first, then previous (if set).
+
+    Raises JWTError if all secrets fail.
+    """
+    last_error: Exception = JWTError("No secrets configured")
+    for secret in _secrets():
+        try:
+            return jwt.decode(
+                token,
+                secret,
+                algorithms=[settings.jwt_algorithm],
+            )
+        except JWTError as e:
+            last_error = e
+    raise last_error
+
+
 # ── Token creation ─────────────────────────────────────────
 
 def create_access_token(
@@ -43,7 +77,7 @@ def create_access_token(
     tier: str = "free",
     expires_delta: Optional[timedelta] = None,
 ) -> str:
-    """Create a short-lived access token."""
+    """Create a short-lived access token (always signed with current secret)."""
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.jwt_access_token_expire_minutes)
 
@@ -65,7 +99,7 @@ def create_refresh_token(
     tier: str = "free",
     expires_delta: Optional[timedelta] = None,
 ) -> str:
-    """Create a longer-lived refresh token."""
+    """Create a longer-lived refresh token (always signed with current secret)."""
     if expires_delta is None:
         expires_delta = timedelta(days=settings.jwt_refresh_token_expire_days)
 
@@ -95,14 +129,13 @@ def create_token_pair(user_id: str, email: str, tier: str = "free") -> TokenPair
 def decode_token(token: str) -> TokenData:
     """Decode and validate a JWT token.
 
+    During a secret rotation window, falls back to jwt_secret_prev
+    so tokens issued before the rotation remain valid.
+
     Raises:
-        JWTError: if token is invalid, expired, or malformed.
+        JWTError: if token is invalid, expired, or malformed by all secrets.
     """
-    payload = jwt.decode(
-        token,
-        settings.jwt_secret,
-        algorithms=[settings.jwt_algorithm],
-    )
+    payload = _decode_with_fallback(token)
 
     user_id = payload.get("sub")
     email = payload.get("email")
@@ -141,11 +174,7 @@ def decode_email_confirmation_token(token: str) -> TokenData:
     Raises:
         JWTError: if token is invalid or expired.
     """
-    payload = jwt.decode(
-        token,
-        settings.jwt_secret,
-        algorithms=[settings.jwt_algorithm],
-    )
+    payload = _decode_with_fallback(token)
     if payload.get("type") != "email_confirm":
         raise JWTError("Invalid token type for email confirmation")
 

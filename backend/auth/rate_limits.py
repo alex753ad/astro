@@ -1,12 +1,18 @@
 """Per-tier rate limiting helpers.
 
-Tracks daily usage of interpretations per user.
-Uses in-memory counters that reset on server restart (acceptable for MVP).
+Уровни доступа:
+  Free:    charts unlimited, 1 interpretation/day (~500 слов), без транзитов
+  Pro:     unlimited interpretations (2000 слов), транзиты до 6 мес, 10 профилей
+  Premium: unlimited interpretations (5000 слов), транзиты до 12 мес, synastry, PDF
 
-Tier limits (Phase 1):
-  Free:    charts unlimited, 1 interpretation/day (~500 words), no transits
-  Pro:     unlimited interpretations (2000 words), transits up to 6 months, 10 profiles
-  Premium: unlimited interpretations (5000 words), transits up to 12 months, synastry, PDF
+SlowAPI-лимиты на эндпоинты:
+  POST /chart/calculate  : Free → 10/min, Pro/Premium → 60/min
+  GET/POST /interpret    : Free → 1/min,  Pro/Premium → 20/min
+
+Реализация:
+  Каждый tier имеет свой ключ в Redis/памяти, поэтому счётчики независимы.
+  Ключ строится из tier + идентификатора пользователя (токен или IP).
+  Tier определяется middleware ДО вызова лимитера (см. main.py: TierMiddleware).
 """
 
 from __future__ import annotations
@@ -16,7 +22,9 @@ import threading
 from dataclasses import dataclass
 from typing import Optional
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from backend.config import get_settings
 from backend.models import User
@@ -24,7 +32,10 @@ from backend.models import User
 settings = get_settings()
 
 
-# Feature flags returned to the frontend via /api/v1/profile/subscription
+# ═══════════════════════════════════════════════════════════
+# TIER FLAGS
+# ═══════════════════════════════════════════════════════════
+
 TIER_FLAGS: dict[str, dict] = {
     "free": {
         "interpretation_word_limit": 500,
@@ -52,9 +63,13 @@ TIER_FLAGS: dict[str, dict] = {
     },
 }
 
+CHART_LIMIT_FREE     = "10/minute"
+CHART_LIMIT_PRO      = "60/minute"
+INTERPRET_LIMIT_FREE = "1/minute"
+INTERPRET_LIMIT_PRO  = "20/minute"
+
 
 def get_feature_flags(user: Optional[User]) -> dict:
-    """Return feature flags for the given user's tier."""
     tier = user.tier if user else "free"
     flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
     return {
@@ -65,6 +80,51 @@ def get_feature_flags(user: Optional[User]) -> dict:
         "pdf_reports": flags["pdf_export"],
     }
 
+
+# ═══════════════════════════════════════════════════════════
+# SLOWAPI — ключ: tier:token_or_ip
+# Tier кладётся в request.state.user_tier через TierMiddleware (main.py).
+# ═══════════════════════════════════════════════════════════
+
+def _base_key(request: Request) -> str:
+    """IP или первые 60 символов Bearer-токена."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return f"token:{auth[7:67]}"
+    return f"ip:{get_remote_address(request)}"
+
+
+def chart_rate_key(request: Request) -> str:
+    """Ключ для /chart/calculate — включает tier, счётчики независимы."""
+    tier = getattr(request.state, "user_tier", "free")
+    return f"chart:{tier}:{_base_key(request)}"
+
+
+def interpret_rate_key(request: Request) -> str:
+    """Ключ для /interpret — включает tier."""
+    tier = getattr(request.state, "user_tier", "free")
+    return f"interp:{tier}:{_base_key(request)}"
+
+
+def chart_rate_limit(request: Request) -> str:
+    """Возвращает строку лимита в зависимости от tier запроса."""
+    tier = getattr(request.state, "user_tier", "free")
+    return CHART_LIMIT_PRO if tier in ("pro", "premium") else CHART_LIMIT_FREE
+
+
+def interpret_rate_limit(request: Request) -> str:
+    """Возвращает строку лимита интерпретаций в зависимости от tier."""
+    tier = getattr(request.state, "user_tier", "free")
+    return INTERPRET_LIMIT_PRO if tier in ("pro", "premium") else INTERPRET_LIMIT_FREE
+
+
+# Глобальный лимитер — подключается к app в main.py
+limiter = Limiter(key_func=_base_key)
+
+
+# ═══════════════════════════════════════════════════════════
+# DAILY INTERPRETATION COUNTER (in-memory, сбрасывается при рестарте)
+# ═══════════════════════════════════════════════════════════
 
 @dataclass
 class _DailyCounter:
@@ -87,7 +147,7 @@ class TierRateLimiter:
             return counter
 
     def check_interpretation_limit(self, user: Optional[User]) -> None:
-        """Raise 429 if free-tier user exceeded daily interpretation limit."""
+        """Raise 429 если free-пользователь превысил дневной лимит интерпретаций."""
         if user is None or user.tier in ("pro", "premium"):
             return
 
@@ -96,20 +156,23 @@ class TierRateLimiter:
         if counter.count >= limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Free plan allows {limit} interpretation per day. Upgrade to Pro for unlimited access.",
+                detail=(
+                    f"Free план: {limit} интерпретация в день. "
+                    "Оформите Pro для безлимитного доступа."
+                ),
             )
         with self._lock:
             counter.count += 1
 
     def check_transit_access(self, user: Optional[User]) -> None:
-        """Raise 403 if free-tier user tries to access transits."""
+        """Raise 403 если free-пользователь пытается получить транзиты."""
         tier = user.tier if user else "free"
         if TIER_FLAGS.get(tier, TIER_FLAGS["free"])["transits_months"] == 0:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Transits are not available on the Free plan. Upgrade to Pro.",
+                detail="Транзиты недоступны на Free плане. Оформите Pro.",
             )
 
 
-# Global instance
+# Глобальный экземпляр
 tier_limiter = TierRateLimiter()
