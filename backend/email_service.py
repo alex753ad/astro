@@ -362,3 +362,28 @@ async def send_transit_alert_email(
         f"🌟 {planet} {aspect} {natal_planet} — {date_str} · Astrea Timeline",
         _base("Важный транзит", f"{planet} {aspect} {natal_planet} — {date_str}", body),
     )
+
+
+async def send_payment_failed_email(to: str, portal_url: str) -> bool:
+    """Payment Failed — предупреждение об оплате, ссылка на Stripe Portal."""
+    body = (
+        _h2("⚠️ Не удалось списать оплату")
+        + _p(
+            "Мы попытались списать оплату за вашу подписку Astrea Timeline, "
+            "но платёж не прошёл. Скорее всего, истёк срок карты или недостаточно средств."
+        )
+        + _p(
+            "<strong>У вас есть 3 дня</strong>, чтобы обновить способ оплаты. "
+            "После этого доступ к платным функциям будет ограничен."
+        )
+        + _btn("Обновить карту →", portal_url)
+        + _p(
+            "Если вы хотите отменить подписку — это тоже можно сделать по ссылке выше. "
+            "Мы не будем списывать деньги без вашего согласия."
+        )
+    )
+    return await _send(
+        to,
+        "⚠️ Не удалось списать оплату — обновите карту за 3 дня · Astrea Timeline",
+        _base("Проблема с оплатой", "Не удалось списать оплату за подписку", body),
+    )

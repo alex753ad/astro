@@ -240,7 +240,37 @@ def handle_subscription_deleted(event: dict, db: Session) -> None:
 
 def handle_payment_failed(event: dict, db: Session) -> None:
     invoice = event["data"]["object"]
+    customer_id = invoice.get("customer")
     logger.warning(
         "Payment failed: customer=%s subscription=%s",
-        invoice.get("customer"), invoice.get("subscription"),
+        customer_id, invoice.get("subscription"),
     )
+
+    if not customer_id:
+        return
+
+    user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if not user:
+        return
+
+    # Generate portal link for card update
+    _init_stripe()
+    try:
+        portal = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=f"{settings.frontend_url}/profile",
+        )
+        portal_url = portal.url
+    except Exception as e:
+        logger.error("Failed to create portal session: %s", e)
+        portal_url = f"{settings.frontend_url}/profile"
+
+    # Send email (non-blocking — don't fail webhook on email error)
+    import asyncio
+    from backend.email_service import send_payment_failed_email
+    try:
+        asyncio.get_event_loop().run_until_complete(
+            send_payment_failed_email(to=user.email, portal_url=portal_url)
+        )
+    except Exception as e:
+        logger.error("Failed to send payment_failed email: %s", e)
