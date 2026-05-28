@@ -326,6 +326,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   }, [activeTab, chart, chartId]);
 
   useEffect(() => {
+    // Транзиты закрыты только для free и анонимов
     if (activeTab === 'transits' && (!currentUser || currentUser.tier === 'free')) {
       setShowPaywall(true);
     }
@@ -447,7 +448,30 @@ export default function ChartPage({ currentUser, onShowAuth }) {
         <main style={s.main}>
           {isAnon && <SaveChartBanner onLogin={handleShowAuth} />}
           <section style={s.card}>
-            <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+            {isAnon ? (
+              <div style={{ position: 'relative' }}>
+                <div style={{ filter: 'blur(5px)', pointerEvents: 'none', userSelect: 'none', maxHeight: 320, overflow: 'hidden' }}>
+                  <Interpretation chartId={chartId} userTier="free" onUpgrade={() => {}} />
+                </div>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  gap: 12, background: 'rgba(30,26,46,0.45)', borderRadius: 16,
+                }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>
+                    ✦ Войдите, чтобы прочитать интерпретацию
+                  </div>
+                  <button
+                    onClick={handleShowAuth}
+                    style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Войти / Регистрация
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+            )}
           </section>
         </main>
       )}

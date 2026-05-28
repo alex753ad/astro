@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { ApiError } from '../api/client';
+import { ApiError, getSubscription } from '../api/client';
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1/auth';
 
@@ -77,16 +77,20 @@ async function apiFetch(path, options = {}) {
   return body;
 }
 
-// ── Feature flags per tier ────────────────────────────────
-function buildFeatures(tier) {
-  return {
-    transits:                 tier === 'pro' || tier === 'premium',
-    unlimitedInterpretations: tier === 'pro' || tier === 'premium',
-    history:                  tier === 'pro' || tier === 'premium',
-    pdfReports:               tier === 'premium',
-    synastry:                 tier === 'premium',
-  };
-}
+// ── Default feature flags (до загрузки с сервера) ────────
+const DEFAULT_FEATURES = {
+  tier: 'free',
+  transits: false,
+  transits_ai: false,
+  unlimited_interpretations: false,
+  pdf_reports: false,
+  synastry: false,
+  interpretation_word_limit: 500,
+  interpretations_per_month: 0,
+  charts_per_month: null,
+  lunar_months: 1,
+  planner_months: 0,
+};
 
 // ═══════════════════════════════════════════════════════════
 // PROVIDER
@@ -107,13 +111,22 @@ function useAuthInternal() {
   const [accessToken,  setAccessToken]  = useState(stored.accessToken);
   const [refreshToken, setRefreshToken] = useState(stored.refreshToken);
   const [user,         setUser]         = useState(stored.user);
+  const [features,     setFeatures]     = useState(stored.user ? DEFAULT_FEATURES : DEFAULT_FEATURES);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState(null);
 
   const refreshTimerRef = useRef(null);
 
   const isAuthenticated = Boolean(accessToken && user);
-  const features        = buildFeatures(user?.tier || 'free');
+
+  // Загрузить feature flags с сервера
+  const loadFeatures = useCallback(async (token) => {
+    if (!token) return;
+    try {
+      const data = await getSubscription(token);
+      if (data?.features) setFeatures(data.features);
+    } catch { /* тихо — используем DEFAULT_FEATURES */ }
+  }, []);
 
   // ── Persist to localStorage on every change ──
   useEffect(() => {
@@ -133,6 +146,7 @@ function useAuthInternal() {
     setRefreshToken(data.refresh_token);
     setUser(newUser);
     scheduleRefresh(data.access_token, data.refresh_token);
+    loadFeatures(data.access_token);
     return newUser;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -169,10 +183,10 @@ function useAuthInternal() {
     if (accessToken && refreshToken) {
       const expiresAt = tokenExpiresAt(accessToken);
       if (Date.now() >= expiresAt) {
-        // Already expired — refresh immediately
         doRefresh(refreshToken);
       } else {
         scheduleRefresh(accessToken, refreshToken);
+        loadFeatures(accessToken);
       }
     }
     return () => {
