@@ -20,12 +20,15 @@ def _init_stripe() -> None:
         stripe.api_key = settings.stripe_secret_key
 
 
-TIER_PRICE_MAP: dict[str, str] = {
-    "lite": settings.stripe_price_id_lite,
-    "pro": settings.stripe_price_id_pro,
-    "premium": settings.stripe_price_id_premium,
+TIER_PRICE_MAP: dict[tuple[str, str], str] = {
+    ("lite", "monthly"): settings.stripe_price_id_lite,
+    ("lite", "annual"): getattr(settings, "stripe_price_id_lite_annual", ""),
+    ("pro", "monthly"): settings.stripe_price_id_pro,
+    ("pro", "annual"): getattr(settings, "stripe_price_id_pro_annual", ""),
+    ("premium", "monthly"): settings.stripe_price_id_premium,
+    ("premium", "annual"): getattr(settings, "stripe_price_id_premium_annual", ""),
 }
-PRICE_TIER_MAP: dict[str, str] = {v: k for k, v in TIER_PRICE_MAP.items() if v}
+PRICE_TIER_MAP: dict[str, str] = {v: k[0] for k, v in TIER_PRICE_MAP.items() if v}
 
 # Разовые отчёты — цены в центах
 REPORT_PRODUCTS = {
@@ -60,11 +63,12 @@ def get_or_create_customer(user: User, db: Session) -> str:
 def create_checkout_session(
     user: User, tier: str,
     success_url: str, cancel_url: str, db: Session,
+    billing_period: str = "monthly",
 ) -> str:
     _init_stripe()
-    price_id = TIER_PRICE_MAP.get(tier)
+    price_id = TIER_PRICE_MAP.get((tier, billing_period))
     if not price_id:
-        raise ValueError(f"Unknown tier: {tier}")
+        raise ValueError(f"Unknown tier/period: {tier}/{billing_period}")
 
     customer_id = get_or_create_customer(user, db)
 
@@ -180,7 +184,7 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     sub = db.query(Subscription).filter(Subscription.user_id == user_id).first()
     if sub:
         sub.stripe_subscription_id = subscription_id
-        sub.stripe_price_id = TIER_PRICE_MAP.get(tier, "")
+        sub.stripe_price_id = TIER_PRICE_MAP.get((tier, "monthly"), "")
         sub.status = "active"
         sub.tier = tier
         sub.current_period_end = period_end
@@ -189,7 +193,7 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
             user_id=user_id,
             stripe_subscription_id=subscription_id,
             stripe_customer_id=customer_id,
-            stripe_price_id=TIER_PRICE_MAP.get(tier, ""),
+            stripe_price_id=TIER_PRICE_MAP.get((tier, "monthly"), ""),
             status="active", tier=tier, current_period_end=period_end,
         )
         db.add(sub)

@@ -61,10 +61,10 @@ async def checkout(
 
     Returns a URL to redirect the user to Stripe's hosted checkout page.
     """
-    if data.tier not in ("pro", "premium"):
+    if data.tier not in ("lite", "pro", "premium"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tier must be 'pro' or 'premium'.",
+            detail="Tier must be 'lite', 'pro' or 'premium'.",
         )
 
     if user.tier == data.tier:
@@ -77,6 +77,7 @@ async def checkout(
         url = create_checkout_session(
             user=user,
             tier=data.tier,
+            billing_period=data.billing_period,
             success_url=data.success_url,
             cancel_url=data.cancel_url,
             db=db,

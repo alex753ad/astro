@@ -36,8 +36,11 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_price_id_lite: str = ""
+    stripe_price_id_lite_annual: str = ""
     stripe_price_id_pro: str = ""
+    stripe_price_id_pro_annual: str = ""
     stripe_price_id_premium: str = ""
+    stripe_price_id_premium_annual: str = ""
 
     # ── Google OAuth ──
     google_client_id: str = ""
