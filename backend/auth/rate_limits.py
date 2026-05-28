@@ -234,3 +234,9 @@ class TierRateLimiter:
 
 
 tier_limiter = TierRateLimiter()
+
+# Алиасы для совместимости с задачей 2
+TIER_LIMITS = TIER_FLAGS
+
+def get_tier_limits(tier: str) -> dict:
+    return TIER_FLAGS.get(tier, TIER_FLAGS["free"])
