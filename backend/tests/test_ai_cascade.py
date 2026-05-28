@@ -238,6 +238,7 @@ class TestRetryLogic:
             raise Exception("transient")
 
         router = InterpretationRouter()
+        router._settings.ai_max_retries = 3
         router._engines[0].generate = _fail
         router._engines[1].generate = AsyncMock(return_value=_good_result("deepseek"))
         router._engines[2].generate = AsyncMock(return_value=_good_result("template"))
@@ -258,6 +259,7 @@ class TestRetryLogic:
             raise Exception("fail")
 
         router = InterpretationRouter()
+        router._settings.ai_max_retries = 3
         router._engines[0].generate = _fail
         router._engines[1].generate = AsyncMock(return_value=_good_result("deepseek"))
         router._engines[2].generate = AsyncMock(return_value=_good_result("template"))
@@ -282,12 +284,11 @@ class TestRetryLogic:
 
 class TestBudgetGuard:
     def test_exceeded_budget_skips_gpt4o(self):
-        import time
-        today = time.strftime("%Y-%m-%d")
-        budget_tracker._local[today] = 9999.0
-
         router = _router_with_mocks(ds_error=Exception("also over budget"))
-        _run(router.generate(_request()))
+
+        with patch.object(budget_tracker, "get_spent", return_value=9999.0):
+            _run(router.generate(_request()))
+
         router._engines[0].generate.assert_not_called()
 
     def test_template_not_blocked_by_budget(self):
