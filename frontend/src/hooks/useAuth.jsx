@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { ApiError, getSubscription } from '../api/client';
+import { ApiError, getSubscription, saveAnonymousChart } from '../api/client';
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1/auth';
 
@@ -154,11 +154,7 @@ function useAuthInternal() {
       try {
         const { data: chartData, expiresAt } = JSON.parse(savedChart);
         if (Date.now() < expiresAt) {
-          apiFetch('/chart/save-anonymous', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${data.access_token}` },
-            body: JSON.stringify(chartData),
-          }).then(() => {
+          saveAnonymousChart(chartData).then(() => {
             localStorage.removeItem('anonymous_chart');
           }).catch(() => {});
         } else {
