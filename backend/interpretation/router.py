@@ -162,6 +162,11 @@ class InterpretationRouter:
             engine="none",
         )
 
+    async def interpret(self, request: InterpretationRequest) -> AsyncIterator[str]:
+        """Alias for stream() — used by integration tests and SSE endpoints."""
+        async for chunk in self.stream(request):
+            yield chunk
+
     async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
         """Stream interpretation with fallback chain.
 

@@ -188,7 +188,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Missing Stripe signature")
 
     try:
-        event = stripe.Webhook.construct_event(
+        from backend.payments.stripe_service import construct_webhook_event
+        event = construct_webhook_event(
             payload=payload,
             sig_header=sig_header,
             secret=settings.stripe_webhook_secret,
