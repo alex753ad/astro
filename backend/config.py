@@ -52,6 +52,7 @@ class Settings(BaseSettings):
 
     # ── App ──
     app_url: str = "http://localhost:8000"
+    frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
     cors_origins: str = "http://localhost:5173"
 
