@@ -542,11 +542,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const hasFullAccess = userTier === "pro" || userTier === "premium";
 
   useEffect(() => {
-    if (!chartId || mockMode || chartId === 'anonymous') { setEvents(MOCK_EVENTS); setLoading(false); return; }
+    if (!chartId || mockMode || chartId === 'anonymous' || isFree) { setEvents(MOCK_EVENTS); setLoading(false); return; }
     setLoading(true);
     const today = new Date();
-    const from  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const to    = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
+    const from  = today.toISOString().slice(0, 10);
+    // Free/анонимы грузят 12 месяцев — блюр на фронте, данные нужны для показа
+    const months = (!userTier || userTier === 'free') ? 12 : 2;
+    const to    = new Date(today.getFullYear(), today.getMonth() + months, 0).toISOString().slice(0, 10);
     const token = localStorage.getItem('astro_access_token');
     fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -554,7 +556,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoading(false); })
       .catch(() => { setEvents(MOCK_EVENTS); setLoading(false); });
-  }, [chartId, mockMode]);
+  }, [chartId, mockMode, userTier]);
 
   // ── Логика видимости транзитов ──
   // Free: первые 2 недели + 1 позитивный транзит (Venus/Jupiter trine/sextile)
