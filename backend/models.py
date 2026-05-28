@@ -23,7 +23,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)  # nullable for OAuth users
     is_active = Column(Boolean, default=True, nullable=False, server_default="true")
     is_email_confirmed = Column(Boolean, default=False, nullable=False, server_default="false")
-    tier = Column(String(20), default="free", nullable=False, server_default="free")  # free / pro / premium
+    tier = Column(String(20), default="free", nullable=False, server_default="free")  # free / lite / pro / premium
     google_sub = Column(String(255), nullable=True, unique=True)
     stripe_customer_id = Column(String(255), nullable=True, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)

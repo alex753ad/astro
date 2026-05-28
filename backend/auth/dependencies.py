@@ -120,3 +120,8 @@ def require_tier(*allowed_tiers: str):
         return user
 
     return _dependency
+
+
+def require_paid_tier():
+    """Любой платный тариф (lite, pro, premium)."""
+    return require_tier("lite", "pro", "premium")

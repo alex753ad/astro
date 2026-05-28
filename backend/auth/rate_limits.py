@@ -38,27 +38,61 @@ settings = get_settings()
 TIER_FLAGS: dict[str, dict] = {
     "free": {
         "interpretation_word_limit": 500,
-        "interpretations_per_day": 1,
+        "interpretations_per_month": 0,        # только превью (блюр)
+        "charts_per_month": None,              # 1/день — отдельный лимит
+        "charts_per_day": 1,
         "transits_months": 0,
+        "transits_ai": False,
         "profiles_limit": 1,
+        "lunar_months": 1,                     # текущий месяц
+        "planner_months": 0,
         "synastry": False,
         "pdf_export": False,
+        "ai_engine": "template",
+    },
+    "lite": {
+        "interpretation_word_limit": 800,
+        "interpretations_per_month": 3,
+        "charts_per_month": 5,
+        "charts_per_day": None,
+        "transits_months": 12,
+        "transits_ai": False,                  # просмотр без AI
+        "profiles_limit": 5,
+        "lunar_months": 12,                    # на год
+        "planner_months": 1,                   # только текущий месяц
+        "synastry": False,
+        "pdf_export": False,
+        "ai_engine": "deepseek",
     },
     "pro": {
-        "interpretation_word_limit": 2000,
-        "interpretations_per_day": None,
+        "interpretation_word_limit": 2500,
+        "interpretations_per_month": 15,
+        "charts_per_month": 20,
+        "charts_per_day": None,
         "transits_months": 6,
-        "profiles_limit": 10,
+        "transits_ai": True,
+        "profiles_limit": 20,
+        "lunar_months": 12,
+        "planner_months": 12,
         "synastry": False,
-        "pdf_export": False,
+        "pdf_export": True,
+        "pdf_per_month": 5,
+        "ai_engine": "gpt4o",
     },
     "premium": {
         "interpretation_word_limit": 5000,
-        "interpretations_per_day": None,
+        "interpretations_per_month": 100,
+        "charts_per_month": None,
+        "charts_per_day": None,
         "transits_months": 12,
+        "transits_ai": True,
         "profiles_limit": None,
+        "lunar_months": 12,
+        "planner_months": 12,
         "synastry": True,
         "pdf_export": True,
+        "pdf_per_month": 50,
+        "ai_engine": "gpt4o_exclusive",
     },
 }
 
@@ -70,7 +104,9 @@ def get_feature_flags(user: Optional[User]) -> dict:
         "tier": tier,
         **flags,
         "transits": flags["transits_months"] > 0,
-        "unlimited_interpretations": flags["interpretations_per_day"] is None,
+        "transits_ai": flags["transits_ai"],
+        "unlimited_interpretations": flags["interpretations_per_month"] is None,
+        "unlimited_charts": flags["charts_per_month"] is None and flags.get("charts_per_day") is None,
         "pdf_reports": flags["pdf_export"],
     }
 
@@ -132,16 +168,26 @@ class TierRateLimiter:
             return counter
 
     def check_interpretation_limit(self, user: Optional[User]) -> None:
-        if user is None or user.tier in ("pro", "premium"):
+        if user is None:
+            # анонимы — только превью, блокируем на уровне эндпоинта
             return
-        limit = TIER_FLAGS["free"]["interpretations_per_day"]
+        tier = user.tier
+        flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+        limit = flags["interpretations_per_month"]
+        if limit is None:
+            return
+        if limit == 0:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="AI-интерпретации недоступны на Free плане. Оформите Lite.",
+            )
         counter = self._get_counter(str(user.id))
         if counter.count >= limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Free план: {limit} интерпретация в день. "
-                    "Оформите Pro для безлимитного доступа."
+                    f"Лимит {limit} интерпретаций в месяц исчерпан для тарифа {tier.capitalize()}. "
+                    "Оформите более высокий тариф."
                 ),
             )
         with self._lock:
@@ -149,10 +195,20 @@ class TierRateLimiter:
 
     def check_transit_access(self, user: Optional[User]) -> None:
         tier = user.tier if user else "free"
-        if TIER_FLAGS.get(tier, TIER_FLAGS["free"])["transits_months"] == 0:
+        flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+        if flags["transits_months"] == 0:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Транзиты недоступны на Free плане. Оформите Pro.",
+                detail="Транзиты недоступны на Free плане. Оформите Lite.",
+            )
+
+    def check_transit_ai_access(self, user: Optional[User]) -> None:
+        tier = user.tier if user else "free"
+        flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+        if not flags["transits_ai"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="AI-расшифровка транзитов доступна только на Pro и выше.",
             )
 
 
