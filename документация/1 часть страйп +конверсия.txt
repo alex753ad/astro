@@ -1,0 +1,703 @@
+# Astrea Timeline — Sprint Tasks & Claude Code Assignment
+**Версия стратегии: v3.0 | 4 тарифа: Free / Lite / Pro / Premium**
+
+---
+
+## ОБНОВЛЁННЫЙ СПИСОК ЗАДАЧ
+
+> Изменения относительно предыдущей версии:
+> - Добавлен тариф **Lite (790р/мес)** — его нет ни в коде, ни в Stripe
+> - **RAG-чат перемещён в Pro** (не Premium)
+> - **Premium** = CRM + PDF + объём AI, без RAG-чата
+> - Цены в **рублях**, не долларах
+> - Trial **7 дней доступен для Lite и Pro**
+> - PaywallModal показывает разный апгрейд в зависимости от контекста
+
+---
+
+### A. Stripe & Платежи
+
+- ⬜ **A1.** Создать продукты и прайсы в Stripe Dashboard:
+  - Lite Monthly (790 р), Lite Annual (7 490 р / ~20% скидка)
+  - Pro Monthly (1 990 р), Pro Annual (18 990 р)
+  - Premium Monthly (7 990 р), Premium Annual (75 990 р)
+  - Итого: 6 Price ID → добавить в `.env`
+
+- ⬜ **A2.** Обновить `.env` и `config.py`:
+  ```
+  STRIPE_PRICE_LITE_MONTHLY, STRIPE_PRICE_LITE_ANNUAL
+  STRIPE_PRICE_PRO_MONTHLY,  STRIPE_PRICE_PRO_ANNUAL
+  STRIPE_PRICE_PREMIUM_MONTHLY, STRIPE_PRICE_PREMIUM_ANNUAL
+  ```
+
+- ⬜ **A3.** Stripe Customer Portal — пользователь сам управляет подпиской:
+  - Смена тарифа (апгрейд/даунгрейд), отмена, история платежей
+  - Кастомный UI не нужен — только `POST /api/v1/payments/portal`
+
+- ⬜ **A4.** 7-дневный trial для Lite и Pro:
+  - `subscription_data: { trial_period_days: 7 }` в checkout session
+  - Только для новых подписчиков (проверка: нет `stripe_customer_id` или нет истории триала)
+
+- ⬜ **A5.** Webhook `customer.subscription.trial_will_end`:
+  - Письмо за 2 дня до окончания триала (`send_trial_ending_email`)
+  - Текст: конкретная ценность, которую потеряет (не "ваш триал заканчивается")
+
+- ⬜ **A6.** Webhook `invoice.payment_failed`:
+  - Письмо с прямой ссылкой на Stripe Customer Portal для обновления карты
+  - Не блокировать доступ немедленно — grace period 3 дня
+
+---
+
+### B. Backend: 4 тарифа
+
+- ⬜ **B1.** Добавить `lite` в enum тарифов:
+  - `models.py`: `tier: Enum('free', 'lite', 'pro', 'premium')`
+  - Alembic-миграция: `006_add_lite_tier`
+
+- ⬜ **B2.** Обновить `auth/rate_limits.py` — лимиты Lite:
+  ```python
+  TIER_LIMITS = {
+    'free':    {'charts_per_day': 1,  'ai_per_month': 0,   'saves': 0,   'ai_words': 0},
+    'lite':    {'charts_per_month': 5,'ai_per_month': 3,   'saves': 5,   'ai_words': 800},
+    'pro':     {'charts': 'unlimited','ai_per_month': 15,  'saves': 20,  'ai_words': 2500},
+    'premium': {'charts': 'unlimited','ai_per_month': 100, 'saves': 'unlimited', 'ai_words': 5000},
+  }
+  ```
+
+- ⬜ **B3.** Обновить `auth/dependencies.py`:
+  - `require_tier('lite')` — доступ для lite, pro, premium
+  - `require_tier('pro')` — доступ для pro, premium
+  - `require_tier('premium')` — только premium
+
+- ⬜ **B4.** Эндпоинт `GET /api/v1/profile/subscription`:
+  - Возвращает текущий тариф + все лимиты + использование за месяц
+  - Фронтенд читает только отсюда — никакого хардкода лимитов во фронтенде
+
+- ⬜ **B5.** Anti-fraud для Premium:
+  - SlowAPI: 3 req/min (защита от двойного клика), 100 req/day (Fair Use)
+  - IP-мониторинг в Redis: если 3+ разных IP за 30 мин → сброс сессии + письмо
+
+- ⬜ **B6.** Бюджетный circuit breaker:
+  - `AI_DAILY_BUDGET_USD` в Redis (счётчик расходов по токенам)
+  - При превышении → `interpretation/router.py` переключается на `template.py`
+  - Reset в 00:00 UTC через Railway Cron
+
+---
+
+### C. Анонимная карта (убирает главный барьер конверсии)
+
+- ⬜ **C1.** `POST /api/v1/chart/calculate` — работает без авторизации:
+  - Карта рассчитывается и возвращается в ответе
+  - Не сохраняется в БД (только в памяти/ответе)
+  - После расчёта: CTA "Войдите, чтобы сохранить карту"
+
+- ⬜ **C2.** Фронтенд: анонимная сессия в `localStorage`:
+  - Хранить `{ chartData, timestamp }` 24 часа
+  - При регистрации/логине → `POST /api/v1/chart/save-anonymous` → карта сохраняется под аккаунтом автоматически
+
+- ⬜ **C3.** Google OAuth — friction до 1 клика:
+  - `POST /api/v1/auth/google` уже есть
+  - Убедиться: после OAuth анонимная карта из localStorage сразу привязывается
+
+---
+
+### D. Конверсионная воронка (Frontend)
+
+- ⬜ **D1.** Онбординг-тултипы на первой карте:
+  - ASC: *"Асцендент — ваша маска для мира, то как вас воспринимают с первого взгляда"*
+  - MC: *"Середина Неба — ваше призвание и публичный образ"*
+  - Аспекты: *"Красные линии — напряжение и рост, синие — природные таланты"*
+  - Dismiss по клику, флаг в localStorage `onboarding_seen: true`
+
+- ⬜ **D2.** Нарративный обрыв интерпретации (не технический блок):
+  - Интерпретация заканчивается на эмоционально значимой теме
+  - Текст обрывается на многоточии: *"...этот аспект формирует паттерн в ваших близких отношениях, который объясняет"*
+  - Blur на следующих 3 строках + `PaywallModal`
+  - **Логика выбора темы обрыва:** если есть планеты в 7-м доме → отношения; Луна в сложном аспекте → эмоции; иначе — Сатурн/Марс
+
+- ⬜ **D3.** `PaywallModal.jsx` — 3 контекста, 2 сценария апгрейда:
+
+  **Контекст A: Free → Lite** (blur интерпретации):
+  ```
+  Заголовок: "Прочитайте полную интерпретацию"
+  Выгоды:
+    🔮 Полный текст без ограничений — 800 слов о вас
+    📅 Лунный календарь на год вперёд
+    ✨ Виральная карточка вашей карты для Stories
+  CTA: "Попробовать Lite — 7 дней бесплатно"
+  Подпись: "Затем 790 р/мес · Отмена в любой момент"
+  ```
+
+  **Контекст B: Lite → Pro** (заблюренные транзиты):
+  ```
+  Заголовок: "Разблокируйте ваши транзиты"
+  Выгоды:
+    🪐 AI-объяснение каждого транзита лично для вашей карты
+    💬 Чат-ассистент: задайте любой вопрос о своей карте
+    📄 PDF-отчёты для скачивания
+  CTA: "Попробовать Pro — 7 дней бесплатно"
+  Подпись: "Затем 1 990 р/мес · Отмена в любой момент"
+  ```
+
+  **Контекст C: Pro → Premium** (лимит AI или попытка CRM):
+  ```
+  Заголовок: "Работаете с клиентами?"
+  Выгоды:
+    👥 CRM клиентов — карты и заметки в одном месте
+    📊 100 AI-интерпретаций в месяц на GPT-4o
+    🖨️ Безлимитный PDF с вашим брендингом
+  CTA: "Перейти на Premium"
+  Подпись: "7 990 р/мес · 1 клиент окупает подписку"
+  ```
+
+- ⬜ **D4.** Превью транзитов с реальным blur:
+  - Показывать настоящий timeline для пользователя (рассчитанный, не демо)
+  - Первые 2 недели открыты + один позитивный транзит (Венера или Юпитер)
+  - Остальное: blur 80% + счётчик "Ещё {N} активных транзитов скрыто"
+  - Hover на blur → мини-попап: *"Юпитер тринирует ваше Солнце (15–28 марта) — один из лучших периодов года. Разблокировать?"*
+
+- ⬜ **D5.** Streak-механика возврата:
+  - Счётчик "Вы изучаете свою карту {N} дней подряд" на главной
+  - Push-уведомление (Service Worker) при отсутствии > 2 дней
+  - Email-триггер на Day 2 (уже есть в `send_retention_day2`)
+
+---
+
+### E. Email
+
+- ⬜ **E1.** Шаблон `send_trial_ending_email`:
+  - Тема: *"Осталось 2 дня триала — вот что вы потеряете"*
+  - Конкретика: что закроется (по тарифу пользователя)
+  - CTA: "Продолжить подписку"
+
+- ⬜ **E2.** Шаблон `send_payment_failed_email`:
+  - Тема: *"Не удалось списать оплату — обновите карту"*
+  - Прямая ссылка на Stripe Portal
+  - Предупреждение: через 3 дня доступ будет ограничен
+
+- ⬜ **E3.** Проверить production-статус существующих писем:
+  - `send_welcome_email`, `send_retention_day2`, `send_retention_day7`
+  - Railway Cron для `onboarding_router.py` активен?
+  - Логи последних 7 дней через Resend Dashboard
+
+---
+
+---
+
+# ЗАДАНИЕ ДЛЯ CLAUDE CODE
+
+> Скопируй этот блок целиком и передай в Claude Code как первое сообщение.
+
+---
+
+## КОНТЕКСТ ПРОЕКТА
+
+Ты работаешь над **Astrea Timeline** — веб-приложением для натальных карт и астрологических интерпретаций на базе AI.
+
+**Стек:**
+- Backend: Python 3.12, FastAPI, SQLAlchemy 2.0, PostgreSQL 16, Redis, pyswisseph
+- Frontend: React 18.3, Vite 5, Tailwind 3.4, D3.js 7.9
+- AI: OpenAI GPT-4o → DeepSeek → шаблоны (fallback-цепочка)
+- Платежи: Stripe (подписки)
+- Email: Resend API
+- Деплой: Railway (backend) + Vercel (frontend)
+
+**Структура backend:**
+```
+backend/
+  main.py, config.py, database.py, models.py, schemas.py, cache.py
+  auth/jwt.py, passwords.py, oauth.py, dependencies.py, rate_limits.py, router.py
+  payments/stripe_service.py, router.py
+  interpretation/base.py, router.py, gpt4o.py, deepseek.py, template.py, prompts.py
+  transit/engine.py, house_passages.py, planner_engine.py
+  calendar/lunar_engine.py
+  email_service.py, onboarding_router.py
+  profile/router.py, settings_router.py
+```
+
+**Структура frontend:**
+```
+frontend/src/
+  App.jsx, api/client.js
+  pages/HomePage.jsx, ChartPage.jsx, ProfilePage.jsx, LunarCalendarPage.jsx
+  components/AuthModal.jsx, BirthForm.jsx, NatalChart.jsx, Interpretation.jsx,
+             TransitTimeline.jsx, AstroCalendar.jsx, ExpertModeToggle.jsx
+  hooks/useAuth.jsx
+```
+
+**Текущие тарифы в коде:** `free | pro | premium`
+**Новая тарифная сетка:** `free | lite | pro | premium`
+
+---
+
+## ЗАДАЧА 1 — Alembic: миграция Lite-тарифа
+
+**Файл:** `backend/models.py`, новая миграция `006_add_lite_tier`
+
+В `models.py` найди модель `Subscription`. Поле `tier` сейчас — `Enum('free', 'pro', 'premium')`. Нужно добавить `lite`.
+
+В PostgreSQL нельзя просто `ALTER TYPE` — нужна миграция через `op.execute`. Создай файл миграции:
+
+```python
+# alembic/versions/006_add_lite_tier.py
+def upgrade():
+    op.execute("ALTER TYPE subscription_tier ADD VALUE 'lite' AFTER 'free'")
+
+def downgrade():
+    # PostgreSQL не поддерживает удаление значений из enum
+    # Оставить пустым или пересоздать тип
+    pass
+```
+
+После этого обнови `models.py` — добавь `'lite'` в enum.
+
+---
+
+## ЗАДАЧА 2 — rate_limits.py: лимиты для 4 тарифов
+
+**Файл:** `backend/auth/rate_limits.py`
+
+Замени текущую структуру лимитов на следующую. Важно: все проверки лимитов в `main.py` и роутерах должны использовать эту структуру, а не хардкод.
+
+```python
+TIER_LIMITS = {
+    'free': {
+        'charts_per_day': 1,
+        'ai_interpretations_per_month': 0,    # только превью (блюр)
+        'saved_charts': 0,
+        'ai_words': 0,
+        'pdf_exports_per_month': 0,
+        'transits_ai': False,
+        'rag_chat': False,
+        'crm': False,
+        'lunar_months': 1,                    # только текущий месяц
+        'planner_months': 0,
+    },
+    'lite': {
+        'charts_per_month': 5,
+        'ai_interpretations_per_month': 3,
+        'ai_words': 800,
+        'saved_charts': 5,
+        'pdf_exports_per_month': 0,
+        'transits_ai': False,                 # просмотр без AI
+        'rag_chat': False,
+        'crm': False,
+        'lunar_months': 12,
+        'planner_months': 1,
+    },
+    'pro': {
+        'charts_per_month': None,             # None = безлимит
+        'ai_interpretations_per_month': 15,
+        'ai_words': 2500,
+        'saved_charts': 20,
+        'pdf_exports_per_month': 5,
+        'transits_ai': True,
+        'rag_chat': True,                     # RAG-чат только у Pro
+        'crm': False,
+        'lunar_months': 12,
+        'planner_months': 12,
+    },
+    'premium': {
+        'charts_per_month': None,
+        'ai_interpretations_per_month': 100,
+        'ai_words': 5000,
+        'saved_charts': None,
+        'pdf_exports_per_month': 50,
+        'transits_ai': True,
+        'rag_chat': False,                    # у Premium нет — они профи
+        'crm': True,
+        'lunar_months': 12,
+        'planner_months': 12,
+    },
+}
+
+def get_tier_limits(tier: str) -> dict:
+    return TIER_LIMITS.get(tier, TIER_LIMITS['free'])
+```
+
+Обнови `auth/dependencies.py` — функция `require_tier`:
+
+```python
+TIER_HIERARCHY = ['free', 'lite', 'pro', 'premium']
+
+def require_tier(minimum_tier: str):
+    def dependency(current_user = Depends(get_current_user)):
+        user_tier_index = TIER_HIERARCHY.index(current_user.tier or 'free')
+        required_index  = TIER_HIERARCHY.index(minimum_tier)
+        if user_tier_index < required_index:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "tier_required",
+                    "required": minimum_tier,
+                    "current": current_user.tier,
+                }
+            )
+        return current_user
+    return dependency
+```
+
+Фронтенд должен обрабатывать `"error": "tier_required"` → показывать нужный `PaywallModal`.
+
+---
+
+## ЗАДАЧА 3 — Эндпоинт /profile/subscription (Feature Flags)
+
+**Файл:** `backend/profile/router.py`
+
+Добавь эндпоинт:
+
+```python
+@router.get("/api/v1/profile/subscription")
+async def get_subscription_info(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    tier = current_user.tier or 'free'
+    limits = get_tier_limits(tier)
+
+    # Посчитать использование за текущий месяц из БД
+    month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
+    ai_used = db.query(func.count(Interpretation.id)).filter(
+        Interpretation.user_id == current_user.id,
+        Interpretation.created_at >= month_start,
+    ).scalar() or 0
+
+    return {
+        "tier": tier,
+        "limits": limits,
+        "usage": {
+            "ai_interpretations_this_month": ai_used,
+        },
+        "stripe_portal_url": None,  # генерировать по запросу
+    }
+```
+
+---
+
+## ЗАДАЧА 4 — Stripe: 7-дневный trial + новые тарифы
+
+**Файл:** `backend/payments/stripe_service.py`
+
+1. Добавь в `config.py` новые переменные:
+```python
+STRIPE_PRICE_LITE_MONTHLY: str = ""
+STRIPE_PRICE_LITE_ANNUAL: str = ""
+STRIPE_PRICE_PRO_MONTHLY: str = ""
+STRIPE_PRICE_PRO_ANNUAL: str = ""
+STRIPE_PRICE_PREMIUM_MONTHLY: str = ""
+STRIPE_PRICE_PREMIUM_ANNUAL: str = ""
+```
+
+2. Обнови функцию создания checkout-сессии. Добавь параметр `billing_period: str = "monthly"` и логику trial:
+
+```python
+async def create_checkout_session(user, tier: str, billing_period: str = "monthly"):
+    price_map = {
+        ('lite',    'monthly'): settings.STRIPE_PRICE_LITE_MONTHLY,
+        ('lite',    'annual'):  settings.STRIPE_PRICE_LITE_ANNUAL,
+        ('pro',     'monthly'): settings.STRIPE_PRICE_PRO_MONTHLY,
+        ('pro',     'annual'):  settings.STRIPE_PRICE_PRO_ANNUAL,
+        ('premium', 'monthly'): settings.STRIPE_PRICE_PREMIUM_MONTHLY,
+        ('premium', 'annual'):  settings.STRIPE_PRICE_PREMIUM_ANNUAL,
+    }
+    price_id = price_map.get((tier, billing_period))
+
+    # Trial только для lite и pro, только для новых пользователей
+    trial_days = None
+    if tier in ('lite', 'pro') and not user.had_trial:
+        trial_days = 7
+
+    session_params = {
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": f"{settings.FRONTEND_URL}/profile?success=1",
+        "cancel_url":  f"{settings.FRONTEND_URL}/profile?canceled=1",
+        "customer_email": user.email,
+        "metadata": {"user_id": str(user.id), "tier": tier},
+    }
+    if trial_days:
+        session_params["subscription_data"] = {"trial_period_days": trial_days}
+
+    return stripe.checkout.Session.create(**session_params)
+```
+
+3. Обнови `models.py` — добавь поле `had_trial: bool = False` в модель `User`.
+
+4. В webhook-обработчике `checkout.session.completed` → установить `user.had_trial = True`.
+
+---
+
+## ЗАДАЧА 5 — Webhook: trial_will_end и payment_failed
+
+**Файл:** `backend/payments/stripe_service.py` (обработчик вебхуков)
+
+Добавь обработку двух новых событий:
+
+```python
+elif event_type == "customer.subscription.trial_will_end":
+    # Вызывается за 3 дня до конца триала, письмо — за 2 дня
+    subscription = event["data"]["object"]
+    customer_id = subscription["customer"]
+    user = db.query(User).filter_by(stripe_customer_id=customer_id).first()
+    if user:
+        trial_end = datetime.fromtimestamp(subscription["trial_end"])
+        days_left = (trial_end - datetime.now()).days
+        if days_left <= 2:
+            await email_service.send_trial_ending_email(user, days_left, user.tier)
+
+elif event_type == "invoice.payment_failed":
+    invoice = event["data"]["object"]
+    customer_id = invoice["customer"]
+    user = db.query(User).filter_by(stripe_customer_id=customer_id).first()
+    if user:
+        portal_url = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=f"{settings.FRONTEND_URL}/profile",
+        ).url
+        await email_service.send_payment_failed_email(user, portal_url)
+```
+
+---
+
+## ЗАДАЧА 6 — email_service.py: два новых шаблона
+
+**Файл:** `backend/email_service.py`
+
+Добавь две функции:
+
+```python
+async def send_trial_ending_email(user, days_left: int, tier: str):
+    tier_features = {
+        'lite': ['Полные интерпретации без блюра', 'Лунный календарь на год', 'Виральные карточки'],
+        'pro':  ['AI-расшифровка транзитов', 'RAG-чат по вашей карте', 'PDF-экспорт отчётов'],
+    }
+    features = tier_features.get(tier, [])
+    subject = f"Осталось {days_left} {'день' if days_left == 1 else 'дня'} триала — не потеряйте доступ"
+    # html-тело с конкретными фичами и CTA "Продолжить подписку"
+    ...
+
+async def send_payment_failed_email(user, portal_url: str):
+    subject = "Не удалось списать оплату — обновите карту за 3 дня"
+    # html-тело с прямой ссылкой на Stripe Portal
+    ...
+```
+
+---
+
+## ЗАДАЧА 7 — Анонимная карта (Frontend + Backend)
+
+**Backend:** `backend/main.py`
+
+`POST /api/v1/chart/calculate` уже существует. Убедись что он работает без авторизации (не требует JWT). Если сейчас требует — сделай авторизацию опциональной:
+
+```python
+@app.post("/api/v1/chart/calculate")
+async def calculate_chart(
+    data: ChartInput,
+    current_user = Depends(get_optional_user),  # опционально, не обязательно
+    db: Session = Depends(get_db),
+):
+    chart = calculate_natal_chart(data)  # расчёт всегда
+    if current_user:
+        # сохраняем в БД
+        db_chart = NatalChart(user_id=current_user.id, ...)
+        db.add(db_chart)
+        db.commit()
+    return chart  # возвращаем данные в любом случае
+```
+
+Добавь `get_optional_user` в `auth/dependencies.py`:
+```python
+def get_optional_user(token: str = Depends(oauth2_scheme_optional)):
+    try:
+        return verify_token(token)
+    except:
+        return None
+```
+
+**Frontend:** `frontend/src/api/client.js` и `HomePage.jsx`
+
+В `HomePage.jsx` после получения ответа от `/chart/calculate`:
+```javascript
+// Сохранить в localStorage если пользователь не авторизован
+if (!user) {
+    localStorage.setItem('anonymous_chart', JSON.stringify({
+        data: chartData,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000  // 24 часа
+    }));
+}
+```
+
+В `useAuth.jsx` после успешного логина/регистрации:
+```javascript
+const savedChart = localStorage.getItem('anonymous_chart');
+if (savedChart) {
+    const { data, expiresAt } = JSON.parse(savedChart);
+    if (Date.now() < expiresAt) {
+        await api.saveAnonymousChart(data);  // POST /api/v1/chart/save-anonymous
+        localStorage.removeItem('anonymous_chart');
+    }
+}
+```
+
+---
+
+## ЗАДАЧА 8 — PaywallModal.jsx
+
+**Файл:** `frontend/src/components/PaywallModal.jsx` (создать новый)
+
+Компонент принимает `context` prop: `'free_to_lite' | 'lite_to_pro' | 'pro_to_premium'`
+
+```jsx
+const PAYWALL_CONTENT = {
+  free_to_lite: {
+    title: "Прочитайте полную интерпретацию",
+    benefits: [
+      { icon: "🔮", text: "Полный текст без ограничений — 800 слов о вас" },
+      { icon: "📅", text: "Лунный календарь на год вперёд" },
+      { icon: "✨", text: "Виральная карточка вашей карты для Stories" },
+    ],
+    cta: "Попробовать Lite — 7 дней бесплатно",
+    price: "Затем 790 р/мес · Отмена в любой момент",
+    tier: "lite",
+  },
+  lite_to_pro: {
+    title: "Разблокируйте ваши транзиты",
+    benefits: [
+      { icon: "🪐", text: "AI-объяснение каждого транзита лично для вашей карты" },
+      { icon: "💬", text: "Чат-ассистент: задайте любой вопрос о своей карте" },
+      { icon: "📄", text: "PDF-отчёты для скачивания" },
+    ],
+    cta: "Попробовать Pro — 7 дней бесплатно",
+    price: "Затем 1 990 р/мес · Отмена в любой момент",
+    tier: "pro",
+  },
+  pro_to_premium: {
+    title: "Работаете с клиентами?",
+    benefits: [
+      { icon: "👥", text: "CRM клиентов — карты и заметки в одном месте" },
+      { icon: "📊", text: "100 AI-интерпретаций в месяц на GPT-4o" },
+      { icon: "🖨️", text: "Безлимитный PDF с вашим брендингом" },
+    ],
+    cta: "Перейти на Premium",
+    price: "7 990 р/мес · 1 клиент окупает подписку",
+    tier: "premium",
+  },
+};
+```
+
+Логика появления:
+- `free_to_lite` → при blur интерпретации, при попытке сохранить карту
+- `lite_to_pro` → при hover на заблюренные транзиты, при попытке открыть RAG-чат
+- `pro_to_premium` → при исчерпании AI-лимита, при попытке открыть CRM
+
+Получить контекст из API: если backend вернул `{ error: "tier_required", required: "pro" }` → показать `lite_to_pro`.
+
+---
+
+## ЗАДАЧА 9 — Превью транзитов с реальным blur
+
+**Файл:** `frontend/src/components/TransitTimeline.jsx`
+
+Логика отображения для не-Pro пользователей:
+```jsx
+const visibleTransits = transits.filter(t => {
+    const twoWeeksFromNow = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    return new Date(t.start_date) <= twoWeeksFromNow;
+});
+
+// Найти один позитивный транзит (Юпитер или Венера) для preview
+const featuredTransit = transits.find(t =>
+    ['jupiter', 'venus'].includes(t.transiting_planet.toLowerCase()) &&
+    ['trine', 'sextile'].includes(t.aspect_type)
+);
+```
+
+Blur-оверлей:
+```jsx
+<div className="relative">
+  <div className="blur-sm opacity-40 pointer-events-none">
+    {/* реальные транзиты, рассчитанные на сервере */}
+  </div>
+  <div className="absolute inset-0 flex flex-col items-center justify-center">
+    <p className="text-sm text-gray-500">Ещё {hiddenCount} активных транзитов скрыто</p>
+    {featuredTransit && (
+      <p className="text-xs text-indigo-600 mt-1 cursor-pointer"
+         onClick={() => setShowPaywall('lite_to_pro')}>
+        {featuredTransit.description} → Разблокировать
+      </p>
+    )}
+  </div>
+</div>
+```
+
+---
+
+## ЗАДАЧА 10 — Онбординг-тултипы
+
+**Файл:** `frontend/src/components/NatalChart.jsx`
+
+Добавь тултипы поверх SVG для первого просмотра:
+
+```jsx
+const TOOLTIPS = [
+  { key: 'asc',     label: 'ASC', text: 'Асцендент — ваша маска для мира, то как вас воспринимают с первого взгляда' },
+  { key: 'mc',      label: 'MC',  text: 'Середина Неба — ваше призвание и публичный образ' },
+  { key: 'aspects', label: null,  text: 'Красные линии — напряжение и точки роста. Синие — природные таланты' },
+];
+
+const [onboardingSeen] = useState(() =>
+    localStorage.getItem('astrea_onboarding_seen') === 'true'
+);
+
+// Показывать тултипы если onboardingSeen === false
+// Dismiss: localStorage.setItem('astrea_onboarding_seen', 'true')
+```
+
+---
+
+## ПОРЯДОК ВЫПОЛНЕНИЯ (приоритет)
+
+```
+1. Задача 1  → миграция БД (без неё всё остальное не работает)
+2. Задача 2  → rate_limits + require_tier (архитектурная основа)
+3. Задача 3  → /profile/subscription endpoint (фронтенд зависит от него)
+4. Задача 4  → Stripe: новые прайсы + trial
+5. Задача 5  → вебхуки trial_will_end, payment_failed
+6. Задача 6  → email-шаблоны
+7. Задача 7  → анонимная карта
+8. Задача 8  → PaywallModal
+9. Задача 9  → blur транзитов
+10. Задача 10 → тултипы онбординга
+```
+
+---
+
+## ТЕСТЫ
+
+После каждой задачи — минимальный тест:
+
+```python
+# Задача 2: убедиться что Lite правильно ограничен
+def test_lite_tier_limits():
+    limits = get_tier_limits('lite')
+    assert limits['ai_interpretations_per_month'] == 3
+    assert limits['transits_ai'] == False
+    assert limits['rag_chat'] == False
+
+# Задача 3: проверить что endpoint возвращает правильную структуру
+def test_subscription_endpoint():
+    # ...
+
+# Задача 4: trial только для новых пользователей
+def test_trial_only_for_new_users():
+    # user.had_trial = True → trial_days = None
+    # user.had_trial = False, tier=pro → trial_days = 7
+    # user.had_trial = False, tier=premium → trial_days = None
+```
+
+---
+
+*Astrea Timeline · Sprint v3.0 · Май 2026*

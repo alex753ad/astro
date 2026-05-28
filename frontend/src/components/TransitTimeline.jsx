@@ -569,8 +569,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const featuredTransitIndex = useMemo(() => {
     if (hasFullAccess || isLite) return -1;
     return events.findIndex(e => {
-      const eventDate = e.start_date || e.peak_date || e.date;
-      const isAfterTwoWeeks = eventDate > twoWeeksFromNow;
+      const eventDate = e.date || e.start_date || e.peak_date;
+      const isAfterTwoWeeks = eventDate ? eventDate > twoWeeksFromNow : false;
       const isPositive = ['jupiter', 'venus'].includes(e.transit_planet.toLowerCase()) &&
                          ['trine', 'sextile'].includes(e.aspect_type);
       return isAfterTwoWeeks && isPositive;
@@ -579,11 +579,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   const isEventVisible = useCallback((event, idx) => {
     if (hasFullAccess || isLite) return true;
-    // Free: visible if within 2 weeks
-    const eventDate = event.start_date || event.peak_date || event.date;
-    if (eventDate <= twoWeeksFromNow) return true;
-    // Free: featured positive transit is visible
+    // Free: featured positive transit is always visible (check before date filter)
     if (idx === featuredTransitIndex) return true;
+    // Free: visible if within 2 weeks
+    // Приоритет полей: date → start_date → peak_date (мок-данные используют только date)
+    const eventDate = event.date || event.start_date || event.peak_date;
+    if (!eventDate) return true; // если дата неизвестна — показываем
+    if (eventDate <= twoWeeksFromNow) return true;
     return false;
   }, [hasFullAccess, isLite, twoWeeksFromNow, featuredTransitIndex]);
 
