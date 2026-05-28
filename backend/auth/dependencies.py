@@ -150,3 +150,7 @@ def require_tier(*allowed_tiers: str):
 def require_paid_tier():
     """Любой платный тариф (lite, pro, premium)."""
     return require_tier("lite")
+
+
+# Алиас для совместимости с задачей 7
+get_optional_user = get_current_user_optional
