@@ -5,21 +5,21 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 // ═══════════════════════════════════════════════════════════
 
 const MOCK_EVENTS = [
-  { date: "2026-04-03", transit_planet: "Venus",   natal_planet: "Sun",    aspect_type: "trine",       orb: 0.4, exact_date: "2026-04-03T14:22", transit_sign: "Pisces",   natal_sign: "Capricorn" },
-  { date: "2026-04-05", transit_planet: "Mercury", natal_planet: "Jupiter",aspect_type: "sextile",     orb: 1.1, exact_date: "2026-04-05T08:15", transit_sign: "Aries",    natal_sign: "Sagittarius" },
-  { date: "2026-04-07", transit_planet: "Mars",    natal_planet: "Moon",   aspect_type: "square",      orb: 0.8, exact_date: "2026-04-07T19:40", transit_sign: "Cancer",   natal_sign: "Cancer" },
-  { date: "2026-04-09", transit_planet: "Sun",     natal_planet: "Saturn", aspect_type: "square",      orb: 1.5, exact_date: "2026-04-09T06:10", transit_sign: "Aries",    natal_sign: "Capricorn" },
-  { date: "2026-04-11", transit_planet: "Jupiter", natal_planet: "Sun",    aspect_type: "conjunction", orb: 0.2, exact_date: "2026-04-11T11:33", transit_sign: "Cancer",   natal_sign: "Capricorn" },
-  { date: "2026-04-13", transit_planet: "Saturn",  natal_planet: "Venus",  aspect_type: "trine",       orb: 0.9, exact_date: "2026-04-13T22:05", transit_sign: "Aries",    natal_sign: "Aquarius" },
-  { date: "2026-04-15", transit_planet: "Venus",   natal_planet: "Mars",   aspect_type: "opposition",  orb: 0.6, exact_date: "2026-04-15T16:48", transit_sign: "Aries",    natal_sign: "Taurus" },
-  { date: "2026-04-17", transit_planet: "Mercury", natal_planet: "Neptune",aspect_type: "conjunction", orb: 1.3, exact_date: "2026-04-17T03:20", transit_sign: "Aries",    natal_sign: "Aquarius" },
-  { date: "2026-04-18", transit_planet: "Uranus",  natal_planet: "Mercury",aspect_type: "square",      orb: 0.3, exact_date: "2026-04-18T09:55", transit_sign: "Gemini",   natal_sign: "Sagittarius" },
-  { date: "2026-04-20", transit_planet: "Mars",    natal_planet: "Sun",    aspect_type: "opposition",  orb: 1.0, exact_date: "2026-04-20T12:30", transit_sign: "Cancer",   natal_sign: "Capricorn" },
-  { date: "2026-04-22", transit_planet: "Neptune", natal_planet: "Moon",   aspect_type: "trine",       orb: 0.7, exact_date: "2026-04-22T07:15", transit_sign: "Aries",    natal_sign: "Cancer" },
-  { date: "2026-04-24", transit_planet: "Pluto",   natal_planet: "Saturn", aspect_type: "conjunction", orb: 0.1, exact_date: "2026-04-24T18:40", transit_sign: "Aquarius", natal_sign: "Capricorn" },
-  { date: "2026-04-26", transit_planet: "Sun",     natal_planet: "Uranus", aspect_type: "square",      orb: 1.8, exact_date: "2026-04-26T15:00", transit_sign: "Taurus",   natal_sign: "Aquarius" },
-  { date: "2026-04-28", transit_planet: "Venus",   natal_planet: "Jupiter",aspect_type: "conjunction", orb: 0.5, exact_date: "2026-04-28T10:22", transit_sign: "Aries",    natal_sign: "Sagittarius" },
-  { date: "2026-04-30", transit_planet: "Saturn",  natal_planet: "Moon",   aspect_type: "square",      orb: 1.2, exact_date: "2026-04-30T21:45", transit_sign: "Aries",    natal_sign: "Cancer" },
+  { date: "2026-05-20", transit_planet: "Venus",   natal_planet: "Sun",    aspect_type: "trine",       orb: 0.4, exact_date: "2026-05-20T14:22", transit_sign: "Pisces",   natal_sign: "Capricorn" },
+  { date: "2026-05-23", transit_planet: "Mercury", natal_planet: "Jupiter",aspect_type: "sextile",     orb: 1.1, exact_date: "2026-05-23T08:15", transit_sign: "Aries",    natal_sign: "Sagittarius" },
+  { date: "2026-05-26", transit_planet: "Mars",    natal_planet: "Moon",   aspect_type: "square",      orb: 0.8, exact_date: "2026-05-26T19:40", transit_sign: "Cancer",   natal_sign: "Cancer" },
+  { date: "2026-05-29", transit_planet: "Sun",     natal_planet: "Saturn", aspect_type: "square",      orb: 1.5, exact_date: "2026-05-29T06:10", transit_sign: "Aries",    natal_sign: "Capricorn" },
+  { date: "2026-06-02", transit_planet: "Jupiter", natal_planet: "Sun",    aspect_type: "conjunction", orb: 0.2, exact_date: "2026-06-02T11:33", transit_sign: "Cancer",   natal_sign: "Capricorn" },
+  { date: "2026-06-05", transit_planet: "Saturn",  natal_planet: "Venus",  aspect_type: "trine",       orb: 0.9, exact_date: "2026-06-05T22:05", transit_sign: "Aries",    natal_sign: "Aquarius" },
+  { date: "2026-06-08", transit_planet: "Venus",   natal_planet: "Mars",   aspect_type: "opposition",  orb: 0.6, exact_date: "2026-06-08T16:48", transit_sign: "Aries",    natal_sign: "Taurus" },
+  { date: "2026-06-11", transit_planet: "Mercury", natal_planet: "Neptune",aspect_type: "conjunction", orb: 1.3, exact_date: "2026-06-11T03:20", transit_sign: "Aries",    natal_sign: "Aquarius" },
+  { date: "2026-06-14", transit_planet: "Uranus",  natal_planet: "Mercury",aspect_type: "square",      orb: 0.3, exact_date: "2026-06-14T09:55", transit_sign: "Gemini",   natal_sign: "Sagittarius" },
+  { date: "2026-06-17", transit_planet: "Mars",    natal_planet: "Sun",    aspect_type: "opposition",  orb: 1.0, exact_date: "2026-06-17T12:30", transit_sign: "Cancer",   natal_sign: "Capricorn" },
+  { date: "2026-06-20", transit_planet: "Neptune", natal_planet: "Moon",   aspect_type: "trine",       orb: 0.7, exact_date: "2026-06-20T07:15", transit_sign: "Aries",    natal_sign: "Cancer" },
+  { date: "2026-06-23", transit_planet: "Pluto",   natal_planet: "Saturn", aspect_type: "conjunction", orb: 0.1, exact_date: "2026-06-23T18:40", transit_sign: "Aquarius", natal_sign: "Capricorn" },
+  { date: "2026-06-26", transit_planet: "Sun",     natal_planet: "Uranus", aspect_type: "square",      orb: 1.8, exact_date: "2026-06-26T15:00", transit_sign: "Taurus",   natal_sign: "Aquarius" },
+  { date: "2026-06-29", transit_planet: "Venus",   natal_planet: "Jupiter",aspect_type: "conjunction", orb: 0.5, exact_date: "2026-06-29T10:22", transit_sign: "Aries",    natal_sign: "Sagittarius" },
+  { date: "2026-07-02", transit_planet: "Saturn",  natal_planet: "Moon",   aspect_type: "square",      orb: 1.2, exact_date: "2026-07-02T21:45", transit_sign: "Aries",    natal_sign: "Cancer" },
 ];
 
 const MOCK_INTERPRETATIONS = {
@@ -579,13 +579,14 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   const isEventVisible = useCallback((event, idx) => {
     if (hasFullAccess || isLite) return true;
-    // Free: featured positive transit is always visible (check before date filter)
-    if (idx === featuredTransitIndex) return true;
-    // Free: visible if within 2 weeks
-    // Приоритет полей: date → start_date → peak_date (мок-данные используют только date)
     const eventDate = event.date || event.start_date || event.peak_date;
-    if (!eventDate) return true; // если дата неизвестна — показываем
+    if (!eventDate) return true;
+    // Free: только ближайшие 2 недели (вперёд от сегодня)
+    const today = new Date().toISOString().slice(0, 10);
+    if (eventDate < today) return false; // прошедшие — скрыть
     if (eventDate <= twoWeeksFromNow) return true;
+    // После 2 недель — только один featured позитивный транзит
+    if (idx === featuredTransitIndex) return true;
     return false;
   }, [hasFullAccess, isLite, twoWeeksFromNow, featuredTransitIndex]);
 
