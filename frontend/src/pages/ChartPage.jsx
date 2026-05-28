@@ -303,6 +303,23 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   useEffect(() => {
     if (!chartId) return;
     setLoading(true);
+
+    // Anonymous chart — load from sessionStorage
+    if (chartId === 'anonymous') {
+      try {
+        const raw = sessionStorage.getItem('anonymous_chart_result');
+        if (raw) {
+          setChart(JSON.parse(raw));
+        } else {
+          setError('Данные карты не найдены. Рассчитайте карту заново.');
+        }
+      } catch {
+        setError('Ошибка загрузки карты.');
+      }
+      setLoading(false);
+      return;
+    }
+
     const token = localStorage.getItem('astro_access_token');
     fetch(`${API_BASE}/chart/${chartId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},

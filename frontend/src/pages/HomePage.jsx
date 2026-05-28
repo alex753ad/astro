@@ -59,15 +59,15 @@ export default function HomePage({ currentUser, onShowAuth }) {
     try {
       const chart = await calculateChart(data);
       if (!currentUser) {
-        // Save anonymous chart data for post-login binding
+        // Save anonymous chart data for post-login binding and display
         localStorage.setItem('anonymous_chart', JSON.stringify({
           data: data,
           timestamp: Date.now(),
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
         }));
-        sessionStorage.setItem('pending_chart_id', chart.id);
+        sessionStorage.setItem('anonymous_chart_result', JSON.stringify(chart));
       }
-      navigate(`/chart/${chart.id}`);
+      navigate(chart.id ? `/chart/${chart.id}` : '/chart/anonymous');
     } catch (err) {
       if (err.data?.type === 'ambiguous_time') {
         setError(`${err.data.message}\nВарианты: ${err.data.options?.join(' или ')}`);
