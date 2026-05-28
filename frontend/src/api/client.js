@@ -227,6 +227,14 @@ export { ApiError };
 
 // ── Payments API ──
 
+// ── Profile / Feature Flags ──
+
+export async function getSubscription(token) {
+  return request('/profile/subscription', {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+}
+
 export async function createCheckoutSession(tier, billing, chartId) {
   const token = localStorage.getItem('astro_access_token');
   return request('/payments/checkout', {
