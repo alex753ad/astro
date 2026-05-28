@@ -537,7 +537,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [orbFilter,     setOrbFilter]     = useState(2.0);
   const [activeDate,    setActiveDate]    = useState(null);
 
-  const isFree = userTier === "free";
+  const isFree = !userTier || userTier === "free";
   const isLite = userTier === "lite";
   const hasFullAccess = userTier === "pro" || userTier === "premium";
 
