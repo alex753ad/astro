@@ -147,6 +147,28 @@ function useAuthInternal() {
     setUser(newUser);
     scheduleRefresh(data.access_token, data.refresh_token);
     loadFeatures(data.access_token);
+
+    // Bind anonymous chart after login/registration
+    const savedChart = localStorage.getItem('anonymous_chart');
+    if (savedChart) {
+      try {
+        const { data: chartData, expiresAt } = JSON.parse(savedChart);
+        if (Date.now() < expiresAt) {
+          apiFetch('/chart/save-anonymous', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${data.access_token}` },
+            body: JSON.stringify(chartData),
+          }).then(() => {
+            localStorage.removeItem('anonymous_chart');
+          }).catch(() => {});
+        } else {
+          localStorage.removeItem('anonymous_chart');
+        }
+      } catch {
+        localStorage.removeItem('anonymous_chart');
+      }
+    }
+
     return newUser;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

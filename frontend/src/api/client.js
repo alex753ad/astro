@@ -43,6 +43,13 @@ export async function calculateChart(birthData) {
   });
 }
 
+export async function saveAnonymousChart(birthData) {
+  return request('/chart/save-anonymous', {
+    method: 'POST',
+    body: JSON.stringify(birthData),
+  });
+}
+
 export async function getChart(chartId) {
   return request(`/chart/${chartId}`);
 }

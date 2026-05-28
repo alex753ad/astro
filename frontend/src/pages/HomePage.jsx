@@ -59,6 +59,12 @@ export default function HomePage({ currentUser, onShowAuth }) {
     try {
       const chart = await calculateChart(data);
       if (!currentUser) {
+        // Save anonymous chart data for post-login binding
+        localStorage.setItem('anonymous_chart', JSON.stringify({
+          data: data,
+          timestamp: Date.now(),
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        }));
         sessionStorage.setItem('pending_chart_id', chart.id);
       }
       navigate(`/chart/${chart.id}`);
