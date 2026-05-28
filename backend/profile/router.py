@@ -221,6 +221,7 @@ async def get_subscription(
             if sub and getattr(sub, "current_period_end", None)
             else None
         ),
+        "features": features,
         "limits": features,
         "usage": {
             "ai_interpretations_this_month": ai_used,
