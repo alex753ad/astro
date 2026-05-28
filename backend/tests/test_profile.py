@@ -233,7 +233,7 @@ class TestSubscriptionInfo:
         assert data["tier"] == "pro"
         assert data["features"]["transits"] is True
         assert data["features"]["unlimited_interpretations"] is True
-        assert data["features"]["pdf_reports"] is False
+        assert data["features"]["pdf_reports"] is True  # pro: 5 PDF/мес
 
     def test_premium_user_has_all_features(self, client: TestClient, db: Session):
         user = make_user(db, "premium_sub@example.com", tier="premium")
