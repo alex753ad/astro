@@ -163,20 +163,42 @@ class InterpretationRouter:
         )
 
     async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
-        """Stream interpretation with fallback chain."""
+        """Stream interpretation with fallback chain.
 
+        Once any chunk has been yielded (yielded_any=True) the SSE channel is
+        already open and HTTP headers have been sent — switching to a fallback
+        engine would produce duplicate/garbled text.  If the active engine
+        fails mid-stream we log and close the connection instead of cascading.
+        """
         for engine in self._engines:
             if not self._check_budget(engine.name):
                 continue
+
+            yielded_any = False
             try:
                 async for chunk in self._try_stream(engine, request):
+                    yielded_any = True
                     yield chunk
-                return  # Success — stop trying other engines
+
+                # Track tokens from stream if engine stored them
+                tokens = getattr(engine, "_last_stream_tokens", 0) or 0
+                self._track_spend(engine.name, tokens)
+                return  # Success
+
             except Exception as e:
                 logger.error("Stream from %s failed: %s", engine.name, str(e))
+                if yielded_any:
+                    # Stream already started — cannot switch engine safely
+                    logger.warning(
+                        "Engine %s failed mid-stream after yielding chunks; "
+                        "aborting fallback to prevent duplicate content.",
+                        engine.name,
+                    )
+                    return
+                # No chunks sent yet — safe to try next engine
                 continue
 
-        # All failed
+        # All engines failed before yielding anything
         yield "Интерпретация временно недоступна. Пожалуйста, попробуйте позже."
 
     async def _try_engine(

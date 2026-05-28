@@ -41,16 +41,24 @@ class DeepSeekEngine(InterpretationEngine):
 
     def _build_payload(self, request: InterpretationRequest, stream: bool = False) -> dict:
         system_prompt = build_system_prompt(request)
-        return {
+        user_msg = (
+            "Напиши интерпретацию натальной карты по указанным сферам."
+            if request.language == "ru"
+            else "Write a natal chart interpretation for the specified spheres."
+        )
+        payload = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": "Напиши интерпретацию натальной карты по указанным сферам."},
+                {"role": "user", "content": user_msg},
             ],
             "max_tokens": 3000,
             "temperature": 0.7,
             "stream": stream,
         }
+        if stream:
+            payload["stream_options"] = {"include_usage": True}
+        return payload
 
     async def generate(self, request: InterpretationRequest) -> InterpretationResult:
         payload = self._build_payload(request, stream=False)
@@ -77,6 +85,7 @@ class DeepSeekEngine(InterpretationEngine):
 
     async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
         payload = self._build_payload(request, stream=True)
+        self._last_stream_tokens = 0
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
@@ -94,7 +103,9 @@ class DeepSeekEngine(InterpretationEngine):
                         break
                     try:
                         chunk = json.loads(data_str)
-                        delta = chunk["choices"][0].get("delta", {})
+                        if "usage" in chunk and chunk["usage"] is not None:
+                            self._last_stream_tokens = chunk["usage"].get("total_tokens", 0)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
                         content = delta.get("content", "")
                         if content:
                             yield content

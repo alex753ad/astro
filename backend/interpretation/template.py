@@ -7,6 +7,7 @@ planet+sign, planet+house, and aspect combinations.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import AsyncIterator
 
@@ -76,11 +77,11 @@ class TemplateEngine(InterpretationEngine):
         )
 
     async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
-        """Simulate streaming by yielding paragraphs."""
+        """Simulate streaming by yielding lines with a small delay."""
         content = self._build_interpretation(request.natal_profile, request.sections)
-        paragraphs = content.split("\n\n")
-        for para in paragraphs:
-            yield para + "\n\n"
+        for line in content.split("\n"):
+            yield line + "\n"
+            await asyncio.sleep(0.01)
 
     async def health_check(self) -> bool:
         return True  # always available
