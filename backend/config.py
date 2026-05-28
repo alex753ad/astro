@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # ── Stripe ──
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    stripe_price_id_lite: str = ""
     stripe_price_id_pro: str = ""
     stripe_price_id_premium: str = ""
 
@@ -58,12 +59,6 @@ class Settings(BaseSettings):
         if isinstance(self.cors_origins, list):
             return self.cors_origins
         return [origin.strip() for origin in self.cors_origins.split(",")]
-
-
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
-
 
 
 @lru_cache

@@ -82,3 +82,111 @@ def make_profile_hash(profile: dict) -> str:
     """Стабильный хеш натального профиля для ключа кеша интерпретации."""
     serialized = json.dumps(profile, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(serialized.encode()).hexdigest()[:16]
+
+
+# ═══════════════════════════════════════════════════════════
+# AI BUDGET TRACKING (Redis)
+# ═══════════════════════════════════════════════════════════
+
+class BudgetTracker:
+    """Суточный бюджет AI в Redis. Fallback — in-memory."""
+
+    def __init__(self):
+        self._redis = interpretation_cache._redis  # переиспользуем соединение
+        self._local: dict[str, float] = {}         # fallback если Redis недоступен
+
+    def _today_key(self) -> str:
+        import time
+        return f"ai_budget:{time.strftime('%Y-%m-%d')}"
+
+    def get_spent(self) -> float:
+        if self._redis:
+            try:
+                val = self._redis.get(self._today_key())
+                return float(val) if val else 0.0
+            except Exception:
+                pass
+        import time
+        return self._local.get(time.strftime("%Y-%m-%d"), 0.0)
+
+    def add_spend(self, amount_usd: float) -> float:
+        """Прибавить расход. Возвращает новый итог."""
+        import time
+        today = time.strftime("%Y-%m-%d")
+        if self._redis:
+            try:
+                pipe = self._redis.pipeline()
+                key = self._today_key()
+                pipe.incrbyfloat(key, amount_usd)
+                pipe.expire(key, 86400 * 2)  # TTL 2 дня
+                results = pipe.execute()
+                return float(results[0])
+            except Exception as e:
+                logger.warning("Budget Redis error: %s", e)
+        # fallback
+        self._local[today] = self._local.get(today, 0.0) + amount_usd
+        return self._local[today]
+
+    def is_within_budget(self, limit_usd: float, engine_name: str) -> bool:
+        if engine_name == "template":
+            return True
+        return self.get_spent() < limit_usd
+
+
+budget_tracker = BudgetTracker()
+
+
+# ═══════════════════════════════════════════════════════════
+# IP MONITORING (защита от складчин для Premium)
+# ═══════════════════════════════════════════════════════════
+
+class IpMonitor:
+    """Отслеживает уникальные IP пользователя за последние 30 минут.
+
+    Если 3+ разных IP → сброс сессии (возвращает True).
+    Хранится в Redis как sorted set: ip → timestamp.
+    """
+
+    WINDOW_SEC = 30 * 60   # 30 минут
+    MAX_IPS    = 3
+
+    def __init__(self):
+        self._redis = interpretation_cache._redis
+
+    def _key(self, user_id: str) -> str:
+        return f"ip_monitor:{user_id}"
+
+    def record_and_check(self, user_id: str, ip: str) -> bool:
+        """Записывает IP. Возвращает True если превышен лимит уникальных IP."""
+        if not self._redis:
+            return False  # без Redis мониторинг отключён
+
+        import time
+        now = time.time()
+        cutoff = now - self.WINDOW_SEC
+        key = self._key(user_id)
+
+        try:
+            pipe = self._redis.pipeline()
+            # Добавляем текущий IP со score=timestamp
+            pipe.zadd(key, {ip: now})
+            # Удаляем записи старше 30 минут
+            pipe.zremrangebyscore(key, 0, cutoff)
+            # Считаем уникальные IP в окне
+            pipe.zcard(key)
+            pipe.expire(key, self.WINDOW_SEC * 2)
+            results = pipe.execute()
+            unique_count = results[2]
+            if unique_count > self.MAX_IPS:
+                logger.warning(
+                    "IP monitor: user=%s has %d unique IPs in 30min — session reset",
+                    user_id, unique_count,
+                )
+                return True
+        except Exception as e:
+            logger.warning("IP monitor Redis error: %s", e)
+
+        return False
+
+
+ip_monitor = IpMonitor()
