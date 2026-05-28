@@ -159,11 +159,12 @@ class MessageResponse(BaseModel):
 # PAYMENTS SCHEMAS
 # ═══════════════════════════════════════════════════════════
 
-_VALID_TIERS = {"pro", "premium"}
+_VALID_TIERS = {"lite", "pro", "premium"}
 
 
 class CheckoutRequest(BaseModel):
-    tier: str = Field(..., description="Тариф: pro или premium")
+    tier: str = Field(..., description="Тариф: lite, pro или premium")
+    billing_period: str = Field("monthly", description="monthly или annual")
     success_url: str = Field(..., max_length=2048)
     cancel_url: str = Field(..., max_length=2048)
 
@@ -171,7 +172,14 @@ class CheckoutRequest(BaseModel):
     @classmethod
     def validate_tier(cls, v: str) -> str:
         if v not in _VALID_TIERS:
-            raise ValueError(f"Tier должен быть одним из: {', '.join(_VALID_TIERS)}.")
+            raise ValueError(f"Tier должен быть одним из: {', '.join(sorted(_VALID_TIERS))}.")
+        return v
+
+    @field_validator("billing_period")
+    @classmethod
+    def validate_billing_period(cls, v: str) -> str:
+        if v not in ("monthly", "annual"):
+            raise ValueError("billing_period должен быть 'monthly' или 'annual'.")
         return v
 
     @field_validator("success_url", "cancel_url")

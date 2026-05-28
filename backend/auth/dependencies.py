@@ -101,6 +101,9 @@ async def get_current_user_optional(
     return user
 
 
+TIER_HIERARCHY = ["free", "lite", "pro", "premium"]
+
+
 def require_tier(*allowed_tiers: str):
     """Dependency factory that enforces subscription tier.
 
@@ -108,15 +111,37 @@ def require_tier(*allowed_tiers: str):
         @app.get("/pro")
         async def pro_endpoint(user: User = Depends(require_tier("pro", "premium"))):
             ...
+
+    Also supports hierarchical check with a single tier:
+        require_tier("pro")  →  allows pro and premium
     """
 
     async def _dependency(user: User = Depends(get_current_user)) -> User:
-        if user.tier not in allowed_tiers:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"This feature requires one of: {', '.join(allowed_tiers)}. "
-                       f"Your current plan: {user.tier}.",
-            )
+        user_tier = user.tier or "free"
+
+        # Hierarchical: if single tier passed, allow that tier and above
+        if len(allowed_tiers) == 1:
+            required_index = TIER_HIERARCHY.index(allowed_tiers[0])
+            user_index = TIER_HIERARCHY.index(user_tier) if user_tier in TIER_HIERARCHY else 0
+            if user_index < required_index:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "tier_required",
+                        "required": allowed_tiers[0],
+                        "current": user_tier,
+                    },
+                )
+        else:
+            if user_tier not in allowed_tiers:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "tier_required",
+                        "required": allowed_tiers[0],
+                        "current": user_tier,
+                    },
+                )
         return user
 
     return _dependency
@@ -124,4 +149,4 @@ def require_tier(*allowed_tiers: str):
 
 def require_paid_tier():
     """Любой платный тариф (lite, pro, premium)."""
-    return require_tier("lite", "pro", "premium")
+    return require_tier("lite")
