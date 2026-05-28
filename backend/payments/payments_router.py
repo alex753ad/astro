@@ -73,6 +73,16 @@ async def checkout(
             detail=f"You are already on the {data.tier} plan.",
         )
 
+    active_sub = db.query(Subscription).filter(
+        Subscription.user_id == user.id,
+        Subscription.status == "active",
+    ).first()
+    if active_sub and user.tier != "free":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У вас уже есть активная подписка. Управлять тарифом можно через Личный кабинет Stripe.",
+        )
+
     try:
         url = create_checkout_session(
             user=user,
@@ -206,6 +216,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             logger.debug("Unhandled Stripe event: %s", event_type)
     except Exception:
         logger.exception("Error processing Stripe event %s", event_type)
+        if settings.testing:
+            raise
         # Return 200 anyway — Stripe retries on non-2xx,
         # and we don't want infinite retries for a processing bug.
 

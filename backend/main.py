@@ -61,6 +61,7 @@ from backend.profile.router import router as profile_router
 from backend.profile.settings_router import router as settings_router
 from backend.onboarding_router import router as onboarding_router
 from backend.share_router import router as share_router
+from backend.payments.payments_router import router as payments_router
 from backend.auth.dependencies import get_current_user_optional, get_current_user
 from backend.auth.rate_limits import tier_limiter
 from backend.models import User
@@ -109,6 +110,7 @@ app.include_router(profile_router)
 app.include_router(settings_router)
 app.include_router(onboarding_router)
 app.include_router(share_router)
+app.include_router(payments_router)
 
 
 # ═══════════════════════════════════════════════════════════

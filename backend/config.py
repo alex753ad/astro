@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
     frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
+    testing: bool = False
     cors_origins: str = "http://localhost:5173"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
