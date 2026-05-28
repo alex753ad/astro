@@ -61,7 +61,7 @@ from backend.profile.router import router as profile_router
 from backend.profile.settings_router import router as settings_router
 from backend.onboarding_router import router as onboarding_router
 from backend.share_router import router as share_router
-from backend.auth.dependencies import get_current_user_optional
+from backend.auth.dependencies import get_current_user_optional, get_current_user
 from backend.auth.rate_limits import tier_limiter
 from backend.models import User
 
@@ -253,7 +253,7 @@ async def calculate_chart(
         longitude=chart_data.midheaven.longitude,
     ) if chart_data.midheaven else None
 
-    # 6. Persist to database
+    # 6. Persist to database (only for authenticated users)
     chart_record = NatalChart(
         user_id=user.id if user else None,
         birth_date=str(data.birth_date),
@@ -272,9 +272,13 @@ async def calculate_chart(
         midheaven=mc_resp.model_dump() if mc_resp else None,
     )
 
-    db.add(chart_record)
-    db.commit()
-    db.refresh(chart_record)
+    if user:
+        db.add(chart_record)
+        db.commit()
+        db.refresh(chart_record)
+    else:
+        # Anonymous — return calculated data without persisting
+        chart_record.id = None
 
     # Welcome-письмо после первой карты
     if user:
@@ -308,6 +312,105 @@ async def calculate_chart(
         ascendant=asc_resp,
         midheaven=mc_resp,
         warnings=warnings,
+    )
+
+
+@app.post(
+    "/api/v1/chart/save-anonymous",
+    response_model=NatalChartResponse,
+    tags=["chart"],
+    summary="Save an anonymous chart to user account",
+)
+async def save_anonymous_chart(
+    request: Request,
+    data: BirthDataInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-calculate and save a chart that was previously computed anonymously.
+
+    Called by frontend after login/registration when localStorage has anonymous chart data.
+    """
+    from backend.ephemeris.calculator import calculate_full_chart as _calc
+
+    geo = await geocode_place(data.birth_place)
+    utc_dt, time_unknown, _ = resolve_utc_datetime(
+        birth_date=str(data.birth_date),
+        birth_time=data.birth_time,
+        timezone=geo.timezone,
+    )
+    (chart_data, aspects) = _calc(
+        utc_dt=utc_dt,
+        latitude=geo.latitude,
+        longitude=geo.longitude,
+        house_system=data.house_system,
+        time_unknown=time_unknown,
+    )
+
+    planets_resp = [
+        PlanetPosition(
+            name=p.name, longitude=p.longitude, sign=p.sign,
+            degree_in_sign=p.degree_in_sign,
+            house=p.house if not time_unknown else None,
+            retrograde=p.retrograde,
+        ) for p in chart_data.planets
+    ]
+    houses_resp = [
+        HouseData(number=h.number, sign=h.sign, degree=h.degree)
+        for h in chart_data.houses
+    ]
+    aspects_resp = [
+        AspectData(
+            planet1=a.planet1, planet2=a.planet2, aspect_type=a.aspect_type,
+            angle=a.angle, orb=a.orb, applying=a.applying,
+        ) for a in aspects
+    ]
+    asc_resp = PointData(
+        sign=chart_data.ascendant.sign, degree=chart_data.ascendant.degree,
+        longitude=chart_data.ascendant.longitude,
+    ) if chart_data.ascendant else None
+    mc_resp = PointData(
+        sign=chart_data.midheaven.sign, degree=chart_data.midheaven.degree,
+        longitude=chart_data.midheaven.longitude,
+    ) if chart_data.midheaven else None
+
+    chart_record = NatalChart(
+        user_id=user.id,
+        birth_date=str(data.birth_date),
+        birth_time=data.birth_time,
+        birth_place=geo.display_name,
+        latitude=geo.latitude,
+        longitude=geo.longitude,
+        timezone=geo.timezone,
+        utc_datetime=utc_dt,
+        time_unknown=time_unknown,
+        house_system=data.house_system,
+        planets=[p.model_dump() for p in planets_resp],
+        houses=[h.model_dump() for h in houses_resp],
+        aspects=[a.model_dump() for a in aspects_resp],
+        ascendant=asc_resp.model_dump() if asc_resp else None,
+        midheaven=mc_resp.model_dump() if mc_resp else None,
+    )
+    db.add(chart_record)
+    db.commit()
+    db.refresh(chart_record)
+
+    return NatalChartResponse(
+        id=chart_record.id,
+        birth_date=str(data.birth_date),
+        birth_time=data.birth_time,
+        birth_place=geo.display_name,
+        latitude=geo.latitude,
+        longitude=geo.longitude,
+        timezone=geo.timezone,
+        time_unknown=time_unknown,
+        house_system=data.house_system,
+        planets=planets_resp,
+        houses=houses_resp,
+        aspects=aspects_resp,
+        ascendant=asc_resp,
+        midheaven=mc_resp,
+        warnings=[],
     )
 
 
