@@ -14,7 +14,7 @@ import sys
 import time
 from typing import AsyncIterator
 
-from backend.cache import interpretation_cache, make_profile_hash
+from backend.cache import interpretation_cache, make_profile_hash, budget_tracker
 from backend.interpretation.base import (
     InterpretationEngine,
     InterpretationRequest,
@@ -27,11 +27,9 @@ from backend.config import get_settings
 
 logger = logging.getLogger("astro.router")
 
-# ── Budget tracking ──
-_daily_spend: dict[str, float] = {}  # date_str → total_usd
 _COST_PER_1K_TOKENS = {
-    "gpt4o": 0.005,     # ~$5/M tokens (input+output average)
-    "deepseek": 0.0003,  # ~$0.27/M tokens
+    "gpt4o": 0.005,
+    "deepseek": 0.0003,
     "template": 0.0,
 }
 
@@ -247,23 +245,20 @@ class InterpretationRouter:
 
     def _check_budget(self, engine_name: str) -> bool:
         """Check if daily budget allows using this engine."""
-        if engine_name == "template":
-            return True  # always free
-
-        today = time.strftime("%Y-%m-%d")
-        spent = _daily_spend.get(today, 0.0)
-        return spent < self._settings.ai_daily_budget_usd
+        return budget_tracker.is_within_budget(
+            self._settings.ai_daily_budget_usd, engine_name
+        )
 
     def _track_spend(self, engine_name: str, tokens_used: int) -> float:
-        """Track API spending and return cost."""
+        """Track API spending in Redis and return cost."""
         if engine_name == "template" or tokens_used == 0:
             return 0.0
-
         cost = (tokens_used / 1000) * _COST_PER_1K_TOKENS.get(engine_name, 0)
-        today = time.strftime("%Y-%m-%d")
-        _daily_spend[today] = _daily_spend.get(today, 0.0) + cost
-        logger.info("Spent $%.4f on %s (%d tokens). Daily total: $%.4f",
-                     cost, engine_name, tokens_used, _daily_spend[today])
+        new_total = budget_tracker.add_spend(cost)
+        logger.info(
+            "Spent $%.4f on %s (%d tokens). Daily total: $%.4f",
+            cost, engine_name, tokens_used, new_total,
+        )
         return cost
 
     async def get_status(self) -> dict:
@@ -271,8 +266,7 @@ class InterpretationRouter:
         status = {}
         for engine in self._engines:
             status[engine.name] = await engine.health_check()
-        today = time.strftime("%Y-%m-%d")
-        status["daily_spend_usd"] = round(_daily_spend.get(today, 0.0), 4)
+        status["daily_spend_usd"] = round(budget_tracker.get_spent(), 4)
         status["daily_budget_usd"] = self._settings.ai_daily_budget_usd
         return status
 

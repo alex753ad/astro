@@ -131,6 +131,9 @@ def chart_free_key(request: Request) -> str:
 def chart_pro_key(request: Request) -> str:
     return f"chart:pro:{_base_id(request)}"
 
+def chart_premium_key(request: Request) -> str:
+    return f"chart:premium:{_base_id(request)}"
+
 
 # /interpret — два ключа, два декоратора в main.py
 def interpret_free_key(request: Request) -> str:
@@ -138,6 +141,9 @@ def interpret_free_key(request: Request) -> str:
 
 def interpret_pro_key(request: Request) -> str:
     return f"interp:pro:{_base_id(request)}"
+
+def interpret_premium_key(request: Request) -> str:
+    return f"interp:premium:{_base_id(request)}"
 
 
 # Глобальный лимитер
@@ -210,6 +216,20 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="AI-расшифровка транзитов доступна только на Pro и выше.",
+            )
+
+    def check_premium_ip(self, user: Optional[User], request: Request) -> None:
+        """Для Premium: сброс сессии при 3+ уникальных IP за 30 минут."""
+        if user is None or user.tier != "premium":
+            return
+        from backend.cache import ip_monitor
+        from slowapi.util import get_remote_address
+        ip = get_remote_address(request)
+        if ip_monitor.record_and_check(str(user.id), ip):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Обнаружен вход с нескольких устройств. Пожалуйста, войдите заново.",
+                headers={"WWW-Authenticate": "Bearer"},
             )
 
 
