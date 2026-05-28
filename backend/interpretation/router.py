@@ -210,9 +210,11 @@ class InterpretationRouter:
         self,
         engine: InterpretationEngine,
         request: InterpretationRequest,
-        max_retries: int = 3,
+        max_retries: int | None = None,
     ) -> InterpretationResult | None:
         """Try an engine with exponential backoff retries."""
+        if max_retries is None:
+            max_retries = self._settings.ai_max_retries
         delays = [1.0, 3.0, 9.0]
 
         for attempt in range(max_retries):
