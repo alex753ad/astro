@@ -604,7 +604,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     });
 
     let positions = [];
-    if (chartId && !mockMode) {
+    if (chartId && chartId !== 'anonymous' && !mockMode) {
       try {
         const token = localStorage.getItem('astro_access_token');
         const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`, {
