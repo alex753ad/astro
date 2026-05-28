@@ -352,14 +352,22 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
 // ═══════════════════════════════════════════════════════════
 
 function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
+  const [hovered, setHovered] = useState(false);
   const aspectColor  = ASPECT_COLORS[event.aspect_type] || "#7040A8";
   const aspectBg     = ASPECT_BG[event.aspect_type]    || "rgba(112,64,168,0.06)";
   const planetAccent = PLANET_ACCENT[event.transit_planet] || "#C0A0E8";
   const displayDate  = event.peak_date || event.exact_date || event.date || "";
 
+  // Формируем текст для hover-попапа
+  const hoverText = blurred
+    ? `${PLANET_GLYPHS[event.transit_planet] || "★"} ${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase() || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet} (${displayDate ? formatDate(displayDate) : ""}) — ${isHarmonic(event.aspect_type) ? "один из лучших периодов года" : "важный транзит для вашего развития"}. Разблокировать?`
+    : "";
+
   return (
     <div
       onClick={blurred ? onUpgrade : onClick}
+      onMouseEnter={() => blurred && setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         padding: "14px 16px", borderRadius: 16, cursor: "pointer",
         border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
@@ -368,13 +376,31 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         boxShadow: isSelected ? "0 8px 20px -6px rgba(224,195,252,0.35)" : "0 2px 8px -4px rgba(200,180,240,0.15)",
         transition: "all 0.2s ease",
         animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
-        // blur для заблокированных карточек
-        filter: blurred ? "blur(4px)" : "none",
+        // blur для заблокированных карточек — 80% opacity + blur
+        filter: blurred ? "blur(5px)" : "none",
+        opacity: blurred ? 0.4 : 1,
         userSelect: blurred ? "none" : "auto",
-        pointerEvents: blurred ? "auto" : "auto",
+        pointerEvents: "auto",
         position: "relative",
       }}
     >
+      {/* Hover-попап на заблюренных карточках */}
+      {blurred && hovered && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 10,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "12px 16px", borderRadius: 16,
+          background: "rgba(255,255,255,0.97)",
+          border: "1.5px solid #E0D0F8",
+          boxShadow: "0 8px 24px -4px rgba(144,96,200,0.25)",
+          filter: "none", opacity: 1,
+          animation: "fadeSlideIn 0.2s ease",
+        }}>
+          <span style={{ fontSize: 13, color: "#5A2880", fontWeight: 500, lineHeight: 1.5, textAlign: "center" }}>
+            {hoverText}
+          </span>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#9080B0" }}>{displayDate ? formatDate(displayDate) : ""}</span>
@@ -617,7 +643,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   const handleUpgrade = useCallback(() => {
-    if (onUpgrade) onUpgrade();
+    if (onUpgrade) onUpgrade('lite_to_pro');
   }, [onUpgrade]);
 
   return (
