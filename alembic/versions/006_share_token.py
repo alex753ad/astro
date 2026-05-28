@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "006_share_token"
-down_revision = "005_fix_users_not_null"
+down_revision = "006_fix_constraints"
 branch_labels = None
 depends_on = None
 
