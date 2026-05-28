@@ -7,7 +7,7 @@ Changes:
   - users: fix unique constraints (email unique index, google_sub, stripe_customer_id)
 
 Revision ID: 006_fix_constraints
-Revises: 005_fix_schema
+Revises: 005_fix_users_not_null
 Create Date: 2026-05-26
 """
 
