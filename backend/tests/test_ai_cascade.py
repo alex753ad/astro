@@ -15,9 +15,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from backend.interpretation.router import InterpretationRouter, _daily_spend
+from backend.interpretation.router import InterpretationRouter
 from backend.interpretation.base import InterpretationRequest, InterpretationResult
 from backend.interpretation.template import TemplateEngine
+from backend.cache import budget_tracker
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -85,9 +86,9 @@ def _run(coro):
 
 @pytest.fixture(autouse=True)
 def clear_budget():
-    _daily_spend.clear()
+    budget_tracker._local.clear()
     yield
-    _daily_spend.clear()
+    budget_tracker._local.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -264,7 +265,7 @@ class TestBudgetGuard:
     def test_exceeded_budget_skips_gpt4o(self):
         import time
         today = time.strftime("%Y-%m-%d")
-        _daily_spend[today] = 9999.0
+        budget_tracker._local[today] = 9999.0
 
         router = _router_with_mocks(ds_error=Exception("also over budget"))
         _run(router.generate(_request()))
@@ -289,8 +290,7 @@ class TestBudgetGuard:
             )
         )
         _run(router.generate(_request()))
-        today = time.strftime("%Y-%m-%d")
-        assert _daily_spend.get(today, 0.0) > 0
+        assert budget_tracker.get_spent() > 0
 
 
 # ═══════════════════════════════════════════════════════════
