@@ -21,6 +21,7 @@ def _init_stripe() -> None:
 
 
 TIER_PRICE_MAP: dict[str, str] = {
+    "lite": settings.stripe_price_id_lite,
     "pro": settings.stripe_price_id_pro,
     "premium": settings.stripe_price_id_premium,
 }
