@@ -516,7 +516,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const hasFullAccess = userTier === "pro" || userTier === "premium";
 
   useEffect(() => {
-    if (!chartId || mockMode) { setEvents(MOCK_EVENTS); setLoading(false); return; }
+    if (!chartId || mockMode || chartId === 'anonymous') { setEvents(MOCK_EVENTS); setLoading(false); return; }
     setLoading(true);
     const today = new Date();
     const from  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
@@ -527,7 +527,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     })
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoading(false); })
-      .catch(() => { setEvents([]); setLoading(false); });
+      .catch(() => { setEvents(MOCK_EVENTS); setLoading(false); });
   }, [chartId, mockMode]);
 
   // ── Логика видимости транзитов ──
