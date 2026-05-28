@@ -22,11 +22,11 @@ def _init_stripe() -> None:
 
 TIER_PRICE_MAP: dict[tuple[str, str], str] = {
     ("lite", "monthly"): settings.stripe_price_id_lite,
-    ("lite", "annual"): getattr(settings, "stripe_price_id_lite_annual", ""),
+    ("lite", "annual"): settings.stripe_price_id_lite_annual,
     ("pro", "monthly"): settings.stripe_price_id_pro,
-    ("pro", "annual"): getattr(settings, "stripe_price_id_pro_annual", ""),
+    ("pro", "annual"): settings.stripe_price_id_pro_annual,
     ("premium", "monthly"): settings.stripe_price_id_premium,
-    ("premium", "annual"): getattr(settings, "stripe_price_id_premium_annual", ""),
+    ("premium", "annual"): settings.stripe_price_id_premium_annual,
 }
 PRICE_TIER_MAP: dict[str, str] = {v: k[0] for k, v in TIER_PRICE_MAP.items() if v}
 
@@ -220,7 +220,7 @@ def handle_subscription_updated(event: dict, db: Session) -> None:
         sub.tier = tier
         user = db.query(User).filter(User.id == sub.user_id).first()
         if user:
-            user.tier = tier if status_val in ("active", "trialing") else "free"
+            user.tier = tier if status_val == "active" else "free"
             db.commit()
 
 
