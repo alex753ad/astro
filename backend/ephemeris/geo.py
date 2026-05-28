@@ -162,6 +162,9 @@ def resolve_utc_datetime(
     return utc_dt, time_unknown, warnings
 
 
+geocode_location = geocode_place
+
+
 def validate_coordinates(latitude: float, longitude: float) -> list[str]:
     """Validate geographic coordinates and return any warnings."""
     warnings: list[str] = []
