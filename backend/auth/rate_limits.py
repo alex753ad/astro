@@ -105,7 +105,8 @@ def get_feature_flags(user: Optional[User]) -> dict:
         **flags,
         "transits": flags["transits_months"] > 0,
         "transits_ai": flags["transits_ai"],
-        "unlimited_interpretations": flags["interpretations_per_month"] is None,
+        # pro и premium считаются "безлимитными" относительно free/lite
+        "unlimited_interpretations": tier in ("pro", "premium"),
         "unlimited_charts": flags["charts_per_month"] is None and flags.get("charts_per_day") is None,
         "pdf_reports": flags["pdf_export"],
     }
