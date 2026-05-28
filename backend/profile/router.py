@@ -164,31 +164,68 @@ async def interpretation_history(
 
 @router.get(
     "/subscription",
-    summary="Current subscription details",
+    summary="Current subscription details with limits and usage",
 )
 async def get_subscription(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return the current subscription tier and Stripe details for the user."""
+    """Return the current subscription tier, limits, and monthly usage."""
+    from datetime import datetime
+    from sqlalchemy import func
+
+    tier = user.tier or "free"
     sub = (
         db.query(Subscription)
         .filter(Subscription.user_id == user.id)
         .first()
     )
 
+    # Usage this month
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    ai_used = 0
+    charts_used = 0
+    try:
+        from backend.models import Interpretation
+        ai_used = (
+            db.query(func.count(Interpretation.id))
+            .join(NatalChart, Interpretation.chart_id == NatalChart.id)
+            .filter(
+                NatalChart.user_id == user.id,
+                Interpretation.created_at >= month_start,
+            )
+            .scalar() or 0
+        )
+    except (ImportError, AttributeError):
+        pass
+
+    charts_used = (
+        db.query(func.count(NatalChart.id))
+        .filter(
+            NatalChart.user_id == user.id,
+            NatalChart.created_at >= month_start,
+        )
+        .scalar() or 0
+    )
+
+    features = get_feature_flags(user)
+
     return {
-        "tier": user.tier,
-        "is_active": sub.status == "active" if sub else user.tier != "free",
+        "tier": tier,
+        "is_active": sub.status == "active" if sub else tier != "free",
         "stripe_subscription_id": sub.stripe_subscription_id if sub else None,
         "stripe_customer_id": user.stripe_customer_id,
-        "status": sub.status if sub else ("free" if user.tier == "free" else "active"),
+        "status": sub.status if sub else ("free" if tier == "free" else "active"),
         "current_period_end": (
             sub.current_period_end.isoformat()
             if sub and getattr(sub, "current_period_end", None)
             else None
         ),
-        "features": get_feature_flags(user),
+        "limits": features,
+        "usage": {
+            "ai_interpretations_this_month": ai_used,
+            "charts_this_month": charts_used,
+        },
     }
 
 
