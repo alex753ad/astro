@@ -252,7 +252,7 @@ class PointData(BaseModel):
 
 
 class NatalChartResponse(BaseModel):
-    id: str
+    id: Optional[str] = None
     birth_date: str
     birth_time: Optional[str]
     birth_place: str
