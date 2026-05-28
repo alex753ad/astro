@@ -332,7 +332,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
 
   // Загружаем транзитные позиции при открытии вкладки транзитов
   useEffect(() => {
-    if (activeTab !== 'transits' || !chart || !chartId || transitPlanets.length > 0) return;
+    if (activeTab !== 'transits' || !chart || !chartId || chartId === 'anonymous' || transitPlanets.length > 0) return;
     const token = localStorage.getItem('astro_access_token');
     fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
