@@ -72,11 +72,8 @@ logger = logging.getLogger("astro")
 settings = get_settings()
 
 # ── Rate limiter ──
-# В тестовом режиме лимиты отключены (TESTING=true)
-limiter = Limiter(
-    key_func=get_remote_address,
-    enabled=not settings.testing,
-)
+# Отключается в тестах через limiter.enabled = False в conftest.py
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Lifespan ──

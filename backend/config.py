@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     deepseek_api_key: str = ""
     ai_daily_budget_usd: float = 10.0
+    ai_max_retries: int = 3  # retry per engine; set to 1 in tests
 
     # ── JWT ──
     jwt_secret: str = "CHANGE-ME-IN-PRODUCTION"

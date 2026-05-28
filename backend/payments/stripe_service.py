@@ -195,10 +195,25 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     price_id = TIER_PRICE_MAP.get((session.get("metadata", {}).get("tier", "pro"), "monthly"), "")
     try:
         stripe_sub = stripe.Subscription.retrieve(subscription_id)
-        items = stripe_sub.get("items", {}).get("data", [])
-        if items:
-            price_id = items[0]["price"]["id"]
-        period_end = datetime.utcfromtimestamp(stripe_sub["current_period_end"])
+        # Поддерживаем оба формата: dict (реальный Stripe) и объект (MagicMock в тестах)
+        items_data = (
+            stripe_sub.items.data
+            if hasattr(stripe_sub, "items") and hasattr(stripe_sub.items, "data")
+            else stripe_sub.get("items", {}).get("data", [])
+        )
+        if items_data:
+            first_item = items_data[0]
+            price_id = (
+                first_item.price.id
+                if hasattr(first_item, "price")
+                else first_item["price"]["id"]
+            )
+        raw_end = (
+            stripe_sub.current_period_end
+            if hasattr(stripe_sub, "current_period_end")
+            else stripe_sub.get("current_period_end")
+        )
+        period_end = datetime.utcfromtimestamp(int(raw_end)) if raw_end else None
     except Exception as e:
         logger.warning("Could not retrieve Stripe subscription: %s", e)
 
@@ -231,11 +246,25 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
 
 def handle_subscription_updated(event: dict, db: Session) -> None:
     subscription = event["data"]["object"]
-    subscription_id = subscription["id"]
-    stripe_status = subscription["status"]
+    # Поддерживаем dict (Stripe) и объект-атрибут (тест-мок)
+    subscription_id = (
+        subscription.id if hasattr(subscription, "id") else subscription["id"]
+    )
+    stripe_status = (
+        subscription.status if hasattr(subscription, "status") else subscription["status"]
+    )
 
-    items = subscription.get("items", {}).get("data", [])
-    price_id = items[0]["price"]["id"] if items else None
+    items_obj = (
+        subscription.items.data
+        if hasattr(subscription, "items") and hasattr(subscription.items, "data")
+        else subscription.get("items", {}).get("data", [])
+    )
+    price_id = None
+    if items_obj:
+        first = items_obj[0]
+        price_id = (
+            first.price.id if hasattr(first, "price") else first["price"]["id"]
+        )
     new_tier = PRICE_TIER_MAP.get(price_id, "free") if price_id else "free"
 
     from datetime import datetime
