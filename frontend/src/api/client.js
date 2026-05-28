@@ -19,8 +19,13 @@ class ApiError extends Error {
 
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
+  const token = localStorage.getItem('astro_access_token');
   const resp = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
     ...options,
   });
 
