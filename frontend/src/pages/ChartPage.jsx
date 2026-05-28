@@ -343,18 +343,10 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   }, [activeTab, chart, chartId]);
 
   useEffect(() => {
-    // Транзиты закрыты только для free и анонимов
-    if (activeTab === 'transits' && (!currentUser || currentUser.tier === 'free')) {
-      setShowPaywall(true);
-    }
+    // Не блокируем вкладку транзитов — блюр внутри компонента TransitTimeline
   }, [activeTab, currentUser]);
 
   function handleTabChange(key) {
-    if (key === 'transits' && (!currentUser || currentUser.tier === 'free')) {
-      setActiveTab(key);
-      setShowPaywall(true);
-      return;
-    }
     setActiveTab(key);
   }
 
