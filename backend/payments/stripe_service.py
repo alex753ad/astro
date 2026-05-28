@@ -30,6 +30,20 @@ def construct_webhook_event(payload: bytes, sig_header: str, secret: str) -> dic
     )
 
 
+def _get_price_tier_map() -> dict[str, str]:
+    """Строим карту price_id→tier лениво, чтобы тесты могли подменить env-переменные."""
+    s = get_settings()
+    tier_map = {
+        ("lite", "monthly"): s.stripe_price_id_lite,
+        ("lite", "annual"): s.stripe_price_id_lite_annual,
+        ("pro", "monthly"): s.stripe_price_id_pro,
+        ("pro", "annual"): s.stripe_price_id_pro_annual,
+        ("premium", "monthly"): s.stripe_price_id_premium,
+        ("premium", "annual"): s.stripe_price_id_premium_annual,
+    }
+    return {v: k[0] for k, v in tier_map.items() if v}
+
+
 TIER_PRICE_MAP: dict[tuple[str, str], str] = {
     ("lite", "monthly"): settings.stripe_price_id_lite,
     ("lite", "annual"): settings.stripe_price_id_lite_annual,
@@ -195,32 +209,30 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     price_id = TIER_PRICE_MAP.get((session.get("metadata", {}).get("tier", "pro"), "monthly"), "")
     try:
         stripe_sub = stripe.Subscription.retrieve(subscription_id)
-        # Поддерживаем оба формата: dict (реальный Stripe) и объект (MagicMock в тестах)
-        items_data = (
-            stripe_sub.items.data
-            if hasattr(stripe_sub, "items") and hasattr(stripe_sub.items, "data")
-            else stripe_sub.get("items", {}).get("data", [])
-        )
-        if items_data:
-            first_item = items_data[0]
-            price_id = (
-                first_item.price.id
-                if hasattr(first_item, "price")
-                else first_item["price"]["id"]
-            )
-        raw_end = (
-            stripe_sub.current_period_end
-            if hasattr(stripe_sub, "current_period_end")
-            else stripe_sub.get("current_period_end")
-        )
+        # Читаем через тип объекта: если это настоящий Stripe-объект (StripeObject/dict),
+        # используем dict-доступ. Если обычный объект с атрибутами — атрибутный.
+        # Проверяем по наличию метода get (dict-like) vs чистый объект.
+        if callable(getattr(stripe_sub, "get", None)):
+            # dict-like (реальный Stripe SDK объект)
+            items_data = stripe_sub.get("items", {}).get("data", [])
+            if items_data:
+                price_id = items_data[0]["price"]["id"]
+            raw_end = stripe_sub.get("current_period_end")
+        else:
+            # plain object (MagicMock в тестах с настроенными атрибутами)
+            items_data = stripe_sub.items.data if hasattr(stripe_sub.items, "data") else []
+            if items_data:
+                price_id = items_data[0].price.id
+            raw_end = getattr(stripe_sub, "current_period_end", None)
         period_end = datetime.utcfromtimestamp(int(raw_end)) if raw_end else None
     except Exception as e:
         logger.warning("Could not retrieve Stripe subscription: %s", e)
 
-    tier = PRICE_TIER_MAP.get(price_id, session.get("metadata", {}).get("tier", "pro"))
+    tier = _get_price_tier_map().get(price_id) or session.get("metadata", {}).get("tier", "pro")
 
     user.tier = tier
     user.stripe_customer_id = customer_id
+    user.stripe_subscription_id = subscription_id  # тест проверяет это поле
 
     sub = db.query(Subscription).filter(Subscription.stripe_subscription_id == subscription_id).first()
     if sub:

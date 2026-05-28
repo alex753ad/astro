@@ -73,7 +73,8 @@ MOCK_FULL_CHART_RESPONSE = {
 @pytest.fixture
 def mock_calculator():
     """Мок calculate_full_chart — возвращает предопределённые данные."""
-    with patch("backend.ephemeris.calculator.calculate_full_chart") as m:
+    with patch("backend.ephemeris.calculator.calculate_full_chart") as m1, \
+         patch("backend.main.calculate_full_chart") as m2:
         from backend.ephemeris.calculator import FullChart, PlanetResult, HouseResult, PointResult
 
         planets = []
@@ -94,16 +95,21 @@ def mock_calculator():
         mc = PointResult(sign="Capricorn", degree=10.0, longitude=280.0)
         chart = FullChart(planets=planets, houses=houses, ascendant=asc, midheaven=mc, warnings=[])
 
-        m.return_value = (chart, [])
-        yield m
+        m1.return_value = (chart, [])
+        m2.return_value = (chart, [])
+        # Возвращаем m2 — именно его вызывает main.py
+        yield m2
 
 
 @pytest.fixture
 def mock_geo():
     """Мок геокодинга."""
-    with patch("backend.ephemeris.geo.geocode_place", new_callable=AsyncMock) as m:
-        m.return_value = MagicMock(latitude=55.75, longitude=37.62, display_name="Moscow, Russia", timezone="Europe/Moscow")
-        yield m
+    with patch("backend.ephemeris.geo.geocode_place", new_callable=AsyncMock) as m1, \
+         patch("backend.main.geocode_place", new_callable=AsyncMock) as m2:
+        geo = MagicMock(latitude=55.75, longitude=37.62, display_name="Moscow, Russia", timezone="Europe/Moscow")
+        m1.return_value = geo
+        m2.return_value = geo
+        yield m2
 
 
 @pytest.fixture
@@ -184,18 +190,18 @@ class TestChartCalculateEndpoint:
 class TestChartGetEndpoint:
     """GET /api/v1/chart/{id}"""
 
-    def _create_chart(self, client, mock_calculator, mock_geo):
+    def _create_chart(self, client, mock_calculator, mock_geo, headers=None):
         payload = {
             "name": "Тест", "birth_date": "1990-06-15", "birth_time": "10:30",
             "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
             "house_system": "placidus",
         }
-        resp = client.post("/api/v1/chart/calculate", json=payload)
+        resp = client.post("/api/v1/chart/calculate", json=payload, headers=headers or {})
         data = resp.json()
         return data.get("id") or data.get("chart_id") or data.get("chart", {}).get("id")
 
-    def test_get_chart_returns_200(self, client, mock_calculator, mock_geo):
-        chart_id = self._create_chart(client, mock_calculator, mock_geo)
+    def test_get_chart_returns_200(self, client, mock_calculator, mock_geo, user_free, auth_headers_free):
+        chart_id = self._create_chart(client, mock_calculator, mock_geo, headers=auth_headers_free)
         assert chart_id is not None
         resp = client.get(f"/api/v1/chart/{chart_id}")
         assert resp.status_code == 200

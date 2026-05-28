@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -97,6 +97,25 @@ def clear_cache():
     if hasattr(interpretation_cache, "clear"):
         interpretation_cache.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def single_retry():
+    """max_retries=1 — тесты видят ['gpt4o','deepseek','template'], а не ретраи.
+
+    Патчим self._settings на каждом новом инстансе через монкей-патч
+    InterpretationRouter.__init__, т.к. lru_cache не позволяет подменить get_settings.
+    """
+    original_init = InterpretationRouter.__init__
+
+    def patched_init(self_router, *args, **kwargs):
+        original_init(self_router, *args, **kwargs)
+        self_router._settings = MagicMock()
+        self_router._settings.ai_max_retries = 1
+        self_router._settings.ai_daily_budget_usd = 10.0
+
+    with patch.object(InterpretationRouter, "__init__", patched_init):
+        yield
 
 
 # ═══════════════════════════════════════════════════════════
