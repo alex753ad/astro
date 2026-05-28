@@ -72,6 +72,17 @@ class RedisCache:
         except Exception as e:
             logger.warning("Cache DELETE error: %s", e)
 
+    def clear(self) -> None:
+        """Clear all keys for this prefix (used in tests)."""
+        if self._redis is None:
+            return
+        try:
+            keys = self._redis.keys(f"{self._prefix}:*")
+            if keys:
+                self._redis.delete(*keys)
+        except Exception as e:
+            logger.warning("Cache CLEAR error: %s", e)
+
 
 # ── Singleton instances (импортируются из main.py) ──
 interpretation_cache = RedisCache("interp", TTL_INTERPRETATION)

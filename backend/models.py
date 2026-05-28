@@ -27,6 +27,7 @@ class User(Base):
     tier = Column(String(20), default="free", nullable=False, server_default="free")  # free / lite / pro / premium
     google_sub = Column(String(255), nullable=True, unique=True)
     stripe_customer_id = Column(String(255), nullable=True, unique=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")

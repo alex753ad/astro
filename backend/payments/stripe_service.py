@@ -20,6 +20,16 @@ def _init_stripe() -> None:
         stripe.api_key = settings.stripe_secret_key
 
 
+def construct_webhook_event(payload: bytes, sig_header: str, secret: str) -> dict:
+    """Wrapper around stripe.Webhook.construct_event — mockable in tests."""
+    _init_stripe()
+    return stripe.Webhook.construct_event(
+        payload=payload,
+        sig_header=sig_header,
+        secret=secret,
+    )
+
+
 TIER_PRICE_MAP: dict[tuple[str, str], str] = {
     ("lite", "monthly"): settings.stripe_price_id_lite,
     ("lite", "annual"): settings.stripe_price_id_lite_annual,
@@ -161,18 +171,22 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     subscription_id = session.get("subscription")
     customer_id = session.get("customer")
 
-    if not user_id or not subscription_id:
-        logger.warning("checkout.session.completed missing user_id or subscription_id")
+    if not subscription_id:
+        logger.warning("checkout.session.completed missing subscription_id")
         return
 
-    user = db.query(User).filter(User.id == user_id).first()
+    # Ищем пользователя: сначала по user_id из metadata, потом по customer_id
+    user = None
+    if user_id:
+        user = db.query(User).filter(User.id == user_id).first()
+    if not user and customer_id:
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
     if not user:
-        # Пробуем найти по email (Google OAuth и т.п.)
         email = session.get("customer_details", {}).get("email")
         if email:
             user = db.query(User).filter(User.email == email).first()
     if not user:
-        logger.warning("checkout.session.completed: user not found for id=%s", user_id)
+        logger.warning("checkout.session.completed: user not found customer=%s", customer_id)
         return
 
     # Получаем реальный price_id из Stripe (metadata может содержать только tier без period)
@@ -268,16 +282,28 @@ def handle_subscription_updated(event: dict, db: Session) -> None:
 
 def handle_subscription_deleted(event: dict, db: Session) -> None:
     subscription = event["data"]["object"]
+    subscription_id = subscription.get("id")
+    customer_id = subscription.get("customer")
+
     sub = db.query(Subscription).filter(
-        Subscription.stripe_subscription_id == subscription["id"]
+        Subscription.stripe_subscription_id == subscription_id
     ).first()
+
+    user = None
     if sub:
         sub.status = "canceled"
         sub.tier = "free"
         user = db.query(User).filter(User.id == sub.user_id).first()
-        if user:
-            user.tier = "free"
-        db.commit()
+    elif customer_id:
+        # Нет записи в Subscription — ищем пользователя по customer_id
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+
+    if user:
+        user.tier = "free"
+        user.stripe_subscription_id = None
+
+    db.commit()
+    logger.info("Subscription deleted. User %s downgraded to free.", user.id if user else "unknown")
 
 
 def handle_payment_failed(event: dict, db: Session) -> None:
@@ -316,3 +342,16 @@ def handle_payment_failed(event: dict, db: Session) -> None:
         )
     except Exception as e:
         logger.error("Failed to send payment_failed email: %s", e)
+
+
+# Alias expected by tests
+def send_payment_failed_notification(user_email: str, portal_url: str = "") -> None:
+    """Thin wrapper kept for test compatibility."""
+    import asyncio
+    from backend.email_service import send_payment_failed_email
+    try:
+        asyncio.get_event_loop().run_until_complete(
+            send_payment_failed_email(to=user_email, portal_url=portal_url)
+        )
+    except Exception as e:
+        logger.error("send_payment_failed_notification error: %s", e)

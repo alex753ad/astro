@@ -72,7 +72,11 @@ logger = logging.getLogger("astro")
 settings = get_settings()
 
 # ── Rate limiter ──
-limiter = Limiter(key_func=get_remote_address)
+# В тестовом режиме лимиты отключены (TESTING=true)
+limiter = Limiter(
+    key_func=get_remote_address,
+    enabled=not settings.testing,
+)
 
 
 # ── Lifespan ──
