@@ -1,31 +1,85 @@
 /**
- * PaywallModal.jsx — модал апгрейда до Pro
- * Показывается когда Free-пользователь открывает вкладку Транзитов
+ * PaywallModal.jsx — контекстный модал апгрейда
+ *
+ * Props:
+ *   context: 'free_to_lite' | 'lite_to_pro' | 'pro_to_premium'
+ *   onClose: () => void
+ *   chartId?: string (optional, for checkout redirect)
  */
 
 import React, { useState } from 'react';
 import { createCheckoutSession } from '../api/client';
 
-const BENEFITS = [
-  {
-    icon: '🪐',
-    title: 'Транзиты на 6 месяцев вперёд',
-    desc: 'Все активные планетарные периоды на твоей карте. В Free транзиты недоступны.',
+const PAYWALL_CONTENT = {
+  free_to_lite: {
+    badge: 'Lite',
+    title: 'Прочитайте полную интерпретацию',
+    subtitle: 'Узнайте больше о себе — без ограничений',
+    benefits: [
+      { icon: '🔮', text: 'Полный текст без ограничений — 800 слов о вас' },
+      { icon: '📅', text: 'Лунный календарь на год вперёд' },
+      { icon: '✨', text: 'Виральная карточка вашей карты для Stories' },
+    ],
+    cta: 'Перейти на Lite — 790 ₽/мес',
+    price: 'Отмена в любой момент · Без обязательств',
+    tier: 'lite',
+    monthly: '790 ₽ / мес',
+    annual: '7 490 ₽ / год',
+    annualNote: '624 ₽/мес при оплате за год',
+    annualSave: '−21%',
   },
-  {
-    icon: '📖',
-    title: 'Интерпретация 2000+ слов',
-    desc: 'Все планеты, дома и аспекты подробно. В Free — только ~500 слов без деталей.',
+  lite_to_pro: {
+    badge: 'Pro',
+    title: 'Разблокируйте ваши транзиты',
+    subtitle: 'AI-интерпретации и чат-ассистент',
+    benefits: [
+      { icon: '🪐', text: 'AI-объяснение каждого транзита лично для вашей карты' },
+      { icon: '💬', text: 'Чат-ассистент: задайте любой вопрос о своей карте' },
+      { icon: '📄', text: 'PDF-отчёты для скачивания' },
+    ],
+    cta: 'Перейти на Pro — 1 990 ₽/мес',
+    price: 'Отмена в любой момент · Без обязательств',
+    tier: 'pro',
+    monthly: '1 990 ₽ / мес',
+    annual: '18 990 ₽ / год',
+    annualNote: '1 582 ₽/мес при оплате за год',
+    annualSave: '−20%',
   },
-  {
-    icon: '🗂',
-    title: 'До 10 профилей',
-    desc: 'Карты партнёра, детей, родителей — сохраняй и переключайся в один клик.',
+  pro_to_premium: {
+    badge: 'Premium',
+    title: 'Работаете с клиентами?',
+    subtitle: '1 клиент окупает подписку',
+    benefits: [
+      { icon: '👥', text: 'CRM клиентов — карты и заметки в одном месте' },
+      { icon: '📊', text: '100 AI-интерпретаций в месяц на GPT-4o' },
+      { icon: '🖨️', text: 'Безлимитный PDF с вашим брендингом' },
+    ],
+    cta: 'Перейти на Premium — 7 990 ₽/мес',
+    price: '1 клиент окупает подписку',
+    tier: 'premium',
+    monthly: '7 990 ₽ / мес',
+    annual: '75 990 ₽ / год',
+    annualNote: '6 332 ₽/мес при оплате за год',
+    annualSave: '−21%',
   },
-];
+};
 
-export default function PaywallModal({ onClose, chartId }) {
-  const [billing, setBilling] = useState('monthly'); // 'monthly' | 'yearly'
+/**
+ * Determine paywall context from API error response.
+ * Backend returns: { error: "tier_required", required: "pro", current: "lite" }
+ */
+export function getPaywallContext(errorDetail) {
+  if (!errorDetail || errorDetail.error !== 'tier_required') return null;
+  const { current, required } = errorDetail;
+  if (current === 'free' && ['lite', 'pro', 'premium'].includes(required)) return 'free_to_lite';
+  if (current === 'lite' && ['pro', 'premium'].includes(required)) return 'lite_to_pro';
+  if (current === 'pro' && required === 'premium') return 'pro_to_premium';
+  return 'free_to_lite'; // fallback
+}
+
+export default function PaywallModal({ context = 'free_to_lite', onClose, chartId }) {
+  const content = PAYWALL_CONTENT[context] || PAYWALL_CONTENT.free_to_lite;
+  const [billing, setBilling] = useState('monthly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -33,7 +87,7 @@ export default function PaywallModal({ onClose, chartId }) {
     setLoading(true);
     setError(null);
     try {
-      const { url } = await createCheckoutSession('pro', billing, chartId);
+      const { url } = await createCheckoutSession(content.tier, billing, chartId);
       window.location.href = url;
     } catch (e) {
       setError('Не удалось открыть страницу оплаты. Попробуйте позже.');
@@ -45,58 +99,54 @@ export default function PaywallModal({ onClose, chartId }) {
     <div style={s.overlay} onClick={onClose}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
 
-        {/* Крестик */}
         <button style={s.close} onClick={onClose}>✕</button>
 
-        {/* Заголовок */}
+        {/* Header */}
         <div style={s.header}>
-          <div style={s.badge}>Pro</div>
-          <h2 style={s.title}>Откройте транзиты и полный анализ</h2>
-          <p style={s.subtitle}>Узнайте, какие планеты влияют на вас прямо сейчас</p>
+          <div style={s.badge}>{content.badge}</div>
+          <h2 style={s.title}>{content.title}</h2>
+          <p style={s.subtitle}>{content.subtitle}</p>
         </div>
 
-        {/* Преимущества */}
+        {/* Benefits */}
         <div style={s.benefits}>
-          {BENEFITS.map(b => (
-            <div key={b.title} style={s.benefit}>
+          {content.benefits.map(b => (
+            <div key={b.text} style={s.benefit}>
               <span style={s.benefitIcon}>{b.icon}</span>
-              <div>
-                <div style={s.benefitTitle}>{b.title}</div>
-                <div style={s.benefitDesc}>{b.desc}</div>
-              </div>
+              <div style={s.benefitText}>{b.text}</div>
             </div>
           ))}
         </div>
 
-        {/* Переключатель тарифа */}
+        {/* Billing toggle */}
         <div style={s.billingToggle}>
           <button
             style={{ ...s.toggleBtn, ...(billing === 'monthly' ? s.toggleActive : {}) }}
             onClick={() => setBilling('monthly')}
           >
-            $12 / месяц
+            {content.monthly}
           </button>
           <button
-            style={{ ...s.toggleBtn, ...(billing === 'yearly' ? s.toggleActive : {}) }}
-            onClick={() => setBilling('yearly')}
+            style={{ ...s.toggleBtn, ...(billing === 'annual' ? s.toggleActive : {}) }}
+            onClick={() => setBilling('annual')}
           >
-            $99 / год
-            <span style={s.saveBadge}>−31%</span>
+            {content.annual}
+            <span style={s.saveBadge}>{content.annualSave}</span>
           </button>
         </div>
 
-        {billing === 'yearly' && (
-          <p style={s.yearlyNote}>$8.25 / месяц при оплате за год</p>
+        {billing === 'annual' && (
+          <p style={s.annualNote}>{content.annualNote}</p>
         )}
 
         {/* CTA */}
         <button style={s.cta} onClick={handleUpgrade} disabled={loading}>
-          {loading ? 'Открываем страницу оплаты…' : 'Попробовать Pro бесплатно 7 дней'}
+          {loading ? 'Открываем страницу оплаты…' : content.cta}
         </button>
 
         {error && <p style={s.error}>{error}</p>}
 
-        <p style={s.legal}>Отмена в любой момент. Без скрытых платежей.</p>
+        <p style={s.legal}>{content.price}</p>
       </div>
     </div>
   );
@@ -142,6 +192,7 @@ const s = {
     padding: '3px 10px',
     borderRadius: '20px',
     marginBottom: '12px',
+    textTransform: 'uppercase',
   },
   title: {
     margin: '0 0 8px',
@@ -163,24 +214,17 @@ const s = {
   },
   benefit: {
     display: 'flex',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: '12px',
   },
   benefitIcon: {
-    fontSize: '22px',
+    fontSize: '20px',
     lineHeight: 1,
     flexShrink: 0,
-    marginTop: '1px',
   },
-  benefitTitle: {
+  benefitText: {
     fontSize: '14px',
-    fontWeight: '500',
     color: '#1E1A2E',
-    marginBottom: '2px',
-  },
-  benefitDesc: {
-    fontSize: '12px',
-    color: '#7060A0',
     lineHeight: 1.4,
   },
   billingToggle: {
@@ -218,7 +262,7 @@ const s = {
     padding: '1px 5px',
     borderRadius: '4px',
   },
-  yearlyNote: {
+  annualNote: {
     margin: '0 0 16px',
     fontSize: '12px',
     color: '#7060A0',
@@ -227,7 +271,7 @@ const s = {
   cta: {
     width: '100%',
     padding: '14px',
-    background: '#1E1A2E',
+    background: 'linear-gradient(135deg, #6C3CE0 0%, #9060C8 100%)',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: '12px',
