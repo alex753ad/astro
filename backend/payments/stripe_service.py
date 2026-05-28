@@ -154,74 +154,116 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
             "Report purchased: user=%s type=%s chart=%s",
             metadata.get("user_id"), metadata.get("report_type"), metadata.get("chart_id"),
         )
-        # TODO: запустить генерацию PDF и отправить на email
         return
 
     # Подписка
     user_id = session.get("metadata", {}).get("user_id")
-    tier = session.get("metadata", {}).get("tier", "pro")
     subscription_id = session.get("subscription")
     customer_id = session.get("customer")
 
-    if not user_id:
+    if not user_id or not subscription_id:
+        logger.warning("checkout.session.completed missing user_id or subscription_id")
         return
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
+        # Пробуем найти по email (Google OAuth и т.п.)
+        email = session.get("customer_details", {}).get("email")
+        if email:
+            user = db.query(User).filter(User.email == email).first()
+    if not user:
+        logger.warning("checkout.session.completed: user not found for id=%s", user_id)
         return
+
+    # Получаем реальный price_id из Stripe (metadata может содержать только tier без period)
+    from datetime import datetime
+    period_end = None
+    price_id = TIER_PRICE_MAP.get((session.get("metadata", {}).get("tier", "pro"), "monthly"), "")
+    try:
+        stripe_sub = stripe.Subscription.retrieve(subscription_id)
+        items = stripe_sub.get("items", {}).get("data", [])
+        if items:
+            price_id = items[0]["price"]["id"]
+        period_end = datetime.utcfromtimestamp(stripe_sub["current_period_end"])
+    except Exception as e:
+        logger.warning("Could not retrieve Stripe subscription: %s", e)
+
+    tier = PRICE_TIER_MAP.get(price_id, session.get("metadata", {}).get("tier", "pro"))
 
     user.tier = tier
     user.stripe_customer_id = customer_id
 
-    from datetime import datetime
-    period_end = None
-    try:
-        stripe_sub = stripe.Subscription.retrieve(subscription_id)
-        period_end = datetime.fromtimestamp(stripe_sub["current_period_end"])
-    except Exception as e:
-        logger.warning("Could not retrieve period_end: %s", e)
-
-    sub = db.query(Subscription).filter(Subscription.user_id == user_id).first()
+    sub = db.query(Subscription).filter(Subscription.stripe_subscription_id == subscription_id).first()
     if sub:
-        sub.stripe_subscription_id = subscription_id
-        sub.stripe_price_id = TIER_PRICE_MAP.get((tier, "monthly"), "")
+        sub.stripe_price_id = price_id
         sub.status = "active"
         sub.tier = tier
         sub.current_period_end = period_end
     else:
         sub = Subscription(
-            user_id=user_id,
+            user_id=user.id,
             stripe_subscription_id=subscription_id,
             stripe_customer_id=customer_id,
-            stripe_price_id=TIER_PRICE_MAP.get((tier, "monthly"), ""),
-            status="active", tier=tier, current_period_end=period_end,
+            stripe_price_id=price_id,
+            status="active",
+            tier=tier,
+            current_period_end=period_end,
         )
         db.add(sub)
 
     db.commit()
-    logger.info("Subscription activated: user=%s tier=%s", user_id, tier)
+    logger.info("Subscription activated: user=%s tier=%s", user.id, tier)
 
 
 def handle_subscription_updated(event: dict, db: Session) -> None:
     subscription = event["data"]["object"]
     subscription_id = subscription["id"]
-    status_val = subscription["status"]
+    stripe_status = subscription["status"]
 
     items = subscription.get("items", {}).get("data", [])
     price_id = items[0]["price"]["id"] if items else None
-    tier = PRICE_TIER_MAP.get(price_id, "free") if price_id else "free"
+    new_tier = PRICE_TIER_MAP.get(price_id, "free") if price_id else "free"
+
+    from datetime import datetime
+    period_end = None
+    raw_end = subscription.get("current_period_end")
+    if raw_end:
+        try:
+            period_end = datetime.utcfromtimestamp(raw_end)
+        except Exception:
+            pass
 
     sub = db.query(Subscription).filter(
         Subscription.stripe_subscription_id == subscription_id
     ).first()
 
-    if sub:
-        sub.status = status_val
-        sub.tier = tier
-        user = db.query(User).filter(User.id == sub.user_id).first()
+    if not sub:
+        logger.warning("subscription.updated: no DB record for %s", subscription_id)
+        return
+
+    user = db.query(User).filter(User.id == sub.user_id).first()
+
+    # Даунгрейд только при финальных статусах — не при cancel_at_period_end=True
+    DOWNGRADE_STATUSES = {"canceled", "unpaid", "incomplete_expired"}
+    if stripe_status in DOWNGRADE_STATUSES:
+        sub.tier = "free"
         if user:
-            user.tier = tier if status_val == "active" else "free"
-            db.commit()
+            user.tier = "free"
+    else:
+        sub.tier = new_tier
+        if user:
+            user.tier = new_tier
+
+    sub.status = stripe_status
+    sub.stripe_price_id = price_id or sub.stripe_price_id
+    if period_end:
+        sub.current_period_end = period_end
+
+    db.commit()
+    logger.info(
+        "Subscription updated: id=%s status=%s tier=%s user=%s",
+        subscription_id, stripe_status, sub.tier, user.id if user else "?"
+    )
 
 
 def handle_subscription_deleted(event: dict, db: Session) -> None:

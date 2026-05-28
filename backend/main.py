@@ -62,6 +62,8 @@ from backend.profile.settings_router import router as settings_router
 from backend.onboarding_router import router as onboarding_router
 from backend.share_router import router as share_router
 from backend.payments.payments_router import router as payments_router
+from backend.auth.jwt import decode_token
+from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
 from backend.auth.rate_limits import tier_limiter
 from backend.models import User
@@ -94,6 +96,21 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── TierMiddleware — пишет user_tier в request.state до декораторов лимитера ──
+@app.middleware("http")
+async def tier_middleware(request: Request, call_next):
+    user_tier = "free"
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+        try:
+            token_data = decode_token(token)
+            user_tier = token_data.tier or "free"
+        except Exception:
+            user_tier = "free"
+    request.state.user_tier = user_tier
+    return await call_next(request)
 
 # ── CORS ──
 app.add_middleware(
