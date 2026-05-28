@@ -20,6 +20,7 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=gen_uuid)
     email = Column(String(255), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=True)
     hashed_password = Column(String(255), nullable=True)  # nullable for OAuth users
     is_active = Column(Boolean, default=True, nullable=False, server_default="true")
     is_email_confirmed = Column(Boolean, default=False, nullable=False, server_default="false")
