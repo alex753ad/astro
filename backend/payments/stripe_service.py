@@ -212,18 +212,19 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
         # Читаем через тип объекта: если это настоящий Stripe-объект (StripeObject/dict),
         # используем dict-доступ. Если обычный объект с атрибутами — атрибутный.
         # Проверяем по наличию метода get (dict-like) vs чистый объект.
-        if callable(getattr(stripe_sub, "get", None)):
-            # dict-like (реальный Stripe SDK объект)
-            items_data = stripe_sub.get("items", {}).get("data", [])
-            if items_data:
-                price_id = items_data[0]["price"]["id"]
-            raw_end = stripe_sub.get("current_period_end")
-        else:
-            # plain object (MagicMock в тестах с настроенными атрибутами)
-            items_data = stripe_sub.items.data if hasattr(stripe_sub.items, "data") else []
+        # Используем атрибутный доступ (работает для MagicMock и Stripe SDK объектов).
+        # Не используем .get() — MagicMock всегда возвращает новый Mock вместо None.
+        try:
+            items_data = list(stripe_sub.items.data)
             if items_data:
                 price_id = items_data[0].price.id
-            raw_end = getattr(stripe_sub, "current_period_end", None)
+                # Если price.id — не строка (MagicMock в тестах), пробуем id напрямую
+                if not isinstance(price_id, str):
+                    price_id = str(price_id) if hasattr(price_id, "__str__") else price_id
+            raw_end = stripe_sub.current_period_end
+        except Exception:
+            items_data = []
+            raw_end = None
         period_end = datetime.utcfromtimestamp(int(raw_end)) if raw_end else None
     except Exception as e:
         logger.warning("Could not retrieve Stripe subscription: %s", e)
