@@ -535,10 +535,37 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
     touchState.current.active = false;
   }
 
+  // ── Онбординг-тултипы ──
+  const [onboardingSeen, setOnboardingSeen] = useState(() =>
+    typeof window !== 'undefined' && localStorage.getItem('astrea_onboarding_seen') === 'true'
+  );
+  const [activeTooltip, setActiveTooltip] = useState(0);
+
+  const TOOLTIPS = [
+    { key: 'asc', label: 'ASC', text: 'Асцендент — ваша маска для мира, то как вас воспринимают с первого взгляда' },
+    { key: 'mc', label: 'MC', text: 'Середина Неба — ваше призвание и публичный образ' },
+    { key: 'aspects', label: 'Аспекты', text: 'Красные линии — напряжение и точки роста. Синие — природные таланты' },
+  ];
+
+  const dismissOnboarding = () => {
+    setOnboardingSeen(true);
+    localStorage.setItem('astrea_onboarding_seen', 'true');
+  };
+
+  const nextTooltip = () => {
+    if (activeTooltip < TOOLTIPS.length - 1) {
+      setActiveTooltip(activeTooltip + 1);
+    } else {
+      dismissOnboarding();
+    }
+  };
+
   if (loading) return <ChartSkeleton />;
 
+  const showOnboarding = !onboardingSeen && props.planets && props.planets.length > 0;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, position: 'relative' }}>
       <div
         ref={containerRef}
         style={{ touchAction: 'none', width: '100%' }}
@@ -555,6 +582,60 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
           <NatalChartInner {...props} isCompact={isCompact} />
         </div>
       </div>
+
+      {/* Онбординг-тултипы */}
+      {showOnboarding && (
+        <div style={{
+          position: 'absolute',
+          bottom: autoCompact ? 60 : 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#FFFFFF',
+          border: '1.5px solid #E0D0F8',
+          borderRadius: 16,
+          padding: '14px 20px',
+          boxShadow: '0 8px 24px -4px rgba(144,96,200,0.25)',
+          maxWidth: 320,
+          width: '90%',
+          zIndex: 20,
+          animation: 'fadeSlideIn 0.3s ease',
+        }}>
+          <style>{`
+            @keyframes fadeSlideIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+          `}</style>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{
+              background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+              color: '#fff', borderRadius: 8, padding: '2px 8px',
+              fontSize: 11, fontWeight: 700,
+            }}>
+              {TOOLTIPS[activeTooltip].label}
+            </span>
+            <span style={{ fontSize: 11, color: '#B0A0C8' }}>
+              {activeTooltip + 1} / {TOOLTIPS.length}
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: '#2D2540', lineHeight: 1.5, margin: '0 0 12px' }}>
+            {TOOLTIPS[activeTooltip].text}
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={dismissOnboarding} style={{
+              background: 'none', border: 'none', color: '#B0A0C8',
+              fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+            }}>
+              Пропустить
+            </button>
+            <button onClick={nextTooltip} style={{
+              background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+              border: 'none', color: '#fff', borderRadius: 10,
+              padding: '6px 16px', fontSize: 12, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              {activeTooltip < TOOLTIPS.length - 1 ? 'Далее →' : 'Понятно ✓'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {autoCompact && (
         <button
