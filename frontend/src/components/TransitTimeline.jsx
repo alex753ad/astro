@@ -301,31 +301,48 @@ function StatsSummary({ events }) {
 // FREE PLAN BANNER
 // ═══════════════════════════════════════════════════════════
 
-function FreePlanBanner({ lockedCount, onUpgrade }) {
+function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
   return (
     <div style={{
       margin: "8px 0", padding: "16px 20px", borderRadius: 16,
       background: "linear-gradient(135deg, #F5F0FF, #FFF0F8)",
       border: "1.5px solid #E0D0F8",
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+      display: "flex", flexDirection: "column", gap: 10,
     }}>
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#5A2880", marginBottom: 3 }}>
-          ✨ Ещё {lockedCount} активных транзитов скрыто
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#5A2880", marginBottom: 3 }}>
+            ✨ Ещё {lockedCount} активных транзитов скрыто
+          </div>
+          <div style={{ fontSize: 12, color: "#9070B0" }}>
+            Перейдите на Pro, чтобы видеть полный прогноз с AI-интерпретациями
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: "#9070B0" }}>
-          Перейдите на Pro, чтобы видеть полный прогноз
-        </div>
+        <button onClick={onUpgrade} style={{
+          padding: "9px 20px", borderRadius: 12, border: "none",
+          background: "linear-gradient(135deg, #9060C8, #C060A0)",
+          color: "#fff", fontSize: 13, fontWeight: 700,
+          cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
+          boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
+        }}>
+          Открыть Pro
+        </button>
       </div>
-      <button onClick={onUpgrade} style={{
-        padding: "9px 20px", borderRadius: 12, border: "none",
-        background: "linear-gradient(135deg, #9060C8, #C060A0)",
-        color: "#fff", fontSize: 13, fontWeight: 700,
-        cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
-        boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
-      }}>
-        Открыть Pro
-      </button>
+      {featuredTransit && (
+        <div onClick={onUpgrade} style={{
+          padding: "10px 14px", borderRadius: 12, cursor: "pointer",
+          background: "rgba(48,104,176,0.06)", border: "1px solid rgba(48,104,176,0.15)",
+        }}>
+          <span style={{ fontSize: 13, color: "#3068B0", fontWeight: 600 }}>
+            {PLANET_GLYPHS[featuredTransit.transit_planet]} {PLANET_LABELS_RU[featuredTransit.transit_planet]}{" "}
+            {ASPECT_LABELS_RU[featuredTransit.aspect_type]?.toLowerCase()}{" "}
+            {PLANET_LABELS_RU[featuredTransit.natal_planet]}
+          </span>
+          <span style={{ fontSize: 12, color: "#6090C0", marginLeft: 8 }}>
+            — один из лучших периодов. Разблокировать?
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -495,6 +512,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [activeDate,    setActiveDate]    = useState(null);
 
   const isFree = userTier === "free";
+  const isLite = userTier === "lite";
+  const hasFullAccess = userTier === "pro" || userTier === "premium";
 
   useEffect(() => {
     if (!chartId || mockMode) { setEvents(MOCK_EVENTS); setLoading(false); return; }
@@ -502,11 +521,45 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     const today = new Date();
     const from  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
     const to    = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10);
-    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`)
+    const token = localStorage.getItem('astro_access_token');
+    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoading(false); })
       .catch(() => { setEvents([]); setLoading(false); });
   }, [chartId, mockMode]);
+
+  // ── Логика видимости транзитов ──
+  // Free: первые 2 недели + 1 позитивный транзит (Venus/Jupiter trine/sextile)
+  // Lite: все транзиты видны (без AI-интерпретации)
+  // Pro/Premium: полный доступ
+  const twoWeeksFromNow = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
+  const featuredTransitIndex = useMemo(() => {
+    if (hasFullAccess || isLite) return -1;
+    return events.findIndex(e => {
+      const eventDate = e.start_date || e.peak_date || e.date;
+      const isAfterTwoWeeks = eventDate > twoWeeksFromNow;
+      const isPositive = ['jupiter', 'venus'].includes(e.transit_planet.toLowerCase()) &&
+                         ['trine', 'sextile'].includes(e.aspect_type);
+      return isAfterTwoWeeks && isPositive;
+    });
+  }, [events, twoWeeksFromNow, hasFullAccess, isLite]);
+
+  const isEventVisible = useCallback((event, idx) => {
+    if (hasFullAccess || isLite) return true;
+    // Free: visible if within 2 weeks
+    const eventDate = event.start_date || event.peak_date || event.date;
+    if (eventDate <= twoWeeksFromNow) return true;
+    // Free: featured positive transit is visible
+    if (idx === featuredTransitIndex) return true;
+    return false;
+  }, [hasFullAccess, isLite, twoWeeksFromNow, featuredTransitIndex]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
@@ -522,8 +575,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     });
   }, [events, planetFilter, aspectFilter, orbFilter, activeDate]);
 
-  // Индекс открытого транзита для free (считаем по всем events, не по filteredEvents)
-  const freeUnlockedIndex = useMemo(() => getFreeUnlockedIndex(filteredEvents), [filteredEvents]);
+  const hiddenCount = useMemo(() => {
+    if (hasFullAccess || isLite) return 0;
+    return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
+  }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
   const dates            = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
   const eventCountByDate = useMemo(() => {
@@ -551,7 +606,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     let positions = [];
     if (chartId && !mockMode) {
       try {
-        const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`);
+        const token = localStorage.getItem('astro_access_token');
+        const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }
       } catch {}
     }
@@ -561,8 +619,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const handleUpgrade = useCallback(() => {
     if (onUpgrade) onUpgrade();
   }, [onUpgrade]);
-
-  const lockedCount = isFree ? Math.max(0, filteredEvents.length - 1) : 0;
 
   return (
     <div style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "#2D2540" }}>
@@ -599,8 +655,12 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         <FilterBar planetFilter={planetFilter} setPlanetFilter={setPlanetFilter} aspectFilter={aspectFilter} setAspectFilter={setAspectFilter} orbFilter={orbFilter} setOrbFilter={setOrbFilter} />
       </div>
 
-      {!loading && isFree && lockedCount > 0 && (
-        <FreePlanBanner lockedCount={lockedCount} onUpgrade={handleUpgrade} />
+      {!loading && isFree && hiddenCount > 0 && (
+        <FreePlanBanner
+          lockedCount={hiddenCount}
+          featuredTransit={featuredTransitIndex >= 0 ? events[featuredTransitIndex] : null}
+          onUpgrade={handleUpgrade}
+        />
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
@@ -614,14 +674,15 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
             </div>
           ) : (
             filteredEvents.map((event, idx) => {
-              const blurred = isFree && idx !== freeUnlockedIndex;
+              const globalIdx = events.indexOf(event);
+              const visible = isEventVisible(event, globalIdx);
               return (
                 <EventCard
                   key={`${event.peak_date||event.start_date||event.date}-${event.transit_planet}-${event.natal_planet}-${event.aspect_type}`}
                   event={event} index={idx}
                   isSelected={selectedEvent === event}
                   onClick={() => handleEventClick(event)}
-                  blurred={blurred}
+                  blurred={!visible}
                   onUpgrade={handleUpgrade}
                 />
               );
