@@ -148,7 +148,45 @@ async def calculate_chart_debug(
             house_system=data.house_system,
             time_unknown=time_unknown,
         )
-        return {"ok": True, "planets": len(chart_data.planets)}
+        # Full pipeline like real calculate_chart
+        planets_resp = [
+            PlanetPosition(
+                name=p.name, longitude=p.longitude, sign=p.sign,
+                degree_in_sign=p.degree_in_sign,
+                house=p.house if not time_unknown else None,
+                retrograde=p.retrograde,
+            ) for p in chart_data.planets
+        ]
+        houses_resp = [HouseData(number=h.number, sign=h.sign, degree=h.degree) for h in chart_data.houses]
+        aspects_resp = [
+            AspectData(planet1=a.planet1, planet2=a.planet2, aspect_type=a.aspect_type,
+                       angle=a.angle, orb=a.orb, applying=a.applying) for a in aspects
+        ]
+        asc_resp = PointData(sign=chart_data.ascendant.sign, degree=chart_data.ascendant.degree,
+                             longitude=chart_data.ascendant.longitude) if chart_data.ascendant else None
+        mc_resp = PointData(sign=chart_data.midheaven.sign, degree=chart_data.midheaven.degree,
+                            longitude=chart_data.midheaven.longitude) if chart_data.midheaven else None
+        chart_record = NatalChart(
+            user_id=None, birth_date=str(data.birth_date), birth_time=data.birth_time,
+            birth_place=geo.display_name, latitude=geo.latitude, longitude=geo.longitude,
+            timezone=geo.timezone, utc_datetime=utc_dt, time_unknown=time_unknown,
+            house_system=data.house_system,
+            planets=[p.model_dump() for p in planets_resp],
+            houses=[h.model_dump() for h in houses_resp],
+            aspects=[a.model_dump() for a in aspects_resp],
+            ascendant=asc_resp.model_dump() if asc_resp else None,
+            midheaven=mc_resp.model_dump() if mc_resp else None,
+        )
+        # Don't save, just test response serialization
+        chart_record.id = None
+        resp = NatalChartResponse(
+            id=None, birth_date=str(data.birth_date), birth_time=data.birth_time,
+            birth_place=geo.display_name, latitude=geo.latitude, longitude=geo.longitude,
+            timezone=geo.timezone, time_unknown=time_unknown, house_system=data.house_system,
+            planets=planets_resp, houses=houses_resp, aspects=aspects_resp,
+            ascendant=asc_resp, midheaven=mc_resp, warnings=[],
+        )
+        return {"ok": True, "planets": len(planets_resp), "response_ok": True}
     except Exception:
         return JSONResponse(status_code=500, content={"traceback": traceback.format_exc()})
 
