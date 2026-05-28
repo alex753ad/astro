@@ -31,17 +31,17 @@ def construct_webhook_event(payload: bytes, sig_header: str, secret: str) -> dic
 
 
 def _get_price_tier_map() -> dict[str, str]:
-    """Строим карту price_id→tier лениво, чтобы тесты могли подменить env-переменные."""
-    s = get_settings()
-    tier_map = {
-        ("lite", "monthly"): s.stripe_price_id_lite,
-        ("lite", "annual"): s.stripe_price_id_lite_annual,
-        ("pro", "monthly"): s.stripe_price_id_pro,
-        ("pro", "annual"): s.stripe_price_id_pro_annual,
-        ("premium", "monthly"): s.stripe_price_id_premium,
-        ("premium", "annual"): s.stripe_price_id_premium_annual,
-    }
-    return {v: k[0] for k, v in tier_map.items() if v}
+    """Строим карту price_id→tier лениво через os.environ (минует lru_cache get_settings)."""
+    import os
+    pairs = [
+        (os.environ.get("STRIPE_PRICE_ID_LITE",           ""), "lite"),
+        (os.environ.get("STRIPE_PRICE_ID_LITE_ANNUAL",    ""), "lite"),
+        (os.environ.get("STRIPE_PRICE_ID_PRO",            ""), "pro"),
+        (os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL",     ""), "pro"),
+        (os.environ.get("STRIPE_PRICE_ID_PREMIUM",        ""), "premium"),
+        (os.environ.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL", ""), "premium"),
+    ]
+    return {price_id: tier for price_id, tier in pairs if price_id}
 
 
 TIER_PRICE_MAP: dict[tuple[str, str], str] = {
