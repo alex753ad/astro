@@ -532,7 +532,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={!currentUser || currentUser.tier === 'free'} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
               </section>
 
               {/* ── Async расчёт транзитов за 12 месяцев ── */}
