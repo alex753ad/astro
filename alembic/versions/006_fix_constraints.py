@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine.reflection import Inspector
 
 revision = "006_fix_constraints"
-down_revision = "005_fix_schema"
+down_revision = "005_fix_users_not_null"
 branch_labels = None
 depends_on = None
 
