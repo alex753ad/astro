@@ -126,6 +126,33 @@ def metrics():
 # HEALTH ENDPOINTS
 # ═══════════════════════════════════════════════════════════
 
+@app.post("/api/v1/chart/calculate-debug", tags=["debug"])
+async def calculate_chart_debug(
+    request: Request,
+    data: BirthDataInput,
+    db: Session = Depends(get_db),
+):
+    """Temporary debug endpoint — full traceback in response."""
+    import traceback
+    try:
+        geo = await geocode_place(data.birth_place)
+        utc_dt, time_unknown, _ = resolve_utc_datetime(
+            birth_date=str(data.birth_date),
+            birth_time=data.birth_time,
+            timezone=geo.timezone,
+        )
+        chart_data, aspects = calculate_full_chart(
+            utc_dt=utc_dt,
+            latitude=geo.latitude,
+            longitude=geo.longitude,
+            house_system=data.house_system,
+            time_unknown=time_unknown,
+        )
+        return {"ok": True, "planets": len(chart_data.planets)}
+    except Exception:
+        return JSONResponse(status_code=500, content={"traceback": traceback.format_exc()})
+
+
 @app.get("/health", response_model=HealthResponse, tags=["health"])
 async def health():
     return HealthResponse(status="ok", version="0.1.0", database="not_checked")
