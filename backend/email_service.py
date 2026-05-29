@@ -518,3 +518,29 @@ async def send_payment_failed_email(to: str, portal_url: str) -> bool:
         "⚠️ Не удалось списать оплату — обновите карту за 3 дня · Astrea Timeline",
         _base("Проблема с оплатой", "Не удалось списать оплату за подписку", body),
     )
+
+
+async def send_gift_code_email(
+    to: str,
+    code: str,
+    tier: str,
+    duration_months: int,
+) -> bool:
+    """Email gift code to the buyer after successful payment."""
+    redeem_url = f"https://astreatime.ru/gift/redeem?code={code}"
+    tier_name = {"lite": "Lite", "pro": "Pro", "premium": "Premium"}.get(tier, tier.capitalize())
+    body = (
+        _h2(f"🎁 Ваш подарочный код Astrea {tier_name}")
+        + _p(f"Спасибо за покупку! Вот подарочный код на <strong>{duration_months} мес.</strong> подписки {tier_name}:")
+        + f'<div style="text-align:center;margin:24px 0">'
+        + f'<code style="font-size:22px;font-weight:700;letter-spacing:3px;color:#7C6CFF;background:#1e1b4b;padding:12px 24px;border-radius:8px">{code}</code>'
+        + f'</div>'
+        + _p("Передайте этот код получателю — он введёт его в разделе «Подписка» личного кабинета.")
+        + _btn("Активировать подарок →", redeem_url)
+        + _p("Код действителен бессрочно и может быть использован один раз.")
+    )
+    return await _send(
+        to,
+        f"🎁 Ваш подарочный код Astrea {tier_name} на {duration_months} мес.",
+        _base(f"Подарочная подписка {tier_name}", f"Код для активации {duration_months} мес. {tier_name}", body),
+    )

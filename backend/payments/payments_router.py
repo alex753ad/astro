@@ -289,3 +289,68 @@ async def download_report(token: str, db: Session = Depends(get_db)):
         media_type="application/pdf",
         filename=f"astrea_report_{chart_id[:8]}.pdf",
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# GIFT SUBSCRIPTIONS (задача 8)
+# ═══════════════════════════════════════════════════════════
+
+from pydantic import BaseModel as _BM
+
+
+class GiftCheckoutRequest(_BM):
+    tier: str           # lite | pro | premium
+    duration_months: int  # 1 | 3 | 12
+    success_url: str = ""
+    cancel_url: str = ""
+
+
+class GiftRedeemRequest(_BM):
+    code: str
+
+
+@router.post(
+    "/gift-checkout",
+    summary="Create Stripe Checkout for gift subscription",
+)
+async def gift_checkout(
+    data: GiftCheckoutRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if data.tier not in ("lite", "pro", "premium"):
+        raise HTTPException(status_code=400, detail="Invalid tier")
+    if data.duration_months not in (1, 3, 12):
+        raise HTTPException(status_code=400, detail="duration_months must be 1, 3 or 12")
+    from backend.payments.stripe_service import create_gift_checkout
+    try:
+        url = create_gift_checkout(
+            tier=data.tier,
+            duration_months=data.duration_months,
+            purchaser_user=user,
+            success_url=data.success_url,
+            cancel_url=data.cancel_url,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Stripe error: {e.user_message}")
+    return {"checkout_url": url}
+
+
+@router.post(
+    "/gift-redeem",
+    summary="Redeem gift subscription code",
+)
+async def gift_redeem(
+    data: GiftRedeemRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from backend.payments.stripe_service import redeem_gift_code
+    try:
+        result = redeem_gift_code(data.code, user, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result

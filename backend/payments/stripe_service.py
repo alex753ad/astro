@@ -174,6 +174,11 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     # Разовая покупка — не меняем тир
     if mode == "payment":
         metadata = session.get("metadata", {})
+        payment_type = metadata.get("type", "")
+        # Подарочная подписка
+        if payment_type == "gift":
+            handle_gift_checkout_completed(session, db)
+            return
         chart_id = metadata.get("chart_id")
         user_id = metadata.get("user_id")
         report_type = metadata.get("report_type", "basic")
@@ -523,3 +528,146 @@ def consume_report_token(token: str) -> str | None:
     if chart_id:
         redis.delete(key)
     return chart_id
+
+
+# ═══════════════════════════════════════════════════════════
+# GIFT SUBSCRIPTIONS (задача 8)
+# ═══════════════════════════════════════════════════════════
+
+import secrets as _secrets
+import string as _string
+
+
+def _generate_gift_code() -> str:
+    chars = _string.ascii_uppercase + _string.digits
+    return "".join(_secrets.choice(chars) for _ in range(16))
+
+
+def create_gift_checkout(
+    tier: str,
+    duration_months: int,
+    purchaser_user: User,
+    success_url: str,
+    cancel_url: str,
+    db: Session,
+) -> str:
+    """Create Stripe Checkout (one-time payment) for gift subscription.
+    After payment webhook creates GiftCode and emails it to purchaser.
+    """
+    _init_stripe()
+
+    GIFT_PRICES_USD = {
+        ("lite", 1): 790,
+        ("lite", 3): 2100,
+        ("lite", 12): 7490,
+        ("pro", 1): 1990,
+        ("pro", 3): 5490,
+        ("pro", 12): 18990,
+        ("premium", 1): 7990,
+        ("premium", 3): 21990,
+        ("premium", 12): 75990,
+    }
+
+    amount = GIFT_PRICES_USD.get((tier, duration_months))
+    if not amount:
+        raise ValueError(f"Unknown gift tier/duration: {tier}/{duration_months}")
+
+    customer_id = get_or_create_customer(purchaser_user, db)
+
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        mode="payment",
+        payment_method_types=["card"],
+        line_items=[{
+            "quantity": 1,
+            "price_data": {
+                "currency": "rub",
+                "unit_amount": amount * 100,
+                "product_data": {
+                    "name": f"Подарочная подписка Astrea {tier.capitalize()} на {duration_months} мес.",
+                },
+            },
+        }],
+        success_url=success_url or f"{settings.frontend_url}/gift/success",
+        cancel_url=cancel_url or f"{settings.frontend_url}/gift",
+        metadata={
+            "type": "gift",
+            "gift_tier": tier,
+            "gift_duration_months": str(duration_months),
+            "purchased_by": str(purchaser_user.id),
+        },
+    )
+    logger.info("Gift checkout: user=%s tier=%s months=%d", purchaser_user.id, tier, duration_months)
+    return session.url
+
+
+def handle_gift_checkout_completed(session: dict, db: Session) -> None:
+    """Called from webhook when gift payment succeeds. Creates GiftCode and emails buyer."""
+    from backend.models import GiftCode
+    metadata = session.get("metadata", {})
+    tier = metadata.get("gift_tier", "pro")
+    duration_months = int(metadata.get("gift_duration_months", 1))
+    purchased_by = metadata.get("purchased_by")
+
+    code = _generate_gift_code()
+    gift = GiftCode(
+        code=code,
+        tier=tier,
+        duration_months=duration_months,
+        purchased_by=purchased_by,
+    )
+    db.add(gift)
+    db.commit()
+    db.refresh(gift)
+
+    # Отправляем email покупателю
+    if purchased_by:
+        buyer = db.query(User).filter(User.id == purchased_by).first()
+        if buyer:
+            import asyncio
+            try:
+                from backend.email_service import send_gift_code_email
+                asyncio.get_event_loop().run_until_complete(
+                    send_gift_code_email(buyer.email, code, tier, duration_months)
+                )
+            except Exception as e:
+                logger.warning("Gift code email failed: %s", e)
+
+    logger.info("Gift code created: %s tier=%s months=%d", code, tier, duration_months)
+
+
+def redeem_gift_code(code: str, user: User, db: Session) -> dict:
+    """Activate gift subscription for user. Returns tier and duration."""
+    from backend.models import GiftCode
+    from datetime import datetime
+
+    gift = db.query(GiftCode).filter(GiftCode.code == code).first()
+    if not gift:
+        raise ValueError("invalid_gift_code")
+    if gift.redeemed_by is not None:
+        raise ValueError("gift_already_redeemed")
+
+    gift.redeemed_by = user.id
+    gift.redeemed_at = datetime.utcnow()
+
+    # Активируем подписку через Stripe Coupon или напрямую обновляем tier
+    _init_stripe()
+    if user.stripe_customer_id:
+        try:
+            coupon = stripe.Coupon.create(
+                percent_off=100,
+                duration="repeating",
+                duration_in_months=gift.duration_months,
+                max_redemptions=1,
+                metadata={"type": "gift_redeem", "gift_code": code},
+            )
+            stripe.Customer.modify(user.stripe_customer_id, coupon=coupon.id)
+        except Exception as e:
+            logger.warning("Stripe coupon for gift failed: %s", e)
+
+    # Обновляем тир в БД напрямую
+    user.tier = gift.tier
+    db.commit()
+
+    logger.info("Gift redeemed: code=%s user=%s tier=%s", code, user.id, gift.tier)
+    return {"tier": gift.tier, "duration_months": gift.duration_months}
