@@ -137,6 +137,21 @@ self.addEventListener('push', (event) => {
   );
 });
 
+// ── D5: Локальный reminder через postMessage ──────────────────────────────────
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'SCHEDULE_REMINDER') return;
+  const { title, body, delayMs = 0 } = event.data;
+  setTimeout(() => {
+    self.registration.showNotification(title, {
+      body,
+      icon:    '/icons/icon-192.png',
+      badge:   '/icons/icon-192.png',
+      vibrate: [200, 100, 200],
+      data:    { url: '/home' },
+    });
+  }, delayMs);
+});
+
 // Клик по уведомлению — фокус на вкладку или открыть новую
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

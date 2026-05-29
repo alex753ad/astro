@@ -15,6 +15,8 @@ import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import PaywallModal from '../components/PaywallModal';
 import OnboardingTooltips from '../components/OnboardingTooltips';
+import StreakBadge from '../components/StreakBadge';
+import useStreak, { schedulePushReminder } from '../hooks/useStreak';
 import {
   createReportCheckoutSession,
   startPdfGeneration,
@@ -222,6 +224,20 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [asyncTransitLoading, setAsyncTransitLoading] = useState(false);
 
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
+  const { streak, isNew } = useStreak();
+
+  // D5: запросить разрешение на уведомления + напомнить если давно не заходил
+  useEffect(() => {
+    if (!chart) return;
+    if ('Notification' in window && Notification.permission === 'default') {
+      // Запрашиваем только после взаимодействия, не сразу
+      const t = setTimeout(() => {
+        Notification.requestPermission().then(() => schedulePushReminder());
+      }, 5000);
+      return () => clearTimeout(t);
+    }
+    schedulePushReminder();
+  }, [chart]);
 
   // Запустить расчёт транзитов за 12 месяцев через Celery
   async function loadTransitsAsync() {
@@ -386,7 +402,10 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       <header style={s.header}>
         <div>
           <h1 style={s.title}>{chart.name ?? 'Натальная карта'}</h1>
-          <p style={s.subtitle}>{chart.birth_date} · {chart.birth_place}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+            <p style={{ ...s.subtitle, margin: 0 }}>{chart.birth_date} · {chart.birth_place}</p>
+            <StreakBadge streak={streak} isNew={isNew} />
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button onClick={() => navigate(`/planner/${chartId}`)} style={s.plannerLinkBtn}>
