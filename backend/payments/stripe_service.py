@@ -174,10 +174,15 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     # Разовая покупка — не меняем тир
     if mode == "payment":
         metadata = session.get("metadata", {})
+        chart_id = metadata.get("chart_id")
+        user_id = metadata.get("user_id")
+        report_type = metadata.get("report_type", "basic")
         logger.info(
             "Report purchased: user=%s type=%s chart=%s",
-            metadata.get("user_id"), metadata.get("report_type"), metadata.get("chart_id"),
+            user_id, report_type, chart_id,
         )
+        if chart_id and user_id:
+            _issue_report_token(chart_id, user_id)
         return
 
     # Подписка
@@ -475,3 +480,38 @@ def apply_referral_reward(referrer_user_id: str, db: Session) -> None:
         logger.info("Referral reward applied to user %s (coupon %s)", referrer_user_id, coupon.id)
     except Exception as e:
         logger.error("apply_referral_reward error for %s: %s", referrer_user_id, e)
+
+
+# ═══════════════════════════════════════════════════════════
+# REPORT DOWNLOAD TOKENS (task 7)
+# ═══════════════════════════════════════════════════════════
+
+def _issue_report_token(chart_id: str, user_id: str) -> str:
+    """Create one-time Redis token for report download. Returns token."""
+    import secrets
+    from backend.cache import interpretation_cache
+    token = secrets.token_urlsafe(32)
+    redis = interpretation_cache._redis
+    if redis:
+        redis.setex(f"report_token:{token}", 86400, chart_id)
+    # Запускаем генерацию PDF
+    try:
+        from backend.tasks import task_generate_pdf
+        task_generate_pdf.delay(chart_id)
+    except Exception as e:
+        logger.error("Failed to queue PDF generation: %s", e)
+    logger.info("Report token issued for chart=%s user=%s token=%s...", chart_id, user_id, token[:8])
+    return token
+
+
+def consume_report_token(token: str) -> str | None:
+    """Check token in Redis, return chart_id if valid, delete token. Returns None if expired/missing."""
+    from backend.cache import interpretation_cache
+    redis = interpretation_cache._redis
+    if not redis:
+        return None
+    key = f"report_token:{token}"
+    chart_id = redis.get(key)
+    if chart_id:
+        redis.delete(key)
+    return chart_id
