@@ -364,6 +364,49 @@ async def send_transit_alert_email(
     )
 
 
+async def send_weekly_digest(user, db) -> bool:
+    """Weekly digest для Pro/Premium — топ транзиты недели."""
+    from datetime import timedelta, date as date_type
+    from backend.transit.engine import calculate_transits
+    from backend.models import NatalChart
+
+    now = date_type.today()
+    week_end = now + timedelta(days=7)
+
+    try:
+        chart = db.query(NatalChart).filter_by(user_id=user.id)\
+            .order_by(NatalChart.created_at.desc()).first()
+        if not chart:
+            return False
+        events = calculate_transits(natal_planets=chart.planets, from_date=now, to_date=week_end)
+    except Exception as e:
+        logger.warning("Weekly digest transit fetch failed: %s", e)
+        return False
+
+    PLANET_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
+                 "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн",
+                 "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон"}
+    ASP_RU = {"conjunction": "соединение", "sextile": "секстиль",
+              "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
+
+    highlights = []
+    for e in events[:5]:
+        tp = getattr(e, "transit_planet", "")
+        np_ = getattr(e, "natal_planet", "")
+        at = getattr(e, "aspect_type", "")
+        peak = getattr(e, "peak_date", None) or getattr(e, "date", str(now))
+        highlights.append({
+            "date": str(peak),
+            "planet": PLANET_RU.get(tp, tp),
+            "aspect": ASP_RU.get(at, at),
+            "natal": PLANET_RU.get(np_, np_),
+            "text": "",
+        })
+
+    week_label = f"{now.strftime('%d %b')}–{week_end.strftime('%d %b')}"
+    return await send_weekly_digest_email(to=user.email, week_label=week_label, highlights=highlights)
+
+
 async def send_payment_failed_email(to: str, portal_url: str) -> bool:
     """Payment Failed — предупреждение об оплате, ссылка на Stripe Portal."""
     body = (
