@@ -117,3 +117,29 @@ async def send_onboarding_emails(
             logger.warning("Day7 email failed for %s: %s", user.email, e)
 
     return {"sent_day2": sent_day2, "sent_day7": sent_day7}
+
+
+@router.post("/weekly-digest")
+async def send_weekly_digests(
+    x_internal_secret: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Railway Cron: каждый понедельник 09:00 МСК."""
+    secret = os.getenv("INTERNAL_SECRET", "")
+    if secret and x_internal_secret != secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    from backend.models import User
+    from backend.email_service import send_weekly_digest
+
+    pro_users = db.query(User).filter(User.tier.in_(["pro", "premium"])).all()
+    sent = 0
+    for user in pro_users:
+        try:
+            ok = await send_weekly_digest(user, db)
+            if ok:
+                sent += 1
+        except Exception as e:
+            logger.warning("Weekly digest failed for %s: %s", user.email, e)
+
+    return {"sent": sent}
