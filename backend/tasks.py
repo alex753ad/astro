@@ -18,6 +18,119 @@ from backend.models import NatalChart
 logger = logging.getLogger("astro.tasks")
 
 
+# ═══════════════════════════════════════════════════════════
+# RETENTION EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.send_retention_day2")
+def send_retention_day2_task(user_id: int) -> None:
+    from datetime import date as date_type, timedelta
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
+        chart = db.query(NatalChart).filter(NatalChart.user_id == user_id).order_by(NatalChart.created_at.desc()).first()
+        if not chart:
+            return
+        from backend.transit.engine import calculate_transits
+        today = date_type.today()
+        events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=7))
+        if not events:
+            return
+        # pick best positive transit
+        POSITIVE = {"Venus", "Jupiter", "Sun"}
+        POSITIVE_ASP = {"trine", "sextile", "conjunction"}
+        event = next((e for e in events if getattr(e, "transit_planet", "") in POSITIVE and getattr(e, "aspect_type", "") in POSITIVE_ASP), events[0])
+        PLANET_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
+                     "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн"}
+        ASP_RU = {"conjunction": "соединение", "sextile": "секстиль", "square": "квадрат",
+                  "trine": "трин", "opposition": "оппозиция"}
+        tp = getattr(event, "transit_planet", "")
+        np_ = getattr(event, "natal_planet", "")
+        at = getattr(event, "aspect_type", "")
+        text = (f"Сегодня <strong>{PLANET_RU.get(tp, tp)}</strong> образует "
+                f"{ASP_RU.get(at, at)} с вашим натальным <strong>{PLANET_RU.get(np_, np_)}</strong>.")
+        import asyncio
+        from backend.email_service import send_retention_day2
+        asyncio.get_event_loop().run_until_complete(send_retention_day2(user.email, text))
+    except Exception as e:
+        logger.warning("send_retention_day2_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.send_retention_day7")
+def send_retention_day7_task(user_id: int) -> None:
+    from datetime import date as date_type, timedelta
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.tier != "free":
+            return
+        chart = db.query(NatalChart).filter(NatalChart.user_id == user_id).order_by(NatalChart.created_at.desc()).first()
+        if not chart:
+            return
+        from backend.transit.engine import calculate_transits
+        today = date_type.today()
+        events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30))
+        import asyncio
+        from backend.email_service import send_retention_day7
+        asyncio.get_event_loop().run_until_complete(send_retention_day7(user.email, max(0, len(events) - 1)))
+    except Exception as e:
+        logger.warning("send_retention_day7_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.send_retention_day14")
+def send_retention_day14_task(user_id: int) -> None:
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.tier != "free":
+            return
+        from backend.payments.stripe_service import create_day14_coupon, create_checkout_session
+        from backend.config import get_settings
+        settings = get_settings()
+        coupon_id = create_day14_coupon(user, db)
+        if not coupon_id:
+            return
+        checkout_url = create_checkout_session(
+            user=user, tier="lite",
+            success_url=f"{settings.frontend_url}/profile?success=1",
+            cancel_url=f"{settings.frontend_url}/profile?canceled=1",
+            db=db, billing_period="annual",
+        )
+        import asyncio, httpx
+        from backend.email_service import _send, _base, _btn, _h2, _p
+        body = (
+            _h2("🎁 Специальное предложение — 30% скидка на годовой план")
+            + _p("Мы подготовили для вас персональное предложение: <strong>скидка 30%</strong> на годовой план Lite.")
+            + _p("⚠️ Предложение действует <strong>24 часа</strong>.")
+            + _btn("Получить скидку 30% →", checkout_url)
+        )
+        html = _base("Скидка 30%", "Специальное предложение истекает через 24 часа", body)
+        asyncio.get_event_loop().run_until_complete(
+            _send(user.email, "🎁 Специальное предложение — 30% скидка на годовой план · Astrea", html)
+        )
+    except Exception as e:
+        logger.warning("send_retention_day14_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.schedule_retention_emails")
+def schedule_retention_emails(user_id: int) -> None:
+    """Запускает цепочку retention-писем после первой карты пользователя."""
+    send_retention_day2_task.apply_async(args=[user_id], countdown=48 * 3600)
+    send_retention_day7_task.apply_async(args=[user_id], countdown=7 * 24 * 3600)
+    send_retention_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
+
+
 def _get_chart(db, chart_id: str) -> NatalChart:
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
