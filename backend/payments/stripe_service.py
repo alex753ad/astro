@@ -386,6 +386,32 @@ def handle_payment_failed(event: dict, db: Session) -> None:
         logger.error("Failed to send payment_failed email: %s", e)
 
 
+# ═══════════════════════════════════════════════════════════
+# DAY-14 COUPON
+# ═══════════════════════════════════════════════════════════
+
+def create_day14_coupon(user: User, db: Session) -> Optional[str]:
+    """Генерирует 30% купон на годовой план. Один на пользователя."""
+    from datetime import datetime, timedelta
+    from backend.models import CouponSent
+
+    already_sent = db.query(CouponSent).filter(CouponSent.user_id == user.id).first()
+    if already_sent:
+        return None
+
+    _init_stripe()
+    coupon = stripe.Coupon.create(
+        percent_off=30,
+        duration="once",
+        redeem_by=int((datetime.utcnow() + timedelta(hours=24)).timestamp()),
+        max_redemptions=1,
+        metadata={"user_id": str(user.id)},
+    )
+    db.add(CouponSent(user_id=user.id, coupon_id=coupon.id, created_at=datetime.utcnow()))
+    db.commit()
+    return coupon.id
+
+
 # Alias expected by tests
 def send_payment_failed_notification(user_email: str, portal_url: str = "") -> None:
     """Thin wrapper kept for test compatibility."""
