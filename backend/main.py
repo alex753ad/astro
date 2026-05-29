@@ -277,7 +277,6 @@ async def calculate_chart(
     # 6. Persist to database (only for authenticated users)
     chart_record = NatalChart(
         user_id=user.id if user else None,
-        name=data.name or None,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
@@ -317,10 +316,14 @@ async def calculate_chart(
                 )
             except Exception as e:
                 logger.warning("Welcome email failed: %s", e)
+            try:
+                from backend.tasks import schedule_retention_emails
+                schedule_retention_emails.delay(user.id)
+            except Exception as e:
+                logger.warning("Retention email schedule failed: %s", e)
 
     return NatalChartResponse(
         id=chart_record.id,
-        name=data.name or None,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
