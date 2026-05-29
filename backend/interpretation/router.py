@@ -104,13 +104,21 @@ class InterpretationRouter:
         # Try each engine in order
         last_error = None
         fallback_triggered = False
-        engine_index = 0
-        
-        for engine in self._engines:
+
+        # B6: если бюджет исчерпан — сразу переходим на template
+        budget_ok = budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, "gpt4o")
+        if not budget_ok:
+            logger.warning("Daily AI budget exceeded ($%.2f) — forcing template engine",
+                           budget_tracker.get_spent())
+            fallback_triggered = True
+            engines_to_try = [self._engines[-1]]  # только TemplateEngine
+        else:
+            engines_to_try = self._engines
+
+        for engine in engines_to_try:
             if not self._check_budget(engine.name):
                 logger.warning("Budget exceeded for %s, skipping", engine.name)
                 fallback_triggered = True
-                engine_index += 1
                 continue
 
             try:
@@ -143,8 +151,6 @@ class InterpretationRouter:
                 last_error = e
                 logger.error("Engine %s failed: %s", engine.name, str(e))
                 fallback_triggered = True
-            
-            engine_index += 1
 
         # All engines failed — this shouldn't happen because TemplateEngine always works
         logger.critical("All interpretation engines failed!")
@@ -175,7 +181,13 @@ class InterpretationRouter:
         engine would produce duplicate/garbled text.  If the active engine
         fails mid-stream we log and close the connection instead of cascading.
         """
-        for engine in self._engines:
+        # B6: если бюджет исчерпан — сразу template
+        budget_ok = budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, "gpt4o")
+        stream_engines = [self._engines[-1]] if not budget_ok else self._engines
+        if not budget_ok:
+            logger.warning("Daily AI budget exceeded — stream forced to template")
+
+        for engine in stream_engines:
             if not self._check_budget(engine.name):
                 continue
 
