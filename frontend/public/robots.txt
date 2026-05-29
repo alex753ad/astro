@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /zodiac/
+Allow: /calendar/
+Allow: /blog/
+Allow: /calculator/
+Disallow: /app/
+Disallow: /api/
+Disallow: /chart/
+Disallow: /profile
+Disallow: /dashboard/
+Sitemap: https://astreatime.ru/sitemap.xml
