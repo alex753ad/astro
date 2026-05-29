@@ -248,8 +248,14 @@ def _page_cover(c, d):
 
     _divider(c, W*0.25, by-16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
-    hs = d.get("house_system","Placidus").capitalize()
-    c.drawCentredString(W/2, by-28, f"Система домов: {hs}  ·  Astrea Timeline")
+    hs = d.get("house_system", "Placidus").capitalize()
+    astrologer = d.get("astrologer_name")
+    footer_text = (
+        f"Система домов: {hs}  ·  Подготовлено: {astrologer}"
+        if astrologer
+        else f"Система домов: {hs}  ·  Astrea Timeline"
+    )
+    c.drawCentredString(W/2, by-28, footer_text)
 
     c.restoreState(); _page_num(c, 1, 3)
 
@@ -449,13 +455,14 @@ def _parse_interp_string(text: str) -> dict:
 
 # ── Public API ─────────────────────────────────────────────
 
-def generate_pdf_bytes(chart, interpretation: str = "") -> bytes:
+def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | None = None) -> bytes:
     """
     Generate a PDF and return it as bytes.
 
     Args:
         chart: NatalChart SQLAlchemy model instance (or any object/dict with the right fields)
         interpretation: Full interpretation text (markdown string) or dict of sections
+        astrologer_name: Premium-only — astrologer display name shown on cover page
 
     Returns:
         PDF file as bytes
@@ -464,7 +471,7 @@ def generate_pdf_bytes(chart, interpretation: str = "") -> bytes:
     if hasattr(chart, "__dict__"):
         ch = chart
         data = {
-            "name": f"Натальная карта",
+            "name": "Натальная карта",
             "birth_date": ch.birth_date or "",
             "birth_time": ch.birth_time or "",
             "birth_place": ch.birth_place or "",
@@ -475,15 +482,18 @@ def generate_pdf_bytes(chart, interpretation: str = "") -> bytes:
             "houses": ch.houses or [],
             "aspects": ch.aspects or [],
             "interpretation": interpretation,
+            "astrologer_name": astrologer_name,
         }
     else:
         data = dict(chart)
         data.setdefault("interpretation", interpretation)
+        data.setdefault("astrologer_name", astrologer_name)
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"Натальная карта — {data['birth_place']}")
-    c.setAuthor("Astrea Timeline")
+    author = astrologer_name or "Astrea Timeline"
+    c.setAuthor(author)
 
     _page_cover(c, data)
     c.showPage()

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     stripe_price_id_pro_annual: str = ""
     stripe_price_id_premium: str = ""
     stripe_price_id_premium_annual: str = ""
+    stripe_price_id_report: str = ""  # pay-per-report (Stripe Price ID, mode=payment)
 
     # ── Google OAuth ──
     google_client_id: str = ""
@@ -56,7 +57,7 @@ class Settings(BaseSettings):
     frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
     testing: bool = False
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173"  # env: ALLOWED_ORIGINS (comma-separated)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

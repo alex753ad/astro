@@ -105,22 +105,142 @@ def send_retention_day14_task(user_id: int) -> None:
             cancel_url=f"{settings.frontend_url}/profile?canceled=1",
             db=db, billing_period="annual",
         )
-        import asyncio, httpx
-        from backend.email_service import _send, _base, _btn, _h2, _p
-        body = (
-            _h2("🎁 Специальное предложение — 30% скидка на годовой план")
-            + _p("Мы подготовили для вас персональное предложение: <strong>скидка 30%</strong> на годовой план Lite.")
-            + _p("⚠️ Предложение действует <strong>24 часа</strong>.")
-            + _btn("Получить скидку 30% →", checkout_url)
-        )
-        html = _base("Скидка 30%", "Специальное предложение истекает через 24 часа", body)
+        import asyncio
+        from backend.email_service import send_retention_day14
         asyncio.get_event_loop().run_until_complete(
-            _send(user.email, "🎁 Специальное предложение — 30% скидка на годовой план · Astrea", html)
+            send_retention_day14(user.email, checkout_url)
         )
     except Exception as e:
         logger.warning("send_retention_day14_task failed user=%s: %s", user_id, e)
     finally:
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════
+# LITE EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.send_lite_welcome_task")
+def send_lite_welcome_task(user_id: int) -> None:
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
+        import asyncio
+        from backend.email_service import send_lite_welcome
+        asyncio.get_event_loop().run_until_complete(
+            send_lite_welcome(user.email, name=user.name)
+        )
+    except Exception as e:
+        logger.warning("send_lite_welcome_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.send_lite_day14_task")
+def send_lite_day14_task(user_id: int) -> None:
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.tier not in ("lite",):
+            return
+        import asyncio
+        from backend.email_service import send_lite_day14
+        asyncio.get_event_loop().run_until_complete(
+            send_lite_day14(user.email, name=user.name)
+        )
+    except Exception as e:
+        logger.warning("send_lite_day14_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.schedule_lite_emails")
+def schedule_lite_emails(user_id: int) -> None:
+    """Запускается при апгрейде на Lite."""
+    send_lite_welcome_task.apply_async(args=[user_id], countdown=60)
+    send_lite_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
+
+
+# ═══════════════════════════════════════════════════════════
+# PRO EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.send_pro_welcome_task")
+def send_pro_welcome_task(user_id: int) -> None:
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
+        import asyncio
+        from backend.email_service import send_pro_welcome
+        asyncio.get_event_loop().run_until_complete(
+            send_pro_welcome(user.email, name=user.name)
+        )
+    except Exception as e:
+        logger.warning("send_pro_welcome_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.send_pro_day30_task")
+def send_pro_day30_task(user_id: int) -> None:
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.tier not in ("pro",):
+            return
+        import asyncio
+        from backend.email_service import send_pro_day30
+        asyncio.get_event_loop().run_until_complete(
+            send_pro_day30(user.email, name=user.name)
+        )
+    except Exception as e:
+        logger.warning("send_pro_day30_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.schedule_pro_emails")
+def schedule_pro_emails(user_id: int) -> None:
+    """Запускается при апгрейде на Pro."""
+    send_pro_welcome_task.apply_async(args=[user_id], countdown=60)
+    send_pro_day30_task.apply_async(args=[user_id], countdown=30 * 24 * 3600)
+
+
+# ═══════════════════════════════════════════════════════════
+# PREMIUM EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.send_premium_welcome_task")
+def send_premium_welcome_task(user_id: int) -> None:
+    from backend.models import User
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return
+        import asyncio
+        from backend.email_service import send_premium_welcome
+        asyncio.get_event_loop().run_until_complete(
+            send_premium_welcome(user.email, name=user.name)
+        )
+    except Exception as e:
+        logger.warning("send_premium_welcome_task failed user=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.schedule_premium_emails")
+def schedule_premium_emails(user_id: int) -> None:
+    """Запускается при апгрейде на Premium."""
+    send_premium_welcome_task.apply_async(args=[user_id], countdown=60)
 
 
 @celery_app.task(name="tasks.schedule_retention_emails")
@@ -219,10 +339,11 @@ def task_calculate_transits(
 # ═══════════════════════════════════════════════════════════
 
 @celery_app.task(bind=True, name="tasks.generate_pdf")
-def task_generate_pdf(self, chart_id: str) -> dict:
+def task_generate_pdf(self, chart_id: str, user_id: int | None = None) -> dict:
     """Generate a PDF natal chart report.
 
     Returns base64-encoded PDF bytes.
+    For Premium users, includes astrologer branding on the cover page.
     """
     import base64
 
@@ -233,7 +354,25 @@ def task_generate_pdf(self, chart_id: str) -> dict:
         chart = _get_chart(db, chart_id)
         self.update_state(state="STARTED", meta={"step": "rendering_pdf"})
 
-        pdf_bytes = _render_pdf(chart)
+        # Premium брендирование — имя астролога на обложке
+        astrologer_name = None
+        if user_id:
+            from backend.models import User, AstrologerProfile
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and user.tier == "premium":
+                profile = db.query(AstrologerProfile).filter(
+                    AstrologerProfile.user_id == user_id
+                ).first()
+                if profile and profile.display_name:
+                    astrologer_name = profile.display_name
+
+        # Пробуем natal_pdf.generate_pdf_bytes (полноценный дизайн)
+        try:
+            from backend.natal_pdf import generate_pdf_bytes
+            pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
+        except Exception:
+            pdf_bytes = _render_pdf(chart)
+
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
         return {

@@ -313,13 +313,24 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     db.commit()
     logger.info("Subscription activated: user=%s tier=%s", user.id, tier)
 
-    # ── Реферальная награда (задача 1.5) ──
-    # Если у нового пользователя заполнен referred_by — дать рефереру 2 недели Pro
+    # ── Реферальная награда ──
     if user.referred_by:
         try:
             apply_referral_reward(user.referred_by, db)
         except Exception as e:
             logger.warning("Referral reward failed for referrer=%s: %s", user.referred_by, e)
+
+    # ── Email-цепочки по тарифу ──
+    try:
+        from backend.tasks import schedule_lite_emails, schedule_pro_emails, schedule_premium_emails
+        if tier == "lite":
+            schedule_lite_emails.delay(user.id)
+        elif tier == "pro":
+            schedule_pro_emails.delay(user.id)
+        elif tier == "premium":
+            schedule_premium_emails.delay(user.id)
+    except Exception as e:
+        logger.warning("Failed to schedule tier email chain user=%s tier=%s: %s", user.id, tier, e)
 
 
 def handle_subscription_updated(event: dict, db: Session) -> None:
