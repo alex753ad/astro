@@ -327,3 +327,50 @@ def get_transit_summary(events: list[TransitEvent]) -> dict:
             "period":      f"{e.start_date} → {e.end_date}",
         })
     return summary
+
+
+# ═══════════════════════════════════════════════════════════
+# TRANSIT ALERT — медленные планеты
+# ═══════════════════════════════════════════════════════════
+
+ALERT_PLANETS  = {"Jupiter", "Saturn", "Uranus", "Neptune"}
+POSITIVE_ALERT = {"Jupiter", "Venus"}
+
+
+async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) -> None:
+    """Отправляет email-алерт когда медленная планета начинает новый проход."""
+    from backend.email_service import send_transit_alert_email
+
+    PLANET_RU = {"Jupiter": "Юпитер", "Saturn": "Сатурн",
+                 "Uranus": "Уран", "Neptune": "Нептун"}
+    ASP_RU = {"conjunction": "соединение", "sextile": "секстиль",
+              "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
+    NATAL_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий",
+                "Venus": "Венера", "Mars": "Марс", "Jupiter": "Юпитер",
+                "Saturn": "Сатурн", "Ascendant": "Асцендент", "Midheaven": "MC"}
+
+    for t in new_transits:
+        if t.transit_planet not in ALERT_PLANETS:
+            continue
+        is_positive = t.transit_planet in POSITIVE_ALERT
+        planet_ru = PLANET_RU.get(t.transit_planet, t.transit_planet)
+        natal_ru  = NATAL_RU.get(t.natal_planet, t.natal_planet)
+        asp_ru    = ASP_RU.get(t.aspect_type, t.aspect_type)
+
+        if is_positive:
+            desc = f"Один из благоприятных периодов года — {planet_ru} активирует вашу карту. Используйте это время для роста и новых возможностей."
+        else:
+            desc = f"{planet_ru} требует осознанности и терпения. Этот период — время структурировать и укрепить важные сферы жизни."
+
+        try:
+            await send_transit_alert_email(
+                to=user.email,
+                planet=planet_ru,
+                aspect=asp_ru,
+                natal_planet=natal_ru,
+                date_str=t.peak_date,
+                description=desc,
+                is_peak=False,
+            )
+        except Exception as e:
+            logger.warning("Transit alert email failed user=%s: %s", user.id, e)
