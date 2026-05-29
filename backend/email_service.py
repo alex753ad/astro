@@ -617,3 +617,199 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
         "Луна вернулась в ваш знак 🌙",
         _base("Лунное возвращение", "Особый день для новых намерений", body),
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# RETENTION DAY 14 — шаблон (Free → Lite, купон 30%)
+# ═══════════════════════════════════════════════════════════
+
+async def send_retention_day14(to: str, checkout_url: str) -> bool:
+    """Retention Day 14 — купон 30% на годовой план Lite (24 часа)."""
+    body = (
+        _h2("🎁 Специальное предложение — 30% скидка на годовой план")
+        + _p(
+            "Мы подготовили для вас персональное предложение: "
+            "<strong>скидка 30%</strong> на годовой план Lite."
+        )
+        + f'<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:10px;'
+          f'padding:14px 18px;margin:0 0 20px;color:#5d4000;font-size:14px;line-height:1.6;">'
+          f'⏰ Предложение действует <strong>24 часа</strong>. После — исчезнет навсегда.</div>'
+        + _btn("Получить скидку 30% →", checkout_url)
+        + _p(
+            '<span style="font-size:12px;color:#a090c0;">'
+            "Отмена в любой момент · Без обязательств"
+            "</span>"
+        )
+    )
+    return await _send(
+        to,
+        "🎁 Специальное предложение — 30% скидка на годовой план · Astrea",
+        _base("Скидка 30%", "Специальное предложение истекает через 24 часа", body),
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# LITE EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+async def send_lite_welcome(to: str, name: str | None = None) -> bool:
+    """Lite — День 1: транзиты ждут объяснения."""
+    greeting = f"Привет, {name}! 🎉" if name else "Добро пожаловать в Lite! 🎉"
+    body = (
+        _h2(greeting)
+        + _p(
+            "Ваша подписка Lite активирована. Теперь вам доступны:"
+        )
+        + f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">'
+          f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
+          f'<span style="color:#9060C8;font-weight:700;">📅</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;">Лунный календарь на год вперёд</span></td></tr>'
+          f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
+          f'<span style="color:#9060C8;font-weight:700;">🔭</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;">Транзиты на 12 месяцев</span></td></tr>'
+          f'<tr><td style="padding:8px 0;">'
+          f'<span style="color:#9060C8;font-weight:700;">✨</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;">Виральная карточка карты для Stories</span></td></tr>'
+          f'</table>'
+        + _p("Ваши транзиты уже рассчитаны — откройте карту и исследуйте ближайшие периоды.")
+        + _btn("Открыть мои транзиты →", f"{APP_URL}/profile")
+    )
+    return await _send(
+        to,
+        "✨ Добро пожаловать в Astrea Lite",
+        _base("Lite активирован", "Транзиты и лунный календарь ждут вас", body),
+    )
+
+
+async def send_lite_day14(to: str, name: str | None = None) -> bool:
+    """Lite — День 14: identity + тизер RAG-чата."""
+    greeting = f"{name}, вы исследуете себя серьёзнее других" if name else "Вы исследуете себя серьёзнее других"
+    body = (
+        _h2(f"🌟 {greeting}")
+        + _p(
+            "За две недели вы изучили свою натальную карту, транзиты и лунный календарь. "
+            "Это уже больше, чем делают 95% людей."
+        )
+        + _p(
+            "Но есть следующий уровень: <strong>задавать вопросы своей карте</strong>. "
+            "«Почему мне сложно с деньгами?», «Когда лучший момент для смены работы?», "
+            "«Что говорит Сатурн о моих отношениях?» — и получать персональные ответы с учётом именно вашей карты."
+        )
+        + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
+          f'padding:16px 20px;margin:16px 0 24px;">'
+          f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
+          f'letter-spacing:1px;margin-bottom:6px;">💬 RAG-чат доступен в Pro</div>'
+          f'<div style="color:#2D2540;font-size:15px;line-height:1.7;">'
+          f'AI-ассистент, который знает вашу карту наизусть. Задайте любой вопрос — ответ будет про вас, не про всех Тельцов.</div>'
+          f'</div>'
+        + _btn("Попробовать Pro →", f"{APP_URL}/pricing")
+        + _p(
+            '<span style="font-size:12px;color:#a090c0;">'
+            "Отмена в любой момент · Без обязательств"
+            "</span>"
+        )
+    )
+    return await _send(
+        to,
+        "🌟 Вы исследуете себя серьёзнее других",
+        _base("14 дней с Astrea", "Следующий уровень — задавать вопросы своей карте", body),
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# PRO EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+async def send_pro_welcome(to: str, name: str | None = None) -> bool:
+    """Pro — День 1: онбординг, как использовать всё."""
+    greeting = f"Привет, {name}! Добро пожаловать в глубину 🪐" if name else "Добро пожаловать в глубину 🪐"
+    body = (
+        _h2(greeting)
+        + _p("Ваша подписка Pro активирована. Вот что теперь доступно:")
+        + f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">'
+          f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
+          f'<span style="color:#9060C8;font-weight:700;">💬</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>RAG-чат</strong> — AI знает вашу карту, задайте любой вопрос</span></td></tr>'
+          f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
+          f'<span style="color:#9060C8;font-weight:700;">🪐</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>AI-транзиты</strong> — персональная расшифровка каждого периода</span></td></tr>'
+          f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
+          f'<span style="color:#9060C8;font-weight:700;">📄</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>PDF-отчёты</strong> — 5 в месяц, для скачивания и печати</span></td></tr>'
+          f'<tr><td style="padding:8px 0;">'
+          f'<span style="color:#9060C8;font-weight:700;">🔭</span>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>15 AI-интерпретаций</strong> в месяц на GPT-4o</span></td></tr>'
+          f'</table>'
+        + _p("Совет: начните с вкладки «Транзиты» на вашей карте — нажмите на любой период, чтобы получить AI-расшифровку.")
+        + _btn("Открыть мою карту →", f"{APP_URL}/profile")
+    )
+    return await _send(
+        to,
+        "🪐 Добро пожаловать в Astrea Pro",
+        _base("Pro активирован", "RAG-чат, AI-транзиты и PDF ждут вас", body),
+    )
+
+
+async def send_pro_day30(to: str, name: str | None = None) -> bool:
+    """Pro — День 30: результат + мягкий вопрос про клиентов → Premium."""
+    greeting = f"{name}, уже 30 дней с вашей картой ✦" if name else "Уже 30 дней с вашей картой ✦"
+    body = (
+        _h2(greeting)
+        + _p(
+            "Месяц с Astrea Pro — это не просто подписка. "
+            "Это месяц глубокого знакомства с собой через транзиты, планировщик и AI-ассистента."
+        )
+        + _p("Вопрос к вам: вы занимаетесь астрологией только для себя или уже консультируете других?")
+        + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
+          f'padding:16px 20px;margin:16px 0 24px;">'
+          f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
+          f'letter-spacing:1px;margin-bottom:6px;">👥 Для астрологов — Premium</div>'
+          f'<div style="color:#2D2540;font-size:15px;line-height:1.7;">'
+          f'CRM клиентов, 100 AI-интерпретаций в месяц, брендированные PDF-отчёты. '
+          f'Один клиент окупает подписку.</div>'
+          f'</div>'
+        + _btn("Посмотреть Premium →", f"{APP_URL}/pricing")
+        + _p(
+            '<span style="font-size:12px;color:#a090c0;">'
+            "Если работаете только для себя — Pro идеален. Переходите, только если нужен CRM."
+            "</span>"
+        )
+    )
+    return await _send(
+        to,
+        "✦ Уже 30 дней с вашей астрологической картой",
+        _base("30 дней с Astrea", "Результат + взгляд вперёд", body),
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# PREMIUM EMAIL CHAIN
+# ═══════════════════════════════════════════════════════════
+
+async def send_premium_welcome(to: str, name: str | None = None) -> bool:
+    """Premium — День 1: CRM-онбординг, первый PDF-шаблон."""
+    greeting = f"Привет, {name}! Ваш профессиональный инструмент готов 🖥️" if name else "Ваш профессиональный инструмент готов 🖥️"
+    body = (
+        _h2(greeting)
+        + _p("Подписка Premium активирована. Вот с чего начать:")
+        + f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">'
+          f'<tr><td style="padding:10px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">'
+          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 1 — CRM клиентов</div>'
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Откройте /dashboard/clients → добавьте первого клиента. '
+          f'Введите дату и место рождения — карта рассчитается автоматически.</div></td></tr>'
+          f'<tr><td style="padding:10px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">'
+          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 2 — PDF с вашим именем</div>'
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Откройте карточку клиента → «Создать отчёт». '
+          f'На обложке будет указано ваше имя как автора.</div></td></tr>'
+          f'<tr><td style="padding:10px 0;vertical-align:top;">'
+          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 3 — AI без лимитов</div>'
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">100 AI-интерпретаций в месяц на GPT-4o — '
+          f'хватит на всех активных клиентов.</div></td></tr>'
+          f'</table>'
+        + _btn("Открыть CRM клиентов →", f"{APP_URL}/dashboard/clients")
+    )
+    return await _send(
+        to,
+        "🖥️ Ваш профессиональный инструмент Astrea Premium готов",
+        _base("Premium активирован", "CRM клиентов и брендированные PDF ждут вас", body),
+    )
