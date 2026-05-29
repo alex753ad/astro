@@ -389,8 +389,65 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
   );
 }
 
+// ─── Вкладка: Пригласи друга ─────────────────────────────────────────────────
+function TabReferral({ authFetch }) {
+  const [data, setData] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    authFetch(`${API_BASE}/profile/referral`)
+      .then(setData)
+      .catch(() => {});
+  }, [authFetch]);
+
+  const copy = () => {
+    if (!data?.ref_url) return;
+    navigator.clipboard.writeText(data.ref_url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  if (!data) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
+
+  return (
+    <div>
+      <div style={S.card}>
+        <p style={S.cardTitle}>Пригласи друга</p>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+          Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: '#a78bfa' }}>2 недели Pro бесплатно</strong>.
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Твоя реферальная ссылка</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              readOnly
+              value={data.ref_url || '—'}
+              style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit' }}
+            />
+            <button style={S.btn('primary')} onClick={copy}>
+              {copied ? '✓ Скопировано' : 'Копировать'}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#a78bfa' }}>{data.referrals_count ?? 0}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Приглашено</div>
+          </div>
+          <div style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#34d399' }}>{data.reward_weeks_earned ?? 0} нед.</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Бонус получено</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Вкладка: Уведомления ────────────────────────────────────────────────────
-function TabNotifications() {
   const { notifs, toggle } = useNotifications();
 
   const items = [
@@ -473,6 +530,7 @@ export default function ProfilePage() {
     { key: 'charts',        label: '🗂 Карты'         },
     { key: 'history',       label: '📋 История'       },
     { key: 'subscription',  label: '✦ Подписка'       },
+    { key: 'referral',      label: '🎁 Друзья'        },
     { key: 'notifications', label: '🔔 Уведомления'   },
   ];
 
@@ -496,6 +554,7 @@ export default function ProfilePage() {
         {tab === 'charts'        && <TabCharts       charts={charts} setCharts={setCharts} loading={loading.charts} authFetch={authFetch} />}
         {tab === 'history'       && <TabHistory      history={history} loading={loading.history} />}
         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
+        {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
         {tab === 'notifications' && <TabNotifications />}
 
         {/* Зона опасности — всегда снизу */}

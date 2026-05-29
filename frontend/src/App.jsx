@@ -12,6 +12,7 @@ import LunarCalendarPage from './pages/LunarCalendarPage';
 import SharePage from './pages/SharePage';
 import GiftPage from './pages/GiftPage';
 import ZodiacPage from './pages/ZodiacPage';
+import CRMPage from './pages/CRMPage';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 
@@ -232,7 +233,8 @@ function AppRoutes() {
             <Route path="/profile"        element={<ProfilePage />} />
             <Route path="/lunar"          element={<LunarCalendarPage />} />
             <Route path="/gift"           element={<GiftPage />} />
-            <Route path="/zodiac/:sign"   element={<ZodiacPage />} />
+            <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
+            <Route path="/dashboard/clients"     element={<CRMPage />} />
           </Routes>
         </main>
 
