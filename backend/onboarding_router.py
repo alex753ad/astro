@@ -143,3 +143,27 @@ async def send_weekly_digests(
             logger.warning("Weekly digest failed for %s: %s", user.email, e)
 
     return {"sent": sent}
+
+
+@router.post("/lunar-returns")
+async def trigger_lunar_returns(
+    x_internal_secret: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Railway Cron: ежедневно 09:00 МСК.
+    Запускает Celery-задачу проверки лунных возвращений.
+    """
+    secret = os.getenv("INTERNAL_SECRET", "")
+    if secret and x_internal_secret != secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        from backend.tasks import check_lunar_returns
+        task = check_lunar_returns.delay()
+        return {"status": "queued", "task_id": task.id}
+    except Exception as e:
+        logger.warning("lunar-returns trigger failed: %s", e)
+        # Fallback: выполнить синхронно
+        from backend.tasks import check_lunar_returns
+        result = check_lunar_returns()
+        return {"status": "done", **result}
