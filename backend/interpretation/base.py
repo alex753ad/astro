@@ -20,6 +20,7 @@ class InterpretationRequest:
     sections: list[str] = field(default_factory=lambda: [
         "general", "career", "relationships", "health", "finance", "spirituality"
     ])
+    tier: str = "free"           # free | lite | pro | premium
 
 
 @dataclass
