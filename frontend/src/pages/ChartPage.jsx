@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
@@ -143,11 +143,11 @@ const sr = {
 };
 
 const TABS = [
-  { key: 'chart',          label: 'Карта'           },
-  { key: 'interpretation', label: 'Интерпретация'   },
-  { key: 'aspects',        label: 'Аспекты'         },
-  { key: 'transits',       label: 'Транзиты'        },
-  // { key: 'planner',     label: 'Планировщик'     }, // скрыто
+  { key: 'chart',          label: 'Карта',          minTier: null },
+  { key: 'interpretation', label: 'Интерпретация',  minTier: null },
+  { key: 'aspects',        label: 'Аспекты',        minTier: null },
+  { key: 'transits',       label: 'Транзиты',       minTier: null },
+  { key: 'planner',        label: 'Планировщик',    minTier: 'pro' },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -192,13 +192,21 @@ function SaveChartBanner({ onLogin }) {
 export default function ChartPage({ currentUser, onShowAuth }) {
   const { chartId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const TIER_HIERARCHY = ['free', 'lite', 'pro', 'premium'];
+  function tierAllowed(minTier) {
+    if (!minTier) return true;
+    const userTier = currentUser?.tier || 'free';
+    return TIER_HIERARCHY.indexOf(userTier) >= TIER_HIERARCHY.indexOf(minTier);
+  }
 
   const [chart, setChart]                   = useState(null);
   const [transitPlanets, setTransitPlanets] = useState([]);
   const [selectedDate, setSelectedDate]     = useState(
     new Date().toISOString().slice(0, 10)
   );
-  const [activeTab, setActiveTab]     = useState('chart');
+  const [activeTab, setActiveTab]     = useState(searchParams.get('tab') || 'chart');
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -346,8 +354,13 @@ export default function ChartPage({ currentUser, onShowAuth }) {
     // Не блокируем вкладку транзитов — блюр внутри компонента TransitTimeline
   }, [activeTab, currentUser]);
 
-  function handleTabChange(key) {
+  function handleTabChange(key, minTier) {
+    if (!tierAllowed(minTier)) {
+      setShowPaywall(true);
+      return;
+    }
     setActiveTab(key);
+    setSearchParams({ tab: key });
   }
 
   function handleDateSelect(positions, date) {
@@ -398,13 +411,14 @@ export default function ChartPage({ currentUser, onShowAuth }) {
 
       {/* ── Вкладки ── */}
       <div style={s.tabBar}>
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, label, minTier }) => (
           <button
             key={key}
-            onClick={() => handleTabChange(key)}
+            onClick={() => handleTabChange(key, minTier)}
             style={{ ...s.tabBtn, ...(activeTab === key ? s.tabBtnActive : {}) }}
           >
             {label}
+            {!tierAllowed(minTier) && <span style={{ marginLeft: 4, fontSize: 10 }}>🔒</span>}
             {activeTab === key && <span style={s.tabUnderline} />}
           </button>
         ))}
