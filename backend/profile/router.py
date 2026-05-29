@@ -208,7 +208,8 @@ async def get_subscription(
         .scalar() or 0
     )
 
-    features = get_feature_flags(user)
+    from backend.auth.rate_limits import get_tier_limits
+    limits = get_tier_limits(tier)
 
     return {
         "tier": tier,
@@ -221,8 +222,7 @@ async def get_subscription(
             if sub and getattr(sub, "current_period_end", None)
             else None
         ),
-        "features": features,
-        "limits": features,
+        "limits": limits,
         "usage": {
             "ai_interpretations_this_month": ai_used,
             "charts_this_month": charts_used,
