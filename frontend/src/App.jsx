@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
 import SharePage from './pages/SharePage';
+import GiftPage from './pages/GiftPage';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 
@@ -164,6 +165,7 @@ function AppRoutes() {
             <Route path="/planner/:id"    element={<PlannerPage />} />
             <Route path="/profile"        element={<ProfilePage />} />
             <Route path="/lunar"          element={<LunarCalendarPage />} />
+            <Route path="/gift"           element={<GiftPage />} />
           </Routes>
         </main>
 
