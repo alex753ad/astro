@@ -544,3 +544,25 @@ async def send_gift_code_email(
         f"🎁 Ваш подарочный код Astrea {tier_name} на {duration_months} мес.",
         _base(f"Подарочная подписка {tier_name}", f"Код для активации {duration_months} мес. {tier_name}", body),
     )
+
+
+async def send_lunar_return_email(user, lunar_return_date) -> bool:
+    """Notify user when Moon returns to their natal sign."""
+    date_str = lunar_return_date.strftime("%d %B %Y") if hasattr(lunar_return_date, "strftime") else str(lunar_return_date)
+    body = (
+        _h2("🌙 Луна вернулась в ваш знак")
+        + _p(
+            f"Сегодня, <strong>{date_str}</strong>, Луна вернулась в ваш натальный знак. "
+            "Особый день для того, чтобы уделить время внедрению того, что вы хотите в своё жизненное пространство."
+        )
+        + _p(
+            "Это хороший момент для рефлексии, новых намерений и создания ритуалов. "
+            "Ваши эмоции сейчас особенно чувствительны к тому, что действительно важно."
+        )
+        + _btn("Открыть мою карту →", "https://astreatime.ru/profile")
+    )
+    return await _send(
+        user.email,
+        "Луна вернулась в ваш знак 🌙",
+        _base("Лунное возвращение", "Особый день для новых намерений", body),
+    )

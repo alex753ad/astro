@@ -389,3 +389,52 @@ def _render_plain_text_pdf(chart: NatalChart) -> bytes:
         )
     lines += ["", "Создано Astrea Timeline"]
     return "\n".join(lines).encode("utf-8")
+
+
+# ═══════════════════════════════════════════════════════════
+# LUNAR RETURN CHECK (задача 2)
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.check_lunar_returns")
+def check_lunar_returns() -> dict:
+    """Daily Celery task: send email when Moon returns to user's natal sign.
+
+    Should be triggered via Railway Cron POST /api/v1/internal/lunar-returns (09:00 МСК).
+    """
+    import asyncio
+    from datetime import date as date_type
+    from backend.models import User, NatalChart
+    from backend.transit.engine import get_next_lunar_return
+    from backend.email_service import send_lunar_return_email
+
+    db = SessionLocal()
+    sent = 0
+    today = date_type.today()
+
+    try:
+        # Все активные пользователи с natal chart
+        users = db.query(User).filter(User.is_active == True).all()
+        for user in users:
+            chart = (
+                db.query(NatalChart)
+                .filter(NatalChart.user_id == user.id)
+                .order_by(NatalChart.created_at.desc())
+                .first()
+            )
+            if not chart or not chart.planets:
+                continue
+            try:
+                natal_data = {"planets": chart.planets}
+                lunar_date = get_next_lunar_return(natal_data, today)
+                if lunar_date == today:
+                    asyncio.get_event_loop().run_until_complete(
+                        send_lunar_return_email(user, today)
+                    )
+                    sent += 1
+            except Exception as e:
+                logger.warning("Lunar return check failed user=%s: %s", user.id, e)
+    finally:
+        db.close()
+
+    logger.info("check_lunar_returns: sent=%d", sent)
+    return {"sent": sent, "date": str(today)}

@@ -398,3 +398,41 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) 
             )
         except Exception as e:
             logger.warning("Transit alert email failed user=%s: %s", user.id, e)
+
+
+# ═══════════════════════════════════════════════════════════
+# LUNAR RETURN (задача 2)
+# ═══════════════════════════════════════════════════════════
+
+def get_next_lunar_return(natal_chart: dict, from_date: date) -> date:
+    """Find the next date when the Moon returns to its natal sign.
+
+    Iterates day-by-day from from_date until the transit Moon sign
+    matches the natal Moon sign. Returns that date.
+    """
+    # Natal Moon sign
+    planets = natal_chart.get("planets", [])
+    natal_moon_sign = None
+    for p in planets:
+        if p.get("name") == "Moon":
+            natal_moon_sign = p.get("sign")
+            break
+
+    if not natal_moon_sign:
+        # fallback: возвращаем через 28 дней
+        return from_date + timedelta(days=28)
+
+    moon_id = PLANETS["Moon"]
+    current = from_date
+
+    for _ in range(60):  # максимум 60 дней поиска (лунный цикл ~28 дней)
+        dt = datetime(current.year, current.month, current.day, 12, 0, 0)
+        jd = _datetime_to_jd(dt)
+        lon, _, _, _ = _calc_planet_position(moon_id, round(jd, 6))
+        sign, _ = _longitude_to_sign(lon)
+        if sign == natal_moon_sign:
+            return current
+        current += timedelta(days=1)
+
+    # Не нашли — вернуть через 28 дней
+    return from_date + timedelta(days=28)
