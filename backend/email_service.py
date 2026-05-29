@@ -365,7 +365,7 @@ async def send_transit_alert_email(
 
 
 async def send_weekly_digest(user, db) -> bool:
-    """Weekly digest для Pro/Premium — топ транзиты недели."""
+    """Weekly digest для Pro/Premium — транзиты + лунные фазы + лучшие дни."""
     from datetime import timedelta, date as date_type
     from backend.transit.engine import calculate_transits
     from backend.models import NatalChart
@@ -373,6 +373,7 @@ async def send_weekly_digest(user, db) -> bool:
     now = date_type.today()
     week_end = now + timedelta(days=7)
 
+    # Транзиты недели
     try:
         chart = db.query(NatalChart).filter_by(user_id=user.id)\
             .order_by(NatalChart.created_at.desc()).first()
@@ -388,23 +389,110 @@ async def send_weekly_digest(user, db) -> bool:
                  "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон"}
     ASP_RU = {"conjunction": "соединение", "sextile": "секстиль",
               "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
+    POSITIVE_ASP = {"trine", "sextile", "conjunction"}
+    POSITIVE_PLAN = {"Venus", "Jupiter", "Sun"}
+
+    # Топ-3 транзита (позитивные в приоритете)
+    sorted_events = sorted(
+        events,
+        key=lambda e: (
+            0 if (getattr(e, "transit_planet", "") in POSITIVE_PLAN
+                  and getattr(e, "aspect_type", "") in POSITIVE_ASP) else 1,
+            getattr(e, "peak_orb", None) or getattr(e, "orb", 9),
+        )
+    )
 
     highlights = []
-    for e in events[:5]:
-        tp = getattr(e, "transit_planet", "")
+    for e in sorted_events[:3]:
+        tp  = getattr(e, "transit_planet", "")
         np_ = getattr(e, "natal_planet", "")
-        at = getattr(e, "aspect_type", "")
-        peak = getattr(e, "peak_date", None) or getattr(e, "date", str(now))
+        at  = getattr(e, "aspect_type", "")
+        peak = str(getattr(e, "peak_date", None) or getattr(e, "date", str(now)))
+        is_pos = tp in POSITIVE_PLAN and at in POSITIVE_ASP
+        text = ("Благоприятный период — используйте энергию для важных дел."
+                if is_pos else
+                "Период требует осознанности и внимательности.")
         highlights.append({
-            "date": str(peak),
+            "date": peak,
             "planet": PLANET_RU.get(tp, tp),
             "aspect": ASP_RU.get(at, at),
             "natal": PLANET_RU.get(np_, np_),
-            "text": "",
+            "text": text,
         })
 
+    # Лунные фазы недели
+    lunar_block = ""
+    try:
+        from backend.calendar.lunar_engine import get_moon_phases
+        phases = get_moon_phases(now.year, now.month)
+        week_phases = [
+            p for p in phases
+            if now <= date_type.fromisoformat(p.to_dict()["date"]) <= week_end
+        ]
+        if week_phases:
+            phase_lines = "".join(
+                f'<li style="margin:4px 0;color:#5a4a7a;font-size:14px;">'
+                f'{p.to_dict()["date"]} — {p.to_dict()["title"]}</li>'
+                for p in week_phases
+            )
+            lunar_block = (
+                f'<div style="background:#f5f0ff;border-radius:10px;padding:14px 18px;margin:0 0 20px;">'
+                f'<div style="color:#9060C8;font-weight:700;font-size:13px;margin-bottom:8px;">🌙 Лунные фазы недели</div>'
+                f'<ul style="margin:0;padding-left:18px;">{phase_lines}</ul>'
+                f'</div>'
+            )
+    except Exception as e:
+        logger.warning("Lunar phases fetch failed: %s", e)
+
+    # Лучшие дни (Venus/Jupiter транзиты → работа/отношения)
+    best_days_block = ""
+    best = [e for e in sorted_events
+            if getattr(e, "transit_planet", "") in POSITIVE_PLAN
+            and getattr(e, "aspect_type", "") in POSITIVE_ASP][:3]
+    if best:
+        rows = "".join(
+            f'<li style="margin:4px 0;color:#5a4a7a;font-size:14px;">'
+            f'{str(getattr(e, "peak_date", None) or getattr(e, "date", ""))} — '
+            f'{PLANET_RU.get(getattr(e, "transit_planet", ""), "")} '
+            f'{ASP_RU.get(getattr(e, "aspect_type", ""), "")}</li>'
+            for e in best
+        )
+        best_days_block = (
+            f'<div style="background:#f0fff4;border-radius:10px;padding:14px 18px;margin:0 0 20px;">'
+            f'<div style="color:#2e7d52;font-weight:700;font-size:13px;margin-bottom:8px;">⭐ Лучшие дни недели</div>'
+            f'<ul style="margin:0;padding-left:18px;">{rows}</ul>'
+            f'</div>'
+        )
+
     week_label = f"{now.strftime('%d %b')}–{week_end.strftime('%d %b')}"
-    return await send_weekly_digest_email(to=user.email, week_label=week_label, highlights=highlights)
+
+    # Собираем финальный email с дополнительными блоками
+    items_html = ""
+    for h in highlights:
+        items_html += (
+            f'<tr><td style="padding:12px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">'
+            f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
+            f'letter-spacing:1px;margin-bottom:4px;">{h["date"]}</div>'
+            f'<div style="color:#2D2540;font-size:15px;font-weight:600;margin-bottom:4px;">'
+            f'{h["planet"]} {h["aspect"]} → {h["natal"]}</div>'
+            f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">{h["text"]}</div>'
+            f'</td></tr>'
+        )
+
+    body = (
+        _h2(f"🔭 Ваш дайджест на {week_label}")
+        + _p("Главные астрологические события предстоящей недели по вашей карте:")
+        + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">{items_html}</table>'
+        + best_days_block
+        + lunar_block
+        + _btn("Открыть полный календарь", f"{APP_URL}/calendar")
+    )
+
+    return await _send(
+        user.email,
+        f"🔭 Астро-дайджест на {week_label} · Astrea Timeline",
+        _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
+    )
 
 
 async def send_payment_failed_email(to: str, portal_url: str) -> bool:
