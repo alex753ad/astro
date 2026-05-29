@@ -97,9 +97,11 @@ function _connectSSE(url, onChunk, onDone, onError) {
       }
       try {
         const parsed = JSON.parse(event.data);
-        if (parsed.text) {
+        if (parsed.type === 'section_start' || parsed.type === 'section_end') {
+          onChunk({ type: parsed.type, name: parsed.name });
+        } else if (parsed.text) {
           hasData = true;
-          onChunk(parsed.text);
+          onChunk({ type: 'text', text: parsed.text });
         }
         if (parsed.error) {
           onError?.(parsed.error);

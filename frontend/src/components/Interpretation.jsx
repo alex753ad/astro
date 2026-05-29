@@ -135,24 +135,37 @@ function renderMarkdown(text) {
 export default function Interpretation({ chartId, userTier, onUpgrade }) {
   const toast = useToast();
 
-  const [text,      setText]      = useState('');
+  const [sections,   setSections]  = useState([]); // [{ name, title, text }]
   const [streaming, setStreaming] = useState(false);
   const [done,      setDone]      = useState(false);
   const [error,     setError]     = useState(null);
   const [started,   setStarted]   = useState(false);
 
+  const text = sections.map(s => s.text).join('\n\n'); // для paywall-логики
+
   const scrollRef   = useRef(null);
   const closeSSERef = useRef(null);
+  const currentSectionRef = useRef(null);
 
   const isFree = userTier === 'free' || !userTier;
 
+  const SECTION_TITLES = {
+    general: 'Личность и характер',
+    career: 'Карьера и призвание',
+    relationships: 'Отношения и партнёрство',
+    health: 'Здоровье и энергия',
+    finance: 'Финансы',
+    spirituality: 'Духовный путь',
+  };
+
   const start = useCallback((retryCount = 0) => {
     if (!chartId) return;
-    setText('');
+    setSections([]);
     setDone(false);
     setError(null);
     setStreaming(true);
     setStarted(true);
+    currentSectionRef.current = null;
 
     let receivedAny = false;
 
@@ -160,7 +173,23 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       chartId,
       (chunk) => {
         receivedAny = true;
-        setText(prev => prev + chunk);
+        if (chunk.type === 'section_start') {
+          currentSectionRef.current = chunk.name;
+          setSections(prev => [...prev, { name: chunk.name, title: SECTION_TITLES[chunk.name] || chunk.name, text: '' }]);
+        } else if (chunk.type === 'section_end') {
+          currentSectionRef.current = null;
+        } else if (chunk.type === 'text') {
+          const secName = currentSectionRef.current;
+          if (secName) {
+            setSections(prev => prev.map(s => s.name === secName ? { ...s, text: s.text + chunk.text } : s));
+          } else {
+            setSections(prev => {
+              if (prev.length === 0) return [{ name: '_intro', title: '', text: chunk.text }];
+              const last = prev[prev.length - 1];
+              return [...prev.slice(0, -1), { ...last, text: last.text + chunk.text }];
+            });
+          }
+        }
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
@@ -215,8 +244,19 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
   }
 
   const cutoffText = isFree && done ? getCutoffText(text) : null;
-  const displayText = cutoffText ?? text;
   const isCut = !!cutoffText;
+  // Для paywall: обрезаем секции
+  const visibleSections = isCut
+    ? (() => {
+        const cutLine = cutoffText.split('\n').length;
+        let total = 0;
+        return sections.filter(s => {
+          if (total >= cutLine) return false;
+          total += s.text.split('\n').length + 2;
+          return true;
+        });
+      })()
+    : sections;
 
   return (
     <div className="glass-card p-6">
@@ -258,7 +298,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       )}
 
       {/* Progress bar пока нет первого чанка */}
-      {streaming && !text && <StreamingProgress />}
+      {streaming && sections.length === 0 && <StreamingProgress />}
 
       {/* Error */}
       {error && (
@@ -280,8 +320,8 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </div>
       )}
 
-      {/* Text */}
-      {displayText && (
+      {/* Sections */}
+      {sections.length > 0 && (
         <div
           ref={scrollRef}
           style={{
@@ -292,7 +332,22 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             paddingRight: 4,
           }}
         >
-          {renderMarkdown(displayText)}
+          {visibleSections.map((sec) => (
+            <div key={sec.name} style={{ marginBottom: 24 }}>
+              {sec.title && (
+                <h2 style={{
+                  fontSize: 17, fontWeight: 700,
+                  color: 'var(--accent, #7C6CFF)',
+                  margin: '0 0 10px',
+                  borderBottom: '1px solid var(--border, #1E2235)',
+                  paddingBottom: 6,
+                }}>
+                  {sec.title}
+                </h2>
+              )}
+              {renderMarkdown(sec.text)}
+            </div>
+          ))}
           {streaming && (
             <span style={{
               display: 'inline-block', width: 7, height: 17,
