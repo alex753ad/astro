@@ -1,22 +1,20 @@
-"""006_natal_chart_name
+"""Compat stub: bridges revision '006_natal_chart_name' stored on production DB.
 
-Add name column to natal_charts table.
+Revision ID: 006_natal_chart_name
+Revises: 005
+Create Date: 2026-05-29
 """
 from alembic import op
-import sqlalchemy as sa
 
-revision = '006'
+revision = '006_natal_chart_name'
 down_revision = '005'
 branch_labels = None
 depends_on = None
 
 
-def upgrade() -> None:
-    op.add_column(
-        'natal_charts',
-        sa.Column('name', sa.String(100), nullable=True),
-    )
+def upgrade():
+    pass  # no-op — actual work is in subsequent migrations
 
 
-def downgrade() -> None:
-    op.drop_column('natal_charts', 'name')
+def downgrade():
+    pass
