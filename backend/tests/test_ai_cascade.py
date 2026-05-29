@@ -23,7 +23,7 @@ from backend.cache import budget_tracker
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _request() -> InterpretationRequest:
+def _request(tier: str = "premium") -> InterpretationRequest:
     return InterpretationRequest(
         natal_profile={
             "planets": [
@@ -33,6 +33,7 @@ def _request() -> InterpretationRequest:
             "ascendant": {"sign": "Aries", "degree": 5.2},
         },
         context="natal",
+        tier=tier,
     )
 
 
