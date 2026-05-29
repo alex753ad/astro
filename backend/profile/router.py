@@ -270,3 +270,50 @@ async def delete_all_data(
         deleted_charts,
     )
     return MessageResponse(message="All personal data deleted successfully.")
+
+
+# ═══════════════════════════════════════════════════════════
+# REFERRAL (задача 1.6)
+# ═══════════════════════════════════════════════════════════
+
+@router.get(
+    "/referral",
+    summary="Get referral link and stats",
+)
+async def get_referral(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return referral code, share URL, and stats for the current user."""
+    from backend.config import get_settings as _get_settings
+    settings = _get_settings()
+
+    # Генерируем код если ещё нет
+    if not user.referral_code:
+        from backend.payments.stripe_service import generate_referral_code
+        try:
+            user.referral_code = generate_referral_code(db)
+            db.commit()
+            db.refresh(user)
+        except Exception as e:
+            logger.warning("Could not generate referral_code: %s", e)
+
+    # Считаем кол-во рефералов которые совершили оплату
+    referrals_count = db.query(User).filter(
+        User.referred_by == user.id,
+        User.tier != "free",
+    ).count()
+
+    # Недели бонуса = кол-во успешных рефералов * 2
+    reward_weeks_earned = referrals_count * 2
+
+    base_url = getattr(settings, "frontend_url", "https://astreatime.ru")
+    ref_code = user.referral_code or ""
+    ref_url = f"{base_url}?ref={ref_code}" if ref_code else ""
+
+    return {
+        "ref_code": ref_code,
+        "ref_url": ref_url,
+        "referrals_count": referrals_count,
+        "reward_weeks_earned": reward_weeks_earned,
+    }

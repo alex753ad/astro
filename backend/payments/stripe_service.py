@@ -261,6 +261,14 @@ def handle_checkout_completed(event: dict, db: Session) -> None:
     db.commit()
     logger.info("Subscription activated: user=%s tier=%s", user.id, tier)
 
+    # ── Реферальная награда (задача 1.5) ──
+    # Если у нового пользователя заполнен referred_by — дать рефереру 2 недели Pro
+    if user.referred_by:
+        try:
+            apply_referral_reward(user.referred_by, db)
+        except Exception as e:
+            logger.warning("Referral reward failed for referrer=%s: %s", user.referred_by, e)
+
 
 def handle_subscription_updated(event: dict, db: Session) -> None:
     subscription = event["data"]["object"]
