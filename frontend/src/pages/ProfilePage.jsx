@@ -18,8 +18,8 @@ import useAuth from '../hooks/useAuth';
 const API_BASE = '/api/v1';
 
 // ─── Цвета тарифов ───────────────────────────────────────────────────────────
-const TIER_LABELS = { free: 'Бесплатный', pro: 'Pro', premium: 'Premium' };
-const TIER_COLORS = { free: '#8B8FA3', pro: '#7C6CFF', premium: '#F59E0B' };
+const TIER_LABELS = { free: 'Бесплатный', lite: 'Lite', pro: 'Pro', premium: 'Premium' };
+const TIER_COLORS = { free: '#8B8FA3', lite: '#38bdf8', pro: '#7C6CFF', premium: '#F59E0B' };
 
 // ─── Стили (тёмная тема в стиле существующего приложения) ────────────────────
 const S = {
@@ -358,13 +358,25 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         {user?.tier === 'free' ? (
           <div>
             <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
-              Перейдите на Pro чтобы разблокировать транзиты, историю и безлимитные интерпретации.
+              Перейдите на Lite чтобы разблокировать полную интерпретацию, транзиты и лунный календарь на год.
             </div>
             <Link
               to="/upgrade"
               style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}
             >
-              Перейти на Pro — €7.99/мес →
+              Перейти на Lite — 790 ₽/мес →
+            </Link>
+          </div>
+        ) : user?.tier === 'lite' ? (
+          <div>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
+              Перейдите на Pro чтобы разблокировать AI-транзиты, RAG-чат и PDF-отчёты.
+            </div>
+            <Link
+              to="/upgrade"
+              style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}
+            >
+              Перейти на Pro — 1 990 ₽/мес →
             </Link>
           </div>
         ) : (
