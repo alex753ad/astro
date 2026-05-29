@@ -244,6 +244,7 @@ class AspectData(BaseModel):
     angle: float = Field(..., ge=0.0, le=360.0)
     orb: float = Field(..., ge=0.0, le=15.0)
     applying: bool
+    importance: str = "low"  # high / medium / low  (F4)
 
 
 class PointData(BaseModel):

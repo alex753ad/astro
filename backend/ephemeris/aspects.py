@@ -11,14 +11,29 @@ from dataclasses import dataclass
 from backend.ephemeris.calculator import PlanetResult
 
 
+PERSONAL_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars", "Ascendant", "Midheaven"}
+CORE_PLANETS     = {"Sun", "Moon", "Ascendant", "Midheaven"}
+
+
+def calculate_importance(planet1: str, planet2: str, orb: float) -> str:
+    """F4: Classify aspect importance as high / medium / low."""
+    planets = {planet1, planet2}
+    if orb < 2 and bool(planets & CORE_PLANETS):
+        return "high"
+    if orb < 5 and bool(planets & PERSONAL_PLANETS):
+        return "medium"
+    return "low"
+
+
 @dataclass
 class AspectResult:
     planet1: str
     planet2: str
     aspect_type: str
-    angle: float       # exact angle between planets
-    orb: float         # deviation from exact aspect
-    applying: bool     # True if orb is decreasing
+    angle: float        # exact angle between planets
+    orb: float          # deviation from exact aspect
+    applying: bool      # True if orb is decreasing
+    importance: str = "low"  # high / medium / low
 
 
 # ── Aspect definitions ──
@@ -91,14 +106,16 @@ def calculate_aspects(planets: list[PlanetResult]) -> list[AspectResult]:
                 orb = abs(angle - exact_angle)
 
                 if orb <= max_orb:
-                    applying = _is_applying(p1, p2, angle)
+                    applying   = _is_applying(p1, p2, angle)
+                    orb_rounded = round(orb, 4)
                     results.append(AspectResult(
                         planet1=p1.name,
                         planet2=p2.name,
                         aspect_type=aspect_name,
                         angle=round(angle, 4),
-                        orb=round(orb, 4),
+                        orb=orb_rounded,
                         applying=applying,
+                        importance=calculate_importance(p1.name, p2.name, orb_rounded),
                     ))
 
     # Sort by orb (tightest aspects first)

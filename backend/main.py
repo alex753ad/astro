@@ -258,6 +258,7 @@ async def calculate_chart(
             angle=a.angle,
             orb=a.orb,
             applying=a.applying,
+            importance=getattr(a, "importance", "low"),
         )
         for a in aspects
     ]
@@ -389,6 +390,7 @@ async def save_anonymous_chart(
         AspectData(
             planet1=a.planet1, planet2=a.planet2, aspect_type=a.aspect_type,
             angle=a.angle, orb=a.orb, applying=a.applying,
+            importance=getattr(a, "importance", "low"),
         ) for a in aspects
     ]
     asc_resp = PointData(

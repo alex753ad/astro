@@ -14,6 +14,7 @@ import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import PaywallModal from '../components/PaywallModal';
+import OnboardingTooltips from '../components/OnboardingTooltips';
 import {
   createReportCheckoutSession,
   startPdfGeneration,
@@ -427,6 +428,9 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       {/* ── Вкладка: Натальная карта ── */}
       {activeTab === 'chart' && (
         <main style={s.main}>
+
+          {/* D1: Онбординг-тултипы для новых пользователей */}
+          <OnboardingTooltips />
 
           {/* Баннер сохранения для анонима */}
           {isAnon && (
