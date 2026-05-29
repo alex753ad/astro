@@ -17,6 +17,7 @@ import PaywallModal from '../components/PaywallModal';
 import OnboardingTooltips from '../components/OnboardingTooltips';
 import StreakBadge from '../components/StreakBadge';
 import useStreak, { schedulePushReminder } from '../hooks/useStreak';
+import RagChat from '../components/RagChat';
 import {
   createReportCheckoutSession,
   startPdfGeneration,
@@ -150,6 +151,7 @@ const TABS = [
   { key: 'interpretation', label: 'Интерпретация',  minTier: null },
   { key: 'aspects',        label: 'Аспекты',        minTier: null },
   { key: 'transits',       label: 'Транзиты',       minTier: null },
+  { key: 'chat',           label: '💬 Чат',         minTier: 'pro' },
   { key: 'planner',        label: 'Планировщик',    minTier: 'pro' },
 ];
 
@@ -619,6 +621,18 @@ export default function ChartPage({ currentUser, onShowAuth }) {
             </main>
           </div>
         </div>
+      )}
+
+      {/* ── Вкладка: RAG Чат ── */}
+      {activeTab === 'chat' && (
+        <main style={s.main}>
+          <RagChat
+            chartId={chartId}
+            onPaywall={(ctx) => {
+              setShowPaywall(true);
+            }}
+          />
+        </main>
       )}
 
       {/* ── Вкладка: Планировщик ── */}
