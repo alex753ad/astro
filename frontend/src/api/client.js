@@ -249,12 +249,24 @@ export async function getSubscription(token) {
   });
 }
 
-export async function createCheckoutSession(tier, billing, chartId) {
+export async function createCheckoutSession(tier, billing, chartId, promoCode = null) {
   const token = localStorage.getItem('astro_access_token');
+  const body = { tier, billing_period: billing, chart_id: chartId };
+  if (promoCode) body.promo_code = promoCode;
   return request('/payments/checkout', {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: JSON.stringify({ tier, billing, chart_id: chartId }),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function validatePromoCode(code) {
+  // Пробуем создать сессию с промокодом — если invalid_promo_code, бросаем
+  // Используем отдельный лёгкий эндпоинт-валидатор (или полагаемся на ошибку checkout)
+  // Здесь делаем HEAD-запрос к специальному эндпоинту валидации
+  const token = localStorage.getItem('astro_access_token');
+  return request(`/payments/promo-validate?code=${encodeURIComponent(code)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 }
 

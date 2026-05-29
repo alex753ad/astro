@@ -169,6 +169,7 @@ class CheckoutRequest(BaseModel):
     billing_period: str = Field("monthly", description="monthly или annual")
     success_url: str = Field(..., max_length=2048)
     cancel_url: str = Field(..., max_length=2048)
+    promo_code: str | None = Field(None, description="Stripe promotion code (опционально)")
 
     @field_validator("tier")
     @classmethod
