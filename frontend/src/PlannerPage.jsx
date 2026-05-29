@@ -113,7 +113,7 @@ function LoadingState() {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 16 }}>
       <div style={{ fontSize: 32 }}>✨</div>
-      <div style={{ fontSize: 14, color: "#64748b" }}>Составляем ваш план{dots}</div>
+      <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Составляем ваш план{dots}</div>
     </div>
   );
 }
@@ -153,11 +153,11 @@ export default function PlannerPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-primary)", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px" }}>
 
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#f8fafc" }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "var(--text-primary)" }}>
             {planData?.month_title || `Планер на ${getMonthName(new Date())}`}
           </h1>
           <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>Персональный астрологический план</div>
