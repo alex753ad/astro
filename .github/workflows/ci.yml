@@ -57,12 +57,10 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run unit tests
-        run: pytest backend/tests/ -v -m "not integration" --tb=short --ignore=backend/tests/test_payments.py --ignore=backend/tests/test_validation.py
+        run: pytest backend/tests/ -v -m "not integration and not load" --tb=short --ignore=backend/tests/test_payments.py --ignore=backend/tests/test_validation.py
 
   # ─────────────────────────────────────────────
   # 2. Alembic autogenerate (только PR)
-  #    Проверяет что все модели покрыты миграциями.
-  #    Если alembic обнаружит изменения — шаг упадёт.
   # ─────────────────────────────────────────────
   check-migrations:
     runs-on: ubuntu-latest
@@ -105,21 +103,16 @@ jobs:
         run: alembic upgrade head
 
       - name: Check for unapplied model changes
-        # Генерируем миграцию во временный файл.
-        # Если изменения есть — файл будет непустым и шаг упадёт с понятным сообщением.
         run: |
           alembic revision --autogenerate -m "ci_check" 2>&1 | tee /tmp/alembic_out.txt
-          # Найти сгенерированный файл
           MIGRATION=$(ls -t alembic/versions/ | head -1)
           echo "Generated: $MIGRATION"
-          # Если в файле есть реальные изменения (не только pass) — упасть
           if grep -qE "op\.(create_table|add_column|drop_column|alter_column|create_index|drop_index|drop_table)" "alembic/versions/$MIGRATION"; then
             echo "❌ Найдены модели без миграций! Запусти: alembic revision --autogenerate -m 'your message'"
             cat "alembic/versions/$MIGRATION"
             exit 1
           else
             echo "✅ Все модели покрыты миграциями"
-            # Удалить пустую миграцию
             rm "alembic/versions/$MIGRATION"
           fi
 
@@ -148,7 +141,6 @@ jobs:
 
   # ─────────────────────────────────────────────
   # 4. Deploy to Railway (только main ветка)
-  #    Перед деплоем: alembic upgrade head
   # ─────────────────────────────────────────────
   deploy:
     runs-on: ubuntu-latest
@@ -170,7 +162,6 @@ jobs:
           --health-retries 5
 
     env:
-      # Production DATABASE_URL из секретов GitHub
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       EPHE_PATH: data/ephe
