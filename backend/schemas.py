@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator, AnyHttp
 # ═══════════════════════════════════════════════════════════
 
 class BirthDataInput(BaseModel):
+    name: Optional[str] = Field(None, max_length=100, description="Имя пользователя для персонализации")
     birth_date: date = Field(..., description="Date of birth (YYYY-MM-DD)")
     birth_time: Optional[str] = Field(
         None,
@@ -253,6 +254,7 @@ class PointData(BaseModel):
 
 class NatalChartResponse(BaseModel):
     id: Optional[str] = None
+    name: Optional[str] = None
     birth_date: str
     birth_time: Optional[str]
     birth_place: str

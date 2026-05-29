@@ -42,6 +42,7 @@ class NatalChart(Base):
     id = Column(String(36), primary_key=True, default=gen_uuid)
     user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     label = Column(String(255), nullable=True)
+    name = Column(String(100), nullable=True)  # имя из формы для персонализации
 
     birth_date = Column(String(10), nullable=False)
     birth_time = Column(String(5), nullable=True)

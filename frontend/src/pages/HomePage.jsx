@@ -1,51 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import BirthForm from '../components/BirthForm';
 import { calculateChart } from '../api/client';
-
-// Tooltip-подсказки для астро-терминов
-const TOOLTIPS = {
-  ASC: 'Асцендент (ASC) — точка горизонта на востоке в момент рождения. Показывает, как вы воспринимаетесь окружающими.',
-  MC:  'Середина Неба (MC) — высшая точка неба в момент рождения. Связана с карьерой и жизненным призванием.',
-  'аспекты': 'Аспекты — угловые соотношения между планетами. Трин и секстиль — гармоничные, квадрат и оппозиция — напряжённые.',
-  'дома': 'Дома — 12 секторов карты, каждый отвечает за свою сферу жизни: 1-й — личность, 7-й — партнёрство, 10-й — карьера.',
-};
-
-function TooltipBadge({ term }) {
-  const [visible, setVisible] = useState(false);
-  return (
-    <span style={{ position: 'relative', display: 'inline-block' }}>
-      <span
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        onClick={() => setVisible(v => !v)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 16, height: 16, borderRadius: 8,
-          background: 'rgba(124,108,255,0.2)', color: '#7C6CFF',
-          fontSize: 10, fontWeight: 700, cursor: 'help',
-          border: '1px solid rgba(124,108,255,0.4)',
-          userSelect: 'none',
-        }}
-      >?</span>
-      {visible && (
-        <div style={{
-          position: 'absolute', bottom: '100%', left: '50%',
-          transform: 'translateX(-50%)',
-          marginBottom: 6, zIndex: 100,
-          background: '#1a1a2e', border: '1px solid rgba(124,108,255,0.3)',
-          borderRadius: 10, padding: '10px 14px',
-          width: 220, fontSize: 12, lineHeight: 1.6,
-          color: '#C8CAD8', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-          pointerEvents: 'none',
-        }}>
-          <strong style={{ color: '#7C6CFF' }}>{term}</strong><br />
-          {TOOLTIPS[term]}
-        </div>
-      )}
-    </span>
-  );
-}
 
 export default function HomePage({ currentUser, onShowAuth }) {
   const [loading, setLoading] = useState(false);
@@ -55,11 +11,9 @@ export default function HomePage({ currentUser, onShowAuth }) {
   const handleSubmit = async (data) => {
     setLoading(true);
     setError('');
-
     try {
       const chart = await calculateChart(data);
       if (!currentUser) {
-        // Save anonymous chart data for post-login binding and display
         localStorage.setItem('anonymous_chart', JSON.stringify({
           data: data,
           timestamp: Date.now(),
@@ -80,25 +34,26 @@ export default function HomePage({ currentUser, onShowAuth }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      {/* Hero */}
-      <div className="text-center mb-12">
-        <h1 className="font-display text-4xl md:text-5xl font-bold mb-4">
-          <span className="text-brand-glow">Натальная карта</span>
-          <br />
-          <span className="text-brand-text/80 text-2xl md:text-3xl">
-            с AI-интерпретацией
-          </span>
-        </h1>
-        <p className="text-brand-muted max-w-md mx-auto leading-relaxed">
-          Точные астрономические расчёты Swiss Ephemeris + персонализированная интерпретация
-          от GPT-4o. Укажите данные рождения и получите полный анализ за секунды.
-        </p>
-        {!currentUser && (
-          <p style={{ fontSize: 13, color: '#7C6CFF', marginTop: 10 }}>
-            Регистрация не нужна — просто введите данные рождения ↓
-          </p>
-        )}
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
+      fontFamily: '"Space Grotesk", system-ui, sans-serif',
+      padding: '32px 24px 60px',
+    }}>
+      {/* Back link */}
+      <div style={{ maxWidth: 500, margin: '0 auto 24px' }}>
+        <Link
+          to="/"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontSize: 14, color: '#8B5CF6', textDecoration: 'none',
+            fontWeight: 600,
+          }}
+          onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+        >
+          ← На главную
+        </Link>
       </div>
 
       {/* Form */}
@@ -106,39 +61,17 @@ export default function HomePage({ currentUser, onShowAuth }) {
 
       {/* Error */}
       {error && (
-        <div className="max-w-lg mx-auto mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm whitespace-pre-line">
+        <div style={{
+          maxWidth: 500, margin: '16px auto 0',
+          padding: '14px 18px', borderRadius: 12,
+          background: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.2)',
+          color: '#EF4444', fontSize: 13,
+          whiteSpace: 'pre-line',
+        }}>
           {error}
         </div>
       )}
-
-      {/* Features */}
-      <div className="grid md:grid-cols-3 gap-6 mt-16 text-center">
-        {[
-          {
-            icon: '⚙️',
-            title: 'Swiss Ephemeris',
-            desc: 'Погрешность < 1 угловой секунды. Золотой стандарт расчётов.',
-          },
-          {
-            icon: '✦',
-            title: 'AI-интерпретация',
-            desc: 'Персонализированный нарратив от GPT-4o. Не шаблоны.',
-          },
-          {
-            icon: '🔒',
-            title: 'Приватность',
-            desc: 'Данные хранятся в зашифрованной базе. Удаление в один клик.',
-          },
-        ].map((f) => (
-          <div key={f.title} className="glass-card p-6">
-            <div className="text-2xl mb-3">{f.icon}</div>
-            <h3 className="font-display font-bold mb-2">{f.title}</h3>
-            <p className="text-sm text-brand-muted">{f.desc}</p>
-          </div>
-        ))}
-      </div>
-
-
     </div>
   );
 }
