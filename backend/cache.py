@@ -26,6 +26,7 @@ class RedisCache:
         self._prefix = prefix
         self._default_ttl = default_ttl
         self._redis = self._connect()
+        self._local: dict[str, Any] = {}  # in-memory fallback when Redis is down
 
     def _connect(self):
         url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -44,7 +45,8 @@ class RedisCache:
 
     def get(self, key: str) -> Any | None:
         if self._redis is None:
-            return None
+            raw = self._local.get(self._key(key))
+            return raw
         try:
             raw = self._redis.get(self._key(key))
             return json.loads(raw) if raw is not None else None
@@ -54,6 +56,7 @@ class RedisCache:
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         if self._redis is None:
+            self._local[self._key(key)] = value
             return
         try:
             self._redis.setex(
@@ -66,6 +69,7 @@ class RedisCache:
 
     def delete(self, key: str) -> None:
         if self._redis is None:
+            self._local.pop(self._key(key), None)
             return
         try:
             self._redis.delete(self._key(key))
@@ -74,6 +78,7 @@ class RedisCache:
 
     def clear(self) -> None:
         """Clear all keys for this prefix (used in tests)."""
+        self._local.clear()
         if self._redis is None:
             return
         try:
