@@ -144,11 +144,48 @@ export default function LunarCalendarPage() {
 
   const calDays = useMemo(() => buildCalendarDays(year, month), [year, month]);
 
+  // Schema.org — Event разметка для лунных фаз
+  const schemaOrg = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: `Лунный календарь ${MONTHS_RU[month-1]} ${year}`,
+    description: 'Фазы луны, знаки зодиака и астрологические события месяца',
+    itemListElement: [
+      ...newMoons.map((e, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        item: {
+          '@type': 'Event',
+          name: `Новолуние в ${SIGNS_RU[e.sign]?.name || e.sign || 'знаке'}`,
+          startDate: (e.exact_date || e.date || '').slice(0, 10),
+          description: 'Новолуние — начало нового лунного цикла',
+          location: { '@type': 'VirtualLocation', url: 'https://astreatime.ru/calendar/lunar' },
+        },
+      })),
+      ...fullMoons.map((e, i) => ({
+        '@type': 'ListItem',
+        position: newMoons.length + i + 1,
+        item: {
+          '@type': 'Event',
+          name: `Полнолуние в ${SIGNS_RU[e.sign]?.name || e.sign || 'знаке'}`,
+          startDate: (e.exact_date || e.date || '').slice(0, 10),
+          description: 'Полнолуние — кульминация лунного цикла',
+          location: { '@type': 'VirtualLocation', url: 'https://astreatime.ru/calendar/lunar' },
+        },
+      })),
+    ],
+  };
+
   return (
     <div style={pg.page}>
       {/* Декоративные блобы */}
       <div style={pg.blob1} aria-hidden="true" />
       <div style={pg.blob2} aria-hidden="true" />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
+      />
 
       <div style={pg.wrap}>
         <div style={pg.card}>
