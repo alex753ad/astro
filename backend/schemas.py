@@ -99,6 +99,7 @@ class TransitRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: str = Field(..., description="Email пользователя")
     password: str = Field(..., min_length=8, max_length=128, description="Пароль (мин. 8 символов)")
+    ref_code: Optional[str] = Field(None, max_length=16, description="Реферальный код пригласившего")
 
     @field_validator("email")
     @classmethod

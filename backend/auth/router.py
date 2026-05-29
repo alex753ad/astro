@@ -38,6 +38,7 @@ from backend.auth.jwt import (
 from backend.auth.passwords import hash_password, verify_password
 from backend.auth.dependencies import get_current_user
 from backend.auth.oauth import exchange_google_code, OAuthError
+from backend.payments.stripe_service import generate_referral_code
 
 logger = logging.getLogger("astro.auth")
 
@@ -68,6 +69,14 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
             detail="An account with this email already exists.",
         )
 
+    # Resolve referrer
+    referred_by = None
+    ref_code = getattr(data, "ref_code", None)
+    if ref_code:
+        referrer = db.query(User).filter(User.referral_code == ref_code).first()
+        if referrer:
+            referred_by = referrer.id
+
     # Create user
     user = User(
         email=data.email,
@@ -75,8 +84,16 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
         is_active=True,
         is_email_confirmed=False,
         tier="free",
+        referred_by=referred_by,
     )
     db.add(user)
+    db.flush()  # get user.id before generating referral code
+
+    try:
+        user.referral_code = generate_referral_code(db)
+    except Exception as e:
+        logger.warning("Could not generate referral_code: %s", e)
+
     db.commit()
     db.refresh(user)
 
