@@ -11,12 +11,17 @@ import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
 import SharePage from './pages/SharePage';
 import { ToastProvider } from './components/Toast';
+import ThemeToggle from './components/ThemeToggle';
 
 function useDarkMode() {
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem('astrea_theme');
+    if (stored) return stored === 'dark';
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('theme', dark ? 'dark' : 'light');
+    localStorage.setItem('astrea_theme', dark ? 'dark' : 'light');
   }, [dark]);
   return [dark, () => setDark(d => !d)];
 }
@@ -107,13 +112,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             </button>
           )}
 
-          <button
-            onClick={toggleDark}
-            title="Сменить тему"
-            className="px-2 py-1.5 rounded-full text-slate-500 hover:bg-slate-100 transition-all duration-200"
-          >
-            {dark ? '☀️' : '🌙'}
-          </button>
+          <ThemeToggle dark={dark} onToggle={toggleDark} />
         </nav>
       </div>
     </header>
