@@ -337,6 +337,24 @@ ALERT_PLANETS  = {"Jupiter", "Saturn", "Uranus", "Neptune"}
 POSITIVE_ALERT = {"Jupiter", "Venus"}
 
 
+def _alert_already_sent(user_id: str, transit_key: str) -> bool:
+    """Проверяет Redis: отправляли ли уже алерт для этого транзита.
+    Ключ: alert:<user_id>:<transit_key>, TTL 60 дней.
+    """
+    try:
+        from backend.cache import interpretation_cache
+        redis = interpretation_cache._redis
+        if not redis:
+            return False
+        key = f"alert:{user_id}:{transit_key}"
+        if redis.get(key):
+            return True
+        redis.setex(key, 60 * 24 * 3600, "1")
+        return False
+    except Exception:
+        return False
+
+
 async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) -> None:
     """Отправляет email-алерт когда медленная планета начинает новый проход."""
     from backend.email_service import send_transit_alert_email
@@ -352,6 +370,12 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) 
     for t in new_transits:
         if t.transit_planet not in ALERT_PLANETS:
             continue
+
+        # Дедупликация — не спамить при каждом запросе транзитов
+        transit_key = f"{t.transit_planet}:{t.natal_planet}:{t.aspect_type}:{t.start_date[:7]}"
+        if _alert_already_sent(str(user.id), transit_key):
+            continue
+
         is_positive = t.transit_planet in POSITIVE_ALERT
         planet_ru = PLANET_RU.get(t.transit_planet, t.transit_planet)
         natal_ru  = NATAL_RU.get(t.natal_planet, t.natal_planet)
