@@ -129,7 +129,7 @@ class BudgetTracker:
                 pipe = self._redis.pipeline()
                 key = self._today_key()
                 pipe.incrbyfloat(key, amount_usd)
-                pipe.expire(key, 86400 * 2)  # TTL 2 дня
+                pipe.expire(key, 86400)      # TTL 1 день — сброс в следующие сутки
                 results = pipe.execute()
                 return float(results[0])
             except Exception as e:
