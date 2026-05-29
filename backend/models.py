@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON
+    Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer
 )
 from sqlalchemy.orm import relationship
 
@@ -42,7 +42,6 @@ class NatalChart(Base):
     id = Column(String(36), primary_key=True, default=gen_uuid)
     user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     label = Column(String(255), nullable=True)
-    name = Column(String(100), nullable=True)  # имя из формы для персонализации
 
     birth_date = Column(String(10), nullable=False)
     birth_time = Column(String(5), nullable=True)
@@ -99,3 +98,12 @@ class Subscription(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="subscriptions")
+
+
+class CouponSent(Base):
+    __tablename__ = "coupons_sent"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    coupon_id = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
