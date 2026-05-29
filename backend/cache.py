@@ -201,3 +201,33 @@ class IpMonitor:
 
 
 ip_monitor = IpMonitor()
+
+
+# ═══════════════════════════════════════════════════════════
+# SECTION CACHE (кеш секций интерпретаций, задача 6.1)
+# ═══════════════════════════════════════════════════════════
+
+TTL_SECTION = 30 * 24 * 3600  # 30 дней
+
+
+def get_section_cache_key(chart_id: str, planet: str, sign: str, house: str, prompt_version: str) -> str:
+    return f"interp:{chart_id}:{planet}:{sign}:{house}:{prompt_version}"
+
+
+def get_cached_section(key: str) -> str | None:
+    if interpretation_cache._redis is None:
+        return None
+    try:
+        return interpretation_cache._redis.get(key)
+    except Exception as e:
+        logger.warning("Section cache GET error: %s", e)
+        return None
+
+
+def set_cached_section(key: str, text: str, ttl: int = TTL_SECTION) -> None:
+    if interpretation_cache._redis is None:
+        return
+    try:
+        interpretation_cache._redis.setex(key, ttl, text)
+    except Exception as e:
+        logger.warning("Section cache SET error: %s", e)

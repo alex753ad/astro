@@ -34,6 +34,39 @@ _COST_PER_1K_TOKENS = {
 }
 
 
+def select_model(tier: str, is_cached: bool = False) -> str:
+    """Return engine name based on user tier and cache state (task 6.2)."""
+    if tier == "free":
+        return "deepseek"
+    if tier == "premium":
+        return "gpt4o"
+    if tier == "pro":
+        return "deepseek" if is_cached else "gpt4o"
+    return "deepseek"  # lite
+
+
+def _engines_for_tier(
+    engines: list,
+    tier: str,
+    is_cached: bool = False,
+) -> list:
+    """Return ordered engine list filtered by tier preference."""
+    preferred = select_model(tier, is_cached)
+    name_map = {e.name: e for e in engines}
+    template = name_map.get("template")
+
+    if preferred == "gpt4o":
+        order = ["gpt4o", "deepseek", "template"]
+    else:
+        order = ["deepseek", "template"]
+
+    result = [name_map[n] for n in order if n in name_map]
+    # гарантируем template в конце
+    if template and template not in result:
+        result.append(template)
+    return result
+
+
 def _log_ai_request(
     engine: str,
     latency_ms: int,
@@ -113,7 +146,9 @@ class InterpretationRouter:
             fallback_triggered = True
             engines_to_try = [self._engines[-1]]  # только TemplateEngine
         else:
-            engines_to_try = self._engines
+            engines_to_try = _engines_for_tier(
+                self._engines, request.tier, is_cached=bool(cached)
+            )
 
         for engine in engines_to_try:
             if not self._check_budget(engine.name):
@@ -183,7 +218,9 @@ class InterpretationRouter:
         """
         # B6: если бюджет исчерпан — сразу template
         budget_ok = budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, "gpt4o")
-        stream_engines = [self._engines[-1]] if not budget_ok else self._engines
+        stream_engines = [self._engines[-1]] if not budget_ok else _engines_for_tier(
+            self._engines, request.tier
+        )
         if not budget_ok:
             logger.warning("Daily AI budget exceeded — stream forced to template")
 
