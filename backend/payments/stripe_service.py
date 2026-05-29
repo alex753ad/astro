@@ -88,6 +88,7 @@ def create_checkout_session(
     user: User, tier: str,
     success_url: str, cancel_url: str, db: Session,
     billing_period: str = "monthly",
+    promo_code: str | None = None,
 ) -> str:
     _init_stripe()
     price_id = TIER_PRICE_MAP.get((tier, billing_period))
@@ -96,7 +97,7 @@ def create_checkout_session(
 
     customer_id = get_or_create_customer(user, db)
 
-    session = stripe.checkout.Session.create(
+    session_kwargs: dict = dict(
         customer=customer_id,
         mode="subscription",
         payment_method_types=["card"],
@@ -106,7 +107,53 @@ def create_checkout_session(
         metadata={"user_id": user.id, "tier": tier},
         subscription_data={"metadata": {"user_id": user.id, "tier": tier}},
     )
+
+    # Промокод
+    if promo_code:
+        promo_id = _resolve_promo_code(promo_code)
+        if promo_id is None:
+            raise ValueError("invalid_promo_code")
+        session_kwargs["discounts"] = [{"promotion_code": promo_id}]
+        session_kwargs["allow_promotion_codes"] = False
+    else:
+        session_kwargs["allow_promotion_codes"] = True  # позволяет вводить прямо на странице Stripe
+
+    session = stripe.checkout.Session.create(**session_kwargs)
     return session.url
+
+
+def _resolve_promo_code(code: str) -> str | None:
+    """Find Stripe PromotionCode id by human-readable code. Returns None if not found/expired."""
+    _init_stripe()
+    try:
+        results = stripe.PromotionCode.list(code=code, active=True, limit=1)
+        items = list(results.auto_paging_iter()) if hasattr(results, "auto_paging_iter") else (results.data or [])
+        if items:
+            return items[0].id
+        return None
+    except Exception as e:
+        logger.warning("_resolve_promo_code error for %s: %s", code, e)
+        return None
+
+
+def create_coupon(
+    percent_off: int,
+    duration_months: int,
+    max_redemptions: int,
+    name: str,
+) -> str:
+    """Create a Stripe Coupon. Returns coupon id."""
+    _init_stripe()
+    coupon = stripe.Coupon.create(
+        percent_off=percent_off,
+        duration="repeating",
+        duration_in_months=duration_months,
+        max_redemptions=max_redemptions,
+        name=name,
+        metadata={"created_by": "astrea_admin"},
+    )
+    logger.info("Coupon created: %s (%d%% off, %d months)", coupon.id, percent_off, duration_months)
+    return coupon.id
 
 
 # ═══════════════════════════════════════════════════════════

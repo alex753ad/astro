@@ -8,7 +8,7 @@
  */
 
 import React, { useState } from 'react';
-import { createCheckoutSession } from '../api/client';
+import { createCheckoutSession, validatePromoCode } from '../api/client';
 
 const PAYWALL_CONTENT = {
   free_to_lite: {
@@ -79,18 +79,44 @@ export function getPaywallContext(errorDetail) {
 
 export default function PaywallModal({ context = 'free_to_lite', onClose, chartId }) {
   const content = PAYWALL_CONTENT[context] || PAYWALL_CONTENT.free_to_lite;
-  const [billing, setBilling] = useState('monthly');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [billing, setBilling]         = useState('monthly');
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState(null);
+  const [promoInput, setPromoInput]   = useState('');
+  const [promoApplied, setPromoApplied] = useState('');   // применённый код
+  const [promoError, setPromoError]   = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+
+  async function handleApplyPromo() {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return;
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      await validatePromoCode(code);
+      setPromoApplied(code);
+      setPromoError('');
+    } catch {
+      setPromoError('Промокод не найден или истёк');
+      setPromoApplied('');
+    } finally {
+      setPromoLoading(false);
+    }
+  }
 
   async function handleUpgrade() {
     setLoading(true);
     setError(null);
     try {
-      const { url } = await createCheckoutSession(content.tier, billing, chartId);
+      const { url } = await createCheckoutSession(content.tier, billing, chartId, promoApplied || null);
       window.location.href = url;
     } catch (e) {
-      setError('Не удалось открыть страницу оплаты. Попробуйте позже.');
+      if (e.detail?.error === 'invalid_promo_code') {
+        setPromoError('Промокод не действителен');
+        setPromoApplied('');
+      } else {
+        setError('Не удалось открыть страницу оплаты. Попробуйте позже.');
+      }
       setLoading(false);
     }
   }
@@ -138,6 +164,27 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         {billing === 'annual' && (
           <p style={s.annualNote}>{content.annualNote}</p>
         )}
+
+        {/* Промокод */}
+        <div style={s.promoRow}>
+          <input
+            style={{ ...s.promoInput, ...(promoApplied ? s.promoInputOk : {}) }}
+            placeholder="Промокод"
+            value={promoApplied ? `✓ ${promoApplied}` : promoInput}
+            disabled={!!promoApplied || promoLoading}
+            onChange={e => { setPromoInput(e.target.value); setPromoError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleApplyPromo()}
+          />
+          {!promoApplied && (
+            <button style={s.promoBtn} onClick={handleApplyPromo} disabled={promoLoading || !promoInput.trim()}>
+              {promoLoading ? '…' : 'Применить'}
+            </button>
+          )}
+          {promoApplied && (
+            <button style={s.promoClear} onClick={() => { setPromoApplied(''); setPromoInput(''); }}>✕</button>
+          )}
+        </div>
+        {promoError && <p style={s.promoErrorMsg}>{promoError}</p>}
 
         {/* CTA */}
         <button style={s.cta} onClick={handleUpgrade} disabled={loading}>
@@ -293,5 +340,56 @@ const s = {
     fontSize: '11px',
     color: '#9080B0',
     textAlign: 'center',
+  },
+  promoRow: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '6px',
+  },
+  promoInput: {
+    flex: 1,
+    padding: '9px 12px',
+    border: '1.5px solid #EDE8F5',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontFamily: 'inherit',
+    color: '#1E1A2E',
+    background: '#F4F0FA',
+    outline: 'none',
+    letterSpacing: '0.04em',
+  },
+  promoInputOk: {
+    borderColor: '#4CAF50',
+    background: '#F0FBF0',
+    color: '#2E7D32',
+    fontWeight: '600',
+  },
+  promoBtn: {
+    padding: '9px 14px',
+    background: '#1E1A2E',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  },
+  promoClear: {
+    padding: '9px 12px',
+    background: 'none',
+    color: '#9080B0',
+    border: '1.5px solid #EDE8F5',
+    borderRadius: '8px',
+    fontSize: '13px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  promoErrorMsg: {
+    margin: '0 0 10px',
+    fontSize: '12px',
+    color: '#C03030',
+    textAlign: 'left',
   },
 };

@@ -93,9 +93,14 @@ async def checkout(
             success_url=data.success_url,
             cancel_url=data.cancel_url,
             db=db,
+            promo_code=data.promo_code,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        detail = str(e)
+        status_code = 400
+        if detail == "invalid_promo_code":
+            raise HTTPException(status_code=status_code, detail={"error": "invalid_promo_code"})
+        raise HTTPException(status_code=status_code, detail=detail)
     except stripe.error.StripeError as e:
         logger.exception("Stripe checkout error")
         raise HTTPException(status_code=502, detail=f"Stripe error: {e.user_message}")
@@ -354,3 +359,16 @@ async def gift_redeem(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
+
+
+@router.get(
+    "/promo-validate",
+    summary="Validate a Stripe promotion code",
+)
+async def promo_validate(code: str, user: User = Depends(get_current_user)):
+    """Check if a promotion code exists and is active. Returns 200 or 400."""
+    from backend.payments.stripe_service import _resolve_promo_code
+    promo_id = _resolve_promo_code(code)
+    if not promo_id:
+        raise HTTPException(status_code=400, detail={"error": "invalid_promo_code"})
+    return {"valid": True, "code": code}
