@@ -438,3 +438,37 @@ def check_lunar_returns() -> dict:
 
     logger.info("check_lunar_returns: sent=%d", sent)
     return {"sent": sent, "date": str(today)}
+
+
+@celery_app.task(name="tasks.send_weekly_digest_task")
+def send_weekly_digest_task() -> dict:
+    """Daily Celery Beat task: send weekly digest to users whose digest_day == today."""
+    import asyncio
+    from datetime import date as date_type
+    from backend.models import User
+    from backend.email_service import send_weekly_digest
+
+    db = SessionLocal()
+    sent = 0
+    today_weekday = date_type.today().weekday()
+
+    try:
+        users = db.query(User).filter(
+            User.tier.in_(["pro", "premium"]),
+            User.digest_day_of_week == today_weekday,
+            User.is_active == True,
+        ).all()
+        for user in users:
+            try:
+                ok = asyncio.get_event_loop().run_until_complete(
+                    send_weekly_digest(user, db)
+                )
+                if ok:
+                    sent += 1
+            except Exception as e:
+                logger.warning("Weekly digest failed user=%s: %s", user.id, e)
+    finally:
+        db.close()
+
+    logger.info("send_weekly_digest_task: sent=%d weekday=%d", sent, today_weekday)
+    return {"sent": sent, "weekday": today_weekday}
