@@ -423,3 +423,55 @@ def send_payment_failed_notification(user_email: str, portal_url: str = "") -> N
         )
     except Exception as e:
         logger.error("send_payment_failed_notification error: %s", e)
+
+
+# ═══════════════════════════════════════════════════════════
+# REFERRAL (task 1)
+# ═══════════════════════════════════════════════════════════
+
+import random
+import string
+
+
+def generate_referral_code(db: Session) -> str:
+    """Generate unique 8-char alphanumeric referral code."""
+    from backend.models import User as _User
+    chars = string.ascii_uppercase + string.digits
+    for _ in range(10):
+        code = "".join(random.choices(chars, k=8))
+        if not db.query(_User).filter(_User.referral_code == code).first():
+            return code
+    raise RuntimeError("Failed to generate unique referral code after 10 attempts")
+
+
+def apply_referral_reward(referrer_user_id: str, db: Session) -> None:
+    """Give referrer 2 weeks of Pro free via Stripe Coupon (once per referral)."""
+    from backend.models import User as _User
+    referrer = db.query(_User).filter(_User.id == referrer_user_id).first()
+    if not referrer or not referrer.stripe_customer_id:
+        logger.warning("apply_referral_reward: referrer %s has no stripe_customer_id", referrer_user_id)
+        return
+
+    _init_stripe()
+    try:
+        coupon = stripe.Coupon.create(
+            percent_off=100,
+            duration="once",
+            max_redemptions=1,
+            duration_in_months=None,
+            metadata={"type": "referral_reward", "referrer_id": str(referrer_user_id)},
+        )
+        stripe.Customer.modify(
+            referrer.stripe_customer_id,
+            coupon=coupon.id,
+        )
+        # Increment referred_users_count in customer metadata
+        customer = stripe.Customer.retrieve(referrer.stripe_customer_id)
+        current_count = int((customer.get("metadata") or {}).get("referred_users_count", 0))
+        stripe.Customer.modify(
+            referrer.stripe_customer_id,
+            metadata={"referred_users_count": str(current_count + 1)},
+        )
+        logger.info("Referral reward applied to user %s (coupon %s)", referrer_user_id, coupon.id)
+    except Exception as e:
+        logger.error("apply_referral_reward error for %s: %s", referrer_user_id, e)
