@@ -3,6 +3,7 @@ import { Routes, Route, Link } from 'react-router-dom';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
 import HomePage from './pages/HomePage';
+import LandingPage from './pages/LandingPage';
 import ChartPage from './pages/ChartPage';
 import PlannerPage from './PlannerPage';
 import ProfilePage from './pages/ProfilePage';
@@ -46,7 +47,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
         {/* Навигация */}
         <nav className="flex items-center gap-1 text-sm">
           <Link
-            to="/"
+            to="/home"
             className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
                        hover:bg-astro-purple/20 transition-all duration-200"
           >
@@ -157,7 +158,8 @@ function AppRoutes() {
 
         <main className="flex-1">
           <Routes>
-            <Route path="/"               element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+            <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+            <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/chart/share/:token" element={<SharePage />} />
             <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/planner/:id"    element={<PlannerPage />} />
