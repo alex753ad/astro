@@ -365,7 +365,8 @@ async def send_transit_alert_email(
 
 
 async def send_weekly_digest(user, db) -> bool:
-    """Weekly digest для Pro/Premium — транзиты + лунные фазы + лучшие дни."""
+    """Weekly digest для Pro/Premium — транзиты + лунные фазы + лучшие дни + совет недели + A/B тема."""
+    import random
     from datetime import timedelta, date as date_type
     from backend.transit.engine import calculate_transits
     from backend.models import NatalChart
@@ -389,6 +390,9 @@ async def send_weekly_digest(user, db) -> bool:
                  "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон"}
     ASP_RU = {"conjunction": "соединение", "sextile": "секстиль",
               "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
+    SPHERE_RU = {"Venus": "отношений и творчества", "Jupiter": "роста и новых возможностей",
+                 "Sun": "самовыражения и карьеры", "Mars": "действий и инициатив",
+                 "Mercury": "коммуникации и планирования"}
     POSITIVE_ASP = {"trine", "sextile", "conjunction"}
     POSITIVE_PLAN = {"Venus", "Jupiter", "Sun"}
 
@@ -418,7 +422,30 @@ async def send_weekly_digest(user, db) -> bool:
             "aspect": ASP_RU.get(at, at),
             "natal": PLANET_RU.get(np_, np_),
             "text": text,
+            "_tp": tp,
+            "_at": at,
         })
+
+    # ── Совет недели от планировщика ──
+    tip_block = ""
+    first_positive = next(
+        (e for e in sorted_events if getattr(e, "transit_planet", "") in POSITIVE_PLAN
+         and getattr(e, "aspect_type", "") in POSITIVE_ASP),
+        sorted_events[0] if sorted_events else None,
+    )
+    if first_positive:
+        tp = getattr(first_positive, "transit_planet", "")
+        at = getattr(first_positive, "aspect_type", "")
+        peak = str(getattr(first_positive, "peak_date", None) or getattr(first_positive, "date", ""))
+        sphere = SPHERE_RU.get(tp, "важных дел")
+        tip_text = f"{peak}, когда {PLANET_RU.get(tp, tp)} {ASP_RU.get(at, at)} — хороший момент для {sphere}"
+        tip_block = (
+            f'<div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;'
+            f'padding:14px 18px;margin:0 0 20px;">'
+            f'<div style="color:#92400e;font-weight:700;font-size:13px;margin-bottom:6px;">💡 Совет недели от планировщика</div>'
+            f'<div style="color:#78350f;font-size:14px;line-height:1.6;">{tip_text}</div>'
+            f'</div>'
+        )
 
     # Лунные фазы недели
     lunar_block = ""
@@ -444,7 +471,7 @@ async def send_weekly_digest(user, db) -> bool:
     except Exception as e:
         logger.warning("Lunar phases fetch failed: %s", e)
 
-    # Лучшие дни (Venus/Jupiter транзиты → работа/отношения)
+    # Лучшие дни
     best_days_block = ""
     best = [e for e in sorted_events
             if getattr(e, "transit_planet", "") in POSITIVE_PLAN
@@ -466,7 +493,6 @@ async def send_weekly_digest(user, db) -> bool:
 
     week_label = f"{now.strftime('%d %b')}–{week_end.strftime('%d %b')}"
 
-    # Собираем финальный email с дополнительными блоками
     items_html = ""
     for h in highlights:
         items_html += (
@@ -483,14 +509,39 @@ async def send_weekly_digest(user, db) -> bool:
         _h2(f"🔭 Ваш дайджест на {week_label}")
         + _p("Главные астрологические события предстоящей недели по вашей карте:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">{items_html}</table>'
+        + tip_block
         + best_days_block
         + lunar_block
         + _btn("Открыть полный календарь", f"{APP_URL}/calendar")
     )
 
+    # ── A/B тест темы письма ──
+    week_iso = now.strftime("%Y-W%V")
+    ab_key = f"digest_ab:{user.id}:{week_iso}"
+    variant = "A"
+    try:
+        from backend.cache import interpretation_cache
+        redis = interpretation_cache._redis
+        if redis:
+            stored = redis.get(ab_key)
+            if stored:
+                variant = stored
+            else:
+                variant = random.choice(["A", "B"])
+                redis.setex(ab_key, 8 * 24 * 3600, variant)
+    except Exception:
+        variant = random.choice(["A", "B"])
+
+    # Вариант A — персонализированный транзит, Вариант B — общий заголовок
+    if variant == "A" and highlights:
+        h0 = highlights[0]
+        subject = f"{h0['planet']} активен в вашей карте на этой неделе · Astrea"
+    else:
+        subject = f"🔭 Астро-дайджест на {week_label} · Astrea Timeline"
+
     return await _send(
         user.email,
-        f"🔭 Астро-дайджест на {week_label} · Astrea Timeline",
+        subject,
         _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
     )
 

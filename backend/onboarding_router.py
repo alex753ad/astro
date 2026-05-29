@@ -124,15 +124,23 @@ async def send_weekly_digests(
     x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    """Railway Cron: каждый понедельник 09:00 МСК."""
+    """Railway Cron: ежедневно 09:00 МСК. Отправляет дайджест пользователям,
+    у которых сегодня настроен день получения (digest_day_of_week == today.weekday()).
+    """
     secret = os.getenv("INTERNAL_SECRET", "")
     if secret and x_internal_secret != secret:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    from datetime import date as date_type
     from backend.models import User
     from backend.email_service import send_weekly_digest
 
-    pro_users = db.query(User).filter(User.tier.in_(["pro", "premium"])).all()
+    today_weekday = date_type.today().weekday()  # 0=пн, 6=вс
+
+    pro_users = db.query(User).filter(
+        User.tier.in_(["pro", "premium"]),
+        User.digest_day_of_week == today_weekday,
+    ).all()
     sent = 0
     for user in pro_users:
         try:
@@ -142,7 +150,7 @@ async def send_weekly_digests(
         except Exception as e:
             logger.warning("Weekly digest failed for %s: %s", user.email, e)
 
-    return {"sent": sent}
+    return {"sent": sent, "weekday": today_weekday}
 
 
 @router.post("/lunar-returns")
