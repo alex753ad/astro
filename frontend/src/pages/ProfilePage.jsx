@@ -287,8 +287,18 @@ function TabHistory({ history, loading }) {
 }
 
 // ─── Вкладка: Подписка ────────────────────────────────────────────────────────
+const TIERS = [
+  { id: 'lite',    label: 'Lite',    price: '790 ₽/мес',   desc: 'Интерпретации, транзиты, лунный календарь' },
+  { id: 'pro',     label: 'Pro',     price: '1 990 ₽/мес', desc: 'AI-транзиты, RAG-чат, PDF-отчёты' },
+  { id: 'premium', label: 'Premium', price: '7 990 ₽/мес', desc: 'Всё включено + брендирование астролога' },
+];
+
+const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
+
 function TabSubscription({ user, subscription, loading, authFetch }) {
   const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(null);
+  const [checkoutError, setCheckoutError] = useState(null);
 
   const handlePortal = async () => {
     setPortalLoading(true);
@@ -297,11 +307,31 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         method: 'POST',
         body: JSON.stringify({ return_url: window.location.href }),
       });
-      window.location.href = data.url;
+      window.location.href = data.url || data.portal_url;
     } catch (e) {
       alert('Ошибка: ' + e.message);
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const handleCheckout = async (tier) => {
+    setCheckoutLoading(tier);
+    setCheckoutError(null);
+    try {
+      const data = await authFetch(`${API_BASE}/payments/checkout`, {
+        method: 'POST',
+        body: JSON.stringify({
+          tier,
+          billing_period: 'monthly',
+          success_url: window.location.origin + '/profile',
+          cancel_url: window.location.href,
+        }),
+      });
+      window.location.href = data.checkout_url;
+    } catch (e) {
+      setCheckoutError(e.message);
+      setCheckoutLoading(null);
     }
   };
 
@@ -314,6 +344,9 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
   ];
 
   if (loading) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
+
+  const currentTierIdx = TIER_ORDER.indexOf(user?.tier || 'free');
+  const availableTiers = TIERS.filter(t => TIER_ORDER.indexOf(t.id) > currentTierIdx);
 
   return (
     <div>
@@ -353,38 +386,42 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         </div>
       </div>
 
-      {/* Кнопки */}
-      <div style={S.card}>
-        {user?.tier === 'free' ? (
-          <div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
-              Перейдите на Lite чтобы разблокировать полную интерпретацию, транзиты и лунный календарь на год.
-            </div>
-            <Link
-              to="/upgrade"
-              style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}
-            >
-              Перейти на Lite — 790 ₽/мес →
-            </Link>
+      {/* Доступные тарифы для апгрейда */}
+      {availableTiers.length > 0 && (
+        <div style={S.card}>
+          <p style={S.cardTitle}>Перейти на тариф</p>
+          {checkoutError && (
+            <div style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>Ошибка: {checkoutError}</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {availableTiers.map(t => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 8, border: `1px solid ${TIER_COLORS[t.id]}30`, background: `${TIER_COLORS[t.id]}08` }}>
+                <div>
+                  <span style={{ ...S.badge(t.id), marginRight: 8 }}>{t.label}</span>
+                  <span style={{ fontSize: 13, color: '#94a3b8' }}>{t.price}</span>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{t.desc}</div>
+                </div>
+                <button
+                  onClick={() => handleCheckout(t.id)}
+                  disabled={!!checkoutLoading}
+                  style={{ ...S.btn('primary'), whiteSpace: 'nowrap', opacity: checkoutLoading && checkoutLoading !== t.id ? 0.5 : 1 }}
+                >
+                  {checkoutLoading === t.id ? 'Открываю…' : `Перейти →`}
+                </button>
+              </div>
+            ))}
           </div>
-        ) : user?.tier === 'lite' ? (
-          <div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 14 }}>
-              Перейдите на Pro чтобы разблокировать AI-транзиты, RAG-чат и PDF-отчёты.
-            </div>
-            <Link
-              to="/upgrade"
-              style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}
-            >
-              Перейти на Pro — 1 990 ₽/мес →
-            </Link>
-          </div>
-        ) : (
+        </div>
+      )}
+
+      {/* Управление подпиской через Stripe Portal */}
+      {user?.tier !== 'free' && (
+        <div style={S.card}>
           <button onClick={handlePortal} disabled={portalLoading} style={S.btn('ghost')}>
             {portalLoading ? 'Открываю…' : 'Управление подпиской (Stripe) →'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
