@@ -35,6 +35,8 @@ from backend.payments.stripe_service import (
     handle_subscription_updated,
     handle_subscription_deleted,
     handle_payment_failed,
+    create_report_checkout_session,
+    consume_report_token,
 )
 
 logger = logging.getLogger("astro.payments")
@@ -223,3 +225,67 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         # and we don't want infinite retries for a processing bug.
 
     return JSONResponse(content={"received": True}, status_code=200)
+
+
+# ═══════════════════════════════════════════════════════════
+# PAY-PER-REPORT (task 7)
+# ═══════════════════════════════════════════════════════════
+
+from fastapi.responses import FileResponse
+from pydantic import BaseModel as _BaseModel
+
+class ReportCheckoutRequest(_BaseModel):
+    report_type: str = "basic"   # basic | extended
+    chart_id: str
+    success_url: str = ""
+    cancel_url: str = ""
+
+
+@router.post(
+    "/report-checkout",
+    summary="Create one-time payment session for PDF report",
+)
+async def report_checkout(
+    data: ReportCheckoutRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create Stripe Checkout for a one-time report purchase (no subscription required)."""
+    if data.report_type not in ("basic", "extended"):
+        raise HTTPException(status_code=400, detail="report_type must be 'basic' or 'extended'")
+    try:
+        url = create_report_checkout_session(
+            user=user,
+            report_type=data.report_type,
+            chart_id=data.chart_id,
+            success_url=data.success_url,
+            cancel_url=data.cancel_url,
+            db=db,
+        )
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Stripe error: {e.user_message}")
+    return {"checkout_url": url}
+
+
+@router.get(
+    "/report/download/{token}",
+    summary="Download PDF report by one-time token",
+    include_in_schema=True,
+)
+async def download_report(token: str, db: Session = Depends(get_db)):
+    """Verify one-time token and return PDF. Token is deleted after successful download."""
+    import os
+    chart_id = consume_report_token(token)
+    if not chart_id:
+        raise HTTPException(status_code=404, detail="Token expired or not found")
+
+    # Look for generated PDF
+    pdf_path = f"/tmp/reports/{chart_id}.pdf"
+    if not os.path.exists(pdf_path):
+        raise HTTPException(status_code=404, detail="Report not ready yet, please try again later")
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=f"astrea_report_{chart_id[:8]}.pdf",
+    )
