@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer
+    Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer,
+    Date, Time,
 )
 from sqlalchemy.orm import relationship
 
@@ -31,6 +32,13 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
+
+    # Referral (011)
+    referral_code = Column(String(16), unique=True, nullable=True)
+    referred_by   = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Digest settings (012)
+    digest_day_of_week = Column(Integer, nullable=False, default=0, server_default="0")
 
     charts = relationship("NatalChart", back_populates="user", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
@@ -107,4 +115,47 @@ class CouponSent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     coupon_id = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── CRM (013) ──
+
+class AstrologerProfile(Base):
+    __tablename__ = "astrologer_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    display_name = Column(String(100), nullable=True)
+
+    clients = relationship("ClientProfile", back_populates="astrologer", cascade="all, delete-orphan")
+
+
+class ClientProfile(Base):
+    __tablename__ = "client_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    astrologer_id = Column(Integer, ForeignKey("astrologer_profiles.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(100), nullable=False)
+    birth_date = Column(Date, nullable=False)
+    birth_time = Column(Time, nullable=True)
+    birth_place = Column(String(200), nullable=False)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    natal_chart_id = Column(String(36), ForeignKey("natal_charts.id", ondelete="SET NULL"), nullable=True)
+
+    astrologer = relationship("AstrologerProfile", back_populates="clients")
+
+
+# ── Gift codes (014) ──
+
+class GiftCode(Base):
+    __tablename__ = "gift_codes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(16), unique=True, nullable=False)
+    tier = Column(String(20), nullable=False)
+    duration_months = Column(Integer, nullable=False)
+    purchased_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    redeemed_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    redeemed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
