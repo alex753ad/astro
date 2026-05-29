@@ -33,6 +33,22 @@ export default function HomePage({ currentUser, onShowAuth }) {
     }
   };
 
+  const schemaOrg = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Astrea Timeline',
+    url: 'https://astreatime.ru',
+    applicationCategory: 'LifestyleApplication',
+    operatingSystem: 'Web',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'RUB',
+      description: 'Бесплатный тариф с базовыми функциями',
+    },
+    description: 'Натальные карты, AI-интерпретации транзитов и персональный астро-планер на основе Swiss Ephemeris и GPT-4o.',
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -40,6 +56,10 @@ export default function HomePage({ currentUser, onShowAuth }) {
       fontFamily: '"Space Grotesk", system-ui, sans-serif',
       padding: '32px 24px 60px',
     }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
+      />
       {/* Back link */}
       <div style={{ maxWidth: 500, margin: '0 auto 24px' }}>
         <Link
