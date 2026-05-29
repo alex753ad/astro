@@ -19,6 +19,18 @@ from backend.interpretation.base import (
 
 logger = logging.getLogger("astro.template")
 
+SIGN_RU = {
+    "Aries": "Овне", "Taurus": "Тельце", "Gemini": "Близнецах",
+    "Cancer": "Раке", "Leo": "Льве", "Virgo": "Деве",
+    "Libra": "Весах", "Scorpio": "Скорпионе", "Sagittarius": "Стрельце",
+    "Capricorn": "Козероге", "Aquarius": "Водолее", "Pisces": "Рыбах",
+}
+SIGN_RU_NOM = {
+    "Aries": "Овен", "Taurus": "Телец", "Gemini": "Близнецы",
+    "Cancer": "Рак", "Leo": "Лев", "Virgo": "Дева",
+    "Libra": "Весы", "Scorpio": "Скорпион", "Sagittarius": "Стрелец",
+    "Capricorn": "Козерог", "Aquarius": "Водолей", "Pisces": "Рыбы",
+}
 
 # ── Knowledge Base (subset — expand as needed) ──
 
@@ -106,7 +118,7 @@ class TemplateEngine(InterpretationEngine):
 
             if asc and asc.get("sign"):
                 parts.append(
-                    f"Ваш Асцендент в {asc['sign']} — это маска, которую вы показываете миру, "
+                    f"Ваш Асцендент в {SIGN_RU_NOM.get(asc['sign'], asc['sign'])} — это маска, которую вы показываете миру, "
                     f"первое впечатление, которое вы производите."
                 )
 
@@ -124,13 +136,13 @@ class TemplateEngine(InterpretationEngine):
             parts.append("\n### Карьера и профессиональная реализация\n")
             if mc and mc.get("sign"):
                 parts.append(
-                    f"Середина Неба (MC) в {mc['sign']} указывает на направление "
+                    f"Середина Неба (MC) в {SIGN_RU_NOM.get(mc['sign'], mc['sign'])} указывает на направление "
                     f"вашей профессиональной самореализации и публичный образ."
                 )
             saturn = planets.get("Saturn", {})
             if saturn.get("sign"):
                 parts.append(
-                    f"Сатурн в {saturn['sign']} показывает, где вам предстоит "
+                    f"Сатурн в {SIGN_RU.get(saturn['sign'], saturn['sign'])} показывает, где вам предстоит "
                     f"наиболее серьёзная работа над собой в профессиональном плане."
                 )
 
@@ -141,12 +153,12 @@ class TemplateEngine(InterpretationEngine):
             mars = planets.get("Mars", {})
             if venus.get("sign"):
                 parts.append(
-                    f"Венера в {venus['sign']} описывает ваш стиль любви — "
+                    f"Венера в {SIGN_RU.get(venus['sign'], venus['sign'])} описывает ваш стиль любви — "
                     f"то, как вы выражаете нежность и что цените в партнёре."
                 )
             if mars.get("sign"):
                 parts.append(
-                    f"Марс в {mars['sign']} — ваша страсть и инициатива в отношениях."
+                    f"Марс в {SIGN_RU.get(mars['sign'], mars['sign'])} — ваша страсть и инициатива в отношениях."
                 )
 
         # Health
@@ -163,7 +175,7 @@ class TemplateEngine(InterpretationEngine):
             jupiter = planets.get("Jupiter", {})
             if jupiter.get("sign"):
                 parts.append(
-                    f"Юпитер в {jupiter['sign']} — ваша зона роста и потенциального изобилия."
+                    f"Юпитер в {SIGN_RU.get(jupiter['sign'], jupiter['sign'])} — ваша зона роста и потенциального изобилия."
                 )
 
         # Spirituality
@@ -172,13 +184,13 @@ class TemplateEngine(InterpretationEngine):
             neptune = planets.get("Neptune", {})
             if neptune.get("sign"):
                 parts.append(
-                    f"Нептун в {neptune['sign']} (поколенческая планета) создаёт "
+                    f"Нептун в {SIGN_RU.get(neptune['sign'], neptune['sign'])} (поколенческая планета) создаёт "
                     f"фон для вашего духовного поиска."
                 )
             node = planets.get("North Node", {})
             if node and node.get("sign"):
                 parts.append(
-                    f"Северный узел в {node['sign']} — направление вашего духовного роста "
+                    f"Северный узел в {SIGN_RU.get(node['sign'], node['sign'])} — направление вашего духовного роста "
                     f"в этой жизни, то, к чему стоит стремиться."
                 )
 

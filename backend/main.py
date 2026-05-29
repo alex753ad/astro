@@ -1487,6 +1487,12 @@ async def start_pdf_generation(
     Returns task_id immediately. Poll GET /api/v1/tasks/{task_id}/status for result.
     Result contains base64-encoded PDF.
     """
+    if chart_id == "anonymous":
+        raise HTTPException(
+            status_code=400,
+            detail="Сохраните карту перед скачиванием PDF. Войдите или зарегистрируйтесь."
+        )
+
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")

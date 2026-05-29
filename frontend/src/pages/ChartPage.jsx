@@ -410,7 +410,10 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={() => navigate(`/planner/${chartId}`)} style={s.plannerLinkBtn}>
+          <button onClick={() => {
+            if (!currentUser) { onShowAuth?.(); return; }
+            navigate(`/planner/${chartId}`);
+          }} style={s.plannerLinkBtn}>
             📅 Планер
           </button>
           <button onClick={() => navigate(`/lunar?chartId=${chartId}`)} style={s.plannerLinkBtn}>

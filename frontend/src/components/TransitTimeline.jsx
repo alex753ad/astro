@@ -83,11 +83,18 @@ const PLANET_LABELS_RU = {
   Neptune: "Нептун", Pluto: "Плутон", "North Node": "Сев. Узел",
 };
 
+const SIGN_RU = {
+  Aries: "Овен", Taurus: "Телец", Gemini: "Близнецы", Cancer: "Рак",
+  Leo: "Лев", Virgo: "Дева", Libra: "Весы", Scorpio: "Скорпион",
+  Sagittarius: "Стрелец", Capricorn: "Козерог", Aquarius: "Водолей", Pisces: "Рыбы",
+};
+
 const ALL_PLANETS = ["Sun","Moon","Mercury","Venus","Mars","Jupiter","Saturn","Uranus","Neptune","Pluto"];
 const ALL_ASPECTS = ["conjunction","sextile","square","trine","opposition"];
 
 function formatDate(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
+  if (!dateStr) return "";
+  const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T00:00:00");
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
 
@@ -424,7 +431,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
       </div>
       {(event.transit_sign || event.natal_sign) && (
-        <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{event.transit_sign} → {event.natal_sign}</div>
+        <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
       {isSelected && !blurred && <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>Нажмите для интерпретации ↓</div>}
     </div>
