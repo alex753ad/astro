@@ -129,16 +129,6 @@ function Header({ onShowAuth, dark, toggleDark }) {
           >
             🌙 Луна
           </Link>
-          <a
-            href="/api/docs"
-            target="_blank"
-            rel="noopener"
-            className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                       hover:bg-slate-100 transition-all duration-200"
-          >
-            API Docs
-          </a>
-
           {user ? (
             <>
               <Link

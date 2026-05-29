@@ -4,7 +4,8 @@ WORKDIR /app
 
 # System deps for pyswisseph build
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc build-essential && \
+    apt-get install -y --no-install-recommends gcc build-essential \
+    fonts-liberation fonts-dejavu-core && \
     rm -rf /var/lib/apt/lists/*
 
 # Python deps
@@ -16,6 +17,7 @@ RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
     psycopg2-binary httpx pydantic pydantic-settings slowapi \
     "python-jose[cryptography]" "passlib[bcrypt]" "bcrypt>=3.2.0,<4.0.0" \
     timezonefinder pytz geopy \
+    reportlab \
     pytest pytest-asyncio
 
 # Copy application
