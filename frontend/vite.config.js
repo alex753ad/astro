@@ -4,11 +4,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ isSsrBuild }) => ({
   plugins: [react()],
   build: {
-    // SSR build: выводим в dist/server/, клиентский build — в dist/client/
     outDir: isSsrBuild ? 'dist/server' : 'dist/client',
-    rollupOptions: isSsrBuild
-      ? { input: '/src/entry-server.jsx' }
-      : undefined,
+    ...(isSsrBuild && {
+      ssr: 'src/entry-server.jsx',
+    }),
   },
   server: {
     port: 5173,
