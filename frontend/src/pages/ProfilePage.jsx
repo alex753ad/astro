@@ -448,6 +448,7 @@ function TabReferral({ authFetch }) {
 }
 
 // ─── Вкладка: Уведомления ────────────────────────────────────────────────────
+function TabNotifications() {
   const { notifs, toggle } = useNotifications();
 
   const items = [
