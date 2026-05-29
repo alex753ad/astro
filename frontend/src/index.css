@@ -2,10 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS-переменные для light / dark (F3) ─────────────────── */
+:root {
+  --bg:              #FDFBF9;
+  --bg-card:         #FFFFFF;
+  --text-primary:    #1E1A2E;
+  --text-secondary:  #7060A0;
+  --border:          #EDE8F5;
+  --accent:          #7C6CFF;
+}
+
+.dark {
+  --bg:              #0F0A1A;
+  --bg-card:         #1A1230;
+  --text-primary:    #E2DFF0;
+  --text-secondary:  #9B97B0;
+  --border:          #2A2245;
+  --accent:          #A78BFA;
+}
+
 @layer base {
   body {
     @apply bg-brand-dark text-brand-text antialiased;
     min-height: 100vh;
+    background-color: var(--bg);
+    color: var(--text-primary);
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   ::selection {
