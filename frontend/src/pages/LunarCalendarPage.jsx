@@ -86,6 +86,11 @@ function fmtPhaseTime(event) {
 export default function LunarCalendarPage() {
   const { user } = useAuth();
   const isFree = !user?.tier || user?.tier === 'free';
+  const lunarMonths = user?.tier === 'pro' || user?.tier === 'premium' ? 12
+                    : user?.tier === 'lite' ? 12
+                    : isFree ? 1 : 1;
+  const minDate = new Date(now.getFullYear(), now.getMonth() - (lunarMonths - 1), 1);
+  const maxDate = new Date(now.getFullYear(), now.getMonth() + (lunarMonths - 1), 1);
   const now      = new Date();
   const todayStr = now.toISOString().slice(0,10);
 
@@ -129,10 +134,14 @@ export default function LunarCalendarPage() {
   }
 
   function prev() {
+    const d = new Date(year, month - 2, 1);
+    if (d < minDate) return;
     if (month === 1) { setYear(y => y-1); setMonth(12); }
     else setMonth(m => m-1);
   }
   function next() {
+    const d = new Date(year, month, 1);
+    if (d > maxDate) return;
     if (month === 12) { setYear(y => y+1); setMonth(1); }
     else setMonth(m => m+1);
   }
@@ -215,9 +224,9 @@ export default function LunarCalendarPage() {
 
           {/* ── Навигация ─────────────────────────────── */}
           <div style={pg.nav}>
-            {!isFree && <button onClick={prev} style={pg.navBtn}>‹</button>}
+            {!isFree && <button onClick={prev} style={pg.navBtn} disabled={new Date(year, month-2, 1) < minDate}>‹</button>}
             <span style={pg.navMonth}>{MONTHS_RU[month-1]} {year}</span>
-            {!isFree && <button onClick={next} style={pg.navBtn}>›</button>}
+            {!isFree && <button onClick={next} style={pg.navBtn} disabled={new Date(year, month, 1) > maxDate}>›</button>}
           </div>
 
           {/* ── Сетка календаря ───────────────────────── */}
