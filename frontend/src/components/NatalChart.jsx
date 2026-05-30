@@ -191,18 +191,8 @@ function NatalChartInner({
     >
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
-      {SIGN_GLYPHS.map((_, i) => {
-        const el = SIGN_ELEMENT[i];
-        return (
-          <path
-            key={`zodiac-fill-${i}`}
-            d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
-            fill={ELEMENT_COLORS.fill[el]}
-            stroke="none"
-            opacity={1}
-          />
-        );
-      })}
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#00AA00" stroke="none" />
+      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="#FDFBF9" stroke="none" />
 
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
