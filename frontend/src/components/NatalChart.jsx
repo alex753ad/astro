@@ -199,7 +199,7 @@ function NatalChartInner({
             d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, i * 30, (i + 1) * 30, ascLon)}
             fill={ELEMENT_COLORS.fill[el]}
             stroke="none"
-            opacity={0.30}
+            opacity={1}
           />
         );
       })}
