@@ -191,6 +191,9 @@ function NatalChartInner({
     >
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#00AA00" stroke="none" />
+      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="#FDFBF9" stroke="none" />
+
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
         const midLon = i * 30 + 15;
