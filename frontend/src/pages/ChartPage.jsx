@@ -381,7 +381,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
     setSearchParams({ tab: key });
   }
 
-  function handleDateSelect(positions, date) {
+  function handleDateSelect(date, dayEvents, positions) {
     setTransitPlanets(positions ?? []);
     if (date) setSelectedDate(date);
   }
