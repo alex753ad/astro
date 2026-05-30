@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # ── Redis ──
     redis_url: str = "redis://localhost:6379/0"
 
+    # ── Stripe (legacy webhook support) ──
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+
     # ── Robokassa ──
     robokassa_merchant_login: str = ""
     robokassa_password1: str = ""

@@ -48,6 +48,48 @@ async def checkout(
     return CheckoutResponse(checkout_url=url)
 
 
+# ── Stripe webhook (legacy — kept for tests) ──────────────
+
+@router.post("/webhook", include_in_schema=False)
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    from backend.config import get_settings as _settings
+    import stripe
+    from backend.payments.stripe_service import (
+        construct_webhook_event,
+        handle_checkout_completed,
+        handle_subscription_updated,
+        handle_subscription_deleted,
+        handle_payment_failed,
+    )
+    settings = _settings()
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    if not sig_header:
+        raise HTTPException(400, "Missing Stripe signature")
+
+    try:
+        event = construct_webhook_event(payload, sig_header, settings.stripe_webhook_secret)
+    except Exception:
+        raise HTTPException(400, "Invalid signature")
+
+    event_type = event.get("type", "")
+    try:
+        if event_type == "checkout.session.completed":
+            handle_checkout_completed(event, db)
+        elif event_type == "customer.subscription.updated":
+            handle_subscription_updated(event, db)
+        elif event_type == "customer.subscription.deleted":
+            handle_subscription_deleted(event, db)
+        elif event_type == "invoice.payment_failed":
+            handle_payment_failed(event, db)
+    except Exception:
+        logger.exception("Stripe webhook handler error")
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"received": True})
+
+
 # ── Robokassa webhook ──────────────────────────────────────
 
 @router.post("/robokassa/result", include_in_schema=False)
