@@ -109,15 +109,9 @@ async def _stream_deepseek(messages: list[dict]) -> tuple:
 
 
 async def _sse_generator(messages: list[dict], tier: str):
-    """Стримит ответ от AI как SSE. GPT-4o для pro/premium, DeepSeek fallback."""
-    use_gpt4o = tier in ("pro", "premium") and settings.openai_api_key
-
+    """Стримит ответ от DeepSeek как SSE."""
     try:
-        if use_gpt4o:
-            resp, client = await _stream_openai(messages)
-        else:
-            resp, client = await _stream_deepseek(messages)
-
+        resp, client = await _stream_deepseek(messages)
         async with client:
             async for line in resp.aiter_lines():
                 if not line.startswith("data: "):
