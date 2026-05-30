@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/v1/chart", tags=["planner"])
 async def get_monthly_planner(
     request: Request,
     chart_id: str,
+    month_offset: int = 0,
     db: Session = Depends(get_db),
 ):
     from backend.transit.planner_engine import build_planner
@@ -48,6 +49,10 @@ async def get_monthly_planner(
             today = date_type.today()
     else:
         today = date_type.today()
+
+    if month_offset:
+        from dateutil.relativedelta import relativedelta
+        today = today.replace(day=1) + relativedelta(months=month_offset)
 
     month_start = today.replace(day=1)
     last_day    = cal_mod.monthrange(today.year, today.month)[1]

@@ -409,18 +409,18 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </div>
       )}
 
-      {/* Плавающий баннер для Lite → Pro */}
+      {/* Inline-баннер для Lite → Pro (под интерпретацией) */}
       {isLite && done && (
         <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 100,
           display: 'flex', alignItems: 'center', gap: 12,
+          marginTop: 24,
           padding: '10px 10px 10px 20px',
           borderRadius: 50,
           background: 'linear-gradient(135deg, #7C6CFF, #9B59B6)',
           boxShadow: '0 8px 32px rgba(124,108,255,0.45)',
           whiteSpace: 'nowrap',
-        }}>
+          cursor: 'pointer',
+        }} onClick={onUpgrade}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Расширенную</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>✦ Получить полную интерпретацию</span>
