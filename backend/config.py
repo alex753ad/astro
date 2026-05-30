@@ -33,16 +33,11 @@ class Settings(BaseSettings):
     # ── Redis ──
     redis_url: str = "redis://localhost:6379/0"
 
-    # ── Stripe ──
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-    stripe_price_id_lite: str = ""
-    stripe_price_id_lite_annual: str = ""
-    stripe_price_id_pro: str = ""
-    stripe_price_id_pro_annual: str = ""
-    stripe_price_id_premium: str = ""
-    stripe_price_id_premium_annual: str = ""
-    stripe_price_id_report: str = ""  # pay-per-report (Stripe Price ID, mode=payment)
+    # ── Robokassa ──
+    robokassa_merchant_login: str = ""
+    robokassa_password1: str = ""
+    robokassa_password2: str = ""
+    robokassa_is_test: bool = True  # False на проде
 
     # ── Google OAuth ──
     google_client_id: str = ""
