@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import useAuth from '../hooks/useAuth';
 
 // ── Знаки зодиака ──────────────────────────────────────────
 
@@ -83,6 +84,8 @@ function fmtPhaseTime(event) {
 // ══════════════════════════════════════════════════════════
 
 export default function LunarCalendarPage() {
+  const { user } = useAuth();
+  const isFree = !user?.tier || user?.tier === 'free';
   const now      = new Date();
   const todayStr = now.toISOString().slice(0,10);
 
@@ -212,9 +215,9 @@ export default function LunarCalendarPage() {
 
           {/* ── Навигация ─────────────────────────────── */}
           <div style={pg.nav}>
-            <button onClick={prev} style={pg.navBtn}>‹</button>
+            {!isFree && <button onClick={prev} style={pg.navBtn}>‹</button>}
             <span style={pg.navMonth}>{MONTHS_RU[month-1]} {year}</span>
-            <button onClick={next} style={pg.navBtn}>›</button>
+            {!isFree && <button onClick={next} style={pg.navBtn}>›</button>}
           </div>
 
           {/* ── Сетка календаря ───────────────────────── */}
