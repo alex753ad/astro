@@ -158,7 +158,25 @@ function Toggle({ checked, onChange }) {
 }
 
 // ─── Вкладка: Профиль ─────────────────────────────────────────────────────────
-function TabProfile({ user, logout }) {
+function TabProfile({ user, logout, authFetch }) {
+  const [switching, setSwitching] = useState(null);
+
+  const setTier = async (tier) => {
+    setSwitching(tier);
+    try {
+      await authFetch(`${API_BASE}/payments/admin/set-tier`, {
+        method: 'POST',
+        body: JSON.stringify({ tier }),
+      });
+      window.location.reload();
+    } catch (e) {
+      alert('Ошибка: ' + e.message);
+      setSwitching(null);
+    }
+  };
+
+  const isAdmin = user?.email === 'e.onosov@mail.ru';
+
   return (
     <div style={S.card}>
       <p style={S.cardTitle}>Аккаунт</p>
@@ -172,6 +190,29 @@ function TabProfile({ user, logout }) {
         </div>
         <button style={S.btn('ghost')} onClick={logout}>Выйти</button>
       </div>
+
+      {isAdmin && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #1e293b' }}>
+          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>🔧 Тестовый тариф</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {['free', 'lite', 'pro', 'premium'].map(t => (
+              <button
+                key={t}
+                onClick={() => setTier(t)}
+                disabled={!!switching || user?.tier === t}
+                style={{
+                  ...S.btn(user?.tier === t ? 'primary' : 'ghost'),
+                  fontSize: 12,
+                  padding: '5px 12px',
+                  opacity: switching && switching !== t ? 0.5 : 1,
+                }}
+              >
+                {switching === t ? '...' : t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -577,7 +618,7 @@ export default function ProfilePage() {
       <div style={S.inner}>
 
         {/* Шапка */}
-        <TabProfile user={user} logout={logout} />
+        <TabProfile user={user} logout={logout} authFetch={authFetch} />
 
         {/* Вкладки */}
         <div style={S.tabBar}>
