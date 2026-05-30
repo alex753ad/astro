@@ -175,9 +175,29 @@ export default function PlannerPage() {
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px" }}>
 
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "var(--text-primary)" }}>
-            {planData?.month_title || `Планер на ${getMonthName(new Date())}`}
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "var(--text-primary)" }}>
+              {planData?.month_title || `Планер на ${getMonthName(new Date())}`}
+            </h1>
+            {/* Навигация по месяцам — только Pro/Premium */}
+            {isPro && !isFree && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  onClick={() => setMonthOffset(o => o - 1)}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >‹</button>
+                <span style={{ fontSize: 12, color: "#64748b", minWidth: 90, textAlign: "center" }}>
+                  {monthOffset === 0 ? "Этот месяц" : monthOffset > 0 ? `+${monthOffset} мес.` : `${monthOffset} мес.`}
+                </span>
+                {monthOffset < 11 && (
+                  <button
+                    onClick={() => setMonthOffset(o => o + 1)}
+                    style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  >›</button>
+                )}
+              </div>
+            )}
+          </div>
           <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>Персональный астрологический план</div>
         </div>
 
@@ -242,23 +262,7 @@ export default function PlannerPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid #1e293b", display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* Навигация по месяцам — только Pro/Premium */}
-              {isPro && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                  <button onClick={() => setMonthOffset(o => o - 1)} style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#e2e8f0", fontSize: 13, cursor: "pointer" }}>
-                    ← Пред. месяц
-                  </button>
-                  <span style={{ fontSize: 13, color: "#64748b", minWidth: 120, textAlign: "center" }}>
-                    {monthOffset === 0 ? "Текущий месяц" : monthOffset > 0 ? `+${monthOffset} мес.` : `${monthOffset} мес.`}
-                  </span>
-                  {monthOffset < 11 && (
-                    <button onClick={() => setMonthOffset(o => o + 1)} style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#e2e8f0", fontSize: 13, cursor: "pointer" }}>
-                      След. месяц →
-                    </button>
-                  )}
-                </div>
-              )}
+            <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid #1e293b" }}>
               <button onClick={loadPlan} style={{ width: "100%", padding: "10px", background: "transparent", border: "1px solid #334155", borderRadius: 8, color: "#64748b", fontSize: 13, cursor: "pointer" }}>
                 🔄 Пересчитать план
               </button>
