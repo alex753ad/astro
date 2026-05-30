@@ -191,6 +191,19 @@ function NatalChartInner({
     >
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
+      {SIGN_GLYPHS.map((_, i) => {
+        const el = SIGN_ELEMENT[i];
+        return (
+          <path
+            key={`sector-full-${i}`}
+            d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, i * 30, (i + 1) * 30, ascLon)}
+            fill={ELEMENT_COLORS.fill[el]}
+            stroke="none"
+            opacity={0.30}
+          />
+        );
+      })}
+
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
         const midLon = i * 30 + 15;
@@ -198,7 +211,7 @@ function NatalChartInner({
         return (
           <g key={`sign-${i}`}>
             <path
-              d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
+              d={sectorPath(cx, cy, R_ZOD_OUT, R_TICK_IN, i * 30, (i + 1) * 30, ascLon)}
               fill={ELEMENT_COLORS.fill[el]}
               stroke="none"
               opacity={1}
@@ -247,21 +260,7 @@ function NatalChartInner({
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="none" stroke="#D0C4B8" strokeWidth={0.5} />
-
-      {/* Заливка тик-кольца элементными цветами (убираем "ямку") */}
-      {SIGN_GLYPHS.map((_, i) => {
-        const el = SIGN_ELEMENT[i];
-        return (
-          <path
-            key={`tick-sector-${i}`}
-            d={sectorPath(cx, cy, R_ZOD_IN, R_TICK_IN, i * 30, (i + 1) * 30, ascLon)}
-            fill={ELEMENT_COLORS.fill[el]}
-            stroke="none"
-            opacity={0.5}
-          />
-        );
-      })}
+      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="#FDFBF9" stroke="#D0C4B8" strokeWidth={0.5} />
 
       {!timeUnknown && houseCusps.length === 12 && houseCusps.map((house, i) => {
         const nextHouse = houseCusps[(i + 1) % 12];
