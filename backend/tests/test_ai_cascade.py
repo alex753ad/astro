@@ -1,9 +1,6 @@
 """tests/test_ai_cascade.py — тест каскада AI fallback.
 
-Каскад: GPT4oEngine → DeepSeekEngine → TemplateEngine
-
-Патчим инстансы напрямую через router._engines[i],
-т.к. роутер создаёт инстансы в __init__.
+Каскад: DeepSeekEngine → TemplateEngine
 
 Запуск: pytest backend/tests/test_ai_cascade.py -v
 """
@@ -23,7 +20,7 @@ from backend.cache import budget_tracker
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _request(tier: str = "premium") -> InterpretationRequest:
+def _request(tier: str = "pro") -> InterpretationRequest:
     return InterpretationRequest(
         natal_profile={
             "planets": [
@@ -37,7 +34,7 @@ def _request(tier: str = "premium") -> InterpretationRequest:
     )
 
 
-def _good_result(engine: str = "gpt4o") -> InterpretationResult:
+def _good_result(engine: str = "deepseek") -> InterpretationResult:
     return InterpretationResult(
         content=(
             "### Личность\n"
@@ -52,27 +49,18 @@ def _good_result(engine: str = "gpt4o") -> InterpretationResult:
     )
 
 
-def _router_with_mocks(gpt_result=None, gpt_error=None,
-                        ds_result=None, ds_error=None,
-                        tmpl_result=None):
-    """Создать роутер с замоканными engine-инстансами."""
+def _router_with_mocks(ds_result=None, ds_error=None, tmpl_result=None):
+    """Создать роутер с замоканными engine-инстансами (DeepSeek + Template)."""
     router = InterpretationRouter()
 
-    if gpt_error:
-        router._engines[0].generate = AsyncMock(side_effect=gpt_error)
+    if ds_error:
+        router._engines[0].generate = AsyncMock(side_effect=ds_error)
     else:
         router._engines[0].generate = AsyncMock(
-            return_value=gpt_result or _good_result("gpt4o")
-        )
-
-    if ds_error:
-        router._engines[1].generate = AsyncMock(side_effect=ds_error)
-    else:
-        router._engines[1].generate = AsyncMock(
             return_value=ds_result or _good_result("deepseek")
         )
 
-    router._engines[2].generate = AsyncMock(
+    router._engines[1].generate = AsyncMock(
         return_value=tmpl_result or _good_result("template")
     )
 
@@ -102,11 +90,6 @@ def clear_cache():
 
 @pytest.fixture(autouse=True)
 def single_retry():
-    """max_retries=1 — тесты видят ['gpt4o','deepseek','template'], а не ретраи.
-
-    Патчим self._settings на каждом новом инстансе через монкей-патч
-    InterpretationRouter.__init__, т.к. lru_cache не позволяет подменить get_settings.
-    """
     original_init = InterpretationRouter.__init__
 
     def patched_init(self_router, *args, **kwargs):
@@ -120,22 +103,22 @@ def single_retry():
 
 
 # ═══════════════════════════════════════════════════════════
-# GPT-4o — успешный путь
+# DeepSeek — успешный путь
 # ═══════════════════════════════════════════════════════════
 
-class TestGenerateGPT4oSuccess:
-    def test_gpt4o_called_first(self):
+class TestGenerateDeepSeekSuccess:
+    def test_deepseek_called_first(self):
         router = _router_with_mocks()
         _run(router.generate(_request()))
         router._engines[0].generate.assert_called_once()
 
-    def test_gpt4o_result_returned_directly(self):
+    def test_deepseek_result_returned_directly(self):
         router = _router_with_mocks()
         result = _run(router.generate(_request()))
         router._engines[1].generate.assert_not_called()
-        assert result.engine == "gpt4o"
+        assert result.engine == "deepseek"
 
-    def test_result_is_cached_after_gpt4o(self):
+    def test_result_is_cached_after_deepseek(self):
         router = _router_with_mocks()
         _run(router.generate(_request()))
         result2 = _run(router.generate(_request()))
@@ -144,55 +127,51 @@ class TestGenerateGPT4oSuccess:
 
 
 # ═══════════════════════════════════════════════════════════
-# GPT-4o падает → DeepSeek
+# DeepSeek падает → Template
 # ═══════════════════════════════════════════════════════════
 
 class TestFallbackToDeepSeek:
-    def test_gpt4o_exception_falls_back_to_deepseek(self):
-        router = _router_with_mocks(gpt_error=Exception("OpenAI down"))
+    def test_deepseek_exception_falls_back_to_template(self):
+        router = _router_with_mocks(ds_error=Exception("DeepSeek down"))
         result = _run(router.generate(_request()))
         router._engines[1].generate.assert_called()
-        assert result.engine == "deepseek"
+        assert result.engine == "template"
 
-    def test_gpt4o_timeout_falls_back_to_deepseek(self):
-        router = _router_with_mocks(gpt_error=asyncio.TimeoutError())
+    def test_deepseek_timeout_falls_back_to_template(self):
+        router = _router_with_mocks(ds_error=asyncio.TimeoutError())
         result = _run(router.generate(_request()))
-        assert result.engine == "deepseek"
+        assert result.engine == "template"
 
-    def test_deepseek_called_after_gpt4o_failure(self):
+    def test_template_called_after_deepseek_failure(self):
         call_order = []
 
         async def _fail(*a, **kw):
-            call_order.append("gpt4o")
+            call_order.append("deepseek")
             raise Exception("fail")
 
         async def _ok(*a, **kw):
-            call_order.append("deepseek")
-            return _good_result("deepseek")
+            call_order.append("template")
+            return _good_result("template")
 
         router = InterpretationRouter()
         router._engines[0].generate = _fail
         router._engines[1].generate = _ok
-        router._engines[2].generate = AsyncMock(return_value=_good_result("template"))
 
         _run(router.generate(_request()))
-        assert "gpt4o" in call_order
         assert "deepseek" in call_order
-        assert call_order.index("gpt4o") < call_order.index("deepseek")
+        assert "template" in call_order
+        assert call_order.index("deepseek") < call_order.index("template")
 
 
 # ═══════════════════════════════════════════════════════════
-# Оба AI падают → Template
+# Template — последний рубеж
 # ═══════════════════════════════════════════════════════════
 
 class TestFallbackToTemplate:
-    def test_both_ai_fail_uses_template(self):
-        router = _router_with_mocks(
-            gpt_error=Exception("GPT fail"),
-            ds_error=Exception("DS fail"),
-        )
+    def test_deepseek_fail_uses_template(self):
+        router = _router_with_mocks(ds_error=Exception("DS fail"))
         result = _run(router.generate(_request()))
-        router._engines[2].generate.assert_called()
+        router._engines[1].generate.assert_called()
         assert result.engine == "template"
 
     def test_template_engine_always_returns_content(self):
@@ -204,10 +183,6 @@ class TestFallbackToTemplate:
     def test_cascade_order_strict(self):
         call_order = []
 
-        async def _fail_gpt(*a, **kw):
-            call_order.append("gpt4o")
-            raise Exception("fail")
-
         async def _fail_ds(*a, **kw):
             call_order.append("deepseek")
             raise Exception("fail")
@@ -217,12 +192,11 @@ class TestFallbackToTemplate:
             return _good_result("template")
 
         router = InterpretationRouter()
-        router._engines[0].generate = _fail_gpt
-        router._engines[1].generate = _fail_ds
-        router._engines[2].generate = _tmpl
+        router._engines[0].generate = _fail_ds
+        router._engines[1].generate = _tmpl
 
         _run(router.generate(_request()))
-        assert call_order == ["gpt4o", "deepseek", "template"]
+        assert call_order == ["deepseek", "template"]
 
 
 # ═══════════════════════════════════════════════════════════
@@ -230,7 +204,7 @@ class TestFallbackToTemplate:
 # ═══════════════════════════════════════════════════════════
 
 class TestRetryLogic:
-    def test_gpt4o_retried_3_times_before_fallback(self):
+    def test_deepseek_retried_3_times_before_fallback(self):
         call_count = 0
 
         async def _fail(*a, **kw):
@@ -241,8 +215,7 @@ class TestRetryLogic:
         router = InterpretationRouter()
         router._settings.ai_max_retries = 3
         router._engines[0].generate = _fail
-        router._engines[1].generate = AsyncMock(return_value=_good_result("deepseek"))
-        router._engines[2].generate = AsyncMock(return_value=_good_result("template"))
+        router._engines[1].generate = AsyncMock(return_value=_good_result("template"))
 
         sleep_calls = []
 
@@ -262,8 +235,7 @@ class TestRetryLogic:
         router = InterpretationRouter()
         router._settings.ai_max_retries = 3
         router._engines[0].generate = _fail
-        router._engines[1].generate = AsyncMock(return_value=_good_result("deepseek"))
-        router._engines[2].generate = AsyncMock(return_value=_good_result("template"))
+        router._engines[1].generate = AsyncMock(return_value=_good_result("template"))
 
         sleep_calls = []
 
@@ -284,29 +256,26 @@ class TestRetryLogic:
 # ═══════════════════════════════════════════════════════════
 
 class TestBudgetGuard:
-    def test_exceeded_budget_skips_gpt4o(self):
-        router = _router_with_mocks(ds_error=Exception("also over budget"))
-
+    def test_exceeded_budget_skips_deepseek(self):
+        router = _router_with_mocks()
         with patch.object(budget_tracker, "get_spent", return_value=9999.0):
             _run(router.generate(_request()))
-
         router._engines[0].generate.assert_not_called()
 
     def test_template_not_blocked_by_budget(self):
         router = InterpretationRouter()
         assert router._check_budget("template") is True
 
-    def test_budget_ok_allows_ai_engines(self):
+    def test_budget_ok_allows_deepseek(self):
         router = _router_with_mocks()
         _run(router.generate(_request()))
         router._engines[0].generate.assert_called_once()
 
     def test_spend_tracked_after_successful_call(self):
-        import time
         router = _router_with_mocks(
-            gpt_result=InterpretationResult(
+            ds_result=InterpretationResult(
                 content="### Личность\n" + "x" * 300 + "\n### Карьера\n" + "y" * 100,
-                engine="gpt4o",
+                engine="deepseek",
                 tokens_used=1000,
             )
         )
@@ -398,11 +367,10 @@ class TestResponseValidation:
         router = InterpretationRouter()
         router._engines[0].generate = AsyncMock(return_value=InterpretationResult(
             content="Слишком короткий.",
-            engine="gpt4o",
+            engine="deepseek",
             tokens_used=5,
         ))
-        router._engines[1].generate = AsyncMock(return_value=_good_result("deepseek"))
-        router._engines[2].generate = AsyncMock(return_value=_good_result("template"))
+        router._engines[1].generate = AsyncMock(return_value=_good_result("template"))
 
         result = _run(router.generate(_request()))
-        assert result.engine == "deepseek"
+        assert result.engine == "template"
