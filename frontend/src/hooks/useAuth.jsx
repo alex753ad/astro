@@ -145,6 +145,8 @@ function useAuthInternal() {
     setAccessToken(data.access_token);
     setRefreshToken(data.refresh_token);
     setUser(newUser);
+    // Сохраняем сразу — не ждём useEffect
+    saveTokens({ accessToken: data.access_token, refreshToken: data.refresh_token, user: newUser });
     scheduleRefresh(data.access_token, data.refresh_token);
     loadFeatures(data.access_token);
 
