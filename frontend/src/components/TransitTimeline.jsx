@@ -603,9 +603,17 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return counts;
   }, [events]);
 
+  const handleUpgrade = useCallback(() => {
+    if (onUpgrade) onUpgrade('lite_to_pro');
+  }, [onUpgrade]);
+
   const handleEventClick = useCallback((event) => {
+    if (isLite) {
+      handleUpgrade();
+      return;
+    }
     setSelectedEvent(prev => prev === event ? null : event);
-  }, []);
+  }, [isLite, handleUpgrade]);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
@@ -631,10 +639,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     }
     onDateSelect(next, dayEvents, positions);
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
-
-  const handleUpgrade = useCallback(() => {
-    if (onUpgrade) onUpgrade('lite_to_pro');
-  }, [onUpgrade]);
 
   return (
     <div style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "#2D2540" }}>
