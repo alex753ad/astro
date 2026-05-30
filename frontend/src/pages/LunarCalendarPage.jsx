@@ -86,13 +86,13 @@ function fmtPhaseTime(event) {
 export default function LunarCalendarPage() {
   const { user } = useAuth();
   const isFree = !user?.tier || user?.tier === 'free';
+  const now      = new Date();
+  const todayStr = now.toISOString().slice(0,10);
   const lunarMonths = user?.tier === 'pro' || user?.tier === 'premium' ? 12
                     : user?.tier === 'lite' ? 12
                     : isFree ? 1 : 1;
   const minDate = new Date(now.getFullYear(), now.getMonth() - (lunarMonths - 1), 1);
   const maxDate = new Date(now.getFullYear(), now.getMonth() + (lunarMonths - 1), 1);
-  const now      = new Date();
-  const todayStr = now.toISOString().slice(0,10);
 
   const [year,    setYear]    = useState(now.getFullYear());
   const [month,   setMonth]   = useState(now.getMonth() + 1);
