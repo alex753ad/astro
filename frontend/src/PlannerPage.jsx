@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 const API_BASE = "https://astro-production-abcc.up.railway.app";
 
@@ -120,19 +120,37 @@ function LoadingState() {
 
 export default function PlannerPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
+  // Читаем тир из localStorage
+  const userRaw = localStorage.getItem('astro_user');
+  const userTier = (() => {
+    try { return JSON.parse(userRaw)?.tier || 'free'; } catch { return 'free'; }
+  })();
+  const isFree    = userTier === 'free' || !userRaw;
+  const isLite    = userTier === 'lite';
+  const isPro     = userTier === 'pro' || userTier === 'premium';
+
   const [tab, setTab] = useState("month");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [planData, setPlanData] = useState(null);
+  const [monthOffset, setMonthOffset] = useState(0); // только для pro+
 
-  useEffect(() => { loadPlan(); }, [id]);
+  useEffect(() => { if (!isFree) loadPlan(); else setLoading(false); }, [id, monthOffset]);
 
   async function loadPlan() {
     setLoading(true);
     setError(null);
     setPlanData(null);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/chart/${id}/planner/monthly`);
+      const token = localStorage.getItem('astro_access_token');
+      const url = isPro && monthOffset !== 0
+        ? `${API_BASE}/api/v1/chart/${id}/planner/monthly?month_offset=${monthOffset}`
+        : `${API_BASE}/api/v1/chart/${id}/planner/monthly`;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Ошибка ${res.status}`);
@@ -163,7 +181,20 @@ export default function PlannerPage() {
           <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>Персональный астрологический план</div>
         </div>
 
-        {loading ? (
+        {/* Free — заблокировано */}
+        {isFree && (
+          <div style={{ background: "#1e293b", border: "1px solid rgba(124,108,255,0.3)", borderRadius: 14, padding: "32px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🔒</div>
+            <p style={{ fontSize: 15, color: "#e2e8f0", fontWeight: 600, margin: "0 0 8px" }}>Планировщик недоступен на бесплатном тарифе</p>
+            <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>Подключите Lite или Pro, чтобы получить персональный астро-план</p>
+            <button onClick={() => navigate(-1)} style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7C6CFF,#C060A0)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              Выбрать тариф
+            </button>
+          </div>
+        )}
+
+        {/* Lite и Pro — контент */}
+        {!isFree && (loading ? (
           <LoadingState />
         ) : error ? (
           <div style={{ background: "#1e293b", border: "1px solid #ef444430", borderRadius: 8, padding: 20, color: "#f87171", fontSize: 14 }}>
@@ -211,13 +242,29 @@ export default function PlannerPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid #1e293b" }}>
+            <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid #1e293b", display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Навигация по месяцам — только Pro/Premium */}
+              {isPro && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+                  <button onClick={() => setMonthOffset(o => o - 1)} style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#e2e8f0", fontSize: 13, cursor: "pointer" }}>
+                    ← Пред. месяц
+                  </button>
+                  <span style={{ fontSize: 13, color: "#64748b", minWidth: 120, textAlign: "center" }}>
+                    {monthOffset === 0 ? "Текущий месяц" : monthOffset > 0 ? `+${monthOffset} мес.` : `${monthOffset} мес.`}
+                  </span>
+                  {monthOffset < 11 && (
+                    <button onClick={() => setMonthOffset(o => o + 1)} style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, color: "#e2e8f0", fontSize: 13, cursor: "pointer" }}>
+                      След. месяц →
+                    </button>
+                  )}
+                </div>
+              )}
               <button onClick={loadPlan} style={{ width: "100%", padding: "10px", background: "transparent", border: "1px solid #334155", borderRadius: 8, color: "#64748b", fontSize: 13, cursor: "pointer" }}>
                 🔄 Пересчитать план
               </button>
             </div>
           </>
-        )}
+        ))}
       </div>
     </div>
   );
