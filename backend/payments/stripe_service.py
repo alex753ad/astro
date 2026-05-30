@@ -44,13 +44,14 @@ def _get_price_tier_map() -> dict[str, str]:
     return {price_id: tier for price_id, tier in pairs if price_id}
 
 
+import os as _os
 TIER_PRICE_MAP: dict[tuple[str, str], str] = {
-    ("lite", "monthly"): settings.stripe_price_id_lite,
-    ("lite", "annual"): settings.stripe_price_id_lite_annual,
-    ("pro", "monthly"): settings.stripe_price_id_pro,
-    ("pro", "annual"): settings.stripe_price_id_pro_annual,
-    ("premium", "monthly"): settings.stripe_price_id_premium,
-    ("premium", "annual"): settings.stripe_price_id_premium_annual,
+    ("lite",    "monthly"): _os.environ.get("STRIPE_PRICE_ID_LITE", ""),
+    ("lite",    "annual"):  _os.environ.get("STRIPE_PRICE_ID_LITE_ANNUAL", ""),
+    ("pro",     "monthly"): _os.environ.get("STRIPE_PRICE_ID_PRO", ""),
+    ("pro",     "annual"):  _os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL", ""),
+    ("premium", "monthly"): _os.environ.get("STRIPE_PRICE_ID_PREMIUM", ""),
+    ("premium", "annual"):  _os.environ.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL", ""),
 }
 PRICE_TIER_MAP: dict[str, str] = {v: k[0] for k, v in TIER_PRICE_MAP.items() if v}
 
