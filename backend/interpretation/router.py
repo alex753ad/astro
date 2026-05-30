@@ -16,6 +16,7 @@ from backend.interpretation.base import (
     InterpretationResult,
 )
 from backend.interpretation.deepseek import DeepSeekEngine
+from backend.interpretation.gpt4o import GPT4oEngine
 from backend.interpretation.template import TemplateEngine
 from backend.config import get_settings
 
