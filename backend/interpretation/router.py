@@ -1,9 +1,4 @@
-"""Interpretation router with retry and fallback chain.
-
-Execution order: GPT-4o → DeepSeek V3 → Template engine.
-Each step has retry logic with exponential backoff.
-Daily budget tracking prevents overspending on AI APIs.
-"""
+"""Interpretation router — DeepSeek only, with template fallback."""
 
 from __future__ import annotations
 
@@ -20,10 +15,168 @@ from backend.interpretation.base import (
     InterpretationRequest,
     InterpretationResult,
 )
-from backend.interpretation.gpt4o import GPT4oEngine
 from backend.interpretation.deepseek import DeepSeekEngine
 from backend.interpretation.template import TemplateEngine
 from backend.config import get_settings
+
+logger = logging.getLogger("astro.router")
+
+_COST_PER_1K_TOKENS = {
+    "deepseek": 0.0003,
+    "template": 0.0,
+}
+
+
+def select_model(tier: str, is_cached: bool = False) -> str:
+    return "deepseek"
+
+
+def _engines_for_tier(engines: list, tier: str, is_cached: bool = False) -> list:
+    name_map = {e.name: e for e in engines}
+    return [name_map[n] for n in ["deepseek", "template"] if n in name_map]
+
+
+def _log_ai_request(engine, latency_ms, tokens_used, tokens_cost_usd, fallback_triggered, cache_hit):
+    log_entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "event": "ai_request",
+        "engine": engine,
+        "latency_ms": latency_ms,
+        "tokens_used": tokens_used,
+        "tokens_cost_usd": round(tokens_cost_usd, 6),
+        "fallback_triggered": fallback_triggered,
+        "cache_hit": cache_hit,
+    }
+    print(json.dumps(log_entry), file=sys.stdout, flush=True)
+
+
+class InterpretationRouter:
+    def __init__(self):
+        self._engines: list[InterpretationEngine] = [
+            DeepSeekEngine(),
+            TemplateEngine(),
+        ]
+        self._settings = get_settings()
+
+    async def generate(self, request: InterpretationRequest) -> InterpretationResult:
+        start_time = time.time()
+        profile_hash = make_profile_hash(request.natal_profile)
+        cached = interpretation_cache.get(f"interp:{profile_hash}")
+        if cached:
+            latency_ms = int((time.time() - start_time) * 1000)
+            _log_ai_request(cached["engine"], latency_ms, 0, 0.0, False, True)
+            return InterpretationResult(
+                content=cached["content"], sections=cached.get("sections"),
+                engine=cached["engine"], cached=True,
+            )
+
+        last_error = None
+        fallback_triggered = False
+        budget_ok = budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, "deepseek")
+        engines_to_try = [self._engines[-1]] if not budget_ok else _engines_for_tier(self._engines, request.tier)
+
+        for engine in engines_to_try:
+            try:
+                engine_start = time.time()
+                result = await self._try_engine(engine, request)
+                latency_ms = int((time.time() - engine_start) * 1000)
+                if result and self._validate_response(result.content, request.sections):
+                    interpretation_cache.set(
+                        f"interp:{profile_hash}",
+                        {"content": result.content, "sections": result.sections, "engine": result.engine},
+                        ttl=30 * 24 * 3600,
+                    )
+                    cost = self._track_spend(engine.name, result.tokens_used)
+                    _log_ai_request(engine.name, latency_ms, result.tokens_used, cost, fallback_triggered, False)
+                    return result
+                else:
+                    fallback_triggered = True
+            except Exception as e:
+                last_error = e
+                logger.error("Engine %s failed: %s", engine.name, str(e))
+                fallback_triggered = True
+
+        return InterpretationResult(content="Интерпретация временно недоступна. Пожалуйста, попробуйте позже.", engine="none")
+
+    async def interpret(self, request: InterpretationRequest) -> AsyncIterator[str]:
+        async for chunk in self.stream(request):
+            yield chunk
+
+    async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
+        budget_ok = budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, "deepseek")
+        stream_engines = [self._engines[-1]] if not budget_ok else _engines_for_tier(self._engines, request.tier)
+
+        for engine in stream_engines:
+            yielded_any = False
+            try:
+                async for chunk in self._try_stream(engine, request):
+                    yielded_any = True
+                    yield chunk
+                tokens = getattr(engine, "_last_stream_tokens", 0) or 0
+                self._track_spend(engine.name, tokens)
+                return
+            except Exception as e:
+                logger.error("Stream from %s failed: %s", engine.name, str(e))
+                if yielded_any:
+                    return
+                continue
+
+        yield "Интерпретация временно недоступна. Пожалуйста, попробуйте позже."
+
+    async def _try_engine(self, engine, request, max_retries=None):
+        if max_retries is None:
+            max_retries = self._settings.ai_max_retries
+        delays = [1.0, 3.0, 9.0]
+        for attempt in range(max_retries):
+            try:
+                return await asyncio.wait_for(engine.generate(request), timeout=30.0)
+            except Exception as e:
+                logger.warning("%s error (attempt %d/%d): %s", engine.name, attempt + 1, max_retries, str(e))
+            if attempt < max_retries - 1:
+                await asyncio.sleep(delays[attempt])
+        return None
+
+    async def _try_stream(self, engine, request):
+        chunks_received = 0
+        async for chunk in engine.stream(request):
+            chunks_received += 1
+            yield chunk
+        if chunks_received == 0:
+            raise RuntimeError(f"No chunks received from {engine.name}")
+
+    def _validate_response(self, content: str, expected_sections: list[str]) -> bool:
+        if not content or len(content) < 200:
+            return False
+        return "###" in content or any(
+            w in content.lower() for w in ["личност", "карьер", "отношен", "personality", "career"]
+        )
+
+    def _check_budget(self, engine_name: str) -> bool:
+        return budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, engine_name)
+
+    def _track_spend(self, engine_name: str, tokens_used: int) -> float:
+        if engine_name == "template" or tokens_used == 0:
+            return 0.0
+        cost = (tokens_used / 1000) * _COST_PER_1K_TOKENS.get(engine_name, 0)
+        budget_tracker.add_spend(cost)
+        return cost
+
+    async def get_status(self) -> dict:
+        status = {}
+        for engine in self._engines:
+            status[engine.name] = await engine.health_check()
+        status["daily_spend_usd"] = round(budget_tracker.get_spent(), 4)
+        status["daily_budget_usd"] = self._settings.ai_daily_budget_usd
+        return status
+
+
+_router: InterpretationRouter | None = None
+
+def get_router() -> InterpretationRouter:
+    global _router
+    if _router is None:
+        _router = InterpretationRouter()
+    return _router
 
 logger = logging.getLogger("astro.router")
 
