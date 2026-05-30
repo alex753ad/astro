@@ -187,7 +187,7 @@ export default function PlannerPage() {
                   style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                 >‹</button>
                 <span style={{ fontSize: 12, color: "#64748b", minWidth: 90, textAlign: "center" }}>
-                  {monthOffset === 0 ? "Этот месяц" : monthOffset > 0 ? `+${monthOffset} мес.` : `${monthOffset} мес.`}
+                  {(() => { const d = new Date(); d.setMonth(d.getMonth() + monthOffset); return monthOffset === 0 ? "Этот месяц" : d.toLocaleString("ru-RU", { month: "long", year: "numeric" }); })()}
                 </span>
                 {monthOffset < 11 && (
                   <button
