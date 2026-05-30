@@ -230,7 +230,7 @@ function NatalChartInner({
 
       {Array.from({ length: 12 }, (_, i) => {
         const p1 = lonToXY(cx, cy, R_ZOD_OUT, i * 30, ascLon);
-        const p2 = lonToXY(cx, cy, R_ZOD_IN,  i * 30, ascLon);
+        const p2 = lonToXY(cx, cy, R_TICK_IN,  i * 30, ascLon);
         return (
           <line key={`zdiv-${i}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
@@ -260,7 +260,7 @@ function NatalChartInner({
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="#FDFBF9" stroke="#D0C4B8" strokeWidth={0.5} />
+      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="none" stroke="#D0C4B8" strokeWidth={0.5} />
 
       {!timeUnknown && houseCusps.length === 12 && houseCusps.map((house, i) => {
         const nextHouse = houseCusps[(i + 1) % 12];
