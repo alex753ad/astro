@@ -267,7 +267,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
           AI-интерпретация
         </h2>
-        {done && !isCut && !isLiteCut && (
+        {done && !isCut && (
           <button
             onClick={() => start()}
             style={{
