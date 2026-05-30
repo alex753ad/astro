@@ -87,9 +87,35 @@ function getCutoffText(text) {
   return lines.slice(0, cutoffLine).join('\n');
 }
 
+const SECTION_TITLES_RU = {
+  general: 'Общий портрет личности',
+  career: 'Карьера и профессиональная реализация',
+  relationships: 'Отношения и партнёрство',
+  health: 'Здоровье и энергия',
+  finance: 'Финансы и материальные ресурсы',
+  spirituality: 'Духовное развитие и внутренний рост',
+};
+
 function renderMarkdown(text) {
   const lines = text.split('\n');
   return lines.map((line, i) => {
+    // Заменяем <section name="..."> на русский заголовок жирным
+    const sectionMatch = line.match(/<section name="([^"]+)">/);
+    if (sectionMatch) {
+      const title = SECTION_TITLES_RU[sectionMatch[1]] || sectionMatch[1];
+      return (
+        <h2 key={i} style={{
+          fontSize: 17, fontWeight: 700,
+          color: 'var(--accent, #7C6CFF)',
+          margin: '24px 0 10px',
+        }}>
+          {title}
+        </h2>
+      );
+    }
+    // Убираем </section>
+    if (line.trim() === '</section>') return null;
+
     if (line.startsWith('### ')) {
       return (
         <h3 key={i} style={{
@@ -267,19 +293,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
           AI-интерпретация
         </h2>
-        {done && !isCut && (
-          <button
-            onClick={() => start()}
-            style={{
-              background: 'none', border: '1px solid var(--border, #1E2235)',
-              color: 'var(--text-secondary, #8B8FA3)',
-              borderRadius: 8, padding: '4px 10px',
-              fontSize: 12, cursor: 'pointer', transition: 'all 0.2s',
-            }}
-          >
-            ↺ Заново
-          </button>
-        )}
+        
       </div>
 
       {/* Streaming indicator */}
