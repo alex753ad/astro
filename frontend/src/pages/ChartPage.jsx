@@ -594,58 +594,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => { setPaywallContext(ctx || (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite')); setShowPaywall(true); }} />
               </section>
 
-              {/* ── Async расчёт транзитов за 12 месяцев ── */}
-              <section style={s.card}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: '#1E1A2E' }}>Транзиты на 12 месяцев</div>
-                    <div style={{ fontSize: 12, color: '#7060A0', marginTop: 2 }}>
-                      Полный расчёт выполняется в фоне (~5–8 сек)
-                    </div>
-                    {asyncTransitStep && (
-                      <div style={{ fontSize: 12, color: '#7C6CFF', marginTop: 4 }}>{asyncTransitStep}</div>
-                    )}
-                  </div>
-                  <button
-                    onClick={loadTransitsAsync}
-                    disabled={asyncTransitLoading}
-                    style={{
-                      padding: '9px 20px', borderRadius: 10, border: 'none',
-                      background: asyncTransitLoading
-                        ? 'rgba(124,108,255,0.3)'
-                        : 'linear-gradient(135deg, #7C6CFF, #C060A0)',
-                      color: '#fff', fontSize: 13, fontWeight: 600,
-                      cursor: asyncTransitLoading ? 'default' : 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {asyncTransitLoading ? '⏳ Считаем…' : '🔄 Рассчитать'}
-                  </button>
-                </div>
-
-                {/* Результат: список транзитов */}
-                {asyncTransits && asyncTransits.length > 0 && (
-                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
-                    {asyncTransits.map((e, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '8px 12px', borderRadius: 8,
-                        background: '#F9F7FD', border: '0.5px solid #EDE8F5',
-                        fontSize: 12,
-                      }}>
-                        <span style={{ color: '#7060A0', minWidth: 90 }}>{e.peak_date}</span>
-                        <span style={{ fontWeight: 500, color: '#1E1A2E' }}>{e.transit_planet}</span>
-                        <span style={{ color: '#9080B0' }}>{e.aspect_type}</span>
-                        <span style={{ fontWeight: 500, color: '#1E1A2E' }}>{e.natal_planet}</span>
-                        <span style={{ color: '#9080B0', marginLeft: 'auto' }}>орб {e.peak_orb?.toFixed(1)}°</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {asyncTransits && asyncTransits.length === 0 && (
-                  <div style={{ marginTop: 12, fontSize: 13, color: '#9080B0' }}>Транзитов за период не найдено.</div>
-                )}
-              </section>
             </main>
           </div>
         </div>
