@@ -2,6 +2,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth.jsx';
 
+const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
+
+async function getLastChart(accessToken) {
+  try {
+    const resp = await fetch(`${API_BASE}/profile/charts`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await resp.json();
+    const charts = data.charts || [];
+    return charts.length ? charts[0] : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AuthModal({ onClose }) {
   const { login, register, loading, error, clearError } = useAuth();
   const navigate = useNavigate();
@@ -27,7 +42,9 @@ export default function AuthModal({ onClose }) {
       if (mode === 'login') { await login(email, password); }
       else { await register(email, password); }
       onClose();
-      navigate('/profile');
+      const token = localStorage.getItem('astro_access_token');
+      const last = await getLastChart(token);
+      navigate(last ? `/chart/${last.id}` : '/home');
     } catch (e) {}
   };
 
