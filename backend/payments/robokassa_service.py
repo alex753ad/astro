@@ -1,5 +1,8 @@
 """Robokassa payment service."""
 
+import random
+import string
+
 from __future__ import annotations
 
 import hashlib
@@ -150,3 +153,14 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
 
     db.commit()
     logger.info("Activated: user=%s tier=%s period=%s until=%s", user_id, tier, period, period_end.date())
+
+
+def _generate_referral_code(db) -> str:
+    """Generate unique 8-char alphanumeric referral code."""
+    from backend.models import User as _User
+    chars = string.ascii_uppercase + string.digits
+    for _ in range(10):
+        code = "".join(random.choices(chars, k=8))
+        if not db.query(_User).filter(_User.referral_code == code).first():
+            return code
+    raise RuntimeError("Failed to generate unique referral code")

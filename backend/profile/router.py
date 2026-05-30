@@ -290,7 +290,7 @@ async def get_referral(
 
     # Генерируем код если ещё нет
     if not user.referral_code:
-        from backend.payments.stripe_service import generate_referral_code
+        from backend.payments.robokassa_service import _generate_referral_code as generate_referral_code
         try:
             user.referral_code = generate_referral_code(db)
             db.commit()

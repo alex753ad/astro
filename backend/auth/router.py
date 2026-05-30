@@ -38,7 +38,7 @@ from backend.auth.jwt import (
 from backend.auth.passwords import hash_password, verify_password
 from backend.auth.dependencies import get_current_user
 from backend.auth.oauth import exchange_google_code, OAuthError
-from backend.payments.stripe_service import generate_referral_code
+
 
 logger = logging.getLogger("astro.auth")
 
@@ -90,7 +90,8 @@ async def register(data: RegisterRequest, db: Session = Depends(get_db)):
     db.flush()  # get user.id before generating referral code
 
     try:
-        user.referral_code = generate_referral_code(db)
+        from backend.payments.robokassa_service import _generate_referral_code
+        user.referral_code = _generate_referral_code(db)
     except Exception as e:
         logger.warning("Could not generate referral_code: %s", e)
 
