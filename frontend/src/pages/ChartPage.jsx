@@ -454,49 +454,73 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       {activeTab === 'chart' && (
         <main style={s.main}>
 
-          {/* D1: Онбординг-тултипы для новых пользователей */}
           <OnboardingTooltips />
 
-          {/* Баннер сохранения для анонима */}
-          {isAnon && (
-            <SaveChartBanner onLogin={handleShowAuth} />
-          )}
+          {isAnon && <SaveChartBanner onLogin={handleShowAuth} />}
 
-          <section style={s.card}>
-            <NatalChart
-              planets={chart.planets}
-              houses={chart.houses}
-              aspects={chart.aspects}
-              ascendant={chart.ascendant}
-              midheaven={chart.midheaven}
-              timeUnknown={chart.time_unknown}
-              transitPlanets={[]}
-            />
-          </section>
+          <div style={s.chartLayout}>
 
-          <section style={s.card}>
-            <AspectLegend />
-          </section>
+            {/* ── Левая панель: аккордеоны ── */}
+            <div style={s.sidebar}>
+              <AccordionPanel label="Построить карту" icon="✦" defaultOpen={false}>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Перейдите на главную страницу, чтобы рассчитать новую карту.
+                </p>
+              </AccordionPanel>
 
-          <section style={s.card}>
-            <AspectTableWrapper
-              expertMode={expertMode}
-              aspects={chart.aspects}
-              planets={chart.planets}
-            />
-          </section>
+              <AccordionPanel label="Транзиты" icon="◎">
+                <NatalChart
+                  planets={chart.planets}
+                  houses={chart.houses}
+                  aspects={chart.aspects}
+                  ascendant={chart.ascendant}
+                  midheaven={chart.midheaven}
+                  timeUnknown={chart.time_unknown}
+                  transitPlanets={transitPlanets}
+                />
+              </AccordionPanel>
 
-          <section style={s.card}>
-            <AspectTable
-              aspects={chart.aspects}
-              planets={chart.planets}
-            />
-          </section>
+              <AccordionPanel label="Таблица планет/домов" icon="☉">
+                <ChartSummary
+                  planets={chart.planets}
+                  ascendant={chart.ascendant}
+                  midheaven={chart.midheaven}
+                  timeUnknown={chart.time_unknown}
+                />
+              </AccordionPanel>
 
-          <section style={s.card}>
-            <ChartSummary planets={chart.planets} houses={chart.houses} />
-          </section>
+              <AccordionPanel label="Таблица аспектов" icon="△">
+                <AspectLegend />
+                <div style={{ marginTop: 12 }}>
+                  <AspectTable aspects={chart.aspects} planets={chart.planets} />
+                </div>
+              </AccordionPanel>
+            </div>
 
+            {/* ── Правая часть: колесо + мини-таблица планет ── */}
+            <div style={s.chartRight}>
+              <div style={s.wheelCard}>
+                <NatalChart
+                  planets={chart.planets}
+                  houses={chart.houses}
+                  aspects={chart.aspects}
+                  ascendant={chart.ascendant}
+                  midheaven={chart.midheaven}
+                  timeUnknown={chart.time_unknown}
+                  transitPlanets={[]}
+                />
+              </div>
+
+              <div style={s.miniTableCard}>
+                <PlanetTable
+                  planets={chart.planets}
+                  ascendant={chart.ascendant}
+                  midheaven={chart.midheaven}
+                />
+              </div>
+            </div>
+
+          </div>
         </main>
       )}
 
@@ -810,6 +834,51 @@ function Centered({ text, danger }) {
   );
 }
 
+// ── Accordion Panel ──
+function AccordionPanel({ label, icon, children, defaultOpen = false }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <div style={sa.wrap}>
+      <button style={sa.header} onClick={() => setOpen(o => !o)}>
+        <span style={sa.icon}>{icon}</span>
+        <span style={sa.label}>{label}</span>
+        <span style={{ ...sa.arrow, transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+      </button>
+      {open && <div style={sa.body}>{children}</div>}
+    </div>
+  );
+}
+
+const sa = {
+  wrap: {
+    borderRadius: 10,
+    border: '0.5px solid var(--border)',
+    background: 'var(--bg-card)',
+    overflow: 'hidden',
+  },
+  header: {
+    width: '100%',
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '10px 14px',
+    background: 'none', border: 'none',
+    cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: 13, fontWeight: 500,
+    color: 'var(--text-primary)',
+    textAlign: 'left',
+  },
+  icon: { fontSize: 14, color: 'var(--accent)', flexShrink: 0 },
+  label: { flex: 1 },
+  arrow: {
+    fontSize: 18, color: 'var(--text-secondary)',
+    transition: 'transform 0.2s ease',
+    lineHeight: 1,
+  },
+  body: {
+    padding: '0 14px 14px',
+    borderTop: '0.5px solid var(--border)',
+  },
+};
+
 const s = {
   page: { minHeight: '100vh', background: 'var(--bg)', paddingBottom: '60px' },
   header: {
@@ -857,6 +926,28 @@ const s = {
   plannerSub:   { fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' },
   chartWithData: { display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' },
   chartSidePanel: { flex: '1 1 260px', minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '16px' },
+  chartLayout: {
+    display: 'flex', gap: 16, alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  sidebar: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+    flex: '0 0 200px', minWidth: 180,
+  },
+  chartRight: {
+    flex: '1 1 400px', display: 'flex', gap: 16,
+    alignItems: 'flex-start', flexWrap: 'wrap',
+  },
+  wheelCard: {
+    flex: '1 1 320px',
+    background: 'var(--bg-card)', borderRadius: 16,
+    border: '0.5px solid var(--border)', padding: 12,
+  },
+  miniTableCard: {
+    flex: '0 0 260px', minWidth: 200,
+    background: 'var(--bg-card)', borderRadius: 16,
+    border: '0.5px solid var(--border)', padding: '14px 16px',
+  },
   plannerLinkBtn: {
     padding: '8px 14px',
     fontSize: '13px',
