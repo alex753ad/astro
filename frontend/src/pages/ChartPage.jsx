@@ -521,30 +521,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 </div>
               </div>
             ) : currentUser?.tier === 'lite' ? (
-              <div style={{ position: 'relative' }}>
-                <div style={{ pointerEvents: 'none', userSelect: 'none', maxHeight: 340, overflow: 'hidden' }}>
-                  <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => {}} />
-                </div>
-                <div style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0,
-                  background: 'linear-gradient(to bottom, transparent 0%, rgba(15,17,23,0.97) 60%)',
-                  borderRadius: '0 0 16px 16px',
-                  padding: '80px 0 24px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-                  textAlign: 'center',
-                }}>
-                  <p style={{ fontSize: 13, color: '#8B8FA3', margin: 0, lineHeight: 1.6 }}>
-                    Доступен только первый раздел.<br />
-                    <strong style={{ color: '#E8EAF0' }}>Pro — полная AI-интерпретация 2500 слов</strong>
-                  </p>
-                  <button
-                    onClick={() => { setPaywallContext('lite_to_pro'); setShowPaywall(true); }}
-                    style={{ padding: '11px 28px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    ✦ Перейти на Pro
-                  </button>
-                </div>
-              </div>
+              <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => { setPaywallContext('lite_to_pro'); setShowPaywall(true); }} />
             ) : (
               <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => { setPaywallContext('free_to_lite'); setShowPaywall(true); }} />
             )}
