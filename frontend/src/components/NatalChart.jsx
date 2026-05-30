@@ -71,15 +71,15 @@ function sectorPath(cx, cy, rOuter, rInner, lon1, lon2, ascLon) {
   const p3 = polarToXY(cx, cy, rInner, a2);
   const p4 = polarToXY(cx, cy, rInner, a1);
   
-  // Для секторов до 180 градусов large-arc всегда 0
-  const large = 0; 
+  const large = Math.abs(lon2 - lon1) > 180 ? 1 : 0;
   
   return [
     `M ${p1.x} ${p1.y}`,
-    `A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y}`,
+    // Внешняя дуга: флаг 0
+    `A ${rOuter} ${rOuter} 0 ${large} 0 ${p2.x} ${p2.y}`, 
     `L ${p3.x} ${p3.y}`,
-    // ЗДЕСЬ ИЗМЕНЕНИЕ: предпоследний флаг (sweep) для внутренней дуги должен быть 0
-    `A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y}`, 
+    // Внутренняя дуга: возвращаем флаг 1
+    `A ${rInner} ${rInner} 0 ${large} 1 ${p4.x} ${p4.y}`, 
     'Z'
   ].join(' ');
 }
