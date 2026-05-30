@@ -52,7 +52,7 @@ class DeepSeekEngine(InterpretationEngine):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
             ],
-            "max_tokens": 3000,
+            "max_tokens": 4000,
             "temperature": 0.7,
             "stream": stream,
         }

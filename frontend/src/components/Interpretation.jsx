@@ -246,7 +246,6 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
 
   const cutoffText = isFree && done ? getCutoffText(text) : null;
   const isCut = !!cutoffText;
-  const isLiteCut = isLite && done;
   // Для paywall: обрезаем секции
   const visibleSections = isCut
     ? (() => {
@@ -258,9 +257,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           return true;
         });
       })()
-    : isLiteCut
-      ? sections.slice(0, 1)
-      : sections;
+    : sections;
 
   return (
     <div className="glass-card p-6">
@@ -331,8 +328,8 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           style={{
             fontSize: 14, color: 'var(--text-primary, #E8EAF0)',
             lineHeight: 1.75,
-            maxHeight: isCut ? 'none' : 520,
-            overflowY: isCut ? 'visible' : 'auto',
+            maxHeight: 'none',
+            overflowY: 'visible',
             paddingRight: 4,
           }}
         >
@@ -398,36 +395,34 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </div>
       )}
 
-      {/* Paywall для Lite → Pro */}
-      {isLiteCut && (
-        <div style={{ position: 'relative', marginTop: -60 }}>
-          <div style={{
-            height: 80,
-            background: 'linear-gradient(to bottom, transparent, var(--bg-card, #0F1117))',
-            pointerEvents: 'none',
-          }} />
-          <div style={{
-            padding: '20px 0 4px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-            textAlign: 'center',
-          }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
-              Доступен только первый раздел. Перейдите на Pro<br />
-              <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>для полной AI-интерпретации — 2500 слов</strong>.
-            </p>
-            <button
-              onClick={onUpgrade}
-              style={{
-                padding: '11px 28px', borderRadius: 12, border: 'none',
-                background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'inherit',
-                boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
-              }}
-            >
-              ✦ Перейти на Pro
-            </button>
-          </div>
+      {/* Paywall для Lite → Pro (баннер после полного текста) */}
+      {isLite && done && (
+        <div style={{
+          marginTop: 24,
+          padding: '20px 24px',
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(124,108,255,0.1), rgba(192,96,160,0.1))',
+          border: '1px solid rgba(124,108,255,0.25)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+          textAlign: 'center',
+        }}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
+            Это базовая интерпретация (~800 слов).<br />
+            <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>Pro — расширенная AI-интерпретация 2500 слов</strong>:
+            глубокий анализ всех планет, домов, аспектов и жизненных сфер.
+          </p>
+          <button
+            onClick={onUpgrade}
+            style={{
+              padding: '11px 28px', borderRadius: 12, border: 'none',
+              background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+              color: '#fff', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit',
+              boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
+            }}
+          >
+            ✦ Получить полную интерпретацию
+          </button>
         </div>
       )}
     </div>

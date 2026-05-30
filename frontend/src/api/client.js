@@ -79,6 +79,40 @@ function _connectSSE(url, onChunk, onDone, onError) {
   let retryTimeout = null;
   const maxRetries = 3;
 
+  // Буфер для парсинга тегов <section> из потока
+  let textBuffer = '';
+
+  function flushBuffer(buffer, final = false) {
+    // Ищем теги <section name="..."> и </section>
+    const sectionStartRe = /<section name="([^"]+)">\n?/g;
+    const sectionEndRe = /<\/section>\n?/g;
+
+    let lastIndex = 0;
+    let result = buffer;
+
+    // Обрабатываем буфер целиком через замену
+    result = result.replace(/<section name="([^"]+)">\n?/g, (match, name) => {
+      onChunk({ type: 'section_start', name });
+      return '';
+    });
+    result = result.replace(/<\/section>\n?/g, () => {
+      onChunk({ type: 'section_end' });
+      return '';
+    });
+
+    // Если не финальный сброс — придерживаем хвост (незакрытый тег)
+    if (!final) {
+      const lastOpen = result.lastIndexOf('<');
+      if (lastOpen !== -1 && lastOpen > result.length - 20) {
+        const tail = result.slice(lastOpen);
+        result = result.slice(0, lastOpen);
+        // возвращаем хвост в буфер
+        return { text: result, remaining: tail };
+      }
+    }
+    return { text: result, remaining: '' };
+  }
+
   function connect() {
     const connectUrl = lastEventId
       ? url + (url.includes('?') ? '&' : '?') + 'last_event_id=' + encodeURIComponent(lastEventId)
@@ -90,6 +124,12 @@ function _connectSSE(url, onChunk, onDone, onError) {
       if (event.lastEventId) lastEventId = event.lastEventId;
 
       if (event.data === '[DONE]') {
+        // Финальный сброс буфера
+        if (textBuffer) {
+          const { text } = flushBuffer(textBuffer, true);
+          if (text) onChunk({ type: 'text', text });
+          textBuffer = '';
+        }
         isDone = true;
         eventSource.close();
         onDone?.();
@@ -101,7 +141,10 @@ function _connectSSE(url, onChunk, onDone, onError) {
           onChunk({ type: parsed.type, name: parsed.name });
         } else if (parsed.text) {
           hasData = true;
-          onChunk({ type: 'text', text: parsed.text });
+          textBuffer += parsed.text;
+          const { text, remaining } = flushBuffer(textBuffer, false);
+          textBuffer = remaining;
+          if (text) onChunk({ type: 'text', text });
         }
         if (parsed.error) {
           onError?.(parsed.error);
