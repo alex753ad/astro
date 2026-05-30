@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth.jsx';
 
 export default function AuthModal({ onClose }) {
   const { login, register, loading, error, clearError } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +27,7 @@ export default function AuthModal({ onClose }) {
       if (mode === 'login') { await login(email, password); }
       else { await register(email, password); }
       onClose();
+      navigate('/profile');
     } catch (e) {}
   };
 
