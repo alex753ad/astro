@@ -7,6 +7,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
+import AspectTable from '../components/AspectTable';
 import Interpretation from '../components/Interpretation';
 import TransitTimeline from '../components/TransitTimeline';
 import ExpertModeToggle from '../components/ExpertModeToggle';
@@ -475,6 +476,21 @@ export default function ChartPage({ currentUser, onShowAuth }) {
 
           <section style={s.card}>
             <AspectLegend />
+          </section>
+
+          <section style={s.card}>
+            <AspectTableWrapper
+              expertMode={expertMode}
+              aspects={chart.aspects}
+              planets={chart.planets}
+            />
+          </section>
+
+          <section style={s.card}>
+            <AspectTable
+              aspects={chart.aspects}
+              planets={chart.planets}
+            />
           </section>
 
           <section style={s.card}>
