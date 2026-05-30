@@ -322,7 +322,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
             ✨ Ещё {lockedCount} активных транзитов скрыто
           </div>
           <div style={{ fontSize: 12, color: "#9070B0" }}>
-            Перейдите на Pro, чтобы видеть полный прогноз с AI-интерпретациями
+            Перейдите на Lite, чтобы видеть все транзиты и Timeline на год
           </div>
         </div>
         <button onClick={onUpgrade} style={{
@@ -332,24 +332,9 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
           boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
         }}>
-          Открыть Pro
+          Открыть Lite
         </button>
       </div>
-      {featuredTransit && (
-        <div onClick={onUpgrade} style={{
-          padding: "10px 14px", borderRadius: 12, cursor: "pointer",
-          background: "rgba(48,104,176,0.06)", border: "1px solid rgba(48,104,176,0.15)",
-        }}>
-          <span style={{ fontSize: 13, color: "#3068B0", fontWeight: 600 }}>
-            {PLANET_GLYPHS[featuredTransit.transit_planet]} {PLANET_LABELS_RU[featuredTransit.transit_planet]}{" "}
-            {ASPECT_LABELS_RU[featuredTransit.aspect_type]?.toLowerCase()}{" "}
-            {PLANET_LABELS_RU[featuredTransit.natal_planet]}
-          </span>
-          <span style={{ fontSize: 12, color: "#6090C0", marginLeft: 8 }}>
-            — один из лучших периодов. Разблокировать?
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -588,16 +573,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   const isEventVisible = useCallback((event, idx) => {
     if (hasFullAccess || isLite) return true;
-    const eventDate = event.date || event.start_date || event.peak_date;
-    if (!eventDate) return true;
-    // Free: только ближайшие 2 недели (вперёд от сегодня)
-    const today = new Date().toISOString().slice(0, 10);
-    if (eventDate < today) return false; // прошедшие — скрыть
-    if (eventDate <= twoWeeksFromNow) return true;
-    // После 2 недель — только один featured позитивный транзит
-    if (idx === featuredTransitIndex) return true;
-    return false;
-  }, [hasFullAccess, isLite, twoWeeksFromNow, featuredTransitIndex]);
+    // Free: только первые 3 транзита из общего списка
+    return idx < 3;
+  }, [hasFullAccess, isLite]);
 
   const filteredEvents = useMemo(() => {
     return events.filter(e => {
@@ -696,7 +674,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       {!loading && isFree && hiddenCount > 0 && (
         <FreePlanBanner
           lockedCount={hiddenCount}
-          featuredTransit={featuredTransitIndex >= 0 ? events[featuredTransitIndex] : null}
           onUpgrade={handleUpgrade}
         />
       )}
