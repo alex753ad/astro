@@ -474,16 +474,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           </section>
 
           <section style={s.card}>
-            <PlanetTable
-              planets={chart.planets}
-              ascendant={chart.ascendant}
-              midheaven={chart.midheaven}
-              northNode={chart.north_node}
-              extra={chart.extra_points}
-            />
-          </section>
-
-          <section style={s.card}>
             <AspectLegend />
           </section>
 
