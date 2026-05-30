@@ -168,6 +168,12 @@ function TabProfile({ user, logout, authFetch }) {
         method: 'POST',
         body: JSON.stringify({ tier }),
       });
+      // обновляем user в localStorage чтобы tier подхватился после reload
+      const stored = JSON.parse(localStorage.getItem('astro_user') || 'null');
+      if (stored) {
+        stored.tier = tier;
+        localStorage.setItem('astro_user', JSON.stringify(stored));
+      }
       window.location.reload();
     } catch (e) {
       alert('Ошибка: ' + e.message);
