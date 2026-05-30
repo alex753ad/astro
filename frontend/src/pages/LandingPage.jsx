@@ -5,7 +5,11 @@ export default function LandingPage({ onShowAuth, currentUser }) {
   const navigate = useNavigate();
 
   const handleActivate = () => {
-    navigate('/home');
+    if (currentUser) {
+      navigate('/profile');
+    } else {
+      navigate('/home');
+    }
   };
 
   return (
