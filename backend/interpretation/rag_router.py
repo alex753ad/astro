@@ -60,31 +60,9 @@ def _system_prompt(chart_summary: str, context_chunks: list[str]) -> str:
 """
 
 
-async def _stream_openai(messages: list[dict]) -> httpx.Response:
-    payload = {
-        "model": "gpt-4o",
-        "messages": messages,
-        "max_tokens": 800,
-        "temperature": 0.7,
-        "stream": True,
-    }
-    client = httpx.AsyncClient(timeout=60.0)
-    resp = await client.send(
-        client.build_request(
-            "POST", _OPENAI_URL,
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        ),
-        stream=True,
-    )
-    resp.raise_for_status()
-    return resp, client
 
-
-async def _stream_deepseek(messages: list[dict]) -> tuple:
+async def _sse_generator(messages: list[dict], tier: str):
+    """Стримит ответ от DeepSeek как SSE."""
     payload = {
         "model": "deepseek-chat",
         "messages": messages,
@@ -92,46 +70,35 @@ async def _stream_deepseek(messages: list[dict]) -> tuple:
         "temperature": 0.7,
         "stream": True,
     }
-    client = httpx.AsyncClient(timeout=60.0)
-    resp = await client.send(
-        client.build_request(
-            "POST", _DEEPSEEK_URL,
-            headers={
-                "Authorization": f"Bearer {settings.deepseek_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        ),
-        stream=True,
-    )
-    resp.raise_for_status()
-    return resp, client
-
-
-async def _sse_generator(messages: list[dict], tier: str):
-    """Стримит ответ от DeepSeek как SSE."""
     try:
-        resp, client = await _stream_deepseek(messages)
-        async with client:
-            async for line in resp.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                data_str = line[6:]
-                if data_str.strip() == "[DONE]":
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    chunk = json.loads(data_str)
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
-                    text = delta.get("content", "")
-                    if text:
-                        yield f"data: {json.dumps({'text': text}, ensure_ascii=False)}\n\n"
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    continue
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream(
+                "POST", _DEEPSEEK_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.deepseek_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data_str = line[6:]
+                    if data_str.strip() == "[DONE]":
+                        yield "data: [DONE]\n\n"
+                        return
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        text = delta.get("content", "")
+                        if text:
+                            yield f"data: {json.dumps({'text': text}, ensure_ascii=False)}\n\n"
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
 
     except httpx.HTTPStatusError as e:
         logger.error("AI API error %s: %s", e.response.status_code, e.response.text[:200])
-        # fallback: простой текстовый ответ
         fallback = "Извините, AI-сервис временно недоступен. Попробуйте через несколько минут."
         yield f"data: {json.dumps({'text': fallback}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
