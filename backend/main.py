@@ -67,7 +67,8 @@ from backend.interpretation.rag_router import router as rag_router
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
-from backend.auth.rate_limits import tier_limiter
+from backend.auth.rate_limits import tier_limiter, get_tier_limits
+from sqlalchemy import func as sa_func
 from backend.models import User
 
 logger = logging.getLogger("astro")
@@ -299,6 +300,40 @@ async def calculate_chart(
     )
 
     if user:
+        # Check monthly chart limit for the user's tier
+        from datetime import datetime
+        tier = user.tier or "free"
+        limits = get_tier_limits(tier)
+        monthly_limit = limits.get("charts_per_month")
+        daily_limit = limits.get("charts_per_day")
+
+        now = datetime.utcnow()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        if monthly_limit is not None:
+            charts_this_month = (
+                db.query(sa_func.count(NatalChart.id))
+                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= month_start)
+                .scalar() or 0
+            )
+            if charts_this_month >= monthly_limit:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Достигнут лимит карт для тарифа {tier}: {monthly_limit} в месяц",
+                )
+        elif daily_limit is not None:
+            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            charts_today = (
+                db.query(sa_func.count(NatalChart.id))
+                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= day_start)
+                .scalar() or 0
+            )
+            if charts_today >= daily_limit:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Достигнут лимит карт для тарифа {tier}: {daily_limit} в день",
+                )
+
         db.add(chart_record)
         db.commit()
         db.refresh(chart_record)

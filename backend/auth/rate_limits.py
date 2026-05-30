@@ -39,8 +39,8 @@ TIER_FLAGS: dict[str, dict] = {
     "free": {
         "interpretation_word_limit": 500,
         "interpretations_per_month": 0,        # только превью (блюр)
-        "charts_per_month": None,              # 1/день — отдельный лимит
-        "charts_per_day": 1,
+        "charts_per_month": 1,
+        "charts_per_day": None,
         "transits_months": 0,
         "transits_ai": False,
         "profiles_limit": 1,
