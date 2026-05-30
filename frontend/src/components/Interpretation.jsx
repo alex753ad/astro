@@ -148,6 +148,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
   const currentSectionRef = useRef(null);
 
   const isFree = userTier === 'free' || !userTier;
+  const isLite = userTier === 'lite';
 
   const SECTION_TITLES = {
     general: 'Личность и характер',
@@ -245,6 +246,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
 
   const cutoffText = isFree && done ? getCutoffText(text) : null;
   const isCut = !!cutoffText;
+  const isLiteCut = isLite && done;
   // Для paywall: обрезаем секции
   const visibleSections = isCut
     ? (() => {
@@ -256,7 +258,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           return true;
         });
       })()
-    : sections;
+    : isLiteCut
+      ? sections.slice(0, 1)
+      : sections;
 
   return (
     <div className="glass-card p-6">
@@ -266,7 +270,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
           AI-интерпретация
         </h2>
-        {done && !isCut && (
+        {done && !isCut && !isLiteCut && (
           <button
             onClick={() => start()}
             style={{
@@ -389,6 +393,39 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
               }}
             >
               ✦ Читать полную интерпретацию
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paywall для Lite → Pro */}
+      {isLiteCut && (
+        <div style={{ position: 'relative', marginTop: -60 }}>
+          <div style={{
+            height: 80,
+            background: 'linear-gradient(to bottom, transparent, var(--bg-card, #0F1117))',
+            pointerEvents: 'none',
+          }} />
+          <div style={{
+            padding: '20px 0 4px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+            textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
+              Доступен только первый раздел. Перейдите на Pro<br />
+              <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>для полной AI-интерпретации — 2500 слов</strong>.
+            </p>
+            <button
+              onClick={onUpgrade}
+              style={{
+                padding: '11px 28px', borderRadius: 12, border: 'none',
+                background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+                color: '#fff', fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
+              }}
+            >
+              ✦ Перейти на Pro
             </button>
           </div>
         </div>

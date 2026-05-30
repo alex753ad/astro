@@ -214,6 +214,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallContext, setPaywallContext] = useState('free_to_lite');
   const [showReport, setShowReport]   = useState(false);
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
@@ -520,7 +521,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 </div>
               </div>
             ) : (
-              <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => setShowPaywall(true)} />
+              <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => { setPaywallContext(currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite'); setShowPaywall(true); }} />
             )}
           </section>
         </main>
@@ -653,7 +654,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       )}
 
       {showPaywall && (
-        <PaywallModal chartId={chartId} onClose={() => setShowPaywall(false)} />
+        <PaywallModal context={paywallContext} chartId={chartId} onClose={() => setShowPaywall(false)} />
       )}
 
       {showReport && (
