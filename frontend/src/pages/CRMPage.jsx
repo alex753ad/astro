@@ -180,8 +180,10 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || res.statusText);
+        const text = await res.text().catch(() => '');
+        let detail = res.statusText;
+        try { detail = JSON.parse(text).detail || text || res.statusText; } catch { detail = text || res.statusText; }
+        throw new Error(`${res.status}: ${detail}`);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
