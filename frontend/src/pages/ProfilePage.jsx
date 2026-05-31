@@ -15,6 +15,57 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
+// ─── Мини-превью натальной карты ─────────────────────────────────────────────
+function MiniChartPreview({ chartId, authFetch }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!chartId || !authFetch) return;
+    authFetch(`/api/v1/chart/${chartId}`)
+      .then(setData)
+      .catch(() => {});
+  }, [chartId]);
+
+  if (!data) return null;
+
+  const cx = 40, cy = 40, r = 36;
+  const planets = data.planets || [];
+  const ascLon = data.ascendant?.longitude ?? 0;
+
+  const toXY = (lon) => {
+    const a = (180 + (lon - ascLon)) * Math.PI / 180;
+    return { x: cx + r * 0.6 * Math.cos(a), y: cy - r * 0.6 * Math.sin(a) };
+  };
+
+  const COLORS = { Sun: '#D4840A', Moon: '#7A8BA0', Mercury: '#7060C0', Venus: '#C04870', Mars: '#B83030', Jupiter: '#3868B0', Saturn: '#6A6050', Uranus: '#2090A8', Neptune: '#6050B8', Pluto: '#902020', 'North Node': '#308858' };
+  const GLYPHS = { Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂', Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇' };
+  const ELEM = ['#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0','#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0','#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0'];
+
+  return (
+    <svg viewBox="0 0 80 80" width={80} height={80} style={{ flexShrink: 0 }}>
+      {[...Array(12)].map((_, i) => {
+        const a1 = (180 + (i * 30 - ascLon)) * Math.PI / 180;
+        const a2 = (180 + ((i + 1) * 30 - ascLon)) * Math.PI / 180;
+        const x1 = cx + r * Math.cos(a1), y1 = cy - r * Math.sin(a1);
+        const x2 = cx + r * Math.cos(a2), y2 = cy - r * Math.sin(a2);
+        const ix1 = cx + r * 0.75 * Math.cos(a1), iy1 = cy - r * 0.75 * Math.sin(a1);
+        const ix2 = cx + r * 0.75 * Math.cos(a2), iy2 = cy - r * 0.75 * Math.sin(a2);
+        return <path key={i} d={`M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2} L ${ix2} ${iy2} A ${r*0.75} ${r*0.75} 0 0 1 ${ix1} ${iy1} Z`} fill={ELEM[i]} stroke="#ccc" strokeWidth={0.5} />;
+      })}
+      <circle cx={cx} cy={cy} r={r * 0.75} fill="#fdfbf9" stroke="#ddd" strokeWidth={0.5} />
+      <circle cx={cx} cy={cy} r={r * 0.5} fill="#fff" stroke="#eee" strokeWidth={0.5} />
+      {planets.slice(0, 10).map(p => {
+        const pos = toXY(p.longitude);
+        return (
+          <text key={p.name} x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="central" fontSize={7} fill={COLORS[p.name] || '#666'}>
+            {GLYPHS[p.name] || '•'}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
 const API_BASE = '/api/v1';
 
 // ─── Цвета тарифов ───────────────────────────────────────────────────────────
@@ -252,7 +303,8 @@ function TabCharts({ charts, setCharts, loading, authFetch }) {
       {charts.map(chart => (
         <div key={chart.id} style={S.card}>
           <div style={S.row}>
-            <div style={{ minWidth: 0 }}>
+            <MiniChartPreview chartId={chart.id} authFetch={authFetch} />
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{chart.birth_place}</div>
               <div style={S.muted}>
                 {chart.birth_date}
