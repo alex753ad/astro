@@ -191,17 +191,18 @@ function NatalChartInner({
     >
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
-      {SIGN_GLYPHS.map((_, i) => (
-        <path
-          key={`sector-${i}`}
-          d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
-          fill={ELEMENT_COLORS.fill[SIGN_ELEMENT[i]]}
-          stroke={ELEMENT_COLORS.stroke[SIGN_ELEMENT[i]]}
-          strokeWidth={0.5}
-          opacity={0.85}
-        />
-      ))}
-      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="#FDFBF9" stroke="none" />
+      {SIGN_GLYPHS.map((_, i) => {
+        const el = SIGN_ELEMENT[i];
+        return (
+          <path
+            key={`sector-full-${i}`}
+            d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, i * 30, (i + 1) * 30, ascLon)}
+            fill={ELEMENT_COLORS.fill[el]}
+            stroke="none"
+            opacity={0.30}
+          />
+        );
+      })}
 
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
@@ -209,6 +210,12 @@ function NatalChartInner({
         const midPos = lonToXY(cx, cy, R_ZOD_MID, midLon, ascLon);
         return (
           <g key={`sign-${i}`}>
+            <path
+              d={sectorPath(cx, cy, R_ZOD_OUT, R_TICK_IN, i * 30, (i + 1) * 30, ascLon)}
+              fill={ELEMENT_COLORS.fill[el]}
+              stroke="none"
+              opacity={1}
+            />
             <text
               x={midPos.x} y={midPos.y}
               textAnchor="middle" dominantBaseline="central"
@@ -630,7 +637,22 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
         </div>
       )}
 
-      
+      {autoCompact && (
+        <button
+          onClick={() => setShowFull(v => !v)}
+          style={{
+            background: 'rgba(124,108,255,0.1)',
+            border: '1px solid rgba(124,108,255,0.3)',
+            borderRadius: 8,
+            color: '#7C6CFF',
+            padding: '6px 16px',
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          {showFull ? '↑ Свернуть карту' : '↓ Показать полную карту'}
+        </button>
+      )}
     </div>
   );
 }
