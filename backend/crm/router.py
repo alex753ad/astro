@@ -337,33 +337,129 @@ async def generate_client_report(
     user: User = _premium,
     db: Session = Depends(get_db),
 ):
+    import traceback as _tb
     from fastapi.responses import Response as FastAPIResponse
-    astrologer = _get_astrologer(user, db)
-    client = _get_client_or_404(client_id, astrologer, db)
-    if not client.natal_chart_id:
-        raise HTTPException(status_code=404, detail="Chart not calculated yet")
-
-    chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-
-    astrologer_name = None
-    profile = db.query(AstrologerProfile).filter(AstrologerProfile.user_id == user.id).first()
-    if profile and profile.display_name:
-        astrologer_name = profile.display_name
-
     try:
-        from backend.natal_pdf import generate_pdf_bytes
-        pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        logger.exception("PDF generation failed: %s\n%s", e, tb)
-        raise HTTPException(status_code=500, detail=tb)
+        astrologer = _get_astrologer(user, db)
+        client = _get_client_or_404(client_id, astrologer, db)
+        if not client.natal_chart_id:
+            raise HTTPException(status_code=404, detail="Chart not calculated yet")
 
-    filename = f"natal_{client.name.replace(' ', '_')}_{chart.birth_date}.pdf"
-    return FastAPIResponse(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+        chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
+        if not chart:
+            raise HTTPException(status_code=404, detail="Chart not found")
+
+        astrologer_name = None
+        profile = db.query(AstrologerProfile).filter(AstrologerProfile.user_id == user.id).first()
+        if profile and profile.display_name:
+            astrologer_name = profile.display_name
+
+        try:
+            from backend.natal_pdf import generate_pdf_bytes
+            pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
+        except Exception:
+            logger.warning("natal_pdf failed, using simple fallback")
+            pdf_bytes = _simple_pdf(chart, client, astrologer_name)
+
+        filename = f"natal_{client.name.replace(' ', '_')}_{chart.birth_date}.pdf"
+        return FastAPIResponse(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        detail = _tb.format_exc()
+        logger.exception("generate_client_report failed: %s", e)
+        raise HTTPException(status_code=500, detail=detail)
+
+
+def _simple_pdf(chart, client, astrologer_name=None) -> bytes:
+    """Minimal pure-Python PDF — no reportlab needed."""
+    lines = [
+        "НАТАЛЬНАЯ КАРТА",
+        "=" * 50,
+        f"Клиент:  {client.name}",
+        f"Дата:    {chart.birth_date}",
+        f"Время:   {chart.birth_time or 'неизвестно'}",
+        f"Место:   {chart.birth_place}",
+        f"Система: {chart.house_system or 'Placidus'}",
+        "",
+        "ПЛАНЕТЫ",
+        "-" * 50,
+    ]
+    for p in (chart.planets or []):
+        retro = " R" if p.get("retrograde") else ""
+        house = f"  Дом {p['house']}" if p.get("house") else ""
+        lines.append(f"  {p['name']:<12} {p['sign']:<14} {p.get('degree_in_sign', 0):.1f}°{house}{retro}")
+    lines += ["", "ДОМА", "-" * 50]
+    for h in (chart.houses or []):
+        lines.append(f"  Дом {h['number']:2d}  {h['sign']}")
+    lines += ["", "АСПЕКТЫ", "-" * 50]
+    for a in (chart.aspects or [])[:30]:
+        lines.append(f"  {a['planet1']:<12} {a['aspect_type']:<12} {a['planet2']:<12} орб {a.get('orb', 0):.1f}°")
+    lines += ["", "-" * 50, astrologer_name or "Astrea Timeline · astreatime.ru"]
+
+    text = "\n".join(lines)
+
+    # Build minimal valid PDF
+    objects = []
+
+    def add(obj): objects.append(obj); return len(objects)
+
+    catalog_id = add(None)
+    pages_id   = add(None)
+    font_id    = add(None)
+    page_id    = add(None)
+    stream_id  = add(None)
+
+    # PDF stream content
+    font_size = 10
+    line_h = 14
+    margin = 50
+    page_w, page_h = 595, 842
+
+    content_lines = []
+    content_lines.append("BT")
+    content_lines.append(f"/F1 {font_size} Tf")
+    y = page_h - margin
+    for line in lines:
+        safe = line.encode("latin-1", errors="replace").decode("latin-1")
+        safe = safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+        content_lines.append(f"{margin} {y} Td" if y == page_h - margin else f"0 -{line_h} Td")
+        content_lines.append(f"({safe}) Tj")
+        y -= line_h
+    content_lines.append("ET")
+    stream_content = "\n".join(content_lines).encode("latin-1", errors="replace")
+
+    # Build PDF bytes
+    buf = b"%PDF-1.4\n"
+    offsets = {}
+
+    def write_obj(oid, content):
+        nonlocal buf
+        offsets[oid] = len(buf)
+        buf += f"{oid} 0 obj\n".encode()
+        buf += content
+        buf += b"\nendobj\n"
+
+    write_obj(catalog_id, f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode())
+    write_obj(pages_id,   f"<< /Type /Pages /Kids [{page_id} 0 R] /Count 1 >>".encode())
+    write_obj(font_id,    b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>")
+    write_obj(page_id,    (
+        f"<< /Type /Page /Parent {pages_id} 0 R "
+        f"/MediaBox [0 0 {page_w} {page_h}] "
+        f"/Contents {stream_id} 0 R "
+        f"/Resources << /Font << /F1 {font_id} 0 R >> >> >>"
+    ).encode())
+    stream_bytes = stream_content
+    write_obj(stream_id,  f"<< /Length {len(stream_bytes)} >>\nstream\n".encode() + stream_bytes + b"\nendstream")
+
+    xref_offset = len(buf)
+    buf += f"xref\n0 {len(offsets)+1}\n0000000000 65535 f \n".encode()
+    for i in range(1, len(offsets) + 1):
+        buf += f"{offsets[i]:010d} 00000 n \n".encode()
+    buf += f"trailer\n<< /Size {len(offsets)+1} /Root {catalog_id} 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode()
+
+    return buf
