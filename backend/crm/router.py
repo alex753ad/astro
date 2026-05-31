@@ -109,6 +109,62 @@ async def create_client(
     db.add(client)
     db.commit()
     db.refresh(client)
+
+    # Автоматически считаем натальную карту
+    try:
+        from backend.ephemeris.geo import geocode_place, resolve_utc_datetime
+        from backend.ephemeris.calculator import calculate_full_chart
+
+        geo = await geocode_place(payload.birth_place)
+        utc_dt, time_unknown, _ = resolve_utc_datetime(
+            birth_date=str(payload.birth_date),
+            birth_time=payload.birth_time,
+            timezone=geo.timezone,
+        )
+        (chart_data, aspects) = calculate_full_chart(
+            utc_dt=utc_dt,
+            latitude=geo.latitude,
+            longitude=geo.longitude,
+            house_system="placidus",
+            time_unknown=time_unknown,
+        )
+
+        chart = NatalChart(
+            user_id=user.id,
+            birth_date=str(payload.birth_date),
+            birth_time=payload.birth_time,
+            birth_place=geo.display_name,
+            latitude=geo.latitude,
+            longitude=geo.longitude,
+            timezone=geo.timezone,
+            utc_datetime=utc_dt,
+            time_unknown=time_unknown,
+            house_system="placidus",
+            planets=[{
+                "name": p.name, "longitude": p.longitude, "sign": p.sign,
+                "degree_in_sign": p.degree_in_sign,
+                "house": p.house if not time_unknown else None,
+                "retrograde": p.retrograde,
+            } for p in chart_data.planets],
+            houses=[{"number": h.number, "sign": h.sign, "degree": h.degree} for h in chart_data.houses],
+            aspects=[{
+                "planet1": a.planet1, "planet2": a.planet2, "aspect_type": a.aspect_type,
+                "angle": a.angle, "orb": a.orb, "applying": a.applying,
+                "importance": getattr(a, "importance", "low"),
+            } for a in aspects],
+            ascendant={"sign": chart_data.ascendant.sign, "degree": chart_data.ascendant.degree, "longitude": chart_data.ascendant.longitude} if chart_data.ascendant else None,
+            midheaven={"sign": chart_data.midheaven.sign, "degree": chart_data.midheaven.degree, "longitude": chart_data.midheaven.longitude} if chart_data.midheaven else None,
+        )
+        db.add(chart)
+        db.commit()
+        db.refresh(chart)
+
+        client.natal_chart_id = chart.id
+        db.commit()
+        db.refresh(client)
+    except Exception as e:
+        logger.warning("Auto chart calculation failed for client %s: %s", client.id, e)
+
     return client
 
 
