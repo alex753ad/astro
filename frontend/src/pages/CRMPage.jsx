@@ -121,20 +121,58 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
 function ClientCard({ client, authFetch, onBack, onUpdated }) {
   const [chart, setChart] = useState(null);
   const [transits, setTransits] = useState(null);
+  const [transitsLoading, setTransitsLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState(client.notes || '');
   const [notesLoading, setNotesLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [aiText, setAiText] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
   const [tab, setTab] = useState('chart');
 
   useEffect(() => {
     authFetch(`${API}/clients/${client.id}/chart`).then(setChart).catch(() => {});
   }, [client.id]);
 
-  const loadTransits = () => {
-    if (transits) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const end = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-    authFetch(`${API}/clients/${client.id}/transits?from_date=${today}&to_date=${end}`).then(setTransits).catch(() => setTransits([]));
+  const loadTransits = (date) => {
+    const from = date || selectedDate;
+    const to = new Date(new Date(from).getTime() + 30 * 86400000).toISOString().slice(0, 10);
+    setTransitsLoading(true);
+    setTransits(null);
+    authFetch(`${API}/clients/${client.id}/transits?from_date=${from}&to_date=${to}`)
+      .then(setTransits)
+      .catch(() => setTransits([]))
+      .finally(() => setTransitsLoading(false));
+  };
+
+  const loadAI = async () => {
+    if (!client.natal_chart_id) return;
+    setAiLoading(true);
+    setAiText('');
+    try {
+      const res = await fetch(`/api/v1/chart/${client.natal_chart_id}/interpret`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('astro_token')}` },
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value).split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.text) { result += d.text; setAiText(result); }
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      setAiText('Ошибка загрузки интерпретации.');
+    }
+    setAiLoading(false);
   };
 
   const saveNotes = async () => {
@@ -157,8 +195,8 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     setReportLoading(false);
   };
 
-  const tabs = ['chart', 'transits', 'notes'];
-  const tabLabels = { chart: '🪐 Карта', transits: '🔮 Транзиты', notes: '📝 Заметки' };
+  const tabs = ['chart', 'transits', 'ai', 'notes'];
+  const tabLabels = { chart: '🪐 Карта', transits: '🔮 Транзиты', ai: '✨ AI-интерпретация', notes: '📝 Заметки' };
 
   return (
     <div>
@@ -181,7 +219,11 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
       {/* Вкладки */}
       <div style={{ display: 'flex', gap: 4, background: '#0f172a', borderRadius: 10, padding: 4, marginBottom: 16 }}>
         {tabs.map(t => (
-          <button key={t} onClick={() => { setTab(t); if (t === 'transits') loadTransits(); }}
+          <button key={t} onClick={() => {
+            setTab(t);
+            if (t === 'transits' && !transits) loadTransits(selectedDate);
+            if (t === 'ai' && !aiText) loadAI();
+          }}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
               background: tab === t ? '#1e293b' : 'transparent', color: tab === t ? '#e2e8f0' : '#64748b' }}>
             {tabLabels[t]}
@@ -199,15 +241,40 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
 
       {tab === 'transits' && (
         <div style={S.card}>
-          {!transits ? <div style={S.muted}>Загрузка транзитов…</div> : (
-            transits.length === 0
-              ? <div style={S.muted}>Нет активных транзитов на ближайшие 30 дней.</div>
-              : transits.map((t, i) => (
-                <div key={i} style={{ padding: '10px 0', borderBottom: i < transits.length - 1 ? '1px solid #1e293b' : 'none' }}>
-                  <div style={{ fontSize: 13, color: '#c4b5fd', fontWeight: 500 }}>{t.planet} {t.aspect} {t.natal_planet}</div>
-                  <div style={S.muted}>{t.date} — {t.description}</div>
-                </div>
-              ))
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={e => setSelectedDate(e.target.value)}
+              style={{ ...S.input, maxWidth: 160 }}
+            />
+            <button style={S.btn('primary')} onClick={() => loadTransits(selectedDate)}>
+              Построить транзиты
+            </button>
+          </div>
+          {transitsLoading && <div style={S.muted}>Загрузка транзитов…</div>}
+          {!transitsLoading && transits && transits.length === 0 && (
+            <div style={S.muted}>Нет транзитов на выбранный период.</div>
+          )}
+          {!transitsLoading && transits && transits.length > 0 && transits.map((t, i) => (
+            <div key={i} style={{ padding: '10px 0', borderBottom: i < transits.length - 1 ? '1px solid #1e293b' : 'none' }}>
+              <div style={{ fontSize: 13, color: '#c4b5fd', fontWeight: 500 }}>{t.transit_planet} {t.aspect_type} {t.natal_planet}</div>
+              <div style={S.muted}>{t.peak_date || t.start_date} {t.description ? `— ${t.description}` : ''}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'ai' && (
+        <div style={S.card}>
+          {!aiText && !aiLoading && (
+            <button style={S.btn('primary')} onClick={loadAI}>✨ Получить AI-интерпретацию</button>
+          )}
+          {aiLoading && <div style={S.muted}>Генерирую интерпретацию…</div>}
+          {aiText && (
+            <div style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              {aiText}
+            </div>
           )}
         </div>
       )}
