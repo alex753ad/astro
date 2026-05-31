@@ -18,7 +18,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -56,8 +56,15 @@ class ClientOut(BaseModel):
     notes: Optional[str] = None
     natal_chart_id: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+    @field_validator("birth_time", mode="before")
+    @classmethod
+    def coerce_time(cls, v):
+        import datetime
+        if isinstance(v, datetime.time):
+            return v.strftime("%H:%M")
+        return v
 
 
 # ── Helpers ──
