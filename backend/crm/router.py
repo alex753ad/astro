@@ -229,8 +229,60 @@ async def get_client_chart(
 ):
     astrologer = _get_astrologer(user, db)
     client = _get_client_or_404(client_id, astrologer, db)
+
+    # Если карта ещё не посчитана — считаем сейчас
     if not client.natal_chart_id:
-        raise HTTPException(status_code=404, detail="Chart not calculated yet")
+        try:
+            from backend.ephemeris.geo import geocode_place, resolve_utc_datetime
+            from backend.ephemeris.calculator import calculate_full_chart
+
+            geo = await geocode_place(client.birth_place)
+            utc_dt, time_unknown, _ = resolve_utc_datetime(
+                birth_date=str(client.birth_date),
+                birth_time=client.birth_time,
+                timezone=geo.timezone,
+            )
+            (chart_data, aspects) = calculate_full_chart(
+                utc_dt=utc_dt,
+                latitude=geo.latitude,
+                longitude=geo.longitude,
+                house_system="placidus",
+                time_unknown=time_unknown,
+            )
+            chart = NatalChart(
+                user_id=user.id,
+                birth_date=str(client.birth_date),
+                birth_time=client.birth_time,
+                birth_place=geo.display_name,
+                latitude=geo.latitude,
+                longitude=geo.longitude,
+                timezone=geo.timezone,
+                utc_datetime=utc_dt,
+                time_unknown=time_unknown,
+                house_system="placidus",
+                planets=[{"name": p.name, "longitude": p.longitude, "sign": p.sign,
+                          "degree_in_sign": p.degree_in_sign,
+                          "house": p.house if not time_unknown else None,
+                          "retrograde": p.retrograde} for p in chart_data.planets],
+                houses=[{"number": h.number, "sign": h.sign, "degree": h.degree} for h in chart_data.houses],
+                aspects=[{"planet1": a.planet1, "planet2": a.planet2, "aspect_type": a.aspect_type,
+                          "angle": a.angle, "orb": a.orb, "applying": a.applying,
+                          "importance": getattr(a, "importance", "low")} for a in aspects],
+                ascendant={"sign": chart_data.ascendant.sign, "degree": chart_data.ascendant.degree,
+                           "longitude": chart_data.ascendant.longitude} if chart_data.ascendant else None,
+                midheaven={"sign": chart_data.midheaven.sign, "degree": chart_data.midheaven.degree,
+                           "longitude": chart_data.midheaven.longitude} if chart_data.midheaven else None,
+            )
+            db.add(chart)
+            db.commit()
+            db.refresh(chart)
+            client.natal_chart_id = chart.id
+            db.commit()
+            db.refresh(client)
+        except Exception as e:
+            logger.exception("On-demand chart calculation failed for client %s: %s", client_id, e)
+            raise HTTPException(status_code=500, detail=f"Chart calculation failed: {e}")
+
     chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -289,6 +341,6 @@ async def generate_client_report(
     client = _get_client_or_404(client_id, astrologer, db)
     if not client.natal_chart_id:
         raise HTTPException(status_code=404, detail="Chart not calculated yet")
-    from backend.tasks import generate_pdf_report
-    task = generate_pdf_report.delay(client.natal_chart_id, user.id)
+    from backend.tasks import task_generate_pdf
+    task = task_generate_pdf.delay(client.natal_chart_id, user.id)
     return {"task_id": task.id, "status": "queued"}
