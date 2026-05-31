@@ -9,20 +9,20 @@ import useAuth from '../hooks/useAuth';
 import NatalChart from '../components/NatalChart';
 
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
-function MiniChartPreview({ chartId, authFetch }) {
+function MiniChartPreview({ clientId, authFetch }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!chartId) return;
+    if (!clientId) return;
     setLoading(true);
-    authFetch(`/api/v1/clients/${chartId}/chart`)
+    authFetch(`/api/v1/clients/${clientId}/chart`)
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [chartId]);
+  }, [clientId]);
 
-  if (!chartId) return null;
+  if (!clientId) return null;
   if (loading) return <div style={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 11 }}>…</div>;
   if (!data) return null;
 
@@ -330,7 +330,7 @@ function ClientList({ clients, onSelect, onAdd, onDelete, authFetch }) {
       {filtered.map(client => (
         <div key={client.id} style={S.card}>
           <div style={S.row}>
-            <MiniChartPreview chartId={client.natal_chart_id} authFetch={authFetch} />
+            <MiniChartPreview clientId={client.id} authFetch={authFetch} />
             <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => onSelect(client)}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{client.name}</div>
               <div style={S.muted}>{client.birth_date} · {client.birth_place}</div>

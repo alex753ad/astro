@@ -255,10 +255,28 @@ async def get_client_transits(
     client = _get_client_or_404(client_id, astrologer, db)
     if not client.natal_chart_id:
         raise HTTPException(status_code=404, detail="Chart not calculated yet")
-    # Delegate to existing transit logic
-    from backend.transit.engine import get_transits_for_chart
     chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
-    return get_transits_for_chart(chart, str(from_date), str(to_date))
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    from backend.transit.engine import calculate_transits
+    events = calculate_transits(
+        natal_planets=chart.planets,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    return [
+        {
+            "transit_planet": e.transit_planet,
+            "natal_planet": e.natal_planet,
+            "aspect_type": e.aspect_type,
+            "start_date": e.start_date,
+            "peak_date": e.peak_date,
+            "end_date": e.end_date,
+            "peak_orb": e.peak_orb,
+            "transit_sign": e.transit_sign,
+        }
+        for e in events
+    ]
 
 
 @router.post("/{client_id}/report", status_code=status.HTTP_202_ACCEPTED)
