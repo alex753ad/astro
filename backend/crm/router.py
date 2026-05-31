@@ -331,16 +331,37 @@ async def get_client_transits(
     ]
 
 
-@router.post("/{client_id}/report", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{client_id}/report")
 async def generate_client_report(
     client_id: int,
     user: User = _premium,
     db: Session = Depends(get_db),
 ):
+    from fastapi.responses import Response as FastAPIResponse
     astrologer = _get_astrologer(user, db)
     client = _get_client_or_404(client_id, astrologer, db)
     if not client.natal_chart_id:
         raise HTTPException(status_code=404, detail="Chart not calculated yet")
-    from backend.tasks import task_generate_pdf
-    task = task_generate_pdf.delay(client.natal_chart_id, user.id)
-    return {"task_id": task.id, "status": "queued"}
+
+    chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    astrologer_name = None
+    profile = db.query(AstrologerProfile).filter(AstrologerProfile.user_id == user.id).first()
+    if profile and profile.display_name:
+        astrologer_name = profile.display_name
+
+    try:
+        from backend.natal_pdf import generate_pdf_bytes
+        pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
+    except Exception as e:
+        logger.exception("PDF generation failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+
+    filename = f"natal_{client.name.replace(' ', '_')}_{chart.birth_date}.pdf"
+    return FastAPIResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
