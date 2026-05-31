@@ -134,7 +134,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     if (transits) return;
     const today = new Date().toISOString().slice(0, 10);
     const end = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-    authFetch(`${API}/clients/${client.id}/transits?start=${today}&end=${end}`).then(setTransits).catch(() => {});
+    authFetch(`${API}/clients/${client.id}/transits?from_date=${today}&to_date=${end}`).then(setTransits).catch(() => setTransits([]));
   };
 
   const saveNotes = async () => {
@@ -191,7 +191,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
 
       {tab === 'chart' && (
         <div style={S.card}>
-          {chart ? <NatalChart chartData={chart} /> : <div style={S.muted}>Загрузка карты…</div>}
+          {chart
+            ? <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} />
+            : <div style={S.muted}>Загрузка карты…</div>}
         </div>
       )}
 
