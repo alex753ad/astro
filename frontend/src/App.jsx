@@ -129,6 +129,15 @@ function Header({ onShowAuth, dark, toggleDark }) {
           >
             🌙 Луна
           </Link>
+          {user?.tier === 'premium' && (
+            <Link
+              to="/dashboard/clients"
+              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
+                         hover:bg-yellow-100 transition-all duration-200"
+            >
+              👥 Клиенты
+            </Link>
+          )}
           {user ? (
             <>
               <Link
