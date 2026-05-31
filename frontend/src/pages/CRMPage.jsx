@@ -234,7 +234,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
       {tab === 'chart' && (
         <div style={S.card}>
           {chart
-            ? <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} />
+            ? <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} />
             : <div style={S.muted}>Загрузка карты…</div>}
         </div>
       )}
