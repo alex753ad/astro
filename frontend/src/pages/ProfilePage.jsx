@@ -469,6 +469,31 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           </button>
         </div>
       )}
+
+      {/* CRM для premium */}
+      {user?.tier === 'premium' && (
+        <div style={{ ...S.card, border: '1px solid #F59E0B40', background: '#F59E0B08' }}>
+          <p style={S.cardTitle}>👥 CRM — Управление клиентами</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 16 }}>
+            {[
+              { icon: '➕', label: 'Добавить клиента' },
+              { icon: '🪐', label: 'Натальная карта' },
+              { icon: '🔮', label: 'Транзиты клиента' },
+              { icon: '📄', label: 'PDF-отчёт' },
+              { icon: '📝', label: 'Заметки' },
+              { icon: '🔍', label: 'Поиск по базе' },
+            ].map(f => (
+              <div key={f.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #F59E0B30', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, marginBottom: 4 }}>{f.icon}</div>
+                <div style={{ fontSize: 11, color: '#fbbf24' }}>{f.label}</div>
+              </div>
+            ))}
+          </div>
+          <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'linear-gradient(135deg,#F59E0B,#D97706)' }}>
+            Открыть CRM →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -617,6 +642,7 @@ export default function ProfilePage() {
     { key: 'subscription',  label: '✦ Подписка'       },
     { key: 'referral',      label: '🎁 Друзья'        },
     { key: 'notifications', label: '🔔 Уведомления'   },
+    ...(user?.tier === 'premium' ? [{ key: 'crm', label: '👥 Клиенты' }] : []),
   ];
 
   return (
@@ -641,6 +667,16 @@ export default function ProfilePage() {
         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
         {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
         {tab === 'notifications' && <TabNotifications />}
+        {tab === 'crm' && user?.tier === 'premium' && (
+          <div style={{ ...S.card, textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM-база клиентов</div>
+            <div style={{ ...S.muted, marginBottom: 16 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты.</div>
+            <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'linear-gradient(135deg,#F59E0B,#D97706)' }}>
+              Открыть CRM →
+            </Link>
+          </div>
+        )}
 
         {/* Зона опасности — всегда снизу */}
         <DangerZone authFetch={authFetch} logout={logout} navigate={navigate} />
