@@ -70,16 +70,12 @@ function sectorPath(cx, cy, rOuter, rInner, lon1, lon2, ascLon) {
   const p2 = polarToXY(cx, cy, rOuter, a2);
   const p3 = polarToXY(cx, cy, rInner, a2);
   const p4 = polarToXY(cx, cy, rInner, a1);
-  
   const large = Math.abs(lon2 - lon1) > 180 ? 1 : 0;
-  
   return [
     `M ${p1.x} ${p1.y}`,
-    // Внешняя дуга: флаг 0
-    `A ${rOuter} ${rOuter} 0 ${large} 0 ${p2.x} ${p2.y}`, 
+    `A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y}`,
     `L ${p3.x} ${p3.y}`,
-    // Внутренняя дуга: возвращаем флаг 1
-    `A ${rInner} ${rInner} 0 ${large} 1 ${p4.x} ${p4.y}`, 
+    `A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y}`,
     'Z'
   ].join(' ');
 }
@@ -195,18 +191,18 @@ function NatalChartInner({
     >
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
-      {[0,1,2,3,4,5,6,7,8,9,10,11].map(i => {
-        const colors = ['#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0','#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0','#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0'];
+      {SIGN_GLYPHS.map((_, i) => {
+        const el = SIGN_ELEMENT[i];
         return (
           <path
-            key={`sector-${i}`}
-            d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
-            fill={colors[i]}
+            key={`sector-full-${i}`}
+            d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, i * 30, (i + 1) * 30, ascLon)}
+            fill={ELEMENT_COLORS.fill[el]}
             stroke="none"
+            opacity={0.45}
           />
         );
       })}
-      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="#FDFBF9" stroke="none" />
 
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
@@ -214,6 +210,12 @@ function NatalChartInner({
         const midPos = lonToXY(cx, cy, R_ZOD_MID, midLon, ascLon);
         return (
           <g key={`sign-${i}`}>
+            <path
+              d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
+              fill={ELEMENT_COLORS.fill[el]}
+              stroke="none"
+              opacity={1}
+            />
             <text
               x={midPos.x} y={midPos.y}
               textAnchor="middle" dominantBaseline="central"
@@ -228,7 +230,7 @@ function NatalChartInner({
 
       {Array.from({ length: 12 }, (_, i) => {
         const p1 = lonToXY(cx, cy, R_ZOD_OUT, i * 30, ascLon);
-        const p2 = lonToXY(cx, cy, R_TICK_IN,  i * 30, ascLon);
+        const p2 = lonToXY(cx, cy, R_ZOD_IN,  i * 30, ascLon);
         return (
           <line key={`zdiv-${i}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
@@ -292,7 +294,7 @@ function NatalChartInner({
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FFFFFF" stroke="#D8C8E0" strokeWidth={0.75} />
+      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FDFBF9" stroke="#D8C8E0" strokeWidth={0.75} />
 
       {/* Аспекты — только в полном режиме */}
       {!isCompact && aspects
@@ -635,22 +637,7 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
         </div>
       )}
 
-      {autoCompact && (
-        <button
-          onClick={() => setShowFull(v => !v)}
-          style={{
-            background: 'rgba(124,108,255,0.1)',
-            border: '1px solid rgba(124,108,255,0.3)',
-            borderRadius: 8,
-            color: '#7C6CFF',
-            padding: '6px 16px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          {showFull ? '↑ Свернуть карту' : '↓ Показать полную карту'}
-        </button>
-      )}
+
     </div>
   );
 }

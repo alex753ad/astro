@@ -174,8 +174,22 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
   const generateReport = async () => {
     setReportLoading(true);
     try {
-      await authFetch(`${API}/clients/${client.id}/report`, { method: 'POST' });
-      alert('Отчёт поставлен в очередь — придёт на email.');
+      const token = localStorage.getItem('astro_access_token');
+      const res = await fetch(`${API}/clients/${client.id}/report`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || res.statusText);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `natal_${client.name.replace(/ /g, '_')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (e) {
       alert('Ошибка: ' + e.message);
     }
