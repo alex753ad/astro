@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import NatalChart from '../components/NatalChart';
+import TransitTimeline from '../components/TransitTimeline';
 
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
 function MiniChartPreview({ clientId, authFetch }) {
@@ -120,9 +121,6 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
 // ─── Карточка клиента ─────────────────────────────────────────────────────────
 function ClientCard({ client, authFetch, onBack, onUpdated }) {
   const [chart, setChart] = useState(null);
-  const [transits, setTransits] = useState(null);
-  const [transitsLoading, setTransitsLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState(client.notes || '');
   const [notesLoading, setNotesLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
@@ -133,17 +131,6 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
   useEffect(() => {
     authFetch(`${API}/clients/${client.id}/chart`).then(setChart).catch(() => {});
   }, [client.id]);
-
-  const loadTransits = (date) => {
-    const from = date || selectedDate;
-    const to = new Date(new Date(from).getTime() + 30 * 86400000).toISOString().slice(0, 10);
-    setTransitsLoading(true);
-    setTransits(null);
-    authFetch(`${API}/clients/${client.id}/transits?from_date=${from}&to_date=${to}`)
-      .then(setTransits)
-      .catch(() => setTransits([]))
-      .finally(() => setTransitsLoading(false));
-  };
 
   const loadAI = async () => {
     if (!client.natal_chart_id) return;
@@ -221,7 +208,6 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
         {tabs.map(t => (
           <button key={t} onClick={() => {
             setTab(t);
-            if (t === 'transits' && !transits) loadTransits(selectedDate);
             if (t === 'ai' && !aiText) loadAI();
           }}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
@@ -240,28 +226,12 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
       )}
 
       {tab === 'transits' && (
-        <div style={S.card}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              style={{ ...S.input, maxWidth: 160 }}
-            />
-            <button style={S.btn('primary')} onClick={() => loadTransits(selectedDate)}>
-              Построить транзиты
-            </button>
-          </div>
-          {transitsLoading && <div style={S.muted}>Загрузка транзитов…</div>}
-          {!transitsLoading && transits && transits.length === 0 && (
-            <div style={S.muted}>Нет транзитов на выбранный период.</div>
-          )}
-          {!transitsLoading && transits && transits.length > 0 && transits.map((t, i) => (
-            <div key={i} style={{ padding: '10px 0', borderBottom: i < transits.length - 1 ? '1px solid #1e293b' : 'none' }}>
-              <div style={{ fontSize: 13, color: '#c4b5fd', fontWeight: 500 }}>{t.transit_planet} {t.aspect_type} {t.natal_planet}</div>
-              <div style={S.muted}>{t.peak_date || t.start_date} {t.description ? `— ${t.description}` : ''}</div>
-            </div>
-          ))}
+        <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
+          <TransitTimeline
+            chartId={client.natal_chart_id}
+            mockMode={!client.natal_chart_id}
+            userTier="premium"
+          />
         </div>
       )}
 
