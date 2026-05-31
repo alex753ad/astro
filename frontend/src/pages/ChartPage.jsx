@@ -147,12 +147,21 @@ const sr = {
   legal: { margin: '14px 0 0', fontSize: 11, color: '#9080B0', textAlign: 'center' },
 };
 
-const TABS = [
-  { key: 'chart',          label: 'Карта',          minTier: null },
-  { key: 'interpretation', label: 'Интерпретация',  minTier: null },
-  { key: 'aspects',        label: 'Аспекты',        minTier: null },
-  { key: 'transits',       label: 'Транзиты',       minTier: null },
-  { key: 'chat',           label: '💬 Чат',         minTier: 'pro' },
+// Horizontal top tabs (above the 3-column layout)
+const TOP_TABS = [
+  { key: 'chart',    label: 'Натальная карта' },
+  { key: 'transits', label: 'Транзиты' },
+  { key: 'planner',  label: 'Планер' },
+  { key: 'lunar',    label: 'Лунный календарь' },
+];
+
+// Left sidebar vertical buttons (only for 'chart' top tab)
+const LEFT_BTNS = [
+  { key: 'build',          label: 'Построить карту',       icon: '✦' },
+  { key: 'planets',        label: 'Таблица планет/домов',  icon: '☉' },
+  { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
+  { key: 'interpretation', label: 'AI-интерпретация',      icon: '✦' },
+  { key: 'chat',           label: 'AI Астролог Астрея',    icon: '🤖' },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -211,7 +220,9 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [selectedDate, setSelectedDate]     = useState(
     new Date().toISOString().slice(0, 10)
   );
-  const [activeTab, setActiveTab]     = useState(searchParams.get('tab') || 'chart');
+  const [topTab, setTopTab]         = useState(searchParams.get('tab') || 'chart');
+  const [leftPanel, setLeftPanel]   = useState(null); // 'build'|'planets'|'aspects'|'interpretation'|'chat'|null
+  const [activeTab, setActiveTab]   = useState('chart'); // kept for transit/planner compat
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -360,7 +371,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
 
   // Загружаем транзитные позиции при открытии вкладки транзитов
   useEffect(() => {
-    if (activeTab !== 'transits' || !chart || !chartId || chartId === 'anonymous' || transitPlanets.length > 0) return;
+    if (topTab !== 'transits' || !chart || !chartId || chartId === 'anonymous' || transitPlanets.length > 0) return;
     const token = localStorage.getItem('astro_access_token');
     fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -368,19 +379,28 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.planets?.length) setTransitPlanets(data.planets); })
       .catch(() => {});
-  }, [activeTab, chart, chartId]);
+  }, [topTab, chart, chartId]);
 
   useEffect(() => {
     // Не блокируем вкладку транзитов — блюр внутри компонента TransitTimeline
   }, [activeTab, currentUser]);
+
+  function handleTopTabChange(key) {
+    setTopTab(key);
+    setActiveTab(key); // keep transit/planner logic
+    setSearchParams({ tab: key });
+  }
+
+  function handleLeftBtn(key) {
+    setLeftPanel(prev => prev === key ? null : key);
+  }
 
   function handleTabChange(key, minTier) {
     if (!tierAllowed(minTier)) {
       setShowPaywall(true);
       return;
     }
-    setActiveTab(key);
-    setSearchParams({ tab: key });
+    handleTopTabChange(key);
   }
 
   function handleDateSelect(date, dayEvents, positions) {
@@ -411,18 +431,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button onClick={() => {
-            if (!currentUser) { onShowAuth?.(); return; }
-            navigate(`/planner/${chartId}`);
-          }} style={s.plannerLinkBtn}>
-            📅 Планер
-          </button>
-          <button onClick={() => navigate(`/lunar?chartId=${chartId}`)} style={s.plannerLinkBtn}>
-            🌙 Луна
-          </button>
-          <button onClick={handleShare} style={s.plannerLinkBtn} title="Скопировать ссылку" disabled={shareLoading}>
-            {shareLoading ? '⏳' : copied ? '✓ Скопировано' : '🔗 Поделиться'}
-          </button>
           {currentUser && (
             <button onClick={handleDownloadCard} style={s.plannerLinkBtn} title="Скачать карточку для Stories">
               🖼 Карточка
@@ -431,86 +439,165 @@ export default function ChartPage({ currentUser, onShowAuth }) {
           <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: '#1E1A2E', color: '#fff' }}>
             📄 PDF-отчёт
           </button>
-          {/* ExpertModeToggle hidden */}
         </div>
       </header>
 
-      {/* ── Вкладки ── */}
-      <div style={s.tabBar}>
-        {TABS.map(({ key, label, minTier }) => (
+      {/* ── Горизонтальная группа вкладок ── */}
+      <div style={s.topTabBar}>
+        {TOP_TABS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => handleTabChange(key, minTier)}
-            style={{ ...s.tabBtn, ...(activeTab === key ? s.tabBtnActive : {}) }}
+            onClick={() => {
+              if (key === 'lunar') { navigate(`/lunar?chartId=${chartId}`); return; }
+              if (key === 'planner') { navigate(`/planner/${chartId}`); return; }
+              handleTopTabChange(key);
+            }}
+            style={{ ...s.topTabBtn, ...(topTab === key ? s.topTabActive : {}) }}
           >
             {label}
-            {!tierAllowed(minTier) && <span style={{ marginLeft: 4, fontSize: 10 }}>🔒</span>}
-            {activeTab === key && <span style={s.tabUnderline} />}
+            {topTab === key && <span style={s.topTabUnderline} />}
           </button>
         ))}
       </div>
 
-      {/* ── Вкладка: Натальная карта ── */}
-      {activeTab === 'chart' && (
-        <main style={s.main}>
+      {/* ── Натальная карта: 3 колонки ── */}
+      {topTab === 'chart' && (
+        <div style={s.threeCol}>
 
-          <OnboardingTooltips />
+          {/* ── Левая колонка: вертикальные кнопки ── */}
+          <div style={s.leftCol}>
+            {isAnon && (
+              <div style={{ marginBottom: 8 }}>
+                <SaveChartBanner onLogin={handleShowAuth} />
+              </div>
+            )}
+            <OnboardingTooltips />
+            {LEFT_BTNS.map(({ key, label, icon }) => (
+              <button
+                key={key}
+                onClick={() => handleLeftBtn(key)}
+                style={{ ...s.leftBtn, ...(leftPanel === key ? s.leftBtnActive : {}) }}
+              >
+                <span style={s.leftBtnIcon}>{icon}</span>
+                <span style={{ flex: 1 }}>{label}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.6 }}>
+                  {leftPanel === key ? '‹' : '›'}
+                </span>
+              </button>
+            ))}
 
-          {isAnon && <SaveChartBanner onLogin={handleShowAuth} />}
+            {/* Поделиться — под картой слева */}
+            <button
+              onClick={handleShare}
+              disabled={shareLoading}
+              style={{ ...s.leftBtn, marginTop: 8 }}
+              title="Скопировать ссылку"
+            >
+              <span style={s.leftBtnIcon}>🔗</span>
+              <span style={{ flex: 1 }}>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
+            </button>
+          </div>
 
-          <div style={s.chartLayout}>
+          {/* ── Центр: колесо карты ── */}
+          <div style={s.centerCol}>
+            <div style={s.wheelCard}>
+              {/* Интерпретация — поверх карты */}
+              {leftPanel === 'interpretation' && (
+                <div style={s.wheelOverlay}>
+                  {isAnon ? (
+                    <div style={s.overlayBlurWrap}>
+                      <div style={{ filter: 'blur(5px)', pointerEvents: 'none', userSelect: 'none', maxHeight: 320, overflow: 'hidden' }}>
+                        <Interpretation chartId={chartId} userTier="free" onUpgrade={() => {}} />
+                      </div>
+                      <div style={s.overlayLogin}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>✦ Войдите, чтобы прочитать интерпретацию</div>
+                        <button onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</button>
+                      </div>
+                    </div>
+                  ) : currentUser?.tier === 'lite' ? (
+                    <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => { setPaywallContext('lite_to_pro'); setShowPaywall(true); }} />
+                  ) : (
+                    <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => { setPaywallContext('free_to_lite'); setShowPaywall(true); }} />
+                  )}
+                </div>
+              )}
 
-            {/* ── Левая панель: аккордеоны ── */}
-            <div style={s.sidebar}>
-              <AccordionPanel label="Построить карту" icon="✦" defaultOpen={false}>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <NatalChart
+                planets={chart.planets}
+                houses={chart.houses}
+                aspects={chart.aspects}
+                ascendant={chart.ascendant}
+                midheaven={chart.midheaven}
+                timeUnknown={chart.time_unknown}
+                transitPlanets={[]}
+              />
+            </div>
+          </div>
+
+          {/* ── Правая колонка: панели ── */}
+          <div style={s.rightCol}>
+
+            {/* Построить карту */}
+            {leftPanel === 'build' && (
+              <div style={s.panelCard}>
+                <div style={s.panelTitle}>✦ Построить карту</div>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '8px 0 0' }}>
                   Перейдите на главную страницу, чтобы рассчитать новую карту.
                 </p>
-              </AccordionPanel>
+                <button
+                  onClick={() => navigate('/home')}
+                  style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
+                >
+                  На главную
+                </button>
+              </div>
+            )}
 
-              <AccordionPanel label="Транзиты" icon="◎">
-                <NatalChart
-                  planets={chart.planets}
-                  houses={chart.houses}
-                  aspects={chart.aspects}
-                  ascendant={chart.ascendant}
-                  midheaven={chart.midheaven}
-                  timeUnknown={chart.time_unknown}
-                  transitPlanets={transitPlanets}
-                />
-              </AccordionPanel>
-
-              <AccordionPanel label="Таблица планет/домов" icon="☉">
-                <ChartSummary
+            {/* Таблица планет/домов */}
+            {leftPanel === 'planets' && (
+              <div style={s.panelCard}>
+                <div style={s.panelTitle}>☉ Позиции планет</div>
+                <PlanetTable
                   planets={chart.planets}
                   ascendant={chart.ascendant}
                   midheaven={chart.midheaven}
-                  timeUnknown={chart.time_unknown}
+                  collapsed
                 />
-              </AccordionPanel>
+                {chart.houses?.length > 0 && (
+                  <>
+                    <div style={s.panelDivider}>Дома</div>
+                    <HouseTable houses={chart.houses} collapsed />
+                  </>
+                )}
+              </div>
+            )}
 
-              <AccordionPanel label="Таблица аспектов" icon="△">
+            {/* Таблица аспектов */}
+            {leftPanel === 'aspects' && (
+              <div style={s.panelCard}>
+                <div style={s.panelTitle}>△ Аспекты</div>
                 <AspectLegend />
+                <div style={{ marginTop: 12 }}>
+                  <AspectGrid aspects={chart.aspects} planets={chart.planets} />
+                </div>
                 <div style={{ marginTop: 12 }}>
                   <AspectTable aspects={chart.aspects} planets={chart.planets} />
                 </div>
-              </AccordionPanel>
-            </div>
+              </div>
+            )}
 
-            {/* ── Правая часть: колесо + мини-таблица планет ── */}
-            <div style={s.chartRight}>
-              <div style={s.wheelCard}>
-                <NatalChart
-                  planets={chart.planets}
-                  houses={chart.houses}
-                  aspects={chart.aspects}
-                  ascendant={chart.ascendant}
-                  midheaven={chart.midheaven}
-                  timeUnknown={chart.time_unknown}
-                  transitPlanets={[]}
+            {/* AI Чат */}
+            {leftPanel === 'chat' && (
+              <div style={{ ...s.panelCard, padding: 0, minHeight: 480 }}>
+                <RagChat
+                  chartId={chartId}
+                  onPaywall={() => setShowPaywall(true)}
                 />
               </div>
+            )}
 
+            {/* Мини-таблица планет (дефолтная правая панель когда ничего не выбрано) */}
+            {!leftPanel && (
               <div style={s.miniTableCard}>
                 <PlanetTable
                   planets={chart.planets}
@@ -518,68 +605,14 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                   midheaven={chart.midheaven}
                 />
               </div>
-            </div>
-
-          </div>
-        </main>
-      )}
-
-      {/* ── Вкладка: Интерпретация ── */}
-      {activeTab === 'interpretation' && (
-        <main style={s.main}>
-          {isAnon && <SaveChartBanner onLogin={handleShowAuth} />}
-          <section style={s.card}>
-            {isAnon ? (
-              <div style={{ position: 'relative' }}>
-                <div style={{ filter: 'blur(5px)', pointerEvents: 'none', userSelect: 'none', maxHeight: 320, overflow: 'hidden' }}>
-                  <Interpretation chartId={chartId} userTier="free" onUpgrade={() => {}} />
-                </div>
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  gap: 12, background: 'rgba(30,26,46,0.45)', borderRadius: 16,
-                }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>
-                    ✦ Войдите, чтобы прочитать интерпретацию
-                  </div>
-                  <button
-                    onClick={handleShowAuth}
-                    style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Войти / Регистрация
-                  </button>
-                </div>
-              </div>
-            ) : currentUser?.tier === 'lite' ? (
-              <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => { setPaywallContext('lite_to_pro'); setShowPaywall(true); }} />
-            ) : (
-              <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => { setPaywallContext('free_to_lite'); setShowPaywall(true); }} />
             )}
-          </section>
-        </main>
+          </div>
+
+        </div>
       )}
 
-      {/* ── Вкладка: Аспекты ── */}
-      {activeTab === 'aspects' && (
-        <main style={s.main}>
-          <section style={s.card}>
-            <AspectGrid aspects={chart.aspects} planets={chart.planets} />
-          </section>
-          <section style={s.card}>
-            <AspectTableWrapper
-              expertMode={expertMode}
-              aspects={chart.aspects}
-              planets={chart.planets}
-            />
-          </section>
-          <section style={s.card}>
-            <AstroGlossary />
-          </section>
-        </main>
-      )}
-
-      {/* ── Вкладка: Транзиты ── */}
-      {activeTab === 'transits' && (
+      {/* ── Транзиты ── */}
+      {topTab === 'transits' && (
         <div style={{ position: 'relative' }}>
           <div style={showPaywall ? { filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
             <main style={s.main}>
@@ -600,26 +633,13 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
                 <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => { setPaywallContext(ctx || (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite')); setShowPaywall(true); }} />
               </section>
-
             </main>
           </div>
         </div>
       )}
 
-      {/* ── Вкладка: RAG Чат ── */}
-      {activeTab === 'chat' && (
-        <main style={s.main}>
-          <RagChat
-            chartId={chartId}
-            onPaywall={(ctx) => {
-              setShowPaywall(true);
-            }}
-          />
-        </main>
-      )}
-
-      {/* ── Вкладка: Планировщик ── */}
-      {activeTab === 'planner' && (
+      {/* ── Планировщик ── */}
+      {topTab === 'planner' && (
         <main style={s.main}>
           <section style={s.card}>
             <div style={s.plannerHead}>
@@ -682,7 +702,8 @@ function formatDeg(deg) {
   return `${d}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}''`;
 }
 
-function PlanetTable({ planets = [], ascendant, midheaven }) {
+function PlanetTable({ planets = [], ascendant, midheaven, collapsed }) {
+  const [expanded, setExpanded] = React.useState(false);
   const rows = [
     ...planets,
     ...(ascendant ? [{ name: 'Ascendant', longitude: ascendant.longitude, sign: ascendant.sign, degree_in_sign: ascendant.degree_in_sign, retrograde: false }] : []),
@@ -691,11 +712,14 @@ function PlanetTable({ planets = [], ascendant, midheaven }) {
 
   if (!rows.length) return null;
 
+  const PREVIEW = 5;
+  const visible = collapsed && !expanded ? rows.slice(0, PREVIEW) : rows;
+
   return (
     <div style={sp.wrap}>
       <table style={sp.table}>
         <tbody>
-          {rows.map((p) => (
+          {visible.map((p) => (
             <tr key={p.name} style={sp.row}>
               <td style={sp.glyph}>{PLANET_GLYPHS[p.name] || ''}</td>
               <td style={sp.nameCell}>{PLANET_NAMES_RU[p.name] || p.name}</td>
@@ -707,6 +731,45 @@ function PlanetTable({ planets = [], ascendant, midheaven }) {
           ))}
         </tbody>
       </table>
+      {collapsed && rows.length > PREVIEW && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 6, padding: 0, fontFamily: 'inherit' }}
+        >
+          {expanded ? '▲ Свернуть' : `▼ Показать все (${rows.length})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function HouseTable({ houses = [], collapsed }) {
+  const [expanded, setExpanded] = React.useState(false);
+  if (!houses.length) return null;
+  const PREVIEW = 5;
+  const visible = collapsed && !expanded ? houses.slice(0, PREVIEW) : houses;
+  return (
+    <div style={sp.wrap}>
+      <table style={sp.table}>
+        <tbody>
+          {visible.map((h, i) => (
+            <tr key={i} style={sp.row}>
+              <td style={{ ...sp.glyph, fontWeight: 600 }}>{h.house ?? i + 1}</td>
+              <td style={sp.signGlyph}>{SIGN_GLYPHS[h.sign] || ''}</td>
+              <td style={sp.signName}>{SIGN_NAMES_RU[h.sign] || h.sign}</td>
+              <td style={sp.deg}>{formatDeg(h.degree)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {collapsed && houses.length > PREVIEW && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 6, padding: 0, fontFamily: 'inherit' }}
+        >
+          {expanded ? '▲ Свернуть' : `▼ Показать все 12 домов`}
+        </button>
+      )}
     </div>
   );
 }
@@ -890,14 +953,16 @@ const s = {
   },
   title:    { margin: 0, fontSize: '18px', fontWeight: '500', color: 'var(--text-primary)' },
   subtitle: { margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' },
-  tabBar: {
+
+  // ── Горизонтальная группа вкладок ──
+  topTabBar: {
     display: 'flex',
     background: 'var(--bg-card)',
     borderBottom: '0.5px solid var(--border)',
     padding: '0 24px',
-    gap: '0',
+    gap: 0,
   },
-  tabBtn: {
+  topTabBtn: {
     position: 'relative',
     padding: '12px 20px',
     background: 'none', border: 'none',
@@ -907,13 +972,109 @@ const s = {
     transition: 'color 0.15s',
     whiteSpace: 'nowrap',
   },
-  tabBtnActive: { color: 'var(--text-primary)', fontWeight: '500' },
-  tabUnderline: {
+  topTabActive: { color: 'var(--text-primary)', fontWeight: '600' },
+  topTabUnderline: {
     position: 'absolute', bottom: -1, left: '20px', right: '20px', height: 2,
-    background: 'var(--text-primary)',
+    background: 'var(--accent)',
     borderRadius: '2px 2px 0 0',
     display: 'block',
   },
+
+  // ── 3-колоночный layout ──
+  threeCol: {
+    display: 'flex',
+    gap: 0,
+    alignItems: 'flex-start',
+    padding: '16px',
+    maxWidth: '1400px',
+    margin: '0 auto',
+    flexWrap: 'wrap',
+  },
+  leftCol: {
+    display: 'flex', flexDirection: 'column', gap: 6,
+    flex: '0 0 200px', minWidth: 180,
+    paddingRight: 12,
+  },
+  leftBtn: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '10px 14px',
+    background: 'var(--bg-card)',
+    border: '0.5px solid var(--border)',
+    borderRadius: 10,
+    cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: 13, fontWeight: 500,
+    color: 'var(--text-primary)',
+    textAlign: 'left',
+    transition: 'border-color 0.15s, background 0.15s',
+    width: '100%',
+  },
+  leftBtnActive: {
+    background: 'rgba(124,108,255,0.08)',
+    borderColor: 'var(--accent)',
+    color: 'var(--accent)',
+  },
+  leftBtnIcon: { fontSize: 14, color: 'var(--accent)', flexShrink: 0 },
+
+  // Центральная колонка — колесо
+  centerCol: {
+    flex: '1 1 320px',
+    minWidth: 280,
+    paddingRight: 12,
+  },
+  wheelCard: {
+    position: 'relative',
+    background: 'var(--bg-card)',
+    borderRadius: 16,
+    border: '0.5px solid var(--border)',
+    padding: 12,
+    overflow: 'hidden',
+  },
+  wheelOverlay: {
+    position: 'absolute', inset: 0, zIndex: 10,
+    background: 'var(--bg-card)',
+    borderRadius: 16,
+    overflowY: 'auto',
+    padding: 20,
+  },
+  overlayBlurWrap: { position: 'relative' },
+  overlayLogin: {
+    position: 'absolute', inset: 0,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 12, background: 'rgba(30,26,46,0.55)', borderRadius: 16,
+  },
+  overlayLoginBtn: {
+    padding: '10px 24px', borderRadius: 10, border: 'none',
+    background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+    color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  },
+
+  // Правая колонка — панель
+  rightCol: {
+    flex: '0 0 290px', minWidth: 220,
+  },
+  panelCard: {
+    background: 'var(--bg-card)', borderRadius: 16,
+    border: '0.5px solid var(--border)', padding: '16px',
+    maxHeight: 'calc(100vh - 200px)', overflowY: 'auto',
+  },
+  panelTitle: {
+    fontSize: 14, fontWeight: 600, color: 'var(--text-primary)',
+    marginBottom: 10,
+  },
+  panelDivider: {
+    fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+    margin: '14px 0 8px',
+    paddingTop: 10, borderTop: '0.5px solid var(--border)',
+  },
+
+  miniTableCard: {
+    background: 'var(--bg-card)', borderRadius: 16,
+    border: '0.5px solid var(--border)', padding: '14px 16px',
+    maxHeight: 'calc(100vh - 200px)', overflowY: 'auto',
+  },
+
+  // Прочее (для транзитов / планировщика)
   main: {
     maxWidth: '900px', margin: '0 auto',
     padding: '20px 16px',
@@ -924,30 +1085,6 @@ const s = {
   plannerHead: { marginBottom: '14px' },
   plannerTitle: { fontSize: '15px', fontWeight: '500', color: 'var(--text-primary)', display: 'block' },
   plannerSub:   { fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' },
-  chartWithData: { display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' },
-  chartSidePanel: { flex: '1 1 260px', minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '16px' },
-  chartLayout: {
-    display: 'flex', gap: 16, alignItems: 'flex-start',
-    flexWrap: 'wrap',
-  },
-  sidebar: {
-    display: 'flex', flexDirection: 'column', gap: 8,
-    flex: '0 0 200px', minWidth: 180,
-  },
-  chartRight: {
-    flex: '1 1 400px', display: 'flex', gap: 16,
-    alignItems: 'flex-start', flexWrap: 'wrap',
-  },
-  wheelCard: {
-    flex: '1 1 320px',
-    background: 'var(--bg-card)', borderRadius: 16,
-    border: '0.5px solid var(--border)', padding: 12,
-  },
-  miniTableCard: {
-    flex: '0 0 260px', minWidth: 200,
-    background: 'var(--bg-card)', borderRadius: 16,
-    border: '0.5px solid var(--border)', padding: '14px 16px',
-  },
   plannerLinkBtn: {
     padding: '8px 14px',
     fontSize: '13px',
