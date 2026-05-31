@@ -17,8 +17,8 @@ RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
     psycopg2-binary httpx pydantic pydantic-settings slowapi \
     "python-jose[cryptography]" "passlib[bcrypt]" "bcrypt>=3.2.0,<4.0.0" \
     timezonefinder pytz geopy \
-    reportlab \
-    pytest pytest-asyncio
+    pytest pytest-asyncio && \
+    pip install --no-cache-dir "reportlab>=4.0.0"
 
 # Copy application
 ARG CACHE_BUST=1
