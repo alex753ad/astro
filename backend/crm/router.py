@@ -356,8 +356,10 @@ async def generate_client_report(
         from backend.natal_pdf import generate_pdf_bytes
         pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
     except Exception as e:
-        logger.exception("PDF generation failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        logger.exception("PDF generation failed: %s\n%s", e, tb)
+        raise HTTPException(status_code=500, detail=tb)
 
     filename = f"natal_{client.name.replace(' ', '_')}_{chart.birth_date}.pdf"
     return FastAPIResponse(
