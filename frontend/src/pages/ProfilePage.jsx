@@ -303,7 +303,9 @@ function TabCharts({ charts, setCharts, loading, authFetch }) {
       {charts.map(chart => (
         <div key={chart.id} style={S.card}>
           <div style={S.row}>
-            <MiniChartPreview chartId={chart.id} authFetch={authFetch} />
+            <Link to={`/chart/${chart.id}`} style={{ flexShrink: 0, display: 'block' }}>
+              <MiniChartPreview chartId={chart.id} authFetch={authFetch} />
+            </Link>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{chart.birth_place}</div>
               <div style={S.muted}>
