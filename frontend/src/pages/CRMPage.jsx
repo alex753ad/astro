@@ -330,14 +330,14 @@ function ClientList({ clients, onSelect, onAdd, onDelete, authFetch }) {
       {filtered.map(client => (
         <div key={client.id} style={S.card}>
           <div style={S.row}>
-            <MiniChartPreview clientId={client.id} authFetch={authFetch} />
+            <div style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => onSelect(client)}>
+              <MiniChartPreview clientId={client.id} authFetch={authFetch} />
+            </div>
             <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => onSelect(client)}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{client.name}</div>
               <div style={S.muted}>{client.birth_date} · {client.birth_place}</div>
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: '#7C6CFF', border: '1px solid #7C6CFF40' }}
-                onClick={() => onSelect(client)}>Открыть</button>
               {deleteConfirm === client.id ? (
                 <>
                   <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(client.id)}>Удалить</button>
