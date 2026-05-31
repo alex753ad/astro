@@ -315,12 +315,6 @@ function TabCharts({ charts, setCharts, loading, authFetch }) {
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
               <Link
-                to={`/chart/${chart.id}`}
-                style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#7C6CFF', border: '1px solid #7C6CFF40' }}
-              >
-                Карта
-              </Link>
-              <Link
                 to={`/planner/${chart.id}`}
                 style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
               >
