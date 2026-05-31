@@ -480,24 +480,10 @@ function NatalChartInner({
 }
 
 // ═══════════════════════════════════════════════════════════
-// WRAPPER: skeleton + touch + compact
+// WRAPPER: skeleton + touch
 // ═══════════════════════════════════════════════════════════
 
-export default function NatalChart({ loading = false, compact: compactProp, ...props }) {
-  // Определение compact по ширине окна
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1024
-  );
-  useEffect(() => {
-    const handler = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
-  }, []);
-
-  const autoCompact = compactProp !== undefined ? compactProp : windowWidth < 768;
-  const [showFull, setShowFull] = useState(false);
-  const isCompact = autoCompact && !showFull;
-
+export default function NatalChart({ loading = false, compact: _compactProp, ...props }) {
   // Touch state
   const containerRef = useRef(null);
   const [scale,    setScale]    = useState(1);
@@ -579,7 +565,7 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
           transition: touchState.current.active ? 'none' : 'transform 0.3s ease',
           willChange: 'transform',
         }}>
-          <NatalChartInner {...props} isCompact={isCompact} />
+          <NatalChartInner {...props} isCompact={false} />
         </div>
       </div>
 
@@ -587,7 +573,7 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
       {showOnboarding && (
         <div style={{
           position: 'absolute',
-          bottom: autoCompact ? 60 : 24,
+          bottom: 24,
           left: '50%',
           transform: 'translateX(-50%)',
           background: '#FFFFFF',
@@ -637,22 +623,6 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
         </div>
       )}
 
-      {autoCompact && (
-        <button
-          onClick={() => setShowFull(v => !v)}
-          style={{
-            background: 'rgba(124,108,255,0.1)',
-            border: '1px solid rgba(124,108,255,0.3)',
-            borderRadius: 8,
-            color: '#7C6CFF',
-            padding: '6px 16px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          {showFull ? '↑ Свернуть карту' : '↓ Показать полную карту'}
-        </button>
-      )}
     </div>
   );
 }
