@@ -191,18 +191,18 @@ function NatalChartInner({
     >
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
 
-      {SIGN_GLYPHS.map((_, i) => {
-        const el = SIGN_ELEMENT[i];
-        return (
-          <path
-            key={`sector-full-${i}`}
-            d={sectorPath(cx, cy, R_ZOD_OUT, R_HOUSE_IN, i * 30, (i + 1) * 30, ascLon)}
-            fill={ELEMENT_COLORS.fill[el]}
-            stroke="none"
-            opacity={0.45}
-          />
-        );
-      })}
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="yellow" fillOpacity={0.4} stroke="none" />
+
+      {[0, 3, 7].map(i => (
+        <path
+          key={`green-${i}`}
+          d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
+          fill="#90EE90"
+          stroke="none"
+          opacity={1}
+        />
+      ))}
+      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="#FDFBF9" stroke="none" />
 
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
@@ -210,12 +210,6 @@ function NatalChartInner({
         const midPos = lonToXY(cx, cy, R_ZOD_MID, midLon, ascLon);
         return (
           <g key={`sign-${i}`}>
-            <path
-              d={sectorPath(cx, cy, R_ZOD_OUT, R_ZOD_IN, i * 30, (i + 1) * 30, ascLon)}
-              fill={ELEMENT_COLORS.fill[el]}
-              stroke="none"
-              opacity={1}
-            />
             <text
               x={midPos.x} y={midPos.y}
               textAnchor="middle" dominantBaseline="central"
@@ -230,7 +224,7 @@ function NatalChartInner({
 
       {Array.from({ length: 12 }, (_, i) => {
         const p1 = lonToXY(cx, cy, R_ZOD_OUT, i * 30, ascLon);
-        const p2 = lonToXY(cx, cy, R_ZOD_IN,  i * 30, ascLon);
+        const p2 = lonToXY(cx, cy, R_TICK_IN,  i * 30, ascLon);
         return (
           <line key={`zdiv-${i}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
@@ -294,7 +288,7 @@ function NatalChartInner({
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FDFBF9" stroke="#D8C8E0" strokeWidth={0.75} />
+      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FFFFFF" stroke="#D8C8E0" strokeWidth={0.75} />
 
       {/* Аспекты — только в полном режиме */}
       {!isCompact && aspects
@@ -637,7 +631,7 @@ export default function NatalChart({ loading = false, compact: compactProp, ...p
         </div>
       )}
 
-
+      
     </div>
   );
 }
