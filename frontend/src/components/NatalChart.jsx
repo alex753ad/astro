@@ -75,7 +75,7 @@ function sectorPath(cx, cy, rOuter, rInner, lon1, lon2, ascLon) {
     `M ${p1.x} ${p1.y}`,
     `A ${rOuter} ${rOuter} 0 ${large} 1 ${p2.x} ${p2.y}`,
     `L ${p3.x} ${p3.y}`,
-    `A ${rInner} ${rInner} 0 ${large} 0 ${p4.x} ${p4.y}`,
+    `A ${rInner} ${rInner} 0 ${large} 1 ${p4.x} ${p4.y}`,
     'Z'
   ].join(' ');
 }
