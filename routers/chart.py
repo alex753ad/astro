@@ -204,10 +204,36 @@ async def interpret_chart(
     interp_request = InterpretationRequest(natal_profile=profile)
     ai_router = get_router()
 
+    full_text = []
+
     async def event_stream():
         try:
             async for chunk in ai_router.stream(interp_request):
+                full_text.append(chunk)
                 yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+            # Save to DB after streaming completes
+            content = "".join(full_text)
+            if content:
+                try:
+                    from backend.models import Interpretation
+                    import hashlib
+                    profile_hash = hashlib.md5(
+                        json.dumps(profile, sort_keys=True, ensure_ascii=False).encode()
+                    ).hexdigest()
+                    existing = db.query(Interpretation).filter(
+                        Interpretation.chart_id == chart_id,
+                        Interpretation.profile_hash == profile_hash,
+                    ).first()
+                    if not existing:
+                        db.add(Interpretation(
+                            chart_id=chart_id,
+                            profile_hash=profile_hash,
+                            engine="stream",
+                            content=content,
+                        ))
+                        db.commit()
+                except Exception:
+                    pass  # don't break streaming if save fails
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.exception("Streaming interpretation failed")
@@ -243,6 +269,30 @@ async def interpret_chart_full(
     interp_request = InterpretationRequest(natal_profile=profile)
     ai_router = get_router()
     result = await ai_router.generate(interp_request)
+
+    # Save to DB
+    if result.content:
+        try:
+            from backend.models import Interpretation
+            import hashlib
+            profile_hash = hashlib.md5(
+                json.dumps(profile, sort_keys=True, ensure_ascii=False).encode()
+            ).hexdigest()
+            existing = db.query(Interpretation).filter(
+                Interpretation.chart_id == chart_id,
+                Interpretation.profile_hash == profile_hash,
+            ).first()
+            if not existing:
+                db.add(Interpretation(
+                    chart_id=chart_id,
+                    profile_hash=profile_hash,
+                    engine=result.engine or "api",
+                    content=result.content,
+                    sections=result.sections,
+                ))
+                db.commit()
+        except Exception:
+            pass
 
     return {"chart_id": chart_id, "content": result.content, "sections": result.sections, "engine": result.engine, "cached": result.cached}
 

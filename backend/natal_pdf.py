@@ -578,7 +578,15 @@ def _page_interp(c, d, first_page_num=3):
 
 
 def _parse_interp_string(text: str) -> dict:
-    """Parse a markdown-formatted interpretation string into sections dict."""
+    """Parse interpretation text — supports <section name="..."> tags and ### markdown headers."""
+    import re
+
+    # Format 1: <section name="general">...</section>
+    tag_sections = re.findall(r'<section name="([^"]+)">(.*?)</section>', text, re.DOTALL)
+    if tag_sections:
+        return {name: content.strip() for name, content in tag_sections}
+
+    # Format 2: ### Heading markdown
     section_map = {
         "общий": "general", "портрет": "general", "личност": "general", "personality": "general",
         "карьер": "career", "призван": "career", "career": "career",
@@ -592,10 +600,10 @@ def _parse_interp_string(text: str) -> dict:
     current_lines = []
 
     for line in text.split("\n"):
-        if line.startswith("### "):
+        if line.startswith("### ") or line.startswith("## "):
             if current_lines:
-                sections[current_key] = " ".join(current_lines).strip()
-            title_lower = line[4:].lower()
+                sections[current_key] = "\n\n".join(current_lines).strip()
+            title_lower = re.sub(r'#+\s*', '', line).lower()
             current_key = next(
                 (v for k, v in section_map.items() if k in title_lower), "general"
             )
@@ -606,7 +614,12 @@ def _parse_interp_string(text: str) -> dict:
                 current_lines.append(stripped)
 
     if current_lines:
-        sections[current_key] = " ".join(current_lines).strip()
+        prev = sections.get(current_key, "")
+        sections[current_key] = (prev + "\n\n" + "\n\n".join(current_lines)).strip()
+
+    # Format 3: no markers — treat entire text as "general"
+    if not sections:
+        sections["general"] = text.strip()
 
     return sections
 

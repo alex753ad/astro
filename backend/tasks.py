@@ -374,7 +374,25 @@ def task_generate_pdf(self, chart_id: str, user_id: int | None = None) -> dict:
             .order_by(Interpretation.created_at.desc())
             .first()
         )
-        interpretation_text = interp_row.content if interp_row else ""
+        if interp_row:
+            interpretation_text = interp_row.content
+        else:
+            # Генерируем интерпретацию на лету
+            try:
+                import asyncio
+                from backend.interpretation.base import InterpretationRequest
+                from backend.interpretation.router import get_router
+                profile = {
+                    "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
+                    "ascendant": chart.ascendant, "midheaven": chart.midheaven,
+                    "time_unknown": chart.time_unknown,
+                }
+                interp_request = InterpretationRequest(natal_profile=profile)
+                ai_router = get_router()
+                result = asyncio.run(ai_router.generate(interp_request))
+                interpretation_text = result.content or ""
+            except Exception:
+                interpretation_text = ""
 
         # Пробуем natal_pdf.generate_pdf_bytes (полноценный дизайн)
         try:
