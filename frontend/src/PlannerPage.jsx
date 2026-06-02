@@ -146,15 +146,16 @@ const styles = `
 
   /* Cards */
   .period-card {
-    background: #1E293B;
+    background: #fff;
     border-radius: 12px;
     padding: 16px 18px;
     margin-bottom: 10px;
     border-left: 3px solid transparent;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
     transition: box-shadow 0.15s;
   }
   .period-card:hover {
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   }
   .period-card-header {
     display: flex;
@@ -168,11 +169,10 @@ const styles = `
     font-weight: 600;
     padding: 3px 10px;
     border-radius: 20px;
-    background: rgba(255,255,255,0.08);
   }
   .period-subtitle {
     font-size: 12px;
-    color: #94A3B8;
+    color: #64748B;
     margin-bottom: 10px;
   }
   .period-items {
@@ -186,7 +186,7 @@ const styles = `
     gap: 8px;
     margin-bottom: 6px;
     font-size: 13px;
-    color: #CBD5E1;
+    color: #334155;
     line-height: 1.5;
   }
   .period-items li .dot {
@@ -199,11 +199,12 @@ const styles = `
 
   /* Week cards */
   .week-card {
-    background: #1E293B;
+    background: #fff;
     border-radius: 12px;
     padding: 16px 18px;
     margin-bottom: 10px;
     border-left: 3px solid #EAB308;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
   }
   .week-card-header {
     display: flex;
@@ -214,7 +215,7 @@ const styles = `
   }
   .week-date {
     font-size: 13px;
-    color: #EAB308;
+    color: #B45309;
     font-weight: 700;
   }
   .week-time {
@@ -225,7 +226,7 @@ const styles = `
     margin-left: auto;
     font-size: 11px;
     background: rgba(234,179,8,0.12);
-    color: #EAB308;
+    color: #B45309;
     padding: 3px 10px;
     border-radius: 12px;
     font-weight: 600;
@@ -234,26 +235,27 @@ const styles = `
 
   /* Long-term cards */
   .lt-card {
-    background: #1E293B;
+    background: #fff;
     border-radius: 12px;
     padding: 16px 18px;
     margin-bottom: 10px;
     border-left: 3px solid transparent;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
   }
   .lt-warning {
     font-size: 11px;
-    color: #F59E0B;
+    color: #D97706;
     margin-bottom: 8px;
   }
   .lt-title {
     font-size: 13px;
     font-weight: 700;
-    color: #E2E8F0;
+    color: #1E293B;
     margin-bottom: 6px;
   }
   .lt-subtitle {
     font-size: 12px;
-    color: #94A3B8;
+    color: #64748B;
     font-style: italic;
     margin-bottom: 10px;
   }
