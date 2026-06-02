@@ -239,7 +239,7 @@ async def get_client_chart(
             geo = await geocode_place(client.birth_place)
             utc_dt, time_unknown, _ = resolve_utc_datetime(
                 birth_date=str(client.birth_date),
-                birth_time=client.birth_time.strftime('%H:%M') if client.birth_time else None,
+                birth_time=client.birth_time,
                 timezone=geo.timezone,
             )
             (chart_data, aspects) = calculate_full_chart(
@@ -252,7 +252,7 @@ async def get_client_chart(
             chart = NatalChart(
                 user_id=user.id,
                 birth_date=str(client.birth_date),
-                birth_time=client.birth_time.strftime('%H:%M') if client.birth_time else None,
+                birth_time=client.birth_time,
                 birth_place=geo.display_name,
                 latitude=geo.latitude,
                 longitude=geo.longitude,
@@ -361,11 +361,14 @@ async def generate_client_report(
             logger.warning("natal_pdf failed, using simple fallback")
             pdf_bytes = _simple_pdf(chart, client, astrologer_name)
 
-        filename = f"natal_{client.name.replace(' ', '_')}_{chart.birth_date}.pdf"
+        # RFC 5987: ASCII fallback + UTF-8 encoded filename for Cyrillic support
+        import urllib.parse
+        safe_name = f"natal_{chart.birth_date}.pdf"
+        encoded_name = urllib.parse.quote(f"natal_{client.name}_{chart.birth_date}.pdf")
         return FastAPIResponse(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": f"attachment; filename={safe_name}; filename*=UTF-8''{encoded_name}"},
         )
     except HTTPException:
         raise
