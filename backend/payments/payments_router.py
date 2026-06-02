@@ -133,8 +133,8 @@ async def admin_set_tier(
     import os
     from datetime import datetime, timedelta
 
-    admin_email = os.getenv("ADMIN_EMAIL", "")
-    if not admin_email or user.email.lower() != admin_email.lower():
+    admin_emails = [e.strip().lower() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()]
+    if not admin_emails or user.email.lower() not in admin_emails:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     body = await request.json()
