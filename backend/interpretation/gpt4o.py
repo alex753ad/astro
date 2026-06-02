@@ -23,12 +23,12 @@ logger = logging.getLogger("astro.gpt4o")
 
 
 def _calc_max_tokens(request) -> int:
-    """Вычислить max_tokens исходя из word_limit (1 слово ≈ 1.5 токена) + запас 30%."""
+    """Вычислить max_tokens. Русский текст ≈1 токен/слово; +15% буфер на теги/структуру."""
     word_limit = getattr(request, "word_limit", None)
     if word_limit and isinstance(word_limit, int) and 1000 <= word_limit <= 5000:
-        return int(word_limit * 1.5 * 1.3)  # +30% запас на структуру
+        return int(word_limit * 1.15)  # жёсткий потолок чуть выше цели
     tier = getattr(request, "tier", "free")
-    return 8000 if tier == "premium" else (6000 if tier == "pro" else 2000)
+    return 12000 if tier == "premium" else (6000 if tier == "pro" else 2000)
 
 class GPT4oEngine(InterpretationEngine):
     name = "gpt4o"
