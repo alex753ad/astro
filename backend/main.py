@@ -558,7 +558,8 @@ async def interpret_chart(
         "time_unknown": chart.time_unknown,
     }
 
-    interp_request = InterpretationRequest(natal_profile=profile)
+    user_tier = user.tier if user else "free"
+    interp_request = InterpretationRequest(natal_profile=profile, tier=user_tier)
     router = get_router()
 
     async def event_stream():
@@ -615,7 +616,8 @@ async def interpret_chart_full(
         "time_unknown": chart.time_unknown,
     }
 
-    interp_request = InterpretationRequest(natal_profile=profile)
+    user_tier = user.tier if user else "free"
+    interp_request = InterpretationRequest(natal_profile=profile, tier=user_tier)
     router = get_router()
     result = await router.generate(interp_request)
 
@@ -1508,7 +1510,7 @@ async def start_transits_async(
 @app.post(
     "/api/v1/chart/{chart_id}/pdf",
     tags=["chart"],
-    summary="Generate PDF natal chart report (sync)",
+    summary="Start async PDF generation (returns task_id)",
 )
 @limiter.limit(settings.rate_limit_anon)
 async def start_pdf_generation(
@@ -1517,10 +1519,11 @@ async def start_pdf_generation(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
-    """Generate a PDF natal chart report synchronously and return as file download."""
-    import base64
-    from fastapi.responses import Response
+    """Start PDF report generation as background Celery task.
 
+    Returns task_id immediately. Poll GET /api/v1/tasks/{task_id}/status for result.
+    Result contains base64-encoded PDF.
+    """
     if chart_id == "anonymous":
         raise HTTPException(
             status_code=400,
@@ -1531,19 +1534,10 @@ async def start_pdf_generation(
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
 
-    try:
-        from backend.natal_pdf import generate_pdf_bytes
-        pdf_bytes = generate_pdf_bytes(chart)
-    except Exception as e:
-        logger.exception("PDF generation failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
+    from backend.tasks import task_generate_pdf
+    task = task_generate_pdf.delay(chart_id=chart_id)
 
-    filename = f"natal_chart_{chart_id[:8]}.pdf"
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    return {"task_id": task.id, "status": "pending"}
 
 
 @app.get(
