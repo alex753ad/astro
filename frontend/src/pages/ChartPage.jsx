@@ -161,7 +161,7 @@ const LEFT_BTNS = [
   { key: 'planets',        label: 'Таблица планет/домов',  icon: '☉' },
   { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
   { key: 'interpretation', label: 'AI-интерпретация',      icon: '✦' },
-  { key: 'chat',           label: 'AI Астролог Астрея',    icon: '🤖' },
+  { key: 'chat',           label: 'AI Астролог Астрея',    icon: '🤖', minTier: 'pro' },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -589,10 +589,21 @@ export default function ChartPage({ currentUser, onShowAuth }) {
             {/* AI Чат */}
             {leftPanel === 'chat' && (
               <div style={{ ...s.panelCard, padding: 0, minHeight: 480 }}>
-                <RagChat
-                  chartId={chartId}
-                  onPaywall={() => setShowPaywall(true)}
-                />
+                {tierAllowed('pro') ? (
+                  <RagChat
+                    chartId={chartId}
+                    onPaywall={() => setShowPaywall(true)}
+                  />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: '#64748b' }}>
+                    <span style={{ fontSize: 40 }}>🔒</span>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>AI Астролог Астрея</div>
+                    <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Доступно на тарифах Pro и Premium</div>
+                    <button onClick={() => { setPaywallContext(currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite'); setShowPaywall(true); }} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                      Открыть доступ
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
