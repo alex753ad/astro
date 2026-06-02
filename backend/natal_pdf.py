@@ -24,19 +24,20 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os as _os
 
 def _register_fonts():
-    """Register Unicode fonts for Cyrillic support."""
-    # Try Windows fonts first, then fallback options
-    font_paths = [
-        # Windows
-        ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
-        ("C:/Windows/Fonts/calibri.ttf", "C:/Windows/Fonts/calibrib.ttf"),
-        # Linux
+    """Register Unicode fonts for Cyrillic + astrological symbols."""
+    # Main font (Cyrillic)
+    main_candidates = [
+        ("C:/Windows/Fonts/arial.ttf",       "C:/Windows/Fonts/arialbd.ttf"),
+        ("C:/Windows/Fonts/calibri.ttf",     "C:/Windows/Fonts/calibrib.ttf"),
+        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
         ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
          "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
          "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
     ]
-    for regular, bold in font_paths:
+    font_name = None
+    for regular, bold in main_candidates:
         if _os.path.exists(regular):
             try:
                 pdfmetrics.registerFont(TTFont("MainFont", regular))
@@ -44,13 +45,57 @@ def _register_fonts():
                     pdfmetrics.registerFont(TTFont("MainFont-Bold", bold))
                 else:
                     pdfmetrics.registerFont(TTFont("MainFont-Bold", regular))
-                return "MainFont"
+                font_name = "MainFont"
+                break
             except Exception:
                 continue
-    return None  # Fall back to Helvetica (no Cyrillic)
 
+    # Symbol font — NotoSansSymbols2 has all astro/zodiac glyphs
+    sym_candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.otf",
+        "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
+        "C:/Windows/Fonts/seguisym.ttf",
+    ]
+    global _SYMBOL_FONT
+    _SYMBOL_FONT = None
+    for path in sym_candidates:
+        if _os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont("SymFont", path))
+                _SYMBOL_FONT = "SymFont"
+                break
+            except Exception:
+                continue
+
+    return font_name
+
+_SYMBOL_FONT = None
 _FONT_NAME = _register_fonts() or "Helvetica"
 _FONT_BOLD = (_FONT_NAME + "-Bold") if _FONT_NAME != "Helvetica" else "Helvetica-Bold"
+
+
+def _draw_glyph(c, x, y, glyph, size, color):
+    """Draw astrological glyph using symbol font if available, else ASCII fallback."""
+    if _SYMBOL_FONT:
+        c.setFillColor(color)
+        c.setFont(_SYMBOL_FONT, size)
+        c.drawCentredString(x, y - size * 0.35, glyph)
+    else:
+        # ASCII fallbacks
+        FALLBACK = {
+            "☉": "Su", "☽": "Mo", "☿": "Me", "♀": "Ve", "♂": "Ma",
+            "♃": "Ju", "♄": "Sa", "♅": "Ur", "♆": "Ne", "♇": "Pl",
+            "☊": "NN",
+            "♈": "Ar", "♉": "Ta", "♊": "Ge", "♋": "Cn", "♌": "Le",
+            "♍": "Vi", "♎": "Li", "♏": "Sc", "♐": "Sg", "♑": "Cp",
+            "♒": "Aq", "♓": "Pi",
+            "☌": "cn", "☍": "op", "△": "tr", "□": "sq", "⚹": "sx",
+        }
+        text = FALLBACK.get(glyph, glyph)
+        c.setFillColor(color)
+        c.setFont(_FONT_BOLD, size * 0.7)
+        c.drawCentredString(x, y - size * 0.25, text)
 
 
 W, H = A4
@@ -162,23 +207,32 @@ def _page_num(c, n, total):
     c.drawCentredString(W/2, 14*mm, f"— {n} / {total} —")
 
 
-def _wheel(c, cx, cy, r):
-    signs = list(SIGN_GLYPHS.keys())[:12]
+def _wheel(c, cx, cy, r, planets=None, ascendant=None):
+    """Draw zodiac wheel. If planets provided, place them at real positions."""
+    sign_glyphs = list(SIGN_GLYPHS.values())[:12]
     seg_colors = [
         colors.HexColor("#8B3A3A"), colors.HexColor("#5C7A3A"),
         colors.HexColor("#3A5C8B"), colors.HexColor("#7A5C3A"),
     ] * 3
+    # Ascendant longitude — rotate wheel so ASC is on left (180°)
+    asc_lon = 0.0
+    if ascendant and isinstance(ascendant, dict):
+        asc_lon = ascendant.get("longitude", 0.0) or 0.0
+
     for i in range(12):
-        start = 90 - i*30
+        # Each sign sector starts at its ecliptic longitude
+        sign_start_lon = i * 30
+        # Convert to drawing angle: ASC at left (angle 180°)
+        start_angle = 180 + (sign_start_lon - asc_lon)
         seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.13)
         c.setFillColor(seg)
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.3))
         c.setLineWidth(0.4)
-        c.wedge(cx-r, cy-r, cx+r, cy+r, start-30, 30, fill=1, stroke=1)
-        mid_a = math.radians(start - 15)
+        c.wedge(cx-r, cy-r, cx+r, cy+r, start_angle, 30, fill=1, stroke=1)
+        mid_a = math.radians(start_angle + 15)
         gx = cx + r*0.78*math.cos(mid_a); gy = cy + r*0.78*math.sin(mid_a)
-        c.setFillColor(C_GOLD2); c.setFont(_FONT_NAME, 7)
-        c.drawCentredString(gx, gy-2.5, list(SIGN_GLYPHS.values())[i])
+        _draw_glyph(c, gx, gy, sign_glyphs[i], 8, C_GOLD2)
+
     for radius, alpha in [(r*0.65, 0.25), (r*0.9, 0.4), (r, 0.6)]:
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
         c.setLineWidth(0.5 if radius < r else 0.8)
@@ -186,6 +240,56 @@ def _wheel(c, cx, cy, r):
     _nebula(c, cx, cy, r*0.5, r*0.5, C_ACCENT, alpha=0.08)
     c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.15))
     c.circle(cx, cy, r*0.62, fill=1, stroke=0)
+
+    # Draw planets at real positions
+    if planets:
+        planet_colors_map = {
+            "Sun": C_GOLD2, "Moon": colors.HexColor("#A0B0C8"),
+            "Mercury": colors.HexColor("#A090D0"), "Venus": colors.HexColor("#D08090"),
+            "Mars": colors.HexColor("#D06050"), "Jupiter": colors.HexColor("#6090D0"),
+            "Saturn": colors.HexColor("#909080"), "Uranus": colors.HexColor("#60A8B8"),
+            "Neptune": colors.HexColor("#8880C0"), "Pluto": colors.HexColor("#B03030"),
+            "North Node": colors.HexColor("#60B878"),
+        }
+        r_planet = r * 0.82  # ring outside inner circle
+        # Spread overlapping planets
+        positions = []
+        for pl in planets:
+            lon = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
+            name = pl.get("name", "") if isinstance(pl, dict) else getattr(pl, "name", "")
+            positions.append({"name": name, "lon": lon, "disp": lon})
+        # Simple push-apart
+        for _ in range(30):
+            moved = False
+            for i in range(len(positions)):
+                for j in range(i+1, len(positions)):
+                    diff = positions[j]["disp"] - positions[i]["disp"]
+                    while diff > 180: diff -= 360
+                    while diff < -180: diff += 360
+                    if abs(diff) < 7:
+                        push = (7 - abs(diff)) / 2 + 0.1
+                        if diff >= 0:
+                            positions[i]["disp"] -= push; positions[j]["disp"] += push
+                        else:
+                            positions[i]["disp"] += push; positions[j]["disp"] -= push
+                        moved = True
+            if not moved:
+                break
+
+        for pos in positions:
+            draw_angle = math.radians(180 + (pos["disp"] - asc_lon))
+            px = cx + r_planet * math.cos(draw_angle)
+            py = cy + r_planet * math.sin(draw_angle)
+            col = planet_colors_map.get(pos["name"], C_GOLD2)
+            # Circle background
+            c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.85))
+            c.circle(px, py, 8, fill=1, stroke=0)
+            c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.7))
+            c.setLineWidth(0.7)
+            c.circle(px, py, 8, fill=0, stroke=1)
+            # Glyph
+            glyph = PLANET_GLYPHS.get(pos["name"], "?")
+            _draw_glyph(c, px, py + 3, glyph, 10, col)
 
 
 def _bg(c):
@@ -208,15 +312,7 @@ def _page_cover(c, d):
     for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]: _corner(c, cx2, cy2, 8)
 
     wcx, wcy, wr = W/2, H*0.62, 88
-    _wheel(c, wcx, wcy, wr)
-
-    for i, pl in enumerate(d["planets"][:8]):
-        angle = math.radians(90 - i*45)
-        px = wcx + wr*1.22*math.cos(angle); py = wcy + wr*1.22*math.sin(angle)
-        c.setFillColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.12))
-        c.circle(px, py, 9, fill=1, stroke=0)
-        c.setFillColor(C_GOLD2); c.setFont(_FONT_NAME, 12)
-        c.drawCentredString(px, py-4, PLANET_GLYPHS.get(pl["name"], "★"))
+    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
     ty = H*0.915
     c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 9)
@@ -238,13 +334,14 @@ def _page_cover(c, d):
         sign = val.get("sign",""); deg = val.get("degree",0)
         g = SIGN_GLYPHS.get(sign,"")
         c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
-        c.roundRect(bx, by-6, 45, 18, 4, fill=1, stroke=0)
+        c.roundRect(bx, by-6, 50, 18, 4, fill=1, stroke=0)
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.4))
-        c.setLineWidth(0.4); c.roundRect(bx, by-6, 45, 18, 4, fill=0, stroke=1)
+        c.setLineWidth(0.4); c.roundRect(bx, by-6, 50, 18, 4, fill=0, stroke=1)
         c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
         c.drawString(bx+4, by+5, label)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
-        c.drawString(bx+18, by+5, f"{g} {sign} {deg:.1f}")
+        _draw_glyph(c, bx+22, by+10, g, 9, C_GOLD2)
+        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
+        c.drawString(bx+30, by+5, f"{sign[:3]} {deg:.1f}")
 
     _divider(c, W*0.25, by-16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
@@ -257,7 +354,7 @@ def _page_cover(c, d):
     )
     c.drawCentredString(W/2, by-28, footer_text)
 
-    c.restoreState(); _page_num(c, 1, 3)
+    c.restoreState()
 
 
 def _page_data(c, d):
@@ -288,15 +385,13 @@ def _page_data(c, d):
         c.circle(bx+br, py, br, fill=1, stroke=0)
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.5))
         c.setLineWidth(0.5); c.circle(bx+br, py, br, fill=0, stroke=1)
-        c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 9)
-        c.drawCentredString(bx+br, py-3, PLANET_GLYPHS.get(pl["name"],"★"))
+        _draw_glyph(c, bx+br, py+3, PLANET_GLYPHS.get(pl["name"],"?"), 10, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_BOLD, 8)
         c.drawString(bx+br*2+5, py-3, pl["name"])
         sg = SIGN_GLYPHS.get(pl["sign"],"")
-        c.setFillColor(C_GOLD); c.setFont(_FONT_NAME, 8)
-        c.drawString(bx+95, py-3, sg)
-        c.setFillColor(C_TEXT)
         deg = pl.get("degree_in_sign", pl.get("degree", 0))
+        _draw_glyph(c, bx+95, py+3, sg, 9, C_GOLD)
+        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 8)
         c.drawString(bx+105, py-3, f"{pl['sign']}  {deg:.1f}")
         c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
         if pl.get("house"): c.drawString(bx+195, py-3, f"Дом {pl['house']}")
@@ -314,10 +409,10 @@ def _page_data(c, d):
         h1 = houses[i]; h2 = houses[i+half]
         c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
         c.drawString(cl, py, f"Дом {h1['number']:2d}")
-        c.setFillColor(C_GOLD); c.drawString(cl+34, py, SIGN_GLYPHS.get(h1["sign"],""))
+        _draw_glyph(c, cl+36, py+5, SIGN_GLYPHS.get(h1["sign"],""), 9, C_GOLD)
         c.setFillColor(C_TEXT); c.drawString(cl+44, py, h1["sign"])
         c.setFillColor(C_MUTED); c.drawString(cl+cw/2+4, py, f"Дом {h2['number']:2d}")
-        c.setFillColor(C_GOLD); c.drawString(cl+cw/2+38, py, SIGN_GLYPHS.get(h2["sign"],""))
+        _draw_glyph(c, cl+cw/2+40, py+5, SIGN_GLYPHS.get(h2["sign"],""), 9, C_GOLD)
         c.setFillColor(C_TEXT); c.drawString(cl+cw/2+48, py, h2["sign"]); py -= 13
 
     # Aspects
@@ -329,16 +424,13 @@ def _page_data(c, d):
         orb = asp.get("orb", 0)
         sym = ASPECT_SYMBOLS.get(at,"·")
         acol = ASPECT_COLORS.get(at, C_MUTED)
-        c.setFillColor(C_GOLD2); c.setFont(_FONT_NAME, 8.5)
-        c.drawString(cr, ay, PLANET_GLYPHS.get(p1,"★"))
+        _draw_glyph(c, cr+5, ay+4, PLANET_GLYPHS.get(p1,"?"), 10, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
         c.drawString(cr+11, ay, p1)
-        c.setFillColor(acol); c.setFont(_FONT_BOLD, 9)
-        c.drawCentredString(cr+88, ay, sym)
+        _draw_glyph(c, cr+88, ay+4, sym, 10, acol)
         c.setFillColor(C_SILVER); c.setFont(_FONT_NAME, 7)
         c.drawCentredString(cr+88, ay-9, at)
-        c.setFillColor(C_GOLD2); c.setFont(_FONT_NAME, 8.5)
-        c.drawString(cr+103, ay, PLANET_GLYPHS.get(p2,"★"))
+        _draw_glyph(c, cr+108, ay+4, PLANET_GLYPHS.get(p2,"?"), 10, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
         c.drawString(cr+114, ay, p2)
         c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7)
@@ -360,63 +452,129 @@ def _page_data(c, d):
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
         c.drawString(rx+9, ry-1, label)
 
-    c.restoreState(); _page_num(c, 2, 3)
+    c.restoreState()
 
 
-def _page_interp(c, d):
-    c.saveState()
+def _interp_page_begin(c, page_num_placeholder):
+    """Draw background + header for an interpretation page. Returns (cx, cw, iy)."""
+    m = 12*mm
     _bg(c)
     _nebula(c, W*0.5, H*0.5, 250, 300, C_ACCENT, alpha=0.03)
-    _stars(c, 99, 100)
-
-    m = 12*mm
+    _stars(c, 99 + page_num_placeholder, 80)
     _border(c, m, m, W-2*m, H-2*m, lw=0.6)
     o = m+4
-    for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]: _corner(c, cx2, cy2, 6)
-
+    for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]:
+        _corner(c, cx2, cy2, 6)
     c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 10)
     c.drawCentredString(W/2, H-m-10, "ИНТЕРПРЕТАЦИЯ НАТАЛЬНОЙ КАРТЫ")
     _divider(c, m+10, H-m-18, W-2*m-20)
+    return m+10, W-2*m-20, H-m-34
 
-    style = ParagraphStyle(
-        "body", fontName=_FONT_NAME, fontSize=8, leading=13,
-        textColor=C_TEXT, alignment=TA_JUSTIFY, spaceAfter=4,
-    )
 
-    cx = m+10; cw = W-2*m-20; iy = H-m-34
-
+def _page_interp(c, d, first_page_num=3):
+    """Render interpretation — auto-expands to as many pages as needed."""
     interp = d.get("interpretation", {})
-
-    # If interpretation is a plain string (full text), split by ### sections
     if isinstance(interp, str):
         sections = _parse_interp_string(interp)
     else:
-        sections = interp
+        sections = interp or {}
 
-    section_titles = {
-        "general":       "✦  Общий портрет личности",
-        "career":        "✦  Карьера и призвание",
-        "relationships": "✦  Отношения и партнёрство",
-        "health":        "✦  Здоровье и энергия",
-        "finance":       "✦  Финансы",
-        "spirituality":  "✦  Духовное развитие",
-    }
+    section_titles = [
+        ("general",       "✦  Общий портрет личности"),
+        ("career",        "✦  Карьера и призвание"),
+        ("relationships", "✦  Отношения и партнёрство"),
+        ("health",        "✦  Здоровье и энергия"),
+        ("finance",       "✦  Финансы"),
+        ("spirituality",  "✦  Духовное развитие"),
+    ]
 
-    for key, title in section_titles.items():
+    style = ParagraphStyle(
+        "body", fontName=_FONT_NAME, fontSize=8.5, leading=13.5,
+        textColor=C_TEXT, alignment=TA_JUSTIFY, spaceAfter=4,
+    )
+    head_style = ParagraphStyle(
+        "head", fontName=_FONT_BOLD, fontSize=9, leading=14,
+        textColor=C_GOLD2, spaceAfter=4,
+    )
+
+    m = 12*mm
+    page_idx = 0
+    cx_col, cw_col, iy = _interp_page_begin(c, page_idx)
+    bottom_margin = m + 22
+
+    def new_page():
+        nonlocal page_idx, cx_col, cw_col, iy
+        # footer on current page
+        c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
+        c.drawCentredString(W/2, m+6,
+            "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
+        c.showPage()
+        page_idx += 1
+        cx_col, cw_col, iy = _interp_page_begin(c, page_idx)
+
+    for key, title in section_titles:
         text = sections.get(key, "")
-        if not text or iy < m+40: continue
+        if not text:
+            continue
 
-        _section_header(c, cx, iy, title, cw); iy -= 20
-        para = Paragraph(text, style)
-        pw, ph = para.wrap(cw, iy-m-20)
-        para.drawOn(c, cx, iy-ph); iy -= ph+12
-        _divider(c, cx+cw*0.3, iy, cw*0.4, alpha=0.35); iy -= 14
+        # Section header — 20pt height
+        if iy - 20 < bottom_margin:
+            new_page()
 
+        _section_header(c, cx_col, iy, title, cw_col)
+        iy -= 22
+
+        # Split text into paragraphs and flow across pages
+        raw_paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+        if not raw_paras:
+            raw_paras = [text]
+
+        for raw in raw_paras:
+            para = Paragraph(raw, style)
+            _pw, ph = para.wrap(cw_col, iy - bottom_margin)
+
+            if ph > iy - bottom_margin and ph < (H - 2*m - 60):
+                # Paragraph fits on a fresh page but not here → new page
+                new_page()
+                _pw, ph = para.wrap(cw_col, iy - bottom_margin)
+
+            if ph > iy - bottom_margin:
+                # Paragraph is larger than a full page — split manually
+                words = raw.split()
+                chunk_words = []
+                for w in words:
+                    chunk_words.append(w)
+                    test = Paragraph(" ".join(chunk_words), style)
+                    _tw, th = test.wrap(cw_col, iy - bottom_margin)
+                    if th > iy - bottom_margin:
+                        chunk_words.pop()
+                        if chunk_words:
+                            chunk_para = Paragraph(" ".join(chunk_words), style)
+                            _cw2, ch = chunk_para.wrap(cw_col, iy - bottom_margin)
+                            chunk_para.drawOn(c, cx_col, iy - ch)
+                            iy -= ch + 4
+                        new_page()
+                        chunk_words = [w]
+                if chunk_words:
+                    chunk_para = Paragraph(" ".join(chunk_words), style)
+                    _cw2, ch = chunk_para.wrap(cw_col, iy - bottom_margin)
+                    chunk_para.drawOn(c, cx_col, iy - ch)
+                    iy -= ch + 4
+            else:
+                para.drawOn(c, cx_col, iy - ph)
+                iy -= ph + 4
+
+        # Divider between sections
+        if iy - 14 > bottom_margin:
+            _divider(c, cx_col + cw_col*0.3, iy, cw_col*0.4, alpha=0.35)
+            iy -= 14
+
+    # Footer on last page
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
     c.drawCentredString(W/2, m+6,
         "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
 
-    c.restoreState(); _page_num(c, 3, 3)
+    return page_idx  # number of extra interp pages added
 
 
 def _parse_interp_string(text: str) -> dict:
@@ -500,6 +658,8 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     _page_data(c, data)
     c.showPage()
     _page_interp(c, data)
+    # _page_interp calls c.showPage() internally for extra pages;
+    # the last interp page is NOT followed by showPage, so we add it here.
     c.showPage()
 
     c.save()
