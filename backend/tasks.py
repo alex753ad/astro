@@ -376,8 +376,10 @@ def task_generate_pdf(self, chart_id: str, user_id: int | None = None) -> dict:
         )
         if interp_row:
             interpretation_text = interp_row.content
+            logger.info("PDF: loaded interpretation from DB, len=%d", len(interpretation_text))
         else:
             # Генерируем интерпретацию на лету
+            logger.info("PDF: no interpretation in DB for chart %s, generating...", chart_id)
             try:
                 import asyncio
                 from backend.interpretation.base import InterpretationRequest
@@ -391,7 +393,21 @@ def task_generate_pdf(self, chart_id: str, user_id: int | None = None) -> dict:
                 ai_router = get_router()
                 result = asyncio.run(ai_router.generate(interp_request))
                 interpretation_text = result.content or ""
-            except Exception:
+                logger.info("PDF: generated interpretation on-the-fly, len=%d", len(interpretation_text))
+                # Сохраняем в БД для следующего раза
+                if interpretation_text:
+                    from backend.cache import make_profile_hash
+                    profile_hash = make_profile_hash(profile)
+                    db.add(Interpretation(
+                        chart_id=chart_id,
+                        profile_hash=profile_hash,
+                        engine=result.engine or "pdf_task",
+                        content=interpretation_text,
+                        sections=result.sections,
+                    ))
+                    db.commit()
+            except Exception as exc:
+                logger.exception("PDF: failed to generate interpretation: %s", exc)
                 interpretation_text = ""
 
         # Пробуем natal_pdf.generate_pdf_bytes (полноценный дизайн)
@@ -402,7 +418,8 @@ def task_generate_pdf(self, chart_id: str, user_id: int | None = None) -> dict:
                 interpretation=interpretation_text,
                 astrologer_name=astrologer_name,
             )
-        except Exception:
+        except Exception as pdf_exc:
+            logger.exception("natal_pdf failed, falling back to _render_pdf: %s", pdf_exc)
             pdf_bytes = _render_pdf(chart)
 
         pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
