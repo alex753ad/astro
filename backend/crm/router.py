@@ -237,9 +237,10 @@ async def get_client_chart(
             from backend.ephemeris.calculator import calculate_full_chart
 
             geo = await geocode_place(client.birth_place)
+            birth_time_str = client.birth_time.strftime("%H:%M") if hasattr(client.birth_time, 'strftime') else client.birth_time
             utc_dt, time_unknown, _ = resolve_utc_datetime(
                 birth_date=str(client.birth_date),
-                birth_time=client.birth_time,
+                birth_time=birth_time_str,
                 timezone=geo.timezone,
             )
             (chart_data, aspects) = calculate_full_chart(
@@ -252,7 +253,7 @@ async def get_client_chart(
             chart = NatalChart(
                 user_id=user.id,
                 birth_date=str(client.birth_date),
-                birth_time=client.birth_time,
+                birth_time=birth_time_str,
                 birth_place=geo.display_name,
                 latitude=geo.latitude,
                 longitude=geo.longitude,
