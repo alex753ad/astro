@@ -275,8 +275,14 @@ function TabProfile({ user, logout, authFetch }) {
 }
 
 // ─── Вкладка: Мои карты ───────────────────────────────────────────────────────
-function TabCharts({ charts, setCharts, loading, authFetch }) {
+function TabCharts({ charts, setCharts, loading, authFetch, subscription, user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  // Счётчик карт для free
+  const isFree = !user?.tier || user?.tier === 'free';
+  const chartsLimit = subscription?.limits?.charts_per_month ?? null;
+  const chartsUsed = subscription?.usage?.charts_this_month ?? 0;
+  const chartsLeft = isFree && chartsLimit !== null ? Math.max(0, chartsLimit - chartsUsed) : null;
 
   const handleDelete = async (id) => {
     try {
@@ -290,16 +296,46 @@ function TabCharts({ charts, setCharts, loading, authFetch }) {
 
   if (loading) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
   if (!charts.length) return (
-    <div style={{ ...S.card, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
-      Нет сохранённых карт.<br />
-      <Link to="/home" style={{ color: '#7C6CFF', marginTop: 8, display: 'inline-block' }}>
-        Создать карту →
-      </Link>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {isFree && chartsLeft !== null && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 12,
+          background: chartsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(124,108,255,0.08)',
+          border: `1px solid ${chartsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(124,108,255,0.2)'}`,
+          fontSize: 13, color: chartsLeft === 0 ? '#ef4444' : '#7C6CFF', fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
+          {chartsLeft === 0
+            ? 'Лимит карт на этот месяц исчерпан. Обновится 1-го числа.'
+            : `Осталось карт в этом месяце: ${chartsLeft} из ${chartsLimit}`}
+        </div>
+      )}
+      <div style={{ ...S.card, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+        Нет сохранённых карт.<br />
+        <Link to="/home" style={{ color: '#7C6CFF', marginTop: 8, display: 'inline-block' }}>
+          Создать карту →
+        </Link>
+      </div>
     </div>
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {isFree && chartsLeft !== null && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 12,
+          background: chartsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(124,108,255,0.08)',
+          border: `1px solid ${chartsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(124,108,255,0.2)'}`,
+          fontSize: 13, color: chartsLeft === 0 ? '#ef4444' : '#7C6CFF', fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
+          {chartsLeft === 0
+            ? 'Лимит карт на этот месяц исчерпан. Обновится 1-го числа.'
+            : `Осталось карт в этом месяце: ${chartsLeft} из ${chartsLimit}`}
+        </div>
+      )}
       {charts.map(chart => (
         <div key={chart.id} style={S.card}>
           <div style={S.row}>
@@ -710,7 +746,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Контент */}
-        {tab === 'charts'        && <TabCharts       charts={charts} setCharts={setCharts} loading={loading.charts} authFetch={authFetch} />}
+        {tab === 'charts'        && <TabCharts       charts={charts} setCharts={setCharts} loading={loading.charts} authFetch={authFetch} subscription={subscription} user={user} />}
         {tab === 'history'       && <TabHistory      history={history} loading={loading.history} />}
         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
         {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
