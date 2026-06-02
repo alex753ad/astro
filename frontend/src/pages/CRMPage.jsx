@@ -151,7 +151,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     setAiText('');
     try {
       const res = await fetch(`/api/v1/chart/${client.natal_chart_id}/interpret`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('astro_token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('astro_access_token')}` },
       });
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
