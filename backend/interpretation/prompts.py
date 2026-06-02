@@ -25,11 +25,14 @@ SYSTEM_PROMPT_TEMPLATE = """Ты — опытный профессиональн
 4. Если планета ретроградна — отметь это и объясни влияние.
 5. Уделяй особое внимание стеллиумам (3+ планеты в одном знаке/доме).
 
+## Объём интерпретации
+{word_count_instruction}
+
 ## Тон и стиль
 - Поддерживающий, уважительный, не директивный
 - Без страшилок и фатальных формулировок
 - Глубокий, но доступный язык — не слишком академичный
-- Каждая секция: 5–7 абзацев содержательного текста
+- Каждая секция: {paragraphs_per_section} абзацев содержательного текста
 
 ## Формат ответа
 Структурируй интерпретацию по секциям. Перед каждой секцией выводи открывающий XML-тег, после — закрывающий:
@@ -90,11 +93,25 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     # Compact profile for prompt (remove excessive precision)
     compact = _compact_profile(request.natal_profile)
 
+    # Объём зависит от тира
+    tier = getattr(request, "tier", "free")
+    if tier == "premium":
+        word_count_instruction = "Напиши ПОДРОБНУЮ интерпретацию объёмом НЕ МЕНЕЕ 5000 слов суммарно по всем секциям. Каждая секция должна быть развёрнутой и глубокой."
+        paragraphs_per_section = "8–12"
+    elif tier == "pro":
+        word_count_instruction = "Напиши интерпретацию объёмом около 2500 слов суммарно."
+        paragraphs_per_section = "5–7"
+    else:
+        word_count_instruction = "Напиши краткую интерпретацию объёмом около 800 слов суммарно."
+        paragraphs_per_section = "2–3"
+
     return SYSTEM_PROMPT_TEMPLATE.format(
         sections_list=sections_list,
         profile_json=json.dumps(compact, ensure_ascii=False, indent=2),
         language="русский" if request.language == "ru" else "English",
         time_warning=time_warning,
+        word_count_instruction=word_count_instruction,
+        paragraphs_per_section=paragraphs_per_section,
     )
 
 

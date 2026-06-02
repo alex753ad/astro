@@ -50,7 +50,7 @@ class GPT4oEngine(InterpretationEngine):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
             ],
-            "max_tokens": 4000,
+            "max_tokens": 8000 if request.tier == "premium" else (6000 if request.tier == "pro" else 2000),
             "temperature": 0.7,
             "stream": stream,
         }
