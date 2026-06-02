@@ -3,7 +3,7 @@
  * Маршрут: /dashboard/clients
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import NatalChart from '../components/NatalChart';
@@ -127,6 +127,19 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [tab, setTab] = useState('chart');
+
+  // Шаблоны заметок
+  const [templates, setTemplates] = useState([]);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
+  const [newTplTitle, setNewTplTitle] = useState('');
+  const [newTplContent, setNewTplContent] = useState('');
+  const [tplSaving, setTplSaving] = useState(false);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    authFetch('/api/v1/note-templates').then(setTemplates).catch(() => {});
+  }, []);
 
   useEffect(() => {
     authFetch(`${API}/clients/${client.id}/chart`).then(setChart).catch(() => {});
@@ -275,8 +288,97 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
       {tab === 'notes' && (
         <div style={S.card}>
           <label style={S.label}>Заметки</label>
-          <textarea style={{ ...S.input, minHeight: 120, resize: 'vertical', marginBottom: 12 }}
-            value={notes} onChange={e => setNotes(e.target.value)} />
+
+          {/* Кнопки шаблонов */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, position: 'relative' }}>
+            <div style={{ position: 'relative' }}>
+              <button style={S.btn()} onClick={() => { setShowTemplateDropdown(v => !v); setShowNewTemplateForm(false); }}>
+                📋 Шаблоны
+              </button>
+              {showTemplateDropdown && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, zIndex: 100,
+                  background: '#1e293b', border: '1px solid #334155', borderRadius: 8,
+                  minWidth: 220, padding: 4, marginTop: 4,
+                }}>
+                  {templates.length === 0 && (
+                    <div style={{ padding: '8px 12px', color: '#64748b', fontSize: 13 }}>Нет шаблонов</div>
+                  )}
+                  {templates.map(tpl => (
+                    <div
+                      key={tpl.id}
+                      onClick={() => {
+                        const hasText = notes.trim().length > 0;
+                        if (hasText && !window.confirm('Заменить текущие заметки шаблоном?')) return;
+                        setNotes(tpl.content);
+                        setShowTemplateDropdown(false);
+                      }}
+                      style={{
+                        padding: '8px 12px', cursor: 'pointer', borderRadius: 6,
+                        fontSize: 13, color: '#e2e8f0',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#334155'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {tpl.title}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button style={S.btn()} onClick={() => { setShowNewTemplateForm(v => !v); setShowTemplateDropdown(false); }}>
+              + Новый шаблон
+            </button>
+          </div>
+
+          {/* Форма нового шаблона */}
+          {showNewTemplateForm && (
+            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+              <input
+                style={{ ...S.input, marginBottom: 8 }}
+                placeholder="Название шаблона"
+                value={newTplTitle}
+                onChange={e => setNewTplTitle(e.target.value)}
+              />
+              <textarea
+                style={{ ...S.input, minHeight: 80, resize: 'vertical', marginBottom: 8 }}
+                placeholder="Текст шаблона"
+                value={newTplContent}
+                onChange={e => setNewTplContent(e.target.value)}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  style={S.btn('primary')}
+                  disabled={tplSaving || !newTplTitle.trim()}
+                  onClick={async () => {
+                    setTplSaving(true);
+                    try {
+                      const tpl = await authFetch('/api/v1/note-templates', {
+                        method: 'POST',
+                        body: JSON.stringify({ title: newTplTitle.trim(), content: newTplContent }),
+                      });
+                      setTemplates(prev => [tpl, ...prev]);
+                      setNewTplTitle('');
+                      setNewTplContent('');
+                      setShowNewTemplateForm(false);
+                    } catch {}
+                    setTplSaving(false);
+                  }}
+                >
+                  {tplSaving ? 'Сохраняю…' : 'Сохранить шаблон'}
+                </button>
+                <button style={S.btn()} onClick={() => setShowNewTemplateForm(false)}>Отмена</button>
+              </div>
+            </div>
+          )}
+
+          <textarea
+            ref={textareaRef}
+            style={{ ...S.input, minHeight: 120, resize: 'vertical', marginBottom: 12 }}
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+          />
           <button style={S.btn('primary')} onClick={saveNotes} disabled={notesLoading}>
             {notesLoading ? 'Сохраняю…' : 'Сохранить'}
           </button>

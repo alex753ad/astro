@@ -63,6 +63,7 @@ from backend.onboarding_router import router as onboarding_router
 from backend.share_router import router as share_router
 from backend.payments.payments_router import router as payments_router
 from backend.crm.router import router as crm_router
+from backend.crm.note_templates_router import router as note_templates_router
 from backend.interpretation.rag_router import router as rag_router
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
@@ -133,6 +134,7 @@ app.include_router(onboarding_router)
 app.include_router(share_router)
 app.include_router(payments_router)
 app.include_router(crm_router)
+app.include_router(note_templates_router)
 app.include_router(rag_router)
 
 

@@ -146,6 +146,19 @@ class ClientProfile(Base):
     astrologer = relationship("AstrologerProfile", back_populates="clients")
 
 
+# ── Note templates (016) ──
+
+class NoteTemplate(Base):
+    __tablename__ = "note_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ── Gift codes (014) ──
 
 class GiftCode(Base):
