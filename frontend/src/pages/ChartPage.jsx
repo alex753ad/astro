@@ -37,30 +37,26 @@ function ReportModal({ chartId, onClose }) {
   const [error, setError]     = React.useState(null);
   const [pdfStep, setPdfStep] = React.useState('');  // прогресс генерации PDF
 
-  // ── Скачать бесплатный PDF через Celery ──
+  // ── Скачать PDF (sync) ──
   async function handleDownloadFree() {
     setLoading('free');
     setError(null);
-    setPdfStep('Запускаем генерацию…');
+    setPdfStep('Генерируем PDF…');
     try {
-      const { task_id } = await startPdfGeneration(chartId);
-      const result = await pollTask(
-        task_id,
-        ({ status, step }) => setPdfStep(
-          step === 'loading_chart'  ? 'Загружаем данные карты…' :
-          step === 'rendering_pdf'  ? 'Рендерим PDF…'           :
-          'Обрабатываем…'
-        ),
-      );
-      // Декодируем base64 и скачиваем
-      const binary = atob(result.pdf_base64);
-      const bytes  = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const token = localStorage.getItem('astro_access_token');
+      const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/pdf`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = result.filename;
+      a.download = `natal_chart_${chartId.slice(0, 8)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
       onClose();
