@@ -232,7 +232,7 @@ function TabProfile({ user, logout, authFetch }) {
     }
   };
 
-  const isAdmin = user?.email === 'e.onosov@mail.ru';
+  const isAdmin = ['e.onosov@mail.ru', 'lycoris77@ya.ru'].includes(user?.email?.toLowerCase());
 
   return (
     <div style={S.card}>
