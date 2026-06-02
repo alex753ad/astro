@@ -184,13 +184,19 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     setNotesLoading(false);
   };
 
+  const [wordLimit, setWordLimit] = useState(2000);
+
   const generateReport = async () => {
     setReportLoading(true);
     try {
       const token = localStorage.getItem('astro_access_token');
       const res = await fetch(`${API}/clients/${client.id}/report`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ word_limit: wordLimit }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
@@ -218,9 +224,21 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     <div>
       <div style={{ ...S.row, marginBottom: 16 }}>
         <button style={S.btn()} onClick={onBack}>← Назад</button>
-        <button style={S.btn('primary')} onClick={generateReport} disabled={reportLoading}>
-          {reportLoading ? 'Создаю…' : '📄 Создать PDF отчёт'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select
+            value={wordLimit}
+            onChange={e => setWordLimit(Number(e.target.value))}
+            style={{ ...S.input, width: 'auto', padding: '7px 10px' }}
+            disabled={reportLoading}
+          >
+            {[1000, 2000, 3000, 4000, 5000].map(w => (
+              <option key={w} value={w}>{w} слов</option>
+            ))}
+          </select>
+          <button style={S.btn('primary')} onClick={generateReport} disabled={reportLoading}>
+            {reportLoading ? 'Создаю…' : '📄 Создать PDF отчёт'}
+          </button>
+        </div>
       </div>
 
       <div style={S.card}>

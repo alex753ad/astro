@@ -93,9 +93,13 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     # Compact profile for prompt (remove excessive precision)
     compact = _compact_profile(request.natal_profile)
 
-    # Объём зависит от тира
+    # Объём зависит от word_limit или тира
+    word_limit = getattr(request, "word_limit", None)
     tier = getattr(request, "tier", "free")
-    if tier == "premium":
+    if word_limit and isinstance(word_limit, int) and 1000 <= word_limit <= 5000:
+        word_count_instruction = f"Напиши интерпретацию объёмом НЕ МЕНЕЕ {word_limit} слов суммарно по всем секциям."
+        paragraphs_per_section = str(max(2, word_limit // 500))
+    elif tier == "premium":
         word_count_instruction = "Напиши ПОДРОБНУЮ интерпретацию объёмом НЕ МЕНЕЕ 5000 слов суммарно по всем секциям. Каждая секция должна быть развёрнутой и глубокой."
         paragraphs_per_section = "8–12"
     elif tier == "pro":
