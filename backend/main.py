@@ -1510,7 +1510,7 @@ async def start_transits_async(
 @app.post(
     "/api/v1/chart/{chart_id}/pdf",
     tags=["chart"],
-    summary="Start async PDF generation (returns task_id)",
+    summary="Generate PDF report and return bytes directly",
 )
 @limiter.limit(settings.rate_limit_anon)
 async def start_pdf_generation(
@@ -1519,11 +1519,9 @@ async def start_pdf_generation(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
-    """Start PDF report generation as background Celery task.
+    from fastapi.responses import Response as FastResponse
+    import asyncio
 
-    Returns task_id immediately. Poll GET /api/v1/tasks/{task_id}/status for result.
-    Result contains base64-encoded PDF.
-    """
     if chart_id == "anonymous":
         raise HTTPException(
             status_code=400,
@@ -1534,10 +1532,73 @@ async def start_pdf_generation(
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
 
-    from backend.tasks import task_generate_pdf
-    task = task_generate_pdf.delay(chart_id=chart_id)
+    # Load interpretation from DB
+    from backend.models import Interpretation
+    interp_row = (
+        db.query(Interpretation)
+        .filter(Interpretation.chart_id == chart_id)
+        .order_by(Interpretation.created_at.desc())
+        .first()
+    )
 
-    return {"task_id": task.id, "status": "pending"}
+    interpretation_text = ""
+    if interp_row:
+        interpretation_text = interp_row.content
+    else:
+        # Generate on-the-fly
+        try:
+            from backend.interpretation.base import InterpretationRequest
+            from backend.interpretation.router import get_router
+            profile = {
+                "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
+                "ascendant": chart.ascendant, "midheaven": chart.midheaven,
+                "time_unknown": chart.time_unknown,
+            }
+            interp_req = InterpretationRequest(natal_profile=profile)
+            ai_router = get_router()
+            result = await ai_router.generate(interp_req)
+            interpretation_text = result.content or ""
+            # Save for next time
+            if interpretation_text:
+                from backend.cache import make_profile_hash
+                db.add(Interpretation(
+                    chart_id=chart_id,
+                    profile_hash=make_profile_hash(profile),
+                    engine=result.engine or "pdf",
+                    content=interpretation_text,
+                    sections=result.sections,
+                ))
+                db.commit()
+        except Exception as exc:
+            logger.exception("PDF: failed to get interpretation: %s", exc)
+
+    # Astrologer branding
+    astrologer_name = None
+    if user:
+        try:
+            from backend.models import AstrologerProfile
+            if hasattr(user, "tier") and user.tier == "premium":
+                profile_obj = db.query(AstrologerProfile).filter(
+                    AstrologerProfile.user_id == user.id
+                ).first()
+                if profile_obj and profile_obj.display_name:
+                    astrologer_name = profile_obj.display_name
+        except Exception:
+            pass
+
+    from backend.natal_pdf import generate_pdf_bytes
+    pdf_bytes = generate_pdf_bytes(
+        chart,
+        interpretation=interpretation_text,
+        astrologer_name=astrologer_name,
+    )
+
+    filename = f"natal_chart_{chart_id[:8]}.pdf"
+    return FastResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get(
