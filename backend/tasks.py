@@ -366,10 +366,24 @@ def task_generate_pdf(self, chart_id: str, user_id: int | None = None) -> dict:
                 if profile and profile.display_name:
                     astrologer_name = profile.display_name
 
+        # Загружаем сохранённую интерпретацию из БД
+        from backend.models import Interpretation
+        interp_row = (
+            db.query(Interpretation)
+            .filter(Interpretation.chart_id == chart_id)
+            .order_by(Interpretation.created_at.desc())
+            .first()
+        )
+        interpretation_text = interp_row.content if interp_row else ""
+
         # Пробуем natal_pdf.generate_pdf_bytes (полноценный дизайн)
         try:
             from backend.natal_pdf import generate_pdf_bytes
-            pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
+            pdf_bytes = generate_pdf_bytes(
+                chart,
+                interpretation=interpretation_text,
+                astrologer_name=astrologer_name,
+            )
         except Exception:
             pdf_bytes = _render_pdf(chart)
 

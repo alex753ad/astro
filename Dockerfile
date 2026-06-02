@@ -5,7 +5,7 @@ WORKDIR /app
 # System deps for pyswisseph build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc build-essential \
-    fonts-liberation fonts-dejavu-core && \
+    fonts-liberation fonts-dejavu-core fonts-noto fonts-noto-extra && \
     rm -rf /var/lib/apt/lists/*
 
 # Python deps
