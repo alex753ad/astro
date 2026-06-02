@@ -211,29 +211,32 @@ async def interpret_chart(
             async for chunk in ai_router.stream(interp_request):
                 full_text.append(chunk)
                 yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
-            # Save to DB after streaming completes
+            # Save to DB after streaming completes (own session — original may be closed)
             content = "".join(full_text)
             if content:
                 try:
                     from backend.models import Interpretation
-                    import hashlib
-                    profile_hash = hashlib.md5(
-                        json.dumps(profile, sort_keys=True, ensure_ascii=False).encode()
-                    ).hexdigest()
-                    existing = db.query(Interpretation).filter(
-                        Interpretation.chart_id == chart_id,
-                        Interpretation.profile_hash == profile_hash,
-                    ).first()
-                    if not existing:
-                        db.add(Interpretation(
-                            chart_id=chart_id,
-                            profile_hash=profile_hash,
-                            engine="stream",
-                            content=content,
-                        ))
-                        db.commit()
-                except Exception:
-                    pass  # don't break streaming if save fails
+                    from backend.database import SessionLocal
+                    from backend.cache import make_profile_hash
+                    save_db = SessionLocal()
+                    try:
+                        profile_hash = make_profile_hash(profile)
+                        existing = save_db.query(Interpretation).filter(
+                            Interpretation.chart_id == chart_id,
+                        ).first()
+                        if not existing:
+                            save_db.add(Interpretation(
+                                chart_id=chart_id,
+                                profile_hash=profile_hash,
+                                engine="stream",
+                                content=content,
+                            ))
+                            save_db.commit()
+                            logger.info("Saved interpretation to DB for chart %s, len=%d", chart_id, len(content))
+                    finally:
+                        save_db.close()
+                except Exception as save_exc:
+                    logger.exception("Failed to save interpretation to DB: %s", save_exc)
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.exception("Streaming interpretation failed")
@@ -274,13 +277,10 @@ async def interpret_chart_full(
     if result.content:
         try:
             from backend.models import Interpretation
-            import hashlib
-            profile_hash = hashlib.md5(
-                json.dumps(profile, sort_keys=True, ensure_ascii=False).encode()
-            ).hexdigest()
+            from backend.cache import make_profile_hash
+            profile_hash = make_profile_hash(profile)
             existing = db.query(Interpretation).filter(
                 Interpretation.chart_id == chart_id,
-                Interpretation.profile_hash == profile_hash,
             ).first()
             if not existing:
                 db.add(Interpretation(
@@ -291,8 +291,9 @@ async def interpret_chart_full(
                     sections=result.sections,
                 ))
                 db.commit()
-        except Exception:
-            pass
+                logger.info("Saved interpretation to DB for chart %s, len=%d", chart_id, len(result.content))
+        except Exception as save_exc:
+            logger.exception("Failed to save interpretation to DB: %s", save_exc)
 
     return {"chart_id": chart_id, "content": result.content, "sections": result.sections, "engine": result.engine, "cached": result.cached}
 
