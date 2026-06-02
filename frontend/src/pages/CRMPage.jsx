@@ -307,20 +307,38 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
                   {templates.map(tpl => (
                     <div
                       key={tpl.id}
-                      onClick={() => {
-                        const hasText = notes.trim().length > 0;
-                        if (hasText && !window.confirm('Заменить текущие заметки шаблоном?')) return;
-                        setNotes(tpl.content);
-                        setShowTemplateDropdown(false);
-                      }}
                       style={{
-                        padding: '8px 12px', cursor: 'pointer', borderRadius: 6,
-                        fontSize: 13, color: '#e2e8f0',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '6px 12px', borderRadius: 6,
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = '#334155'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      {tpl.title}
+                      <span
+                        onClick={() => {
+                          const hasText = notes.trim().length > 0;
+                          if (hasText && !window.confirm('Заменить текущие заметки шаблоном?')) return;
+                          setNotes(tpl.content);
+                          setShowTemplateDropdown(false);
+                        }}
+                        style={{ cursor: 'pointer', fontSize: 13, color: '#e2e8f0', flex: 1 }}
+                      >
+                        {tpl.title}
+                      </span>
+                      <span
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!window.confirm(`Удалить шаблон "${tpl.title}"?`)) return;
+                          try {
+                            await authFetch(`/api/v1/note-templates/${tpl.id}`, { method: 'DELETE' });
+                            setTemplates(prev => prev.filter(t => t.id !== tpl.id));
+                          } catch {}
+                        }}
+                        style={{ cursor: 'pointer', color: '#64748b', fontSize: 14, padding: '0 4px', marginLeft: 8 }}
+                        title="Удалить"
+                      >
+                        ✕
+                      </span>
                     </div>
                   ))}
                 </div>
