@@ -18,7 +18,7 @@ from backend.interpretation.base import (
     InterpretationRequest,
     InterpretationResult,
 )
-from backend.interpretation.gpt4o import _parse_sections
+from backend.interpretation.gpt4o import _parse_sections, _calc_max_tokens
 from backend.interpretation.prompts import build_system_prompt
 
 logger = logging.getLogger("astro.deepseek")
@@ -52,7 +52,7 @@ class DeepSeekEngine(InterpretationEngine):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
             ],
-            "max_tokens": 8000 if request.tier == "premium" else (6000 if request.tier == "pro" else 2000),
+            "max_tokens": _calc_max_tokens(request),
             "temperature": 0.7,
             "stream": stream,
         }
