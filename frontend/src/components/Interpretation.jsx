@@ -390,7 +390,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             textAlign: 'center',
           }}>
             <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
-              Это только начало. Полная интерпретация раскрывает<br />
+              Это только начало. Расширенная интерпретация раскрывает<br />
               <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>Луну, Венеру, 7-й дом и отношения</strong>.
             </p>
             <button
@@ -403,7 +403,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
                 boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
               }}
             >
-              ✦ Читать полную интерпретацию
+              ✦ Читать расширенную интерпретацию
             </button>
           </div>
         </div>
@@ -422,8 +422,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           cursor: 'pointer',
         }} onClick={onUpgrade}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Расширенную</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>✦ Получить полную интерпретацию</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>✦ Получить расширенную интерпретацию</span>
           </div>
           <button
             onClick={onUpgrade}
