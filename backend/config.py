@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
     testing: bool = False
-    cors_origins: str = "http://localhost:5173"  # env: ALLOWED_ORIGINS (comma-separated)
+    cors_origins: str = "http://localhost:5173,https://www.astreatime.ru,https://astreatime.ru"  # env: ALLOWED_ORIGINS (comma-separated)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

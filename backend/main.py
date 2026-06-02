@@ -1508,7 +1508,7 @@ async def start_transits_async(
 @app.post(
     "/api/v1/chart/{chart_id}/pdf",
     tags=["chart"],
-    summary="Start async PDF generation (returns task_id)",
+    summary="Generate PDF natal chart report (sync)",
 )
 @limiter.limit(settings.rate_limit_anon)
 async def start_pdf_generation(
@@ -1517,11 +1517,10 @@ async def start_pdf_generation(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
-    """Start PDF report generation as background Celery task.
+    """Generate a PDF natal chart report synchronously and return as file download."""
+    import base64
+    from fastapi.responses import Response
 
-    Returns task_id immediately. Poll GET /api/v1/tasks/{task_id}/status for result.
-    Result contains base64-encoded PDF.
-    """
     if chart_id == "anonymous":
         raise HTTPException(
             status_code=400,
@@ -1532,10 +1531,19 @@ async def start_pdf_generation(
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
 
-    from backend.tasks import task_generate_pdf
-    task = task_generate_pdf.delay(chart_id=chart_id)
+    try:
+        from backend.natal_pdf import generate_pdf_bytes
+        pdf_bytes = generate_pdf_bytes(chart)
+    except Exception as e:
+        logger.exception("PDF generation failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
 
-    return {"task_id": task.id, "status": "pending"}
+    filename = f"natal_chart_{chart_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @app.get(
