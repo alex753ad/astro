@@ -97,7 +97,12 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     word_limit = getattr(request, "word_limit", None)
     tier = getattr(request, "tier", "free")
     if word_limit and isinstance(word_limit, int) and 1000 <= word_limit <= 5000:
-        word_count_instruction = f"Напиши интерпретацию объёмом НЕ МЕНЕЕ {word_limit} слов суммарно по всем секциям."
+        word_count_instruction = (
+            f"Напиши интерпретацию объёмом около {word_limit} слов суммарно по всем секциям. "
+            f"Распредели слова равномерно между секциями. "
+            f"ОБЯЗАТЕЛЬНО: каждая секция и весь текст должны заканчиваться полным предложением — "
+            f"никогда не обрывай текст на полуслове или в середине мысли."
+        )
         paragraphs_per_section = str(max(2, word_limit // 500))
     elif tier == "premium":
         word_count_instruction = "Напиши ПОДРОБНУЮ интерпретацию объёмом НЕ МЕНЕЕ 5000 слов суммарно по всем секциям. Каждая секция должна быть развёрнутой и глубокой."
