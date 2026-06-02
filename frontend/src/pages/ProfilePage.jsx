@@ -292,7 +292,7 @@ function TabCharts({ charts, setCharts, loading, authFetch }) {
   if (!charts.length) return (
     <div style={{ ...S.card, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
       Нет сохранённых карт.<br />
-      <Link to="/" style={{ color: '#7C6CFF', marginTop: 8, display: 'inline-block' }}>
+      <Link to="/home" style={{ color: '#7C6CFF', marginTop: 8, display: 'inline-block' }}>
         Создать карту →
       </Link>
     </div>
