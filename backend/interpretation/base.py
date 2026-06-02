@@ -21,6 +21,7 @@ class InterpretationRequest:
         "general", "career", "relationships", "health", "finance", "spirituality"
     ])
     tier: str = "free"           # free | lite | pro | premium
+    word_limit: int | None = None  # явный лимит слов (1000-5000), перекрывает tier
 
 
 @dataclass

@@ -17,7 +17,7 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
@@ -335,12 +335,23 @@ async def get_client_transits(
 @router.post("/{client_id}/report")
 async def generate_client_report(
     client_id: int,
+    request: Request,
     user: User = _premium,
     db: Session = Depends(get_db),
 ):
     import traceback as _tb
     from fastapi.responses import Response as FastAPIResponse
     try:
+        # Читаем word_limit из тела запроса (опционально)
+        word_limit = None
+        try:
+            body = await request.json()
+            wl = body.get("word_limit")
+            if isinstance(wl, int) and 1000 <= wl <= 5000:
+                word_limit = wl
+        except Exception:
+            pass
+
         astrologer = _get_astrologer(user, db)
         client = _get_client_or_404(client_id, astrologer, db)
         if not client.natal_chart_id:
@@ -355,14 +366,37 @@ async def generate_client_report(
         if profile and profile.display_name:
             astrologer_name = profile.display_name
 
+        # Генерируем интерпретацию для PDF
+        interpretation_text = ""
+        try:
+            from backend.interpretation.base import InterpretationRequest
+            from backend.interpretation.router import get_router as get_interp_router
+            natal_profile = {
+                "planets": chart.planets,
+                "houses": chart.houses,
+                "aspects": chart.aspects,
+                "ascendant": chart.ascendant,
+                "midheaven": chart.midheaven,
+                "time_unknown": chart.time_unknown,
+            }
+            interp_req = InterpretationRequest(
+                natal_profile=natal_profile,
+                tier=user.tier,
+                word_limit=word_limit,
+            )
+            interp_router = get_interp_router()
+            result = await interp_router.generate(interp_req)
+            interpretation_text = result.content
+        except Exception as e:
+            logger.warning("Interpretation generation failed for PDF: %s", e)
+
         try:
             from backend.natal_pdf import generate_pdf_bytes
-            pdf_bytes = generate_pdf_bytes(chart, astrologer_name=astrologer_name)
+            pdf_bytes = generate_pdf_bytes(chart, interpretation=interpretation_text, astrologer_name=astrologer_name)
         except Exception:
             logger.warning("natal_pdf failed, using simple fallback")
             pdf_bytes = _simple_pdf(chart, client, astrologer_name)
 
-        # RFC 5987: ASCII fallback + UTF-8 encoded filename for Cyrillic support
         import urllib.parse
         safe_name = f"natal_{chart.birth_date}.pdf"
         encoded_name = urllib.parse.quote(f"natal_{client.name}_{chart.birth_date}.pdf")
