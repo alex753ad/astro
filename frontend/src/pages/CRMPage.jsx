@@ -257,11 +257,18 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
             <button style={S.btn('primary')} onClick={loadAI}>✨ Получить AI-интерпретацию</button>
           )}
           {aiLoading && <div style={S.muted}>Генерирую интерпретацию…</div>}
-          {aiText && (
-            <div style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-              {aiText}
-            </div>
-          )}
+          {aiText && (() => {
+            // Убираем XML-теги <section ...> и </section>, рендерим чистый текст
+            const cleaned = aiText
+              .replace(/<section[^>]*>/gi, '')
+              .replace(/<\/section>/gi, '')
+              .trim();
+            return (
+              <div style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {cleaned}
+              </div>
+            );
+          })()}
         </div>
       )}
 
