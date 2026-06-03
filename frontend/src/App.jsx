@@ -5,7 +5,7 @@ import useAuth from './hooks/useAuth.jsx';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import ChartPage from './pages/ChartPage';
-import PlannerPage from './PlannerPage';
+import PlannerPage from './pages/PlannerPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
