@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import useAuth from "../hooks/useAuth";
 
 const PLAN_LABELS = { free: "Free", lite: "Lite", pro: "Pro", premium: "Premium" };
 const PLAN_COLORS = {

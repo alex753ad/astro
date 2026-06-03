@@ -38,9 +38,9 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from auth.dependencies import get_current_user
-from models import User, GiftCode
-from admin.admin_router import require_admin
+from backend.auth.dependencies import get_current_user
+from backend.models import User, GiftCode
+from backend.admin.admin_router import require_admin
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
