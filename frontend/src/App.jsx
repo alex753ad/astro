@@ -260,6 +260,10 @@ function AppRoutes() {
           bg-white/50 backdrop-blur-sm
         ">
           Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
+          <span className="mx-2">·</span>
+          <Link to="/privacy" className="hover:text-slate-600 transition-colors">Политика конфиденциальности</Link>
+          <span className="mx-2">·</span>
+          <Link to="/terms" className="hover:text-slate-600 transition-colors">Условия использования</Link>
         </footer>
       </div>
 
