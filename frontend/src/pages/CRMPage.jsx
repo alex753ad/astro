@@ -42,6 +42,10 @@ function MiniChartPreview({ clientId, authFetch }) {
 
 const API = '/api/v1';
 
+const ZODIAC_SIGNS = ['Овен','Телец','Близнецы','Рак','Лев','Дева','Весы','Скорпион','Стрелец','Козерог','Водолей','Рыбы'];
+const PLANETS      = ['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn','Uranus','Neptune','Pluto'];
+const HOUSES       = [1,2,3,4,5,6,7,8,9,10,11,12];
+
 const S = {
   page: { minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
   inner: { maxWidth: 900, margin: '0 auto' },
@@ -425,10 +429,18 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
 }
 
 // ─── Список клиентов ──────────────────────────────────────────────────────────
-function ClientList({ clients, onSelect, onAdd, onDelete, authFetch }) {
-  const [search, setSearch] = useState('');
+function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFilteredClients, authFetch }) {
+  const [search, setSearch]           = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showFilter, setShowFilter]   = useState(false);
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [isFiltered, setIsFiltered]   = useState(false);
 
+  const emptyFilters = { sun_sign: '', moon_sign: '', asc_sign: '', planet: '', house: '' };
+  const [filters, setFilters] = useState(emptyFilters);
+  const setF = (k, v) => setFilters(p => ({ ...p, [k]: v }));
+
+  // Локальный поиск по имени/городу работает поверх текущего списка
   const filtered = clients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.birth_place.toLowerCase().includes(search.toLowerCase())
@@ -444,20 +456,125 @@ function ClientList({ clients, onSelect, onAdd, onDelete, authFetch }) {
     }
   };
 
+  const applyFilter = async () => {
+    const hasFilter = Object.values(filters).some(v => v !== '');
+    if (!hasFilter) {
+      onFilteredClients(null); // вернуть оригинальный список
+      setIsFiltered(false);
+      return;
+    }
+    setFilterLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters.sun_sign)  params.set('sun_sign',  filters.sun_sign);
+      if (filters.moon_sign) params.set('moon_sign', filters.moon_sign);
+      if (filters.asc_sign)  params.set('asc_sign',  filters.asc_sign);
+      if (filters.planet)    params.set('planet',    filters.planet);
+      if (filters.house)     params.set('house',     filters.house);
+      const data = await authFetch(`${API}/clients/search?${params}`);
+      onFilteredClients(Array.isArray(data) ? data : []);
+      setIsFiltered(true);
+    } catch (e) {
+      alert('Ошибка фильтрации: ' + e.message);
+    } finally {
+      setFilterLoading(false);
+    }
+  };
+
+  const resetFilter = () => {
+    setFilters(emptyFilters);
+    setShowFilter(false);
+    setIsFiltered(false);
+    setSearch('');
+    onFilteredClients(null);
+  };
+
+  const selectStyle = { ...S.input, width: 'auto', minWidth: 120 };
+
   return (
     <div>
-      <div style={{ ...S.row, marginBottom: 16 }}>
-        <input style={{ ...S.input, maxWidth: 300 }} placeholder="Поиск по имени или городу…"
+      {/* ── Строка поиска + кнопки ── */}
+      <div style={{ ...S.row, marginBottom: 12 }}>
+        <input style={{ ...S.input, maxWidth: 260 }} placeholder="Поиск по имени или городу…"
           value={search} onChange={e => setSearch(e.target.value)} />
-        <button style={S.btn('primary')} onClick={onAdd}>+ Добавить клиента</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={S.btn(showFilter ? 'primary' : 'ghost')} onClick={() => setShowFilter(v => !v)}>
+            🔍 Фильтр по карте
+          </button>
+          <button style={S.btn('primary')} onClick={onAdd}>+ Добавить клиента</button>
+        </div>
       </div>
 
-      {filtered.length === 0 && (
-        <div style={{ ...S.card, color: '#64748b', textAlign: 'center', fontSize: 13 }}>
-          {clients.length === 0 ? 'Нет клиентов. Добавьте первого.' : 'Ничего не найдено.'}
+      {/* ── Панель фильтров ── */}
+      {showFilter && (
+        <div style={{ ...S.card, marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+          <div>
+            <label style={S.label}>Знак Солнца</label>
+            <select style={selectStyle} value={filters.sun_sign} onChange={e => setF('sun_sign', e.target.value)}>
+              <option value="">Любой</option>
+              {ZODIAC_SIGNS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={S.label}>Знак Луны</label>
+            <select style={selectStyle} value={filters.moon_sign} onChange={e => setF('moon_sign', e.target.value)}>
+              <option value="">Любой</option>
+              {ZODIAC_SIGNS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={S.label}>Знак Асцендента</label>
+            <select style={selectStyle} value={filters.asc_sign} onChange={e => setF('asc_sign', e.target.value)}>
+              <option value="">Любой</option>
+              {ZODIAC_SIGNS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={S.label}>Планета</label>
+            <select style={selectStyle} value={filters.planet} onChange={e => setF('planet', e.target.value)}>
+              <option value="">Любая</option>
+              {PLANETS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+            <span style={{ ...S.muted, paddingBottom: 8 }}>в</span>
+            <div>
+              <label style={S.label}>Доме</label>
+              <select style={{ ...selectStyle, minWidth: 70 }} value={filters.house} onChange={e => setF('house', e.target.value)}>
+                <option value="">Любом</option>
+                {HOUSES.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-end' }}>
+            <button style={S.btn('primary')} onClick={applyFilter} disabled={filterLoading}>
+              {filterLoading ? 'Ищу…' : 'Применить'}
+            </button>
+            <button style={S.btn()} onClick={resetFilter}>Сбросить</button>
+          </div>
         </div>
       )}
 
+      {/* ── Индикатор активного фильтра ── */}
+      {isFiltered && (
+        <div style={{ ...S.muted, marginBottom: 12, fontSize: 12 }}>
+          Показаны результаты фильтра — {clients.length} кл.
+          <button style={{ marginLeft: 8, background: 'none', border: 'none', color: '#7C6CFF', cursor: 'pointer', fontSize: 12 }} onClick={resetFilter}>
+            Сбросить
+          </button>
+        </div>
+      )}
+
+      {/* ── Пустые состояния ── */}
+      {filtered.length === 0 && (
+        <div style={{ ...S.card, color: '#64748b', textAlign: 'center', fontSize: 13 }}>
+          {isFiltered
+            ? 'По заданным параметрам клиентов не найдено.'
+            : clients.length === 0 ? 'Нет клиентов. Добавьте первого.' : 'Ничего не найдено.'}
+        </div>
+      )}
+
+      {/* ── Карточки ── */}
       {filtered.map(client => (
         <div key={client.id} style={S.card}>
           <div style={S.row}>
@@ -489,9 +606,12 @@ function ClientList({ clients, onSelect, onAdd, onDelete, authFetch }) {
 export default function CRMPage() {
   const { user, authFetch } = useAuth();
   const [clients, setClients] = useState([]);
+  const [filteredClients, setFilteredClients] = useState(null); // null = не фильтровано
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' | 'add' | 'card'
   const [selected, setSelected] = useState(null);
+
+  const displayedClients = filteredClients ?? clients;
 
   useEffect(() => {
     authFetch(`${API}/clients`)
@@ -527,11 +647,16 @@ export default function CRMPage() {
 
         {view === 'list' && (
           <ClientList
-            clients={clients}
+            clients={displayedClients}
+            allClients={clients}
             authFetch={authFetch}
+            onFilteredClients={data => setFilteredClients(data)}
             onSelect={c => { setSelected(c); setView('card'); }}
             onAdd={() => setView('add')}
-            onDelete={id => setClients(p => p.filter(c => c.id !== id))}
+            onDelete={id => {
+              setClients(p => p.filter(c => c.id !== id));
+              setFilteredClients(p => p ? p.filter(c => c.id !== id) : null);
+            }}
           />
         )}
 
