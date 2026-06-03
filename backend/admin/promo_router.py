@@ -37,7 +37,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from database import get_db
+from backend.database import get_db
 from auth.dependencies import get_current_user
 from models import User, GiftCode
 from admin.admin_router import require_admin
