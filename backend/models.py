@@ -159,6 +159,21 @@ class NoteTemplate(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# ── Calendar export log (017) ──
+
+class CalendarExportLog(Base):
+    __tablename__ = "calendar_export_logs"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    month      = Column(String(7), nullable=False)          # "YYYY-MM"
+    event_count= Column(Integer, nullable=False, default=0)
+    event_types= Column(JSON, nullable=False, default=list) # ["new_moon", "aspect", ...]
+    status     = Column(String(10), nullable=False)         # "success" | "error"
+    error_msg  = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ── Gift codes (014) ──
 
 class GiftCode(Base):
