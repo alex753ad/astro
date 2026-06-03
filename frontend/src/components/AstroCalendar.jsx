@@ -11,6 +11,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useGoogleCalendar } from './hooks/useGoogleCalendar';
+import { useAuth } from './hooks/useAuth';
 
 const MONTHS_RU = [
   'Январь','Февраль','Март','Апрель','Май','Июнь',
@@ -32,6 +34,9 @@ export default function AstroCalendar() {
   const [data,  setData]  = useState(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
+  const { exportToCalendar, status: gcalStatus } = useGoogleCalendar();
+  const { token: authToken } = useAuth();
+  const monthStr = `${year}-${String(month).padStart(2, '0')}`;
 
   useEffect(() => { load(); }, [year, month]);
 
@@ -77,6 +82,27 @@ export default function AstroCalendar() {
         <h2 style={s.navTitle}>{MONTHS_RU[month - 1]} {year}</h2>
         <button onClick={next} style={s.navBtn}>›</button>
       </div>
+
+      {/* ── Экспорт в Google Calendar ──────────────────────── */}
+      {data && (
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={() => exportToCalendar(events, monthStr, authToken)}
+            disabled={gcalStatus === 'loading'}
+            style={{
+              ...s.gcalBtn,
+              ...(gcalStatus === 'loading' ? s.gcalBtnLoading : {}),
+              ...(gcalStatus === 'success' ? s.gcalBtnSuccess : {}),
+              ...(gcalStatus === 'error'   ? s.gcalBtnError   : {}),
+            }}
+          >
+            {gcalStatus === 'loading' && '⏳ Экспортируем…'}
+            {gcalStatus === 'success' && '✅ Добавлено в Google Calendar'}
+            {gcalStatus === 'error'   && '❌ Ошибка — попробуйте снова'}
+            {gcalStatus === 'idle'    && '📅 Экспортировать в Google Calendar'}
+          </button>
+        </div>
+      )}
 
       {loading && <p style={s.muted}>Загружаем календарь…</p>}
       {error   && <p style={s.danger}>Ошибка: {error}</p>}
@@ -304,4 +330,20 @@ const s = {
   listItem: { margin: '2px 0', fontSize: 13, lineHeight: 1.5, color: '#3D3560' },
   muted:    { color: '#B0A0C8', fontSize: 13 },
   danger:   { color: '#E05070', fontSize: 13 },
+  gcalBtn: {
+    width: '100%',
+    padding: '10px 16px',
+    borderRadius: 12,
+    border: '1px solid #E2D9F3',
+    background: '#FAFAFE',
+    color: '#5040A0',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    textAlign: 'center',
+  },
+  gcalBtnLoading: { opacity: 0.6, cursor: 'not-allowed' },
+  gcalBtnSuccess: { background: '#F0FBF0', border: '1px solid #90D090', color: '#306030' },
+  gcalBtnError:   { background: '#FFF0F0', border: '1px solid #E090A0', color: '#A03050' },
 };
