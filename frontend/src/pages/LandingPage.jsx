@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function LandingPage({ onShowAuth, currentUser }) {
   const navigate = useNavigate();
@@ -235,7 +235,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: 16,
         maxWidth: 820,
-        margin: '32px auto 80px',
+        margin: '32px auto 48px',
         padding: '0 24px',
       }}>
         {[
@@ -278,6 +278,23 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             }}>{f.desc}</div>
           </div>
         ))}
+      </div>
+      {/* Footer links */}
+      <div style={{
+        textAlign: 'center',
+        padding: '0 24px 48px',
+        fontSize: 13,
+        color: '#9B97B0',
+      }}>
+        <Link to="/privacy" style={{ color: '#8B5CF6', textDecoration: 'none' }}
+          onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+          onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+        >Политика конфиденциальности</Link>
+        <span style={{ margin: '0 10px' }}>·</span>
+        <Link to="/terms" style={{ color: '#8B5CF6', textDecoration: 'none' }}
+          onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+          onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+        >Правила использования</Link>
       </div>
     </div>
   );
