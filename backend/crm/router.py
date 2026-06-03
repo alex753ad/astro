@@ -181,6 +181,152 @@ async def list_clients(
     return query.order_by(ClientProfile.created_at.desc()).all()
 
 
+@router.get("/analytics")
+async def get_analytics(
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    """Агрегированная статистика по базе клиентов астролога."""
+    from collections import Counter, defaultdict
+    from datetime import datetime, timezone
+
+    astrologer = _get_astrologer(user, db)
+
+    rows = (
+        db.query(ClientProfile, NatalChart)
+        .outerjoin(NatalChart, ClientProfile.natal_chart_id == NatalChart.id)
+        .filter(ClientProfile.astrologer_id == astrologer.id)
+        .all()
+    )
+
+    all_clients   = [c for c, _ in rows]
+    total_clients = len(all_clients)
+
+    # Добавлено в этом месяце
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    added_this_month = sum(
+        1 for c in all_clients
+        if c.created_at and c.created_at.replace(tzinfo=timezone.utc) >= month_start
+    )
+
+    # Топ знаков Солнца
+    sun_signs = []
+    for _, chart in rows:
+        if not chart:
+            continue
+        sun = next((p for p in (chart.planets or []) if p.get("name") == "Sun"), None)
+        if sun and sun.get("sign"):
+            sun_signs.append(sun["sign"])
+    top_sun_signs = [{"sign": s, "count": c} for s, c in Counter(sun_signs).most_common(5)]
+
+    # Топ городов
+    cities = [c.birth_place.split(",")[0].strip() for c in all_clients if c.birth_place]
+    top_cities = [{"city": ci, "count": cnt} for ci, cnt in Counter(cities).most_common(5)]
+
+    # Рост базы: последние 6 месяцев
+    monthly: dict[str, int] = defaultdict(int)
+    for c in all_clients:
+        if c.created_at:
+            monthly[c.created_at.strftime("%Y-%m")] += 1
+    clients_by_month = []
+    for i in range(5, -1, -1):
+        mo = now.month - i
+        yr = now.year
+        while mo < 1:
+            mo += 12; yr -= 1
+        key = f"{yr:04d}-{mo:02d}"
+        clients_by_month.append({"month": key, "count": monthly.get(key, 0)})
+
+    # PDF-отчёты — через calendar_export_logs пока нет таблицы reports
+    reports_generated = 0
+    try:
+        from backend.models import CalendarExportLog
+        reports_generated = (
+            db.query(CalendarExportLog)
+            .filter(CalendarExportLog.user_id == user.id, CalendarExportLog.status == "success")
+            .count()
+        )
+    except Exception:
+        pass
+
+    return {
+        "total_clients":       total_clients,
+        "added_this_month":    added_this_month,
+        "reports_generated":   reports_generated,
+        "bookings_this_month": 0,  # TODO: таблица bookings не реализована
+        "top_sun_signs":       top_sun_signs,
+        "top_cities":          top_cities,
+        "clients_by_month":    clients_by_month,
+    }
+
+
+@router.get("/search", response_model=list[ClientOut])
+async def search_clients(
+    sun_sign:       Optional[str] = Query(None),
+    moon_sign:      Optional[str] = Query(None),
+    asc_sign:       Optional[str] = Query(None),
+    planet:         Optional[str] = Query(None),
+    house:          Optional[int] = Query(None, ge=1, le=12),
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    """Поиск клиентов по астрологическим параметрам.
+    Планеты и дома хранятся в natal_charts.planets как JSON —
+    фильтруем на Python-уровне (< 500 клиентов у астролога).
+    """
+    astrologer = _get_astrologer(user, db)
+
+    # Загружаем клиентов с натальными картами одним запросом
+    rows = (
+        db.query(ClientProfile, NatalChart)
+        .outerjoin(NatalChart, ClientProfile.natal_chart_id == NatalChart.id)
+        .filter(ClientProfile.astrologer_id == astrologer.id)
+        .all()
+    )
+
+    result = []
+    for client, chart in rows:
+        if not chart:
+            continue
+
+        planets: list[dict] = chart.planets or []
+
+        # Знак Солнца
+        if sun_sign:
+            sun = next((p for p in planets if p.get("name") == "Sun"), None)
+            if not sun or sun.get("sign") != sun_sign:
+                continue
+
+        # Знак Луны
+        if moon_sign:
+            moon = next((p for p in planets if p.get("name") == "Moon"), None)
+            if not moon or moon.get("sign") != moon_sign:
+                continue
+
+        # Знак Асцендента
+        if asc_sign:
+            asc = chart.ascendant or {}
+            if asc.get("sign") != asc_sign:
+                continue
+
+        # Планета в конкретном доме
+        if planet and house:
+            target = next((p for p in planets if p.get("name") == planet), None)
+            if not target or target.get("house") != house:
+                continue
+        elif planet:
+            if not any(p.get("name") == planet for p in planets):
+                continue
+        elif house:
+            if not any(p.get("house") == house for p in planets):
+                continue
+
+        result.append(client)
+
+    return result
+
+
 @router.get("/{client_id}", response_model=ClientOut)
 async def get_client(
     client_id: int,
