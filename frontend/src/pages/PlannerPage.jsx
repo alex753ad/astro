@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useGoogleCalendar } from "../hooks/useGoogleCalendar";
 
 const API_BASE = "https://astro-production-abcc.up.railway.app";
+const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
 function getMonthName(date) {
   return date.toLocaleString("ru-RU", { month: "long", year: "numeric" });
@@ -13,6 +14,90 @@ const PLANET_COLORS = {
   mars: "#EF4444", jupiter: "#8B5CF6", saturn: "#64748B",
   uranus: "#06B6D4", neptune: "#4F46E5", pluto: "#7C3AED", moon: "#EAB308",
 };
+
+// ── Встроенный Google Calendar OAuth + export ─────────────────────────────────
+
+function useGcalExport() {
+  const tokenRef = useRef(null);
+  const [status, setStatus] = useState("idle"); // idle | loading | success | error
+
+  function getToken() {
+    return new Promise((resolve, reject) => {
+      if (tokenRef.current && tokenRef.current.expiry > Date.now()) {
+        return resolve(tokenRef.current.token);
+      }
+      if (!GCAL_CLIENT_ID) {
+        return reject(new Error("VITE_GOOGLE_CLIENT_ID не задан в .env"));
+      }
+      const params = new URLSearchParams({
+        client_id: GCAL_CLIENT_ID,
+        redirect_uri: window.location.origin,
+        response_type: "token",
+        scope: GCAL_SCOPE,
+        prompt: "select_account",
+      });
+      const popup = window.open(
+        `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
+        "gcal_oauth",
+        "width=500,height=620,left=200,top=100"
+      );
+      const timer = setInterval(() => {
+        try {
+          const url = popup?.location?.href || "";
+          if (url.includes("access_token")) {
+            clearInterval(timer);
+            popup.close();
+            const hash = new URLSearchParams(url.split("#")[1]);
+            const token = hash.get("access_token");
+            const expiry = Date.now() + Number(hash.get("expires_in") || 3600) * 1000;
+            tokenRef.current = { token, expiry };
+            resolve(token);
+          }
+          if (popup?.closed && !url.includes("access_token")) {
+            clearInterval(timer);
+            reject(new Error("Авторизация отменена"));
+          }
+        } catch (_) {}
+      }, 300);
+    });
+  }
+
+  async function exportEvents(events) {
+    if (!events?.length) return;
+    setStatus("loading");
+    try {
+      const token = await getToken();
+      for (const ev of events) {
+        if (!ev.date) continue;
+        await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            summary: ev.summary,
+            description: ev.description || "",
+            start: { date: ev.date },
+            end:   { date: ev.date },
+            colorId: ev.colorId || "1",
+            reminders: { useDefault: false },
+          }),
+        });
+      }
+      setStatus("success");
+      setTimeout(() => setStatus("idle"), 3500);
+    } catch (e) {
+      console.error("[gcal]", e);
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 4000);
+    }
+  }
+
+  return { exportEvents, status };
+}
+
+// ── Стили ─────────────────────────────────────────────────────────────────────
 
 const styles = `
   .planner-root {
@@ -26,9 +111,7 @@ const styles = `
     margin: 0 auto;
     padding: 32px 20px;
   }
-  .planner-header {
-    margin-bottom: 28px;
-  }
+  .planner-header { margin-bottom: 28px; }
   .planner-title-row {
     display: flex;
     align-items: center;
@@ -44,666 +127,166 @@ const styles = `
     color: #9333EA;
     letter-spacing: -0.5px;
   }
-  .planner-subtitle {
-    font-size: 13px;
-    color: #64748B;
-    margin-top: 2px;
-  }
+  .planner-subtitle { font-size: 13px; color: #64748B; margin-top: 2px; }
 
-  /* Month nav */
-  .month-nav {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+  .month-nav { display: flex; align-items: center; gap: 6px; }
   .month-nav-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: none;
-    background: #9333EA;
-    color: #fff;
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(147,51,234,0.25);
-    transition: opacity 0.15s;
+    width: 34px; height: 34px; border-radius: 10px; border: none;
+    background: #9333EA; color: #fff; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(147,51,234,0.25); transition: opacity 0.15s;
   }
   .month-nav-btn:hover { opacity: 0.85; }
   .month-nav-label {
-    font-size: 12px;
-    color: #475569;
-    background: #F1F5F9;
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
-    padding: 6px 14px;
-    font-weight: 600;
-    min-width: 100px;
-    text-align: center;
+    font-size: 12px; color: #475569; background: #F1F5F9;
+    border: 1px solid #E2E8F0; border-radius: 10px;
+    padding: 6px 14px; font-weight: 600; min-width: 100px; text-align: center;
   }
 
-  /* Tabs */
   .tab-bar {
-    display: flex;
-    gap: 4px;
+    display: flex; gap: 4px;
     background: rgba(226,232,240,0.7);
-    border-radius: 14px;
-    padding: 4px;
-    margin-bottom: 28px;
+    border-radius: 14px; padding: 4px; margin-bottom: 28px;
   }
   .tab-btn {
-    flex: 1;
-    padding: 9px 12px;
-    border-radius: 10px;
-    border: none;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
+    flex: 1; padding: 9px 12px; border-radius: 10px; border: none;
+    cursor: pointer; font-size: 13px; font-weight: 600;
     font-family: 'Manrope', system-ui, sans-serif;
-    transition: all 0.15s;
-    background: transparent;
-    color: #7C3AED;
+    transition: all 0.15s; background: transparent; color: #7C3AED;
   }
   .tab-btn.active {
-    background: #9333EA;
-    color: #fff;
+    background: #9333EA; color: #fff;
     box-shadow: 0 2px 8px rgba(147,51,234,0.25);
   }
 
-  /* Section header */
   .section-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding: 4px 0;
+    display: flex; align-items: flex-start;
+    gap: 10px; margin-bottom: 16px; padding: 4px 0;
   }
   .section-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    flex-shrink: 0;
-    margin-top: 2px;
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0; margin-top: 2px;
   }
   .section-header-text h3 {
-    margin: 0 0 3px;
-    font-size: 15px;
-    font-weight: 700;
-    color: #1E293B;
+    margin: 0 0 3px; font-size: 15px; font-weight: 700; color: #1E293B;
   }
-  .section-header-text p {
-    margin: 0;
-    font-size: 12px;
-    color: #64748B;
-  }
+  .section-header-text p { margin: 0; font-size: 12px; color: #64748B; }
 
-  /* Cards — светлая тема */
+  /* Карточки — светлая тема */
   .period-card {
     background: #fff;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 10px;
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid transparent;
     box-shadow: 0 2px 10px rgba(147,51,234,0.07);
     transition: box-shadow 0.15s;
   }
-  .period-card:hover {
-    box-shadow: 0 4px 20px rgba(147,51,234,0.13);
-  }
+  .period-card:hover { box-shadow: 0 4px 20px rgba(147,51,234,0.13); }
   .period-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
   }
-  .period-badge {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-  }
-  .period-subtitle {
-    font-size: 12px;
-    color: #64748B;
-    margin-bottom: 10px;
-  }
-  .period-items {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
+  .period-badge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .period-subtitle { font-size: 12px; color: #64748B; margin-bottom: 10px; }
+
+  .period-items { margin: 0; padding: 0; list-style: none; }
   .period-items li {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 13px;
-    color: #334155;
-    line-height: 1.5;
+    display: flex; align-items: flex-start; gap: 8px;
+    margin-bottom: 6px; font-size: 13px; color: #334155; line-height: 1.5;
   }
   .period-items li .dot {
-    margin-top: 5px;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
+    margin-top: 5px; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   }
 
-  /* Week cards */
   .week-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 10px;
+    background: #fff; border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid #EAB308;
     box-shadow: 0 2px 10px rgba(234,179,8,0.08);
   }
   .week-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
   }
-  .week-date {
-    font-size: 13px;
-    color: #CA8A04;
-    font-weight: 700;
-  }
-  .week-time {
-    font-size: 12px;
-    color: #64748B;
-  }
+  .week-date { font-size: 13px; color: #CA8A04; font-weight: 700; }
+  .week-time { font-size: 12px; color: #64748B; }
   .week-house-badge {
-    margin-left: auto;
-    font-size: 11px;
-    background: rgba(234,179,8,0.10);
-    color: #CA8A04;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-weight: 600;
-    white-space: nowrap;
+    margin-left: auto; font-size: 11px;
+    background: rgba(234,179,8,0.10); color: #CA8A04;
+    padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap;
   }
 
-  /* Long-term cards */
   .lt-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 10px;
+    background: #fff; border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid transparent;
     box-shadow: 0 2px 10px rgba(147,51,234,0.07);
   }
-  .lt-warning {
-    font-size: 11px;
-    color: #D97706;
-    margin-bottom: 8px;
-  }
-  .lt-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #1E293B;
-    margin-bottom: 6px;
-  }
-  .lt-subtitle {
-    font-size: 12px;
-    color: #64748B;
-    font-style: italic;
-    margin-bottom: 10px;
-  }
+  .lt-warning { font-size: 11px; color: #D97706; margin-bottom: 8px; }
+  .lt-title { font-size: 13px; font-weight: 700; color: #1E293B; margin-bottom: 6px; }
+  .lt-subtitle { font-size: 12px; color: #64748B; font-style: italic; margin-bottom: 10px; }
 
-  /* Locked */
   .locked-box {
-    background: #fff;
-    border: 1px solid rgba(147,51,234,0.15);
-    border-radius: 16px;
-    padding: 40px 24px;
-    text-align: center;
+    background: #fff; border: 1px solid rgba(147,51,234,0.15);
+    border-radius: 16px; padding: 40px 24px; text-align: center;
     box-shadow: 0 4px 24px rgba(147,51,234,0.06);
   }
   .locked-box .lock-icon { font-size: 38px; margin-bottom: 14px; }
   .locked-box h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #1E293B; }
   .locked-box p { font-size: 13px; color: #64748B; margin: 0 0 20px; }
   .upgrade-btn {
-    padding: 11px 28px;
-    border-radius: 12px;
-    border: none;
-    background: #9333EA;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    box-shadow: 0 4px 14px rgba(147,51,234,0.3);
-    transition: opacity 0.15s;
+    padding: 11px 28px; border-radius: 12px; border: none;
+    background: #9333EA; color: #fff; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: 'Manrope', system-ui, sans-serif;
+    box-shadow: 0 4px 14px rgba(147,51,234,0.3); transition: opacity 0.15s;
   }
   .upgrade-btn:hover { opacity: 0.88; }
 
-  /* Error */
   .error-box {
-    background: #fff;
-    border: 1px solid #FCA5A5;
-    border-radius: 10px;
-    padding: 16px 20px;
-    font-size: 13px;
-    color: #DC2626;
+    background: #fff; border: 1px solid #FCA5A5;
+    border-radius: 10px; padding: 18px; color: #DC2626; font-size: 14px;
   }
   .retry-btn {
-    margin-top: 10px;
-    background: #EF4444;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 7px 16px;
-    font-size: 13px;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    font-weight: 600;
+    margin-top: 10px; background: #EF4444; color: #fff; border: none;
+    border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+    font-family: 'Manrope', system-ui, sans-serif; font-weight: 600;
   }
 
-  /* Loading */
   .loading-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 280px;
-    gap: 14px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 280px; gap: 14px;
   }
   .loading-spinner {
-    width: 36px;
-    height: 36px;
-    border: 3px solid #E9D5FF;
-    border-top-color: #9333EA;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 14px; color: #94A3B8; font-family: 'Manrope', system-ui, sans-serif; }
-
-  /* Refresh footer */
-  .refresh-footer {
-    margin-top: 28px;
-    padding-top: 16px;
-    border-top: 1px solid #E2E8F0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .refresh-btn {
-    width: 100%;
-    padding: 11px;
-    background: #9333EA;
-    border: none;
-    border-radius: 12px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    box-shadow: 0 4px 14px rgba(147,51,234,0.25);
-    transition: opacity 0.15s;
-  }
-  .refresh-btn:hover { opacity: 0.88; }
-
-  /* Google Calendar export button */
-  .gcal-btn {
-    width: 100%;
-    padding: 11px;
-    background: #fff;
-    border: 1.5px solid #E2D9F3;
-    border-radius: 12px;
-    color: #7C3AED;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-  .gcal-btn:hover:not(:disabled) { background: #F5F0FF; border-color: #C4B5FD; }
-  .gcal-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .gcal-btn.success { background: #F0FDF4; border-color: #86EFAC; color: #16A34A; }
-  .gcal-btn.error   { background: #FFF1F2; border-color: #FCA5A5; color: #DC2626; }
-`;
-
-  .planner-inner {
-    max-width: 680px;
-    margin: 0 auto;
-    padding: 32px 20px;
-  }
-  .planner-header {
-    margin-bottom: 28px;
-  }
-  .planner-title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-  .planner-title {
-    margin: 0;
-    font-size: 26px;
-    font-weight: 800;
-    color: #9333EA;
-    letter-spacing: -0.5px;
-  }
-  .planner-subtitle {
-    font-size: 13px;
-    color: #64748B;
-    margin-top: 2px;
-  }
-
-  /* Month nav */
-  .month-nav {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .month-nav-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    border: none;
-    background: #9333EA;
-    color: #fff;
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 8px rgba(147,51,234,0.25);
-    transition: opacity 0.15s;
-  }
-  .month-nav-btn:hover { opacity: 0.85; }
-  .month-nav-label {
-    font-size: 12px;
-    color: #475569;
-    background: #F1F5F9;
-    border: 1px solid #E2E8F0;
-    border-radius: 10px;
-    padding: 6px 14px;
-    font-weight: 600;
-    min-width: 100px;
-    text-align: center;
-  }
-
-  /* Tabs */
-  .tab-bar {
-    display: flex;
-    gap: 4px;
-    background: rgba(226,232,240,0.7);
-    border-radius: 14px;
-    padding: 4px;
-    margin-bottom: 28px;
-  }
-  .tab-btn {
-    flex: 1;
-    padding: 9px 12px;
-    border-radius: 10px;
-    border: none;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: 'Manrope', system-ui, sans-serif;
-    transition: all 0.15s;
-    background: transparent;
-    color: #7C3AED;
-  }
-  .tab-btn.active {
-    background: #9333EA;
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(147,51,234,0.25);
-  }
-
-  /* Section header */
-  .section-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding: 4px 0;
-  }
-  .section-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-  .section-header-text h3 {
-    margin: 0 0 3px;
-    font-size: 15px;
-    font-weight: 700;
-    color: #94A3B8;
-  }
-  .section-header-text p {
-    margin: 0;
-    font-size: 12px;
-    color: #94A3B8;
-  }
-
-  /* Cards */
-  .period-card {
-    background: #1E293B;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 10px;
-    border-left: 3px solid transparent;
-    transition: box-shadow 0.15s;
-  }
-  .period-card:hover {
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  }
-  .period-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-  }
-  .period-badge {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-    background: rgba(255,255,255,0.08);
-  }
-  .period-subtitle {
-    font-size: 12px;
-    color: #94A3B8;
-    margin-bottom: 10px;
-  }
-  .period-items {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .period-items li {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 13px;
-    color: #CBD5E1;
-    line-height: 1.5;
-  }
-  .period-items li .dot {
-    margin-top: 5px;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  /* Week cards */
-  .week-card {
-    background: #1E293B;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 10px;
-    border-left: 3px solid #EAB308;
-  }
-  .week-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-  }
-  .week-date {
-    font-size: 13px;
-    color: #EAB308;
-    font-weight: 700;
-  }
-  .week-time {
-    font-size: 12px;
-    color: #64748B;
-  }
-  .week-house-badge {
-    margin-left: auto;
-    font-size: 11px;
-    background: rgba(234,179,8,0.12);
-    color: #EAB308;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  /* Long-term cards */
-  .lt-card {
-    background: #1E293B;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 10px;
-    border-left: 3px solid transparent;
-  }
-  .lt-warning {
-    font-size: 11px;
-    color: #F59E0B;
-    margin-bottom: 8px;
-  }
-  .lt-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #E2E8F0;
-    margin-bottom: 6px;
-  }
-  .lt-subtitle {
-    font-size: 12px;
-    color: #94A3B8;
-    font-style: italic;
-    margin-bottom: 10px;
-  }
-
-  /* Locked */
-  .locked-box {
-    background: #fff;
-    border: 1px solid rgba(147,51,234,0.15);
-    border-radius: 16px;
-    padding: 40px 24px;
-    text-align: center;
-    box-shadow: 0 4px 24px rgba(147,51,234,0.06);
-  }
-  .locked-box .lock-icon { font-size: 38px; margin-bottom: 14px; }
-  .locked-box h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #1E293B; }
-  .locked-box p { font-size: 13px; color: #64748B; margin: 0 0 20px; }
-  .upgrade-btn {
-    padding: 11px 28px;
-    border-radius: 12px;
-    border: none;
-    background: #9333EA;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    box-shadow: 0 4px 14px rgba(147,51,234,0.3);
-    transition: opacity 0.15s;
-  }
-  .upgrade-btn:hover { opacity: 0.88; }
-
-  /* Error */
-  .error-box {
-    background: #fff;
-    border: 1px solid #FCA5A5;
-    border-radius: 10px;
-    padding: 18px;
-    color: #DC2626;
-    font-size: 14px;
-  }
-  .retry-btn {
-    margin-top: 10px;
-    background: #EF4444;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 7px 16px;
-    font-size: 13px;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    font-weight: 600;
-  }
-
-  /* Loading */
-  .loading-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 280px;
-    gap: 14px;
-  }
-  .loading-spinner {
-    width: 36px;
-    height: 36px;
-    border: 3px solid #E9D5FF;
-    border-top-color: #9333EA;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    width: 36px; height: 36px;
+    border: 3px solid #E9D5FF; border-top-color: #9333EA;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 14px; color: #94A3B8; }
 
-  /* Refresh footer */
   .refresh-footer {
-    margin-top: 28px;
-    padding-top: 16px;
+    margin-top: 28px; padding-top: 16px;
     border-top: 1px solid #E2E8F0;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .refresh-btn {
-    width: 100%;
-    padding: 11px;
-    background: #9333EA;
-    border: none;
-    border-radius: 12px;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif;
-    box-shadow: 0 4px 14px rgba(147,51,234,0.25);
-    transition: opacity 0.15s;
+    width: 100%; padding: 11px; background: #9333EA; border: none;
+    border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: 'Manrope', system-ui, sans-serif;
+    box-shadow: 0 4px 14px rgba(147,51,234,0.25); transition: opacity 0.15s;
   }
   .refresh-btn:hover { opacity: 0.88; }
+
+  .gcal-btn {
+    width: 100%; padding: 11px; background: #fff;
+    border: 1.5px solid #DDD6FE; border-radius: 12px;
+    color: #7C3AED; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: 'Manrope', system-ui, sans-serif;
+    transition: all 0.15s;
+  }
+  .gcal-btn:hover:not(:disabled) { background: #F5F3FF; border-color: #A78BFA; }
+  .gcal-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .gcal-btn.success { background: #F0FDF4; border-color: #86EFAC; color: #16A34A; }
+  .gcal-btn.error   { background: #FFF1F2; border-color: #FCA5A5; color: #DC2626; }
 `;
+
+// ── Вспомогательные компоненты ────────────────────────────────────────────────
 
 function TabBar({ tabs, active, onChange }) {
   return (
@@ -806,24 +389,11 @@ function LoadingState() {
   );
 }
 
+// ── Главный компонент ─────────────────────────────────────────────────────────
+
 export default function PlannerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-
-  // Загружаем шрифт через <link> — @import внутри <style> ненадёжен
-  useEffect(() => {
-    const id = 'manrope-font';
-    if (!document.getElementById(id)) {
-      const link = document.createElement('link');
-      link.id = id;
-      link.rel = 'stylesheet';
-      link.href = 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap';
-      document.head.appendChild(link);
-    }
-  }, []);
-
-  const authToken = localStorage.getItem("astro_access_token");
-  const { exportToCalendar, status: gcalStatus } = useGoogleCalendar();
 
   const userRaw = localStorage.getItem("astro_user");
   const userTier = (() => {
@@ -832,11 +402,13 @@ export default function PlannerPage() {
   const isFree = userTier === "free" || !userRaw;
   const isPro  = userTier === "pro" || userTier === "premium";
 
-  const [tab, setTab] = useState("month");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [planData, setPlanData] = useState(null);
+  const [tab, setTab]               = useState("month");
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [planData, setPlanData]     = useState(null);
   const [monthOffset, setMonthOffset] = useState(0);
+
+  const { exportEvents, status: gcalStatus } = useGcalExport();
 
   useEffect(() => { if (!isFree) loadPlan(); else setLoading(false); }, [id, monthOffset]);
 
@@ -855,9 +427,45 @@ export default function PlannerPage() {
     finally { setLoading(false); }
   }
 
+  // Собираем события из planData для экспорта
+  function buildExportEvents() {
+    if (!planData) return [];
+    const result = [];
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset);
+    const yr = d.getFullYear();
+
+    (planData.month_sections || []).forEach(section => {
+      (section.periods || []).forEach(p => {
+        const match = p.period?.match(/(\d{2})\.(\d{2})/);
+        if (match) {
+          result.push({
+            summary:     `${section.emoji} ${section.planet_name}: ${p.period}`,
+            description: (p.items || []).join("\n"),
+            date:        `${yr}-${match[2]}-${match[1]}`,
+            colorId:     "1",
+          });
+        }
+      });
+    });
+
+    (planData.week_days || []).forEach(day => {
+      const match = day.date?.match(/(\d{2})\.(\d{2})/);
+      if (match) {
+        result.push({
+          summary:     `🌙 Луна в ${day.house} доме`,
+          description: (day.items || []).join("\n"),
+          date:        `${yr}-${match[2]}-${match[1]}`,
+          colorId:     "5",
+        });
+      }
+    });
+
+    return result;
+  }
+
   const tabs = [
-    { key: "month",    label: "📅 Месяц"      },
-    { key: "week",     label: "🌙 Неделя"     },
+    { key: "month",    label: "📅 Месяц"       },
+    { key: "week",     label: "🌙 Неделя"      },
     { key: "longterm", label: "🪐 Долгосрочно" },
   ];
 
@@ -866,49 +474,12 @@ export default function PlannerPage() {
     return monthOffset === 0 ? "Этот месяц" : d.toLocaleString("ru-RU", { month: "long", year: "numeric" });
   })();
 
-  // Собираем события для экспорта из planData
-  function buildExportEvents() {
-    if (!planData) return [];
-    const events = [];
-    const now = new Date(); now.setMonth(now.getMonth() + monthOffset);
-    const yr = now.getFullYear();
-
-    (planData.month_sections || []).forEach(section => {
-      (section.periods || []).forEach(p => {
-        const match = p.period?.match(/(\d{2})\.(\d{2})/);
-        const mo2  = match ? match[2] : String(now.getMonth() + 1).padStart(2, '0');
-        const day2 = match ? match[1] : '01';
-        events.push({
-          type: 'aspect',
-          date: `${yr}-${mo2}-${day2}`,
-          description: `${section.planet_name}: ${(p.items || []).slice(0, 2).join(', ')}`,
-        });
-      });
-    });
-
-    (planData.week_days || []).forEach(day => {
-      const match = day.date?.match(/(\d{2})\.(\d{2})/);
-      if (match) events.push({
-        type: 'ingress',
-        date: `${yr}-${match[2]}-${match[1]}`,
-        description: `🌙 Луна в ${day.house} доме — ${(day.items || []).slice(0, 1).join(', ')}`,
-      });
-    });
-
-    return events;
-  }
-
-  const currentMonth = (() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
-
   const gcalLabel = {
-    idle:    '📅 Экспортировать в Google Calendar',
-    loading: '⏳ Экспортируем…',
-    success: '✅ Добавлено в Google Calendar',
-    error:   '❌ Ошибка — попробуйте снова',
-  }[gcalStatus] ?? '📅 Экспортировать в Google Calendar';
+    idle:    "📅 Экспортировать в Google Calendar",
+    loading: "⏳ Экспортируем…",
+    success: "✅ Добавлено в Google Calendar",
+    error:   "❌ Ошибка — попробуйте снова",
+  }[gcalStatus];
 
   return (
     <>
@@ -991,9 +562,9 @@ export default function PlannerPage() {
               <div className="refresh-footer">
                 <button className="refresh-btn" onClick={loadPlan}>🔄 Пересчитать план</button>
                 <button
-                  className={`gcal-btn${gcalStatus === 'success' ? ' success' : gcalStatus === 'error' ? ' error' : ''}`}
-                  disabled={gcalStatus === 'loading'}
-                  onClick={() => exportToCalendar(buildExportEvents(), currentMonth, authToken)}
+                  className={`gcal-btn${gcalStatus === "success" ? " success" : gcalStatus === "error" ? " error" : ""}`}
+                  disabled={gcalStatus === "loading"}
+                  onClick={() => exportEvents(buildExportEvents())}
                 >
                   {gcalLabel}
                 </button>
