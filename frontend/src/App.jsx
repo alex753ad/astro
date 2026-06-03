@@ -15,6 +15,8 @@ import ZodiacPage from './pages/ZodiacPage';
 import CRMPage from './pages/CRMPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import AdminPage from './pages/AdminPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 
@@ -247,6 +249,8 @@ function AppRoutes() {
             <Route path="/dashboard/clients"     element={<CRMPage />} />
             <Route path="/dashboard/analytics"  element={<AnalyticsPage />} />
             <Route path="/admin"                element={<AdminPage />} />
+            <Route path="/privacy"             element={<PrivacyPage />} />
+            <Route path="/terms"               element={<TermsPage />} />
           </Routes>
         </main>
 
