@@ -13,6 +13,7 @@ import SharePage from './pages/SharePage';
 import GiftPage from './pages/GiftPage';
 import ZodiacPage from './pages/ZodiacPage';
 import CRMPage from './pages/CRMPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 
@@ -138,6 +139,15 @@ function Header({ onShowAuth, dark, toggleDark }) {
               👥 Клиенты
             </Link>
           )}
+          {user?.tier === 'premium' && (
+            <Link
+              to="/dashboard/analytics"
+              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
+                         hover:bg-yellow-100 transition-all duration-200"
+            >
+              📊 Аналитика
+            </Link>
+          )}
           {user ? (
             <>
               <Link
@@ -234,6 +244,7 @@ function AppRoutes() {
             <Route path="/gift"           element={<GiftPage />} />
             <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
             <Route path="/dashboard/clients"     element={<CRMPage />} />
+            <Route path="/dashboard/analytics"  element={<AnalyticsPage />} />
           </Routes>
         </main>
 
