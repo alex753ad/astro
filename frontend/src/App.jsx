@@ -17,6 +17,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import AdminPage from './pages/AdminPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 
@@ -251,6 +252,7 @@ function AppRoutes() {
             <Route path="/admin"                element={<AdminPage />} />
             <Route path="/privacy"             element={<PrivacyPage />} />
             <Route path="/terms"               element={<TermsPage />} />
+            <Route path="/reset-password"      element={<ResetPasswordPage />} />
           </Routes>
         </main>
 
