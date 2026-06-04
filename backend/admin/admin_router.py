@@ -4,7 +4,7 @@ from backend.auth.dependencies import get_current_user
 from backend.models import User
 
 ADMIN_EMAILS = set(
-    e.strip() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()
+    e.strip() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()
 )
 
 
