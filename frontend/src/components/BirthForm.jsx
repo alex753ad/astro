@@ -201,6 +201,13 @@ export default function BirthForm({ onSubmit, loading }) {
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
+  const fillDemo = () => {
+    setForm(DEFAULT_FORM);
+    setPlaceValue(DEFAULT_PLACE_FULL);
+    setTimeUnknown(false);
+    setErrors({});
+  };
+
   const validate = () => {
     const errs = {};
     if (!form.name?.trim())      errs.name = 'Укажите имя';
@@ -238,6 +245,39 @@ export default function BirthForm({ onSubmit, loading }) {
         <p style={{ fontSize: 13, color: '#9B97B0', margin: 0 }}>
           Астро-ядро для ИИ-анализа, планирования и экспертной работы
         </p>
+      </div>
+
+      {/* Demo mode banner */}
+      <div style={{
+        marginBottom: 20,
+        padding: '12px 16px',
+        background: '#F0FDF4',
+        border: '1px solid rgba(34,197,94,0.25)',
+        borderRadius: 12,
+      }}>
+        <p style={{ fontSize: 12, color: '#166534', margin: '0 0 10px', lineHeight: 1.5 }}>
+          ⚠️ Эти данные необходимы исключительно для расчёта математических координат планет по эфемеридам (pyswisseph). Для ознакомления с интерфейсом вы можете использовать демо-данные.
+        </p>
+        <button
+          type="button"
+          onClick={fillDemo}
+          style={{
+            padding: '7px 18px',
+            borderRadius: 20,
+            border: '1.5px solid #22C55E',
+            background: 'transparent',
+            color: '#16A34A',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: '"Space Grotesk", system-ui, sans-serif',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#DCFCE7'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          ✦ Войти в демо-режим
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
