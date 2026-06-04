@@ -206,6 +206,15 @@ export default function BirthForm({ onSubmit, loading }) {
     setPlaceValue(DEFAULT_PLACE_FULL);
     setTimeUnknown(false);
     setErrors({});
+    setTimeout(() => {
+      onSubmit({
+        name:         DEFAULT_FORM.name,
+        birth_date:   DEFAULT_FORM.birth_date,
+        birth_time:   DEFAULT_FORM.birth_time,
+        birth_place:  DEFAULT_PLACE_FULL,
+        house_system: DEFAULT_FORM.house_system,
+      });
+    }, 100);
   };
 
   const validate = () => {
