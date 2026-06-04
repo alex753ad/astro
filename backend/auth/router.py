@@ -34,6 +34,8 @@ from backend.auth.jwt import (
     decode_token,
     create_email_confirmation_token,
     decode_email_confirmation_token,
+    create_password_reset_token,
+    decode_password_reset_token,
 )
 from backend.auth.passwords import hash_password, verify_password
 from backend.auth.dependencies import get_current_user
@@ -331,3 +333,78 @@ async def delete_account(
     db.commit()
     logger.info("User deleted: %s (%s)", user.email, user.id)
     return MessageResponse(message="Account deleted successfully.")
+
+
+# ═══════════════════════════════════════════════════════════
+# PASSWORD RESET
+# ═══════════════════════════════════════════════════════════
+
+from pydantic import BaseModel as _BaseModel
+
+class ForgotPasswordRequest(_BaseModel):
+    email: str
+
+class ResetPasswordRequest(_BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    summary="Request password reset email",
+    include_in_schema=True,
+)
+async def forgot_password_v2(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Send password reset link to email. Always returns 200 to prevent email enumeration."""
+    user = db.query(User).filter(User.email == data.email).first()
+    if user and user.hashed_password:  # only for email/password users
+        token = create_password_reset_token(user.id, user.email)
+        from backend.config import get_settings as _gs
+        settings = _gs()
+        reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+        from backend.email_service import _send, _base, _h2, _p, _btn
+        body_html = (
+            _h2("Сброс пароля")
+            + _p("Вы запросили сброс пароля для вашего аккаунта Astrea Timeline.")
+            + _p("Ссылка действительна <strong>1 час</strong>. Если вы не запрашивали сброс — просто проигнорируйте это письмо.")
+            + _btn("Сбросить пароль →", reset_url)
+        )
+        await _send(
+            data.email,
+            "Сброс пароля — Astrea Timeline",
+            _base("Сброс пароля", "Ссылка для сброса пароля", body_html),
+        )
+        logger.info("Password reset requested for: %s", data.email)
+    return MessageResponse(message="Если аккаунт существует, письмо отправлено.")
+
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    summary="Reset password with token",
+)
+async def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset user password using token from email."""
+    from jose import JWTError as _JWTError
+    try:
+        token_data = decode_password_reset_token(data.token)
+    except _JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ссылка недействительна или истёк срок действия.",
+        )
+
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Пароль минимум 8 символов.")
+    if data.new_password.isdigit():
+        raise HTTPException(status_code=400, detail="Пароль не может состоять только из цифр.")
+
+    user = db.query(User).filter(User.id == token_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+
+    user.hashed_password = hash_password(data.new_password)
+    db.commit()
+    logger.info("Password reset completed for: %s", user.email)
+    return MessageResponse(message="Пароль успешно изменён.")

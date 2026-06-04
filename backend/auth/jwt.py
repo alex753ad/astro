@@ -168,6 +168,31 @@ def create_email_confirmation_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+def create_password_reset_token(user_id: str, email: str) -> str:
+    """Create a password reset token (valid 1 hour)."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "type": "password_reset",
+        "iat": now,
+        "exp": now + timedelta(hours=1),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_password_reset_token(token: str) -> TokenData:
+    """Decode a password reset token."""
+    payload = _decode_with_fallback(token)
+    if payload.get("type") != "password_reset":
+        raise JWTError("Invalid token type for password reset")
+    return TokenData(
+        user_id=payload["sub"],
+        email=payload["email"],
+        token_type="password_reset",
+    )
+
+
 def decode_email_confirmation_token(token: str) -> TokenData:
     """Decode an email confirmation token.
 
