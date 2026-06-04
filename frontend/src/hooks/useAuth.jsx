@@ -138,9 +138,10 @@ function useAuthInternal() {
   // ── Apply token data from API response ──────────────────
   const applyTokenResponse = useCallback((data) => {
     const newUser = {
-      id:    data.user_id,
-      email: data.email,
-      tier:  data.tier,
+      id:       data.user_id,
+      email:    data.email,
+      tier:     data.tier,
+      is_admin: data.is_admin ?? false,
     };
     setAccessToken(data.access_token);
     setRefreshToken(data.refresh_token);
