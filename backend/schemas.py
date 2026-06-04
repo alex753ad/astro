@@ -142,6 +142,7 @@ class TokenResponse(BaseModel):
     user_id: str
     email: str
     tier: str = "free"
+    is_admin: bool = False
 
 
 class UserProfileResponse(BaseModel):
