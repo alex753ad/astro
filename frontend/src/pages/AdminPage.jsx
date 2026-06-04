@@ -541,13 +541,11 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const [statsRes, promosRes] = await Promise.all([
+      const [stats, promos] = await Promise.all([
         authFetch("/api/v1/admin/stats"),
         authFetch("/api/v1/admin/coupons/stats"),
       ]);
-      const stats = statsRes.ok ? await statsRes.json() : {};
-      const promos = promosRes.ok ? await promosRes.json() : MOCK.promos;
-      setData({ ...MOCK, ...stats, promos });
+      setData({ ...MOCK, ...stats, promos: promos ?? MOCK.promos });
     } catch {
       setData({ ...MOCK });
     } finally {
@@ -558,9 +556,8 @@ export default function AdminPage() {
   async function handleExport() {
     setExporting(true);
     try {
-      const res = await authFetch("/api/v1/admin/export");
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
+      const data = await authFetch("/api/v1/admin/export");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -568,7 +565,6 @@ export default function AdminPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      // fallback: скачать моки
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

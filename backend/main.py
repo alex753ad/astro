@@ -66,6 +66,7 @@ from backend.crm.router import router as crm_router
 from backend.crm.note_templates_router import router as note_templates_router
 from backend.interpretation.rag_router import router as rag_router
 from backend.admin.promo_router import router as promo_router
+from backend.admin.stats_router import router as admin_stats_router
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
@@ -138,6 +139,7 @@ app.include_router(crm_router)
 app.include_router(note_templates_router)
 app.include_router(rag_router)
 app.include_router(promo_router)
+app.include_router(admin_stats_router)
 
 
 # ═══════════════════════════════════════════════════════════
