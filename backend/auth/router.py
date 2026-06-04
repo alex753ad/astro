@@ -18,8 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+import os
 from backend.database import get_db
 from backend.models import User
+
+ADMIN_EMAILS = set(
+    e.strip() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()
+)
 from backend.schemas import (
     RegisterRequest,
     LoginRequest,
@@ -159,6 +164,7 @@ async def login(data: LoginRequest, db: Session = Depends(get_db)):
         user_id=user.id,
         email=user.email,
         tier=user.tier,
+        is_admin=user.email in ADMIN_EMAILS,
     )
 
 
@@ -203,6 +209,7 @@ async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
         user_id=user.id,
         email=user.email,
         tier=user.tier,
+        is_admin=user.email in ADMIN_EMAILS,
     )
 
 
