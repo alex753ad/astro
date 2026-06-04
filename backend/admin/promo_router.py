@@ -223,9 +223,9 @@ def coupon_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)
 
     # Gift-коды по тарифам
     gift_by_plan_rows = (
-        db.query(GiftCode.plan, func.count())
-        .filter(GiftCode.activated_at.isnot(None))
-        .group_by(GiftCode.plan)
+        db.query(GiftCode.tier, func.count())
+        .filter(GiftCode.redeemed_at.isnot(None))
+        .group_by(GiftCode.tier)
         .all()
     )
     gift_by_plan = {plan: count for plan, count in gift_by_plan_rows}
