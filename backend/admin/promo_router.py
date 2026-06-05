@@ -213,22 +213,29 @@ def record_promo_usage(code: str, user_id: int, plan: str, db: Session):
 
 @router.get("/coupons/stats")
 def coupon_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    promos = list_promos(db, _)
+    try:
+        promos = list_promos(db, _)
+    except Exception:
+        promos = []
 
-    # Применение промокодов по тарифам
-    by_plan_rows = db.execute(text("""
-        SELECT plan, COUNT(*) FROM promo_usages GROUP BY plan
-    """)).fetchall()
-    promo_by_plan = {r.plan: r[1] for r in by_plan_rows}
+    try:
+        by_plan_rows = db.execute(text(
+            "SELECT plan, COUNT(*) FROM promo_usages GROUP BY plan"
+        )).fetchall()
+        promo_by_plan = {r[0]: r[1] for r in by_plan_rows}
+    except Exception:
+        promo_by_plan = {}
 
-    # Gift-коды по тарифам
-    gift_by_plan_rows = (
-        db.query(GiftCode.tier, func.count())
-        .filter(GiftCode.redeemed_at.isnot(None))
-        .group_by(GiftCode.tier)
-        .all()
-    )
-    gift_by_plan = {plan: count for plan, count in gift_by_plan_rows}
+    try:
+        gift_by_plan_rows = (
+            db.query(GiftCode.tier, func.count())
+            .filter(GiftCode.redeemed_at.isnot(None))
+            .group_by(GiftCode.tier)
+            .all()
+        )
+        gift_by_plan = {plan: count for plan, count in gift_by_plan_rows}
+    except Exception:
+        gift_by_plan = {}
 
     return {
         "list":          promos,
