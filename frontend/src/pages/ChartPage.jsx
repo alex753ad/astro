@@ -149,14 +149,12 @@ const TOP_TABS = [
 ];
 
 // Left sidebar vertical buttons (only for 'chart' top tab)
-const LEFT_BTNS_TOP = [
-  { key: 'build',   label: 'Построить карту',      icon: '✦' },
-  { key: 'planets', label: 'Таблица планет/домов', icon: '☉' },
-  { key: 'aspects', label: 'Таблица аспектов',     icon: '△' },
-];
-const LEFT_BTNS_BOTTOM = [
-  { key: 'interpretation', label: 'AI-интерпретация',   icon: '✦' },
-  { key: 'chat',           label: 'AI Астролог Астрея', icon: '🤖', minTier: 'pro' },
+const LEFT_BTNS = [
+  { key: 'build',          label: 'Построить карту',       icon: '✦' },
+  { key: 'planets',        label: 'Таблица планет/домов',  icon: '☉' },
+  { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
+  { key: 'interpretation', label: 'AI-интерпретация',      icon: '✦' },
+  { key: 'chat',           label: 'AI Астролог Астрея',    icon: '🤖', minTier: 'pro' },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -471,7 +469,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               </div>
             )}
             <OnboardingTooltips />
-            {LEFT_BTNS_TOP.map(({ key, label, icon }) => (
+            {LEFT_BTNS.map(({ key, label, icon }) => (
               <button
                 key={key}
                 onClick={() => handleLeftBtn(key)}
@@ -485,22 +483,16 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               </button>
             ))}
 
-            {/* AI-кнопки внизу */}
-            <div style={{ marginTop: 'auto', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {LEFT_BTNS_BOTTOM.map(({ key, label, icon }) => (
-                <button
-                  key={key}
-                  onClick={() => handleLeftBtn(key)}
-                  style={{ ...s.leftBtn, ...(leftPanel === key ? s.leftBtnActive : {}) }}
-                >
-                  <span style={s.leftBtnIcon}>{icon}</span>
-                  <span style={{ flex: 1 }}>{label}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.6 }}>
-                    {leftPanel === key ? '‹' : '›'}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {/* Поделиться — под картой слева */}
+            <button
+              onClick={handleShare}
+              disabled={shareLoading}
+              style={{ ...s.leftBtn, marginTop: 8 }}
+              title="Скопировать ссылку"
+            >
+              <span style={s.leftBtnIcon}>🔗</span>
+              <span style={{ flex: 1 }}>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
+            </button>
           </div>
 
           {/* ── Центр: колесо карты ── */}
@@ -536,18 +528,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 timeUnknown={chart.time_unknown}
                 transitPlanets={[]}
               />
-              {/* Поделиться — под колесом */}
-              <div style={{ marginTop: 12, textAlign: 'center' }}>
-                <button
-                  onClick={handleShare}
-                  disabled={shareLoading}
-                  style={{ ...s.leftBtn, display: 'inline-flex', width: 'auto', padding: '8px 20px' }}
-                  title="Скопировать ссылку"
-                >
-                  <span style={s.leftBtnIcon}>🔗</span>
-                  <span>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -1022,7 +1002,6 @@ const s = {
     display: 'flex', flexDirection: 'column', gap: 6,
     flex: '0 0 200px', minWidth: 180,
     paddingRight: 12,
-    minHeight: 500,
   },
   leftBtn: {
     display: 'flex', alignItems: 'center', gap: 8,
