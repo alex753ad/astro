@@ -147,12 +147,12 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
                     {user?.tier === 'premium' && (
             <Link to="/dashboard/clients" className={navLink('/dashboard/clients')}>
-              👥 Клиенты
+              Клиенты
             </Link>
           )}
           {user?.tier === 'premium' && (
             <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')}>
-              📊 Аналитика
+              Аналитика
             </Link>
           )}
           {user ? (
@@ -163,7 +163,6 @@ function Header({ onShowAuth, dark, toggleDark }) {
                            text-white font-medium transition-all duration-200"
                 style={{ background: 'linear-gradient(135deg, #7C6CFF, #a855f7)' }}
               >
-                <span>👤</span>
                 <span>{user.email?.split('@')[0]}</span>
               </Link>
               <button
