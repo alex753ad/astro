@@ -360,7 +360,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => { if (!r.ok) throw new Error('Карта не найдена'); return r.json(); })
-      .then(setChart)
+      .then(data => { setChart(data); localStorage.setItem('astro_last_chart_id', chartId); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [chartId]);
