@@ -72,28 +72,28 @@ const API_BASE = '/api/v1';
 const TIER_LABELS = { free: 'Бесплатный', lite: 'Lite', pro: 'Pro', premium: 'Premium' };
 const TIER_COLORS = { free: '#8B8FA3', lite: '#38bdf8', pro: '#7C6CFF', premium: '#F59E0B' };
 
-// ─── Стили (тёмная тема в стиле существующего приложения) ────────────────────
+// ─── Стили (светлая тема в стиле приложения) ────────────────────────────────
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#0f172a',
-    color: '#e2e8f0',
+    background: 'transparent',
+    color: '#1e293b',
     fontFamily: "'Inter', system-ui, sans-serif",
     padding: '24px 16px',
   },
   inner: { maxWidth: 680, margin: '0 auto' },
   card: {
-    background: '#1e293b',
-    border: '1px solid #334155',
+    background: 'rgba(255,255,255,0.85)',
+    border: '1px solid rgba(139,92,246,0.15)',
     borderRadius: 12,
     padding: '20px 24px',
     marginBottom: 16,
   },
-  cardTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  cardTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em' },
   tabBar: {
     display: 'flex',
     gap: 2,
-    background: '#0f172a',
+    background: 'rgba(139,92,246,0.08)',
     borderRadius: 10,
     padding: 4,
     marginBottom: 24,
@@ -110,24 +110,24 @@ const S = {
     whiteSpace: 'nowrap',
     fontFamily: 'inherit',
     transition: 'all 0.15s',
-    background: active ? '#1e293b' : 'transparent',
-    color: active ? '#e2e8f0' : '#64748b',
+    background: active ? '#fff' : 'transparent',
+    color: active ? '#7c3aed' : '#64748b',
   }),
   btn: (variant = 'ghost') => ({
     padding: '8px 16px',
     borderRadius: 8,
-    border: variant === 'ghost' ? '1px solid #334155' : 'none',
+    border: variant === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none',
     background: variant === 'primary' ? 'linear-gradient(135deg, #7C6CFF, #A78BFA)'
               : variant === 'danger'  ? '#ef4444'
               : 'transparent',
-    color: variant === 'ghost' ? '#94a3b8' : '#fff',
+    color: variant === 'ghost' ? '#7c3aed' : '#fff',
     fontWeight: 600,
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit',
   }),
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  muted: { fontSize: 12, color: '#64748b' },
+  muted: { fontSize: 12, color: '#94a3b8' },
   badge: (tier) => ({
     display: 'inline-block',
     padding: '3px 12px',
@@ -194,7 +194,7 @@ function Toggle({ checked, onChange }) {
       onClick={onChange}
       style={{
         width: 40, height: 22, borderRadius: 11, cursor: 'pointer',
-        background: checked ? '#7C6CFF' : '#334155',
+        background: checked ? '#7C6CFF' : '#e2e8f0',
         position: 'relative', transition: 'background 0.2s', flexShrink: 0,
       }}
     >
