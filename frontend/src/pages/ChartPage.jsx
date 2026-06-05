@@ -144,13 +144,12 @@ const sr = {
 };
 
 // Horizontal top tabs (above the 3-column layout)
-const TOP_TABS = [
-  { key: 'transits', label: 'Транзиты' },
-];
+const TOP_TABS = [];
 
 // Left sidebar vertical buttons (only for 'chart' top tab)
 const LEFT_BTNS = [
   { key: 'build',          label: 'Построить карту',       icon: '✦' },
+  { key: 'transits',       label: 'Транзиты',              icon: '↻' },
   { key: 'planets',        label: 'Таблица планет/домов',  icon: '☉' },
   { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
 ];
@@ -391,6 +390,10 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   }
 
   function handleLeftBtn(key) {
+    if (key === 'transits') {
+      handleTopTabChange('transits');
+      return;
+    }
     setLeftPanel(prev => prev === key ? null : key);
   }
 
