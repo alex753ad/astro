@@ -153,8 +153,10 @@ const LEFT_BTNS = [
   { key: 'build',          label: 'Построить карту',       icon: '✦' },
   { key: 'planets',        label: 'Таблица планет/домов',  icon: '☉' },
   { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
-  { key: 'interpretation', label: 'AI-интерпретация',      icon: '✦' },
-  { key: 'chat',           label: 'AI Астролог Астрея',    icon: '🤖', minTier: 'pro' },
+];
+const LEFT_BTNS_BOTTOM = [
+  { key: 'interpretation', label: 'AI-интерпретация',   icon: '✦' },
+  { key: 'chat',           label: 'AI Астролог Астрея', icon: '🤖', minTier: 'pro' },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
@@ -493,6 +495,23 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               <span style={s.leftBtnIcon}>🔗</span>
               <span style={{ flex: 1 }}>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
             </button>
+
+            {/* AI-кнопки прижаты к низу */}
+            <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {LEFT_BTNS_BOTTOM.map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => handleLeftBtn(key)}
+                  style={{ ...s.leftBtn, ...(leftPanel === key ? s.leftBtnActive : {}) }}
+                >
+                  <span style={s.leftBtnIcon}>{icon}</span>
+                  <span style={{ flex: 1 }}>{label}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.6 }}>
+                    {leftPanel === key ? '‹' : '›'}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* ── Центр: колесо карты ── */}
@@ -1002,6 +1021,7 @@ const s = {
     display: 'flex', flexDirection: 'column', gap: 6,
     flex: '0 0 200px', minWidth: 180,
     paddingRight: 12,
+    alignSelf: 'stretch',
   },
   leftBtn: {
     display: 'flex', alignItems: 'center', gap: 8,
