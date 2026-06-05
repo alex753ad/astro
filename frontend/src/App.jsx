@@ -97,9 +97,17 @@ function useDarkMode() {
 
 function Header({ onShowAuth, dark, toggleDark }) {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const lastChartId = localStorage.getItem('astro_last_chart_id');
   const lastChartName = localStorage.getItem('astro_last_chart_name');
   const navChartLabel = lastChartName || (user?.email?.split('@')[0]) || 'Карта';
+
+  const navLink = (to) => {
+    const isActive = location.pathname === to || location.pathname.startsWith(to + '/');
+    return isActive
+      ? "px-3 py-1.5 rounded-full text-violet-600 bg-violet-100 border border-violet-300 transition-all duration-200 text-sm font-medium"
+      : "px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900 hover:bg-astro-purple/20 transition-all duration-200 text-sm";
+  };
 
   return (
     <header className="
@@ -125,45 +133,25 @@ function Header({ onShowAuth, dark, toggleDark }) {
         <nav className="flex items-center gap-1 text-sm">
           {user && lastChartId && (
             <>
-              <Link
-                to={`/chart/${lastChartId}`}
-                className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                           hover:bg-astro-purple/20 transition-all duration-200"
-              >
+              <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)}>
                 Натальная карта
               </Link>
-              <Link
-                to={`/planner/${lastChartId}`}
-                className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                           hover:bg-astro-purple/20 transition-all duration-200"
-              >
+              <Link to={`/planner/${lastChartId}`} className={navLink(`/planner/${lastChartId}`)}>
                 Timeline Планер
               </Link>
-              <Link
-                to={`/lunar?chartId=${lastChartId}`}
-                className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                           hover:bg-astro-purple/20 transition-all duration-200"
-              >
+              <Link to={`/lunar`} className={navLink('/lunar')}>
                 Лунный календарь
               </Link>
             </>
           )}
 
                     {user?.tier === 'premium' && (
-            <Link
-              to="/dashboard/clients"
-              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                         hover:bg-yellow-100 transition-all duration-200"
-            >
+            <Link to="/dashboard/clients" className={navLink('/dashboard/clients')}>
               👥 Клиенты
             </Link>
           )}
           {user?.tier === 'premium' && (
-            <Link
-              to="/dashboard/analytics"
-              className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                         hover:bg-yellow-100 transition-all duration-200"
-            >
+            <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')}>
               📊 Аналитика
             </Link>
           )}
