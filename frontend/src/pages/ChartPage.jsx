@@ -145,10 +145,7 @@ const sr = {
 
 // Horizontal top tabs (above the 3-column layout)
 const TOP_TABS = [
-  { key: 'chart',    label: 'Натальная карта' },
   { key: 'transits', label: 'Транзиты' },
-  { key: 'planner',  label: 'Планер' },
-  { key: 'lunar',    label: 'Лунный календарь' },
 ];
 
 // Left sidebar vertical buttons (only for 'chart' top tab)
