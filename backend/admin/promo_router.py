@@ -280,8 +280,8 @@ def export_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)
         "gift_codes": [
             {
                 "code":         g.code,
-                "plan":         g.plan,
-                "activated_at": g.activated_at.isoformat() if g.activated_at else None,
+                "tier":         g.tier,
+                "redeemed_at":  g.redeemed_at.isoformat() if g.redeemed_at else None,
                 "created_at":   g.created_at.isoformat(),
             }
             for g in gift_rows
