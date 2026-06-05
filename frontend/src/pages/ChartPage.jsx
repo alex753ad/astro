@@ -357,7 +357,11 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => { if (!r.ok) throw new Error('Карта не найдена'); return r.json(); })
-      .then(data => { setChart(data); localStorage.setItem('astro_last_chart_id', chartId); })
+      .then(data => {
+        setChart(data);
+        localStorage.setItem('astro_last_chart_id', chartId);
+        if (data.name) localStorage.setItem('astro_last_chart_name', data.name);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [chartId]);
@@ -417,8 +421,8 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       {/* ── Шапка ── */}
       <header style={s.header}>
         <div>
-          <h1 style={s.title}>{chart.name ?? 'Натальная карта'}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h1 style={s.title}>{chart.name ?? 'Натальная карта'}</h1>
             <p style={{ ...s.subtitle, margin: 0 }}>{chart.birth_date} · {chart.birth_place}</p>
             <StreakBadge streak={streak} isNew={isNew} />
           </div>

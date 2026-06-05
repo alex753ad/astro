@@ -98,6 +98,8 @@ function useDarkMode() {
 function Header({ onShowAuth, dark, toggleDark }) {
   const { user, logout } = useAuth();
   const lastChartId = localStorage.getItem('astro_last_chart_id');
+  const lastChartName = localStorage.getItem('astro_last_chart_name');
+  const navChartLabel = lastChartName || (user?.email?.split('@')[0]) || 'Карта';
 
   return (
     <header className="
@@ -128,7 +130,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
                 className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
                            hover:bg-astro-purple/20 transition-all duration-200"
               >
-                Натальная карта
+                Карта {navChartLabel}
               </Link>
               <Link
                 to={`/planner/${lastChartId}`}
