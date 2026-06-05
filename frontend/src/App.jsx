@@ -160,8 +160,8 @@ function Header({ onShowAuth, dark, toggleDark }) {
               <Link
                 to="/profile"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
-                           text-slate-600 hover:text-slate-900 hover:bg-slate-100
-                           transition-all duration-200"
+                           text-white font-medium transition-all duration-200"
+                style={{ background: 'linear-gradient(135deg, #7C6CFF, #a855f7)' }}
               >
                 <span>👤</span>
                 <span>{user.email?.split('@')[0]}</span>
