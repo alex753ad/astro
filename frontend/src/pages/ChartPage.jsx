@@ -488,17 +488,6 @@ export default function ChartPage({ currentUser, onShowAuth }) {
               </button>
             ))}
 
-            {/* Поделиться — под картой слева */}
-            <button
-              onClick={handleShare}
-              disabled={shareLoading}
-              style={{ ...s.leftBtn, marginTop: 8 }}
-              title="Скопировать ссылку"
-            >
-              <span style={s.leftBtnIcon}>🔗</span>
-              <span style={{ flex: 1 }}>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
-            </button>
-
             {/* AI-кнопки прижаты к низу */}
             <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {LEFT_BTNS_BOTTOM.map(({ key, label, icon }) => (
@@ -550,6 +539,18 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 timeUnknown={chart.time_unknown}
                 transitPlanets={[]}
               />
+              {/* Поделиться — под колесом карты */}
+              <div style={{ textAlign: 'center', marginTop: 12 }}>
+                <button
+                  onClick={handleShare}
+                  disabled={shareLoading}
+                  style={{ ...s.leftBtn, display: 'inline-flex', width: 'auto', padding: '8px 20px' }}
+                  title="Скопировать ссылку"
+                >
+                  <span style={s.leftBtnIcon}>🔗</span>
+                  <span>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
