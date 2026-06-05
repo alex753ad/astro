@@ -126,7 +126,7 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
 @router.post("/admin/set-tier")
 async def admin_set_tier(
     request: Request,
-    user: User = Depends(get_current_user),
+    admin: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Принудительно сменить тариф без оплаты. Только для ADMIN_EMAIL."""
@@ -134,30 +134,39 @@ async def admin_set_tier(
     from datetime import datetime, timedelta
 
     admin_emails = [e.strip().lower() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()]
-    if not admin_emails or user.email.lower() not in admin_emails:
+    if not admin_emails or admin.email.lower() not in admin_emails:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     body = await request.json()
     tier = body.get("tier", "")
+    user_id = body.get("user_id")
     if tier not in ("free", "lite", "pro", "premium"):
         raise HTTPException(400, "tier must be: free, lite, pro, premium")
 
-    user.tier = tier
-    sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
+    # Если передан user_id — меняем тариф этому пользователю, иначе себе
+    if user_id:
+        target = db.query(User).filter(User.id == user_id).first()
+        if not target:
+            raise HTTPException(404, "User not found")
+    else:
+        target = admin
+
+    target.tier = tier
+    sub = db.query(Subscription).filter(Subscription.user_id == target.id).first()
 
     if tier == "free":
         if sub:
             sub.status = "canceled"
             sub.tier = "free"
     else:
-        period_end = datetime.utcnow() + timedelta(days=3650)  # 10 лет
+        period_end = datetime.utcnow() + timedelta(days=3650)
         if sub:
             sub.tier = tier
             sub.status = "active"
             sub.current_period_end = period_end
         else:
             db.add(Subscription(
-                user_id=user.id,
+                user_id=target.id,
                 stripe_price_id=f"admin_{tier}",
                 status="active",
                 tier=tier,
@@ -165,7 +174,7 @@ async def admin_set_tier(
             ))
 
     db.commit()
-    logger.info("Admin set tier: user=%s tier=%s", user.email, tier)
+    logger.info("Admin set tier: admin=%s target=%s tier=%s", admin.email, target.email, tier)
     return {"ok": True, "tier": tier}
 
 

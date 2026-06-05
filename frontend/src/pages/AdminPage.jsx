@@ -203,7 +203,29 @@ function TabOverview({ d }) {
   );
 }
 
-function TabUsers({ d }) {
+function TabUsers({ d, authFetch, onReload }) {
+  const [search, setSearch] = useState("");
+  const [changing, setChanging] = useState(null); // user id
+
+  async function setTier(userId, tier) {
+    setChanging(userId);
+    try {
+      await authFetch("/api/v1/payments/admin/set-tier", {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId, tier }),
+      });
+      onReload();
+    } catch (e) {
+      alert("Ошибка: " + (e.message || "неизвестная"));
+    } finally {
+      setChanging(null);
+    }
+  }
+
+  const filtered = (d.recent_users || []).filter(u =>
+    !search || u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -213,24 +235,47 @@ function TabUsers({ d }) {
         <MetricCard label="Google OAuth" value={d.users.google_pct + "%"} />
       </div>
       <div className="border border-gray-100 rounded-xl p-4 mb-3">
-        <div className="text-[13px] font-medium text-gray-500 mb-4">Последние пользователи</div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-[13px] font-medium text-gray-500">Последние пользователи</div>
+          <input
+            className="text-[12px] border border-gray-200 rounded-lg px-3 py-1.5 w-56 outline-none focus:border-violet-400"
+            placeholder="Поиск по email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-gray-100">
-                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация"].map(h => (
+                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация", "Сменить тариф"].map(h => (
                   <th key={h} className="text-left pb-2 pr-4 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {d.recent_users.map(u => (
+              {filtered.map(u => (
                 <tr key={u.id} className="border-b border-gray-100 last:border-0">
                   <td className="py-2 pr-4 text-gray-700">{u.email}</td>
                   <td className="py-2 pr-4"><Badge plan={u.plan} /></td>
                   <td className="py-2 pr-4">{u.charts}</td>
                   <td className="py-2 pr-4">{u.interpretations}</td>
-                  <td className="py-2 text-gray-400">{fmtDate(u.created_at)}</td>
+                  <td className="py-2 pr-4 text-gray-400">{fmtDate(u.created_at)}</td>
+                  <td className="py-2">
+                    <div className="flex gap-1">
+                      {["free","lite","pro","premium"].filter(t => t !== u.plan).map(t => (
+                        <button
+                          key={t}
+                          disabled={changing === u.id}
+                          onClick={() => setTier(u.id, t)}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium border border-gray-200 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                          style={{ color: PLAN_COLORS[t]?.text }}
+                        >
+                          {PLAN_LABELS[t]}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -616,7 +661,7 @@ export default function AdminPage() {
       {data && !loading && (
         <>
           {tab === 0 && <TabOverview d={data} />}
-          {tab === 1 && <TabUsers d={data} />}
+          {tab === 1 && <TabUsers d={data} authFetch={authFetch} onReload={load} />}
           {tab === 2 && <TabRevenue d={data} />}
           {tab === 3 && <TabAI d={data} />}
           {tab === 4 && <TabEmails d={data} />}
