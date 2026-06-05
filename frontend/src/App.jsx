@@ -126,6 +126,13 @@ function Header({ onShowAuth, dark, toggleDark }) {
           {user && lastChartId && (
             <>
               <Link
+                to={`/chart/${lastChartId}`}
+                className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
+                           hover:bg-astro-purple/20 transition-all duration-200"
+              >
+                Натальная карта
+              </Link>
+              <Link
                 to={`/planner/${lastChartId}`}
                 className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
                            hover:bg-astro-purple/20 transition-all duration-200"
