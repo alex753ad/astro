@@ -127,14 +127,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
           >
             Главная
           </Link>
-          <Link
-            to="/lunar"
-            className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
-                       hover:bg-astro-blue/40 transition-all duration-200"
-          >
-            🌙 Луна
-          </Link>
-          {user?.tier === 'premium' && (
+                    {user?.tier === 'premium' && (
             <Link
               to="/dashboard/clients"
               className="px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900
