@@ -494,13 +494,10 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 <button
                   key={key}
                   onClick={() => handleLeftBtn(key)}
-                  style={{ ...s.leftBtn, ...(leftPanel === key ? s.leftBtnActive : {}) }}
+                  style={{ ...s.leftBtn, background: 'linear-gradient(135deg, #7C6CFF, #a855f7)', borderColor: 'transparent', color: '#fff' }}
                 >
-                  <span style={s.leftBtnIcon}>{icon}</span>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
                   <span style={{ flex: 1 }}>{label}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.6 }}>
-                    {leftPanel === key ? '‹' : '›'}
-                  </span>
                 </button>
               ))}
             </div>
@@ -1041,11 +1038,11 @@ const s = {
     width: '100%',
   },
   leftBtnActive: {
-    background: 'rgba(124,108,255,0.08)',
-    borderColor: 'var(--accent)',
-    color: 'var(--accent)',
+    background: 'linear-gradient(135deg, #7C6CFF, #a855f7)',
+    borderColor: 'transparent',
+    color: '#fff',
   },
-  leftBtnIcon: { fontSize: 14, color: 'var(--accent)', flexShrink: 0 },
+  leftBtnIcon: { fontSize: 14, color: 'inherit', flexShrink: 0 },
 
   // Центральная колонка — колесо
   centerCol: {
