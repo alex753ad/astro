@@ -422,7 +422,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
       <header style={s.header}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <h1 style={s.title}>{chart.name ?? 'Натальная карта'}</h1>
+            <h1 style={s.title}>Карта {chart.name ?? currentUser?.email?.split('@')[0] ?? ''}</h1>
             <p style={{ ...s.subtitle, margin: 0 }}>{chart.birth_date} · {chart.birth_place}</p>
             <StreakBadge streak={streak} isNew={isNew} />
           </div>
