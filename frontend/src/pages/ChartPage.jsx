@@ -155,7 +155,7 @@ const LEFT_BTNS = [
 ];
 const LEFT_BTNS_BOTTOM = [
   { key: 'interpretation', label: 'AI-интерпретация',   icon: '✦' },
-  { key: 'chat',           label: 'AI Астролог Астрея', icon: '🤖', minTier: 'pro' },
+  { key: 'chat',           label: 'AI Астролог Астрея', icon: '✦', minTier: 'pro' },
 ];
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
