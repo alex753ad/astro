@@ -47,19 +47,19 @@ const PLANETS      = ['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn','
 const HOUSES       = [1,2,3,4,5,6,7,8,9,10,11,12];
 
 const S = {
-  page: { minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
+  page: { minHeight: '100vh', background: 'transparent', color: '#1e293b', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
   inner: { maxWidth: 900, margin: '0 auto' },
-  card: { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px', marginBottom: 16 },
-  title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  card: { background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px', marginBottom: 16 },
+  title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   btn: (v = 'ghost') => ({
-    padding: '8px 16px', borderRadius: 8, border: v === 'ghost' ? '1px solid #334155' : 'none', cursor: 'pointer', fontFamily: 'inherit',
+    padding: '8px 16px', borderRadius: 8, border: v === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
     background: v === 'primary' ? 'linear-gradient(135deg,#7C6CFF,#A78BFA)' : v === 'danger' ? '#ef4444' : 'transparent',
-    color: v === 'ghost' ? '#94a3b8' : '#fff', fontWeight: 600, fontSize: 13,
+    color: v === 'ghost' ? '#7c3aed' : '#fff', fontWeight: 600, fontSize: 13,
   }),
-  input: { width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
-  muted: { fontSize: 12, color: '#64748b' },
-  label: { fontSize: 12, color: '#94a3b8', marginBottom: 4, display: 'block' },
+  input: { width: '100%', background: '#f8f4ff', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '8px 12px', color: '#1e293b', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
+  muted: { fontSize: 12, color: '#94a3b8' },
+  label: { fontSize: 12, color: '#7c3aed', marginBottom: 4, display: 'block' },
 };
 
 // ─── Форма добавления клиента ─────────────────────────────────────────────────
@@ -255,14 +255,14 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
       </div>
 
       {/* Вкладки */}
-      <div style={{ display: 'flex', gap: 4, background: '#0f172a', borderRadius: 10, padding: 4, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 4, background: 'rgba(139,92,246,0.08)', borderRadius: 10, padding: 4, marginBottom: 16 }}>
         {tabs.map(t => (
           <button key={t} onClick={() => {
             setTab(t);
             if (t === 'ai' && !aiText) loadAI();
           }}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-              background: tab === t ? '#1e293b' : 'transparent', color: tab === t ? '#e2e8f0' : '#64748b' }}>
+              background: tab === t ? '#fff' : 'transparent', color: tab === t ? '#7c3aed' : '#64748b' }}>
             {tabLabels[t]}
           </button>
         ))}
@@ -320,7 +320,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
               {showTemplateDropdown && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, zIndex: 100,
-                  background: '#1e293b', border: '1px solid #334155', borderRadius: 8,
+                  background: '#fff', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8,
                   minWidth: 220, padding: 4, marginTop: 4,
                 }}>
                   {templates.length === 0 && (
@@ -374,7 +374,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
 
           {/* Форма нового шаблона */}
           {showNewTemplateForm && (
-            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+            <div style={{ background: '#f8f4ff', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
               <input
                 style={{ ...S.input, marginBottom: 8 }}
                 placeholder="Название шаблона"

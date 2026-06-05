@@ -21,14 +21,14 @@ const MONTH_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Ию
 // ── Стили (палитра CRMPage) ──────────────────────────────────────────────────
 
 const S = {
-  page:    { minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
+  page:    { minHeight: '100vh', background: 'transparent', color: '#1e293b', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
   inner:   { maxWidth: 900, margin: '0 auto' },
   grid:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16, marginTop: 24 },
-  card:    { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '20px 24px' },
-  label:   { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#64748b', marginBottom: 8 },
-  bigNum:  { fontSize: 48, fontWeight: 800, lineHeight: 1, color: '#e2e8f0', margin: '8px 0 4px' },
+  card:    { background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px' },
+  label:   { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#7c3aed', marginBottom: 8 },
+  bigNum:  { fontSize: 48, fontWeight: 800, lineHeight: 1, color: '#1e293b', margin: '8px 0 4px' },
   sub:     { fontSize: 13, color: '#7C6CFF' },
-  muted:   { fontSize: 12, color: '#64748b' },
+  muted:   { fontSize: 12, color: '#94a3b8' },
   row:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
 };
 
@@ -44,7 +44,7 @@ function Bar({ label, count, max, emoji }) {
         </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>{count}</span>
       </div>
-      <div style={{ height: 6, background: '#334155', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ height: 6, background: '#e9d5ff', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{
           height: '100%', width: `${pct}%`,
           background: 'linear-gradient(90deg, #7C6CFF, #A78BFA)',
