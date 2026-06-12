@@ -82,7 +82,7 @@ export default function AspectTable({ aspects }) {
   });
 
   return (
-    <div className="glass-card p-6">
+    <div className="p-6">
       <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
         <span className="text-brand-accent">△</span>
         Аспекты
