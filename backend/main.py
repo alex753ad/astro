@@ -899,18 +899,14 @@ async def interpret_transits(
                 custom_prompt=period_prompt,
             )
 
-            # Try streaming from AI engines
-            streamed = False
+            # Try streaming from AI engines (skip template — handled below)
             for eng in router._engines:
+                if eng.name == "template":
+                    continue
                 if not router._check_budget(eng.name):
                     continue
-                if eng.name == "template":
-                    # Use template transit fallback
-                    break
                 try:
-                    # Override the prompt by creating a custom request
-                    # The engine will use the standard prompt builder,
-                    # but we inject transit context
+                    streamed = False
                     async for chunk in eng.stream(interp_request):
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
@@ -1043,13 +1039,13 @@ async def interpret_transit_event(
                 custom_prompt=event_prompt,
             )
 
-            streamed = False
             for eng in router._engines:
+                if eng.name == "template":
+                    continue
                 if not router._check_budget(eng.name):
                     continue
-                if eng.name == "template":
-                    break
                 try:
+                    streamed = False
                     async for chunk in eng.stream(interp_request):
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
