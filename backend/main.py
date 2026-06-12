@@ -1056,7 +1056,8 @@ async def interpret_transit_event(
                     if streamed:
                         yield "data: [DONE]\n\n"
                         return
-                except Exception:
+                except Exception as e:
+                    logger.error("Transit event stream from %s failed: %s", eng.name, e)
                     continue
 
             # Template fallback
