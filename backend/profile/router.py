@@ -2,6 +2,7 @@
 
 Endpoints:
   GET    /api/v1/profile/charts              — list saved charts
+  PATCH  /api/v1/profile/primary-chart       — set primary chart (pin)
   DELETE /api/v1/profile/charts/{chart_id}   — delete a saved chart
   GET    /api/v1/profile/history             — interpretation history
   GET    /api/v1/profile/subscription        — current subscription info
@@ -13,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -55,6 +57,7 @@ async def list_charts(
         "total": total,
         "offset": offset,
         "limit": limit,
+        "primary_chart_id": user.primary_chart_id,
         "charts": [
             {
                 "id": c.id,
@@ -64,11 +67,56 @@ async def list_charts(
                 "house_system": c.house_system,
                 "time_unknown": c.time_unknown,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
+                "is_primary": c.id == user.primary_chart_id,
             }
             for c in charts
         ],
     }
 
+
+# ═══════════════════════════════════════════════════════════
+# PRIMARY CHART
+# ═══════════════════════════════════════════════════════════
+
+class SetPrimaryChartRequest(BaseModel):
+    chart_id: str
+
+
+@router.patch(
+    "/primary-chart",
+    response_model=MessageResponse,
+    summary="Set primary chart (pin)",
+)
+async def set_primary_chart(
+    body: SetPrimaryChartRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Pin a chart as primary.
+
+    All emails, planner, and natal chart tab will use this chart.
+    The chart must belong to the current user.
+    """
+    chart = (
+        db.query(NatalChart)
+        .filter(NatalChart.id == body.chart_id, NatalChart.user_id == user.id)
+        .first()
+    )
+    if not chart:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chart not found or does not belong to you.",
+        )
+
+    user.primary_chart_id = chart.id
+    db.commit()
+    logger.info("Primary chart set: user=%s chart=%s", user.id, chart.id)
+    return MessageResponse(message="Primary chart updated.")
+
+
+# ═══════════════════════════════════════════════════════════
+# DELETE CHART
+# ═══════════════════════════════════════════════════════════
 
 @router.delete(
     "/charts/{chart_id}",
@@ -92,6 +140,10 @@ async def delete_chart(
             detail="Chart not found or does not belong to you.",
         )
 
+    # Если удаляется главная карта — сбрасываем pin
+    if user.primary_chart_id == chart_id:
+        user.primary_chart_id = None
+
     db.delete(chart)
     db.commit()
     logger.info("Chart %s deleted by user %s", chart_id, user.id)
@@ -112,11 +164,7 @@ async def interpretation_history(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
-    """Return interpretation history entries linked to the user's charts.
-
-    Joins NatalChart and filters by user_id so users only see their own data.
-    """
-    # Interpretation model may not exist in all deployments — guard gracefully
+    """Return interpretation history entries linked to the user's charts."""
     try:
         from backend.models import Interpretation  # type: ignore
 
@@ -146,7 +194,6 @@ async def interpretation_history(
                     "chart_id": r.chart_id,
                     "engine": r.engine,
                     "created_at": r.created_at.isoformat() if r.created_at else None,
-                    # Content preview — first 200 chars to avoid large payloads
                     "preview": (r.content or "")[:200],
                 }
                 for r in rows
@@ -154,7 +201,6 @@ async def interpretation_history(
         }
 
     except (ImportError, AttributeError):
-        # Interpretation table not yet migrated — return empty gracefully
         return {"total": 0, "offset": offset, "limit": limit, "history": []}
 
 
@@ -181,7 +227,6 @@ async def get_subscription(
         .first()
     )
 
-    # Usage this month
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     ai_used = 0
     charts_used = 0
@@ -245,19 +290,17 @@ async def delete_all_data(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Permanently delete all charts, interpretations, and subscription data.
+    """Permanently delete all charts, interpretations, and subscription data."""
+    # Сбрасываем primary_chart_id перед удалением карт (FK constraint)
+    user.primary_chart_id = None
+    db.flush()
 
-    The user account itself is kept (email only) unless they also call
-    DELETE /api/v1/auth/me.  This endpoint erases only the content data.
-    """
-    # Delete all charts (cascade handles interpretations if FK is set up)
     deleted_charts = (
         db.query(NatalChart)
         .filter(NatalChart.user_id == user.id)
         .delete(synchronize_session=False)
     )
 
-    # Delete subscription record
     db.query(Subscription).filter(Subscription.user_id == user.id).delete(
         synchronize_session=False
     )
@@ -288,7 +331,6 @@ async def get_referral(
     from backend.config import get_settings as _get_settings
     settings = _get_settings()
 
-    # Генерируем код если ещё нет
     if not user.referral_code:
         from backend.payments.robokassa_service import _generate_referral_code as generate_referral_code
         try:
@@ -298,13 +340,11 @@ async def get_referral(
         except Exception as e:
             logger.warning("Could not generate referral_code: %s", e)
 
-    # Считаем кол-во рефералов которые совершили оплату
     referrals_count = db.query(User).filter(
         User.referred_by == user.id,
         User.tier != "free",
     ).count()
 
-    # Недели бонуса = кол-во успешных рефералов * 2
     reward_weeks_earned = referrals_count * 2
 
     base_url = getattr(settings, "frontend_url", "https://astreatime.ru")
