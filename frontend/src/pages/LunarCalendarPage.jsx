@@ -75,6 +75,14 @@ function sameDay(a, b) {
 
 function fmtPhaseTime(event) {
   if (!event) return '';
+  // /calendar/lunar возвращает date + time раздельно ("2026-06-15" + "05:54 GMT+3")
+  if (event.time) {
+    const src = event.exact_date || event.date;
+    if (!src) return '';
+    const [, mo, dd] = src.split('-');
+    const tm = event.time.replace(/\s*GMT\+3/, '').replace(/\s*UTC/, '');
+    return `${dd}.${mo} - ${tm} ОМТ+3`;
+  }
   const src = event.exact_date || event.date;
   if (!src) return '';
   const d  = new Date(src);
@@ -107,7 +115,8 @@ export default function LunarCalendarPage() {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
-  const [dailyMap,setDailyMap]= useState({});
+  const [dailyMap,    setDailyMap]    = useState({});
+  const [lunarPhases, setLunarPhases] = useState([]);
 
   useEffect(() => { load(); }, [year, month]);
 
@@ -131,7 +140,8 @@ export default function LunarCalendarPage() {
           const map = {};
           (j2.daily_signs || []).forEach(d => { if (d.date && d.sign) map[d.date] = SIGN_RU_TO_KEY[d.sign] || d.sign; });
           setDailyMap(map);
-        } else setDailyMap({});
+          setLunarPhases(j2.phases || []);
+        } else { setDailyMap({}); setLunarPhases([]); }
       } catch { setDailyMap({}); }
 
     } catch(e) {
@@ -154,8 +164,9 @@ export default function LunarCalendarPage() {
 
   const events   = data?.events    || [];
   const overview = data?.overview;
-  const newMoons = events.filter(e => e.type === 'new_moon');
-  const fullMoons= events.filter(e => e.type === 'full_moon');
+  const phaseSrc = lunarPhases.length ? lunarPhases : events;
+  const newMoons = phaseSrc.filter(e => e.type === 'new_moon');
+  const fullMoons= phaseSrc.filter(e => e.type === 'full_moon');
 
   const todaySign     = dailyMap[todayStr] || approxMoonSign(todayStr);
   const todaySignData = SIGNS_RU[todaySign] || SIGNS_RU.Leo;
