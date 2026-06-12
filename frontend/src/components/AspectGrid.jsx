@@ -65,7 +65,7 @@ export default function AspectGrid({ aspects = [], planets = [] }) {
                       title={asp ? `${rowPlanet} ${asp.type} ${colPlanet} (орб ${asp.orb?.toFixed(1)}°)` : (isDiag ? rowPlanet : '')}
                       style={{
                         width: CELL, height: CELL,
-                        border: '0.5px solid var(--color-border-tertiary)',
+                        border: '0.5px solid rgba(139,143,163,0.25)',
                         textAlign: 'center',
                         verticalAlign: 'middle',
                         background: isDiag ? 'var(--color-background-tertiary)' : 'transparent',
