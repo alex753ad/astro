@@ -127,6 +127,9 @@ function Header({ onShowAuth, dark, toggleDark }) {
           ">
             Astrea Timeline
           </span>
+          <span className="hidden sm:block text-sm text-slate-400 border-l border-violet-200 pl-3 ml-1">
+            — плавное выравнивание жизни по ритму космических циклов
+          </span>
         </Link>
 
         {/* Навигация */}

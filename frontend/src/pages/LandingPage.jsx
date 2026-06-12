@@ -20,52 +20,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
       color: '#1a1230',
     }}>
 
-      {/* Nav */}
-      <nav style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '18px 40px',
-        borderBottom: '1px solid rgba(139,92,246,0.1)',
-        background: 'rgba(255,255,255,0.5)',
-        backdropFilter: 'blur(8px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18, color: '#8B5CF6' }}>✦</span>
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#1a1230' }}>Astrea Timeline</span>
-          <span style={{
-            fontSize: 13,
-            color: '#9B97B0',
-            marginLeft: 6,
-            borderLeft: '1px solid rgba(139,92,246,0.2)',
-            paddingLeft: 12,
-          }}>
-            — плавное выравнивание жизни по ритму космических циклов
-          </span>
-        </div>
-        <button
-          onClick={currentUser ? () => navigate('/profile') : onShowAuth}
-          style={{
-            padding: '10px 24px',
-            borderRadius: 10,
-            border: 'none',
-            background: '#1a1230',
-            color: '#fff',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            transition: 'opacity 0.2s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-          onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-        >
-          Личный кабинет
-        </button>
-      </nav>
 
       {/* Hero */}
       <div style={{
