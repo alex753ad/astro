@@ -503,7 +503,14 @@ async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_d
 
     planets = [PlanetPosition(**p) for p in chart.planets]
     houses = [HouseData(**h) for h in chart.houses]
-    aspects = [AspectData(**a) for a in chart.aspects]
+    # Deduplicate aspects from DB (guards against legacy duplicates)
+    seen_aspects: dict[tuple, AspectData] = {}
+    for a in chart.aspects:
+        asp = AspectData(**a)
+        key = (frozenset([asp.planet1, asp.planet2]), asp.aspect_type)
+        if key not in seen_aspects or asp.orb < seen_aspects[key].orb:
+            seen_aspects[key] = asp
+    aspects = list(seen_aspects.values())
     asc = PointData(**chart.ascendant) if chart.ascendant else None
     mc = PointData(**chart.midheaven) if chart.midheaven else None
 
