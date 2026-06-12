@@ -19,6 +19,44 @@ logger = logging.getLogger("astro.tasks")
 
 
 # ═══════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════
+
+def _get_chart(db, chart_id: str) -> NatalChart:
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if not chart:
+        raise ValueError(f"Chart not found: {chart_id}")
+    return chart
+
+
+def _get_primary_chart(db, user) -> NatalChart | None:
+    """Return user's primary chart.
+
+    Priority:
+      1. user.primary_chart_id — явно выбранная главная карта
+      2. последняя сохранённая карта (fallback для пользователей без pin)
+    """
+    if user.primary_chart_id:
+        chart = (
+            db.query(NatalChart)
+            .filter(
+                NatalChart.id == user.primary_chart_id,
+                NatalChart.user_id == user.id,
+            )
+            .first()
+        )
+        if chart:
+            return chart
+    # fallback
+    return (
+        db.query(NatalChart)
+        .filter(NatalChart.user_id == user.id)
+        .order_by(NatalChart.created_at.desc())
+        .first()
+    )
+
+
+# ═══════════════════════════════════════════════════════════
 # RETENTION EMAIL CHAIN
 # ═══════════════════════════════════════════════════════════
 
@@ -31,7 +69,7 @@ def send_retention_day2_task(user_id: int) -> None:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return
-        chart = db.query(NatalChart).filter(NatalChart.user_id == user_id).order_by(NatalChart.created_at.desc()).first()
+        chart = _get_primary_chart(db, user)
         if not chart:
             return
         from backend.transit.engine import calculate_transits
@@ -70,7 +108,7 @@ def send_retention_day7_task(user_id: int) -> None:
         user = db.query(User).filter(User.id == user_id).first()
         if not user or user.tier != "free":
             return
-        chart = db.query(NatalChart).filter(NatalChart.user_id == user_id).order_by(NatalChart.created_at.desc()).first()
+        chart = _get_primary_chart(db, user)
         if not chart:
             return
         from backend.transit.engine import calculate_transits
@@ -249,13 +287,6 @@ def schedule_retention_emails(user_id: int) -> None:
     send_retention_day2_task.apply_async(args=[user_id], countdown=48 * 3600)
     send_retention_day7_task.apply_async(args=[user_id], countdown=7 * 24 * 3600)
     send_retention_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
-
-
-def _get_chart(db, chart_id: str) -> NatalChart:
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise ValueError(f"Chart not found: {chart_id}")
-    return chart
 
 
 # ═══════════════════════════════════════════════════════════
@@ -600,15 +631,9 @@ def check_lunar_returns() -> dict:
     today = date_type.today()
 
     try:
-        # Все активные пользователи с natal chart
         users = db.query(User).filter(User.is_active == True).all()
         for user in users:
-            chart = (
-                db.query(NatalChart)
-                .filter(NatalChart.user_id == user.id)
-                .order_by(NatalChart.created_at.desc())
-                .first()
-            )
+            chart = _get_primary_chart(db, user)
             if not chart or not chart.planets:
                 continue
             try:
