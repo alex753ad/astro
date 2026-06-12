@@ -141,14 +141,18 @@ const S = {
 
 // ─── Хук: данные профиля ──────────────────────────────────────────────────────
 function useProfileData(authFetch) {
-  const [charts,       setCharts]       = useState([]);
-  const [history,      setHistory]      = useState([]);
-  const [subscription, setSubscription] = useState(null);
-  const [loading,      setLoading]      = useState({ charts: true, history: true, sub: true });
+  const [charts,          setCharts]          = useState([]);
+  const [primaryChartId,  setPrimaryChartId]  = useState(null);
+  const [history,         setHistory]         = useState([]);
+  const [subscription,    setSubscription]    = useState(null);
+  const [loading,         setLoading]         = useState({ charts: true, history: true, sub: true });
 
   useEffect(() => {
     authFetch(`${API_BASE}/profile/charts`)
-      .then(d => setCharts(d.charts || []))
+      .then(d => {
+        setCharts(d.charts || []);
+        setPrimaryChartId(d.primary_chart_id || null);
+      })
       .catch(() => {})
       .finally(() => setLoading(p => ({ ...p, charts: false })));
 
@@ -163,7 +167,7 @@ function useProfileData(authFetch) {
       .finally(() => setLoading(p => ({ ...p, sub: false })));
   }, [authFetch]);
 
-  return { charts, setCharts, history, subscription, loading };
+  return { charts, setCharts, primaryChartId, setPrimaryChartId, history, subscription, loading };
 }
 
 // ─── Хук: уведомления в localStorage ─────────────────────────────────────────
@@ -275,8 +279,9 @@ function TabProfile({ user, logout, authFetch }) {
 }
 
 // ─── Вкладка: Мои карты ───────────────────────────────────────────────────────
-function TabCharts({ charts, setCharts, loading, authFetch, subscription, user }) {
+function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loading, authFetch, subscription, user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [settingPrimary, setSettingPrimary] = useState(null);
 
   // Счётчик карт для free
   const isFree = !user?.tier || user?.tier === 'free';
@@ -288,29 +293,47 @@ function TabCharts({ charts, setCharts, loading, authFetch, subscription, user }
     try {
       await authFetch(`${API_BASE}/profile/charts/${id}`, { method: 'DELETE' });
       setCharts(prev => prev.filter(c => c.id !== id));
+      if (primaryChartId === id) setPrimaryChartId(null);
       setDeleteConfirm(null);
     } catch (e) {
       alert('Не удалось удалить: ' + e.message);
     }
   };
 
+  const handleSetPrimary = async (id) => {
+    setSettingPrimary(id);
+    try {
+      await authFetch(`${API_BASE}/profile/primary-chart`, {
+        method: 'PATCH',
+        body: JSON.stringify({ chart_id: id }),
+      });
+      setPrimaryChartId(id);
+    } catch (e) {
+      alert('Не удалось сменить главную карту: ' + e.message);
+    } finally {
+      setSettingPrimary(null);
+    }
+  };
+
+  const LimitBanner = () => isFree && chartsLeft !== null ? (
+    <div style={{
+      padding: '12px 16px', borderRadius: 12,
+      background: chartsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(124,108,255,0.08)',
+      border: `1px solid ${chartsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(124,108,255,0.2)'}`,
+      fontSize: 13, color: chartsLeft === 0 ? '#ef4444' : '#7C6CFF', fontWeight: 600,
+      display: 'flex', alignItems: 'center', gap: 8,
+    }}>
+      <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
+      {chartsLeft === 0
+        ? 'Лимит карт на этот месяц исчерпан. Обновится 1-го числа.'
+        : `Осталось карт в этом месяце: ${chartsLeft} из ${chartsLimit}`}
+    </div>
+  ) : null;
+
   if (loading) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
   if (!charts.length) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {isFree && chartsLeft !== null && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 12,
-          background: chartsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(124,108,255,0.08)',
-          border: `1px solid ${chartsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(124,108,255,0.2)'}`,
-          fontSize: 13, color: chartsLeft === 0 ? '#ef4444' : '#7C6CFF', fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
-          {chartsLeft === 0
-            ? 'Лимит карт на этот месяц исчерпан. Обновится 1-го числа.'
-            : `Осталось карт в этом месяце: ${chartsLeft} из ${chartsLimit}`}
-        </div>
-      )}
+      <LimitBanner />
       <div style={{ ...S.card, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
         Нет сохранённых карт.<br />
         <Link to="/home" style={{ color: '#7C6CFF', marginTop: 8, display: 'inline-block' }}>
@@ -322,52 +345,81 @@ function TabCharts({ charts, setCharts, loading, authFetch, subscription, user }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {isFree && chartsLeft !== null && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 12,
-          background: chartsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(124,108,255,0.08)',
-          border: `1px solid ${chartsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(124,108,255,0.2)'}`,
-          fontSize: 13, color: chartsLeft === 0 ? '#ef4444' : '#7C6CFF', fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
-          {chartsLeft === 0
-            ? 'Лимит карт на этот месяц исчерпан. Обновится 1-го числа.'
-            : `Осталось карт в этом месяце: ${chartsLeft} из ${chartsLimit}`}
-        </div>
-      )}
-      {charts.map(chart => (
-        <div key={chart.id} style={S.card}>
-          <div style={S.row}>
-            <Link to={`/chart/${chart.id}`} style={{ flexShrink: 0, display: 'block' }}>
-              <MiniChartPreview chartId={chart.id} authFetch={authFetch} />
-            </Link>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{chart.birth_place}</div>
-              <div style={S.muted}>
-                {chart.birth_date}
-                {chart.birth_time ? ` · ${chart.birth_time}` : ' · время неизвестно'}
+      <LimitBanner />
+      {charts.map(chart => {
+        const isPrimary = chart.id === primaryChartId;
+        return (
+          <div
+            key={chart.id}
+            style={{
+              ...S.card,
+              border: isPrimary
+                ? '1px solid rgba(124,108,255,0.5)'
+                : '1px solid rgba(139,92,246,0.15)',
+            }}
+          >
+            {/* Шапка карточки: булавка у главной */}
+            {isPrimary && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                marginBottom: 10,
+                fontSize: 11, fontWeight: 700,
+                color: '#7C6CFF', letterSpacing: '0.05em', textTransform: 'uppercase',
+              }}>
+                <span style={{ fontSize: 14 }}>📌</span> Главная карта
+              </div>
+            )}
+
+            <div style={S.row}>
+              <Link to={`/chart/${chart.id}`} style={{ flexShrink: 0, display: 'block' }}>
+                <MiniChartPreview chartId={chart.id} authFetch={authFetch} />
+              </Link>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{chart.birth_place}</div>
+                <div style={S.muted}>
+                  {chart.birth_date}
+                  {chart.birth_time ? ` · ${chart.birth_time}` : ' · время неизвестно'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Link
+                    to={`/planner/${chart.id}`}
+                    style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
+                  >
+                    📅 Планер
+                  </Link>
+                  {deleteConfirm === chart.id ? (
+                    <>
+                      <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(chart.id)}>Удалить</button>
+                      <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</button>
+                    </>
+                  ) : (
+                    <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(chart.id)}>✕</button>
+                  )}
+                </div>
+                {/* Кнопка "Сделать главной" — только для не-главных карт */}
+                {!isPrimary && charts.length > 1 && (
+                  <button
+                    disabled={settingPrimary === chart.id}
+                    onClick={() => handleSetPrimary(chart.id)}
+                    style={{
+                      ...S.btn('ghost'),
+                      fontSize: 11,
+                      padding: '4px 10px',
+                      color: '#94a3b8',
+                      border: '1px solid rgba(148,163,184,0.25)',
+                      opacity: settingPrimary === chart.id ? 0.6 : 1,
+                    }}
+                  >
+                    {settingPrimary === chart.id ? '…' : 'Сделать главной'}
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <Link
-                to={`/planner/${chart.id}`}
-                style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
-              >
-                📅 Планер
-              </Link>
-              {deleteConfirm === chart.id ? (
-                <>
-                  <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(chart.id)}>Удалить</button>
-                  <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</button>
-                </>
-              ) : (
-                <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(chart.id)}>✕</button>
-              )}
-            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -718,7 +770,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('charts');
 
-  const { charts, setCharts, history, subscription, loading } = useProfileData(authFetch);
+  const { charts, setCharts, primaryChartId, setPrimaryChartId, history, subscription, loading } = useProfileData(authFetch);
 
   const tabs = [
     { key: 'charts',        label: '🗂 Карты'         },
@@ -746,7 +798,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Контент */}
-        {tab === 'charts'        && <TabCharts       charts={charts} setCharts={setCharts} loading={loading.charts} authFetch={authFetch} subscription={subscription} user={user} />}
+        {tab === 'charts'        && <TabCharts       charts={charts} setCharts={setCharts} primaryChartId={primaryChartId} setPrimaryChartId={setPrimaryChartId} loading={loading.charts} authFetch={authFetch} subscription={subscription} user={user} />}
         {tab === 'history'       && <TabHistory      history={history} loading={loading.history} />}
         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
         {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
