@@ -62,13 +62,19 @@ function ImportanceBadge({ aspect }) {
   );
 }
 
+const PLANET_GLYPHS = {
+  Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂',
+  Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇',
+  'North Node': '☊', Chiron: '⚷', Lilith: '⚸',
+  Ascendant: 'AC', Midheaven: 'MC',
+};
+
 /**
  * Table of aspects between planets with importance indicator (F4).
  */
 export default function AspectTable({ aspects }) {
   if (!aspects?.length) return null;
 
-  // Sort: high first, then medium, then low, then by orb
   const importanceOrder = { high: 0, medium: 1, low: 2 };
   const sorted = [...aspects].sort((a, b) => {
     const diff = importanceOrder[calcImportance(a)] - importanceOrder[calcImportance(b)];
@@ -86,34 +92,51 @@ export default function AspectTable({ aspects }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-brand-muted text-left border-b border-brand-accent/10">
-              <th className="pb-2 pr-3">Планеты</th>
-              <th className="pb-2 pr-3">Аспект</th>
-              <th className="pb-2 pr-3">Орб</th>
-              <th className="pb-2 pr-3">Тип</th>
+              <th className="pb-2 pr-4">Планеты</th>
+              <th className="pb-2 pr-4">Орб</th>
               <th className="pb-2">Важность</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((a, i) => (
-              <tr key={i} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors">
-                <td className="py-1.5 pr-3">
-                  {a.planet1} — {a.planet2}
-                </td>
-                <td className={`py-1.5 pr-3 ${ASPECT_COLORS[a.aspect_type]}`}>
-                  <span className="mr-1">{ASPECT_SYMBOLS[a.aspect_type]}</span>
-                  {ASPECT_NAMES_RU[a.aspect_type]}
-                </td>
-                <td className="py-1.5 pr-3 text-brand-muted">
-                  {a.orb?.toFixed(1)}°
-                </td>
-                <td className="py-1.5 pr-3 text-brand-muted text-xs">
-                  {a.applying ? 'применяющийся' : 'разделяющийся'}
-                </td>
-                <td className="py-1.5">
-                  <ImportanceBadge aspect={a} />
-                </td>
-              </tr>
-            ))}
+            {sorted.map((a, i) => {
+              const aspColor = ASPECT_COLORS[a.aspect_type] || 'text-brand-muted';
+              const g1 = PLANET_GLYPHS[a.planet1] || a.planet1.slice(0, 2);
+              const g2 = PLANET_GLYPHS[a.planet2] || a.planet2.slice(0, 2);
+              const aspSym = ASPECT_SYMBOLS[a.aspect_type] || '?';
+              return (
+                <tr key={i} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors">
+                  <td className="py-2 pr-4">
+                    <span
+                      title={a.planet1}
+                      style={{ fontSize: 17, lineHeight: 1, verticalAlign: 'middle' }}
+                      className="text-brand-primary"
+                    >
+                      {g1}
+                    </span>
+                    <span
+                      className={`mx-2 ${aspColor}`}
+                      title={ASPECT_NAMES_RU[a.aspect_type]}
+                      style={{ fontSize: 15, verticalAlign: 'middle' }}
+                    >
+                      {aspSym}
+                    </span>
+                    <span
+                      title={a.planet2}
+                      style={{ fontSize: 17, lineHeight: 1, verticalAlign: 'middle' }}
+                      className="text-brand-primary"
+                    >
+                      {g2}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4 text-brand-muted text-xs">
+                    {a.orb?.toFixed(1)}°
+                  </td>
+                  <td className="py-2">
+                    <ImportanceBadge aspect={a} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
