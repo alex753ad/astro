@@ -40,7 +40,19 @@ class User(Base):
     # Digest settings (012)
     digest_day_of_week = Column(Integer, nullable=False, default=0, server_default="0")
 
-    charts = relationship("NatalChart", back_populates="user", cascade="all, delete-orphan")
+    # Primary chart (018) — карта относительно которой строятся письма, планер, натальная карта
+    primary_chart_id = Column(
+        String(36),
+        ForeignKey("natal_charts.id", ondelete="SET NULL", use_alter=True, name="fk_user_primary_chart"),
+        nullable=True,
+    )
+
+    charts = relationship(
+        "NatalChart",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="NatalChart.user_id",
+    )
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
 
@@ -72,7 +84,7 @@ class NatalChart(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", back_populates="charts")
+    user = relationship("User", back_populates="charts", foreign_keys=[user_id])
     interpretations = relationship(
         "Interpretation", back_populates="chart", cascade="all, delete-orphan"
     )
