@@ -51,7 +51,7 @@ def _engines_for_tier(
     template = name_map.get("template")
 
     if preferred == "gpt4o":
-        order = ["gpt4o", "deepseek", "template"]
+        order = ["deepseek", "gpt4o", "template"]
     else:
         order = ["deepseek", "template"]
 
@@ -97,8 +97,8 @@ class InterpretationRouter:
 
     def __init__(self):
         self._engines: list[InterpretationEngine] = [
-            GPT4oEngine(),
             DeepSeekEngine(),
+            GPT4oEngine(),
             TemplateEngine(),
         ]
         self._settings = get_settings()
