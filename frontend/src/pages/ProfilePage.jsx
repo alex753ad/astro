@@ -346,7 +346,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <LimitBanner />
-      {charts.map(chart => {
+      {[...charts].sort((a, b) => (b.id === primaryChartId ? 1 : 0) - (a.id === primaryChartId ? 1 : 0)).map(chart => {
         const isPrimary = chart.id === primaryChartId;
         return (
           <div
@@ -773,12 +773,12 @@ export default function ProfilePage() {
   const { charts, setCharts, primaryChartId, setPrimaryChartId, history, subscription, loading } = useProfileData(authFetch);
 
   const tabs = [
-    { key: 'charts',        label: '🗂 Карты'         },
-    { key: 'history',       label: '📋 История'       },
-    { key: 'subscription',  label: '✦ Подписка'       },
-    { key: 'referral',      label: '🎁 Друзья'        },
-    { key: 'notifications', label: '🔔 Уведомления'   },
-    ...(user?.tier === 'premium' ? [{ key: 'crm', label: '👥 Клиенты' }] : []),
+    { key: 'charts',        label: '✦ Карты'         },
+    { key: 'history',       label: '✦ История'       },
+    { key: 'subscription',  label: '✦ Подписка'      },
+    { key: 'referral',      label: '✦ Друзья'        },
+    { key: 'notifications', label: '✦ Уведомления'   },
+    ...(user?.tier === 'premium' ? [{ key: 'crm', label: '✦ Клиенты' }] : []),
   ];
 
   return (
