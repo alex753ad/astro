@@ -427,7 +427,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
 // INTERPRETATION PANEL
 // ═══════════════════════════════════════════════════════════
 
-function InterpretationPanel({ event, onClose }) {
+function InterpretationPanel({ event, chartId, onClose }) {
   const [text, setText]       = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
@@ -450,7 +450,7 @@ function InterpretationPanel({ event, onClose }) {
       return () => clearInterval(interval);
     }
 
-    if (!event.chartId) {
+    if (!chartId) {
       setTimeout(() => {
         setText(`Интерпретация транзита: ${key}.\n\nЭтот аспект влияет на сферу жизни, связанную с натальной планетой. Рекомендуется обратить внимание на события этого периода.`);
         setLoading(false);
@@ -460,7 +460,7 @@ function InterpretationPanel({ event, onClose }) {
 
     const token = localStorage.getItem('astro_access_token');
     const ctrl  = new AbortController();
-    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${event.chartId}/transits/event/interpret`, {
+    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/event/interpret`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ transit_planet: event.transit_planet, natal_planet: event.natal_planet, aspect_type: event.aspect_type }),
@@ -477,7 +477,7 @@ function InterpretationPanel({ event, onClose }) {
           chunk.split("\n").forEach(line => {
             if (line.startsWith("data: ")) {
               const d = line.slice(6).trim();
-              if (d !== "[DONE]") setText(p => p + d);
+              if (d !== "[DONE]") { try { const p = JSON.parse(d); if (p.text) setText(prev => prev + p.text); } catch { setText(prev => prev + d); } }
             }
           });
         }
@@ -710,7 +710,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </div>
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>
-            <InterpretationPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+            <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
           </div>
         )}
       </div>
