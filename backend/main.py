@@ -895,6 +895,8 @@ async def interpret_transits(
             interp_request = InterpretationRequest(
                 natal_profile=profile,
                 context="transit",
+                tier=user.tier if user else "free",
+                custom_prompt=period_prompt,
             )
 
             # Try streaming from AI engines
@@ -1013,15 +1015,32 @@ async def interpret_transit_event(
         "time_unknown": chart.time_unknown,
     }
 
+    transit_event_dict = {
+        "transit_planet": transit_planet,
+        "natal_planet": natal_planet,
+        "aspect_type": aspect_type,
+        "date": body.get("date"),
+        "orb": body.get("orb"),
+        "exact_date": body.get("exact_date"),
+        "transit_sign": body.get("transit_sign"),
+        "natal_sign": body.get("natal_sign"),
+    }
+
+    event_prompt = build_transit_event_prompt(
+        transit_event=transit_event_dict,
+        natal_profile=profile,
+        language=body.get("language", "ru"),
+    )
+
     router = get_router()
 
     async def event_stream():
         try:
-            # Try AI engines first
             interp_request = InterpretationRequest(
                 natal_profile=profile,
                 context="transit",
-                sections=["general"],
+                tier=user.tier if user else "free",
+                custom_prompt=event_prompt,
             )
 
             streamed = False
