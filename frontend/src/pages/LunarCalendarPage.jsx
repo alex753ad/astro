@@ -118,12 +118,12 @@ export default function LunarCalendarPage() {
       // Пробуем ежедневные знаки
       try {
         const r2 = await fetch(
-          `https://astro-production-abcc.up.railway.app/api/v1/lunar/daily?month=${ms}`
+          `https://astro-production-abcc.up.railway.app/api/v1/calendar/lunar?year=${year}&month=${month}`
         );
         if (r2.ok) {
           const j2  = await r2.json();
           const map = {};
-          (j2.days || []).forEach(d => { if (d.date && d.moon_sign) map[d.date] = d.moon_sign; });
+          (j2.daily_signs || []).forEach(d => { if (d.date && d.sign) map[d.date] = d.sign; });
           setDailyMap(map);
         } else setDailyMap({});
       } catch { setDailyMap({}); }
