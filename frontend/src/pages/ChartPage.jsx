@@ -785,7 +785,7 @@ function HouseTable({ houses = [], collapsed }) {
               <td style={{ ...sp.glyph, fontWeight: 600 }}>{h.house ?? i + 1}</td>
               <td style={sp.signGlyph}>{SIGN_GLYPHS[h.sign] || ''}</td>
               <td style={sp.signName}>{SIGN_NAMES_RU[h.sign] || h.sign}</td>
-              <td style={sp.deg}>{formatDeg(h.degree)}</td>
+              <td style={sp.deg}>{formatDeg(h.degree_in_sign != null ? h.degree_in_sign : h.degree % 30)}</td>
             </tr>
           ))}
         </tbody>
