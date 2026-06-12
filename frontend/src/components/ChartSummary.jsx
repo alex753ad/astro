@@ -24,12 +24,24 @@ const SIGN_NAMES_RU = {
   Sagittarius: 'Стрелец', Capricorn: 'Козерог', Aquarius: 'Водолей', Pisces: 'Рыбы',
 };
 
+// Вычислить градус внутри знака из абсолютного эклиптического градуса (0–360)
+function degreeInSign(absoluteDeg) {
+  return absoluteDeg % 30;
+}
+
+// Определить знак по абсолютному градусу
+const SIGN_ORDER = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+function signFromDeg(absoluteDeg) {
+  return SIGN_ORDER[Math.floor(absoluteDeg / 30) % 12];
+}
+
 /**
- * Table of planet positions.
+ * Table of planet positions + houses table.
  */
-export default function ChartSummary({ planets, ascendant, midheaven, timeUnknown }) {
+export default function ChartSummary({ planets, ascendant, midheaven, houses, timeUnknown, plain = false }) {
   return (
-    <div className="glass-card p-6">
+    <div className={plain ? undefined : 'glass-card'} style={plain ? { background: '#fff', borderRadius: 8, padding: '16px 20px' } : { padding: '24px' }}>
+      {/* ── Планеты ── */}
       <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
         <span className="text-brand-accent">☉</span>
         Позиции планет
@@ -90,6 +102,44 @@ export default function ChartSummary({ planets, ascendant, midheaven, timeUnknow
           </tbody>
         </table>
       </div>
+
+      {/* ── Дома ── */}
+      {!timeUnknown && houses?.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
+            <span className="text-brand-accent">⌂</span>
+            Дома
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-brand-muted text-left border-b border-brand-accent/10">
+                  <th className="pb-2 pr-3">Дом</th>
+                  <th className="pb-2 pr-3">Знак</th>
+                  <th className="pb-2">Градус</th>
+                </tr>
+              </thead>
+              <tbody>
+                {houses.map((h) => {
+                  const absD = h.degree ?? h.longitude ?? 0;
+                  const sign = h.sign || signFromDeg(absD);
+                  const deg  = h.degree_in_sign != null ? h.degree_in_sign : degreeInSign(absD);
+                  return (
+                    <tr key={h.house} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors">
+                      <td className="py-2 pr-3 font-medium">{h.house}</td>
+                      <td className="py-2 pr-3">
+                        <span className="mr-1">{SIGN_GLYPHS[sign]}</span>
+                        {SIGN_NAMES_RU[sign] || sign}
+                      </td>
+                      <td className="py-2 text-brand-muted">{deg.toFixed(1)}°</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

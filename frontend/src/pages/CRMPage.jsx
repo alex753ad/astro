@@ -328,7 +328,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
             <>
               <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} />
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
-                <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} timeUnknown={!client.birth_time} />
+                <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} houses={chart.houses} timeUnknown={!client.birth_time} plain />
               </div>
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
                 <AspectTable aspects={chart.aspects} />
