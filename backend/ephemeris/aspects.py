@@ -118,6 +118,14 @@ def calculate_aspects(planets: list[PlanetResult]) -> list[AspectResult]:
                         importance=calculate_importance(p1.name, p2.name, orb_rounded),
                     ))
 
+    # Deduplicate: keep only one aspect per planet pair (tightest orb wins)
+    seen: dict[tuple, AspectResult] = {}
+    for asp in results:
+        key = (frozenset([asp.planet1, asp.planet2]), asp.aspect_type)
+        if key not in seen or asp.orb < seen[key].orb:
+            seen[key] = asp
+    results = list(seen.values())
+
     # Sort by orb (tightest aspects first)
     results.sort(key=lambda a: a.orb)
     return results
