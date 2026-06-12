@@ -22,6 +22,7 @@ class InterpretationRequest:
     ])
     tier: str = "free"           # free | lite | pro | premium
     word_limit: int | None = None  # явный лимит слов (1000-5000), перекрывает tier
+    custom_prompt: str | None = None  # если задан — используется вместо стандартного
 
 
 @dataclass
