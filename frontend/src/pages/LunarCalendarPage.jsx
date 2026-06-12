@@ -29,6 +29,12 @@ const SIGN_KEYS = [
   'Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces',
 ];
 
+const SIGN_RU_TO_KEY = {
+  'Овен':'Aries','Телец':'Taurus','Близнецы':'Gemini','Рак':'Cancer',
+  'Лев':'Leo','Дева':'Virgo','Весы':'Libra','Скорпион':'Scorpio',
+  'Стрелец':'Sagittarius','Козерог':'Capricorn','Водолей':'Aquarius','Рыбы':'Pisces',
+};
+
 const MONTHS_RU = [
   'Январь','Февраль','Март','Апрель','Май','Июнь',
   'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь',
@@ -123,7 +129,7 @@ export default function LunarCalendarPage() {
         if (r2.ok) {
           const j2  = await r2.json();
           const map = {};
-          (j2.daily_signs || []).forEach(d => { if (d.date && d.sign) map[d.date] = d.sign; });
+          (j2.daily_signs || []).forEach(d => { if (d.date && d.sign) map[d.date] = SIGN_RU_TO_KEY[d.sign] || d.sign; });
           setDailyMap(map);
         } else setDailyMap({});
       } catch { setDailyMap({}); }
@@ -291,9 +297,9 @@ function PhaseHeader({ todaySign, todaySignData, newMoons, fullMoons, overview }
   const fm1 = fullMoons[0];
   const fm2 = fullMoons[1];
 
-  const nmSign  = nm?.sign  || overview?.new_moon?.sign  || '';
-  const fm1Sign = fm1?.sign || overview?.full_moon?.sign || '';
-  const fm2Sign = fm2?.sign || '';
+  const nmSign  = SIGN_RU_TO_KEY[nm?.sign  || overview?.new_moon?.sign  || ''] || nm?.sign  || '';
+  const fm1Sign = SIGN_RU_TO_KEY[fm1?.sign || overview?.full_moon?.sign || ''] || fm1?.sign || '';
+  const fm2Sign = SIGN_RU_TO_KEY[fm2?.sign || ''] || fm2?.sign || '';
 
   return (
     <div>
