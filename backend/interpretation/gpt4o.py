@@ -46,18 +46,22 @@ class GPT4oEngine(InterpretationEngine):
         }
 
     def _build_payload(self, request: InterpretationRequest, stream: bool = False) -> dict:
-        system_prompt = build_system_prompt(request)
-        user_msg = (
-            "Напиши интерпретацию натальной карты по указанным сферам."
-            if request.language == "ru"
-            else "Write a natal chart interpretation for the specified spheres."
-        )
-        payload = {
-            "model": self._model,
-            "messages": [
+        if request.custom_prompt:
+            messages = [{"role": "user", "content": request.custom_prompt}]
+        else:
+            system_prompt = build_system_prompt(request)
+            user_msg = (
+                "Напиши интерпретацию натальной карты по указанным сферам."
+                if request.language == "ru"
+                else "Write a natal chart interpretation for the specified spheres."
+            )
+            messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg},
-            ],
+            ]
+        payload = {
+            "model": self._model,
+            "messages": messages,
             "max_tokens": _calc_max_tokens(request),
             "temperature": 0.7,
             "stream": stream,

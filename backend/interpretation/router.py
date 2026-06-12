@@ -160,7 +160,7 @@ class InterpretationRouter:
                 result = await self._try_engine(engine, request)
                 latency_ms = int((time.time() - engine_start) * 1000)
 
-                if result and self._validate_response(result.content, request.sections):
+                if result and self._validate_response(result.content, request.sections, request.context):
                     interpretation_cache.set(
                         cache_key,
                         {
@@ -297,9 +297,11 @@ class InterpretationRouter:
         if chunks_received == 0:
             raise RuntimeError(f"No chunks received from {engine.name}")
 
-    def _validate_response(self, content: str, expected_sections: list[str]) -> bool:
-        if not content or len(content) < 200:
+    def _validate_response(self, content: str, expected_sections: list[str], context: str = "natal") -> bool:
+        if not content or len(content) < 100:
             return False
+        if context == "transit":
+            return True
         return "###" in content or any(
             w in content.lower()
             for w in ["личност", "карьер", "отношен", "personality", "career"]
