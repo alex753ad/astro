@@ -8,6 +8,8 @@ import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import NatalChart from '../components/NatalChart';
 import TransitTimeline from '../components/TransitTimeline';
+import ChartSummary from '../components/ChartSummary';
+import AspectTable from '../components/AspectTable';
 
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
 function MiniChartPreview({ clientId, authFetch }) {
@@ -132,6 +134,28 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [tab, setTab] = useState('chart');
 
+  // Редактирование данных клиента
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: client.name, birth_date: client.birth_date, birth_time: client.birth_time || '', birth_place: client.birth_place, notes: client.notes || '' });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState('');
+  const setEF = (k, v) => setEditForm(p => ({ ...p, [k]: v }));
+
+  const saveEdit = async () => {
+    setEditLoading(true); setEditError('');
+    try {
+      const body = { ...editForm };
+      if (!body.birth_time) delete body.birth_time;
+      const updated = await authFetch(`${API}/clients/${client.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      onUpdated(updated);
+      setEditing(false);
+    } catch (err) {
+      setEditError(err.message || 'Ошибка');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   // Шаблоны заметок
   const [templates, setTemplates] = useState([]);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
@@ -222,7 +246,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
   };
 
   const tabs = ['chart', 'transits', 'ai', 'notes'];
-  const tabLabels = { chart: '🪐 Карта', transits: '🔮 Транзиты', ai: '✨ AI-интерпретация', notes: '📝 Заметки' };
+  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'AI-интерпретация', notes: 'Заметки' };
 
   return (
     <div>
@@ -251,7 +275,37 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
             <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{client.name}</div>
             <div style={S.muted}>{client.birth_date}{client.birth_time ? ` · ${client.birth_time}` : ''} · {client.birth_place}</div>
           </div>
+          <button style={S.btn()} onClick={() => { setEditing(v => !v); setEditError(''); }}>
+            {editing ? 'Отмена' : 'Редактировать'}
+          </button>
         </div>
+
+        {editing && (
+          <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={S.label}>Имя</label>
+                <input style={S.input} value={editForm.name} onChange={e => setEF('name', e.target.value)} />
+              </div>
+              <div>
+                <label style={S.label}>Место рождения</label>
+                <input style={S.input} value={editForm.birth_place} onChange={e => setEF('birth_place', e.target.value)} />
+              </div>
+              <div>
+                <label style={S.label}>Дата рождения</label>
+                <input style={S.input} type="date" value={editForm.birth_date} onChange={e => setEF('birth_date', e.target.value)} />
+              </div>
+              <div>
+                <label style={S.label}>Время рождения</label>
+                <input style={S.input} type="time" value={editForm.birth_time} onChange={e => setEF('birth_time', e.target.value)} />
+              </div>
+            </div>
+            {editError && <p style={{ color: '#f87171', fontSize: 12, margin: '0 0 10px' }}>{editError}</p>}
+            <button style={S.btn('primary')} onClick={saveEdit} disabled={editLoading}>
+              {editLoading ? 'Сохраняю…' : 'Сохранить'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Вкладки */}
@@ -270,9 +324,19 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
 
       {tab === 'chart' && (
         <div style={S.card}>
-          {chart
-            ? <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} />
-            : <div style={S.muted}>Загрузка карты…</div>}
+          {chart ? (
+            <>
+              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} />
+              <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
+                <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} timeUnknown={!client.birth_time} />
+              </div>
+              <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
+                <AspectTable aspects={chart.aspects} />
+              </div>
+            </>
+          ) : (
+            <div style={S.muted}>Загрузка карты…</div>
+          )}
         </div>
       )}
 
