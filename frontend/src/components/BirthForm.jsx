@@ -81,6 +81,50 @@ function Field({ label, error, hint, children }) {
   );
 }
 
+function isoToDisplay(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function displayToIso(display) {
+  const digits = display.replace(/\D/g, '');
+  if (digits.length !== 8) return '';
+  const d = digits.slice(0, 2), m = digits.slice(2, 4), y = digits.slice(4, 8);
+  return `${y}-${m}-${d}`;
+}
+
+function DateMaskInput({ value, onChange, error }) {
+  const [text, setText] = useState(isoToDisplay(value));
+  const [focused, setFocused] = useState(false);
+
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) formatted = `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+    else if (digits.length > 2) formatted = `${digits.slice(0, 2)}.${digits.slice(2)}`;
+    setText(formatted);
+    onChange(displayToIso(formatted));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="ДД.ММ.ГГГГ"
+      maxLength={10}
+      value={text}
+      onChange={handleChange}
+      style={{
+        ...S.input,
+        borderColor: error ? '#EF4444' : focused ? '#8B5CF6' : '#EDE9FA',
+      }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    />
+  );
+}
+
 function StyledInput({ error, style, ...props }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -301,12 +345,9 @@ export default function BirthForm({ onSubmit, loading }) {
         </Field>
 
         <Field label="Дата рождения" error={errors.birth_date}>
-          <StyledInput
-            type="date"
-            min={MIN_DATE}
-            max={TODAY}
+          <DateMaskInput
             value={form.birth_date}
-            onChange={e => set('birth_date', e.target.value)}
+            onChange={iso => set('birth_date', iso)}
             error={errors.birth_date}
           />
         </Field>
@@ -404,7 +445,6 @@ export default function BirthForm({ onSubmit, loading }) {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        input[type="date"]::-webkit-calendar-picker-indicator,
         input[type="time"]::-webkit-calendar-picker-indicator {
           filter: invert(0.4) sepia(1) saturate(3) hue-rotate(220deg);
           cursor: pointer;
