@@ -10,6 +10,7 @@ import NatalChart from '../components/NatalChart';
 import TransitTimeline from '../components/TransitTimeline';
 import ChartSummary from '../components/ChartSummary';
 import AspectTable from '../components/AspectTable';
+import AspectGrid from '../components/AspectGrid';
 
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
 function MiniChartPreview({ clientId, authFetch }) {
@@ -333,6 +334,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
                 <AspectTable aspects={chart.aspects} />
               </div>
+              <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
+                <AspectGrid aspects={chart.aspects} />
+              </div>
             </>
           ) : (
             <div style={S.muted}>Загрузка карты…</div>
@@ -650,6 +654,14 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               <div style={S.muted}>{client.birth_date} · {client.birth_place}</div>
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              {client.natal_chart_id && (
+                <Link
+                  to={`/planner/${client.natal_chart_id}`}
+                  style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
+                >
+                  📅 Планер
+                </Link>
+              )}
               {deleteConfirm === client.id ? (
                 <>
                   <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(client.id)}>Удалить</button>

@@ -282,6 +282,34 @@ function TabProfile({ user, logout, authFetch }) {
 function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loading, authFetch, subscription, user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [settingPrimary, setSettingPrimary] = useState(null);
+  const [sendToClient, setSendToClient] = useState(null); // chart.id для которого открыт дропдаун
+  const [clients, setClients] = useState([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [sending, setSending] = useState(null); // client.id в процессе
+
+  const loadClients = async () => {
+    if (clientsLoaded) return;
+    try {
+      const data = await authFetch(`${API_BASE}/clients`);
+      setClients(Array.isArray(data) ? data : []);
+      setClientsLoaded(true);
+    } catch {}
+  };
+
+  const handleSendToClient = async (clientId, chartId) => {
+    setSending(clientId);
+    try {
+      await authFetch(`${API_BASE}/clients/${clientId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ natal_chart_id: chartId }),
+      });
+      setSendToClient(null);
+    } catch (e) {
+      alert('Ошибка: ' + e.message);
+    } finally {
+      setSending(null);
+    }
+  };
 
   // Счётчик карт для free
   const isFree = !user?.tier || user?.tier === 'free';
@@ -389,6 +417,48 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                   >
                     📅 Планер
                   </Link>
+                  {user?.tier === 'premium' && (
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: '#f59e0b', border: '1px solid #f59e0b40' }}
+                        onClick={() => {
+                          setSendToClient(sendToClient === chart.id ? null : chart.id);
+                          loadClients();
+                        }}
+                      >
+                        👥 Клиенту
+                      </button>
+                      {sendToClient === chart.id && (
+                        <div style={{
+                          position: 'absolute', right: 0, top: '100%', zIndex: 100,
+                          background: '#fff', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8,
+                          minWidth: 210, padding: 4, marginTop: 4,
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                        }}>
+                          {clients.length === 0 ? (
+                            <div style={{ padding: '8px 12px', color: '#64748b', fontSize: 13 }}>Нет клиентов</div>
+                          ) : clients.map(c => (
+                            <button
+                              key={c.id}
+                              disabled={sending === c.id}
+                              onClick={() => handleSendToClient(c.id, chart.id)}
+                              style={{
+                                display: 'block', width: '100%', textAlign: 'left',
+                                padding: '8px 12px', background: 'none', border: 'none',
+                                cursor: 'pointer', fontSize: 13, color: '#1e293b',
+                                borderRadius: 6,
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#f8f4ff'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                            >
+                              {sending === c.id ? '…' : c.name}
+                              <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>{c.birth_date}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {deleteConfirm === chart.id ? (
                     <>
                       <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(chart.id)}>Удалить</button>
