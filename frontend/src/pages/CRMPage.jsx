@@ -335,7 +335,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
                 <AspectTable aspects={chart.aspects} />
               </div>
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
-                <AspectGrid aspects={chart.aspects} />
+                <AspectGrid aspects={chart.aspects} planets={chart.planets} />
               </div>
             </>
           ) : (
@@ -659,7 +659,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
                   to={`/planner/${client.natal_chart_id}`}
                   style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
                 >
-                  📅 Планер
+                  Планер
                 </Link>
               )}
               {deleteConfirm === client.id ? (
