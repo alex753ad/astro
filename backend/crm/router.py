@@ -40,6 +40,7 @@ class ClientCreate(BaseModel):
     birth_time: Optional[str] = None
     birth_place: str
     notes: Optional[str] = None
+    natal_chart_id: Optional[str] = None
 
 
 class ClientPatch(BaseModel):
@@ -110,6 +111,18 @@ async def create_client(
     db.add(client)
     db.commit()
     db.refresh(client)
+
+    # Если карта уже есть — просто привязываем, не пересчитываем
+    if payload.natal_chart_id is not None:
+        chart = db.query(NatalChart).filter(
+            NatalChart.id == payload.natal_chart_id,
+            NatalChart.user_id == user.id,
+        ).first()
+        if chart:
+            client.natal_chart_id = payload.natal_chart_id
+            db.commit()
+            db.refresh(client)
+        return client
 
     # Автоматически считаем натальную карту
     try:
