@@ -1433,6 +1433,7 @@ async def get_monthly_forecast(
 async def get_monthly_planner(
     request: Request,
     chart_id: str,
+    month_offset: int = 0,
     db: Session = Depends(get_db),
 ):
     import calendar as cal_mod
@@ -1458,9 +1459,12 @@ async def get_monthly_planner(
     else:
         today = date_type.today()
 
-    month_start = today.replace(day=1)
-    last_day = cal_mod.monthrange(today.year, today.month)[1]
-    month_end = today.replace(day=last_day)
+    # Сдвигаем на month_offset месяцев
+    target_year = today.year + (today.month - 1 + month_offset) // 12
+    target_month = (today.month - 1 + month_offset) % 12 + 1
+    last_day = cal_mod.monthrange(target_year, target_month)[1]
+    month_start = date_type(target_year, target_month, 1)
+    month_end = date_type(target_year, target_month, last_day)
 
     natal_profile = {
         "planets":   chart.planets,
