@@ -376,8 +376,15 @@ async def send_weekly_digest(user, db) -> bool:
 
     # Транзиты недели
     try:
-        chart = db.query(NatalChart).filter_by(user_id=user.id)\
-            .order_by(NatalChart.created_at.desc()).first()
+        chart = None
+        if user.primary_chart_id:
+            chart = db.query(NatalChart).filter(
+                NatalChart.id == user.primary_chart_id,
+                NatalChart.user_id == user.id,
+            ).first()
+        if not chart:
+            chart = db.query(NatalChart).filter(NatalChart.user_id == user.id)\
+                .order_by(NatalChart.created_at.desc()).first()
         if not chart:
             return False
         events = calculate_transits(natal_planets=chart.planets, from_date=now, to_date=week_end)

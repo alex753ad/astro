@@ -744,8 +744,9 @@ async def get_transits(
         logger.exception("Transit calculation failed")
         raise HTTPException(status_code=500, detail=f"Transit calculation error: {e}")
 
-    # Transit alerts для Pro/Premium (медленные планеты)
-    if user and getattr(user, "tier", "free") in ("pro", "premium"):
+    # Transit alerts для Pro/Premium (медленные планеты) — только по главной карте
+    is_primary = (not user.primary_chart_id) or (str(user.primary_chart_id) == str(chart_id))
+    if user and getattr(user, "tier", "free") in ("pro", "premium") and is_primary:
         try:
             from backend.transit.engine import check_and_send_transit_alerts
             import asyncio
