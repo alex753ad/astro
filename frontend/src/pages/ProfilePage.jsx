@@ -282,32 +282,27 @@ function TabProfile({ user, logout, authFetch }) {
 function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loading, authFetch, subscription, user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [settingPrimary, setSettingPrimary] = useState(null);
-  const [sendToClient, setSendToClient] = useState(null); // chart.id для которого открыт дропдаун
-  const [clients, setClients] = useState([]);
-  const [clientsLoaded, setClientsLoaded] = useState(false);
-  const [sending, setSending] = useState(null); // client.id в процессе
+  const [addingToClients, setAddingToClients] = useState(null); // chart.id в процессе
+  const [addedToClients, setAddedToClients] = useState({}); // chart.id -> true
 
-  const loadClients = async () => {
-    if (clientsLoaded) return;
+  const handleAddToClients = async (chart) => {
+    setAddingToClients(chart.id);
     try {
-      const data = await authFetch(`${API_BASE}/clients`);
-      setClients(Array.isArray(data) ? data : []);
-      setClientsLoaded(true);
-    } catch {}
-  };
-
-  const handleSendToClient = async (clientId, chartId) => {
-    setSending(clientId);
-    try {
-      await authFetch(`${API_BASE}/clients/${clientId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ natal_chart_id: chartId }),
+      await authFetch(`${API_BASE}/clients`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: chart.name || chart.birth_place,
+          birth_date: chart.birth_date,
+          birth_time: chart.birth_time || null,
+          birth_place: chart.birth_place,
+          natal_chart_id: chart.id,
+        }),
       });
-      setSendToClient(null);
+      setAddedToClients(prev => ({ ...prev, [chart.id]: true }));
     } catch (e) {
       alert('Ошибка: ' + e.message);
     } finally {
-      setSending(null);
+      setAddingToClients(null);
     }
   };
 
@@ -415,49 +410,16 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                     to={`/planner/${chart.id}`}
                     style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
                   >
-                    📅 Планер
+                    Планер
                   </Link>
                   {user?.tier === 'premium' && (
-                    <div style={{ position: 'relative' }}>
-                      <button
-                        style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: '#f59e0b', border: '1px solid #f59e0b40' }}
-                        onClick={() => {
-                          setSendToClient(sendToClient === chart.id ? null : chart.id);
-                          loadClients();
-                        }}
-                      >
-                        👥 Клиенту
-                      </button>
-                      {sendToClient === chart.id && (
-                        <div style={{
-                          position: 'absolute', right: 0, top: '100%', zIndex: 100,
-                          background: '#fff', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8,
-                          minWidth: 210, padding: 4, marginTop: 4,
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                        }}>
-                          {clients.length === 0 ? (
-                            <div style={{ padding: '8px 12px', color: '#64748b', fontSize: 13 }}>Нет клиентов</div>
-                          ) : clients.map(c => (
-                            <button
-                              key={c.id}
-                              disabled={sending === c.id}
-                              onClick={() => handleSendToClient(c.id, chart.id)}
-                              style={{
-                                display: 'block', width: '100%', textAlign: 'left',
-                                padding: '8px 12px', background: 'none', border: 'none',
-                                cursor: 'pointer', fontSize: 13, color: '#1e293b',
-                                borderRadius: 6,
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#f8f4ff'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                            >
-                              {sending === c.id ? '…' : c.name}
-                              <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>{c.birth_date}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      disabled={addingToClients === chart.id || addedToClients[chart.id]}
+                      onClick={() => handleAddToClients(chart)}
+                      style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: '#f59e0b', border: '1px solid #f59e0b40' }}
+                    >
+                      {addingToClients === chart.id ? '…' : addedToClients[chart.id] ? 'Добавлено' : 'в Клиенты'}
+                    </button>
                   )}
                   {deleteConfirm === chart.id ? (
                     <>
