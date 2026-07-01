@@ -45,6 +45,7 @@ class ClientCreate(BaseModel):
 class ClientPatch(BaseModel):
     notes: Optional[str] = None
     name: Optional[str] = None
+    natal_chart_id: Optional[str] = None
 
 
 class ClientOut(BaseModel):
@@ -350,6 +351,14 @@ async def update_client(
         client.notes = payload.notes
     if payload.name is not None:
         client.name = payload.name
+    if payload.natal_chart_id is not None:
+        chart = db.query(NatalChart).filter(
+            NatalChart.id == payload.natal_chart_id,
+            NatalChart.user_id == user.id,
+        ).first()
+        if not chart:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        client.natal_chart_id = payload.natal_chart_id
     db.commit()
     db.refresh(client)
     return client
@@ -439,6 +448,7 @@ async def get_client_chart(
         "houses": chart.houses,
         "aspects": chart.aspects,
         "ascendant": chart.ascendant,
+        "midheaven": chart.midheaven,
     }
 
 
