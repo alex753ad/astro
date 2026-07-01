@@ -39,7 +39,7 @@ function Bar({ label, count, max, emoji }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ ...S.row, marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: '#e2e8f0' }}>
+        <span style={{ fontSize: 13, color: '#1e293b' }}>
           {emoji ? `${emoji} ` : ''}{label}
         </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>{count}</span>
