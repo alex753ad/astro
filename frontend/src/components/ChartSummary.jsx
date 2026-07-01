@@ -120,13 +120,13 @@ export default function ChartSummary({ planets, ascendant, midheaven, houses, ti
                 </tr>
               </thead>
               <tbody>
-                {houses.map((h) => {
+                {houses.map((h, idx) => {
                   const absD = h.degree ?? h.longitude ?? 0;
                   const sign = h.sign || signFromDeg(absD);
                   const deg  = h.degree_in_sign != null ? h.degree_in_sign : degreeInSign(absD);
                   return (
-                    <tr key={h.house} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors">
-                      <td className="py-2 pr-3 font-medium">{h.house}</td>
+                    <tr key={h.number ?? h.house ?? idx} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors">
+                      <td className="py-2 pr-3 font-medium">{h.number ?? h.house ?? idx + 1}</td>
                       <td className="py-2 pr-3">
                         <span className="mr-1">{SIGN_GLYPHS[sign]}</span>
                         {SIGN_NAMES_RU[sign] || sign}
