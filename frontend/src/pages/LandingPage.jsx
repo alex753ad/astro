@@ -147,20 +147,20 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               textTransform: 'uppercase',
               marginBottom: 18,
             }}>
-              Твой таймлайн на сегодня
+              Твой таймлайн на месяц
             </div>
 
-            <TimelineItem
-              color="#8B5CF6"
-              planet="Период Меркурия"
-              time="09:00 — 13:00"
-              desc="Идеальное время для важных переговоров, аналитики и рекламы"
+            <PlanetItem
+              color="#EAB308"
+              planet="Солнце"
+              period="Период 01.07 — 20.07"
+              desc="Заниматься вопросами карьеры, статуса и продвижения, просить о повышении"
             />
-            <TimelineItem
+            <PlanetItem
               color="#EC4899"
-              planet="Влияние Сатурна"
-              time="14:30 — 18:00"
-              desc="Фокус на структуре: аудит бюджетов, регламенты, порядок в делах"
+              planet="Венера"
+              period="Период 01.07 — 28.07"
+              desc="Обновить гардероб, купить парфюм, украшения или аксессуары. Покупки в этот период усилят вашу харизму"
             />
 
             {/* AI Sintez badge */}
@@ -195,16 +195,16 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         {[
           {
             title: 'Окна возможностей',
-            desc: '«Удача — это быть в нужном месте в нужное время». Планер укажет их.',
+            desc: 'Быть в нужном месте в нужное время — настоящее искусство. Планер подскажет идеальные часы для ваших планов.',
           },
           {
             title: 'Синергия действий',
-            desc: 'Удачу создаём мы сами. Космические периоды лишь кратно её усиливают.',
+            desc: 'Свой путь мы выбираем сами. А космические циклы выступают попутным ветром, усиливая каждый шаг.',
             highlight: true,
           },
           {
             title: 'Экология ресурса',
-            desc: 'Удача — энергия, вовремя направленная в нужное дело без выгорания.',
+            desc: 'Истинный баланс — это энергия, бережно направленная в нужное русло без стресса и выгорания.',
           },
         ].map((f) => (
           <div
@@ -254,15 +254,15 @@ export default function LandingPage({ onShowAuth, currentUser }) {
   );
 }
 
-function TimelineItem({ color, planet, time, desc }) {
+function PlanetItem({ color, planet, period, desc }) {
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+    <div style={{ display: 'flex', gap: 0, marginBottom: 16 }}>
+      {/* Левая скобка */}
       <div style={{
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
+        width: 3,
+        borderRadius: 2,
         background: color,
-        marginTop: 6,
+        marginRight: 12,
         flexShrink: 0,
       }} />
       <div style={{ flex: 1 }}>
@@ -270,10 +270,24 @@ function TimelineItem({ color, planet, time, desc }) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
-          marginBottom: 3,
+          marginBottom: 4,
+          flexWrap: 'wrap',
+          gap: 4,
         }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: '#1a1230' }}>{planet}</span>
-          <span style={{ fontSize: 12, color: '#9B97B0' }}>{time}</span>
+          <span style={{ fontWeight: 700, fontSize: 14, color }}>
+            <span style={{ marginRight: 6, fontSize: 15 }}>
+              {planet === 'Солнце' ? '🌞' : '🪷'}
+            </span>
+            {planet}
+          </span>
+          <span style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color,
+            background: color === '#EAB308' ? 'rgba(234,179,8,0.1)' : 'rgba(236,72,153,0.1)',
+            padding: '2px 8px',
+            borderRadius: 10,
+          }}>{period}</span>
         </div>
         <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.5 }}>{desc}</div>
       </div>
