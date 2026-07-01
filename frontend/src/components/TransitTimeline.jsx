@@ -418,7 +418,27 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
       {(event.transit_sign || event.natal_sign) && (
         <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
-      {isSelected && !blurred && <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>Нажмите для интерпретации ↓</div>}
+      {!blurred && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            style={{
+              padding: "5px 14px",
+              borderRadius: 10,
+              border: `1.5px solid ${isSelected ? aspectColor : "#E8DEF8"}`,
+              background: isSelected ? aspectColor : "transparent",
+              color: isSelected ? "#fff" : aspectColor,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.2s ease",
+            }}
+          >
+            ✦ Интерпретация
+          </button>
+        </div>
+      )}
     </div>
   );
 }
