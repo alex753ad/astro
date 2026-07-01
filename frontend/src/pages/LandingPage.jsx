@@ -275,9 +275,14 @@ function PlanetItem({ color, planet, period, desc }) {
           gap: 4,
         }}>
           <span style={{ fontWeight: 700, fontSize: 14, color }}>
-            <span style={{ marginRight: 6, fontSize: 15 }}>
-              {planet === 'Солнце' ? '🌞' : '🪷'}
-            </span>
+            <span style={{
+              display: 'inline-block',
+              width: 8, height: 8,
+              borderRadius: '50%',
+              background: color,
+              marginRight: 8,
+              verticalAlign: 'middle',
+            }} />
             {planet}
           </span>
           <span style={{
