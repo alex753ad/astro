@@ -19,6 +19,8 @@ logger = logging.getLogger("astro.email")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 FROM_EMAIL     = os.getenv("FROM_EMAIL", "noreply@astreatime.ru")
 APP_URL        = os.getenv("APP_URL", "https://astreatime.ru")
+FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://astreatime.ru")
+LOGO_URL       = f"{FRONTEND_URL}/logo_120x120.png"
 
 # ───────────────────────────── base template ─────────────────────────────────
 
@@ -44,8 +46,12 @@ def _base(title: str, preview: str, body: str) -> str:
         <tr>
           <td style="background:linear-gradient(135deg,#2d1b4e 0%,#1a1030 100%);
                      border-radius:16px 16px 0 0;padding:32px 40px;text-align:center;">
-            <div style="font-size:28px;letter-spacing:4px;margin-bottom:8px;">
-              ☽ ✦ ☾
+            <div style="display:inline-block;margin-bottom:12px;
+                        border-radius:50%;
+                        box-shadow:0 0 32px 10px rgba(144,96,200,0.5),
+                                   0 0 64px 20px rgba(144,96,200,0.2);">
+              <img src="{LOGO_URL}" width="72" height="72" alt="Astrea Timeline"
+                   style="display:block;border-radius:50%;"/>
             </div>
             <div style="color:#c9a8ff;font-size:20px;font-weight:700;letter-spacing:1px;">
               Astrea Timeline
@@ -122,7 +128,7 @@ async def _send(to: str, subject: str, html: str) -> bool:
             resp = await client.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                json={"from": FROM_EMAIL, "to": [to], "subject": subject, "html": html},
+                json={"from": f"Astrea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
             )
             if resp.status_code not in (200, 201):
                 logger.error("Resend error %s: %s", resp.status_code, resp.text)
