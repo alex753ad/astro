@@ -418,7 +418,27 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
       {(event.transit_sign || event.natal_sign) && (
         <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
-      {isSelected && !blurred && <div style={{ marginTop: 8, fontSize: 11, color: aspectColor, fontWeight: 600 }}>Нажмите для интерпретации ↓</div>}
+      {!blurred && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            style={{
+              padding: "5px 14px",
+              borderRadius: 10,
+              border: `1.5px solid ${isSelected ? aspectColor : "#E8DEF8"}`,
+              background: isSelected ? aspectColor : "transparent",
+              color: isSelected ? "#fff" : aspectColor,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.2s ease",
+            }}
+          >
+            ✦ Интерпретация
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -532,6 +552,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const isFree = !userTier || userTier === "free";
   const isLite = userTier === "lite";
   const hasFullAccess = userTier === "pro" || userTier === "premium";
+
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   useEffect(() => {
     if (!chartId || mockMode || chartId === 'anonymous' || isFree) { setEvents(MOCK_EVENTS); setLoading(false); return; }
@@ -682,7 +709,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         />
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
+      <div style={{ display: "grid", gridTemplateColumns: selectedEvent && !isMobile ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
@@ -709,7 +736,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           )}
         </div>
         {selectedEvent && (
-          <div style={{ position: "sticky", top: 24 }}>
+          <div style={{ position: isMobile ? "static" : "sticky", top: 24 }}>
             <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
           </div>
         )}
