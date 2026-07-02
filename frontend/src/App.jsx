@@ -97,6 +97,7 @@ function useDarkMode() {
 
 function Header({ onShowAuth, dark, toggleDark }) {
   const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const lastChartId = localStorage.getItem('astro_last_chart_id');
   const lastChartName = localStorage.getItem('astro_last_chart_name');
@@ -134,30 +135,35 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
         {/* Навигация */}
         <nav className="flex items-center gap-1 text-sm">
-          {user && lastChartId && (
-            <>
-              <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)}>
-                Натальная карта
-              </Link>
-              <Link to={`/planner/${lastChartId}`} className={navLink(`/planner/${lastChartId}`)}>
-                Timeline Планер
-              </Link>
-              <Link to={`/lunar`} className={navLink('/lunar')}>
-                Лунный календарь
-              </Link>
-            </>
-          )}
 
-                    {user?.tier === 'premium' && (
-            <Link to="/dashboard/clients" className={navLink('/dashboard/clients')}>
-              Клиенты
-            </Link>
-          )}
-          {user?.tier === 'premium' && (
-            <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')}>
-              Аналитика
-            </Link>
-          )}
+          {/* Desktop links */}
+          <div className="hidden md:flex items-center gap-1">
+            {user && lastChartId && (
+              <>
+                <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)}>
+                  Натальная карта
+                </Link>
+                <Link to={`/planner/${lastChartId}`} className={navLink(`/planner/${lastChartId}`)}>
+                  Timeline Планер
+                </Link>
+                <Link to={`/lunar`} className={navLink('/lunar')}>
+                  Лунный календарь
+                </Link>
+              </>
+            )}
+            {user?.tier === 'premium' && (
+              <Link to="/dashboard/clients" className={navLink('/dashboard/clients')}>
+                Клиенты
+              </Link>
+            )}
+            {user?.tier === 'premium' && (
+              <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')}>
+                Аналитика
+              </Link>
+            )}
+          </div>
+
+          {/* Profile / Auth — всегда видно */}
           {user ? (
             <>
               <Link
@@ -171,6 +177,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
               <button
                 onClick={logout}
                 className="
+                  hidden md:block
                   px-4 py-1.5 rounded-full text-sm font-medium
                   text-slate-500 border border-slate-200
                   hover:border-slate-300 hover:text-slate-700
@@ -195,8 +202,54 @@ function Header({ onShowAuth, dark, toggleDark }) {
           )}
 
           <ThemeToggle dark={dark} onToggle={toggleDark} />
+
+          {/* Hamburger — только мобильный, только для авторизованных с картой */}
+          {user && lastChartId && (
+            <button
+              onClick={() => setMenuOpen(m => !m)}
+              className="md:hidden flex flex-col justify-center gap-1 p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+              aria-label="Меню"
+            >
+              <span className={`block w-5 h-0.5 bg-current transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
+              <span className={`block w-5 h-0.5 bg-current transition-all duration-200 ${menuOpen ? 'opacity-0' : ''}`} />
+              <span className={`block w-5 h-0.5 bg-current transition-all duration-200 ${menuOpen ? '-rotate-45 -translate-y-1.5' : ''}`} />
+            </button>
+          )}
         </nav>
       </div>
+
+      {/* Mobile dropdown */}
+      {menuOpen && user && lastChartId && (
+        <div className="md:hidden border-t border-astro-purple/10 bg-white/95 backdrop-blur-md">
+          <div className="max-w-6xl mx-auto px-4 py-2 flex flex-col gap-1">
+            <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+              Натальная карта
+            </Link>
+            <Link to={`/planner/${lastChartId}`} className={navLink(`/planner/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+              Timeline Планер
+            </Link>
+            <Link to="/lunar" className={navLink('/lunar')} onClick={() => setMenuOpen(false)}>
+              Лунный календарь
+            </Link>
+            {user?.tier === 'premium' && (
+              <Link to="/dashboard/clients" className={navLink('/dashboard/clients')} onClick={() => setMenuOpen(false)}>
+                Клиенты
+              </Link>
+            )}
+            {user?.tier === 'premium' && (
+              <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')} onClick={() => setMenuOpen(false)}>
+                Аналитика
+              </Link>
+            )}
+            <button
+              onClick={() => { logout(); setMenuOpen(false); }}
+              className="self-start mt-1 px-4 py-1.5 rounded-full text-sm font-medium text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700 transition-all duration-200"
+            >
+              Выйти
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
