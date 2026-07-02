@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function LandingPage({ onShowAuth, currentUser }) {
   const navigate = useNavigate();
+
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   const handleActivate = () => {
     if (currentUser) {
@@ -24,7 +31,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
       {/* Hero */}
       <div style={{
         textAlign: 'center',
-        padding: '80px 40px 40px',
+        padding: isMobile ? '40px 20px 32px' : '80px 40px 40px',
         maxWidth: 700,
         margin: '0 auto',
       }}>
@@ -113,17 +120,18 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           border: '1px solid rgba(139,92,246,0.15)',
           overflow: 'hidden',
           display: 'grid',
-          gridTemplateColumns: '1fr 1.4fr',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1.4fr',
           minHeight: 220,
         }}>
           {/* Left — zodiac wheel placeholder */}
           <div style={{
             display: 'flex',
-            flexDirection: 'column',
+            flexDirection: isMobile ? 'row' : 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '32px 24px',
-            borderRight: '1px solid rgba(139,92,246,0.1)',
+            padding: isMobile ? '20px 24px' : '32px 24px',
+            borderRight: isMobile ? 'none' : '1px solid rgba(139,92,246,0.1)',
+            borderBottom: isMobile ? '1px solid rgba(139,92,246,0.1)' : 'none',
             background: 'rgba(248,244,255,0.6)',
             gap: 16,
           }}>
@@ -186,7 +194,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
       {/* Features */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
         gap: 16,
         maxWidth: 820,
         margin: '32px auto 48px',
