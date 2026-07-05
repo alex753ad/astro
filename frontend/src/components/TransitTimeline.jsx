@@ -358,15 +358,15 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
   return (
     <div
       onClick={blurred ? onUpgrade : onClick}
-      onMouseEnter={() => blurred && setHovered(true)}
+      onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        padding: "14px 16px", borderRadius: 16, cursor: "pointer",
-        border: `1px solid ${isSelected ? "#D0B8F0" : "#F0EAF8"}`,
-        borderLeft: `4px solid ${planetAccent}`,
-        background: isSelected ? aspectBg : "#FFFFFF",
-        boxShadow: isSelected ? "0 8px 20px -6px rgba(224,195,252,0.35)" : "0 2px 8px -4px rgba(200,180,240,0.15)",
-        transition: "all 0.2s ease",
+        padding: "13px 16px", cursor: "pointer",
+        borderBottom: "1px solid rgba(139,92,246,0.1)",
+        background: isSelected
+          ? "rgba(139,92,246,0.08)"
+          : (hovered && !blurred ? "rgba(139,92,246,0.06)" : "transparent"),
+        transition: "background 0.2s ease",
         animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
         // blur для заблокированных карточек — 80% opacity + blur
         filter: blurred ? "blur(5px)" : "none",
@@ -408,7 +408,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.transit_planet] || "★"}</span>
+        <span style={{ fontSize: 20, color: planetAccent }}>{PLANET_GLYPHS[event.transit_planet] || "★"}</span>
         <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>{PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}</span>
         <span style={{ fontSize: 16, color: aspectColor, fontWeight: 700 }}>{ASPECT_SYMBOLS[event.aspect_type] || "·"}</span>
         <span style={{ fontSize: 13, color: "#9080B0" }}>{ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}</span>
@@ -703,7 +703,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : filteredEvents.length === 0 ? (
