@@ -197,7 +197,7 @@ function SaveChartBanner({ onLogin }) {
 
 // ── Хук тёмной темы перенесён в App.jsx ──
 
-export default function ChartPage({ currentUser, onShowAuth }) {
+export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const { chartId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -225,6 +225,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
+  const [hoverPlanet, setHoverPlanet]  = useState(null); // cross-highlight: планета под курсором в таблице
 
   // Async-транзиты (Celery)
   const [asyncTransits, setAsyncTransits]     = useState(null);   // результат
@@ -410,6 +411,34 @@ export default function ChartPage({ currentUser, onShowAuth }) {
     if (date) setSelectedDate(date);
   }
 
+  // ── Тайм-скраббинг: слайдер по датам, debounce-запрос позиций у бэкенда ──
+  const scrubTimerRef = React.useRef(null);
+  const todayStr  = new Date().toISOString().slice(0, 10);
+  const SCRUB_DAYS = 365;
+  function offsetToDate(o) {
+    const dt = new Date(todayStr + 'T00:00:00');
+    dt.setDate(dt.getDate() + o);
+    return dt.toISOString().slice(0, 10);
+  }
+  function dateToOffset(d) {
+    const ms = new Date(d + 'T00:00:00') - new Date(todayStr + 'T00:00:00');
+    return Math.min(SCRUB_DAYS, Math.max(0, Math.round(ms / 86400000)));
+  }
+  function handleScrub(date) {
+    setSelectedDate(date); // подпись даты обновляется в реальном времени
+    if (scrubTimerRef.current) clearTimeout(scrubTimerRef.current);
+    if (!chartId || chartId === 'anonymous') return;
+    scrubTimerRef.current = setTimeout(async () => {
+      const token = localStorage.getItem('astro_access_token');
+      try {
+        const resp = await fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${date}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (resp.ok) { const data = await resp.json(); if (data?.planets) setTransitPlanets(data.planets); }
+      } catch {}
+    }, 350);
+  }
+
   function handleShowAuth() {
     onShowAuth?.();
   }
@@ -421,7 +450,14 @@ export default function ChartPage({ currentUser, onShowAuth }) {
   const isAnon = !currentUser;
 
   return (
-    <div style={s.page}>
+    <div style={{
+      ...s.page,
+      ...(dark ? {
+        background: 'transparent',
+        '--bg-card': 'rgba(26,18,48,0.62)',
+        '--bg-deeper': 'rgba(35,28,56,0.62)',
+      } : {}),
+    }}>
 
       {/* ── Шапка ── */}
       <header style={s.header}>
@@ -535,6 +571,8 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                 midheaven={chart.midheaven}
                 timeUnknown={chart.time_unknown}
                 transitPlanets={[]}
+                highlightPlanet={hoverPlanet}
+                dark={dark}
               />
               {/* Поделиться — под колесом карты */}
               <div style={{ textAlign: 'center', marginTop: 12 }}>
@@ -578,6 +616,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                   planets={chart.planets}
                   ascendant={chart.ascendant}
                   midheaven={chart.midheaven}
+                  onHoverPlanet={setHoverPlanet}
                   collapsed
                 />
                 {chart.houses?.length > 0 && (
@@ -631,6 +670,7 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                   planets={chart.planets}
                   ascendant={chart.ascendant}
                   midheaven={chart.midheaven}
+                  onHoverPlanet={setHoverPlanet}
                 />
               </div>
             )}
@@ -656,10 +696,33 @@ export default function ChartPage({ currentUser, onShowAuth }) {
                   midheaven={chart.midheaven}
                   timeUnknown={chart.time_unknown}
                   transitPlanets={transitPlanets}
+                  dark={dark}
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
                 <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => { setPaywallContext(ctx || (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite')); setShowPaywall(true); }} />
+              </section>
+
+              {/* ── Тайм-скраббинг ── */}
+              <section style={{ ...s.card, padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+                    Прокрутка времени
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
+                </div>
+                <input
+                  type="range" min={0} max={SCRUB_DAYS} step={1}
+                  value={dateToOffset(selectedDate)}
+                  onChange={e => handleScrub(offsetToDate(Number(e.target.value)))}
+                  style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  <span>Сегодня</span>
+                  <span>+12 мес</span>
+                </div>
               </section>
             </main>
           </div>
@@ -730,7 +793,7 @@ function formatDeg(deg) {
   return `${d}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}''`;
 }
 
-function PlanetTable({ planets = [], ascendant, midheaven, collapsed }) {
+function PlanetTable({ planets = [], ascendant, midheaven, collapsed, onHoverPlanet }) {
   const [expanded, setExpanded] = React.useState(false);
   const rows = [
     ...planets,
@@ -747,8 +810,13 @@ function PlanetTable({ planets = [], ascendant, midheaven, collapsed }) {
     <div style={sp.wrap}>
       <table style={sp.table}>
         <tbody>
-          {visible.map((p) => (
-            <tr key={p.name} style={sp.row}>
+          {visible.map((p) => {
+            const isAxis = p.name === 'Ascendant' || p.name === 'Midheaven';
+            return (
+            <tr key={p.name} style={{ ...sp.row, cursor: onHoverPlanet && !isAxis ? 'default' : undefined }}
+              onMouseEnter={() => onHoverPlanet?.(isAxis ? null : p.name)}
+              onMouseLeave={() => onHoverPlanet?.(null)}
+            >
               <td style={sp.glyph}>{PLANET_GLYPHS[p.name] || ''}</td>
               <td style={sp.nameCell}>{PLANET_NAMES_RU[p.name] || p.name}</td>
               <td style={sp.signGlyph}>{SIGN_GLYPHS[p.sign] || ''}</td>
@@ -756,7 +824,8 @@ function PlanetTable({ planets = [], ascendant, midheaven, collapsed }) {
               <td style={sp.deg}>{formatDeg(p.degree_in_sign)}</td>
               <td style={sp.retro}>{p.retrograde ? <span style={sp.retroMark}>R</span> : ''}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       {collapsed && rows.length > PREVIEW && (
@@ -1107,7 +1176,7 @@ const s = {
   main: {
     maxWidth: '900px', margin: '0 auto',
     padding: '20px 16px',
-    display: 'flex', flexDirection: 'column', gap: '16px',
+    display: 'flex', flexDirection: 'column', gap: '64px',
   },
   transitDateLabel: { fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '14px' },
   card: { background: 'var(--bg-card)', borderRadius: '16px', border: '0.5px solid var(--border)', padding: '20px' },
