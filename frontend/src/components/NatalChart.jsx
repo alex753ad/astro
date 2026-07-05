@@ -141,7 +141,7 @@ function ChartSkeleton() {
 function NatalChartInner({
   planets = [], houses = [], aspects = [],
   ascendant, midheaven, timeUnknown, transitPlanets = [],
-  isCompact,
+  isCompact, highlightPlanet = null, dark = false,
 }) {
   const SIZE    = isCompact ? 320 : 560;
   const cx      = SIZE / 2;
@@ -178,6 +178,12 @@ function NatalChartInner({
     return houses.map(h => ({ number: h.number, lon: h.degree }));
   }, [houses, timeUnknown]);
 
+  // ── Фоны дисков: в тёмной теме — полупрозрачное тёмное стекло (nebula просвечивает),
+  //    глифы-чипы остаются светлыми, чтобы цветные символы читались как в светлой теме.
+  const discBase        = dark ? 'rgba(26,18,48,0.55)'    : '#FDFBF9';
+  const discInner       = dark ? 'rgba(26,18,48,0.60)'    : '#FFFFFF';
+  const discInnerStroke = dark ? 'rgba(139,92,246,0.25)'  : '#D8C8E0';
+
   return (
     <svg
       viewBox={`${-PADDING} ${-PADDING} ${VSIZE} ${VSIZE}`}
@@ -189,7 +195,16 @@ function NatalChartInner({
       role="img"
       fontFamily="'Segoe UI', system-ui, sans-serif"
     >
-      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="#FDFBF9" stroke="none" />
+      <style>{`
+        .aspect-flow { stroke-dasharray: 6 4; animation: aspectDash 0.6s linear infinite; }
+        @keyframes aspectDash { to { stroke-dashoffset: -20; } }
+        .transit-planet { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        @media (prefers-reduced-motion: reduce) {
+          .aspect-flow { animation: none; }
+          .transit-planet { transition: none; }
+        }
+      `}</style>
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill={discBase} stroke="none" />
 
 
 
@@ -283,7 +298,7 @@ function NatalChartInner({
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill="#FFFFFF" stroke="#D8C8E0" strokeWidth={0.75} />
+      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill={discInner} stroke={discInnerStroke} strokeWidth={0.75} />
 
       {/* Аспекты — только в полном режиме */}
       {!isCompact && aspects
@@ -297,14 +312,18 @@ function NatalChartInner({
           const color   = ASPECT_COLORS[asp.aspect_type];
           const isHarm  = asp.aspect_type === 'trine' || asp.aspect_type === 'sextile';
           const opacity = isHarm ? 0.45 : asp.aspect_type === 'conjunction' ? 0.65 : 0.55;
+          const involved = highlightPlanet && (asp.planet1 === highlightPlanet || asp.planet2 === highlightPlanet);
+          const dimAsp   = highlightPlanet && !involved;
           return (
             <line
               key={i}
               x1={pt1.x} y1={pt1.y} x2={pt2.x} y2={pt2.y}
               stroke={color}
+              className={involved ? 'aspect-flow' : undefined}
               strokeWidth={asp.orb < 1 ? 1.5 : asp.orb < 3 ? 1.0 : 0.6}
-              strokeOpacity={opacity}
-              strokeDasharray={!asp.applying ? '4 3' : 'none'}
+              strokeOpacity={involved ? 0.8 : dimAsp ? 0.08 : opacity}
+              strokeDasharray={involved ? undefined : (!asp.applying ? '4 3' : 'none')}
+              style={{ transition: 'stroke-opacity 0.2s ease' }}
             />
           );
         })}
@@ -317,9 +336,17 @@ function NatalChartInner({
         const color    = PLANET_COLORS[planet.name] || '#606060';
         const showLine = Math.abs(planet.displayLon - planet.longitude) > 2;
         const r        = isCompact ? 10 : 12;
+        const isActive = highlightPlanet === planet.name;
+        const isDimmed = highlightPlanet && !isActive;
 
         return (
-          <g key={planet.name}>
+          <g key={planet.name} style={{
+            transformBox: 'fill-box', transformOrigin: 'center',
+            transform: isActive ? 'scale(1.2)' : 'none',
+            filter: isActive ? 'brightness(1.3) drop-shadow(0 0 5px rgba(139,92,246,0.75))' : 'none',
+            opacity: isDimmed ? 0.3 : 1,
+            transition: 'transform 0.2s ease, filter 0.2s ease, opacity 0.2s ease',
+          }}>
             {(() => {
               const t1 = lonToXY(cx, cy, R_TICK_IN + 1, planet.longitude, ascLon);
               const t2 = lonToXY(cx, cy, R_TICK_IN - 5, planet.longitude, ascLon);
@@ -430,34 +457,34 @@ function NatalChartInner({
 
             {spread.map((tp, i) => {
               const pos       = lonToXY(cx, cy, R_TRANSIT, tp.displayLon, ascLon);
+              const inner     = lonToXY(cx, cy, R_ZOD_OUT, tp.longitude, ascLon);
               const color     = PLANET_COLORS[tp.name] || '#A070C0';
               const hasAspect = !!tp.aspect_type;
               return (
                 <g key={`tg-${i}`}>
-                  {(() => {
-                    const inner = lonToXY(cx, cy, R_ZOD_OUT, tp.longitude, ascLon);
-                    return <line x1={inner.x} y1={inner.y} x2={pos.x} y2={pos.y}
-                      stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />;
-                  })()}
+                  <line x1={inner.x} y1={inner.y} x2={pos.x} y2={pos.y}
+                    stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />
 
-                  <circle cx={pos.x} cy={pos.y} r={12} fill="#FFFFFF" />
-                  <circle cx={pos.x} cy={pos.y} r={12}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={hasAspect ? 2 : 1}
-                    strokeOpacity={1}
-                  />
-                  <text x={pos.x} y={pos.y}
-                    textAnchor="middle" dominantBaseline="central"
-                    fontSize={13} fontWeight="700"
-                    fill={color}>
-                    {PLANET_GLYPHS[tp.name] || '?'}
-                  </text>
+                  <g className="transit-planet" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+                    <circle cx={0} cy={0} r={12} fill="#FFFFFF" />
+                    <circle cx={0} cy={0} r={12}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={hasAspect ? 2 : 1}
+                      strokeOpacity={1}
+                    />
+                    <text x={0} y={0}
+                      textAnchor="middle" dominantBaseline="central"
+                      fontSize={13} fontWeight="700"
+                      fill={color}>
+                      {PLANET_GLYPHS[tp.name] || '?'}
+                    </text>
 
-                  {tp.retrograde && (
-                    <text x={pos.x + 10} y={pos.y - 9}
-                      fontSize={8} fill="#C04040" fontWeight="700">℞</text>
-                  )}
+                    {tp.retrograde && (
+                      <text x={10} y={-9}
+                        fontSize={8} fill="#C04040" fontWeight="700">℞</text>
+                    )}
+                  </g>
                 </g>
               );
             })}
