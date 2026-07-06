@@ -206,10 +206,10 @@ export default function LunarCalendarPage() {
   };
 
   return (
-    <div style={pg.page}>
+    <div className="lc-scope" style={pg.page}>
       {/* Декоративные блобы */}
-      <div style={pg.blob1} aria-hidden="true" />
-      <div style={pg.blob2} aria-hidden="true" />
+      <div className="lc-blob" style={pg.blob1} aria-hidden="true" />
+      <div className="lc-blob" style={pg.blob2} aria-hidden="true" />
 
       <script
         type="application/ld+json"
@@ -296,6 +296,15 @@ export default function LunarCalendarPage() {
           0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
+        .lc-scope {
+          --lc-bg: #FDFBF9; --lc-card: #FFFFFF; --lc-border: #F0EAF8;
+          --lc-title: #1E1A2E; --lc-text2: #9080B0; --lc-text3: #B0A0C8; --lc-daynum: #2D2540;
+        }
+        .dark .lc-scope {
+          --lc-bg: transparent; --lc-card: rgba(26,18,48,0.60); --lc-border: rgba(139,92,246,0.16);
+          --lc-title: #E2DFF0; --lc-text2: #9B97B0; --lc-text3: #8983A0; --lc-daynum: #E2DFF0;
+        }
+        .dark .lc-scope .lc-blob { display: none; }
       `}</style>
     </div>
   );
@@ -399,7 +408,7 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData }) {
   const numColor = isToday    ? '#1A2D90'
                  : isNewMoon  ? '#FFFFFF'
                  : isFullMoon ? '#7A5400'
-                 : '#2D2540';
+                 : 'var(--lc-daynum)';
   const iconBg   = isNewMoon  ? '#3A3A50'
                  : isFullMoon ? '#FFF3C0'
                  : signData.bg;
@@ -434,7 +443,7 @@ function LegendDot({ fill, border, label }) {
         border: border !== 'none' ? `1.5px solid ${border}` : 'none',
         flexShrink: 0,
       }} />
-      <span style={{ fontSize: 11, color: '#9080B0' }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>{label}</span>
     </div>
   );
 }
@@ -445,7 +454,7 @@ function LegendDot({ fill, border, label }) {
 
 const pg = {
   page: {
-    position: 'relative', minHeight: '100vh', background: '#FDFBF9',
+    position: 'relative', minHeight: '100vh', background: 'var(--lc-bg)',
     overflow: 'hidden', display: 'flex', justifyContent: 'center',
     padding: '28px 16px 48px',
     fontFamily: "'Space Grotesk','Inter',system-ui,sans-serif",
@@ -464,27 +473,27 @@ const pg = {
   },
   wrap: { position:'relative', zIndex:1, width:'100%', maxWidth:500 },
   card: {
-    background:'#FFFFFF', borderRadius:24,
+    background:'var(--lc-card)', borderRadius:24,
     padding:'20px 18px 16px',
     boxShadow:'0 12px 40px -8px rgba(224,195,252,0.28),0 2px 8px rgba(0,0,0,0.04)',
-    border:'1px solid #F0EAF8',
+    border:'1px solid var(--lc-border)',
   },
   cardHead:  { display:'flex', alignItems:'center', gap:7, marginBottom:12 },
-  cardTitle: { fontSize:16, fontWeight:700, color:'#1E1A2E' },
-  hr:        { height:1, background:'#F0EAF8', margin:'10px 0 0' },
+  cardTitle: { fontSize:16, fontWeight:700, color:'var(--lc-title)' },
+  hr:        { height:1, background:'var(--lc-border)', margin:'10px 0 0' },
   nav: {
     display:'flex', alignItems:'center', justifyContent:'center',
     gap:12, margin:'10px 0 12px',
   },
-  navBtn:   { background:'none', border:'none', fontSize:22, color:'#B0A0C8', cursor:'pointer', padding:'0 4px', lineHeight:1 },
-  navMonth: { fontSize:14, fontWeight:600, color:'#1E1A2E', minWidth:110, textAlign:'center' },
+  navBtn:   { background:'none', border:'none', fontSize:22, color:'var(--lc-text3)', cursor:'pointer', padding:'0 4px', lineHeight:1 },
+  navMonth: { fontSize:14, fontWeight:600, color:'var(--lc-title)', minWidth:110, textAlign:'center' },
   grid: {
     display:'grid', gridTemplateColumns:'repeat(7,1fr)',
     gap:'1px 0',
   },
   dow: {
     textAlign:'center', fontSize:10, fontWeight:600,
-    color:'#B0A0C8', paddingBottom:6,
+    color:'var(--lc-text3)', paddingBottom:6,
     letterSpacing:'0.02em',
   },
   legend: {
@@ -496,11 +505,11 @@ const pg = {
 const ph = {
   row:   { display:'flex', gap:6, flexWrap:'wrap' },
   block: { flex:'1 1 120px', display:'flex', flexDirection:'column', gap:3 },
-  label: { fontSize:8, fontWeight:700, color:'#B0A0C8', letterSpacing:'0.08em', textTransform:'uppercase' },
+  label: { fontSize:8, fontWeight:700, color:'var(--lc-text3)', letterSpacing:'0.08em', textTransform:'uppercase' },
   inner: { display:'flex', alignItems:'center', gap:6 },
   icon:  { width:32, height:32, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
-  name:  { fontSize:13, fontWeight:700, color:'#1E1A2E', lineHeight:1.2 },
-  extra: { fontSize:9, color:'#9080B0', marginTop:1 },
+  name:  { fontSize:13, fontWeight:700, color:'var(--lc-title)', lineHeight:1.2 },
+  extra: { fontSize:9, color:'var(--lc-text2)', marginTop:1 },
 };
 
 const dc = {
@@ -518,7 +527,7 @@ const dc = {
     display:'flex', alignItems:'center', justifyContent:'center',
   },
   name: {
-    fontSize:7.5, color:'#9080B0',
+    fontSize:7.5, color:'var(--lc-text2)',
     textAlign:'center', lineHeight:1.2,
     maxWidth:38, wordBreak:'break-word',
   },
