@@ -80,7 +80,7 @@ function sectorPath(cx, cy, rOuter, rInner, lon1, lon2, ascLon) {
   ].join(' ');
 }
 
-function pushApart(positions, minGapDeg = 8) {
+function pushApart(positions, minGapDeg = 11) {
   const result = positions.map(p => ({ ...p }));
   for (let iter = 0; iter < 50; iter++) {
     let moved = false;
@@ -363,12 +363,12 @@ function NatalChartInner({
 
             <circle cx={glyphPos.x} cy={glyphPos.y} r={r} fill="#FFFFFF" />
             <circle cx={glyphPos.x} cy={glyphPos.y} r={r}
-              fill="none" stroke={color} strokeWidth={0.75} />
+              fill="none" stroke={color} strokeWidth={1.25} />
 
             <text
               x={glyphPos.x} y={glyphPos.y}
               textAnchor="middle" dominantBaseline="central"
-              fontSize={isCompact ? 10 : 12} fontWeight="600" fill={color}
+              fontSize={isCompact ? 10 : 12} fontWeight="700" fill={color}
             >
               {PLANET_GLYPHS[planet.name] || '?'}
             </text>
