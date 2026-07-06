@@ -124,7 +124,7 @@ function Skeleton({ width = "100%", height = 16, radius = 8, style = {} }) {
   return (
     <div style={{
       width, height, borderRadius: radius,
-      background: "linear-gradient(90deg, #F0EAF8 25%, #F8F3FF 50%, #F0EAF8 75%)",
+      background: "linear-gradient(90deg, var(--tt-border) 25%, #F8F3FF 50%, var(--tt-border) 75%)",
       backgroundSize: "200% 100%",
       animation: "shimmer 1.8s ease-in-out infinite",
       ...style,
@@ -136,9 +136,9 @@ function EventCardSkeleton() {
   return (
     <div style={{
       padding: "16px 18px", borderRadius: 16,
-      border: "1px solid #F0EAF8", background: "#FFFFFF",
+      border: "1px solid var(--tt-border)", background: "var(--tt-card)",
       display: "flex", flexDirection: "column", gap: 8,
-      borderLeft: "4px solid #E8DEF8",
+      borderLeft: "4px solid var(--tt-border2)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Skeleton width={80} height={12} />
@@ -160,9 +160,9 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
 
   const chipStyle = (active) => ({
     padding: "5px 13px", borderRadius: 20,
-    border: `1.5px solid ${active ? "#C0A0E8" : "#E8DEF8"}`,
+    border: `1.5px solid ${active ? "#C0A0E8" : "var(--tt-border2)"}`,
     background: active ? "#F0E8FF" : "transparent",
-    color: active ? "#7040A8" : "#9080B0",
+    color: active ? "#7040A8" : "var(--tt-text2)",
     fontSize: 13, fontWeight: active ? 600 : 400,
     cursor: "pointer", transition: "all 0.2s ease",
     whiteSpace: "nowrap", userSelect: "none", fontFamily: "inherit",
@@ -171,8 +171,8 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
-      padding: "14px 16px", background: "#FFFFFF",
-      borderRadius: 16, border: "1px solid #F0EAF8",
+      padding: "14px 16px", background: "var(--tt-card)",
+      borderRadius: 16, border: "1px solid var(--tt-border)",
       boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)",
     }}>
       <div>
@@ -225,7 +225,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
       {(planetFilter.length > 0 || aspectFilter.length > 0 || orbFilter !== 2.0) && (
         <button onClick={() => { setPlanetFilter([]); setAspectFilter([]); setOrbFilter(2.0); }} style={{
           alignSelf: "flex-start", background: "none",
-          border: "1px solid #E8DEF8", color: "#9080B0",
+          border: "1px solid var(--tt-border2)", color: "var(--tt-text2)",
           borderRadius: 10, padding: "4px 12px", fontSize: 12,
           cursor: "pointer", fontFamily: "inherit",
         }}>Сбросить фильтры</button>
@@ -235,7 +235,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
 }
 
 const filterLabelStyle = {
-  background: "none", border: "none", color: "#9080B0",
+  background: "none", border: "none", color: "var(--tt-text2)",
   fontSize: 12, fontWeight: 600, letterSpacing: "0.05em",
   textTransform: "uppercase", cursor: "pointer", padding: 0,
   display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit",
@@ -266,9 +266,9 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
             minWidth: 48, flexShrink: 0,
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
             padding: "8px 6px", borderRadius: 12,
-            border: `1.5px solid ${active ? "#C0A0E8" : "#E8DEF8"}`,
-            background: active ? "#F0E8FF" : "#FFFFFF",
-            color: active ? "#7040A8" : "#9080B0",
+            border: `1.5px solid ${active ? "#C0A0E8" : "var(--tt-border2)"}`,
+            background: active ? "#F0E8FF" : "var(--tt-card)",
+            color: active ? "#7040A8" : "var(--tt-text2)",
             cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
           }}>
             <span style={{ fontSize: 11, opacity: 0.7 }}>{dt.toLocaleDateString("ru-RU", { weekday: "short" })}</span>
@@ -295,9 +295,9 @@ function StatsSummary({ events }) {
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {stats.map(({ label, value, color, bg }) => (
-        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 14, border: "1px solid #F0EAF8", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
+        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 14, border: "1px solid var(--tt-border)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
-          <span style={{ fontSize: 11, color: "#9080B0" }}>{label}</span>
+          <span style={{ fontSize: 11, color: "var(--tt-text2)" }}>{label}</span>
         </div>
       ))}
     </div>
@@ -395,28 +395,28 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
       )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#9080B0" }}>{displayDate ? formatDate(displayDate) : ""}</span>
-          {event.exact_date && <span style={{ fontSize: 10, color: "#B0A0C8", opacity: 0.7 }}>{formatExactTime(event.exact_date)}</span>}
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tt-text2)" }}>{displayDate ? formatDate(displayDate) : ""}</span>
+          {event.exact_date && <span style={{ fontSize: 10, color: "var(--tt-text3)", opacity: 0.7 }}>{formatExactTime(event.exact_date)}</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {event.applying !== undefined && (
-            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 8, border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "#E8DEF8"}`, color: event.applying ? "#3068B0" : "#9080B0", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
+            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 8, border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "var(--tt-border2)"}`, color: event.applying ? "#3068B0" : "var(--tt-text2)", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
               {event.applying ? "→ точный" : "← отходит"}
             </span>
           )}
-          <span style={{ fontSize: 11, color: "#B0A0C8", opacity: 0.7 }}>орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°</span>
+          <span style={{ fontSize: 11, color: "var(--tt-text3)", opacity: 0.7 }}>орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°</span>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 20, color: planetAccent }}>{PLANET_GLYPHS[event.transit_planet] || "★"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>{PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tt-text)" }}>{PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}</span>
         <span style={{ fontSize: 16, color: aspectColor, fontWeight: 700 }}>{ASPECT_SYMBOLS[event.aspect_type] || "·"}</span>
-        <span style={{ fontSize: 13, color: "#9080B0" }}>{ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}</span>
+        <span style={{ fontSize: 13, color: "var(--tt-text2)" }}>{ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}</span>
         <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.natal_planet] || "☽"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "#2D2540" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tt-text)" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
       </div>
       {(event.transit_sign || event.natal_sign) && (
-        <div style={{ marginTop: 5, fontSize: 12, color: "#B0A0C8" }}>{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
+        <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
       {!blurred && (
         <div style={{ marginTop: 10 }}>
@@ -425,7 +425,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
             style={{
               padding: "5px 14px",
               borderRadius: 10,
-              border: `1.5px solid ${isSelected ? aspectColor : "#E8DEF8"}`,
+              border: `1.5px solid ${isSelected ? aspectColor : "var(--tt-border2)"}`,
               background: isSelected ? aspectColor : "transparent",
               color: isSelected ? "#fff" : aspectColor,
               fontSize: 12,
@@ -513,10 +513,10 @@ function InterpretationPanel({ event, chartId, onClose }) {
   }, [text]);
 
   return (
-    <div style={{ background: "#FFFFFF", borderRadius: 18, border: "1px solid #E8DEF8", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid #F0EAF8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#2D2540" }}>{key}</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "#B0A0C8", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
+    <div style={{ background: "var(--tt-card)", borderRadius: 18, border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
       </div>
       <div ref={scrollRef} style={{ padding: 16, maxHeight: 400, overflowY: "auto" }}>
         {loading && !text && (
@@ -526,7 +526,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
         )}
         {error && <div style={{ color: "#C03030", fontSize: 13 }}>{error}</div>}
         {text && (
-          <div style={{ fontSize: 13, lineHeight: 1.75, color: "#2D2540", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
             {text}
             {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "#C0A0E8", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
           </div>
@@ -661,8 +661,16 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   return (
-    <div style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "#2D2540" }}>
+    <div className="tt-scope" style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
       <style>{`
+        .tt-scope {
+          --tt-card: #FFFFFF; --tt-text: #2D2540; --tt-text2: #9080B0;
+          --tt-text3: #B0A0C8; --tt-border: #F0EAF8; --tt-border2: #E8DEF8;
+        }
+        .dark .tt-scope {
+          --tt-card: rgba(26,18,48,0.60); --tt-text: #E2DFF0; --tt-text2: #9B97B0;
+          --tt-text3: #8983A0; --tt-border: rgba(139,92,246,0.14); --tt-border2: rgba(139,92,246,0.20);
+        }
         @keyframes shimmer     { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes blink       { 50% { opacity: 0; } }
@@ -678,7 +686,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, background: "linear-gradient(135deg, #9060C8, #E080B0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
           Транзиты
         </h1>
-        <p style={{ fontSize: 14, color: "#9080B0", margin: "6px 0 0" }}>
+        <p style={{ fontSize: 14, color: "var(--tt-text2)", margin: "6px 0 0" }}>
           {new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
         </p>
       </div>
@@ -707,7 +715,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : filteredEvents.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "#9080B0", fontSize: 14, borderRadius: 16, border: "1.5px dashed #E8DEF8", background: "#FDFBF9" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "#FDFBF9" }}>
               Нет транзитов с текущими фильтрами.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте увеличить орб или сбросить фильтры.</span>
             </div>
@@ -736,7 +744,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       </div>
 
       {!loading && (
-        <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid #F0EAF8", fontSize: 12, color: "#B0A0C8", textAlign: "center", opacity: 0.8 }}>
+        <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid var(--tt-border)", fontSize: 12, color: "var(--tt-text3)", textAlign: "center", opacity: 0.8 }}>
           Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°<br />
           Нажмите на транзит для AI-интерпретации
         </div>
