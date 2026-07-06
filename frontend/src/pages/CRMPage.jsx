@@ -11,9 +11,28 @@ import TransitTimeline from '../components/TransitTimeline';
 import ChartSummary from '../components/ChartSummary';
 import AspectTable from '../components/AspectTable';
 import AspectGrid from '../components/AspectGrid';
+import { useState as _useStateD, useEffect as _useEffectD } from 'react';
+
+// Реактивно читаем класс .dark на <html>
+function useIsDark() {
+  const [dark, setDark] = _useStateD(() => document.documentElement.classList.contains('dark'));
+  _useEffectD(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => setDark(el.classList.contains('dark')));
+    obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}
+
+const CRM_THEME_CSS = `
+  .crm-scope { --crm-text:#1e293b; --crm-card:rgba(255,255,255,0.85); --crm-title:#7c3aed; --crm-input:#f8f4ff; --crm-muted:#94a3b8; }
+  .dark .crm-scope { --crm-text:#E2DFF0; --crm-card:rgba(26,18,48,0.55); --crm-title:#A78BFA; --crm-input:rgba(35,28,56,0.60); --crm-muted:#9B97B0; }
+`;
 
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
 function MiniChartPreview({ clientId, authFetch }) {
+  const dark = useIsDark();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +57,7 @@ function MiniChartPreview({ clientId, authFetch }) {
         aspects={data.aspects}
         ascendant={data.ascendant}
         compact={true}
+        dark={dark}
       />
     </div>
   );
@@ -50,19 +70,19 @@ const PLANETS      = ['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn','
 const HOUSES       = [1,2,3,4,5,6,7,8,9,10,11,12];
 
 const S = {
-  page: { minHeight: '100vh', background: 'transparent', color: '#1e293b', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
+  page: { minHeight: '100vh', background: 'transparent', color: 'var(--crm-text)', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
   inner: { maxWidth: 900, margin: '0 auto' },
-  card: { background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px', marginBottom: 16 },
-  title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  card: { background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px', marginBottom: 16 },
+  title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--crm-title)', textTransform: 'uppercase', letterSpacing: '0.06em' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   btn: (v = 'ghost') => ({
     padding: '8px 16px', borderRadius: 8, border: v === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
     background: v === 'primary' ? 'linear-gradient(135deg,#7C6CFF,#A78BFA)' : v === 'danger' ? '#ef4444' : 'transparent',
-    color: v === 'ghost' ? '#7c3aed' : '#fff', fontWeight: 600, fontSize: 13,
+    color: v === 'ghost' ? 'var(--crm-title)' : '#fff', fontWeight: 600, fontSize: 13,
   }),
-  input: { width: '100%', background: '#f8f4ff', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '8px 12px', color: '#1e293b', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
-  muted: { fontSize: 12, color: '#94a3b8' },
-  label: { fontSize: 12, color: '#7c3aed', marginBottom: 4, display: 'block' },
+  input: { width: '100%', background: 'var(--crm-input)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '8px 12px', color: 'var(--crm-text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
+  muted: { fontSize: 12, color: 'var(--crm-muted)' },
+  label: { fontSize: 12, color: 'var(--crm-title)', marginBottom: 4, display: 'block' },
 };
 
 // ─── Форма добавления клиента ─────────────────────────────────────────────────
@@ -127,6 +147,7 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
 
 // ─── Карточка клиента ─────────────────────────────────────────────────────────
 function ClientCard({ client, authFetch, onBack, onUpdated }) {
+  const dark = useIsDark();
   const [chart, setChart] = useState(null);
   const [notes, setNotes] = useState(client.notes || '');
   const [notesLoading, setNotesLoading] = useState(false);
@@ -317,7 +338,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
             if (t === 'ai' && !aiText) loadAI();
           }}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-              background: tab === t ? '#fff' : 'transparent', color: tab === t ? '#7c3aed' : '#64748b' }}>
+              background: tab === t ? 'var(--crm-card)' : 'transparent', color: tab === t ? 'var(--crm-title)' : 'var(--crm-muted)' }}>
             {tabLabels[t]}
           </button>
         ))}
@@ -327,7 +348,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
         <div style={S.card}>
           {chart ? (
             <>
-              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} />
+              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={dark} />
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
                 <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} houses={chart.houses} timeUnknown={!client.birth_time} plain />
               </div>
@@ -388,7 +409,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
               {showTemplateDropdown && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, zIndex: 100,
-                  background: '#fff', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8,
+                  background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8,
                   minWidth: 220, padding: 4, marginTop: 4,
                 }}>
                   {templates.length === 0 && (
@@ -698,7 +719,8 @@ export default function CRMPage() {
 
   if (user?.tier !== 'premium') {
     return (
-      <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="crm-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <style>{CRM_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM доступен на Premium</div>
@@ -714,7 +736,8 @@ export default function CRMPage() {
   if (loading) return <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Загрузка…</div>;
 
   return (
-    <div style={S.page}>
+    <div className="crm-scope" style={S.page}>
+      <style>{CRM_THEME_CSS}</style>
       <div style={S.inner}>
         <div style={{ ...S.row, marginBottom: 24 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>👥 Клиенты</h1>
