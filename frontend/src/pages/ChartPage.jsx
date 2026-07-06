@@ -411,34 +411,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (date) setSelectedDate(date);
   }
 
-  // ── Тайм-скраббинг: слайдер по датам, debounce-запрос позиций у бэкенда ──
-  const scrubTimerRef = React.useRef(null);
-  const todayStr  = new Date().toISOString().slice(0, 10);
-  const SCRUB_DAYS = 365;
-  function offsetToDate(o) {
-    const dt = new Date(todayStr + 'T00:00:00');
-    dt.setDate(dt.getDate() + o);
-    return dt.toISOString().slice(0, 10);
-  }
-  function dateToOffset(d) {
-    const ms = new Date(d + 'T00:00:00') - new Date(todayStr + 'T00:00:00');
-    return Math.min(SCRUB_DAYS, Math.max(0, Math.round(ms / 86400000)));
-  }
-  function handleScrub(date) {
-    setSelectedDate(date); // подпись даты обновляется в реальном времени
-    if (scrubTimerRef.current) clearTimeout(scrubTimerRef.current);
-    if (!chartId || chartId === 'anonymous') return;
-    scrubTimerRef.current = setTimeout(async () => {
-      const token = localStorage.getItem('astro_access_token');
-      try {
-        const resp = await fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${date}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (resp.ok) { const data = await resp.json(); if (data?.planets) setTransitPlanets(data.planets); }
-      } catch {}
-    }, 350);
-  }
-
   function handleShowAuth() {
     onShowAuth?.();
   }
@@ -701,28 +673,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
                 <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => { setPaywallContext(ctx || (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite')); setShowPaywall(true); }} />
-              </section>
-
-              {/* ── Тайм-скраббинг ── */}
-              <section style={{ ...s.card, padding: '16px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                    Прокрутка времени
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
-                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </span>
-                </div>
-                <input
-                  type="range" min={0} max={SCRUB_DAYS} step={1}
-                  value={dateToOffset(selectedDate)}
-                  onChange={e => handleScrub(offsetToDate(Number(e.target.value)))}
-                  style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                  <span>Сегодня</span>
-                  <span>+12 мес</span>
-                </div>
               </section>
             </main>
           </div>
