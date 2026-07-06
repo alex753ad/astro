@@ -130,7 +130,22 @@ export default function RagChat({ chartId, onPaywall }) {
   }
 
   return (
-    <div style={s.wrap}>
+    <div className="rc-scope" style={s.wrap}>
+      <style>{`
+        .rc-scope {
+          --rc-bg: #FFFFFF; --rc-border: #EDE8F5; --rc-title: #1E1A2E; --rc-sub: #9080B0;
+          --rc-empty: #7060A0; --rc-chip-bg: #F4F0FA; --rc-chip-fg: #4A3080; --rc-ai: #9060C8;
+          --rc-assist-fg: #1E1A2E; --rc-input-bg: #FDFBFF; --rc-input-fg: #1E1A2E;
+          --rc-hint: #B0A0C8; --rc-err: #C03030;
+        }
+        .dark .rc-scope {
+          --rc-bg: transparent; --rc-border: rgba(139,92,246,0.16); --rc-title: #E2DFF0; --rc-sub: #9B97B0;
+          --rc-empty: #9B97B0; --rc-chip-bg: rgba(139,92,246,0.14); --rc-chip-fg: #C6B4F2; --rc-ai: #A78BFA;
+          --rc-assist-fg: #E2DFF0; --rc-input-bg: rgba(35,28,56,0.60); --rc-input-fg: #E2DFF0;
+          --rc-hint: #8983A0; --rc-err: #F87171;
+        }
+        .dark .rc-scope textarea::placeholder { color: #8983A0; }
+      `}</style>
 
       {/* Шапка */}
       <div style={s.header}>
@@ -199,7 +214,7 @@ function TypingDots() {
       {[0, 1, 2].map(i => (
         <span key={i} style={{
           width: 6, height: 6, borderRadius: '50%',
-          background: '#9060C8',
+          background: 'var(--rc-ai)',
           animation: 'pulse 1.2s ease-in-out infinite',
           animationDelay: `${i * 0.2}s`,
           display: 'inline-block',
@@ -219,17 +234,17 @@ const s = {
   wrap: {
     display: 'flex', flexDirection: 'column',
     height: '100%', minHeight: 480,
-    background: '#FFFFFF', borderRadius: 16,
-    border: '0.5px solid #EDE8F5',
+    background: 'var(--rc-bg)', borderRadius: 16,
+    border: '0.5px solid var(--rc-border)',
     overflow: 'hidden',
   },
   header: {
     padding: '16px 20px 12px',
-    borderBottom: '0.5px solid #EDE8F5',
+    borderBottom: '0.5px solid var(--rc-border)',
     display: 'flex', flexDirection: 'column', gap: 2,
   },
-  headerTitle: { fontSize: 15, fontWeight: 600, color: '#1E1A2E' },
-  headerSub:   { fontSize: 12, color: '#9080B0' },
+  headerTitle: { fontSize: 15, fontWeight: 600, color: 'var(--rc-title)' },
+  headerSub:   { fontSize: 12, color: 'var(--rc-sub)' },
   messages: {
     flex: 1, overflowY: 'auto',
     padding: '16px 20px',
@@ -241,15 +256,15 @@ const s = {
     padding: '32px 0',
   },
   emptyIcon: { fontSize: 36 },
-  emptyText: { fontSize: 14, color: '#7060A0', margin: 0 },
+  emptyText: { fontSize: 14, color: 'var(--rc-empty)', margin: 0 },
   suggestions: {
     display: 'flex', flexWrap: 'wrap', gap: 8,
     justifyContent: 'center', maxWidth: 480,
   },
   suggestion: {
     padding: '8px 14px', fontSize: 13,
-    background: '#F4F0FA', color: '#4A3080',
-    border: '0.5px solid #EDE8F5', borderRadius: 20,
+    background: 'var(--rc-chip-bg)', color: 'var(--rc-chip-fg)',
+    border: '0.5px solid var(--rc-border)', borderRadius: 20,
     cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s',
     textAlign: 'left',
@@ -261,7 +276,7 @@ const s = {
     display: 'flex', flexDirection: 'column', gap: 4,
     alignItems: 'flex-start',
   },
-  aiLabel: { fontSize: 11, fontWeight: 700, color: '#9060C8', letterSpacing: '0.05em' },
+  aiLabel: { fontSize: 11, fontWeight: 700, color: 'var(--rc-ai)', letterSpacing: '0.05em' },
   bubbleUser: {
     maxWidth: '75%', padding: '10px 14px',
     background: 'linear-gradient(135deg, #9060C8, #C060A0)',
@@ -270,22 +285,22 @@ const s = {
   },
   bubbleAssistant: {
     maxWidth: '90%', padding: '12px 16px',
-    background: '#F4F0FA',
-    color: '#1E1A2E', borderRadius: '4px 16px 16px 16px',
+    background: 'var(--rc-chip-bg)',
+    color: 'var(--rc-assist-fg)', borderRadius: '4px 16px 16px 16px',
     fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap',
   },
-  error: { color: '#C03030', fontSize: 13, textAlign: 'center', margin: 0 },
+  error: { color: 'var(--rc-err)', fontSize: 13, textAlign: 'center', margin: 0 },
   inputRow: {
     display: 'flex', gap: 8, alignItems: 'flex-end',
     padding: '12px 16px 8px',
-    borderTop: '0.5px solid #EDE8F5',
+    borderTop: '0.5px solid var(--rc-border)',
   },
   textarea: {
     flex: 1, resize: 'none',
     padding: '10px 14px', fontSize: 14,
-    border: '1px solid #EDE8F5', borderRadius: 12,
-    fontFamily: 'inherit', color: '#1E1A2E',
-    background: '#FDFBFF', outline: 'none',
+    border: '1px solid var(--rc-border)', borderRadius: 12,
+    fontFamily: 'inherit', color: 'var(--rc-input-fg)',
+    background: 'var(--rc-input-bg)', outline: 'none',
     lineHeight: 1.5,
   },
   sendBtn: {
@@ -296,5 +311,5 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'opacity 0.15s',
   },
-  hint: { fontSize: 11, color: '#B0A0C8', textAlign: 'center', margin: '0 0 8px', padding: 0 },
+  hint: { fontSize: 11, color: 'var(--rc-hint)', textAlign: 'center', margin: '0 0 8px', padding: 0 },
 };
