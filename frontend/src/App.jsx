@@ -20,6 +20,7 @@ import TermsPage from './pages/TermsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
+import NebulaBackground from './components/NebulaBackground';
 
 // ─── OG meta updater ─────────────────────────────────────────────────────────
 
@@ -264,31 +265,39 @@ function AppRoutes() {
   useOGMeta();
 
   return (
-    <div className="relative min-h-screen bg-astro-bg text-slate-800 overflow-x-hidden">
+    <div
+      className="relative min-h-screen bg-astro-bg text-slate-800 overflow-x-hidden"
+      style={dark ? { background: 'transparent' } : undefined}
+    >
 
-      {/* Декоративный блоб справа */}
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none select-none
-          absolute top-[8%] right-[-200px]
-          w-[600px] h-[600px] rounded-full
-          bg-gradient-to-br from-astro-yellow via-astro-pink to-astro-purple
-          blur-[120px] opacity-60 z-0
-        "
-      />
+      {/* Космический фон — только в тёмной теме */}
+      {dark && <NebulaBackground element={null} />}
 
-      {/* Второй блоб снизу слева */}
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none select-none
-          absolute bottom-[5%] left-[-150px]
-          w-[400px] h-[400px] rounded-full
-          bg-gradient-to-tr from-astro-blue to-astro-purple
-          blur-[100px] opacity-40 z-0
-        "
-      />
+      {/* Декоративные блобы — только в светлой теме (в тёмной их место занимает nebula) */}
+      {!dark && (
+        <>
+          <div
+            aria-hidden="true"
+            className="
+              pointer-events-none select-none
+              absolute top-[8%] right-[-200px]
+              w-[600px] h-[600px] rounded-full
+              bg-gradient-to-br from-astro-yellow via-astro-pink to-astro-purple
+              blur-[120px] opacity-60 z-0
+            "
+          />
+          <div
+            aria-hidden="true"
+            className="
+              pointer-events-none select-none
+              absolute bottom-[5%] left-[-150px]
+              w-[400px] h-[400px] rounded-full
+              bg-gradient-to-tr from-astro-blue to-astro-purple
+              blur-[100px] opacity-40 z-0
+            "
+          />
+        </>
+      )}
 
       {/* Основной контент поверх блобов */}
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -299,8 +308,8 @@ function AppRoutes() {
             <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/chart/share/:token" element={<SharePage />} />
-            <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
-            <Route path="/planner/:id"    element={<PlannerPage />} />
+            <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} dark={dark} />} />
+            <Route path="/planner/:id"    element={<PlannerPage dark={dark} />} />
             <Route path="/profile"        element={<ProfilePage />} />
             <Route path="/lunar"          element={<LunarCalendarPage />} />
             <Route path="/gift"           element={<GiftPage />} />
