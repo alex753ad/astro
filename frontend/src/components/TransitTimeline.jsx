@@ -160,9 +160,9 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
 
   const chipStyle = (active) => ({
     padding: "5px 13px", borderRadius: 20,
-    border: `1.5px solid ${active ? "#C0A0E8" : "var(--tt-border2)"}`,
-    background: active ? "#F0E8FF" : "transparent",
-    color: active ? "#7040A8" : "var(--tt-text2)",
+    border: `1.5px solid ${active ? "var(--tt-acc-br)" : "var(--tt-border2)"}`,
+    background: active ? "var(--tt-acc-bg)" : "transparent",
+    color: active ? "var(--tt-acc-fg)" : "var(--tt-text2)",
     fontSize: 13, fontWeight: active ? 600 : 400,
     cursor: "pointer", transition: "all 0.2s ease",
     whiteSpace: "nowrap", userSelect: "none", fontFamily: "inherit",
@@ -266,14 +266,14 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
             minWidth: 48, flexShrink: 0,
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
             padding: "8px 6px", borderRadius: 12,
-            border: `1.5px solid ${active ? "#C0A0E8" : "var(--tt-border2)"}`,
-            background: active ? "#F0E8FF" : "var(--tt-card)",
-            color: active ? "#7040A8" : "var(--tt-text2)",
+            border: `1.5px solid ${active ? "var(--tt-acc-br)" : "var(--tt-border2)"}`,
+            background: active ? "var(--tt-acc-bg)" : "var(--tt-card)",
+            color: active ? "var(--tt-acc-fg)" : "var(--tt-text2)",
             cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
           }}>
             <span style={{ fontSize: 11, opacity: 0.7 }}>{dt.toLocaleDateString("ru-RU", { weekday: "short" })}</span>
             <span style={{ fontSize: 15, fontWeight: active ? 700 : 500 }}>{dt.getDate()}</span>
-            {count > 0 && <span style={{ width: 6, height: 6, borderRadius: 3, background: active ? "#C0A0E8" : "#D8CEF0" }} />}
+            {count > 0 && <span style={{ width: 6, height: 6, borderRadius: 3, background: active ? "var(--tt-acc-br)" : "var(--tt-dot)" }} />}
           </button>
         );
       })}
@@ -287,10 +287,10 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
 
 function StatsSummary({ events }) {
   const stats = [
-    { label: "Всего",        value: events.length,                                          color: "#7040A8", bg: "#F5F0FF" },
-    { label: "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "#3068B0", bg: "#EAF1FF" },
-    { label: "Напряжённых",  value: events.filter(e => isTense(e.aspect_type)).length,      color: "#C03030", bg: "#FFF0F0" },
-    { label: "Соединений",   value: events.filter(e => e.aspect_type === "conjunction").length, color: "#C08020", bg: "#FFF8E8" },
+    { label: "Всего",        value: events.length,                                          color: "var(--tt-s1-fg)", bg: "var(--tt-s1-bg)" },
+    { label: "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "var(--tt-s2-fg)", bg: "var(--tt-s2-bg)" },
+    { label: "Напряжённых",  value: events.filter(e => isTense(e.aspect_type)).length,      color: "var(--tt-s3-fg)", bg: "var(--tt-s3-bg)" },
+    { label: "Соединений",   value: events.filter(e => e.aspect_type === "conjunction").length, color: "var(--tt-s4-fg)", bg: "var(--tt-s4-bg)" },
   ];
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -666,10 +666,20 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         .tt-scope {
           --tt-card: #FFFFFF; --tt-text: #2D2540; --tt-text2: #9080B0;
           --tt-text3: #B0A0C8; --tt-border: #F0EAF8; --tt-border2: #E8DEF8;
+          --tt-acc-bg: #F0E8FF; --tt-acc-fg: #7040A8; --tt-acc-br: #C0A0E8; --tt-dot: #D8CEF0;
+          --tt-s1-bg: #F5F0FF; --tt-s1-fg: #7040A8;
+          --tt-s2-bg: #EAF1FF; --tt-s2-fg: #3068B0;
+          --tt-s3-bg: #FFF0F0; --tt-s3-fg: #C03030;
+          --tt-s4-bg: #FFF8E8; --tt-s4-fg: #C08020;
         }
         .dark .tt-scope {
           --tt-card: rgba(26,18,48,0.60); --tt-text: #E2DFF0; --tt-text2: #9B97B0;
           --tt-text3: #8983A0; --tt-border: rgba(139,92,246,0.14); --tt-border2: rgba(139,92,246,0.20);
+          --tt-acc-bg: rgba(139,92,246,0.22); --tt-acc-fg: #C6B4F2; --tt-acc-br: rgba(139,92,246,0.55); --tt-dot: rgba(139,92,246,0.45);
+          --tt-s1-bg: rgba(139,92,246,0.14); --tt-s1-fg: #C4B0F0;
+          --tt-s2-bg: rgba(52,152,219,0.16); --tt-s2-fg: #82C4F2;
+          --tt-s3-bg: rgba(248,113,113,0.15); --tt-s3-fg: #F79A9A;
+          --tt-s4-bg: rgba(251,191,36,0.15); --tt-s4-fg: #F3C978;
         }
         @keyframes shimmer     { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
