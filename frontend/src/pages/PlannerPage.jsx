@@ -179,9 +179,13 @@ const styles = `
     border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid transparent;
     box-shadow: 0 2px 10px rgba(147,51,234,0.07);
-    transition: box-shadow 0.15s;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    will-change: transform;
   }
-  .period-card:hover { box-shadow: 0 4px 20px rgba(147,51,234,0.13); }
+  .period-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 16px 32px rgba(147,51,234,0.18), 0 0 20px rgba(139,92,246,0.10);
+  }
   .period-card-header {
     display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
   }
@@ -201,6 +205,12 @@ const styles = `
     background: #fff; border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid #EAB308;
     box-shadow: 0 2px 10px rgba(234,179,8,0.08);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    will-change: transform;
+  }
+  .week-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 16px 32px rgba(234,179,8,0.16), 0 0 20px rgba(139,92,246,0.10);
   }
   .week-card-header {
     display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
@@ -217,6 +227,15 @@ const styles = `
     background: #fff; border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid transparent;
     box-shadow: 0 2px 10px rgba(147,51,234,0.07);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    will-change: transform;
+  }
+  .lt-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 16px 32px rgba(147,51,234,0.18), 0 0 20px rgba(139,92,246,0.10);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .period-card:hover, .week-card:hover, .lt-card:hover { transform: none; }
   }
   .lt-warning { font-size: 11px; color: #D97706; margin-bottom: 8px; }
   .lt-title { font-size: 13px; font-weight: 700; color: #1E293B; margin-bottom: 6px; }
@@ -284,6 +303,42 @@ const styles = `
   .gcal-btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .gcal-btn.success { background: #F0FDF4; border-color: #86EFAC; color: #16A34A; }
   .gcal-btn.error   { background: #FFF1F2; border-color: #FCA5A5; color: #DC2626; }
+
+  /* ── Тёмная тема (класс .dark на <html>); светлая не затрагивается ── */
+  .dark .planner-root { background: transparent; color: #E2DFF0; }
+  .dark .planner-title { color: #A78BFA; }
+  .dark .planner-subtitle,
+  .dark .section-header-text p,
+  .dark .period-subtitle,
+  .dark .week-time,
+  .dark .lt-subtitle,
+  .dark .loading-text { color: #9B97B0; }
+  .dark .section-header-text h3,
+  .dark .lt-title,
+  .dark .locked-box h3 { color: #E2DFF0; }
+  .dark .period-items li { color: #C5C1D8; }
+
+  .dark .period-card,
+  .dark .week-card,
+  .dark .lt-card,
+  .dark .locked-box,
+  .dark .error-box {
+    background: rgba(26,18,48,0.60);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .dark .locked-box { border-color: rgba(139,92,246,0.20); }
+  .dark .error-box  { border-color: rgba(248,113,113,0.40); color: #F87171; }
+
+  .dark .tab-bar { background: rgba(35,28,56,0.60); }
+  .dark .tab-btn { color: #A78BFA; }
+  .dark .month-nav-label {
+    background: rgba(35,28,56,0.60); border-color: rgba(139,92,246,0.20); color: #C5C1D8;
+  }
+  .dark .refresh-footer { border-top-color: rgba(139,92,246,0.20); }
+  .dark .gcal-btn {
+    background: rgba(26,18,48,0.60); border-color: rgba(139,92,246,0.30); color: #A78BFA;
+  }
+  .dark .gcal-btn:hover:not(:disabled) { background: rgba(139,92,246,0.12); border-color: #A78BFA; }
 `;
 
 // ── Вспомогательные компоненты ────────────────────────────────────────────────
