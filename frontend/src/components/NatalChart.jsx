@@ -184,6 +184,21 @@ function NatalChartInner({
   const discInner       = dark ? 'rgba(26,18,48,0.60)'    : '#FFFFFF';
   const discInnerStroke = dark ? 'rgba(139,92,246,0.25)'  : '#D8C8E0';
 
+  // ── Палитра кольца/штрихов/домов: тёмные варианты для тёмной темы ──
+  const EL_FILL = dark
+    ? ['rgba(208,112,80,0.20)', 'rgba(96,144,90,0.20)', 'rgba(192,144,64,0.20)', 'rgba(80,128,176,0.22)']
+    : ELEMENT_COLORS.fill;
+  const EL_TEXT = dark
+    ? ['#E8A888', '#A6D6A0', '#E0C68A', '#9FC4E8']
+    : ELEMENT_COLORS.text;
+  const cLine     = dark ? 'rgba(205,196,224,0.20)' : '#C8B8A8';
+  const cEdge     = dark ? 'rgba(205,196,224,0.28)' : '#D0C0B0';
+  const cEdge2    = dark ? 'rgba(205,196,224,0.16)' : '#D0C4B8';
+  const cTickMaj  = dark ? 'rgba(226,223,240,0.38)' : '#A09080';
+  const cHouseAng = dark ? '#A78BFA'                : '#9070C0';
+  const cHouseReg = dark ? 'rgba(205,196,224,0.22)' : '#C0B0A0';
+  const cHouseNum = dark ? '#9B97B0'                : '#A090C0';
+
   return (
     <svg
       viewBox={`${-PADDING} ${-PADDING} ${VSIZE} ${VSIZE}`}
@@ -216,7 +231,7 @@ function NatalChartInner({
           <g key={`sign-${i}`}>
             <path
               d={sectorPath(cx, cy, R_ZOD_OUT, R_TICK_IN, i * 30, (i + 1) * 30, ascLon)}
-              fill={ELEMENT_COLORS.fill[el]}
+              fill={EL_FILL[el]}
               stroke="none"
               opacity={1}
             />
@@ -224,7 +239,7 @@ function NatalChartInner({
               x={midPos.x} y={midPos.y}
               textAnchor="middle" dominantBaseline="central"
               fontSize={isCompact ? 9 : 11} fontWeight="600"
-              fill={ELEMENT_COLORS.text[el]}
+              fill={EL_TEXT[el]}
             >
               {glyph}
             </text>
@@ -238,13 +253,13 @@ function NatalChartInner({
         return (
           <line key={`zdiv-${i}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-            stroke="#C8B8A8" strokeWidth={0.75}
+            stroke={cLine} strokeWidth={0.75}
           />
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="none" stroke="#D0C0B0" strokeWidth={1.5} />
-      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="none" stroke="#C8B8A8" strokeWidth={1} />
+      <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill="none" stroke={cEdge} strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={R_ZOD_IN}  fill="none" stroke={cLine} strokeWidth={1} />
 
       {/* Шкала градусов — только в полном режиме */}
       {!isCompact && Array.from({ length: 360 }, (_, deg) => {
@@ -258,13 +273,13 @@ function NatalChartInner({
           <line
             key={`tick-${deg}`}
             x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-            stroke={isTen ? '#A09080' : '#C8B8A8'}
+            stroke={isTen ? cTickMaj : cLine}
             strokeWidth={isTen ? 0.9 : isFive ? 0.65 : 0.35}
           />
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="none" stroke="#D0C4B8" strokeWidth={0.5} />
+      <circle cx={cx} cy={cy} r={R_TICK_IN} fill="none" stroke={cEdge2} strokeWidth={0.5} />
 
       {!timeUnknown && houseCusps.length === 12 && houseCusps.map((house, i) => {
         const nextHouse = houseCusps[(i + 1) % 12];
@@ -282,14 +297,14 @@ function NatalChartInner({
           <g key={`house-${house.number}`}>
             <line
               x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-              stroke={isAngular ? '#9070C0' : '#C0B0A0'}
+              stroke={isAngular ? cHouseAng : cHouseReg}
               strokeWidth={isAngular ? 1.5 : 0.75}
             />
             {!isCompact && (
               <text
                 x={numPos.x} y={numPos.y}
                 textAnchor="middle" dominantBaseline="central"
-                fontSize={8.5} fill="#A090C0" fontStyle="italic"
+                fontSize={8.5} fill={cHouseNum} fontStyle="italic"
               >
                 {ROMAN[house.number - 1]}
               </text>
@@ -396,11 +411,11 @@ function NatalChartInner({
       {!timeUnknown && ascendant && (
         <>
           {[
-            { lon: ascLon,                label: 'Asc', color: '#8040A0' },
-            { lon: (ascLon + 180) % 360,  label: 'Dsc', color: '#8040A0' },
+            { lon: ascLon,                label: 'Asc', color: dark ? '#B79CF5' : '#8040A0' },
+            { lon: (ascLon + 180) % 360,  label: 'Dsc', color: dark ? '#B79CF5' : '#8040A0' },
             ...(midheaven ? [
-              { lon: mcLon,               label: 'MC',  color: '#3060A0' },
-              { lon: (mcLon + 180) % 360, label: 'IC',  color: '#3060A0' },
+              { lon: mcLon,               label: 'MC',  color: dark ? '#7FB0E8' : '#3060A0' },
+              { lon: (mcLon + 180) % 360, label: 'IC',  color: dark ? '#7FB0E8' : '#3060A0' },
             ] : []),
           ].map(({ lon, label, color }) => {
             const pos = lonToXY(cx, cy, R_ZOD_OUT + 14, lon, ascLon);
@@ -417,7 +432,7 @@ function NatalChartInner({
 
       {timeUnknown && (
         <text x={cx} y={cy + R_HOUSE_IN - 20} textAnchor="middle"
-          fontSize={10} fill="#B0A0C0" fontStyle="italic">
+          fontSize={10} fill={cHouseNum} fontStyle="italic">
           Время неизвестно — дома не показаны
         </text>
       )}
