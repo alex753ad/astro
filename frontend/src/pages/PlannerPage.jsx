@@ -414,9 +414,8 @@ const styles = `
     box-shadow: 0 2px 10px rgba(147,51,234,0.07);
   }
   .tl-title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #1E293B; }
-  .tl-scroll { position: relative; overflow-x: auto; overflow-y: visible; }
-  .tl-scroll::-webkit-scrollbar { height: 6px; }
-  .tl-scroll::-webkit-scrollbar-thumb { background: rgba(147,51,234,0.2); border-radius: 3px; }
+  .tl-scroll { position: relative; overflow-x: auto; overflow-y: visible; padding: 36px 48px 4px; scrollbar-width: none; -ms-overflow-style: none; }
+  .tl-scroll::-webkit-scrollbar { display: none; }
   .tl-rail { position: relative; height: 104px; min-width: 480px; }
   .tl-line {
     position: absolute; left: 0; right: 0; top: 50px; height: 2px;
@@ -425,33 +424,42 @@ const styles = `
   .tl-node {
     position: absolute; top: 0; transform: translateX(-50%);
     display: flex; flex-direction: column; align-items: center; width: 60px;
+    border-radius: 14px; padding-bottom: 6px; transition: background 0.15s ease;
+  }
+  .tl-node:hover, .tl-node:focus-within { background: rgba(147,51,234,0.12); }
+  .tl-dot {
+    position: absolute; top: 47px; left: 50%; transform: translateX(-50%);
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(147,51,234,0.40); pointer-events: none;
   }
   .tl-date { height: 40px; display: flex; align-items: center; font-size: 14px; font-weight: 700; color: #1E293B; }
   .tl-icowrap { position: relative; margin-top: 22px; display: flex; justify-content: center; }
   .tl-ico {
     font-size: 22px; line-height: 1; background: none; border: none; padding: 4px;
     border-radius: 50%; transition: transform 0.15s; font-family: inherit;
+    display: inline-block;
   }
   .tl-ico.link { cursor: pointer; }
   .tl-ico.link:hover { transform: scale(1.22); }
   .tl-tip {
-    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-    background: #1E293B; color: #fff; font-size: 11px; font-weight: 500; white-space: nowrap;
-    padding: 6px 10px; border-radius: 8px; opacity: 0; pointer-events: none;
-    transition: opacity 0.15s; z-index: 20; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+    background: #FFFFFF; color: #1E293B; font-size: 11px; font-weight: 600; white-space: nowrap;
+    padding: 7px 11px; border-radius: 10px; border: 1px solid #EDE4FB; opacity: 0; pointer-events: none;
+    transition: opacity 0.15s; z-index: 30; box-shadow: 0 6px 20px rgba(80,40,140,0.18);
   }
   .tl-tip::after {
     content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-    border: 5px solid transparent; border-top-color: #1E293B;
+    border: 5px solid transparent; border-top-color: #FFFFFF;
   }
   .tl-node.phase .tl-icowrap { cursor: default; }
-  .tl-node.phase:hover .tl-tip, .tl-node.phase:focus-within .tl-tip { opacity: 1; }
+  .tl-node.phase:hover .tl-ico, .tl-node.phase:focus-within .tl-ico { transform: scale(1.22); }
+  .tl-node:hover .tl-tip, .tl-node:focus-within .tl-tip { opacity: 1; }
 
   .dark .tl-card { background: rgba(26,18,48,0.60); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   .dark .tl-title, .dark .tl-date { color: #E2DFF0; }
   .dark .tl-line { background: linear-gradient(90deg, rgba(167,139,250,0.10), rgba(167,139,250,0.45), rgba(167,139,250,0.10)); }
-  .dark .tl-tip { background: #231C38; color: #E2DFF0; }
-  .dark .tl-tip::after { border-top-color: #231C38; }
+  .dark .tl-dot { background: rgba(167,139,250,0.50); }
+  .dark .tl-node:hover, .dark .tl-node:focus-within { background: rgba(167,139,250,0.15); }
 `;
 
 // ── Вспомогательные компоненты ────────────────────────────────────────────────
@@ -471,7 +479,8 @@ function Timeline({ events, onPlanet }) {
           if (ev.kind === "phase") {
             return (
               <div className="tl-node phase" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
-                <span className="tl-date">{ev.date}</span>
+                <span className="tl-dot" />
+                <span className="tl-date">{ev.day}</span>
                 <span className="tl-icowrap">
                   <span className="tl-ico">{ev.emoji}</span>
                   <span className="tl-tip">{ev.tooltip}</span>
@@ -480,16 +489,17 @@ function Timeline({ events, onPlanet }) {
             );
           }
           return (
-            <div className="tl-node" key={ev.id} style={{ left: `${left}%` }}>
-              <span className="tl-date">{ev.date}</span>
+            <div className="tl-node" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
+              <span className="tl-dot" />
+              <span className="tl-date">{ev.day}</span>
               <span className="tl-icowrap">
                 <button
                   className="tl-ico link"
                   onClick={() => onPlanet(ev.planet)}
-                  title={`${ev.name} → ${ev.house} дом`}
                 >
                   {ev.emoji}
                 </button>
+                <span className="tl-tip">{ev.name} — {ev.house} дом</span>
               </span>
             </div>
           );
