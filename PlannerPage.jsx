@@ -442,15 +442,19 @@ const styles = `
   .tl-ico.link { cursor: pointer; }
   .tl-ico.link:hover { transform: scale(1.22); }
   .tl-tip {
-    position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+    position: absolute; top: 50%; transform: translateY(-50%);
     background: #FFFFFF; color: #1E293B; font-size: 11px; font-weight: 600; white-space: nowrap;
     padding: 7px 11px; border-radius: 10px; border: 1px solid #EDE4FB; opacity: 0; pointer-events: none;
     transition: opacity 0.15s; z-index: 30; box-shadow: 0 6px 20px rgba(80,40,140,0.18);
   }
+  .tl-tip--right { left: calc(100% + 10px); }
+  .tl-tip--left  { right: calc(100% + 10px); }
   .tl-tip::after {
-    content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-    border: 5px solid transparent; border-top-color: #FFFFFF;
+    content: ""; position: absolute; top: 50%; transform: translateY(-50%);
+    border: 5px solid transparent;
   }
+  .tl-tip--right::after { right: 100%; border-right-color: #FFFFFF; }
+  .tl-tip--left::after  { left: 100%;  border-left-color: #FFFFFF; }
   .tl-node.phase .tl-icowrap { cursor: default; }
   .tl-node.phase:hover .tl-ico, .tl-node.phase:focus-within .tl-ico { transform: scale(1.22); }
   .tl-node:hover .tl-tip, .tl-node:focus-within .tl-tip { opacity: 1; }
@@ -476,21 +480,21 @@ function Timeline({ events, onPlanet }) {
         <div className="tl-line" />
         {events.map((ev) => {
           const left = 6 + ((ev.day - min) / span) * 88;
+          const tipSide = left > 55 ? "left" : "right";
           if (ev.kind === "phase") {
             return (
               <div className="tl-node phase" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
-                <span className="tl-tip">{ev.tooltip}</span>
                 <span className="tl-dot" />
                 <span className="tl-date">{ev.day}</span>
                 <span className="tl-icowrap">
                   <span className="tl-ico">{ev.emoji}</span>
+                  <span className={`tl-tip tl-tip--${tipSide}`}>{ev.tooltip}</span>
                 </span>
               </div>
             );
           }
           return (
             <div className="tl-node" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
-              <span className="tl-tip">{ev.name} — {ev.house} дом</span>
               <span className="tl-dot" />
               <span className="tl-date">{ev.day}</span>
               <span className="tl-icowrap">
@@ -500,6 +504,7 @@ function Timeline({ events, onPlanet }) {
                 >
                   {ev.emoji}
                 </button>
+                <span className={`tl-tip tl-tip--${tipSide}`}>{ev.name} — {ev.house} дом</span>
               </span>
             </div>
           );
