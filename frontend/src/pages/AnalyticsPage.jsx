@@ -8,6 +8,11 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
+const AN_THEME_CSS = `
+  .an-scope { --an-text:#1e293b; --an-card:rgba(255,255,255,0.85); --an-accent:#7c3aed; --an-muted:#94a3b8; --an-track:#e9d5ff; --an-sub:#7C6CFF; }
+  .dark .an-scope { --an-text:#E2DFF0; --an-card:rgba(26,18,48,0.55); --an-accent:#A78BFA; --an-muted:#9B97B0; --an-track:rgba(139,92,246,0.22); --an-sub:#A78BFA; }
+`;
+
 // ── Константы ────────────────────────────────────────────────────────────────
 
 const SIGN_EMOJI = {
@@ -21,14 +26,14 @@ const MONTH_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Ию
 // ── Стили (палитра CRMPage) ──────────────────────────────────────────────────
 
 const S = {
-  page:    { minHeight: '100vh', background: 'transparent', color: '#1e293b', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
+  page:    { minHeight: '100vh', background: 'transparent', color: 'var(--an-text)', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
   inner:   { maxWidth: 900, margin: '0 auto' },
   grid:    { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16, marginTop: 24 },
-  card:    { background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px' },
-  label:   { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#7c3aed', marginBottom: 8 },
-  bigNum:  { fontSize: 48, fontWeight: 800, lineHeight: 1, color: '#1e293b', margin: '8px 0 4px' },
-  sub:     { fontSize: 13, color: '#7C6CFF' },
-  muted:   { fontSize: 12, color: '#94a3b8' },
+  card:    { background: 'var(--an-card)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px' },
+  label:   { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--an-accent)', marginBottom: 8 },
+  bigNum:  { fontSize: 48, fontWeight: 800, lineHeight: 1, color: 'var(--an-text)', margin: '8px 0 4px' },
+  sub:     { fontSize: 13, color: 'var(--an-sub)' },
+  muted:   { fontSize: 12, color: 'var(--an-muted)' },
   row:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
 };
 
@@ -39,12 +44,12 @@ function Bar({ label, count, max, emoji }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ ...S.row, marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: '#1e293b' }}>
+        <span style={{ fontSize: 13, color: 'var(--an-text)' }}>
           {emoji ? `${emoji} ` : ''}{label}
         </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>{count}</span>
       </div>
-      <div style={{ height: 6, background: '#e9d5ff', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ height: 6, background: 'var(--an-track)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{
           height: '100%', width: `${pct}%`,
           background: 'linear-gradient(90deg, #7C6CFF, #A78BFA)',
@@ -104,7 +109,7 @@ function Sparkline({ data }) {
         const mo = parseInt(p.month.split('-')[1], 10) - 1;
         return (
           <text key={i} x={p.x} y={H - 2} textAnchor="middle"
-            fontSize="9" fill="#64748b">{MONTH_SHORT[mo]}</text>
+            fontSize="9" fill="var(--an-muted)">{MONTH_SHORT[mo]}</text>
         );
       })}
     </svg>
@@ -140,7 +145,8 @@ export default function AnalyticsPage() {
 
   if (user?.tier !== 'premium') {
     return (
-      <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="an-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <style>{AN_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Аналитика доступна на Premium</div>
@@ -166,12 +172,13 @@ export default function AnalyticsPage() {
   const maxCity = Math.max(...(data?.top_cities     || []).map(c => c.count), 1);
 
   return (
-    <div style={S.page}>
+    <div className="an-scope" style={S.page}>
+      <style>{AN_THEME_CSS}</style>
       <div style={S.inner}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>📊 Аналитика</h1>
-          <Link to="/dashboard/clients" style={{ fontSize: 13, color: '#64748b', textDecoration: 'none' }}>
+          <Link to="/dashboard/clients" style={{ fontSize: 13, color: 'var(--an-muted)', textDecoration: 'none' }}>
             ← Клиенты
           </Link>
         </div>
