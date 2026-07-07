@@ -41,9 +41,9 @@ function calcImportance(aspect) {
 }
 
 const IMPORTANCE_BADGE = {
-  high:   { label: 'Влиятельный', color: '#7C3AED', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.25)' },
-  medium: { label: 'Обычный',     color: '#2563EB', bg: 'rgba(37,99,235,0.08)',  border: 'rgba(37,99,235,0.2)'  },
-  low:    { label: 'Минорный',    color: '#6B7280', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.15)' },
+  high:   { label: 'Влиятельный', color: 'var(--at-high)', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.25)' },
+  medium: { label: 'Обычный',     color: 'var(--at-med)', bg: 'rgba(37,99,235,0.08)',  border: 'rgba(37,99,235,0.2)'  },
+  low:    { label: 'Минорный',    color: 'var(--at-low)', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.15)' },
 };
 
 function ImportanceBadge({ aspect }) {
@@ -82,7 +82,8 @@ export default function AspectTable({ aspects }) {
   });
 
   return (
-    <div className="p-6">
+    <div className="p-6 at-scope">
+      <style>{`.at-scope{--at-high:#7C3AED;--at-med:#2563EB;--at-low:#6B7280;} .dark .at-scope{--at-high:#A78BFA;--at-med:#6FA8DC;--at-low:#9B97B0;}`}</style>
       <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
         <span className="text-brand-accent">△</span>
         Аспекты
