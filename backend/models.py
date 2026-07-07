@@ -5,7 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer,
-    Date, Time,
+    Date, Time, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -32,6 +32,11 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
+
+    # First free interpretation (3.3) — одноразовый «вкус» для Free, навсегда
+    free_interpretation_used = Column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
     # Referral (011)
     referral_code = Column(String(16), unique=True, nullable=True)
@@ -199,3 +204,27 @@ class GiftCode(Base):
     redeemed_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     redeemed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Usage counters (3.3 / 3.4a) ──
+# Persistent per-user, per-kind, per-calendar-month counters.
+# Переживают рестарт сервера и дают настоящий календарный месяц
+# (в отличие от прежнего in-memory 24h-счётчика).
+#   kind:      "interpretation" | "transit_ai"
+#   period_ym: "YYYY-MM"
+# UNIQUE(user_id, kind, period_ym) — на пользователя ровно одна строка на месяц.
+
+class UsageCounter(Base):
+    __tablename__ = "usage_counters"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", "period_ym", name="uq_usage_user_kind_period"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind = Column(String(32), nullable=False)       # "interpretation" | "transit_ai"
+    period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
+    count = Column(Integer, nullable=False, default=0, server_default="0")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -553,7 +553,7 @@ async def interpret_chart(
     The response is streamed token-by-token for a smooth UX.
     Fallback chain: GPT-4o → DeepSeek V3 → Template engine.
     """
-    tier_limiter.check_interpretation_limit(user)
+    tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
@@ -576,11 +576,16 @@ async def interpret_chart(
     router = get_router()
 
     async def event_stream():
+        produced = False
         try:
             async for chunk in router.stream(interp_request):
+                produced = True
                 # SSE format: data: <content>\n\n
                 yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
+            # Расход фиксируем только при реально выданном контенте
+            if produced:
+                tier_limiter.commit_interpretation(user, db)
         except Exception as e:
             logger.exception("Streaming interpretation failed")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -612,7 +617,7 @@ async def interpret_chart_full(
 
     Returns the full text at once (no streaming).
     """
-    tier_limiter.check_interpretation_limit(user)
+    tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
@@ -633,6 +638,10 @@ async def interpret_chart_full(
     interp_request = InterpretationRequest(natal_profile=profile, tier=user_tier)
     router = get_router()
     result = await router.generate(interp_request)
+
+    # Успешную генерацию (не сервис-заглушку) фиксируем в счётчик
+    if result and result.engine not in ("none",):
+        tier_limiter.commit_interpretation(user, db)
 
     return {
         "chart_id": chart_id,
@@ -838,7 +847,7 @@ async def interpret_transits(
     First calculates transits, then generates an overview interpretation
     via the AI fallback chain (GPT-4o → DeepSeek → templates).
     """
-    tier_limiter.check_transit_access(user)
+    tier_limiter.check_transit_ai_limit(user, db)
     from datetime import date as date_type
     from backend.transit.engine import calculate_transits, get_transit_summary
     from backend.transit.prompts import build_transit_period_prompt, get_template_transit_text
@@ -920,6 +929,8 @@ async def interpret_transits(
                         streamed = True
                     if streamed:
                         yield "data: [DONE]\n\n"
+                        # Списываем AI-транзит только при реальной работе AI-движка (Lite-квота)
+                        tier_limiter.commit_transit_ai(user, db)
                         return
                 except Exception as e:
                     logger.warning("Transit stream from %s failed: %s", eng.name, e)
@@ -986,7 +997,7 @@ async def interpret_transit_event(
     Request body: transit event data (from /transits response).
     Used when user clicks on a specific event in the timeline.
     """
-    tier_limiter.check_transit_access(user)
+    tier_limiter.check_transit_ai_limit(user, db)
     from backend.transit.prompts import (
         build_transit_event_prompt,
         get_template_transit_text,
@@ -1059,6 +1070,7 @@ async def interpret_transit_event(
                         streamed = True
                     if streamed:
                         yield "data: [DONE]\n\n"
+                        tier_limiter.commit_transit_ai(user, db)
                         return
                 except Exception as e:
                     logger.error("Transit event stream from %s failed: %s", eng.name, e)
