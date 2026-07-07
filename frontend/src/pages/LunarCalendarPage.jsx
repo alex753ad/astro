@@ -7,21 +7,34 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
 
+import ariesIcon       from '../assets/zodiac/aries.png';
+import taurusIcon      from '../assets/zodiac/taurus.png';
+import geminiIcon      from '../assets/zodiac/gemini.png';
+import cancerIcon      from '../assets/zodiac/cancer.png';
+import leoIcon         from '../assets/zodiac/leo.png';
+import virgoIcon       from '../assets/zodiac/virgo.png';
+import libraIcon       from '../assets/zodiac/libra.png';
+import scorpioIcon     from '../assets/zodiac/scorpio.png';
+import sagittariusIcon from '../assets/zodiac/sagittarius.png';
+import capricornIcon   from '../assets/zodiac/capricorn.png';
+import aquariusIcon    from '../assets/zodiac/aquarius.png';
+import piscesIcon      from '../assets/zodiac/pisces.png';
+
 // ── Знаки зодиака ──────────────────────────────────────────
 
 const SIGNS_RU = {
-  Aries:       { name: 'Овен',      glyph: '♈', color: '#E06050', bg: '#FFF0EE' },
-  Taurus:      { name: 'Телец',     glyph: '♉', color: '#70A030', bg: '#F2FAE8' },
-  Gemini:      { name: 'Близнецы',  glyph: '♊', color: '#D09010', bg: '#FFF8E0' },
-  Cancer:      { name: 'Рак',       glyph: '♋', color: '#5090C0', bg: '#E8F5FF' },
-  Leo:         { name: 'Лев',       glyph: '♌', color: '#D07020', bg: '#FFF2E0' },
-  Virgo:       { name: 'Дева',      glyph: '♍', color: '#609050', bg: '#EDFAE8' },
-  Libra:       { name: 'Весы',      glyph: '♎', color: '#A060C0', bg: '#F8EEFF' },
-  Scorpio:     { name: 'Скорпион',  glyph: '♏', color: '#903050', bg: '#FFE8F0' },
-  Sagittarius: { name: 'Стрелец',   glyph: '♐', color: '#C05020', bg: '#FFF0E4' },
-  Capricorn:   { name: 'Козерог',   glyph: '♑', color: '#506080', bg: '#EEF2F8' },
-  Aquarius:    { name: 'Водолей',   glyph: '♒', color: '#3080B0', bg: '#E8F4FF' },
-  Pisces:      { name: 'Рыбы',      glyph: '♓', color: '#7050B0', bg: '#F0EAFF' },
+  Aries:       { name: 'Овен',      glyph: '♈', icon: ariesIcon,       color: '#E06050', bg: '#FFF0EE' },
+  Taurus:      { name: 'Телец',     glyph: '♉', icon: taurusIcon,      color: '#70A030', bg: '#F2FAE8' },
+  Gemini:      { name: 'Близнецы',  glyph: '♊', icon: geminiIcon,      color: '#D09010', bg: '#FFF8E0' },
+  Cancer:      { name: 'Рак',       glyph: '♋', icon: cancerIcon,      color: '#5090C0', bg: '#E8F5FF' },
+  Leo:         { name: 'Лев',       glyph: '♌', icon: leoIcon,         color: '#D07020', bg: '#FFF2E0' },
+  Virgo:       { name: 'Дева',      glyph: '♍', icon: virgoIcon,       color: '#609050', bg: '#EDFAE8' },
+  Libra:       { name: 'Весы',      glyph: '♎', icon: libraIcon,       color: '#A060C0', bg: '#F8EEFF' },
+  Scorpio:     { name: 'Скорпион',  glyph: '♏', icon: scorpioIcon,     color: '#903050', bg: '#FFE8F0' },
+  Sagittarius: { name: 'Стрелец',   glyph: '♐', icon: sagittariusIcon, color: '#C05020', bg: '#FFF0E4' },
+  Capricorn:   { name: 'Козерог',   glyph: '♑', icon: capricornIcon,   color: '#506080', bg: '#EEF2F8' },
+  Aquarius:    { name: 'Водолей',   glyph: '♒', icon: aquariusIcon,    color: '#3080B0', bg: '#E8F4FF' },
+  Pisces:      { name: 'Рыбы',      glyph: '♓', icon: piscesIcon,      color: '#7050B0', bg: '#F0EAFF' },
 };
 
 const SIGN_KEYS = [
@@ -371,8 +384,9 @@ function PhaseBlock({ label, signData, extra, dark, gold }) {
     <div style={ph.block}>
       <span style={ph.label}>{label}</span>
       <div style={ph.inner}>
-        <div style={{ ...ph.icon, background: iconBg }}>
-          <span style={{ fontSize: 15, color: iconColor }}>{signData.glyph}</span>
+        <div style={{ ...ph.icon, background: 'transparent' }}>
+          <img src={signData.icon} alt={signData.name}
+               style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
         <div>
           <div style={ph.name}>{signData.name}</div>
@@ -422,10 +436,9 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData }) {
                     fontWeight: (isToday||isNewMoon||isFullMoon) ? 600 : 400 }}>
         {dayNum}
       </div>
-      <div style={{ ...dc.icon, background: iconBg }}>
-        <span style={{ color: iconColor, fontSize: 13, lineHeight: 1 }}>
-          {signData.glyph}
-        </span>
+      <div style={{ ...dc.icon, background: 'transparent' }}>
+        <img src={signData.icon} alt={signData.name}
+             style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
       <div style={dc.name}>{signData.name}</div>
     </div>
