@@ -510,6 +510,32 @@ const TIERS = [
 
 const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
 
+function UsageBar({ label, used, limit, tierColor = '#7C6CFF' }) {
+  // limit === null / undefined → безлимит
+  const unlimited = limit === null || limit === undefined;
+  const pct = unlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
+  const exhausted = !unlimited && used >= limit;
+  const barColor = exhausted ? '#f87171' : (pct >= 80 ? '#f59e0b' : tierColor);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+        <span style={{ fontSize: 12, color: '#c4b5fd' }}>{label}</span>
+        <span style={{ fontSize: 12, color: exhausted ? '#f87171' : '#94a3b8', fontWeight: 600 }}>
+          {unlimited ? `${used} · безлимит` : `${used} / ${limit}`}
+        </span>
+      </div>
+      <div style={{ height: 6, borderRadius: 4, background: '#33415530', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', width: unlimited ? '100%' : `${pct}%`,
+          background: unlimited ? `${tierColor}40` : barColor,
+          borderRadius: 4, transition: 'width 0.3s',
+        }} />
+      </div>
+    </div>
+  );
+}
+
 function TabSubscription({ user, subscription, loading, authFetch }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(null);
@@ -600,6 +626,73 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           })}
         </div>
       </div>
+
+      {/* Использование в этом месяце */}
+      {subscription && (() => {
+        const lim = subscription.limits || {};
+        const use = subscription.usage || {};
+        const feat = subscription.features || {};
+        const tier = user?.tier || 'free';
+        const tierColor = TIER_COLORS[tier] || '#7C6CFF';
+
+        const interpLimit = lim.interpretations_per_month;   // 0 у free, число у lite, 15/100 pro/premium
+        const interpUsed = use.ai_interpretations_this_month ?? 0;
+        const chartsLimit = lim.charts_per_month;             // null = безлимит
+        const chartsUsed = use.charts_this_month ?? 0;
+        const transitAiLimit = lim.transits_ai_per_month;     // 3 у lite, null у pro/premium, 0 у free
+        const transitAiUsed = use.transit_ai_this_month ?? 0;
+
+        // Free: показываем статус бесплатной интерпретации отдельно
+        const freeInterpAvailable = feat.first_interpretation_available;
+
+        // Pro/Premium — интерпретации безлимитны
+        const interpUnlimited = feat.unlimited_interpretations;
+
+        return (
+          <div style={S.card}>
+            <p style={S.cardTitle}>Использование в этом месяце</p>
+
+            {tier === 'free' ? (
+              <div style={{ fontSize: 13, color: '#c4b5fd', marginBottom: 12 }}>
+                {freeInterpAvailable
+                  ? '🎁 У вас есть 1 бесплатная интерпретация карты'
+                  : '✓ Бесплатная интерпретация использована'}
+              </div>
+            ) : (
+              <UsageBar
+                label="AI-интерпретации"
+                used={interpUsed}
+                limit={interpUnlimited ? null : interpLimit}
+                tierColor={tierColor}
+              />
+            )}
+
+            {/* AI-транзиты показываем только там, где есть квота (lite) или безлимит (pro/premium) */}
+            {(transitAiLimit === null || transitAiLimit > 0) && (
+              <UsageBar
+                label="AI-расшифровки транзитов"
+                used={transitAiUsed}
+                limit={transitAiLimit}
+                tierColor={tierColor}
+              />
+            )}
+
+            <UsageBar
+              label="Построение карт"
+              used={chartsUsed}
+              limit={chartsLimit}
+              tierColor={tierColor}
+            />
+
+            {/* Мягкий апсейл при исчерпании */}
+            {tier !== 'premium' && !interpUnlimited && interpLimit > 0 && interpUsed >= interpLimit && (
+              <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 4 }}>
+                Лимит интерпретаций исчерпан — перейдите на тариф выше, чтобы продолжить.
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Доступные тарифы для апгрейда */}
       {availableTiers.length > 0 && (
