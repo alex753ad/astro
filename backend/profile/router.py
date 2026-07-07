@@ -229,20 +229,31 @@ async def get_subscription(
 
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     ai_used = 0
+    transit_ai_used = 0
     charts_used = 0
+
+    # Интерпретации и AI-транзиты считаем из usage_counters — того же
+    # источника, что и лимитер (rate_limits), чтобы цифры на фронте
+    # совпадали с реальным лимитом.
     try:
-        from backend.models import Interpretation
-        ai_used = (
-            db.query(func.count(Interpretation.id))
-            .join(NatalChart, Interpretation.chart_id == NatalChart.id)
-            .filter(
-                NatalChart.user_id == user.id,
-                Interpretation.created_at >= month_start,
+        from backend.auth.rate_limits import get_monthly_usage
+        ai_used = get_monthly_usage(db, str(user.id), "interpretation")
+        transit_ai_used = get_monthly_usage(db, str(user.id), "transit_ai")
+    except Exception:
+        # запасной путь: старый способ по таблице Interpretation
+        try:
+            from backend.models import Interpretation
+            ai_used = (
+                db.query(func.count(Interpretation.id))
+                .join(NatalChart, Interpretation.chart_id == NatalChart.id)
+                .filter(
+                    NatalChart.user_id == user.id,
+                    Interpretation.created_at >= month_start,
+                )
+                .scalar() or 0
             )
-            .scalar() or 0
-        )
-    except (ImportError, AttributeError):
-        pass
+        except (ImportError, AttributeError):
+            pass
 
     charts_used = (
         db.query(func.count(NatalChart.id))
@@ -272,6 +283,7 @@ async def get_subscription(
         "limits": limits,
         "usage": {
             "ai_interpretations_this_month": ai_used,
+            "transit_ai_this_month": transit_ai_used,
             "charts_this_month": charts_used,
         },
     }
