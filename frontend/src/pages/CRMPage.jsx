@@ -86,6 +86,25 @@ const S = {
 };
 
 // ─── Форма добавления клиента ─────────────────────────────────────────────────
+// ─── Русификация планет и аспектов ──────────────────────────────────────────
+const PLANET_RU = {
+  Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
+  Mars: 'Марс', Jupiter: 'Юпитер', Saturn: 'Сатурн', Uranus: 'Уран',
+  Neptune: 'Нептун', Pluto: 'Плутон', 'North Node': 'Сев. Узел',
+};
+const ASPECT_RU = {
+  conjunction: 'соединение', opposition: 'оппозиция', square: 'квадрат',
+  trine: 'трин', sextile: 'секстиль', quincunx: 'квиконс',
+  semisquare: 'полуквадрат', sesquisquare: 'сесквиквадрат',
+};
+const ruEvent = (ev) => {
+  if (!ev) return ev;
+  return ev.replace(
+    /([A-Za-z\s']+?)\s+([a-z]+)\s+([A-Za-z\s']+)/,
+    (_, tp, asp, np) => `${PLANET_RU[tp.trim()] || tp.trim()} ${ASPECT_RU[asp] || asp} ${PLANET_RU[np.trim()] || np.trim()}`
+  );
+};
+
 const STATUS_META = {
   lead:     ['Лид', '#f59e0b'],
   active:   ['Активный', '#22c55e'],
@@ -637,7 +656,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         <div style={S.card}>
           {chart ? (
             <>
-              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={dark} />
+              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={true} />
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
                 <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} houses={chart.houses} timeUnknown={!client.birth_time} plain />
               </div>
@@ -1246,7 +1265,7 @@ function BroadcastPanel({ authFetch, clients }) {
               <label style={S.label}>Предпросмотр письма клиента</label>
               <select style={S.input} value={previewClient} onChange={e => setPreviewClient(e.target.value)}>
                 <option value="">— выберите клиента —</option>
-                {withEmail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}{!c.email ? ' (нет email)' : ''}</option>)}
               </select>
             </div>
             <button style={S.btn()} onClick={doPreview} disabled={!previewClient || previewLoading}>
@@ -1511,7 +1530,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
                     >
                       <div>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</span>
-                        {r.reason && <span style={{ ...S.muted, marginLeft: 8, color: '#a78bfa' }}>повод: {r.reason}</span>}
+                        {r.reason && <span style={{ ...S.muted, marginLeft: 8, color: '#a78bfa' }}>повод: {ruEvent(r.reason)}</span>}
                       </div>
                       <span style={S.muted}>{r.last_consultation ? `был(а): ${r.last_consultation.slice(0, 10)}` : 'без консультаций'}</span>
                     </div>
@@ -1676,7 +1695,7 @@ function GroupForecastPanel({ authFetch, clients }) {
                   <div key={i} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{r.name}</div>
                     {r.events.map((e, j) => (
-                      <div key={j} style={S.muted}>{e.event}{e.date ? ` · ${e.date}` : ''}{e.orb != null ? ` · орб ${e.orb}°` : ''}</div>
+                      <div key={j} style={S.muted}>{ruEvent(e.event)}{e.date ? ` · ${e.date}` : ''}{e.orb != null ? ` · орб ${e.orb}°` : ''}</div>
                     ))}
                   </div>
                 ))}
@@ -1776,7 +1795,7 @@ export default function CRMPage() {
                 >
                   <div>
                     <span style={{ fontWeight: 600, fontSize: 13 }}>{a.name}</span>
-                    <span style={{ ...S.muted, marginLeft: 8 }}>{a.event}</span>
+                    <span style={{ ...S.muted, marginLeft: 8 }}>{ruEvent(a.event)}</span>
                   </div>
                   <div style={S.muted}>
                     {(a.exact_date || '').slice(0, 10)}{a.orb != null ? ` · орб ${a.orb}°` : ''}
