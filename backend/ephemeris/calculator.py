@@ -130,6 +130,22 @@ def calculate_planets(utc_dt: datetime) -> list[PlanetResult]:
             retrograde=speed < 0,
         ))
 
+    # Derive South Node as the opposite point of North Node
+    north_node = next((p for p in results if p.name == "North Node"), None)
+    if north_node:
+        south_lon = (north_node.longitude + 180) % 360
+        south_sign, south_deg = _longitude_to_sign(south_lon)
+        results.append(PlanetResult(
+            name="South Node",
+            longitude=round(south_lon, 4),
+            latitude=round(-north_node.latitude, 4),
+            distance=round(north_node.distance, 6),
+            speed=round(north_node.speed, 4),
+            sign=south_sign,
+            degree_in_sign=south_deg,
+            retrograde=north_node.retrograde,
+        ))
+
     return results
 
 

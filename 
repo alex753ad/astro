@@ -1,0 +1,62 @@
+roadmap ideas 1-3, 5-10, 13, 15-19
+
+# Conflicts:
+#	backend/crm/router.py
+#	backend/email_service.py
+#	frontend/TransitTimeline.jsx
+#	frontend/src/App.jsx
+#	frontend/src/components/ChartSummary.jsx
+#	frontend/src/components/TransitTimeline.jsx
+#	frontend/src/pages/CRMPage.jsx
+#	frontend/src/pages/ProfilePage.jsx
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# interactive rebase in progress; onto b6c3af9
+# Last command done (1 command done):
+#    pick d5e6956 # feat: roadmap ideas 1-3, 5-10, 13, 15-19
+# No commands remaining.
+# You are currently rebasing branch 'main' on 'b6c3af9'.
+#
+# Changes to be committed:
+#	new file:   DESIGN_SYSTEM.md
+#	new file:   alembic/versions/020_consultations.py
+#	new file:   alembic/versions/021_broadcast.py
+#	new file:   alembic/versions/022_broadcast_auto_unsub.py
+#	new file:   alembic/versions/023_client_intake.py
+#	new file:   alembic/versions/024_client_summary.py
+#	new file:   alembic/versions/025_client_status.py
+#	new file:   alembic/versions/026_client_portal.py
+#	new file:   alembic/versions/027_horary.py
+#	new file:   alembic/versions/028_author_interp.py
+#	new file:   alembic/versions/029_client_tags.py
+#	new file:   astrea-storybook.html
+#	new file:   astro_channels.csv
+#	new file:   astro_channels.json
+#	new file:   astro_search.session
+#	modified:   backend/celery_app.py
+#	new file:   backend/crm/author_lib.py
+#	new file:   backend/crm/author_router.py
+#	new file:   backend/crm/brief_prompt.py
+#	new file:   backend/crm/dashboard_router.py
+#	new file:   backend/crm/portal_router.py
+#	modified:   backend/crm/router.py
+#	new file:   backend/crm/summary_prompt.py
+#	modified:   backend/email_service.py
+#	modified:   backend/interpretation/base.py
+#	modified:   backend/interpretation/deepseek.py
+#	modified:   backend/interpretation/gpt4o.py
+#	modified:   backend/main.py
+#	modified:   backend/models.py
+#	modified:   backend/tasks.py
+#	new file:   env
+#	modified:   frontend/TransitTimeline.jsx
+#	modified:   frontend/src/App.jsx
+#	modified:   frontend/src/components/TransitTimeline.jsx
+#	modified:   frontend/src/pages/CRMPage.jsx
+#	new file:   frontend/src/pages/IntakePage.jsx
+#	new file:   frontend/src/pages/PortalPage.jsx
+#	modified:   frontend/src/pages/ProfilePage.jsx
+#	new file:   tg_astro_search.py
+#

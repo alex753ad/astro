@@ -16,7 +16,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 const PLANET_GLYPHS = {
   Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂',
   Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇',
-  'North Node': '☊',
+  'North Node': '☊', 'South Node': '☋',
 };
 
 const PLANET_COLORS = {
@@ -31,6 +31,7 @@ const PLANET_COLORS = {
   Neptune:      '#6050B8',
   Pluto:        '#902020',
   'North Node': '#308858',
+  'South Node': '#308858',
 };
 
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
