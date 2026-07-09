@@ -1,0 +1,45 @@
+# ── Database ──
+DATABASE_URL=postgresql://astro:astro@localhost:5432/astro_db
+
+# ── AI Providers ──
+OPENAI_API_KEY=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
+DEEPSEEK_API_KEY=sk-...
+AI_DAILY_BUDGET_USD=10.0
+
+# ── JWT ──
+JWT_SECRET=ZKT87rW7BXK5AxBBZkb18sxS7Kfl25FbVS8W1l82z5B887UnxiPllffPL9n8pMP0ac7b7o0V738QY0lQvwMQsQ
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# ── Rate Limiting ──
+RATE_LIMIT_ANON=30/minute
+RATE_LIMIT_AUTH=100/minute
+RATE_LIMIT_FREE_CHARTS_PER_DAY=5
+RATE_LIMIT_FREE_INTERPRETATIONS_PER_DAY=2
+
+# ── Ephemeris ──
+EPHE_PATH=data/ephe
+
+# ── Stripe ──
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID_PRO=price_...
+STRIPE_PRICE_ID_PREMIUM=price_...
+
+# ── Google OAuth ──
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# ── Redis ──
+REDIS_URL=redis://localhost:6379/0
+
+# ── Email (Resend) ──
+RESEND_API_KEY=re_3GP47FcE_8hTh3VJairBvF29MxSZR14UZ
+FROM_EMAIL=onboarding@resend.dev
+APP_URL=https://astreatime.ru
+
+# ── General ──
+DEBUG=true
+CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","https://astreatime.ru","https://www.astreatime.ru"]
+

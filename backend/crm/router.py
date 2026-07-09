@@ -13,16 +13,21 @@ Endpoints:
 
 from __future__ import annotations
 
+import json
+import hashlib
 import logging
-from datetime import date
+import secrets
+import os
+from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import AstrologerProfile, ClientProfile, NatalChart, User
+from backend.models import AstrologerProfile, ClientPortalAccess, ClientProfile, Consultation, NatalChart, User
 from backend.auth.dependencies import get_current_user, require_tier
 
 logger = logging.getLogger("astro.crm")
@@ -40,12 +45,20 @@ class ClientCreate(BaseModel):
     birth_time: Optional[str] = None
     birth_place: str
     notes: Optional[str] = None
+    email: Optional[str] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    tags: Optional[list[str]] = None
     natal_chart_id: Optional[str] = None
 
 
 class ClientPatch(BaseModel):
     notes: Optional[str] = None
     name: Optional[str] = None
+    email: Optional[str] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    tags: Optional[list[str]] = None
     natal_chart_id: Optional[str] = None
 
 
@@ -56,6 +69,10 @@ class ClientOut(BaseModel):
     birth_time: Optional[str] = None
     birth_place: str
     notes: Optional[str] = None
+    email: Optional[str] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    tags: Optional[list[str]] = None
     natal_chart_id: Optional[str] = None
 
     model_config = {"from_attributes": True}
@@ -67,6 +84,45 @@ class ClientOut(BaseModel):
         if isinstance(v, datetime.time):
             return v.strftime("%H:%M")
         return v
+
+
+class ConsultationCreate(BaseModel):
+    date: Optional[datetime] = None
+    topic: Optional[str] = None
+    notes: Optional[str] = None
+    assignment: Optional[str] = None
+    next_date: Optional[datetime] = None
+    price: Optional[int] = None
+    status: str = "done"
+    question_moment: Optional[datetime] = None
+    question_place: Optional[str] = None
+
+
+class ConsultationPatch(BaseModel):
+    date: Optional[datetime] = None
+    topic: Optional[str] = None
+    notes: Optional[str] = None
+    assignment: Optional[str] = None
+    next_date: Optional[datetime] = None
+    price: Optional[int] = None
+    status: Optional[str] = None
+
+
+class ConsultationOut(BaseModel):
+    id: int
+    client_id: int
+    date: datetime
+    topic: Optional[str] = None
+    notes: Optional[str] = None
+    assignment: Optional[str] = None
+    next_date: Optional[datetime] = None
+    price: Optional[int] = None
+    status: str
+    question_moment: Optional[datetime] = None
+    question_place: Optional[str] = None
+    horary_chart_id: Optional[str] = None
+
+    model_config = {"from_attributes": True}
 
 
 # ── Helpers ──
@@ -91,7 +147,63 @@ def _get_client_or_404(client_id: int, astrologer: AstrologerProfile, db: Sessio
     return client
 
 
+def _get_consultation_or_404(consultation_id: int, client: ClientProfile, db: Session) -> Consultation:
+    consultation = db.query(Consultation).filter(
+        Consultation.id == consultation_id,
+        Consultation.client_id == client.id,
+    ).first()
+    if not consultation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Consultation not found")
+    return consultation
+
+
 # ── Endpoints ──
+
+async def _geocode_and_build_chart(db: Session, *, user_id: str, date_str: str, time_str, place: str) -> NatalChart:
+    """Геокодит место + считает карту через движок + сохраняет NatalChart. Возвращает строку карты.
+    Используется и для клиента, и для хорар-карты (026/027)."""
+    from backend.ephemeris.geo import geocode_place, resolve_utc_datetime
+    from backend.ephemeris.calculator import calculate_full_chart
+
+    geo = await geocode_place(place)
+    utc_dt, time_unknown, _ = resolve_utc_datetime(
+        birth_date=date_str, birth_time=time_str, timezone=geo.timezone,
+    )
+    (chart_data, aspects) = calculate_full_chart(
+        utc_dt=utc_dt, latitude=geo.latitude, longitude=geo.longitude,
+        house_system="placidus", time_unknown=time_unknown,
+    )
+    chart = NatalChart(
+        user_id=user_id,
+        birth_date=date_str,
+        birth_time=time_str,
+        birth_place=geo.display_name,
+        latitude=geo.latitude,
+        longitude=geo.longitude,
+        timezone=geo.timezone,
+        utc_datetime=utc_dt,
+        time_unknown=time_unknown,
+        house_system="placidus",
+        planets=[{
+            "name": p.name, "longitude": p.longitude, "sign": p.sign,
+            "degree_in_sign": p.degree_in_sign,
+            "house": p.house if not time_unknown else None,
+            "retrograde": p.retrograde,
+        } for p in chart_data.planets],
+        houses=[{"number": h.number, "sign": h.sign, "degree": h.degree} for h in chart_data.houses],
+        aspects=[{
+            "planet1": a.planet1, "planet2": a.planet2, "aspect_type": a.aspect_type,
+            "angle": a.angle, "orb": a.orb, "applying": a.applying,
+            "importance": getattr(a, "importance", "low"),
+        } for a in aspects],
+        ascendant={"sign": chart_data.ascendant.sign, "degree": chart_data.ascendant.degree, "longitude": chart_data.ascendant.longitude} if chart_data.ascendant else None,
+        midheaven={"sign": chart_data.midheaven.sign, "degree": chart_data.midheaven.degree, "longitude": chart_data.midheaven.longitude} if chart_data.midheaven else None,
+    )
+    db.add(chart)
+    db.commit()
+    db.refresh(chart)
+    return chart
+
 
 @router.post("", response_model=ClientOut, status_code=status.HTTP_201_CREATED)
 async def create_client(
@@ -107,6 +219,10 @@ async def create_client(
         birth_time=payload.birth_time,
         birth_place=payload.birth_place,
         notes=payload.notes,
+        email=payload.email,
+        status=payload.status or "lead",
+        source=payload.source,
+        tags=payload.tags,
     )
     db.add(client)
     db.commit()
@@ -126,53 +242,11 @@ async def create_client(
 
     # Автоматически считаем натальную карту
     try:
-        from backend.ephemeris.geo import geocode_place, resolve_utc_datetime
-        from backend.ephemeris.calculator import calculate_full_chart
-
-        geo = await geocode_place(payload.birth_place)
-        utc_dt, time_unknown, _ = resolve_utc_datetime(
-            birth_date=str(payload.birth_date),
-            birth_time=payload.birth_time,
-            timezone=geo.timezone,
+        chart = await _geocode_and_build_chart(
+            db, user_id=user.id,
+            date_str=str(payload.birth_date), time_str=payload.birth_time,
+            place=payload.birth_place,
         )
-        (chart_data, aspects) = calculate_full_chart(
-            utc_dt=utc_dt,
-            latitude=geo.latitude,
-            longitude=geo.longitude,
-            house_system="placidus",
-            time_unknown=time_unknown,
-        )
-
-        chart = NatalChart(
-            user_id=user.id,
-            birth_date=str(payload.birth_date),
-            birth_time=payload.birth_time,
-            birth_place=geo.display_name,
-            latitude=geo.latitude,
-            longitude=geo.longitude,
-            timezone=geo.timezone,
-            utc_datetime=utc_dt,
-            time_unknown=time_unknown,
-            house_system="placidus",
-            planets=[{
-                "name": p.name, "longitude": p.longitude, "sign": p.sign,
-                "degree_in_sign": p.degree_in_sign,
-                "house": p.house if not time_unknown else None,
-                "retrograde": p.retrograde,
-            } for p in chart_data.planets],
-            houses=[{"number": h.number, "sign": h.sign, "degree": h.degree} for h in chart_data.houses],
-            aspects=[{
-                "planet1": a.planet1, "planet2": a.planet2, "aspect_type": a.aspect_type,
-                "angle": a.angle, "orb": a.orb, "applying": a.applying,
-                "importance": getattr(a, "importance", "low"),
-            } for a in aspects],
-            ascendant={"sign": chart_data.ascendant.sign, "degree": chart_data.ascendant.degree, "longitude": chart_data.ascendant.longitude} if chart_data.ascendant else None,
-            midheaven={"sign": chart_data.midheaven.sign, "degree": chart_data.midheaven.degree, "longitude": chart_data.midheaven.longitude} if chart_data.midheaven else None,
-        )
-        db.add(chart)
-        db.commit()
-        db.refresh(chart)
-
         client.natal_chart_id = chart.id
         db.commit()
         db.refresh(client)
@@ -185,6 +259,7 @@ async def create_client(
 @router.get("", response_model=list[ClientOut])
 async def list_clients(
     q: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
     user: User = _premium,
     db: Session = Depends(get_db),
 ):
@@ -192,6 +267,8 @@ async def list_clients(
     query = db.query(ClientProfile).filter(ClientProfile.astrologer_id == astrologer.id)
     if q:
         query = query.filter(ClientProfile.name.ilike(f"%{q}%"))
+    if status_filter:
+        query = query.filter(ClientProfile.status == status_filter)
     return query.order_by(ClientProfile.created_at.desc()).all()
 
 
@@ -364,6 +441,14 @@ async def update_client(
         client.notes = payload.notes
     if payload.name is not None:
         client.name = payload.name
+    if payload.email is not None:
+        client.email = payload.email
+    if payload.status is not None:
+        client.status = payload.status
+    if payload.source is not None:
+        client.source = payload.source
+    if payload.tags is not None:
+        client.tags = payload.tags
     if payload.natal_chart_id is not None:
         chart = db.query(NatalChart).filter(
             NatalChart.id == payload.natal_chart_id,
@@ -387,6 +472,344 @@ async def delete_client(
     client = _get_client_or_404(client_id, astrologer, db)
     db.delete(client)
     db.commit()
+
+
+# ── Consultations (020) ──
+
+@router.get("/{client_id}/consultations", response_model=list[ConsultationOut])
+async def list_consultations(
+    client_id: int,
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    return (
+        db.query(Consultation)
+        .filter(Consultation.client_id == client.id)
+        .order_by(Consultation.date.desc())
+        .all()
+    )
+
+
+@router.post("/{client_id}/consultations", response_model=ConsultationOut, status_code=status.HTTP_201_CREATED)
+async def create_consultation(
+    client_id: int,
+    payload: ConsultationCreate,
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    consultation = Consultation(
+        client_id=client.id,
+        date=payload.date or datetime.utcnow(),
+        topic=payload.topic,
+        notes=payload.notes,
+        assignment=payload.assignment,
+        next_date=payload.next_date,
+        price=payload.price,
+        status=payload.status,
+        question_moment=payload.question_moment,
+        question_place=payload.question_place,
+    )
+
+    # Хорар: строим карту на момент вопроса (№17)
+    if payload.topic in ("horary", "хорар") and payload.question_moment and payload.question_place:
+        try:
+            qm = payload.question_moment
+            chart = await _geocode_and_build_chart(
+                db, user_id=user.id,
+                date_str=qm.strftime("%Y-%m-%d"), time_str=qm.strftime("%H:%M"),
+                place=payload.question_place,
+            )
+            consultation.horary_chart_id = chart.id
+        except Exception as e:
+            logger.warning("Horary chart build failed: %s", e)
+
+    db.add(consultation)
+    db.commit()
+    db.refresh(consultation)
+    return consultation
+
+
+@router.patch("/{client_id}/consultations/{consultation_id}", response_model=ConsultationOut)
+async def update_consultation(
+    client_id: int,
+    consultation_id: int,
+    payload: ConsultationPatch,
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    consultation = _get_consultation_or_404(consultation_id, client, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(consultation, field, value)
+    db.commit()
+    db.refresh(consultation)
+    return consultation
+
+
+@router.delete("/{client_id}/consultations/{consultation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_consultation(
+    client_id: int,
+    consultation_id: int,
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    consultation = _get_consultation_or_404(consultation_id, client, db)
+    db.delete(consultation)
+    db.commit()
+
+
+# ── Brief to meeting (021 / roadmap idea 2) ──
+
+@router.post("/{client_id}/brief")
+async def generate_brief(
+    client_id: int,
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    """SSE-бриф к встрече: натальные акценты + активные транзиты (месяц вперёд)
+    + прошлая консультация → единый custom_prompt через InterpretationRouter.
+    Прогрессии не включены (движка прогрессий в проекте нет)."""
+    from datetime import date as date_type, timedelta
+    from backend.transit.engine import calculate_transits
+    from backend.interpretation.base import InterpretationRequest
+    from backend.interpretation.router import get_router
+    from backend.crm.brief_prompt import build_brief_prompt
+    from backend.crm.author_lib import author_context_for_chart
+
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    if not client.natal_chart_id:
+        raise HTTPException(status_code=404, detail="Chart not calculated yet")
+    chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    author_ctx = author_context_for_chart(db, astrologer.id, chart.planets, chart.ascendant)
+
+    profile = {
+        "planets": chart.planets,
+        "houses": chart.houses,
+        "aspects": chart.aspects,
+        "ascendant": chart.ascendant,
+        "midheaven": chart.midheaven,
+        "time_unknown": chart.time_unknown,
+    }
+
+    today = date_type.today()
+    events = calculate_transits(
+        natal_planets=chart.planets,
+        from_date=today,
+        to_date=today + timedelta(days=30),
+    )
+    transit_dicts = [
+        {
+            "date": e.date,
+            "transit_planet": e.transit_planet,
+            "transit_sign": e.transit_sign,
+            "natal_planet": e.natal_planet,
+            "aspect_type": e.aspect_type,
+            "orb": e.orb,
+            "exact_date": e.exact_date,
+        }
+        for e in events
+    ]
+
+    last = (
+        db.query(Consultation)
+        .filter(Consultation.client_id == client.id)
+        .order_by(Consultation.date.desc())
+        .first()
+    )
+    last_consultation = (
+        {"date": last.date, "topic": last.topic, "notes": last.notes} if last else None
+    )
+
+    birth_time = client.birth_time
+    if hasattr(birth_time, "strftime"):
+        birth_time = birth_time.strftime("%H:%M")
+    birth_info = f"{client.birth_date}" + (f" {birth_time}" if birth_time else "") + f", {client.birth_place}"
+
+    brief_prompt = build_brief_prompt(
+        client_name=client.name,
+        birth_info=birth_info,
+        natal_profile=profile,
+        transits=transit_dicts,
+        last_consultation=last_consultation,
+        author_context=author_ctx,
+    )
+
+    ai_router = get_router()
+
+    async def event_stream():
+        try:
+            interp_request = InterpretationRequest(
+                natal_profile=profile,
+                context="transit",
+                tier=user.tier,
+                custom_prompt=brief_prompt,
+            )
+            for eng in ai_router._engines:
+                if eng.name == "template":
+                    continue
+                if not ai_router._check_budget(eng.name):
+                    continue
+                try:
+                    streamed = False
+                    async for chunk in eng.stream(interp_request):
+                        yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+                        streamed = True
+                    if streamed:
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception as e:
+                    logger.warning("Brief stream from %s failed: %s", eng.name, e)
+                    continue
+
+            yield f"data: {json.dumps({'text': 'AI временно недоступен. Попробуйте позже.'}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.exception("Brief generation stream failed")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── AI client summary (024 / roadmap idea 7) ──
+
+def _summary_key(client: ClientProfile, consultations: list) -> str:
+    parts = [str(client.natal_chart_id or ""), (client.notes or "")]
+    for c in consultations:
+        parts.append(f"{c.id}|{c.date}|{c.topic}|{c.notes}|{c.status}")
+    return hashlib.sha256("\u0001".join(parts).encode("utf-8")).hexdigest()
+
+
+@router.get("/{client_id}/summary")
+async def client_summary(
+    client_id: int,
+    refresh: int = Query(0),
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    """AI-портрет клиента (карта + заметки + консультации). Кэш на клиенте,
+    инвалидация по хэшу заметок/консультаций/карты."""
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+
+    consultations = (
+        db.query(Consultation)
+        .filter(Consultation.client_id == client.id)
+        .order_by(Consultation.date.desc())
+        .all()
+    )
+    key = _summary_key(client, consultations)
+
+    if not refresh and client.summary and client.summary_key == key:
+        return {"summary": client.summary, "cached": True}
+
+    if not client.natal_chart_id:
+        raise HTTPException(status_code=400, detail="Chart not calculated yet")
+    chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    from backend.interpretation.base import InterpretationRequest
+    from backend.interpretation.router import get_router
+    from backend.crm.summary_prompt import build_summary_prompt
+    from backend.crm.author_lib import author_context_for_chart
+
+    author_ctx = author_context_for_chart(db, astrologer.id, chart.planets, chart.ascendant)
+
+    profile = {
+        "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
+        "ascendant": chart.ascendant, "midheaven": chart.midheaven, "time_unknown": chart.time_unknown,
+    }
+    birth_time = client.birth_time
+    if hasattr(birth_time, "strftime"):
+        birth_time = birth_time.strftime("%H:%M")
+    birth_info = f"{client.birth_date}" + (f" {birth_time}" if birth_time else "") + f", {client.birth_place}"
+
+    prompt = build_summary_prompt(
+        client_name=client.name,
+        birth_info=birth_info,
+        natal_profile=profile,
+        notes=client.notes or "",
+        consultations=[
+            {"date": c.date, "topic": c.topic, "notes": c.notes, "status": c.status}
+            for c in consultations
+        ],
+        author_context=author_ctx,
+    )
+
+    try:
+        req = InterpretationRequest(
+            natal_profile=profile, context="transit", tier=user.tier, custom_prompt=prompt,
+        )
+        result = await get_router().generate(req)
+        text = (result.content or "").strip()
+    except Exception as e:
+        logger.warning("Client summary generation failed for %s: %s", client.id, e)
+        raise HTTPException(status_code=503, detail="AI временно недоступен")
+
+    if text:
+        client.summary = text
+        client.summary_key = key
+        db.commit()
+
+    return {"summary": text, "cached": False}
+
+
+# ── Client portal on/off (026 / roadmap idea 10) ──
+
+_PORTAL_APP_URL = os.getenv("APP_URL", "https://astreatime.ru")
+
+
+class PortalToggle(BaseModel):
+    enabled: bool = True
+
+
+def _portal_out(portal: ClientPortalAccess) -> dict:
+    return {"enabled": portal.enabled, "token": portal.token, "url": f"{_PORTAL_APP_URL}/portal/{portal.token}"}
+
+
+@router.get("/{client_id}/portal")
+async def get_portal(client_id: int, user: User = _premium, db: Session = Depends(get_db)):
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    portal = db.query(ClientPortalAccess).filter(ClientPortalAccess.client_id == client.id).first()
+    if not portal:
+        return {"enabled": False, "token": None, "url": None}
+    return _portal_out(portal)
+
+
+@router.post("/{client_id}/portal")
+async def set_portal(
+    client_id: int,
+    payload: PortalToggle,
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    astrologer = _get_astrologer(user, db)
+    client = _get_client_or_404(client_id, astrologer, db)
+    portal = db.query(ClientPortalAccess).filter(ClientPortalAccess.client_id == client.id).first()
+    if not portal:
+        portal = ClientPortalAccess(client_id=client.id, token=secrets.token_urlsafe(24), enabled=payload.enabled)
+        db.add(portal)
+    else:
+        portal.enabled = payload.enabled
+    db.commit()
+    db.refresh(portal)
+    return _portal_out(portal)
 
 
 @router.get("/{client_id}/chart")
@@ -540,6 +963,7 @@ async def generate_client_report(
         try:
             from backend.interpretation.base import InterpretationRequest
             from backend.interpretation.router import get_router as get_interp_router
+            from backend.crm.author_lib import author_context_for_chart
             natal_profile = {
                 "planets": chart.planets,
                 "houses": chart.houses,
@@ -548,10 +972,12 @@ async def generate_client_report(
                 "midheaven": chart.midheaven,
                 "time_unknown": chart.time_unknown,
             }
+            author_ctx = author_context_for_chart(db, astrologer.id, chart.planets, chart.ascendant)
             interp_req = InterpretationRequest(
                 natal_profile=natal_profile,
                 tier=user.tier,
                 word_limit=word_limit,
+                author_context=(author_ctx or None),
             )
             interp_router = get_interp_router()
             result = await interp_router.generate(interp_req)

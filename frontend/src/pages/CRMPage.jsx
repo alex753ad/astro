@@ -86,8 +86,52 @@ const S = {
 };
 
 // ─── Форма добавления клиента ─────────────────────────────────────────────────
+const STATUS_META = {
+  lead:     ['Лид', '#f59e0b'],
+  active:   ['Активный', '#22c55e'],
+  regular:  ['Постоянный', '#8b5cf6'],
+  archived: ['Архив', '#64748b'],
+};
+const STATUS_OPTIONS = Object.entries(STATUS_META).map(([v, m]) => [v, m[0]]);
+
+function StatusBadge({ status }) {
+  const m = STATUS_META[status];
+  if (!m) return null;
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, color: m[1], background: m[1] + '22', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+      {m[0]}
+    </span>
+  );
+}
+
+const parseTags = (str) => (str || '').split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean);
+
+function TagChips({ tags }) {
+  if (!tags || !tags.length) return null;
+  return <>{tags.map((t, i) => (
+    <span key={i} style={{ fontSize: 11, color: '#38bdf8', background: '#38bdf822', padding: '2px 7px', borderRadius: 6, marginRight: 4 }}>#{t}</span>
+  ))}</>;
+}
+
+function daysToBirthday(bd) {
+  if (!bd || bd.length < 10) return null;
+  const mo = Number(bd.slice(5, 7)), d = Number(bd.slice(8, 10));
+  if (!mo || !d) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let next = new Date(today.getFullYear(), mo - 1, d);
+  if (next < today) next = new Date(today.getFullYear() + 1, mo - 1, d);
+  return Math.round((next - today) / 86400000);
+}
+
+function BirthdayBadge({ birthDate }) {
+  const n = daysToBirthday(birthDate);
+  if (n === null || n > 14) return null;
+  const label = n === 0 ? '🎂 ДР сегодня' : `🎂 ДР через ${n} дн.`;
+  return <span style={{ fontSize: 11, fontWeight: 600, color: '#ec4899', background: '#ec489922', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{label}</span>;
+}
+
 function AddClientForm({ onSave, onCancel, authFetch }) {
-  const [form, setForm] = useState({ name: '', birth_date: '', birth_time: '', birth_place: '', notes: '' });
+  const [form, setForm] = useState({ name: '', birth_date: '', birth_time: '', birth_place: '', notes: '', email: '', status: 'lead', source: '', tags: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -100,6 +144,9 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
       const body = { ...form };
       if (!body.birth_time) delete body.birth_time;
       if (!body.notes) delete body.notes;
+      if (!body.email) delete body.email;
+      if (!body.source) delete body.source;
+      body.tags = parseTags(form.tags);
       const client = await authFetch(`${API}/clients`, { method: 'POST', body: JSON.stringify(body) });
       onSave(client);
     } catch (err) {
@@ -131,6 +178,26 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
             <input style={S.input} type="time" value={form.birth_time} onChange={e => set('birth_time', e.target.value)} />
           </div>
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div>
+            <label style={S.label}>Статус</label>
+            <select style={S.input} value={form.status} onChange={e => set('status', e.target.value)}>
+              {STATUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={S.label}>Источник</label>
+            <input style={S.input} placeholder="Instagram, рекомендация…" value={form.source} onChange={e => set('source', e.target.value)} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={S.label}>Теги (через запятую)</label>
+          <input style={S.input} placeholder="хорар, бизнес, сложный" value={form.tags} onChange={e => set('tags', e.target.value)} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={S.label}>Email (для рассылки)</label>
+          <input style={S.input} type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+        </div>
         <div style={{ marginBottom: 12 }}>
           <label style={S.label}>Заметки</label>
           <textarea style={{ ...S.input, minHeight: 60, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} />
@@ -146,7 +213,7 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
 }
 
 // ─── Карточка клиента ─────────────────────────────────────────────────────────
-function ClientCard({ client, authFetch, onBack, onUpdated }) {
+function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   const dark = useIsDark();
   const [chart, setChart] = useState(null);
   const [notes, setNotes] = useState(client.notes || '');
@@ -154,11 +221,153 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
   const [reportLoading, setReportLoading] = useState(false);
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [tab, setTab] = useState('chart');
+  const [tab, setTab] = useState(initialTab || 'chart');
+
+  // Консультации (020)
+  const [consultations, setConsultations] = useState([]);
+  const [consLoading, setConsLoading] = useState(false);
+  const [showConsForm, setShowConsForm] = useState(false);
+  const [consForm, setConsForm] = useState({ date: '', topic: '', notes: '', assignment: '', price: '', status: 'done', question_moment: '', question_place: '' });
+  const [consSaving, setConsSaving] = useState(false);
+  const setCF = (k, v) => setConsForm(p => ({ ...p, [k]: v }));
+
+  const loadConsultations = async () => {
+    setConsLoading(true);
+    try {
+      const data = await authFetch(`${API}/clients/${client.id}/consultations`);
+      setConsultations(data);
+    } catch {}
+    setConsLoading(false);
+  };
+
+  const saveConsultation = async () => {
+    setConsSaving(true);
+    try {
+      const body = { topic: consForm.topic || null, notes: consForm.notes || null, assignment: consForm.assignment || null, status: consForm.status };
+      if (consForm.date) body.date = new Date(consForm.date).toISOString();
+      if (consForm.price) body.price = Number(consForm.price);
+      if (consForm.topic === 'хорар') {
+        if (consForm.question_moment) body.question_moment = new Date(consForm.question_moment).toISOString();
+        if (consForm.question_place) body.question_place = consForm.question_place;
+      }
+      const created = await authFetch(`${API}/clients/${client.id}/consultations`, { method: 'POST', body: JSON.stringify(body) });
+      setConsultations(prev => [created, ...prev]);
+      setConsForm({ date: '', topic: '', notes: '', assignment: '', price: '', status: 'done', question_moment: '', question_place: '' });
+      setShowConsForm(false);
+    } catch (e) {
+      alert('Ошибка: ' + (e.message || ''));
+    }
+    setConsSaving(false);
+  };
+
+  const deleteConsultation = async (cid) => {
+    if (!window.confirm('Удалить консультацию?')) return;
+    try {
+      await authFetch(`${API}/clients/${client.id}/consultations/${cid}`, { method: 'DELETE' });
+      setConsultations(prev => prev.filter(c => c.id !== cid));
+    } catch {}
+  };
+
+  // Бриф к встрече (021)
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [briefText, setBriefText] = useState('');
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefSaving, setBriefSaving] = useState(false);
+
+  const loadBrief = async () => {
+    setBriefOpen(true);
+    setBriefLoading(true);
+    setBriefText('');
+    try {
+      const res = await fetch(`${API}/clients/${client.id}/brief`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('astro_access_token')}` },
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let result = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value).split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+            try {
+              const d = JSON.parse(line.slice(6));
+              if (d.text) { result += d.text; setBriefText(result); }
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      setBriefText('Ошибка подготовки брифа.');
+    }
+    setBriefLoading(false);
+  };
+
+  const saveBriefToConsultation = async () => {
+    if (!briefText.trim()) return;
+    setBriefSaving(true);
+    try {
+      const created = await authFetch(`${API}/clients/${client.id}/consultations`, {
+        method: 'POST',
+        body: JSON.stringify({ topic: 'подготовка', notes: briefText, status: 'planned' }),
+      });
+      setConsultations(prev => [created, ...prev]);
+      setBriefOpen(false);
+      setTab('consultations');
+    } catch (e) {
+      alert('Ошибка: ' + (e.message || ''));
+    }
+    setBriefSaving(false);
+  };
+
+  // Резюме клиента (024)
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryText, setSummaryText] = useState('');
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryCached, setSummaryCached] = useState(false);
+
+  const loadSummary = async (refresh) => {
+    setSummaryOpen(true);
+    setSummaryLoading(true);
+    if (!refresh) setSummaryText('');
+    try {
+      const r = await authFetch(`${API}/clients/${client.id}/summary${refresh ? '?refresh=1' : ''}`);
+      setSummaryText(r.summary || '');
+      setSummaryCached(!!r.cached);
+    } catch (e) {
+      setSummaryText('Ошибка генерации резюме.');
+    }
+    setSummaryLoading(false);
+  };
+
+  // Портал клиента (026)
+  const [portal, setPortal] = useState(null);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalCopied, setPortalCopied] = useState(false);
+
+  useEffect(() => {
+    authFetch(`${API}/clients/${client.id}/portal`).then(setPortal).catch(() => {});
+  }, []);
+
+  const setPortalEnabled = async (enabled) => {
+    setPortalBusy(true);
+    try {
+      const p = await authFetch(`${API}/clients/${client.id}/portal`, { method: 'POST', body: JSON.stringify({ enabled }) });
+      setPortal(p);
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setPortalBusy(false);
+  };
+
+  const copyPortal = () => {
+    if (!portal?.url) return;
+    navigator.clipboard.writeText(portal.url).then(() => { setPortalCopied(true); setTimeout(() => setPortalCopied(false), 2000); });
+  };
 
   // Редактирование данных клиента
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: client.name, birth_date: client.birth_date, birth_time: client.birth_time || '', birth_place: client.birth_place, notes: client.notes || '' });
+  const [editForm, setEditForm] = useState({ name: client.name, birth_date: client.birth_date, birth_time: client.birth_time || '', birth_place: client.birth_place, notes: client.notes || '', email: client.email || '', status: client.status || 'lead', source: client.source || '', tags: (client.tags || []).join(', ') });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const setEF = (k, v) => setEditForm(p => ({ ...p, [k]: v }));
@@ -168,6 +377,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     try {
       const body = { ...editForm };
       if (!body.birth_time) delete body.birth_time;
+      body.tags = parseTags(editForm.tags);
       const updated = await authFetch(`${API}/clients/${client.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       onUpdated(updated);
       setEditing(false);
@@ -267,14 +477,16 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
     setReportLoading(false);
   };
 
-  const tabs = ['chart', 'transits', 'ai', 'notes'];
-  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'AI-интерпретация', notes: 'Заметки' };
+  const tabs = ['chart', 'transits', 'ai', 'notes', 'consultations'];
+  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'AI-интерпретация', notes: 'Заметки', consultations: 'Консультации' };
 
   return (
     <div>
       <div style={{ ...S.row, marginBottom: 16 }}>
         <button style={S.btn()} onClick={onBack}>← Назад</button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button style={S.btn('primary')} onClick={loadBrief}>✨ Подготовить встречу</button>
+          <button style={S.btn()} onClick={() => loadSummary(false)}>🧾 Резюме клиента</button>
           <select
             value={wordLimit}
             onChange={e => setWordLimit(Number(e.target.value))}
@@ -294,8 +506,13 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
       <div style={S.card}>
         <div style={S.row}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{client.name}</div>
-            <div style={S.muted}>{client.birth_date}{client.birth_time ? ` · ${client.birth_time}` : ''} · {client.birth_place}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, fontSize: 18 }}>{client.name}</span>
+              <StatusBadge status={client.status} />
+              <BirthdayBadge birthDate={client.birth_date} />
+            </div>
+            <div style={S.muted}>{client.birth_date}{client.birth_time ? ` · ${client.birth_time}` : ''} · {client.birth_place}{client.source ? ` · ${client.source}` : ''}</div>
+            {client.tags && client.tags.length > 0 && <div style={{ marginTop: 6 }}><TagChips tags={client.tags} /></div>}
           </div>
           <button style={S.btn()} onClick={() => { setEditing(v => !v); setEditError(''); }}>
             {editing ? 'Отмена' : 'Редактировать'}
@@ -321,11 +538,82 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
                 <label style={S.label}>Время рождения</label>
                 <input style={S.input} type="time" value={editForm.birth_time} onChange={e => setEF('birth_time', e.target.value)} />
               </div>
+              <div>
+                <label style={S.label}>Email (для рассылки)</label>
+                <input style={S.input} type="email" value={editForm.email} onChange={e => setEF('email', e.target.value)} />
+              </div>
+              <div>
+                <label style={S.label}>Статус</label>
+                <select style={S.input} value={editForm.status} onChange={e => setEF('status', e.target.value)}>
+                  {STATUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>Источник</label>
+                <input style={S.input} placeholder="Instagram, рекомендация…" value={editForm.source} onChange={e => setEF('source', e.target.value)} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={S.label}>Теги (через запятую)</label>
+                <input style={S.input} placeholder="хорар, бизнес, сложный" value={editForm.tags} onChange={e => setEF('tags', e.target.value)} />
+              </div>
             </div>
             {editError && <p style={{ color: '#f87171', fontSize: 12, margin: '0 0 10px' }}>{editError}</p>}
             <button style={S.btn('primary')} onClick={saveEdit} disabled={editLoading}>
               {editLoading ? 'Сохраняю…' : 'Сохранить'}
             </button>
+          </div>
+        )}
+      </div>
+
+      {briefOpen && (
+        <div style={S.card}>
+          <div style={{ ...S.row, marginBottom: 12 }}>
+            <label style={S.label}>Бриф к встрече</label>
+            <button style={S.btn()} onClick={() => setBriefOpen(false)}>Закрыть</button>
+          </div>
+          {briefLoading && !briefText && <div style={S.muted}>Готовлю бриф…</div>}
+          {briefText && (
+            <>
+              <div style={{ fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
+                {briefText}
+              </div>
+              <button style={S.btn('primary')} onClick={saveBriefToConsultation} disabled={briefSaving || briefLoading}>
+                {briefSaving ? 'Сохраняю…' : 'Сохранить как подготовку'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {summaryOpen && (
+        <div style={S.card}>
+          <div style={{ ...S.row, marginBottom: 12 }}>
+            <label style={S.label}>Резюме клиента{summaryCached && !summaryLoading ? ' · из кэша' : ''}</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={S.btn()} onClick={() => loadSummary(true)} disabled={summaryLoading}>Обновить</button>
+              <button style={S.btn()} onClick={() => setSummaryOpen(false)}>Закрыть</button>
+            </div>
+          </div>
+          {summaryLoading && !summaryText && <div style={S.muted}>Генерирую…</div>}
+          {summaryText && (
+            <div style={{ fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              {summaryText}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={S.card}>
+        <div style={S.row}>
+          <label style={S.label}>Портал клиента (read-only ссылка)</label>
+          {portal?.enabled
+            ? <button style={S.btn()} onClick={() => setPortalEnabled(false)} disabled={portalBusy}>Выключить</button>
+            : <button style={S.btn('primary')} onClick={() => setPortalEnabled(true)} disabled={portalBusy}>Включить портал</button>}
+        </div>
+        {portal?.enabled && portal?.url && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            <input style={{ ...S.input, flex: 1, minWidth: 220 }} value={portal.url} readOnly />
+            <button style={S.btn()} onClick={copyPortal}>{portalCopied ? '✓ Скопировано' : 'Копировать'}</button>
           </div>
         )}
       </div>
@@ -336,6 +624,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
           <button key={t} onClick={() => {
             setTab(t);
             if (t === 'ai' && !aiText) loadAI();
+            if (t === 'consultations') loadConsultations();
           }}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
               background: tab === t ? 'var(--crm-card)' : 'transparent', color: tab === t ? 'var(--crm-title)' : 'var(--crm-muted)' }}>
@@ -502,6 +791,14 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
             </div>
           )}
 
+          <div style={{ marginBottom: 8 }}>
+            <button style={S.btn()} onClick={() => {
+              const d = new Date();
+              const stamp = `[${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}] `;
+              setNotes(prev => stamp + (prev ? '\n' + prev : ''));
+              if (textareaRef.current) textareaRef.current.focus();
+            }}>+ запись с датой</button>
+          </div>
           <textarea
             ref={textareaRef}
             style={{ ...S.input, minHeight: 120, resize: 'vertical', marginBottom: 12 }}
@@ -513,6 +810,113 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
           </button>
         </div>
       )}
+
+      {tab === 'consultations' && (
+        <div style={S.card}>
+          <div style={{ ...S.row, marginBottom: 12 }}>
+            <label style={S.label}>Консультации</label>
+            <button style={S.btn('primary')} onClick={() => setShowConsForm(v => !v)}>
+              {showConsForm ? 'Отмена' : '+ Консультация'}
+            </button>
+          </div>
+
+          {showConsForm && (
+            <div style={{ borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={S.label}>Дата</label>
+                  <input style={S.input} type="date" value={consForm.date} onChange={e => setCF('date', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.label}>Тема</label>
+                  <select style={S.input} value={consForm.topic} onChange={e => setCF('topic', e.target.value)}>
+                    <option value="">—</option>
+                    {['натал', 'соляр', 'хорар', 'синастрия', 'транзиты', 'другое'].map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={S.label}>Стоимость, ₽</label>
+                  <input style={S.input} type="number" value={consForm.price} onChange={e => setCF('price', e.target.value)} />
+                </div>
+                <div>
+                  <label style={S.label}>Статус</label>
+                  <select style={S.input} value={consForm.status} onChange={e => setCF('status', e.target.value)}>
+                    <option value="done">Проведена</option>
+                    <option value="planned">Запланирована</option>
+                    <option value="canceled">Отменена</option>
+                  </select>
+                </div>
+              </div>
+              <label style={S.label}>Заметки</label>
+              <textarea
+                style={{ ...S.input, minHeight: 80, resize: 'vertical', marginBottom: 12 }}
+                value={consForm.notes}
+                onChange={e => setCF('notes', e.target.value)}
+              />
+              {consForm.topic === 'хорар' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12, padding: 12, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8 }}>
+                  <div>
+                    <label style={S.label}>Момент вопроса</label>
+                    <input style={S.input} type="datetime-local" value={consForm.question_moment} onChange={e => setCF('question_moment', e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={S.label}>Место вопроса</label>
+                    <input style={S.input} placeholder="Город, страна" value={consForm.question_place} onChange={e => setCF('question_place', e.target.value)} />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', ...S.muted }}>Карта на момент вопроса построится автоматически.</div>
+                </div>
+              )}
+              <label style={S.label}>Домашнее задание (видно клиенту в портале)</label>
+              <textarea
+                style={{ ...S.input, minHeight: 60, resize: 'vertical', marginBottom: 12 }}
+                value={consForm.assignment}
+                onChange={e => setCF('assignment', e.target.value)}
+              />
+              <button style={S.btn('primary')} onClick={saveConsultation} disabled={consSaving}>
+                {consSaving ? 'Сохраняю…' : 'Сохранить'}
+              </button>
+            </div>
+          )}
+
+          {consLoading ? (
+            <div style={S.muted}>Загрузка…</div>
+          ) : consultations.length === 0 ? (
+            <div style={S.muted}>Пока нет консультаций.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {consultations.map(c => {
+                const badge = ({
+                  done: ['Проведена', '#22c55e'],
+                  planned: ['Запланирована', '#8b5cf6'],
+                  canceled: ['Отменена', '#ef4444'],
+                })[c.status] || [c.status, '#64748b'];
+                return (
+                  <div key={c.id} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ ...S.row, marginBottom: c.notes ? 8 : 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{(c.date || '').slice(0, 10)}</span>
+                        {c.topic && <span style={S.muted}>{c.topic}</span>}
+                        <span style={{ fontSize: 11, fontWeight: 600, color: badge[1], background: badge[1] + '22', padding: '2px 8px', borderRadius: 6 }}>{badge[0]}</span>
+                        {c.price != null && <span style={S.muted}>{c.price} ₽</span>}
+                        {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: '#0ea5e9' }}>🕐 хорар-карта</span>}
+                      </div>
+                      <button style={S.btn('danger')} onClick={() => deleteConsultation(c.id)}>Удалить</button>
+                    </div>
+                    {c.notes && <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes}</div>}
+                    {c.assignment && (
+                      <div style={{ marginTop: 8, borderLeft: '3px solid #8b5cf6', paddingLeft: 10, fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#8b5cf6' }}>ЗАДАНИЕ · </span>{c.assignment}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -520,6 +924,8 @@ function ClientCard({ client, authFetch, onBack, onUpdated }) {
 // ─── Список клиентов ──────────────────────────────────────────────────────────
 function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFilteredClients, authFetch }) {
   const [search, setSearch]           = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [tagFilter, setTagFilter]     = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showFilter, setShowFilter]   = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
@@ -529,11 +935,29 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
   const [filters, setFilters] = useState(emptyFilters);
   const setF = (k, v) => setFilters(p => ({ ...p, [k]: v }));
 
-  // Локальный поиск по имени/городу работает поверх текущего списка
+  const allTags = [...new Set(clients.flatMap(c => c.tags || []))].sort();
+
+  // Локальный поиск по имени/городу + статусу + тегу поверх текущего списка
   const filtered = clients.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.birth_place.toLowerCase().includes(search.toLowerCase())
+    (c.name.toLowerCase().includes(search.toLowerCase()) ||
+     c.birth_place.toLowerCase().includes(search.toLowerCase())) &&
+    (!statusFilter || c.status === statusFilter) &&
+    (!tagFilter || (c.tags || []).includes(tagFilter))
   );
+
+  const exportCSV = () => {
+    const cols = ['name', 'birth_date', 'birth_time', 'birth_place', 'status', 'source', 'email', 'tags'];
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [cols.join(',')];
+    for (const c of filtered) {
+      lines.push(cols.map(k => esc(k === 'tags' ? (c.tags || []).join('; ') : c[k])).join(','));
+    }
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'clients.csv';
+    a.click();
+  };
 
   const handleDelete = async (id) => {
     try {
@@ -587,6 +1011,17 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
         <input style={{ ...S.input, maxWidth: 260 }} placeholder="Поиск по имени или городу…"
           value={search} onChange={e => setSearch(e.target.value)} />
         <div style={{ display: 'flex', gap: 8 }}>
+          <select style={{ ...S.input, width: 'auto', minWidth: 130 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">Все статусы</option>
+            {STATUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          {allTags.length > 0 && (
+            <select style={{ ...S.input, width: 'auto', minWidth: 120 }} value={tagFilter} onChange={e => setTagFilter(e.target.value)}>
+              <option value="">Все теги</option>
+              {allTags.map(t => <option key={t} value={t}>#{t}</option>)}
+            </select>
+          )}
+          <button style={S.btn('ghost')} onClick={exportCSV}>⬇ CSV</button>
           <button style={S.btn(showFilter ? 'primary' : 'ghost')} onClick={() => setShowFilter(v => !v)}>
             🔍 Фильтр по карте
           </button>
@@ -671,8 +1106,13 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               <MiniChartPreview clientId={client.id} authFetch={authFetch} />
             </div>
             <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => onSelect(client)}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{client.name}</div>
-              <div style={S.muted}>{client.birth_date} · {client.birth_place}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{client.name}</span>
+                <StatusBadge status={client.status} />
+                <BirthdayBadge birthDate={client.birth_date} />
+              </div>
+              <div style={S.muted}>{client.birth_date} · {client.birth_place}{client.source ? ` · ${client.source}` : ''}</div>
+              {client.tags && client.tags.length > 0 && <div style={{ marginTop: 4 }}><TagChips tags={client.tags} /></div>}
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
               {client.natal_chart_id && (
@@ -699,6 +1139,556 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
   );
 }
 
+// ─── Панель рассылки (021) ────────────────────────────────────────────────────
+function BroadcastPanel({ authFetch, clients }) {
+  const withEmail = clients.filter(c => c.email);
+  const [open, setOpen] = useState(false);
+  const [previewClient, setPreviewClient] = useState('');
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [queued, setQueued] = useState(0);
+  const [history, setHistory] = useState(null);
+  const [aiMode, setAiMode] = useState(false);
+
+  // Бренд + автоотправка (022)
+  const [brandName, setBrandName] = useState('');
+  const [brandAuto, setBrandAuto] = useState(false);
+  const [brandLoaded, setBrandLoaded] = useState(false);
+  const [brandSaving, setBrandSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open || brandLoaded) return;
+    authFetch(`${API}/crm/profile`)
+      .then(p => { setBrandName(p.display_name || ''); setBrandAuto(!!p.broadcast_auto); })
+      .catch(() => {})
+      .finally(() => setBrandLoaded(true));
+  }, [open]);
+
+  const saveBrand = async () => {
+    setBrandSaving(true);
+    try {
+      const p = await authFetch(`${API}/crm/profile`, {
+        method: 'PATCH',
+        body: JSON.stringify({ display_name: brandName, broadcast_auto: brandAuto }),
+      });
+      setBrandName(p.display_name || '');
+      setBrandAuto(!!p.broadcast_auto);
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setBrandSaving(false);
+  };
+
+  const doPreview = async () => {
+    if (!previewClient) return;
+    setPreviewLoading(true); setPreviewHtml('');
+    try {
+      const r = await authFetch(`${API}/crm/broadcast/preview`, {
+        method: 'POST', body: JSON.stringify({ client_id: Number(previewClient), mode: aiMode ? 'ai' : 'template' }),
+      });
+      setPreviewHtml(r.html || '');
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setPreviewLoading(false);
+  };
+
+  const doSend = async () => {
+    const label = aiMode ? 'AI-версию прогноза' : 'прогноз месяца';
+    if (!window.confirm(`Отправить ${label} ${withEmail.length} клиентам?`)) return;
+    setSending(true);
+    try {
+      const r = await authFetch(`${API}/crm/broadcast/send`, {
+        method: 'POST', body: JSON.stringify({ mode: aiMode ? 'ai' : 'template' }),
+      });
+      setQueued(r.recipients ?? withEmail.length);
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setSending(false);
+  };
+
+  const loadHistory = async () => {
+    try { const h = await authFetch(`${API}/crm/broadcast/history`); setHistory(Array.isArray(h) ? h : []); }
+    catch { setHistory([]); }
+  };
+
+  return (
+    <div style={{ ...S.card }}>
+      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📧 Рассылка месяца</div>
+        <div style={S.muted}>{withEmail.length} с email · {open ? '▲' : '▼'}</div>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+          <div style={{ ...S.muted, marginBottom: 12 }}>
+            Каждый клиент с указанным email получит персональный прогноз на месяц под вашим именем.
+          </div>
+
+          {/* Бренд + автоотправка */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label style={S.label}>Ваш бренд (имя отправителя)</label>
+              <input style={S.input} value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Например: Астролог Мария" />
+            </div>
+            <button style={S.btn()} onClick={saveBrand} disabled={brandSaving}>
+              {brandSaving ? 'Сохраняю…' : 'Сохранить'}
+            </button>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={brandAuto} onChange={e => setBrandAuto(e.target.checked)} />
+            Автоотправка 1-го числа каждого месяца (не забудьте «Сохранить»)
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={aiMode} onChange={e => setAiMode(e.target.checked)} />
+            AI-версия письма (индивидуальный текст, платно) — иначе шаблонный список транзитов
+          </label>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label style={S.label}>Предпросмотр письма клиента</label>
+              <select style={S.input} value={previewClient} onChange={e => setPreviewClient(e.target.value)}>
+                <option value="">— выберите клиента —</option>
+                {withEmail.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <button style={S.btn()} onClick={doPreview} disabled={!previewClient || previewLoading}>
+              {previewLoading ? 'Гружу…' : 'Предпросмотр'}
+            </button>
+          </div>
+
+          {previewHtml && (
+            <iframe
+              title="preview"
+              srcDoc={previewHtml}
+              style={{ width: '100%', height: 420, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, marginBottom: 12, background: '#0e0c1a' }}
+            />
+          )}
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button style={S.btn('primary')} onClick={doSend} disabled={sending || withEmail.length === 0}>
+              {sending ? 'Ставлю в очередь…' : `Отправить прогноз месяца (${withEmail.length})`}
+            </button>
+            <button style={S.btn()} onClick={loadHistory}>История</button>
+            {queued > 0 && <span style={S.muted}>✓ Поставлено в очередь: {queued}</span>}
+          </div>
+
+          {history && (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {history.length === 0 && <div style={S.muted}>Отправок пока не было.</div>}
+              {history.map((h, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>{h.name} · {h.period_ym}</span>
+                  <span style={{ color: h.status === 'success' ? '#22c55e' : '#ef4444' }}>
+                    {h.status === 'success' ? 'отправлено' : 'ошибка'}{h.sent_at ? ` · ${h.sent_at.slice(0, 10)}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Панель анкет (023) ───────────────────────────────────────────────────────
+function IntakePanel({ authFetch, onConverted }) {
+  const [open, setOpen] = useState(false);
+  const [intakes, setIntakes] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUrl, setNewUrl] = useState('');
+  const [copied, setCopied] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  const load = async () => {
+    try { const d = await authFetch(`${API}/crm/intake/list`); setIntakes(Array.isArray(d) ? d : []); }
+    catch {}
+    setLoaded(true);
+  };
+
+  useEffect(() => { if (open && !loaded) load(); }, [open]);
+
+  const createLink = async () => {
+    setCreating(true);
+    try {
+      const r = await authFetch(`${API}/crm/intake/create`, { method: 'POST' });
+      setNewUrl(r.url);
+      await load();
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setCreating(false);
+  };
+
+  const copy = (url) => {
+    navigator.clipboard.writeText(url).then(() => { setCopied(url); setTimeout(() => setCopied(''), 2000); });
+  };
+
+  const convert = async (id) => {
+    setBusyId(id);
+    try {
+      await authFetch(`${API}/crm/intake/${id}/convert`, { method: 'POST' });
+      await load();
+      onConverted && onConverted();
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setBusyId(null);
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm('Удалить анкету?')) return;
+    try { await authFetch(`${API}/crm/intake/${id}`, { method: 'DELETE' }); setIntakes(p => p.filter(x => x.id !== id)); }
+    catch {}
+  };
+
+  const submitted = intakes.filter(i => i.status === 'pending' && i.submitted_at);
+  const waiting = intakes.filter(i => i.status === 'pending' && !i.submitted_at);
+
+  return (
+    <div style={S.card}>
+      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📋 Анкеты клиентов</div>
+        <div style={S.muted}>{submitted.length ? `${submitted.length} новых · ` : ''}{open ? '▲' : '▼'}</div>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+          <div style={{ ...S.muted, marginBottom: 12 }}>
+            Отправьте клиенту ссылку — он сам заполнит данные рождения, и анкета появится здесь.
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <button style={S.btn('primary')} onClick={createLink} disabled={creating}>
+              {creating ? 'Создаю…' : '+ Создать ссылку-анкету'}
+            </button>
+          </div>
+
+          {newUrl && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+              <input style={{ ...S.input, flex: 1, minWidth: 220 }} value={newUrl} readOnly />
+              <button style={S.btn()} onClick={() => copy(newUrl)}>{copied === newUrl ? '✓ Скопировано' : 'Копировать'}</button>
+            </div>
+          )}
+
+          {submitted.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+              {submitted.map(i => {
+                const d = i.submitted_data || {};
+                return (
+                  <div key={i.id} style={{ border: '1px solid rgba(139,92,246,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ ...S.row, marginBottom: 8 }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{d.name || '—'}</span>
+                        <span style={{ ...S.muted, marginLeft: 8 }}>{d.birth_date} · {d.birth_place}</span>
+                      </div>
+                      <span style={S.muted}>{(i.submitted_at || '').slice(0, 10)}</span>
+                    </div>
+                    {d.question && <div style={{ fontSize: 13, color: 'var(--crm-text)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>❓ {d.question}</div>}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={S.btn('primary')} onClick={() => convert(i.id)} disabled={busyId === i.id}>
+                        {busyId === i.id ? 'Добавляю…' : 'Добавить в клиенты'}
+                      </button>
+                      <button style={S.btn('danger')} onClick={() => remove(i.id)}>Удалить</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {waiting.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {waiting.map(i => (
+                <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                  <span style={S.muted}>Ожидает заполнения</span>
+                  <span style={{ display: 'flex', gap: 8 }}>
+                    <button style={S.btn()} onClick={() => copy(i.url)}>{copied === i.url ? '✓' : 'Ссылка'}</button>
+                    <button style={S.btn('danger')} onClick={() => remove(i.id)}>✕</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {loaded && submitted.length === 0 && waiting.length === 0 && !newUrl && (
+            <div style={S.muted}>Пока нет анкет.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Панель аналитики (09/15/16) ─────────────────────────────────────────────
+function StatsPanel({ authFetch, onOpenClient }) {
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [insights, setInsights] = useState(null);
+  const [reactivation, setReactivation] = useState([]);
+
+  const load = async () => {
+    const now = new Date();
+    const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const to = now.toISOString().slice(0, 10);
+    try {
+      const [s, i, r] = await Promise.all([
+        authFetch(`${API}/crm/stats?from=${from}&to=${to}`),
+        authFetch(`${API}/crm/insights`),
+        authFetch(`${API}/crm/reactivation`),
+      ]);
+      setStats(s); setInsights(i); setReactivation(Array.isArray(r) ? r : []);
+    } catch {}
+    setLoaded(true);
+  };
+  useEffect(() => { if (open && !loaded) load(); }, [open]);
+
+  const topEntry = (obj) => {
+    const e = Object.entries(obj || {});
+    return e.length ? e.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
+  };
+  const waterPct = () => {
+    const me = insights?.moon_elements || {};
+    const total = Object.values(me).reduce((a, b) => a + b, 0);
+    return total ? Math.round((me['вода'] || 0) / total * 100) : 0;
+  };
+
+  const stat = (label, value) => (
+    <div style={{ flex: 1, minWidth: 90 }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--crm-text)' }}>{value}</div>
+      <div style={S.muted}>{label}</div>
+    </div>
+  );
+
+  const topSun = insights && topEntry(insights.sun_signs);
+  const topTopic = insights?.top_topics?.[0];
+  const withReason = reactivation.filter(r => r.reason);
+
+  return (
+    <div style={S.card}>
+      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📊 Практика</div>
+        <div style={S.muted}>{withReason.length ? `${withReason.length} к реактивации · ` : ''}{open ? '▲' : '▼'}</div>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+          {!loaded ? (
+            <div style={S.muted}>Загрузка…</div>
+          ) : (
+            <>
+              {/* №9 — цифры */}
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>В цифрах (текущий месяц)</div>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                {stat('доход, ₽', (stats?.revenue ?? 0).toLocaleString('ru-RU'))}
+                {stat('консультаций', stats?.count ?? 0)}
+                {stat('средний чек, ₽', (stats?.avg_check ?? 0).toLocaleString('ru-RU'))}
+              </div>
+              {stats?.by_topic && Object.keys(stats.by_topic).length > 0 && (
+                <div style={{ ...S.muted, marginBottom: 18 }}>
+                  {Object.entries(stats.by_topic).map(([t, v]) => `${t}: ${v.count}`).join(' · ')}
+                </div>
+              )}
+
+              {/* №15 — инсайты */}
+              <div style={{ fontWeight: 600, fontSize: 13, margin: '4px 0 8px' }}>Инсайты по базе</div>
+              <div style={{ ...S.muted, marginBottom: 18, lineHeight: 1.9 }}>
+                Клиентов с картой: {insights?.clients_with_chart ?? 0}<br />
+                Луна в водных знаках: {waterPct()}%<br />
+                {topSun && <>Чаще всего Солнце: {topSun[0]} ({topSun[1]})<br /></>}
+                {topTopic && <>Частая тема: {topTopic[0]} ({topTopic[1]})</>}
+              </div>
+
+              {/* №16 — реактивация */}
+              <div style={{ fontWeight: 600, fontSize: 13, margin: '4px 0 8px' }}>Пора напомнить о себе</div>
+              {reactivation.length === 0 ? (
+                <div style={S.muted}>Все клиенты недавно на связи.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {reactivation.map((r, i) => (
+                    <div
+                      key={i}
+                      onClick={() => onOpenClient && onOpenClient(r.client_id)}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+                        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                        background: r.reason ? 'rgba(139,92,246,0.08)' : 'rgba(148,163,184,0.06)' }}
+                    >
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</span>
+                        {r.reason && <span style={{ ...S.muted, marginLeft: 8, color: '#a78bfa' }}>повод: {r.reason}</span>}
+                      </div>
+                      <span style={S.muted}>{r.last_consultation ? `был(а): ${r.last_consultation.slice(0, 10)}` : 'без консультаций'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Библиотека авторских трактовок (028) ─────────────────────────────────────
+function AuthorLibraryPanel({ authFetch }) {
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState({ key: '', content: '' });
+  const [editId, setEditId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    try { const d = await authFetch(`${API}/astrologer/interpretations`); setItems(Array.isArray(d) ? d : []); }
+    catch {}
+    setLoaded(true);
+  };
+  useEffect(() => { if (open && !loaded) load(); }, [open]);
+
+  const save = async () => {
+    if (!form.key.trim() || !form.content.trim()) { alert('Заполните ключ и текст'); return; }
+    setSaving(true);
+    try {
+      if (editId) await authFetch(`${API}/astrologer/interpretations/${editId}`, { method: 'PATCH', body: JSON.stringify(form) });
+      else await authFetch(`${API}/astrologer/interpretations`, { method: 'POST', body: JSON.stringify(form) });
+      setForm({ key: '', content: '' }); setEditId(null);
+      await load();
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setSaving(false);
+  };
+
+  const edit = (it) => { setForm({ key: it.key, content: it.content }); setEditId(it.id); };
+  const cancel = () => { setForm({ key: '', content: '' }); setEditId(null); };
+  const remove = async (id) => {
+    if (!window.confirm('Удалить трактовку?')) return;
+    try { await authFetch(`${API}/astrologer/interpretations/${id}`, { method: 'DELETE' }); setItems(p => p.filter(x => x.id !== id)); }
+    catch {}
+  };
+
+  return (
+    <div style={S.card}>
+      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>✍️ Мои трактовки</div>
+        <div style={S.muted}>{loaded ? `${items.length} · ` : ''}{open ? '▲' : '▼'}</div>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+          <div style={{ ...S.muted, marginBottom: 12 }}>
+            Ваши формулировки подмешиваются в AI-разборы (отчёт, бриф, резюме) по совпадению ключей.
+            Ключи: <b>planet_sign</b> (sun_taurus), <b>planet_house_N</b> (saturn_house_7), <b>asc_sign</b> (asc_leo). Планеты — по-английски строчными.
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <input style={S.input} placeholder="Ключ, напр. saturn_house_7" value={form.key} onChange={e => setForm(p => ({ ...p, key: e.target.value }))} />
+            <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }} placeholder="Ваш авторский текст трактовки…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={S.btn('primary')} onClick={save} disabled={saving}>{saving ? 'Сохраняю…' : (editId ? 'Обновить' : 'Добавить')}</button>
+              {editId && <button style={S.btn()} onClick={cancel}>Отмена</button>}
+            </div>
+          </div>
+
+          {loaded && items.length === 0 ? (
+            <div style={S.muted}>Пока нет трактовок.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {items.map(it => (
+                <div key={it.id} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ ...S.row, marginBottom: 6 }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>{it.key}</span>
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      <button style={S.btn()} onClick={() => edit(it)}>✎</button>
+                      <button style={S.btn('danger')} onClick={() => remove(it.id)}>✕</button>
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{it.content}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Групповой прогноз (18) ───────────────────────────────────────────────────
+function GroupForecastPanel({ authFetch, clients }) {
+  const withChart = clients.filter(c => c.natal_chart_id);
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState({});
+  const [planet, setPlanet] = useState('');
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState(null);
+
+  const ids = Object.keys(selected).filter(k => selected[k]).map(Number);
+  const toggle = (id) => setSelected(p => ({ ...p, [id]: !p[id] }));
+  const PLANETS = [['', 'любая медленная'], ['Jupiter', 'Юпитер'], ['Saturn', 'Сатурн'], ['Uranus', 'Уран'], ['Neptune', 'Нептун'], ['Pluto', 'Плутон']];
+
+  const run = async () => {
+    if (!ids.length) { alert('Отметьте клиентов'); return; }
+    setRunning(true); setResults(null);
+    try {
+      const r = await authFetch(`${API}/crm/group-forecast`, { method: 'POST', body: JSON.stringify({ client_ids: ids, planet: planet || null }) });
+      setResults(Array.isArray(r) ? r : []);
+    } catch (e) { alert('Ошибка: ' + (e.message || '')); }
+    setRunning(false);
+  };
+
+  return (
+    <div style={S.card}>
+      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>🔮 Групповой прогноз</div>
+        <div style={S.muted}>{ids.length ? `${ids.length} выбрано · ` : ''}{open ? '▲' : '▼'}</div>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+          <div style={{ ...S.muted, marginBottom: 12 }}>
+            Отметьте клиентов (для групп/марафонов) — покажу, у кого значимый транзит в ближайший месяц.
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <select style={{ ...S.input, width: 'auto' }} value={planet} onChange={e => setPlanet(e.target.value)}>
+              {PLANETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <button style={S.btn('primary')} onClick={run} disabled={running || ids.length === 0}>
+              {running ? 'Считаю…' : 'Прогноз по выбранным'}
+            </button>
+            <button style={S.btn()} onClick={() => setSelected(Object.fromEntries(withChart.map(c => [c.id, true])))}>Все</button>
+            <button style={S.btn()} onClick={() => setSelected({})}>Сброс</button>
+          </div>
+
+          <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid rgba(139,92,246,0.12)', borderRadius: 8, padding: 8, marginBottom: 12 }}>
+            {withChart.length === 0 ? (
+              <div style={S.muted}>Нет клиентов с рассчитанной картой.</div>
+            ) : withChart.map(c => (
+              <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!selected[c.id]} onChange={() => toggle(c.id)} />
+                {c.name}
+              </label>
+            ))}
+          </div>
+
+          {results && (
+            results.length === 0 ? (
+              <div style={S.muted}>Ни у кого из выбранных нет значимого транзита в этот период.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {results.map((r, i) => (
+                  <div key={i} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{r.name}</div>
+                    {r.events.map((e, j) => (
+                      <div key={j} style={S.muted}>{e.event}{e.date ? ` · ${e.date}` : ''}{e.orb != null ? ` · орб ${e.orb}°` : ''}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Главный компонент ────────────────────────────────────────────────────────
 export default function CRMPage() {
   const { user, authFetch } = useAuth();
@@ -707,15 +1697,34 @@ export default function CRMPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' | 'add' | 'card'
   const [selected, setSelected] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [cardTab, setCardTab] = useState('chart');
 
   const displayedClients = filteredClients ?? clients;
 
-  useEffect(() => {
+  const loadClients = () =>
     authFetch(`${API}/clients`)
       .then(data => setClients(Array.isArray(data) ? data : []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
+
+  useEffect(() => {
+    loadClients().finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (user?.tier !== 'premium') return;
+    authFetch(`${API}/crm/alerts`)
+      .then(d => setAlerts(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
+  const openClientTransits = (clientId) => {
+    const c = clients.find(x => x.id === clientId);
+    if (!c) return;
+    setSelected(c);
+    setCardTab('transits');
+    setView('card');
+  };
 
   if (user?.tier !== 'premium') {
     return (
@@ -744,13 +1753,47 @@ export default function CRMPage() {
           <div style={S.muted}>{clients.length} клиентов</div>
         </div>
 
+        {view === 'list' && <StatsPanel authFetch={authFetch} onOpenClient={openClientTransits} />}
+
+        {view === 'list' && <GroupForecastPanel authFetch={authFetch} clients={clients} />}
+
+        {view === 'list' && <AuthorLibraryPanel authFetch={authFetch} />}
+
+        {view === 'list' && <IntakePanel authFetch={authFetch} onConverted={loadClients} />}
+
+        {view === 'list' && <BroadcastPanel authFetch={authFetch} clients={clients} />}
+
+        {view === 'list' && alerts.length > 0 && (
+          <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>⚡ Важные периоды у клиентов</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {alerts.map((a, i) => (
+                <div
+                  key={i}
+                  onClick={() => openClientTransits(a.client_id)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 8, background: 'rgba(139,92,246,0.06)', cursor: 'pointer' }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{a.name}</span>
+                    <span style={{ ...S.muted, marginLeft: 8 }}>{a.event}</span>
+                  </div>
+                  <div style={S.muted}>
+                    {(a.exact_date || '').slice(0, 10)}{a.orb != null ? ` · орб ${a.orb}°` : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {view === 'list' && (
           <ClientList
             clients={displayedClients}
             allClients={clients}
             authFetch={authFetch}
             onFilteredClients={data => setFilteredClients(data)}
-            onSelect={c => { setSelected(c); setView('card'); }}
+            onSelect={c => { setSelected(c); setCardTab('chart'); setView('card'); }}
             onAdd={() => setView('add')}
             onDelete={id => {
               setClients(p => p.filter(c => c.id !== id));
@@ -771,6 +1814,7 @@ export default function CRMPage() {
           <ClientCard
             client={selected}
             authFetch={authFetch}
+            initialTab={cardTab}
             onBack={() => { setSelected(null); setView('list'); }}
             onUpdated={updated => {
               setClients(p => p.map(c => c.id === updated.id ? updated : c));

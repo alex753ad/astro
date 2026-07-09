@@ -63,6 +63,9 @@ from backend.onboarding_router import router as onboarding_router
 from backend.share_router import router as share_router
 from backend.payments.payments_router import router as payments_router
 from backend.crm.router import router as crm_router
+from backend.crm.author_router import router as author_router
+from backend.crm.portal_router import router as portal_router
+from backend.crm.dashboard_router import router as crm_dashboard_router
 from backend.crm.note_templates_router import router as note_templates_router
 from backend.interpretation.rag_router import router as rag_router
 from backend.admin.promo_router import router as promo_router
@@ -136,6 +139,9 @@ app.include_router(onboarding_router)
 app.include_router(share_router)
 app.include_router(payments_router)
 app.include_router(crm_router)
+app.include_router(author_router)
+app.include_router(portal_router)
+app.include_router(crm_dashboard_router)
 app.include_router(note_templates_router)
 app.include_router(rag_router)
 app.include_router(promo_router)

@@ -685,3 +685,187 @@ def send_weekly_digest_task() -> dict:
 
     logger.info("send_weekly_digest_task: sent=%d weekday=%d", sent, today_weekday)
     return {"sent": sent, "weekday": today_weekday}
+
+
+# ═══════════════════════════════════════════════════════════
+# CLIENT BROADCAST (021 / roadmap idea 5, 022 auto+unsub+ai)
+# ═══════════════════════════════════════════════════════════
+
+def _ensure_unsub_token(client, db) -> str:
+    if not client.unsubscribe_token:
+        import uuid
+        client.unsubscribe_token = uuid.uuid4().hex
+        db.commit()
+    return client.unsubscribe_token
+
+
+def _unsub_url(token: str) -> str:
+    from backend.email_service import PUBLIC_API_URL
+    return f"{PUBLIC_API_URL}/api/v1/crm/unsubscribe/{token}"
+
+
+async def _gen_broadcast_ai(profile: dict, tier: str, period_label: str, transits: list[dict]) -> str | None:
+    """AI-текст для гибридного письма. None → откат на шаблон."""
+    try:
+        from backend.interpretation.base import InterpretationRequest
+        from backend.interpretation.router import get_router
+        from backend.email_service import build_broadcast_ai_prompt
+        req = InterpretationRequest(
+            natal_profile=profile,
+            context="transit",
+            tier=tier or "premium",
+            custom_prompt=build_broadcast_ai_prompt(period_label, transits),
+        )
+        result = await get_router().generate(req)
+        return (result.content or "").strip() or None
+    except Exception as e:
+        logger.warning("Broadcast AI generation failed: %s", e)
+        return None
+
+
+@celery_app.task(name="tasks.send_client_broadcast")
+def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: str | None = None,
+                               mode: str = "template") -> dict:
+    """Ежемесячная брендовая рассылка прогноза клиентам астролога.
+
+    mode="ai" → AI-текст на каждого клиента (гибрид, платно); иначе шаблон.
+    Пропускает отписавшихся и уже отправленных в этом period_ym.
+    """
+    import asyncio
+    from datetime import date, datetime, timedelta
+
+    from backend.models import AstrologerProfile, ClientProfile, ClientBroadcastLog, User
+    from backend.transit.engine import calculate_transits
+    from backend.email_service import send_client_broadcast, ru_month_label
+
+    db = SessionLocal()
+    sent, failed = 0, 0
+    try:
+        astrologer = db.query(AstrologerProfile).filter(
+            AstrologerProfile.id == astrologer_id
+        ).first()
+        if not astrologer:
+            return {"sent": 0, "failed": 0, "error": "astrologer not found"}
+
+        brand = astrologer.display_name or "Ваш астролог"
+        owner = db.query(User).filter(User.id == astrologer.user_id).first()
+        tier = owner.tier if owner else "premium"
+
+        today = date.today()
+        ym = period_ym or today.strftime("%Y-%m")
+        period_label = ru_month_label(today)
+
+        q = (
+            db.query(ClientProfile, NatalChart)
+            .join(NatalChart, ClientProfile.natal_chart_id == NatalChart.id)
+            .filter(ClientProfile.astrologer_id == astrologer_id)
+            .filter(ClientProfile.email.isnot(None))
+            .filter(ClientProfile.broadcast_opt_out == False)  # noqa: E712
+        )
+        if client_ids:
+            q = q.filter(ClientProfile.id.in_(client_ids))
+        rows = q.all()
+
+        for client, chart in rows:
+            email = (client.email or "").strip()
+            if not email:
+                continue
+
+            log = db.query(ClientBroadcastLog).filter(
+                ClientBroadcastLog.astrologer_id == astrologer_id,
+                ClientBroadcastLog.client_id == client.id,
+                ClientBroadcastLog.period_ym == ym,
+            ).first()
+            if log and log.status == "success":
+                continue
+
+            try:
+                events = calculate_transits(
+                    natal_planets=chart.planets,
+                    from_date=today,
+                    to_date=today + timedelta(days=30),
+                )
+                transits = [
+                    {
+                        "transit_planet": e.transit_planet,
+                        "natal_planet": e.natal_planet,
+                        "aspect_type": e.aspect_type,
+                        "peak_date": getattr(e, "peak_date", None),
+                        "peak_orb": getattr(e, "peak_orb", None),
+                    }
+                    for e in events
+                ]
+                profile = {
+                    "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
+                    "ascendant": chart.ascendant, "midheaven": chart.midheaven,
+                    "time_unknown": chart.time_unknown,
+                }
+                token = _ensure_unsub_token(client, db)
+
+                ai_text = None
+                if mode == "ai":
+                    ai_text = asyncio.get_event_loop().run_until_complete(
+                        _gen_broadcast_ai(profile, tier, period_label, transits)
+                    )
+
+                ok = asyncio.get_event_loop().run_until_complete(
+                    send_client_broadcast(
+                        email, brand, period_label, transits,
+                        unsubscribe_url=_unsub_url(token), ai_text=ai_text,
+                    )
+                )
+            except Exception as e:
+                logger.warning("Broadcast to client %s failed: %s", client.id, e)
+                ok = False
+
+            if log:
+                log.status = "success" if ok else "error"
+                log.sent_at = datetime.utcnow() if ok else None
+            else:
+                db.add(ClientBroadcastLog(
+                    astrologer_id=astrologer_id,
+                    client_id=client.id,
+                    period_ym=ym,
+                    status="success" if ok else "error",
+                    sent_at=datetime.utcnow() if ok else None,
+                ))
+            db.commit()
+            sent += 1 if ok else 0
+            failed += 0 if ok else 1
+    finally:
+        db.close()
+
+    logger.info("send_client_broadcast_task: astro=%s mode=%s sent=%d failed=%d",
+                astrologer_id, mode, sent, failed)
+    return {"sent": sent, "failed": failed}
+
+
+@celery_app.task(name="tasks.send_broadcast_auto")
+def send_broadcast_auto_task() -> dict:
+    """Beat-задача (ежедневно): 1-го числа ставит рассылку всем премиум-астрологам
+    с включённой автоотправкой. В остальные дни — ничего."""
+    from datetime import date
+
+    if date.today().day != 1:
+        return {"skipped": "not first of month"}
+
+    from backend.models import AstrologerProfile, User
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(AstrologerProfile.id)
+            .join(User, AstrologerProfile.user_id == User.id)
+            .filter(AstrologerProfile.broadcast_auto == True)  # noqa: E712
+            .filter(User.tier == "premium")
+            .all()
+        )
+        ids = [r[0] for r in rows]
+    finally:
+        db.close()
+
+    for aid in ids:
+        send_client_broadcast_task.delay(aid, None, None, "template")
+
+    logger.info("send_broadcast_auto_task: queued %d astrologers", len(ids))
+    return {"queued_astrologers": len(ids)}

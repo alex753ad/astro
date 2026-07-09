@@ -143,6 +143,7 @@ class AstrologerProfile(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     display_name = Column(String(100), nullable=True)
+    broadcast_auto = Column(Boolean, default=False, nullable=False, server_default="false")  # автоотправка 1-го числа (022)
 
     clients = relationship("ClientProfile", back_populates="astrologer", cascade="all, delete-orphan")
 
@@ -157,10 +158,118 @@ class ClientProfile(Base):
     birth_time = Column(Time, nullable=True)
     birth_place = Column(String(200), nullable=False)
     notes = Column(Text, nullable=True)
+    email = Column(String(255), nullable=True)  # для рассылки (021)
+    status = Column(String(20), nullable=False, default="lead", server_default="lead")  # lead/active/regular/archived (025)
+    source = Column(String(100), nullable=True)  # откуда пришёл (025)
+    tags = Column(JSON, nullable=True)  # свободные метки (029)
+    unsubscribe_token = Column(String(64), nullable=True, unique=True, index=True)  # (022)
+    broadcast_opt_out = Column(Boolean, default=False, nullable=False, server_default="false")  # (022)
+    summary = Column(Text, nullable=True)          # AI-портрет клиента, кэш (024)
+    summary_key = Column(String(64), nullable=True)  # хэш заметок+консультаций+карты
     created_at = Column(DateTime, default=datetime.utcnow)
     natal_chart_id = Column(String(36), ForeignKey("natal_charts.id", ondelete="SET NULL"), nullable=True)
 
     astrologer = relationship("AstrologerProfile", back_populates="clients")
+    consultations = relationship(
+        "Consultation",
+        back_populates="client",
+        cascade="all, delete-orphan",
+        order_by="Consultation.date.desc()",
+    )
+
+
+# ── Consultations (020) ──
+
+class Consultation(Base):
+    __tablename__ = "consultations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(
+        Integer, ForeignKey("client_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    topic = Column(String(50), nullable=True)     # натал / соляр / хорар / синастрия / транзиты / другое
+    notes = Column(Text, nullable=True)
+    assignment = Column(Text, nullable=True)       # домашнее задание клиенту (026, для портала)
+    next_date = Column(DateTime, nullable=True)
+    price = Column(Integer, nullable=True)
+    status = Column(String(20), nullable=False, default="done", server_default="done")  # planned / done / canceled
+    question_moment = Column(DateTime, nullable=True)   # хорар: момент вопроса (027)
+    question_place = Column(String(200), nullable=True)  # хорар: место вопроса (027)
+    horary_chart_id = Column(String(36), ForeignKey("natal_charts.id", ondelete="SET NULL"), nullable=True)  # (027)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    client = relationship("ClientProfile", back_populates="consultations")
+
+
+# ── Client broadcasts (021 / roadmap idea 5) ──
+
+class ClientBroadcastLog(Base):
+    __tablename__ = "client_broadcast_log"
+    __table_args__ = (
+        UniqueConstraint("astrologer_id", "client_id", "period_ym", name="uq_broadcast_astro_client_period"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    astrologer_id = Column(
+        Integer, ForeignKey("astrologer_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    client_id = Column(
+        Integer, ForeignKey("client_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
+    status = Column(String(10), nullable=False)     # "success" | "error"
+    sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Client intake forms (023 / roadmap idea 6) ──
+
+class ClientIntake(Base):
+    __tablename__ = "client_intake"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    astrologer_id = Column(
+        Integer, ForeignKey("astrologer_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token = Column(String(64), nullable=False, unique=True, index=True)
+    status = Column(String(20), nullable=False, default="pending", server_default="pending")  # pending / converted / archived
+    submitted_data = Column(JSON, nullable=True)   # {name, birth_date, birth_time, birth_place, email, question}
+    submitted_at = Column(DateTime, nullable=True)
+    client_id = Column(Integer, ForeignKey("client_profiles.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Client portal (026 / roadmap idea 10) ──
+
+class ClientPortalAccess(Base):
+    __tablename__ = "client_portal_access"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(
+        Integer, ForeignKey("client_profiles.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    token = Column(String(64), nullable=False, unique=True, index=True)
+    enabled = Column(Boolean, default=True, nullable=False, server_default="true")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Author interpretations library (028 / roadmap idea 13) ──
+
+class AstrologerInterpretation(Base):
+    __tablename__ = "astrologer_interpretations"
+    __table_args__ = (
+        UniqueConstraint("astrologer_id", "key", name="uq_author_interp_key"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    astrologer_id = Column(
+        Integer, ForeignKey("astrologer_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    key = Column(String(100), nullable=False)     # напр. "saturn_house_7", "sun_taurus", "asc_leo"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 # ── Note templates (016) ──

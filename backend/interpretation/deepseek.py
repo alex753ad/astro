@@ -44,6 +44,8 @@ class DeepSeekEngine(InterpretationEngine):
             messages = [{"role": "user", "content": request.custom_prompt}]
         else:
             system_prompt = build_system_prompt(request)
+            if getattr(request, "author_context", None):
+                system_prompt = system_prompt + "\n\n" + request.author_context
             user_msg = (
                 "Напиши интерпретацию натальной карты по указанным сферам."
                 if request.language == "ru"
