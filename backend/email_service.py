@@ -20,6 +20,8 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 FROM_EMAIL     = os.getenv("FROM_EMAIL", "noreply@astreatime.ru")
 APP_URL        = os.getenv("APP_URL", "https://astreatime.ru")
 FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://astreatime.ru")
+# Публичный адрес API (для ссылки отписки в письмах). Если API не на APP_URL — задайте env.
+PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", APP_URL)
 LOGO_URL       = f"{FRONTEND_URL}/logo_120x120.png"
 
 # ───────────────────────────── base template ─────────────────────────────────
@@ -139,9 +141,162 @@ async def _send(to: str, subject: str, html: str) -> bool:
         return False
 
 
-# ───────────────────────────── templates ─────────────────────────────────────
+# ─────────────────────── branded client broadcast (021) ──────────────────────
 
-# Инсайты по Солнцу — одно предложение на знак
+_PLANET_RU: dict[str, str] = {
+    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
+    "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн", "Uranus": "Уран",
+    "Neptune": "Нептун", "Pluto": "Плутон",
+}
+
+_MONTHS_RU = [
+    "", "январь", "февраль", "март", "апрель", "май", "июнь",
+    "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+]
+
+
+def ru_month_label(d) -> str:
+    """'август 2026' по объекту date/datetime."""
+    return f"{_MONTHS_RU[d.month]} {d.year}"
+
+
+def _base_branded(brand_name: str, title: str, preview: str, body: str, unsubscribe_url: str | None = None) -> str:
+    """Базовый шаблон под брендом астролога: его имя в шапке, мелкий кредит Astrea в футере."""
+    safe_brand = (brand_name or "Ваш астролог").strip()
+    unsub_html = (
+        f'<br/><a href="{unsubscribe_url}" style="color:#b0a0d0;text-decoration:none;">Отписаться от рассылки</a>'
+        if unsubscribe_url else ""
+    )
+    return f"""<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>{title}</title></head>
+<body style="margin:0;padding:0;background:#0e0c1a;font-family:'Segoe UI',Arial,sans-serif;">
+  <span style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{preview}</span>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0e0c1a;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#2d1b4e 0%,#1a1030 100%);border-radius:16px 16px 0 0;padding:32px 40px;text-align:center;">
+            <div style="color:#c9a8ff;font-size:22px;font-weight:700;letter-spacing:0.5px;">{safe_brand}</div>
+            <div style="color:rgba(201,168,255,0.55);font-size:12px;margin-top:6px;letter-spacing:2px;">ПЕРСОНАЛЬНЫЙ АСТРОПРОГНОЗ</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8f5ff;padding:36px 40px;border-radius:0 0 16px 16px;">
+            {body}
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;border-top:1px solid #e8e0f4;padding-top:20px;">
+              <tr><td style="text-align:center;font-size:11px;color:#a090c0;line-height:1.7;">
+                работает на <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">Astrea</a> &nbsp;·&nbsp; astreatime.ru{unsub_html}
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+async def _send_as(from_name: str, to: str, subject: str, html: str) -> bool:
+    """Как _send, но с именем отправителя = бренд астролога (адрес остаётся FROM_EMAIL)."""
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set — skipping email to %s", to)
+        return False
+    safe_from = (from_name or "Astrea Timeline").replace('"', "").replace("<", "").replace(">", "").strip() or "Astrea Timeline"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                json={"from": f"{safe_from} <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
+            )
+            if resp.status_code not in (200, 201):
+                logger.error("Resend error %s: %s", resp.status_code, resp.text)
+                return False
+            return True
+    except Exception as e:
+        logger.error("Email send failed: %s", e)
+        return False
+
+
+def build_client_broadcast(
+    brand_name: str,
+    period_label: str,
+    transits: list[dict],
+    unsubscribe_url: str | None = None,
+    ai_text: str | None = None,
+) -> tuple[str, str]:
+    """Собирает (subject, html) брендового письма-прогноза на месяц.
+
+    ai_text задан → тело из AI-текста (гибрид); иначе шаблонный список транзитов.
+    """
+    subject = f"Ваш астропрогноз на {period_label}"
+    if ai_text:
+        paras = "".join(_p(line) for line in ai_text.strip().split("\n\n") if line.strip())
+        body = _h2(f"Ваш прогноз на {period_label}") + paras
+    elif transits:
+        rows = []
+        for t in transits:
+            tp = _PLANET_RU.get(t.get("transit_planet", ""), t.get("transit_planet", ""))
+            npl = _PLANET_RU.get(t.get("natal_planet", ""), t.get("natal_planet", ""))
+            asp = t.get("aspect_type", "")
+            when = str(t.get("peak_date") or t.get("exact_date") or "")[:10]
+            when_html = f' &nbsp;·&nbsp; {when}' if when else ""
+            rows.append(
+                '<tr><td style="padding:9px 0;border-bottom:1px solid #ece5f7;color:#3d3060;font-size:14px;">'
+                f'<b>{tp}</b> {asp} <b>{npl}</b>{when_html}</td></tr>'
+            )
+        body = (
+            _h2(f"Ваш прогноз на {period_label}")
+            + _p("Ключевые астрологические события месяца по вашей натальной карте:")
+            + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+            + "".join(rows)
+            + "</table>"
+        )
+    else:
+        body = (
+            _h2(f"Ваш прогноз на {period_label}")
+            + _p("В этом месяце крупных транзитных событий по вашей карте не выделяется — спокойный, ресурсный период. Хорошее время для планомерных дел.")
+        )
+    html = _base_branded(brand_name, subject, subject, body, unsubscribe_url=unsubscribe_url)
+    return subject, html
+
+
+def build_broadcast_ai_prompt(period_label: str, transits: list[dict]) -> str:
+    """Промпт для AI-версии письма-прогноза (гибрид)."""
+    if transits:
+        lines = []
+        for t in transits:
+            tp = _PLANET_RU.get(t.get("transit_planet", ""), t.get("transit_planet", ""))
+            npl = _PLANET_RU.get(t.get("natal_planet", ""), t.get("natal_planet", ""))
+            lines.append(f"- {tp} {t.get('aspect_type','')} {npl}")
+        transit_block = "\n".join(lines)
+    else:
+        transit_block = "Значимых транзитов в этом месяце нет."
+    return (
+        f"Напиши тёплый персональный астрологический прогноз на {period_label} для клиента, "
+        "от лица его астролога, по-русски, 150–220 слов, без списков и заголовков, живым языком. "
+        "Опирайся только на транзиты ниже, не выдумывай. Заверши мягким приглашением на консультацию.\n\n"
+        f"ТРАНЗИТЫ МЕСЯЦА:\n{transit_block}"
+    )
+
+
+async def send_client_broadcast(
+    to: str,
+    brand_name: str,
+    period_label: str,
+    transits: list[dict],
+    unsubscribe_url: str | None = None,
+    ai_text: str | None = None,
+) -> bool:
+    subject, html = build_client_broadcast(
+        brand_name, period_label, transits, unsubscribe_url=unsubscribe_url, ai_text=ai_text
+    )
+    return await _send_as(brand_name, to, subject, html)
+
+
+# ───────────────────────────── templates ─────────────────────────────────────
 _SUN_INSIGHTS: dict[str, str] = {
     "Aries":       "Вы рождены действовать первым — ваша энергия заражает и двигает людей вперёд.",
     "Taurus":      "Вы строите надёжное и красивое — терпение и вкус это ваши суперсилы.",

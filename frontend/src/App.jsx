@@ -10,6 +10,8 @@ import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
 import SharePage from './pages/SharePage';
+import IntakePage from './pages/IntakePage';
+import PortalPage from './pages/PortalPage';
 import GiftPage from './pages/GiftPage';
 import ZodiacPage from './pages/ZodiacPage';
 import CRMPage from './pages/CRMPage';
@@ -308,6 +310,8 @@ function AppRoutes() {
             <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
             <Route path="/chart/share/:token" element={<SharePage />} />
+            <Route path="/intake/:token" element={<IntakePage />} />
+            <Route path="/portal/:token" element={<PortalPage />} />
             <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} dark={dark} />} />
             <Route path="/planner/:id"    element={<PlannerPage dark={dark} />} />
             <Route path="/profile"        element={<ProfilePage />} />

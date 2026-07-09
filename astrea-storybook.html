@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Astrea Timeline — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:           #FDFBF9;
+  --bg-card:      #FFFFFF;
+  --bg-deeper:    #FDFBFF;
+  --text-primary: #1E1A2E;
+  --text-secondary:#6B6885;
+  --border:       #EDE8F5;
+  --accent:       #7C6CFF;
+  --accent-glow:  #8B5CF6;
+  --accent-muted: rgba(139,92,246,0.08);
+  --success:      #059669;
+  --warning:      #D97706;
+  --danger:       #DC2626;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+}
+.dark {
+  --bg:           #0F0A1A;
+  --bg-card:      #1A1230;
+  --bg-deeper:    #231C38;
+  --text-primary: #E2DFF0;
+  --text-secondary:#9B97B0;
+  --border:       #2A2245;
+  --accent:       #8B5CF6;
+  --accent-glow:  #A78BFA;
+  --accent-muted: rgba(139,92,246,0.15);
+  --success:      #34D399;
+  --warning:      #FBBF24;
+  --danger:       #F87171;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  transition: background 0.25s ease, color 0.25s ease;
+  min-height: 100vh;
+}
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  padding: 24px 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.sidebar-logo {
+  padding: 0 20px 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.sidebar-logo span {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+}
+.sidebar-logo small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.nav-section {
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+.nav-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 8px 8px 4px;
+}
+.nav-item {
+  display: block;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+.nav-item:hover, .nav-item.active {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+.main {
+  flex: 1;
+  overflow-x: hidden;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.content {
+  padding: 40px;
+  max-width: 900px;
+}
+.section {
+  margin-bottom: 64px;
+  scroll-margin-top: 80px;
+}
+.section-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.section-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin-bottom: 28px;
+}
+.group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+  align-items: center;
+}
+.col-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* === COLORS === */
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.swatch {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.swatch-color {
+  height: 60px;
+}
+.swatch-info {
+  padding: 8px 10px;
+  background: var(--bg-card);
+}
+.swatch-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.swatch-hex {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+/* === TYPOGRAPHY === */
+.type-row {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+}
+.type-meta {
+  min-width: 120px;
+  flex-shrink: 0;
+}
+.type-meta .name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.type-meta .spec {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  font-family: monospace;
+}
+.type-sample { color: var(--text-primary); }
+
+/* === BUTTONS === */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn-sm  { padding: 8px 16px; font-size: 13px; border-radius: var(--radius-md); height: 36px; }
+.btn-md  { padding: 12px 22px; font-size: 15px; border-radius: var(--radius-lg); height: 44px; }
+.btn-lg  { padding: 14px 28px; font-size: 16px; border-radius: var(--radius-lg); height: 52px; }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 20px rgba(139,92,246,0.30);
+}
+.btn-primary:hover {
+  background: var(--accent-glow);
+  box-shadow: 0 0 30px rgba(139,92,246,0.50);
+  transform: translateY(-1px);
+}
+.btn-secondary {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  color: var(--text-primary);
+}
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--accent);
+  padding-left: 0;
+  padding-right: 0;
+}
+.btn-ghost:hover {
+  background: var(--accent-muted);
+  padding-left: 12px;
+  padding-right: 12px;
+  border-radius: var(--radius-md);
+}
+.btn-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* === INPUTS === */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.field-input {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--bg-deeper);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+}
+.field-input.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.field-error-msg {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* === CARDS === */
+.glass-card {
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(139,92,246,0.10);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+}
+.dark .glass-card {
+  background: rgba(26,18,48,0.60);
+}
+.solid-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.glow-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(139,92,246,0.20);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  box-shadow: 0 0 15px rgba(139,92,246,0.10);
+}
+.card-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.card-body {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* === BADGES === */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-default {
+  background: var(--accent-muted);
+  color: var(--accent-glow);
+}
+.badge-success {
+  background: rgba(52,211,153,0.12);
+  color: var(--success);
+}
+.badge-warning {
+  background: rgba(251,191,36,0.12);
+  color: var(--warning);
+}
+.badge-danger {
+  background: rgba(248,113,113,0.12);
+  color: var(--danger);
+}
+.badge-fire  { background: rgba(231,76,60,0.12);  color: #E74C3C; }
+.badge-earth { background: rgba(39,174,96,0.12);  color: #27AE60; }
+.badge-air   { background: rgba(52,152,219,0.12); color: #3498DB; }
+.badge-water { background: rgba(41,128,185,0.12); color: #2980B9; }
+
+/* === MODAL === */
+.modal-overlay {
+  background: rgba(15,10,26,0.70);
+  border-radius: var(--radius-xl);
+  padding: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+.modal-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.40);
+}
+.modal-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.modal-body {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* === PLANET GLYPH === */
+.planet-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.planet-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.planet-chip:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(139,92,246,0.20);
+}
+.planet-glyph {
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+.planet-chip:hover .planet-glyph {
+  filter: brightness(1.3);
+  transform: scale(1.2);
+}
+.planet-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* === ASPECT LINE DEMO === */
+.aspect-demo {
+  background: var(--bg-deeper);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.aspect-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.aspect-dot {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* === LOADING === */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 1; }
+}
+.loading-pulse {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+@keyframes fadeInChar {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* === SPACING DEMO === */
+.space-demo {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.space-block {
+  background: var(--accent-muted);
+  border: 1px dashed rgba(139,92,246,0.30);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+.space-label {
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.30); border-radius: 99px; }
+
+/* === GRADIENT BADGE === */
+.gradient-text {
+  background: linear-gradient(135deg, #8B5CF6, #EC4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar" role="navigation" aria-label="Разделы дизайн-системы">
+  <div class="sidebar-logo">
+    <span>Astrea Timeline</span>
+    <small>Design System v1.0</small>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Основа</div>
+    <a class="nav-item active" href="#colors" onclick="setActive(this)">Цвета</a>
+    <a class="nav-item" href="#typography" onclick="setActive(this)">Типографика</a>
+    <a class="nav-item" href="#spacing" onclick="setActive(this)">Отступы</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Компоненты</div>
+    <a class="nav-item" href="#buttons" onclick="setActive(this)">Кнопки</a>
+    <a class="nav-item" href="#inputs" onclick="setActive(this)">Поля ввода</a>
+    <a class="nav-item" href="#cards" onclick="setActive(this)">Карточки</a>
+    <a class="nav-item" href="#badges" onclick="setActive(this)">Бейджи</a>
+    <a class="nav-item" href="#modal" onclick="setActive(this)">Модал</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Астро</div>
+    <a class="nav-item" href="#planets" onclick="setActive(this)">Планеты</a>
+    <a class="nav-item" href="#aspects" onclick="setActive(this)">Аспекты</a>
+    <a class="nav-item" href="#animations" onclick="setActive(this)">Анимации</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="topbar-title">Компоненты и токены</span>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Переключить тему">
+      <span id="theme-icon">☀️</span>
+      <span id="theme-label">Светлая</span>
+    </button>
+  </div>
+
+  <div class="content">
+
+    <!-- COLORS -->
+    <section class="section" id="colors">
+      <h2 class="section-title">Цвета</h2>
+      <p class="section-desc">CSS-переменные адаптируются к теме. Никогда не хардкодьте hex в компонентах.</p>
+      <div class="divider"></div>
+
+      <div class="group-label">Основная палитра</div>
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--bg)"></div>
+          <div class="swatch-info"><div class="swatch-name">--bg</div><div class="swatch-hex">Фон страницы</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--bg-card)"></div>
+          <div class="swatch-info"><div class="swatch-name">--bg-card</div><div class="swatch-hex">Карточки</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--bg-deeper)"></div>
+          <div class="swatch-info"><div class="swatch-name">--bg-deeper</div><div class="swatch-hex">Поля ввода</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--accent)"></div>
+          <div class="swatch-info"><div class="swatch-name">--accent</div><div class="swatch-hex">#8B5CF6</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--accent-glow)"></div>
+          <div class="swatch-info"><div class="swatch-name">--accent-glow</div><div class="swatch-hex">Hover / свечение</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--accent-muted)"></div>
+          <div class="swatch-info"><div class="swatch-name">--accent-muted</div><div class="swatch-hex">Фон акцентного</div></div>
+        </div>
+      </div>
+
+      <div class="group-label">Семантические</div>
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--success)"></div>
+          <div class="swatch-info"><div class="swatch-name">--success</div><div class="swatch-hex">Гармоничные аспекты</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--warning)"></div>
+          <div class="swatch-info"><div class="swatch-name">--warning</div><div class="swatch-hex">Нейтральные</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:var(--danger)"></div>
+          <div class="swatch-info"><div class="swatch-name">--danger</div><div class="swatch-hex">Напряжённые</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:#E74C3C"></div>
+          <div class="swatch-info"><div class="swatch-name">--color-fire</div><div class="swatch-hex">Знаки огня</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:#27AE60"></div>
+          <div class="swatch-info"><div class="swatch-name">--color-earth</div><div class="swatch-hex">Знаки земли</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:#3498DB"></div>
+          <div class="swatch-info"><div class="swatch-name">--color-air</div><div class="swatch-hex">Знаки воздуха</div></div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background:#2980B9"></div>
+          <div class="swatch-info"><div class="swatch-name">--color-water</div><div class="swatch-hex">Знаки воды</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TYPOGRAPHY -->
+    <section class="section" id="typography">
+      <h2 class="section-title">Типографика</h2>
+      <p class="section-desc">Space Grotesk — заголовки и кнопки. Inter — основной текст.</p>
+      <div class="divider"></div>
+
+      <div class="type-row">
+        <div class="type-meta"><div class="name">Hero</div><div class="spec">clamp(36,5vw,58px) / 700</div></div>
+        <div class="type-sample" style="font-family:'Space Grotesk',sans-serif;font-size:clamp(28px,4vw,48px);font-weight:700;line-height:1.15">Лучшая ветка <span class="gradient-text">реальности</span></div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta"><div class="name">text-2xl</div><div class="spec">28px / 700</div></div>
+        <div class="type-sample" style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700">Натальная карта</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta"><div class="name">text-xl</div><div class="spec">22px / 600</div></div>
+        <div class="type-sample" style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600">Транзиты планет</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta"><div class="name">text-lg</div><div class="spec">18px / 600</div></div>
+        <div class="type-sample" style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600">Лунный календарь</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta"><div class="name">text-base</div><div class="spec">16px / 400</div></div>
+        <div class="type-sample" style="font-size:16px;line-height:1.7;color:var(--text-secondary)">Astrea Timeline превращает натальную карту в динамический навигатор по вашей жизни. Синхронизируйте цели с планетными периодами.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta"><div class="name">text-sm</div><div class="spec">13px / 400</div></div>
+        <div class="type-sample" style="font-size:13px;color:var(--text-secondary)">Вспомогательный текст и подписи</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta"><div class="name">text-xs</div><div class="spec">11px / 700</div></div>
+        <div class="type-sample" style="font-size:11px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-secondary)">Метка поля</div>
+      </div>
+    </section>
+
+    <!-- SPACING -->
+    <section class="section" id="spacing">
+      <h2 class="section-title">Отступы</h2>
+      <p class="section-desc">Сетка кратна 4px. Используй токены, не произвольные значения.</p>
+      <div class="divider"></div>
+      <div class="space-demo">
+        <div class="space-block" style="width:4px;height:4px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">4</div></div>
+        <div class="space-block" style="width:8px;height:8px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">8</div></div>
+        <div class="space-block" style="width:12px;height:12px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">12</div></div>
+        <div class="space-block" style="width:16px;height:16px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">16</div></div>
+        <div class="space-block" style="width:20px;height:20px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">20</div></div>
+        <div class="space-block" style="width:24px;height:24px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">24</div></div>
+        <div class="space-block" style="width:32px;height:32px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">32</div></div>
+        <div class="space-block" style="width:40px;height:40px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">40</div></div>
+        <div class="space-block" style="width:48px;height:48px"><div class="space-label" style="writing-mode:vertical-rl;transform:rotate(180deg)">48</div></div>
+      </div>
+    </section>
+
+    <!-- BUTTONS -->
+    <section class="section" id="buttons">
+      <h2 class="section-title">Кнопки</h2>
+      <p class="section-desc">Три варианта × три размера. Один Primary на страницу.</p>
+      <div class="divider"></div>
+
+      <div class="group-label">Primary</div>
+      <div class="row">
+        <button class="btn btn-primary btn-sm">Рассчитать sm</button>
+        <button class="btn btn-primary btn-md">Рассчитать карту</button>
+        <button class="btn btn-primary btn-lg">Активировать Планер</button>
+      </div>
+
+      <div class="group-label">Secondary</div>
+      <div class="row">
+        <button class="btn btn-secondary btn-sm">Отмена</button>
+        <button class="btn btn-secondary btn-md">Посмотреть транзиты</button>
+        <button class="btn btn-secondary btn-lg">Сравнить карты</button>
+      </div>
+
+      <div class="group-label">Ghost</div>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm">← Назад</button>
+        <button class="btn btn-ghost btn-md">Узнать больше</button>
+        <button class="btn btn-ghost btn-lg">Смотреть архив</button>
+      </div>
+
+      <div class="group-label">Disabled</div>
+      <div class="row">
+        <button class="btn btn-primary btn-md btn-disabled">Недоступно</button>
+        <button class="btn btn-secondary btn-md btn-disabled">Недоступно</button>
+        <button class="btn btn-ghost btn-md btn-disabled">Недоступно</button>
+      </div>
+    </section>
+
+    <!-- INPUTS -->
+    <section class="section" id="inputs">
+      <h2 class="section-title">Поля ввода</h2>
+      <p class="section-desc">Метки — uppercase 11px. Фокус — акцентная рамка с glow.</p>
+      <div class="divider"></div>
+      <div class="col-2">
+        <div class="field-group">
+          <label class="field-label">Дата рождения</label>
+          <input class="field-input" type="date" value="1996-05-28" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Время рождения</label>
+          <input class="field-input" type="time" value="11:50" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Место рождения</label>
+          <input class="field-input" type="text" placeholder="Москва, Россия" />
+          <span class="field-hint">Введите город и страну</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Email</label>
+          <input class="field-input error" type="email" value="test@" />
+          <span class="field-error-msg">Введите корректный email</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARDS -->
+    <section class="section" id="cards">
+      <h2 class="section-title">Карточки</h2>
+      <p class="section-desc">Три варианта: glass, solid, glow.</p>
+      <div class="divider"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div class="glass-card">
+          <div class="card-title">Glass card</div>
+          <div class="card-body">Полупрозрачная карточка с backdrop-blur. Основной вариант для контента поверх фона.</div>
+        </div>
+        <div class="solid-card">
+          <div class="card-title">Solid card</div>
+          <div class="card-body">Для вложенных элементов и секций внутри других карточек.</div>
+        </div>
+        <div class="glow-card">
+          <div class="card-title">Glow card</div>
+          <div class="card-body">Для выделенных блоков: текущий транзит, активный план, промо.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BADGES -->
+    <section class="section" id="badges">
+      <h2 class="section-title">Бейджи</h2>
+      <p class="section-desc">Статусы, стихии, теги.</p>
+      <div class="divider"></div>
+      <div class="group-label">Статусы</div>
+      <div class="row">
+        <span class="badge badge-default">Pro</span>
+        <span class="badge badge-success">Активен</span>
+        <span class="badge badge-warning">Нейтральный</span>
+        <span class="badge badge-danger">Напряжение</span>
+      </div>
+      <div class="group-label">Стихии знаков зодиака</div>
+      <div class="row">
+        <span class="badge badge-fire">🔥 Огонь</span>
+        <span class="badge badge-earth">🌿 Земля</span>
+        <span class="badge badge-air">💨 Воздух</span>
+        <span class="badge badge-water">💧 Вода</span>
+      </div>
+    </section>
+
+    <!-- MODAL -->
+    <section class="section" id="modal">
+      <h2 class="section-title">Модальное окно</h2>
+      <p class="section-desc">Тёмный overlay с blur. Диалог — карточка с тенью.</p>
+      <div class="divider"></div>
+      <div class="modal-overlay">
+        <div class="modal-dialog">
+          <div class="modal-title">Войдите в Astrea</div>
+          <div class="modal-body">Сохраните свою натальную карту и получите доступ к персональным транзитам.</div>
+          <div class="field-group" style="margin-bottom:16px">
+            <label class="field-label">Email</label>
+            <input class="field-input" type="email" placeholder="name@example.com" />
+          </div>
+          <div class="field-group" style="margin-bottom:24px">
+            <label class="field-label">Пароль</label>
+            <input class="field-input" type="password" placeholder="••••••••" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary btn-md">Отмена</button>
+            <button class="btn btn-primary btn-md">Войти</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLANETS -->
+    <section class="section" id="planets">
+      <h2 class="section-title">Глифы планет</h2>
+      <p class="section-desc">Unicode-символы. Hover: scale(1.2) + brightness(1.3).</p>
+      <div class="divider"></div>
+      <div class="planet-row">
+        <div class="planet-chip"><span class="planet-glyph">☉</span><span class="planet-name">Солнце</span></div>
+        <div class="planet-chip"><span class="planet-glyph">☽</span><span class="planet-name">Луна</span></div>
+        <div class="planet-chip"><span class="planet-glyph">☿</span><span class="planet-name">Меркурий</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♀</span><span class="planet-name">Венера</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♂</span><span class="planet-name">Марс</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♃</span><span class="planet-name">Юпитер</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♄</span><span class="planet-name">Сатурн</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♅</span><span class="planet-name">Уран</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♆</span><span class="planet-name">Нептун</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♇</span><span class="planet-name">Плутон</span></div>
+      </div>
+      <div style="height:20px"></div>
+      <div class="group-label">Знаки зодиака</div>
+      <div class="planet-row">
+        <div class="planet-chip"><span class="planet-glyph">♈</span><span class="planet-name">Овен</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♉</span><span class="planet-name">Телец</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♊</span><span class="planet-name">Близнецы</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♋</span><span class="planet-name">Рак</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♌</span><span class="planet-name">Лев</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♍</span><span class="planet-name">Дева</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♎</span><span class="planet-name">Весы</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♏</span><span class="planet-name">Скорпион</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♐</span><span class="planet-name">Стрелец</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♑</span><span class="planet-name">Козерог</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♒</span><span class="planet-name">Водолей</span></div>
+        <div class="planet-chip"><span class="planet-glyph">♓</span><span class="planet-name">Рыбы</span></div>
+      </div>
+    </section>
+
+    <!-- ASPECTS -->
+    <section class="section" id="aspects">
+      <h2 class="section-title">Аспекты</h2>
+      <p class="section-desc">Цвета аспектных линий в NatalChart и AspectTable.</p>
+      <div class="divider"></div>
+      <div class="aspect-demo">
+        <div class="aspect-line">
+          <div class="aspect-dot" style="background:#3498DB;width:24px"></div>
+          <span style="font-size:13px;color:var(--text-primary)">Трин / Секстиль</span>
+          <span class="badge badge-success">Гармония</span>
+        </div>
+        <div class="aspect-line">
+          <div class="aspect-dot" style="background:#E74C3C;width:24px"></div>
+          <span style="font-size:13px;color:var(--text-primary)">Квадрат / Оппозиция</span>
+          <span class="badge badge-danger">Напряжение</span>
+        </div>
+        <div class="aspect-line">
+          <div class="aspect-dot" style="background:#F39C12;width:24px"></div>
+          <span style="font-size:13px;color:var(--text-primary)">Соединение</span>
+          <span class="badge badge-warning">Нейтральный</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ANIMATIONS -->
+    <section class="section" id="animations">
+      <h2 class="section-title">Анимации</h2>
+      <p class="section-desc">Все transition — 0.2s ease. Смена темы — 0.25s ease.</p>
+      <div class="divider"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="solid-card">
+          <div class="group-label">Загрузка (pulse-glow)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+            <div class="loading-pulse" style="height:16px;background:var(--border);border-radius:8px"></div>
+            <div class="loading-pulse" style="height:16px;background:var(--border);border-radius:8px;width:75%"></div>
+            <div class="loading-pulse" style="height:16px;background:var(--border);border-radius:8px;width:55%"></div>
+          </div>
+        </div>
+        <div class="solid-card">
+          <div class="group-label">SSE стриминг (fadeInChar)</div>
+          <div style="margin-top:8px;font-size:14px;color:var(--text-secondary);line-height:1.7" id="streaming-demo">
+            Марс в соединении с Сатурном...
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+</div>
+
+<script>
+function toggleTheme() {
+  const isDark = document.body.classList.toggle('dark');
+  document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+  document.getElementById('theme-label').textContent = isDark ? 'Тёмная' : 'Светлая';
+}
+
+function setActive(el) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+document.querySelectorAll('a.nav-item').forEach(link => {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      document.querySelectorAll('.nav-item').forEach(i => {
+        i.classList.toggle('active', i.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { rootMargin: '-40% 0px -40% 0px' });
+
+document.querySelectorAll('.section[id]').forEach(s => observer.observe(s));
+
+const text = 'Марс формирует квадрат с вашим натальным Сатурном — период усиленной ответственности и структурирования целей. Хорошее время для планирования.';
+let i = 0;
+const el = document.getElementById('streaming-demo');
+el.textContent = '';
+function streamChar() {
+  if (i < text.length) {
+    const span = document.createElement('span');
+    span.textContent = text[i];
+    span.style.animation = 'fadeInChar 0.08s ease forwards';
+    el.appendChild(span);
+    i++;
+    setTimeout(streamChar, 35);
+  } else {
+    setTimeout(() => { el.textContent = ''; i = 0; streamChar(); }, 3000);
+  }
+}
+streamChar();
+</script>
+</body>
+</html>

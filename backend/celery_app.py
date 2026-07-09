@@ -34,6 +34,11 @@ celery_app.conf.update(
             "task": "tasks.send_weekly_digest_task",
             "schedule": crontab(hour=6, minute=5),
         },
+        # Ежемесячная рассылка клиентам — ежедневно 09:10 МСК; задача сама шлёт только 1-го числа
+        "send-client-broadcast-monthly": {
+            "task": "tasks.send_broadcast_auto",
+            "schedule": crontab(hour=6, minute=10),
+        },
     },
     beat_timezone="UTC",
 )
