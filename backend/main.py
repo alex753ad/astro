@@ -1043,9 +1043,24 @@ async def interpret_transit_event(
         "date": body.get("date"),
         "orb": body.get("orb"),
         "exact_date": body.get("exact_date"),
-        "transit_sign": body.get("transit_sign"),
+        "transit_sign": body.get("transit_sign"),  # будет перезаписан ниже
         "natal_sign": body.get("natal_sign"),
     }
+
+    # Пересчитываем актуальный знак транзитной планеты по peak_date/date,
+    # чтобы не использовать устаревшее значение из кэша транзитов.
+    _ref_date_str = body.get("peak_date") or body.get("date")
+    if _ref_date_str:
+        try:
+            from datetime import date as _date
+            from backend.transit.engine import get_planet_positions_for_date
+            _ref_date = _date.fromisoformat(_ref_date_str[:10])
+            _positions = get_planet_positions_for_date(_ref_date)
+            _match = next((p for p in _positions if p["name"] == transit_planet), None)
+            if _match:
+                transit_event_dict["transit_sign"] = _match["sign"]
+        except Exception as _e:
+            logger.warning("Could not recalculate transit_sign: %s", _e)
 
     event_prompt = build_transit_event_prompt(
         transit_event=transit_event_dict,
