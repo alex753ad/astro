@@ -45,15 +45,16 @@ class TestPlanetCalculation:
     """Test planet positions against known ephemeris data."""
 
     def test_planets_return_all(self):
-        """All 11 bodies should be returned."""
+        """All 12 bodies should be returned."""
         dt = datetime(2000, 1, 1, 12, 0, 0)  # J2000.0
         planets = calculate_planets(dt)
-        assert len(planets) == 11
+        assert len(planets) == 12
         names = {p.name for p in planets}
         assert "Sun" in names
         assert "Moon" in names
         assert "Pluto" in names
         assert "North Node" in names
+        assert "South Node" in names
 
     def test_j2000_sun_position(self):
         """Sun at J2000.0 (2000-01-01 12:00 UTC) should be ~280.5° (Capricorn ~10°)."""
@@ -150,7 +151,7 @@ class TestFullChart:
     def test_full_chart_returns_all_components(self):
         dt = datetime(2000, 1, 1, 12, 0, 0)
         (chart, aspects) = calculate_full_chart(dt, 52.52, 13.405)
-        assert len(chart.planets) == 11
+        assert len(chart.planets) == 12
         assert len(chart.houses) == 12
         assert chart.ascendant is not None
         assert chart.midheaven is not None
@@ -192,7 +193,7 @@ class TestKnownCharts:
         """Earliest supported date should work."""
         dt = datetime(1900, 1, 1, 12, 0, 0)
         planets = calculate_planets(dt)
-        assert len(planets) == 11
+        assert len(planets) == 12
 
     def test_date_2025(self):
         """Recent date should work."""
