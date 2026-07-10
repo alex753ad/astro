@@ -656,7 +656,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         <div style={S.card}>
           {chart ? (
             <>
-              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={true} />
+              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={dark} />
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
                 <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} houses={chart.houses} timeUnknown={!client.birth_time} plain />
               </div>
