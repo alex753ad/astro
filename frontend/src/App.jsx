@@ -15,7 +15,6 @@ import PortalPage from './pages/PortalPage';
 import GiftPage from './pages/GiftPage';
 import ZodiacPage from './pages/ZodiacPage';
 import CRMPage from './pages/CRMPage';
-import AnalyticsPage from './pages/AnalyticsPage';
 import AdminPage from './pages/AdminPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
@@ -159,11 +158,6 @@ function Header({ onShowAuth, dark, toggleDark }) {
                 Клиенты
               </Link>
             )}
-            {user?.tier === 'premium' && (
-              <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')}>
-                Аналитика
-              </Link>
-            )}
           </div>
 
           {/* Profile / Auth — всегда видно */}
@@ -237,11 +231,6 @@ function Header({ onShowAuth, dark, toggleDark }) {
             {user?.tier === 'premium' && (
               <Link to="/dashboard/clients" className={navLink('/dashboard/clients')} onClick={() => setMenuOpen(false)}>
                 Клиенты
-              </Link>
-            )}
-            {user?.tier === 'premium' && (
-              <Link to="/dashboard/analytics" className={navLink('/dashboard/analytics')} onClick={() => setMenuOpen(false)}>
-                Аналитика
               </Link>
             )}
             <button
@@ -319,7 +308,6 @@ function AppRoutes() {
             <Route path="/gift"           element={<GiftPage />} />
             <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
             <Route path="/dashboard/clients"     element={<CRMPage />} />
-            <Route path="/dashboard/analytics"  element={<AnalyticsPage />} />
             <Route path="/admin"                element={<AdminPage />} />
             <Route path="/privacy"             element={<PrivacyPage />} />
             <Route path="/terms"               element={<TermsPage />} />
