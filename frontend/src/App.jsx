@@ -108,15 +108,15 @@ function Header({ onShowAuth, dark, toggleDark }) {
   const navLink = (to) => {
     const isActive = location.pathname === to || location.pathname.startsWith(to + '/');
     return isActive
-      ? "px-3 py-1.5 rounded-full text-violet-600 bg-violet-100 border border-violet-300 transition-all duration-200 text-sm font-medium"
-      : "px-3 py-1.5 rounded-full text-slate-600 hover:text-slate-900 hover:bg-astro-purple/20 transition-all duration-200 text-sm";
+      ? "px-3 py-1.5 rounded-full text-violet-600 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 border border-violet-300 dark:border-violet-600 transition-all duration-200 text-sm font-medium"
+      : "px-3 py-1.5 rounded-full text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-astro-purple/20 dark:hover:bg-violet-800/30 transition-all duration-200 text-sm";
   };
 
   return (
     <header className="
       sticky top-0 z-50
-      bg-white/80 backdrop-blur-md
-      border-b border-astro-purple/20
+      bg-white/80 dark:bg-slate-900/80 backdrop-blur-md
+      border-b border-astro-purple/20 dark:border-violet-800/30
       shadow-sm
     ">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -125,12 +125,12 @@ function Header({ onShowAuth, dark, toggleDark }) {
         <Link to="/" className="flex items-center gap-2 group">
           <span className="text-xl text-violet-400">✦</span>
           <span className="
-            font-display text-lg font-bold text-slate-800
+            font-display text-lg font-bold text-slate-800 dark:text-slate-100
             group-hover:text-violet-500 transition-colors duration-200
           ">
             Astrea Timeline
           </span>
-          <span className="hidden sm:block text-sm text-slate-400 border-l border-violet-200 pl-3 ml-1">
+          <span className="hidden sm:block text-sm text-slate-400 dark:text-slate-500 border-l border-violet-200 dark:border-violet-700 pl-3 ml-1">
             — плавное выравнивание жизни по ритму космических циклов
           </span>
         </Link>
@@ -176,8 +176,8 @@ function Header({ onShowAuth, dark, toggleDark }) {
                 className="
                   hidden md:block
                   px-4 py-1.5 rounded-full text-sm font-medium
-                  text-slate-500 border border-slate-200
-                  hover:border-slate-300 hover:text-slate-700
+                  text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700
+                  hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-200
                   transition-all duration-200
                 "
               >
@@ -204,7 +204,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
           {user && lastChartId && (
             <button
               onClick={() => setMenuOpen(m => !m)}
-              className="md:hidden flex flex-col justify-center gap-1 p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+              className="md:hidden flex flex-col justify-center gap-1 p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               aria-label="Меню"
             >
               <span className={`block w-5 h-0.5 bg-current transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
@@ -217,7 +217,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
       {/* Mobile dropdown */}
       {menuOpen && user && lastChartId && (
-        <div className="md:hidden border-t border-astro-purple/10 bg-white/95 backdrop-blur-md">
+        <div className="md:hidden border-t border-astro-purple/10 dark:border-violet-800/20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
           <div className="max-w-6xl mx-auto px-4 py-2 flex flex-col gap-1">
             <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
               Натальная карта
@@ -235,7 +235,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             )}
             <button
               onClick={() => { logout(); setMenuOpen(false); }}
-              className="self-start mt-1 px-4 py-1.5 rounded-full text-sm font-medium text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700 transition-all duration-200"
+              className="self-start mt-1 px-4 py-1.5 rounded-full text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-all duration-200"
             >
               Выйти
             </button>
