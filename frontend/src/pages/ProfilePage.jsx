@@ -16,6 +16,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 
+// ─── Тёмная тема ──────────────────────────────────────────────────────────────
+const PROF_THEME_CSS = `
+  .prof-scope { --prof-text:#1e293b; --prof-card:rgba(255,255,255,0.85); --prof-title:#7c3aed; --prof-muted:#94a3b8; --prof-tab-active:#fff; --prof-tab-color:#7c3aed; --prof-tab-muted:#64748b; --prof-input:rgba(139,92,246,0.08); --prof-divider:rgba(139,92,246,0.12); --prof-toggle-off:#e2e8f0; --prof-sub:#cbd5e1; --prof-bar-bg:rgba(51,65,85,0.12); }
+  .dark .prof-scope { --prof-text:#E2DFF0; --prof-card:rgba(26,18,48,0.55); --prof-title:#A78BFA; --prof-muted:#9B97B0; --prof-tab-active:rgba(124,108,255,0.2); --prof-tab-color:#A78BFA; --prof-tab-muted:#9B97B0; --prof-input:rgba(35,28,56,0.60); --prof-divider:rgba(139,92,246,0.2); --prof-toggle-off:rgba(148,163,184,0.15); --prof-sub:#9B97B0; --prof-bar-bg:rgba(139,92,246,0.1); }
+`;
+
 // ─── Мини-превью натальной карты ─────────────────────────────────────────────
 function MiniChartPreview({ chartId, authFetch }) {
   const [data, setData] = useState(null);
@@ -73,28 +79,28 @@ const API_BASE = '/api/v1';
 const TIER_LABELS = { free: 'Бесплатный', lite: 'Lite', pro: 'Pro', premium: 'Premium' };
 const TIER_COLORS = { free: '#8B8FA3', lite: '#38bdf8', pro: '#7C6CFF', premium: '#F59E0B' };
 
-// ─── Стили (светлая тема в стиле приложения) ────────────────────────────────
+// ─── Стили (светлая и тёмная тема через CSS-переменные) ─────────────────────
 const S = {
   page: {
     minHeight: '100vh',
     background: 'transparent',
-    color: '#1e293b',
+    color: 'var(--prof-text)',
     fontFamily: "'Inter', system-ui, sans-serif",
     padding: '24px 16px',
   },
   inner: { maxWidth: 680, margin: '0 auto' },
   card: {
-    background: 'rgba(255,255,255,0.85)',
+    background: 'var(--prof-card)',
     border: '1px solid rgba(139,92,246,0.15)',
     borderRadius: 12,
     padding: '20px 24px',
     marginBottom: 16,
   },
-  cardTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  cardTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--prof-title)', textTransform: 'uppercase', letterSpacing: '0.06em' },
   tabBar: {
     display: 'flex',
     gap: 2,
-    background: 'rgba(139,92,246,0.08)',
+    background: 'var(--prof-input)',
     borderRadius: 10,
     padding: 4,
     marginBottom: 24,
@@ -111,8 +117,8 @@ const S = {
     whiteSpace: 'nowrap',
     fontFamily: 'inherit',
     transition: 'all 0.15s',
-    background: active ? '#fff' : 'transparent',
-    color: active ? '#7c3aed' : '#64748b',
+    background: active ? 'var(--prof-tab-active)' : 'transparent',
+    color: active ? 'var(--prof-tab-color)' : 'var(--prof-tab-muted)',
   }),
   btn: (variant = 'ghost') => ({
     padding: '8px 16px',
@@ -121,14 +127,14 @@ const S = {
     background: variant === 'primary' ? 'linear-gradient(135deg, #7C6CFF, #A78BFA)'
               : variant === 'danger'  ? '#ef4444'
               : 'transparent',
-    color: variant === 'ghost' ? '#7c3aed' : '#fff',
+    color: variant === 'ghost' ? 'var(--prof-title)' : '#fff',
     fontWeight: 600,
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit',
   }),
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  muted: { fontSize: 12, color: '#94a3b8' },
+  muted: { fontSize: 12, color: 'var(--prof-muted)' },
   badge: (tier) => ({
     display: 'inline-block',
     padding: '3px 12px',
@@ -228,15 +234,15 @@ function TabProfile({ user, logout, authFetch }) {
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{user?.email}</div>
           <span style={S.badge(user?.tier)}>{TIER_LABELS[user?.tier] || user?.tier}</span>
           {user?.google_sub && (
-            <span style={{ marginLeft: 8, fontSize: 11, color: '#64748b' }}>Google</span>
+            <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--prof-muted)' }}>Google</span>
           )}
         </div>
         <button style={S.btn('ghost')} onClick={logout}>Выйти</button>
       </div>
 
       {isAdmin && (
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #1e293b' }}>
-          <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>🔧 Тестовый тариф</div>
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--prof-divider)' }}>
+          <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginBottom: 8 }}>🔧 Тестовый тариф</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['free', 'lite', 'pro', 'premium'].map(t => (
               <button
@@ -335,13 +341,13 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
     </div>
   ) : null;
 
-  if (loading) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
+  if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
   if (!charts.length) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <LimitBanner />
-      <div style={{ ...S.card, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+      <div style={{ ...S.card, textAlign: 'center', color: 'var(--prof-muted)', fontSize: 13 }}>
         Нет сохранённых карт.<br />
-        <Link to="/home" style={{ color: '#7C6CFF', marginTop: 8, display: 'inline-block' }}>
+        <Link to="/home" style={{ color: 'var(--prof-title)', marginTop: 8, display: 'inline-block' }}>
           Создать карту →
         </Link>
       </div>
@@ -369,7 +375,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                 display: 'flex', alignItems: 'center', gap: 6,
                 marginBottom: 10,
                 fontSize: 11, fontWeight: 700,
-                color: '#7C6CFF', letterSpacing: '0.05em', textTransform: 'uppercase',
+                color: 'var(--prof-title)', letterSpacing: '0.05em', textTransform: 'uppercase',
               }}>
                 <span style={{ fontSize: 14 }}>📌</span> Главная карта
               </div>
@@ -421,7 +427,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                       ...S.btn('ghost'),
                       fontSize: 11,
                       padding: '4px 10px',
-                      color: '#94a3b8',
+                      color: 'var(--prof-muted)',
                       border: '1px solid rgba(148,163,184,0.25)',
                       opacity: settingPrimary === chart.id ? 0.6 : 1,
                     }}
@@ -440,9 +446,9 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
 
 // ─── Вкладка: История ─────────────────────────────────────────────────────────
 function TabHistory({ history, loading }) {
-  if (loading) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
+  if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
   if (!history.length) return (
-    <div style={{ ...S.card, color: '#64748b', fontSize: 13, textAlign: 'center' }}>
+    <div style={{ ...S.card, color: 'var(--prof-muted)', fontSize: 13, textAlign: 'center' }}>
       История пуста — прогнозы появятся здесь после генерации.
     </div>
   );
@@ -456,7 +462,7 @@ function TabHistory({ history, loading }) {
         <div key={item.id} style={S.card}>
           <div style={S.row}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: '#cbd5e1', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 13, color: 'var(--prof-sub)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {item.preview || '—'}
               </div>
               <div style={S.muted}>
@@ -471,7 +477,7 @@ function TabHistory({ history, loading }) {
               )}
               <Link
                 to={`/chart/${item.chart_id}`}
-                style={{ fontSize: 12, color: '#7C6CFF', textDecoration: 'none' }}
+                style={{ fontSize: 12, color: 'var(--prof-title)', textDecoration: 'none' }}
               >
                 К карте →
               </Link>
@@ -507,7 +513,7 @@ function UsageBar({ label, used, limit, tierColor = '#7C6CFF' }) {
           {unlimited ? `${used} · безлимит` : `${used} / ${limit}`}
         </span>
       </div>
-      <div style={{ height: 6, borderRadius: 4, background: '#33415530', overflow: 'hidden' }}>
+      <div style={{ height: 6, borderRadius: 4, background: 'var(--prof-bar-bg)', overflow: 'hidden' }}>
         <div style={{
           height: '100%', width: unlimited ? '100%' : `${pct}%`,
           background: unlimited ? `${tierColor}40` : barColor,
@@ -566,7 +572,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
     { label: 'Синастрия',             key: 'synastry' },
   ];
 
-  if (loading) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
+  if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
 
   const currentTierIdx = TIER_ORDER.indexOf(user?.tier || 'free');
   const availableTiers = TIERS.filter(t => TIER_ORDER.indexOf(t.id) > currentTierIdx);
@@ -688,8 +694,8 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
               <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 8, border: `1px solid ${TIER_COLORS[t.id]}30`, background: `${TIER_COLORS[t.id]}08` }}>
                 <div>
                   <span style={{ ...S.badge(t.id), marginRight: 8 }}>{t.label}</span>
-                  <span style={{ fontSize: 13, color: '#94a3b8' }}>{t.price}</span>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{t.desc}</div>
+                  <span style={{ fontSize: 13, color: 'var(--prof-muted)' }}>{t.price}</span>
+                  <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginTop: 3 }}>{t.desc}</div>
                 </div>
                 <button
                   onClick={() => handleCheckout(t.id)}
@@ -760,18 +766,18 @@ function TabReferral({ authFetch }) {
     });
   };
 
-  if (!data) return <div style={{ color: '#64748b', fontSize: 13 }}>Загрузка…</div>;
+  if (!data) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
 
   return (
     <div>
       <div style={S.card}>
         <p style={S.cardTitle}>Пригласи друга</p>
-        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--prof-muted)', marginBottom: 16 }}>
           Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: '#a78bfa' }}>2 недели Pro бесплатно</strong>.
         </p>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Твоя реферальная ссылка</div>
+          <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginBottom: 6 }}>Твоя реферальная ссылка</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               readOnly
@@ -787,11 +793,11 @@ function TabReferral({ authFetch }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: '#a78bfa' }}>{data.referrals_count ?? 0}</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Приглашено</div>
+            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Приглашено</div>
           </div>
           <div style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: '#34d399' }}>{data.reward_weeks_earned ?? 0} нед.</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Бонус получено</div>
+            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Бонус получено</div>
           </div>
         </div>
       </div>
@@ -979,7 +985,8 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div style={S.page}>
+    <div className="prof-scope" style={S.page}>
+      <style>{PROF_THEME_CSS}</style>
       <div style={S.inner}>
 
         {/* Шапка */}
