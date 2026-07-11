@@ -105,11 +105,12 @@ jobs:
       - name: Check for unapplied model changes
         run: |
           alembic revision --autogenerate -m "ci_check" 2>&1 | tee /tmp/alembic_out.txt
-          MIGRATION=$(ls -t alembic/versions/ | head -1)
+          MIGRATION=$(ls -t alembic/versions/*.py | head -1 | xargs basename)
           echo "Generated: $MIGRATION"
           if grep -qE "op\.(create_table|add_column|drop_column|alter_column|create_index|drop_index|drop_table)" "alembic/versions/$MIGRATION"; then
             echo "❌ Найдены модели без миграций! Запусти: alembic revision --autogenerate -m 'your message'"
             cat "alembic/versions/$MIGRATION"
+            rm "alembic/versions/$MIGRATION"
             exit 1
           else
             echo "✅ Все модели покрыты миграциями"

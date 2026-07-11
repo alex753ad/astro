@@ -53,8 +53,11 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
         transit_planet: event.transit_planet,
         natal_planet: event.natal_planet,
         aspect_type: event.aspect_type,
-        date: event.date,
-        orb: event.orb,
+        peak_date: event.peak_date || event.date,
+        exact_date: event.exact_date,
+        transit_sign: event.transit_sign,
+        natal_sign: event.natal_sign,
+        orb: event.peak_orb ?? event.orb,
       },
       // onChunk
       (chunk) => setText(prev => prev + chunk),
@@ -123,7 +126,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
             color: "var(--text-secondary, #8B8FA3)",
             marginTop: 4,
           }}>
-            {event.date} • Орб {event.orb?.toFixed(1)}°
+            {event.peak_date || event.date} • Орб {(event.peak_orb ?? event.orb)?.toFixed(1)}°
             {event.exact_date && ` • Точно: ${event.exact_date}`}
           </div>
         </div>
