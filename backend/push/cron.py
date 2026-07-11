@@ -186,6 +186,30 @@ def _process_user(db: Session, user: User) -> int:
         except Exception as e:
             logger.warning("transit push failed user=%s: %s", user.id, e)
 
+    # 4) Новолуние и полнолуние — за день до события
+    if getattr(user, "push_moon_phases", False):
+        try:
+            from backend.calendar.lunar_engine import get_moon_phases
+            tomorrow = today + timedelta(days=1)
+            phases = get_moon_phases(tomorrow.year, tomorrow.month)
+            for phase in phases:
+                if phase.date != tomorrow.isoformat():
+                    continue
+                ref = f"moon:{phase.type}:{phase.date}"
+                if _already_sent(db, user.id, "moon", ref):
+                    continue
+                label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
+                n = send_to_user(db, user.id, {
+                    "title": f"✦ {label} завтра",
+                    "body": f"{label} в {phase.sign} — завтра. Подготовьтесь заранее.",
+                    "url": "/lunar",
+                })
+                if n:
+                    _mark_sent(db, user.id, "moon", ref)
+                    sent += n
+        except Exception as e:
+            logger.warning("moon phase push failed user=%s: %s", user.id, e)
+
     return sent
 
 

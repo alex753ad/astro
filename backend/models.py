@@ -50,6 +50,7 @@ class User(Base):
     push_daily_time     = Column(String(5), nullable=False, default="08:00", server_default="08:00")  # "HH:MM", локально по tz главной карты
     push_planner        = Column(Boolean, nullable=False, default=True, server_default="true")
     push_key_transits   = Column(Boolean, nullable=False, default=True, server_default="true")
+    push_moon_phases    = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Primary chart (018) — карта относительно которой строятся письма, планер, натальная карта
     primary_chart_id = Column(
