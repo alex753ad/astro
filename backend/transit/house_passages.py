@@ -164,12 +164,28 @@ def calculate_house_passages(
     return periods
 
 
-def _fmt_date_short(dt: datetime) -> str:
+# Сколько дней сканировать назад от начала периода, чтобы найти реальное начало транзита
+LOOKBACK_DAYS = {
+    "Sun":     40,
+    "Mercury": 90,
+    "Venus":   90,
+    "Mars":    100,
+    "Jupiter": 420,
+    "Saturn":  1100,
+    "Uranus":  3000,
+    "Neptune": 5500,
+    "Pluto":   8500,
+}
+
+
+def _fmt_date_short(dt: datetime, ref_year: int = None) -> str:
+    if ref_year is not None and dt.year != ref_year:
+        return dt.strftime("%d.%m.%Y")
     return dt.strftime("%d.%m")
 
 
 def _fmt_period(start: datetime, end: datetime) -> str:
-    return f"{_fmt_date_short(start)} — {_fmt_date_short(end)}"
+    return f"{_fmt_date_short(start, end.year)} — {_fmt_date_short(end)}"
 
 
 def compute_planner_periods(
@@ -217,7 +233,10 @@ def compute_planner_periods(
     # ── Быстрые планеты: Солнце, Меркурий, Венера, Марс — на весь месяц ──
     fast_result = []
     for planet in ("Sun", "Mercury", "Venus", "Mars"):
-        passages = calculate_house_passages(planet, cusps, period_start_dt, period_end_dt)
+        lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 60))
+        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt)
+        # Оставляем только периоды, пересекающиеся с отображаемым месяцем
+        passages = [p for p in all_passages if p["end_dt"] >= period_start_dt]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         fast_result.append({
             "planet_name":    name_ru,
@@ -289,12 +308,12 @@ def compute_planner_periods(
         })
 
     # ── Медленные планеты: Юпитер..Плутон — берём дом на середину месяца ──
-    mid_dt = period_start_dt + (period_end_dt - period_start_dt) / 2
     slow_result = []
     for planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
-        passages = calculate_house_passages(planet, cusps, period_start_dt, period_end_dt)
+        lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 400))
+        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt)
+        passages = [p for p in all_passages if p["end_dt"] >= period_start_dt]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
-        # Чаще всего медленная планета весь месяц в одном доме — выдадим основной
         main = max(
             passages,
             key=lambda p: (p["end_dt"] - p["start_dt"]).total_seconds(),
