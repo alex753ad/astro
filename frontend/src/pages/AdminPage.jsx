@@ -206,6 +206,7 @@ function TabOverview({ d }) {
 function TabUsers({ d, authFetch, onReload }) {
   const [search, setSearch] = useState("");
   const [changing, setChanging] = useState(null); // user id
+  const [deleting, setDeleting] = useState(null); // user id
 
   async function setTier(userId, tier) {
     setChanging(userId);
@@ -219,6 +220,19 @@ function TabUsers({ d, authFetch, onReload }) {
       alert("Ошибка: " + (e.message || "неизвестная"));
     } finally {
       setChanging(null);
+    }
+  }
+
+  async function deleteUser(userId, email) {
+    if (!window.confirm(`Удалить пользователя ${email}? Это действие необратимо.`)) return;
+    setDeleting(userId);
+    try {
+      await authFetch(`/api/v1/admin/users/${userId}`, { method: "DELETE" });
+      onReload();
+    } catch (e) {
+      alert("Ошибка удаления: " + (e.message || "неизвестная"));
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -248,8 +262,8 @@ function TabUsers({ d, authFetch, onReload }) {
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-gray-100">
-                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация", "Сменить тариф"].map(h => (
-                  <th key={h} className="text-left pb-2 pr-4 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
+                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация", "Сменить тариф", ""].map((h, i) => (
+                  <th key={i} className="text-left pb-2 pr-4 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -275,6 +289,15 @@ function TabUsers({ d, authFetch, onReload }) {
                         </button>
                       ))}
                     </div>
+                  </td>
+                  <td className="py-2">
+                    <button
+                      disabled={deleting === u.id}
+                      onClick={() => deleteUser(u.id, u.email)}
+                      className="px-2 py-0.5 rounded text-[10px] font-medium border border-red-200 text-red-400 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                    >
+                      {deleting === u.id ? "…" : "Удалить"}
+                    </button>
                   </td>
                 </tr>
               ))}
