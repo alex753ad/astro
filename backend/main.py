@@ -783,6 +783,7 @@ async def get_transits(
             end_date=getattr(e, "end_date", None) or getattr(e, "date", ""),
             transit_planet=e.transit_planet,
             transit_sign=getattr(e, "transit_sign", ""),
+            transit_degree=getattr(e, "transit_degree", 0.0),
             natal_planet=e.natal_planet,
             natal_sign=getattr(e, "natal_sign", ""),
             aspect_type=e.aspect_type,

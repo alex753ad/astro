@@ -341,6 +341,7 @@ class TransitEvent(BaseModel):
     end_date: str
     transit_planet: str
     transit_sign: str = ""
+    transit_degree: float = 0.0
     natal_planet: str
     natal_sign: str = ""
     aspect_type: str

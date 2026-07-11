@@ -416,7 +416,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tt-text)" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
       </div>
       {(event.transit_sign || event.natal_sign) && (
-        <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
+        <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{event.transit_degree != null ? `${event.transit_degree.toFixed(1)}° ` : ""}{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
       {!blurred && (
         <div style={{ marginTop: 10 }}>
