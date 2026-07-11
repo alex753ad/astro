@@ -26,6 +26,7 @@ export default function AuthModal({ onClose }) {
 
   // login / register fields
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -89,7 +90,7 @@ export default function AuthModal({ onClose }) {
       const res = await fetch(`${API_BASE}/auth/register/email/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, name: name.trim() || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Ошибка отправки кода');
@@ -270,6 +271,10 @@ export default function AuthModal({ onClose }) {
               <p style={{ margin:'6px 0 0', fontSize:13, color:'#64748b' }}>Бесплатно. Без карты.</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
+              <input type="text" placeholder="Ваше имя (необязательно)" value={name}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+                style={inp} />
               <div>
                 <input type="email" placeholder="Email (Яндекс, Mail.ru, Rambler)" value={email}
                   onChange={e => setEmail(e.target.value)}

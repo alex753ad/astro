@@ -98,8 +98,9 @@ async def _store_otp(
     code: str,
     hashed_pw: str,
     ref_code: str,
+    name: str = "",
 ) -> None:
-    payload = json.dumps({"code": code, "pw": hashed_pw, "ref": ref_code, "attempts": 0})
+    payload = json.dumps({"code": code, "pw": hashed_pw, "ref": ref_code, "name": name, "attempts": 0})
     await r.setex(_otp_key(identifier), OTP_TTL, payload)
     await r.setex(_resend_key(identifier), OTP_RESEND_TTL, "1")
 
@@ -142,7 +143,6 @@ def _build_token_response(user: User, email: str) -> TokenResponse:
         expires_in=tokens.expires_in,
         user_id=user.id,
         email=email,
-        name=user.name,
         tier=user.tier,
         is_admin=(user.email or "") in ADMIN_EMAILS,
     )
@@ -154,6 +154,7 @@ def _create_user(
     email: str,
     hashed_pw: str,
     ref_code: str,
+    name: str = "",
 ) -> User:
     referred_by: str | None = None
     if ref_code:
@@ -164,6 +165,7 @@ def _create_user(
     user = User(
         email=email,
         hashed_password=hashed_pw,
+        name=name or None,
         is_active=True,
         is_email_confirmed=True,  # подтверждён через OTP
         tier="free",
@@ -207,7 +209,7 @@ async def register_email_send(
         )
 
     code = _gen_otp()
-    await _store_otp(r, data.email, code, hash_password(data.password), data.ref_code or "")
+    await _store_otp(r, data.email, code, hash_password(data.password), data.ref_code or "", data.name or "")
 
     from backend.email_service import send_otp_email
     await send_otp_email(data.email, code)
@@ -237,6 +239,7 @@ async def register_email_verify(
         email=data.email,
         hashed_pw=otp_data["pw"],
         ref_code=otp_data.get("ref", ""),
+        name=otp_data.get("name", ""),
     )
     logger.info("New user via email OTP: %s (%s)", data.email, user.id)
     return _build_token_response(user, data.email)
@@ -374,7 +377,6 @@ async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
     return UserProfileResponse(
         id=user.id,
         email=user.email,
-        name=user.name,
         tier=user.tier,
         is_email_confirmed=user.is_email_confirmed,
         stripe_customer_id=user.stripe_customer_id,
