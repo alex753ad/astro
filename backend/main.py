@@ -68,6 +68,7 @@ from backend.crm.portal_router import router as portal_router
 from backend.crm.dashboard_router import router as crm_dashboard_router
 from backend.crm.note_templates_router import router as note_templates_router
 from backend.interpretation.rag_router import router as rag_router
+from backend.admin.admin_router import router as admin_manage_router
 from backend.admin.promo_router import router as promo_router
 from backend.admin.stats_router import router as admin_stats_router
 from backend.auth.jwt import decode_token
@@ -146,6 +147,7 @@ app.include_router(note_templates_router)
 app.include_router(rag_router)
 app.include_router(promo_router)
 app.include_router(admin_stats_router)
+app.include_router(admin_manage_router)
 
 
 # ═══════════════════════════════════════════════════════════
