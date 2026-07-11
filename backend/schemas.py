@@ -206,6 +206,7 @@ class TokenResponse(BaseModel):
 class UserProfileResponse(BaseModel):
     id: str
     email: Optional[str] = None
+    name: Optional[str] = None
     tier: str
     is_email_confirmed: bool = False
     stripe_customer_id: Optional[str] = None
