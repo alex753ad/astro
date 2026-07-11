@@ -75,6 +75,14 @@ def upgrade() -> None:
         if not _index_exists(conn, "client_portal_access", "ix_client_portal_access_token"):
             op.create_index("ix_client_portal_access_token", "client_portal_access", ["token"], unique=True)
 
+    # users.email: enforce NOT NULL (registration is email-only) and drop the
+    # redundant auto-named unique constraint (model uses unique index ix_users_email)
+    cols = {c["name"]: c for c in inspect(conn).get_columns("users")}
+    if "email" in cols and cols["email"]["nullable"]:
+        op.alter_column("users", "email", existing_type=sa.String(255), nullable=False)
+    if "users_email_key" in [c["name"] for c in inspect(conn).get_unique_constraints("users")]:
+        op.drop_constraint("users_email_key", "users", type_="unique")
+
     # calendar_export_logs: create if missing
     if not _table_exists(conn, "calendar_export_logs"):
         op.create_table(
@@ -99,6 +107,10 @@ def downgrade() -> None:
         if _index_exists(conn, "calendar_export_logs", "ix_calendar_export_logs_user_id"):
             op.drop_index("ix_calendar_export_logs_user_id", table_name="calendar_export_logs")
         op.drop_table("calendar_export_logs")
+
+    if "users_email_key" not in [c["name"] for c in inspect(conn).get_unique_constraints("users")]:
+        op.create_unique_constraint("users_email_key", "users", ["email"])
+    op.alter_column("users", "email", existing_type=sa.String(255), nullable=True)
 
     if _table_exists(conn, "client_portal_access"):
         if _index_exists(conn, "client_portal_access", "ix_client_portal_access_client_id"):
