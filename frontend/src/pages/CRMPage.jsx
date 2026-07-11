@@ -1434,6 +1434,61 @@ function IntakePanel({ authFetch, onConverted }) {
   );
 }
 
+// ─── Спарклайн для Практики ───────────────────────────────────────────────────
+const MONTH_SHORT_CRM = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+function PracticeChart({ data, valueKey, formatValue }) {
+  if (!data?.length) return <div style={{ color: 'var(--crm-muted)', fontSize: 12 }}>Нет данных</div>;
+
+  const W = 340, H = 90, PAD = 12;
+  const values = data.map(d => d[valueKey] ?? 0);
+  const maxVal = Math.max(...values, 1);
+  const minVal = Math.min(...values);
+
+  const points = data.map((d, i) => ({
+    x: PAD + (i / Math.max(data.length - 1, 1)) * (W - PAD * 2),
+    y: PAD + (1 - (values[i] - minVal) / Math.max(maxVal - minVal, 1)) * (H - PAD * 2 - 18),
+    ...d,
+  }));
+
+  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible', display: 'block' }}>
+      <defs>
+        <linearGradient id="pf-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#7C6CFF" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#7C6CFF" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={`${points[0].x},${H - 18} ${polyline} ${points[points.length - 1].x},${H - 18}`}
+        fill="url(#pf-fill)"
+      />
+      <polyline points={polyline} fill="none" stroke="#7C6CFF" strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="3" fill="#A78BFA" />
+          {values[i] > 0 && (
+            <text x={p.x} y={p.y - 6} textAnchor="middle" fontSize="9" fill="#A78BFA">
+              {formatValue ? formatValue(values[i]) : values[i]}
+            </text>
+          )}
+        </g>
+      ))}
+      {points.map((p, i) => {
+        const mo = parseInt(p.month.split('-')[1], 10) - 1;
+        return (
+          <text key={i} x={p.x} y={H - 2} textAnchor="middle" fontSize="9" fill="var(--crm-muted)">
+            {MONTH_SHORT_CRM[mo]}
+          </text>
+        );
+      })}
+    </svg>
+  );
+}
+
 // ─── Панель аналитики (09/15/16) ─────────────────────────────────────────────
 function StatsPanel({ authFetch, onOpenClient }) {
   const [open, setOpen] = useState(false);
@@ -1441,18 +1496,25 @@ function StatsPanel({ authFetch, onOpenClient }) {
   const [stats, setStats] = useState(null);
   const [insights, setInsights] = useState(null);
   const [reactivation, setReactivation] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [clientsHistory, setClientsHistory] = useState([]);
+  const [chartMode, setChartMode] = useState('clients');
 
   const load = async () => {
     const now = new Date();
     const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const to = now.toISOString().slice(0, 10);
     try {
-      const [s, i, r] = await Promise.all([
+      const [s, i, r, h, a] = await Promise.all([
         authFetch(`${API}/crm/stats?from=${from}&to=${to}`),
         authFetch(`${API}/crm/insights`),
         authFetch(`${API}/crm/reactivation`),
+        authFetch(`${API}/crm/history`),
+        authFetch(`${API}/clients/analytics`),
       ]);
       setStats(s); setInsights(i); setReactivation(Array.isArray(r) ? r : []);
+      setHistory(Array.isArray(h) ? h : []);
+      setClientsHistory(Array.isArray(a?.clients_by_month) ? a.clients_by_month : []);
     } catch {}
     setLoaded(true);
   };
@@ -1514,8 +1576,43 @@ function StatsPanel({ authFetch, onOpenClient }) {
                 {topTopic && <>Частая тема: {topTopic[0]} ({topTopic[1]})</>}
               </div>
 
+              {/* График роста */}
+              <div style={{ fontWeight: 600, fontSize: 13, margin: '18px 0 10px' }}>Динамика по месяцам</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                {[
+                  { key: 'clients', label: 'Клиенты' },
+                  { key: 'consultations', label: 'Консультации' },
+                  { key: 'revenue', label: 'Доход' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setChartMode(key)}
+                    style={{
+                      padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: chartMode === key ? 700 : 400,
+                      background: chartMode === key ? 'rgba(124,108,255,0.25)' : 'rgba(139,92,246,0.08)',
+                      color: chartMode === key ? '#A78BFA' : 'var(--crm-muted)',
+                      transition: 'all 0.15s',
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+              {chartMode === 'clients' && (
+                <PracticeChart data={clientsHistory} valueKey="count" />
+              )}
+              {chartMode === 'consultations' && (
+                <PracticeChart data={history} valueKey="consultations" />
+              )}
+              {chartMode === 'revenue' && (
+                <PracticeChart
+                  data={history}
+                  valueKey="revenue"
+                  formatValue={v => v >= 1000 ? `${Math.round(v / 1000)}к` : v}
+                />
+              )}
+
               {/* №16 — реактивация */}
-              <div style={{ fontWeight: 600, fontSize: 13, margin: '4px 0 8px' }}>Пора напомнить о себе</div>
+              <div style={{ fontWeight: 600, fontSize: 13, margin: '18px 0 8px' }}>Пора напомнить о себе</div>
               {reactivation.length === 0 ? (
                 <div style={S.muted}>Все клиенты недавно на связи.</div>
               ) : (

@@ -496,6 +496,45 @@ async def crm_stats(
     }
 
 
+@router.get("/history")
+async def crm_history(
+    months: int = Query(6, ge=1, le=24),
+    user: User = _premium,
+    db: Session = Depends(get_db),
+):
+    """Помесячная разбивка консультаций и дохода за последние N месяцев."""
+    from datetime import datetime as _dt
+
+    astrologer = _get_or_create_astrologer(user, db)
+    now = _dt.utcnow()
+
+    result = []
+    for i in range(months - 1, -1, -1):
+        mo = now.month - i
+        yr = now.year
+        while mo < 1:
+            mo += 12; yr -= 1
+        start = _dt(yr, mo, 1)
+        end = _dt(yr + 1, 1, 1) if mo == 12 else _dt(yr, mo + 1, 1)
+
+        rows = (
+            db.query(Consultation)
+            .join(ClientProfile, Consultation.client_id == ClientProfile.id)
+            .filter(ClientProfile.astrologer_id == astrologer.id)
+            .filter(Consultation.status == "done")
+            .filter(Consultation.date >= start)
+            .filter(Consultation.date < end)
+            .all()
+        )
+        result.append({
+            "month": f"{yr:04d}-{mo:02d}",
+            "consultations": len(rows),
+            "revenue": sum((c.price or 0) for c in rows),
+        })
+
+    return result
+
+
 @router.get("/insights")
 async def crm_insights(user: User = _premium, db: Session = Depends(get_db)):
     """№15 — инсайты по базе: знаки светил + частые темы."""
