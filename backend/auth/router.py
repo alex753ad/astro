@@ -142,6 +142,7 @@ def _build_token_response(user: User, email: str) -> TokenResponse:
         expires_in=tokens.expires_in,
         user_id=user.id,
         email=email,
+        name=user.name,
         tier=user.tier,
         is_admin=(user.email or "") in ADMIN_EMAILS,
     )
@@ -373,6 +374,7 @@ async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
     return UserProfileResponse(
         id=user.id,
         email=user.email,
+        name=user.name,
         tier=user.tier,
         is_email_confirmed=user.is_email_confirmed,
         stripe_customer_id=user.stripe_customer_id,
