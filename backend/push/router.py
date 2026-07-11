@@ -52,6 +52,7 @@ class PushSettings(BaseModel):
     daily_time: str
     planner: bool
     key_transits: bool
+    moon_phases: bool
 
     class Config:
         from_attributes = True
@@ -62,6 +63,7 @@ class PushSettingsPatch(BaseModel):
     daily_time: Optional[str] = None
     planner: Optional[bool] = None
     key_transits: Optional[bool] = None
+    moon_phases: Optional[bool] = None
 
 
 def _settings_of(user: User) -> PushSettings:
@@ -70,6 +72,7 @@ def _settings_of(user: User) -> PushSettings:
         daily_time=str(getattr(user, "push_daily_time", "08:00") or "08:00"),
         planner=bool(getattr(user, "push_planner", True)),
         key_transits=bool(getattr(user, "push_key_transits", True)),
+        moon_phases=bool(getattr(user, "push_moon_phases", False)),
     )
 
 
@@ -148,6 +151,8 @@ async def update_settings(
         user.push_planner = payload.planner
     if payload.key_transits is not None:
         user.push_key_transits = payload.key_transits
+    if payload.moon_phases is not None:
+        user.push_moon_phases = payload.moon_phases
 
     db.commit()
     db.refresh(user)

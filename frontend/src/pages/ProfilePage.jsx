@@ -861,6 +861,7 @@ function TabNotifications({ authFetch }) {
     { key: 'daily_forecast', label: 'Ежедневный прогноз', desc: `Каждый день в ${settings.daily_time || '08:00'}`, time: true },
     { key: 'planner',        label: 'Планер',             desc: 'При старте нового периода планеты' },
     { key: 'key_transits',   label: 'Важные транзиты',    desc: 'Когда начинается значимый транзит' },
+    { key: 'moon_phases',    label: 'Новолуние и полнолуние', desc: 'Напоминание за день' },
   ];
 
   return (
@@ -895,14 +896,6 @@ function TabNotifications({ authFetch }) {
             <div style={{ borderBottom: '1px solid #1e293b' }} />
           </div>
         ))}
-        {/* Новолуние/полнолуние — в разработке */}
-        <div style={{ ...S.row, padding: '12px 0', opacity: 0.5 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>Новолуние и полнолуние</div>
-            <div style={S.muted}>Напоминание за день — скоро</div>
-          </div>
-          <Toggle checked={false} onChange={() => {}} />
-        </div>
       </div>
 
       {permStatus === 'denied' && (
