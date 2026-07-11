@@ -45,6 +45,12 @@ class User(Base):
     # Digest settings (012)
     digest_day_of_week = Column(Integer, nullable=False, default=0, server_default="0")
 
+    # Push notification preferences (031)
+    push_daily_forecast = Column(Boolean, nullable=False, default=True, server_default="true")
+    push_daily_time     = Column(String(5), nullable=False, default="08:00", server_default="08:00")  # "HH:MM", локально по tz главной карты
+    push_planner        = Column(Boolean, nullable=False, default=True, server_default="true")
+    push_key_transits   = Column(Boolean, nullable=False, default=True, server_default="true")
+
     # Primary chart (018) — карта относительно которой строятся письма, планер, натальная карта
     primary_chart_id = Column(
         String(36),
@@ -337,3 +343,36 @@ class UsageCounter(Base):
     period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
     count = Column(Integer, nullable=False, default=0, server_default="0")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ── Push notifications (031) ──
+# Web Push подписки устройств пользователя (может быть несколько на юзера).
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    endpoint = Column(Text, nullable=False, unique=True)  # URL push-сервиса (уникален)
+    p256dh   = Column(Text, nullable=False)               # публичный ключ клиента
+    auth     = Column(Text, nullable=False)               # auth-секрет клиента
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# Журнал отправленных пушей — дедупликация (один пуш на событие).
+#   kind:    "daily" | "planner" | "transit"
+#   ref_key: уникальный ключ события (дата дня / planet:house:start / tp:np:aspect:start)
+class PushSentLog(Base):
+    __tablename__ = "push_sent_log"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", "ref_key", name="uq_push_sent_user_kind_ref"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind    = Column(String(16), nullable=False)
+    ref_key = Column(String(128), nullable=False)
+    sent_at = Column(DateTime, default=datetime.utcnow)
