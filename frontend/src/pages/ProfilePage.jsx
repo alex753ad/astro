@@ -808,8 +808,11 @@ function TabReferral({ authFetch }) {
 // ─── Вкладка: Уведомления ────────────────────────────────────────────────────
 function TabNotifications({ authFetch }) {
   const [settings, setSettings] = useState(null);
-  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [permStatus, setPermStatus] = useState(() => {
+    if (typeof Notification === 'undefined') return 'unsupported';
+    return Notification.permission;
+  });
 
   useEffect(() => {
     if (!authFetch) return;
@@ -821,34 +824,28 @@ function TabNotifications({ authFetch }) {
   }, [authFetch]);
 
   const patch = async (partial) => {
-    const prev = settings;
-    setSettings({ ...settings, ...partial });
+    setSettings(prev => ({ ...prev, ...partial }));
     try {
       const saved = await authFetch(`${API_BASE}/push/settings`, {
         method: 'PATCH',
         body: JSON.stringify(partial),
       });
       setSettings(saved);
-    } catch (e) {
-      setSettings(prev);
-      setMsg('Не удалось сохранить настройку');
-    }
+    } catch (_) { /* тихо */ }
   };
 
   const toggle = async (key) => {
     const turningOn = !settings[key];
-    if (turningOn) {
-      try {
-        setBusy(true); setMsg('');
-        await enablePush(authFetch);   // разрешение + подписка на этом устройстве
-      } catch (e) {
-        setBusy(false);
-        setMsg(e.message || 'Не удалось включить уведомления');
-        return;
-      }
-      setBusy(false);
-    }
     patch({ [key]: turningOn });
+    if (!turningOn) return;
+    if (permStatus === 'denied') return;
+    try {
+      await enablePush(authFetch);
+      setPermStatus('granted');
+    } catch (_) {
+      const p = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
+      setPermStatus(p);
+    }
   };
 
   if (!settings) {
@@ -893,7 +890,7 @@ function TabNotifications({ authFetch }) {
                   />
                 )}
               </div>
-              <Toggle checked={!!settings[item.key]} onChange={() => !busy && toggle(item.key)} />
+              <Toggle checked={!!settings[item.key]} onChange={() => toggle(item.key)} />
             </div>
             <div style={{ borderBottom: '1px solid #1e293b' }} />
           </div>
@@ -908,12 +905,18 @@ function TabNotifications({ authFetch }) {
         </div>
       </div>
 
+      {permStatus === 'denied' && (
+        <div style={{ ...S.muted, marginTop: 12, fontSize: 12 }}>
+          Уведомления отключены в настройках браузера. Разрешите их там — и тумблеры заработают.
+        </div>
+      )}
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button
           onClick={async () => {
             try {
               setMsg('');
               await enablePush(authFetch);
+              setPermStatus('granted');
               await authFetch(`${API_BASE}/push/test`, { method: 'POST' });
               setMsg('Тестовое уведомление отправлено');
             } catch (e) {
