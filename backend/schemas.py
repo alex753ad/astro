@@ -199,6 +199,7 @@ class TokenResponse(BaseModel):
     expires_in: int
     user_id: str
     email: str
+    name: Optional[str] = None
     tier: str = "free"
     is_admin: bool = False
 

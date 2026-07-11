@@ -143,6 +143,7 @@ def _build_token_response(user: User, email: str) -> TokenResponse:
         expires_in=tokens.expires_in,
         user_id=user.id,
         email=email,
+        name=user.name,
         tier=user.tier,
         is_admin=(user.email or "") in ADMIN_EMAILS,
     )
