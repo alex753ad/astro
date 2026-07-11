@@ -198,6 +198,7 @@ class TokenResponse(BaseModel):
     expires_in: int
     user_id: str
     email: str
+    name: Optional[str] = None
     tier: str = "free"
     is_admin: bool = False
 
@@ -205,6 +206,7 @@ class TokenResponse(BaseModel):
 class UserProfileResponse(BaseModel):
     id: str
     email: Optional[str] = None
+    name: Optional[str] = None
     tier: str
     is_email_confirmed: bool = False
     stripe_customer_id: Optional[str] = None

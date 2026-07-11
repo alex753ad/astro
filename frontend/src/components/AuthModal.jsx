@@ -122,6 +122,7 @@ export default function AuthModal({ onClose }) {
       localStorage.setItem('astro_user', JSON.stringify({
         id: data.user_id,
         email: data.email,
+        name: data.name ?? null,
         tier: data.tier,
         is_admin: data.is_admin ?? false,
       }));
