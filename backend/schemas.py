@@ -152,6 +152,7 @@ class RegisterRequest(BaseModel):
 class SendEmailOTPRequest(BaseModel):
     email: str = Field(..., description="Email российского сервиса")
     password: str = Field(..., min_length=8, max_length=128)
+    name: Optional[str] = Field(None, max_length=100)
     ref_code: Optional[str] = Field(None, max_length=16)
 
     @field_validator("email")
@@ -198,7 +199,6 @@ class TokenResponse(BaseModel):
     expires_in: int
     user_id: str
     email: str
-    name: Optional[str] = None
     tier: str = "free"
     is_admin: bool = False
 
@@ -206,7 +206,6 @@ class TokenResponse(BaseModel):
 class UserProfileResponse(BaseModel):
     id: str
     email: Optional[str] = None
-    name: Optional[str] = None
     tier: str
     is_email_confirmed: bool = False
     stripe_customer_id: Optional[str] = None
