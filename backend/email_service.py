@@ -981,3 +981,33 @@ async def send_premium_welcome(to: str, name: str | None = None) -> bool:
         "🖥️ Ваш профессиональный инструмент Astrea Premium готов",
         _base("Premium активирован", "CRM клиентов и брендированные PDF ждут вас", body),
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# OTP — ПОДТВЕРЖДЕНИЕ EMAIL ПРИ РЕГИСТРАЦИИ
+# ═══════════════════════════════════════════════════════════
+
+async def send_otp_email(to: str, code: str) -> bool:
+    """Отправить 6-значный OTP-код для подтверждения email при регистрации."""
+    body = (
+        _h2("Код подтверждения")
+        + _p(
+            "Для завершения регистрации в <strong>Astrea Timeline</strong> введите код:"
+        )
+        + (
+            '<div style="text-align:center;margin:28px 0;">'
+            f'<span style="font-size:40px;font-weight:800;letter-spacing:14px;'
+            f'color:#7C6CFF;font-family:monospace;background:rgba(124,108,255,0.08);'
+            f'padding:16px 28px;border-radius:12px;display:inline-block;">'
+            f'{code}</span></div>'
+        )
+        + _p(
+            "Код действителен <strong>10 минут</strong>. "
+            "Если вы не регистрировались — просто проигнорируйте это письмо."
+        )
+    )
+    return await _send(
+        to,
+        f"Ваш код: {code} — Astrea Timeline",
+        _base("Подтверждение регистрации", f"Код подтверждения: {code}", body),
+    )
