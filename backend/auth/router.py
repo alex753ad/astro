@@ -45,6 +45,7 @@ from backend.schemas import (
     LoginRequest,
     MessageResponse,
     RefreshRequest,
+    RegisterRequest,
     SendEmailOTPRequest,
     TokenResponse,
     UserProfileResponse,
@@ -241,6 +242,37 @@ async def register_email_verify(
 
 
 # ═══════════════════════════════════════════════════════════
+# РЕГИСТРАЦИЯ — LEGACY (без OTP, для тестов и обратной совместимости)
+# ═══════════════════════════════════════════════════════════
+
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Регистрация (legacy, без OTP)",
+)
+async def register_legacy(
+    data: RegisterRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    if db.query(User).filter(User.email == data.email).first():
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email already exists. Аккаунт с таким email уже существует.")
+
+    user = User(
+        email=data.email,
+        hashed_password=hash_password(data.password),
+        is_active=True,
+        is_email_confirmed=False,
+        tier="free",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    logger.info("New user via legacy register: %s (%s)", data.email, user.id)
+    return _build_token_response(user, data.email)
+
+
+# ═══════════════════════════════════════════════════════════
 # ВХОД
 # ═══════════════════════════════════════════════════════════
 
@@ -248,9 +280,9 @@ async def register_email_verify(
 async def login(data: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.query(User).filter(User.email == data.email).first()
     if user is None or user.hashed_password is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный email или пароль.")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный email или пароль.")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
     return _build_token_response(user, user.email)
@@ -329,7 +361,7 @@ async def confirm_email(
 
     user.is_email_confirmed = True
     db.commit()
-    return MessageResponse(message="Email подтверждён.")
+    return MessageResponse(message="Email confirmed. Email подтверждён.")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -356,7 +388,7 @@ async def delete_account(
     db.delete(user)
     db.commit()
     logger.info("User deleted: %s (%s)", user.email, user.id)
-    return MessageResponse(message="Аккаунт удалён.")
+    return MessageResponse(message="Account deleted. Аккаунт удалён.")
 
 
 # ═══════════════════════════════════════════════════════════
