@@ -315,7 +315,7 @@ def task_calculate_transits(
     try:
         chart = _get_chart(db, chart_id)
 
-        cache_key = f"transit:{chart_id}:{from_date}:{to_date}:{planet_filter}:{max_orb}"
+        cache_key = f"transit:v2:{chart_id}:{from_date}:{to_date}:{planet_filter}:{max_orb}"
         cached = transit_cache.get(cache_key)
         if cached:
             logger.info("Transit cache hit in task: %s", cache_key[:40])
@@ -344,6 +344,7 @@ def task_calculate_transits(
                 "end_date":   getattr(e, "end_date",   None) or getattr(e, "date", ""),
                 "transit_planet": e.transit_planet,
                 "transit_sign":   getattr(e, "transit_sign", ""),
+                "transit_degree": getattr(e, "transit_degree", 0.0),
                 "natal_planet":   e.natal_planet,
                 "natal_sign":     getattr(e, "natal_sign", ""),
                 "aspect_type":    e.aspect_type,
