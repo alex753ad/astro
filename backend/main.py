@@ -739,7 +739,7 @@ async def get_transits(
         )
 
     # 3. Check cache
-    cache_key = f"transit:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
+    cache_key = f"transit:v2:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
     cached = transit_cache.get(cache_key)
     if cached:
         logger.info("Transit cache hit: %s", cache_key[:40])
