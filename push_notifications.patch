@@ -1,0 +1,998 @@
+diff --git a/.env.example b/.env.example
+index 658b2ef..d2cc19a 100644
+--- a/.env.example
++++ b/.env.example
+@@ -43,6 +43,14 @@ FROM_EMAIL=onboarding@resend.dev
+ APP_URL=https://astreatime.ru
+ FRONTEND_URL=https://astreatime.ru
+ 
++# ── Web Push (VAPID) ──
++# Ключи генерируются один раз. Публичный ключ фронтенд получает через API,
++# поэтому здесь нужны только серверные значения.
++# VAPID_SUBJECT — контакт для push-сервисов: mailto:... или https://...
++VAPID_PUBLIC_KEY=
++VAPID_PRIVATE_KEY=
++VAPID_SUBJECT=mailto:admin@astreatime.ru
++
+ # ── CORS — через ALLOWED_ORIGINS (не хардкод) ──
+ # Список через запятую или JSON-массив
+ ALLOWED_ORIGINS=["http://localhost:5173","http://localhost:3000","https://astreatime.ru","https://www.astreatime.ru"]
+diff --git a/alembic/versions/031_push_notifications.py b/alembic/versions/031_push_notifications.py
+new file mode 100644
+index 0000000..1a06a5b
+--- /dev/null
++++ b/alembic/versions/031_push_notifications.py
+@@ -0,0 +1,75 @@
++"""Push notifications: subscriptions, sent-log, user prefs.
++
++Revision ID: 031_push_notifications
++Revises: 030_phone_email_nullable
++Create Date: 2026-07-11
++"""
++from alembic import op
++import sqlalchemy as sa
++from sqlalchemy.engine.reflection import Inspector
++
++revision = "031_push_notifications"
++down_revision = "030_phone_email_nullable"
++branch_labels = None
++depends_on = None
++
++
++def upgrade():
++    conn = op.get_bind()
++    inspector = Inspector.from_engine(conn)
++
++    # ── users: push preference columns (идемпотентно) ──
++    existing_cols = [c["name"] for c in inspector.get_columns("users")]
++
++    if "push_daily_forecast" not in existing_cols:
++        op.add_column("users", sa.Column(
++            "push_daily_forecast", sa.Boolean(), nullable=False, server_default="true"))
++    if "push_daily_time" not in existing_cols:
++        op.add_column("users", sa.Column(
++            "push_daily_time", sa.String(length=5), nullable=False, server_default="08:00"))
++    if "push_planner" not in existing_cols:
++        op.add_column("users", sa.Column(
++            "push_planner", sa.Boolean(), nullable=False, server_default="true"))
++    if "push_key_transits" not in existing_cols:
++        op.add_column("users", sa.Column(
++            "push_key_transits", sa.Boolean(), nullable=False, server_default="true"))
++
++    tables = inspector.get_table_names()
++
++    # ── push_subscriptions ──
++    if "push_subscriptions" not in tables:
++        op.create_table(
++            "push_subscriptions",
++            sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
++            sa.Column("user_id", sa.String(length=36),
++                      sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
++            sa.Column("endpoint", sa.Text(), nullable=False),
++            sa.Column("p256dh", sa.Text(), nullable=False),
++            sa.Column("auth", sa.Text(), nullable=False),
++            sa.Column("created_at", sa.DateTime(), nullable=True),
++            sa.UniqueConstraint("endpoint", name="uq_push_sub_endpoint"),
++        )
++        op.create_index("ix_push_subscriptions_user_id", "push_subscriptions", ["user_id"])
++
++    # ── push_sent_log ──
++    if "push_sent_log" not in tables:
++        op.create_table(
++            "push_sent_log",
++            sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
++            sa.Column("user_id", sa.String(length=36),
++                      sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
++            sa.Column("kind", sa.String(length=16), nullable=False),
++            sa.Column("ref_key", sa.String(length=128), nullable=False),
++            sa.Column("sent_at", sa.DateTime(), nullable=True),
++            sa.UniqueConstraint("user_id", "kind", "ref_key", name="uq_push_sent_user_kind_ref"),
++        )
++        op.create_index("ix_push_sent_log_user_id", "push_sent_log", ["user_id"])
++
++
++def downgrade():
++    op.drop_table("push_sent_log")
++    op.drop_table("push_subscriptions")
++    op.drop_column("users", "push_key_transits")
++    op.drop_column("users", "push_planner")
++    op.drop_column("users", "push_daily_time")
++    op.drop_column("users", "push_daily_forecast")
+diff --git a/backend/main.py b/backend/main.py
+index 3a3e812..801205b 100644
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -60,6 +60,8 @@ from backend.auth.router import router as auth_router
+ from backend.profile.router import router as profile_router
+ from backend.profile.settings_router import router as settings_router
+ from backend.onboarding_router import router as onboarding_router
++from backend.push.router import router as push_router
++from backend.push.cron import router as push_cron_router
+ from backend.share_router import router as share_router
+ from backend.payments.payments_router import router as payments_router
+ from backend.crm.router import router as crm_router
+@@ -137,6 +139,8 @@ app.include_router(auth_router)
+ app.include_router(profile_router)
+ app.include_router(settings_router)
+ app.include_router(onboarding_router)
++app.include_router(push_router)
++app.include_router(push_cron_router)
+ app.include_router(share_router)
+ app.include_router(payments_router)
+ app.include_router(crm_router)
+diff --git a/backend/models.py b/backend/models.py
+index 8ef36f3..841af42 100644
+--- a/backend/models.py
++++ b/backend/models.py
+@@ -45,6 +45,12 @@ class User(Base):
+     # Digest settings (012)
+     digest_day_of_week = Column(Integer, nullable=False, default=0, server_default="0")
+ 
++    # Push notification preferences (031)
++    push_daily_forecast = Column(Boolean, nullable=False, default=True, server_default="true")
++    push_daily_time     = Column(String(5), nullable=False, default="08:00", server_default="08:00")  # "HH:MM", локально по tz главной карты
++    push_planner        = Column(Boolean, nullable=False, default=True, server_default="true")
++    push_key_transits   = Column(Boolean, nullable=False, default=True, server_default="true")
++
+     # Primary chart (018) — карта относительно которой строятся письма, планер, натальная карта
+     primary_chart_id = Column(
+         String(36),
+@@ -337,3 +343,36 @@ class UsageCounter(Base):
+     period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
+     count = Column(Integer, nullable=False, default=0, server_default="0")
+     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
++
++
++# ── Push notifications (031) ──
++# Web Push подписки устройств пользователя (может быть несколько на юзера).
++class PushSubscription(Base):
++    __tablename__ = "push_subscriptions"
++
++    id = Column(Integer, primary_key=True, autoincrement=True)
++    user_id = Column(
++        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
++    )
++    endpoint = Column(Text, nullable=False, unique=True)  # URL push-сервиса (уникален)
++    p256dh   = Column(Text, nullable=False)               # публичный ключ клиента
++    auth     = Column(Text, nullable=False)               # auth-секрет клиента
++    created_at = Column(DateTime, default=datetime.utcnow)
++
++
++# Журнал отправленных пушей — дедупликация (один пуш на событие).
++#   kind:    "daily" | "planner" | "transit"
++#   ref_key: уникальный ключ события (дата дня / planet:house:start / tp:np:aspect:start)
++class PushSentLog(Base):
++    __tablename__ = "push_sent_log"
++    __table_args__ = (
++        UniqueConstraint("user_id", "kind", "ref_key", name="uq_push_sent_user_kind_ref"),
++    )
++
++    id = Column(Integer, primary_key=True, autoincrement=True)
++    user_id = Column(
++        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
++    )
++    kind    = Column(String(16), nullable=False)
++    ref_key = Column(String(128), nullable=False)
++    sent_at = Column(DateTime, default=datetime.utcnow)
+diff --git a/backend/push/__init__.py b/backend/push/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/backend/push/cron.py b/backend/push/cron.py
+new file mode 100644
+index 0000000..8179f84
+--- /dev/null
++++ b/backend/push/cron.py
+@@ -0,0 +1,216 @@
++"""Push scheduler — internal cron endpoint.
++
++Вызывается Railway Cron каждые ~15 минут:
++  POST /api/v1/internal/push-tick   (header X-Internal-Secret)
++
++Для каждого пользователя с активной подпиской, по его ГЛАВНОЙ карте
++(primary_chart_id), в его локальное время (tz главной карты):
++  1) Ежедневный прогноз — в выбранное пользователем время (push_daily_time).
++  2) Планер — когда сегодня начинается новый период планеты (заход в дом).
++  3) Важные транзиты — когда сегодня начинается значимый транзит.
++
++Все три отправляются в утреннее «окно» пользователя (>= push_daily_time),
++дедуплицируются через push_sent_log (одно событие — один пуш).
++"""
++from __future__ import annotations
++
++import logging
++import os
++from datetime import datetime, date as date_type, timedelta
++
++import pytz
++from fastapi import APIRouter, Depends, Header, HTTPException
++from sqlalchemy.exc import IntegrityError
++from sqlalchemy.orm import Session
++
++from backend.database import get_db
++from backend.models import User, NatalChart, PushSubscription, PushSentLog
++from backend.push.sender import send_to_user
++
++logger = logging.getLogger("astro.push.cron")
++
++router = APIRouter(prefix="/api/v1/internal", tags=["internal"])
++
++DEFAULT_TZ = "Europe/Moscow"
++
++PLANET_RU = {
++    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
++    "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн",
++    "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон",
++    "North Node": "Сев. узел", "Ascendant": "Асцендент", "Midheaven": "MC",
++}
++ASPECT_RU = {
++    "conjunction": "соединение", "sextile": "секстиль",
++    "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
++}
++FAST_PLANETS = ("Sun", "Mercury", "Venus", "Mars")
++
++
++# ── Дедупликация ──
++def _already_sent(db: Session, user_id: str, kind: str, ref_key: str) -> bool:
++    return db.query(PushSentLog).filter(
++        PushSentLog.user_id == user_id,
++        PushSentLog.kind == kind,
++        PushSentLog.ref_key == ref_key,
++    ).first() is not None
++
++
++def _mark_sent(db: Session, user_id: str, kind: str, ref_key: str) -> None:
++    db.add(PushSentLog(user_id=user_id, kind=kind, ref_key=ref_key[:128]))
++    try:
++        db.commit()
++    except IntegrityError:
++        db.rollback()  # уже отмечено параллельным тиком
++
++
++# ── Тексты ──
++def _daily_body(chart: NatalChart, today: date_type) -> str:
++    """Короткий тизер прогноза на день из активных транзитов (без AI)."""
++    try:
++        from backend.transit.engine import calculate_transits
++        events = calculate_transits(
++            natal_planets=chart.planets, from_date=today, to_date=today
++        )
++        best = None
++        for e in events:
++            if e.aspect_type in ("trine", "sextile", "conjunction"):
++                best = e
++                break
++        best = best or (events[0] if events else None)
++        if best:
++            p = PLANET_RU.get(best.transit_planet, best.transit_planet)
++            n = PLANET_RU.get(best.natal_planet, best.natal_planet)
++            a = ASPECT_RU.get(best.aspect_type, best.aspect_type)
++            return f"Сегодня {p} {a} к вашему {n}. Загляните в прогноз на день."
++    except Exception as e:
++        logger.warning("daily body build failed: %s", e)
++    return "Ваш персональный прогноз на сегодня готов."
++
++
++# ── Основная логика по одному пользователю ──
++def _process_user(db: Session, user: User) -> int:
++    chart = None
++    if user.primary_chart_id:
++        chart = db.query(NatalChart).filter(NatalChart.id == user.primary_chart_id).first()
++    if not chart:
++        return 0  # без главной карты уведомлять не по чему
++
++    tzname = getattr(chart, "timezone", None) or DEFAULT_TZ
++    try:
++        tz = pytz.timezone(tzname)
++    except Exception:
++        tz = pytz.timezone(DEFAULT_TZ)
++
++    now_local = datetime.now(pytz.utc).astimezone(tz)
++    today = now_local.date()
++
++    target = str(getattr(user, "push_daily_time", "08:00") or "08:00")
++    try:
++        th, tm = (int(x) for x in target.split(":"))
++    except Exception:
++        th, tm = 8, 0
++    # Утреннее окно: работаем только когда локальное время уже наступило.
++    if (now_local.hour, now_local.minute) < (th, tm):
++        return 0
++
++    sent = 0
++
++    # 1) Ежедневный прогноз
++    if getattr(user, "push_daily_forecast", True):
++        ref = today.isoformat()
++        if not _already_sent(db, user.id, "daily", ref):
++            n = send_to_user(db, user.id, {
++                "title": "✦ Прогноз на сегодня",
++                "body": _daily_body(chart, today),
++                "url": "/home",
++            })
++            if n:
++                _mark_sent(db, user.id, "daily", ref)
++                sent += n
++
++    # 2) Планер — старт нового периода планеты (заход в дом сегодня)
++    if getattr(user, "push_planner", True):
++        try:
++            from backend.transit.house_passages import calculate_house_passages, _extract_cusps
++            cusps = _extract_cusps({"houses": chart.houses})
++            if not all(c == 0.0 for c in cusps):
++                win_start = datetime(today.year, today.month, today.day) - timedelta(days=1)
++                win_end = datetime(today.year, today.month, today.day) + timedelta(days=1, hours=23)
++                for planet in FAST_PLANETS:
++                    passages = calculate_house_passages(planet, cusps, win_start, win_end)
++                    for p in passages:
++                        start = p["start_dt"].date()
++                        if start != today:
++                            continue
++                        ref = f"{planet}:{p['house']}:{start.isoformat()}"
++                        if _already_sent(db, user.id, "planner", ref):
++                            continue
++                        pr = PLANET_RU.get(planet, planet)
++                        n = send_to_user(db, user.id, {
++                            "title": "✦ Планер",
++                            "body": f"{pr}: начался новый период (дом {p['house']}).",
++                            "url": f"/planner/{chart.id}",
++                        })
++                        if n:
++                            _mark_sent(db, user.id, "planner", ref)
++                            sent += n
++        except Exception as e:
++            logger.warning("planner push failed user=%s: %s", user.id, e)
++
++    # 3) Важные транзиты — старт значимого транзита сегодня
++    if getattr(user, "push_key_transits", True):
++        try:
++            from backend.transit.engine import calculate_transits, ALERT_PLANETS
++            events = calculate_transits(
++                natal_planets=chart.planets, from_date=today, to_date=today
++            )
++            for e in events:
++                if e.transit_planet not in ALERT_PLANETS:
++                    continue
++                if e.start_date != today.isoformat():
++                    continue
++                ref = f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}"
++                if _already_sent(db, user.id, "transit", ref):
++                    continue
++                pr = PLANET_RU.get(e.transit_planet, e.transit_planet)
++                nr = PLANET_RU.get(e.natal_planet, e.natal_planet)
++                ar = ASPECT_RU.get(e.aspect_type, e.aspect_type)
++                n = send_to_user(db, user.id, {
++                    "title": "✦ Важный транзит",
++                    "body": f"{pr} {ar} к вашему {nr} — начинается значимый транзит.",
++                    "url": f"/planner/{chart.id}",
++                })
++                if n:
++                    _mark_sent(db, user.id, "transit", ref)
++                    sent += n
++        except Exception as e:
++            logger.warning("transit push failed user=%s: %s", user.id, e)
++
++    return sent
++
++
++@router.post("/push-tick")
++async def push_tick(
++    x_internal_secret: str = Header(default=""),
++    db: Session = Depends(get_db),
++):
++    secret = os.getenv("INTERNAL_SECRET", "")
++    if secret and x_internal_secret != secret:
++        raise HTTPException(status_code=403, detail="Forbidden")
++
++    # Только пользователи с хотя бы одной подпиской
++    user_ids = [row[0] for row in db.query(PushSubscription.user_id).distinct().all()]
++    if not user_ids:
++        return {"users": 0, "delivered": 0}
++
++    total = 0
++    processed = 0
++    for user in db.query(User).filter(User.id.in_(user_ids)).all():
++        try:
++            total += _process_user(db, user)
++            processed += 1
++        except Exception as e:
++            logger.warning("push-tick user=%s failed: %s", user.id, e)
++            db.rollback()
++
++    return {"users": processed, "delivered": total}
+diff --git a/backend/push/router.py b/backend/push/router.py
+new file mode 100644
+index 0000000..ba0414a
+--- /dev/null
++++ b/backend/push/router.py
+@@ -0,0 +1,170 @@
++"""Push API — подписки и настройки уведомлений.
++
++Endpoints:
++  GET   /api/v1/push/vapid-public-key   — публичный VAPID-ключ для фронта (без авторизации)
++  POST  /api/v1/push/subscribe          — сохранить подписку устройства (auth)
++  POST  /api/v1/push/unsubscribe        — удалить подписку по endpoint (auth)
++  GET   /api/v1/push/settings           — настройки уведомлений (auth)
++  PATCH /api/v1/push/settings           — обновить настройки (auth)
++  POST  /api/v1/push/test               — тестовый пуш себе (auth)
++
++Подключается отдельной строкой в main.py.
++"""
++from __future__ import annotations
++
++import logging
++import re
++from typing import Optional
++
++from fastapi import APIRouter, Depends, HTTPException, status
++from pydantic import BaseModel
++from sqlalchemy.orm import Session
++
++from backend.database import get_db
++from backend.models import User, PushSubscription
++from backend.auth.dependencies import get_current_user
++from backend.push.sender import vapid_public_key, send_to_user
++
++logger = logging.getLogger("astro.push.router")
++
++router = APIRouter(prefix="/api/v1/push", tags=["push"])
++
++_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")  # HH:MM 24ч
++
++
++# ── Schemas ──
++class SubscriptionKeys(BaseModel):
++    p256dh: str
++    auth: str
++
++
++class SubscribeRequest(BaseModel):
++    endpoint: str
++    keys: SubscriptionKeys
++
++
++class UnsubscribeRequest(BaseModel):
++    endpoint: str
++
++
++class PushSettings(BaseModel):
++    daily_forecast: bool
++    daily_time: str
++    planner: bool
++    key_transits: bool
++
++    class Config:
++        from_attributes = True
++
++
++class PushSettingsPatch(BaseModel):
++    daily_forecast: Optional[bool] = None
++    daily_time: Optional[str] = None
++    planner: Optional[bool] = None
++    key_transits: Optional[bool] = None
++
++
++def _settings_of(user: User) -> PushSettings:
++    return PushSettings(
++        daily_forecast=bool(getattr(user, "push_daily_forecast", True)),
++        daily_time=str(getattr(user, "push_daily_time", "08:00") or "08:00"),
++        planner=bool(getattr(user, "push_planner", True)),
++        key_transits=bool(getattr(user, "push_key_transits", True)),
++    )
++
++
++# ── Public: VAPID key ──
++@router.get("/vapid-public-key", summary="Public VAPID key for the browser")
++async def get_vapid_public_key():
++    key = vapid_public_key()
++    if not key:
++        raise HTTPException(status_code=503, detail="Push not configured")
++    return {"public_key": key}
++
++
++# ── Subscribe / Unsubscribe ──
++@router.post("/subscribe", summary="Save a push subscription for this device")
++async def subscribe(
++    payload: SubscribeRequest,
++    user: User = Depends(get_current_user),
++    db: Session = Depends(get_db),
++):
++    existing = db.query(PushSubscription).filter(
++        PushSubscription.endpoint == payload.endpoint
++    ).first()
++    if existing:
++        # Переназначаем подписку текущему пользователю и обновляем ключи
++        existing.user_id = user.id
++        existing.p256dh = payload.keys.p256dh
++        existing.auth = payload.keys.auth
++    else:
++        db.add(PushSubscription(
++            user_id=user.id,
++            endpoint=payload.endpoint,
++            p256dh=payload.keys.p256dh,
++            auth=payload.keys.auth,
++        ))
++    db.commit()
++    return {"status": "ok"}
++
++
++@router.post("/unsubscribe", summary="Delete a push subscription")
++async def unsubscribe(
++    payload: UnsubscribeRequest,
++    user: User = Depends(get_current_user),
++    db: Session = Depends(get_db),
++):
++    db.query(PushSubscription).filter(
++        PushSubscription.endpoint == payload.endpoint,
++        PushSubscription.user_id == user.id,
++    ).delete()
++    db.commit()
++    return {"status": "ok"}
++
++
++# ── Settings ──
++@router.get("/settings", response_model=PushSettings, summary="Get notification settings")
++async def get_settings(
++    user: User = Depends(get_current_user),
++    db: Session = Depends(get_db),
++):
++    return _settings_of(user)
++
++
++@router.patch("/settings", response_model=PushSettings, summary="Update notification settings")
++async def update_settings(
++    payload: PushSettingsPatch,
++    user: User = Depends(get_current_user),
++    db: Session = Depends(get_db),
++):
++    if payload.daily_forecast is not None:
++        user.push_daily_forecast = payload.daily_forecast
++    if payload.daily_time is not None:
++        if not _TIME_RE.match(payload.daily_time):
++            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
++                                detail="daily_time must be HH:MM (24h)")
++        user.push_daily_time = payload.daily_time
++    if payload.planner is not None:
++        user.push_planner = payload.planner
++    if payload.key_transits is not None:
++        user.push_key_transits = payload.key_transits
++
++    db.commit()
++    db.refresh(user)
++    return _settings_of(user)
++
++
++# ── Test push ──
++@router.post("/test", summary="Send a test push to the current user")
++async def send_test(
++    user: User = Depends(get_current_user),
++    db: Session = Depends(get_db),
++):
++    delivered = send_to_user(db, user.id, {
++        "title": "✦ Astrea",
++        "body": "Тестовое уведомление — всё работает!",
++        "url": "/",
++    })
++    if delivered == 0:
++        raise HTTPException(status_code=404, detail="No active subscriptions")
++    return {"delivered": delivered}
+diff --git a/backend/push/sender.py b/backend/push/sender.py
+new file mode 100644
+index 0000000..7228aa3
+--- /dev/null
++++ b/backend/push/sender.py
+@@ -0,0 +1,89 @@
++"""Web Push отправка через pywebpush + VAPID.
++
++ENV:
++  VAPID_PUBLIC_KEY   — публичный ключ (base64url), фронт получает через API
++  VAPID_PRIVATE_KEY  — приватный ключ (raw base64url)
++  VAPID_SUBJECT      — mailto:... или https://... (контакт для push-сервисов)
++"""
++from __future__ import annotations
++
++import json
++import logging
++import os
++
++from sqlalchemy.orm import Session
++
++from backend.models import PushSubscription
++
++logger = logging.getLogger("astro.push")
++
++
++def vapid_public_key() -> str:
++    return os.getenv("VAPID_PUBLIC_KEY", "")
++
++
++def _vapid_private_key() -> str:
++    return os.getenv("VAPID_PRIVATE_KEY", "")
++
++
++def _vapid_subject() -> str:
++    return os.getenv("VAPID_SUBJECT", "mailto:admin@astreatime.ru")
++
++
++def send_web_push(sub: PushSubscription, payload: dict) -> bool:
++    """Отправить один пуш. Возвращает True при успехе.
++
++    При 404/410 (подписка мертва) бросает PushGone — вызывающий удаляет запись.
++    """
++    from pywebpush import webpush, WebPushException
++
++    if not _vapid_private_key():
++        logger.warning("VAPID_PRIVATE_KEY не задан — пуш не отправлен")
++        return False
++
++    subscription_info = {
++        "endpoint": sub.endpoint,
++        "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
++    }
++    try:
++        webpush(
++            subscription_info=subscription_info,
++            data=json.dumps(payload, ensure_ascii=False),
++            vapid_private_key=_vapid_private_key(),
++            vapid_claims={"sub": _vapid_subject()},
++            timeout=10,
++        )
++        return True
++    except WebPushException as e:
++        status = getattr(getattr(e, "response", None), "status_code", None)
++        if status in (404, 410):
++            raise PushGone(sub.endpoint) from e
++        logger.warning("Push failed (status=%s) endpoint=%s: %s", status, sub.endpoint[:40], e)
++        return False
++    except Exception as e:
++        logger.warning("Push send error endpoint=%s: %s", sub.endpoint[:40], e)
++        return False
++
++
++class PushGone(Exception):
++    """Подписка больше не действительна (404/410) — нужно удалить."""
++
++
++def send_to_user(db: Session, user_id: str, payload: dict) -> int:
++    """Отправить пуш на все устройства пользователя. Мёртвые подписки удаляются.
++
++    Возвращает число успешных доставок.
++    """
++    subs = db.query(PushSubscription).filter(PushSubscription.user_id == user_id).all()
++    delivered = 0
++    dirty = False
++    for sub in subs:
++        try:
++            if send_web_push(sub, payload):
++                delivered += 1
++        except PushGone:
++            db.delete(sub)
++            dirty = True
++    if dirty:
++        db.commit()
++    return delivered
+diff --git a/frontend/public/sw.js b/frontend/public/sw.js
+index b65f0a5..c81b314 100644
+--- a/frontend/public/sw.js
++++ b/frontend/public/sw.js
+@@ -125,14 +125,16 @@ async function networkFirstWithChartsCache(request) {
+ // ── PUSH NOTIFICATIONS (заготовка для транзит-уведомлений Фазы 2) ─────────────
+ self.addEventListener('push', (event) => {
+   if (!event.data) return;
+-  const { title, body } = event.data.json();
++  let payload = {};
++  try { payload = event.data.json(); } catch { payload = { body: event.data.text() }; }
++  const title = payload.title || '✦ Astrea';
+   event.waitUntil(
+     self.registration.showNotification(title, {
+-      body,
++      body:    payload.body || '',
+       icon:    '/icons/icon-192.png',
+       badge:   '/icons/icon-192.png',
+       vibrate: [200, 100, 200],
+-      data:    { url: '/' },
++      data:    { url: payload.url || '/' },
+     })
+   );
+ });
+diff --git a/frontend/src/pages/ProfilePage.jsx b/frontend/src/pages/ProfilePage.jsx
+index 7235a81..14669c3 100644
+--- a/frontend/src/pages/ProfilePage.jsx
++++ b/frontend/src/pages/ProfilePage.jsx
+@@ -14,6 +14,7 @@
+ import { useState, useEffect } from 'react';
+ import { Link, useNavigate } from 'react-router-dom';
+ import useAuth from '../hooks/useAuth';
++import { enablePush, pushSupported } from '../push';
+ 
+ // ─── Мини-превью натальной карты ─────────────────────────────────────────────
+ function MiniChartPreview({ chartId, authFetch }) {
+@@ -170,26 +171,7 @@ function useProfileData(authFetch) {
+   return { charts, setCharts, primaryChartId, setPrimaryChartId, history, subscription, loading };
+ }
+ 
+-// ─── Хук: уведомления в localStorage ─────────────────────────────────────────
+-const NOTIF_KEY = 'astro_notifications';
+-const NOTIF_DEFAULTS = {
+-  daily_forecast:  true,
+-  weekly_planner:  true,
+-  key_transits:    true,
+-  moon_phases:     false,
+-};
+-function useNotifications() {
+-  const [notifs, setNotifs] = useState(() => {
+-    try { return { ...NOTIF_DEFAULTS, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || '{}') }; }
+-    catch { return NOTIF_DEFAULTS; }
+-  });
+-  const toggle = (key) => setNotifs(prev => {
+-    const next = { ...prev, [key]: !prev[key] };
+-    localStorage.setItem(NOTIF_KEY, JSON.stringify(next));
+-    return next;
+-  });
+-  return { notifs, toggle };
+-}
++// ─── Уведомления теперь на сервере (см. TabNotifications ниже) ─────────────────
+ 
+ // ─── Toggle компонент ─────────────────────────────────────────────────────────
+ function Toggle({ checked, onChange }) {
+@@ -818,19 +800,74 @@ function TabReferral({ authFetch }) {
+ }
+ 
+ // ─── Вкладка: Уведомления ────────────────────────────────────────────────────
+-function TabNotifications() {
+-  const { notifs, toggle } = useNotifications();
++function TabNotifications({ authFetch }) {
++  const [settings, setSettings] = useState(null);
++  const [busy, setBusy] = useState(false);
++  const [msg, setMsg] = useState('');
++
++  useEffect(() => {
++    if (!authFetch) return;
++    authFetch(`${API_BASE}/push/settings`)
++      .then(setSettings)
++      .catch(() => setSettings({
++        daily_forecast: true, daily_time: '08:00', planner: true, key_transits: true,
++      }));
++  }, [authFetch]);
++
++  const patch = async (partial) => {
++    const prev = settings;
++    setSettings({ ...settings, ...partial });
++    try {
++      const saved = await authFetch(`${API_BASE}/push/settings`, {
++        method: 'PATCH',
++        body: JSON.stringify(partial),
++      });
++      setSettings(saved);
++    } catch (e) {
++      setSettings(prev);
++      setMsg('Не удалось сохранить настройку');
++    }
++  };
++
++  const toggle = async (key) => {
++    const turningOn = !settings[key];
++    if (turningOn) {
++      try {
++        setBusy(true); setMsg('');
++        await enablePush(authFetch);   // разрешение + подписка на этом устройстве
++      } catch (e) {
++        setBusy(false);
++        setMsg(e.message || 'Не удалось включить уведомления');
++        return;
++      }
++      setBusy(false);
++    }
++    patch({ [key]: turningOn });
++  };
++
++  if (!settings) {
++    return (
++      <div style={S.card}>
++        <p style={S.cardTitle}>Push-уведомления</p>
++        <div style={S.muted}>Загрузка…</div>
++      </div>
++    );
++  }
+ 
+   const items = [
+-    { key: 'daily_forecast',  label: 'Ежедневный прогноз',     desc: 'Каждое утро в 8:00' },
+-    { key: 'weekly_planner',  label: 'Планер на неделю',        desc: 'По понедельникам' },
+-    { key: 'key_transits',    label: 'Важные транзиты',         desc: 'Когда начинается значимый транзит' },
+-    { key: 'moon_phases',     label: 'Новолуние и полнолуние',  desc: 'Напоминание за день' },
++    { key: 'daily_forecast', label: 'Ежедневный прогноз', desc: `Каждый день в ${settings.daily_time || '08:00'}`, time: true },
++    { key: 'planner',        label: 'Планер',             desc: 'При старте нового периода планеты' },
++    { key: 'key_transits',   label: 'Важные транзиты',    desc: 'Когда начинается значимый транзит' },
+   ];
+ 
+   return (
+     <div style={S.card}>
+       <p style={S.cardTitle}>Push-уведомления</p>
++      {!pushSupported() && (
++        <div style={{ ...S.muted, marginBottom: 12 }}>
++          ⚠️ Этот браузер не поддерживает push-уведомления.
++        </div>
++      )}
+       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+         {items.map((item, i) => (
+           <div key={item.key}>
+@@ -838,15 +875,50 @@ function TabNotifications() {
+               <div>
+                 <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>{item.label}</div>
+                 <div style={S.muted}>{item.desc}</div>
++                {item.time && settings.daily_forecast && (
++                  <input
++                    type="time"
++                    value={settings.daily_time || '08:00'}
++                    onChange={(e) => patch({ daily_time: e.target.value })}
++                    style={{
++                      marginTop: 8, background: '#0f172a', color: '#e2e8f0',
++                      border: '1px solid #1e293b', borderRadius: 8, padding: '6px 10px', fontSize: 14,
++                    }}
++                  />
++                )}
+               </div>
+-              <Toggle checked={notifs[item.key]} onChange={() => toggle(item.key)} />
++              <Toggle checked={!!settings[item.key]} onChange={() => !busy && toggle(item.key)} />
+             </div>
+-            {i < items.length - 1 && <div style={{ borderBottom: '1px solid #1e293b' }} />}
++            <div style={{ borderBottom: '1px solid #1e293b' }} />
+           </div>
+         ))}
++        {/* Новолуние/полнолуние — в разработке */}
++        <div style={{ ...S.row, padding: '12px 0', opacity: 0.5 }}>
++          <div>
++            <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>Новолуние и полнолуние</div>
++            <div style={S.muted}>Напоминание за день — скоро</div>
++          </div>
++          <Toggle checked={false} onChange={() => {}} />
++        </div>
+       </div>
+-      <div style={{ ...S.muted, marginTop: 16 }}>
+-        ⚠️ Уведомления в разработке — настройки сохранятся когда функция будет запущена.
++
++      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
++        <button
++          onClick={async () => {
++            try {
++              setMsg('');
++              await enablePush(authFetch);
++              await authFetch(`${API_BASE}/push/test`, { method: 'POST' });
++              setMsg('Тестовое уведомление отправлено');
++            } catch (e) {
++              setMsg(e.message || 'Не удалось отправить тест');
++            }
++          }}
++          style={{ background: '#7C6CFF', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
++        >
++          Отправить тест
++        </button>
++        {msg && <span style={S.muted}>{msg}</span>}
+       </div>
+     </div>
+   );
+@@ -927,7 +999,7 @@ export default function ProfilePage() {
+         {tab === 'history'       && <TabHistory      history={history} loading={loading.history} />}
+         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
+         {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
+-        {tab === 'notifications' && <TabNotifications />}
++        {tab === 'notifications' && <TabNotifications authFetch={authFetch} />}
+         {tab === 'crm' && user?.tier === 'premium' && (
+           <div style={{ ...S.card, textAlign: 'center' }}>
+             <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+diff --git a/frontend/src/push.js b/frontend/src/push.js
+new file mode 100644
+index 0000000..8b36cff
+--- /dev/null
++++ b/frontend/src/push.js
+@@ -0,0 +1,73 @@
++/**
++ * Web Push helper.
++ *
++ * enablePush(authFetch)  — спросить разрешение, подписаться, отправить подписку на бэк
++ * disablePush(authFetch) — отписаться и удалить подписку на бэке
++ * pushSupported()        — поддерживает ли браузер push
++ *
++ * Service Worker уже регистрируется в index.html (/sw.js).
++ */
++
++const API_BASE = '/api/v1';
++
++function urlBase64ToUint8Array(base64String) {
++  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
++  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
++  const raw = atob(base64);
++  const out = new Uint8Array(raw.length);
++  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
++  return out;
++}
++
++export function pushSupported() {
++  return (
++    typeof navigator !== 'undefined' &&
++    'serviceWorker' in navigator &&
++    'PushManager' in window &&
++    'Notification' in window
++  );
++}
++
++/** Спросить разрешение, подписаться на push и сохранить подписку на сервере. */
++export async function enablePush(authFetch) {
++  if (!pushSupported()) throw new Error('Браузер не поддерживает push-уведомления');
++
++  const permission = await Notification.requestPermission();
++  if (permission !== 'granted') {
++    throw new Error('Разрешение на уведомления не выдано');
++  }
++
++  const reg = await navigator.serviceWorker.ready;
++  let sub = await reg.pushManager.getSubscription();
++
++  if (!sub) {
++    const { public_key } = await authFetch(`${API_BASE}/push/vapid-public-key`);
++    sub = await reg.pushManager.subscribe({
++      userVisibleOnly: true,
++      applicationServerKey: urlBase64ToUint8Array(public_key),
++    });
++  }
++
++  const json = sub.toJSON();
++  await authFetch(`${API_BASE}/push/subscribe`, {
++    method: 'POST',
++    body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
++  });
++
++  return true;
++}
++
++/** Отписаться от push и удалить подписку на сервере. */
++export async function disablePush(authFetch) {
++  if (!pushSupported()) return;
++  const reg = await navigator.serviceWorker.ready;
++  const sub = await reg.pushManager.getSubscription();
++  if (!sub) return;
++  try {
++    await authFetch(`${API_BASE}/push/unsubscribe`, {
++      method: 'POST',
++      body: JSON.stringify({ endpoint: sub.endpoint }),
++    });
++  } catch (_) { /* игнорируем — всё равно отписываемся локально */ }
++  await sub.unsubscribe();
++}
+diff --git a/pyproject.toml b/pyproject.toml
+index 533a0b3..fb2bfee 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -26,6 +26,7 @@ dependencies = [
+     "prometheus-client>=0.20.0",
+     "Pillow>=10.3.0",
+     "reportlab>=4.0.0",
++    "pywebpush>=1.14.0",
+ ]
+ 
+ [project.optional-dependencies]
+diff --git a/railway.toml b/railway.toml
+index e09f8e4..545762a 100644
+--- a/railway.toml
++++ b/railway.toml
+@@ -4,3 +4,7 @@ startCommand = "/app/start.sh"
+ [cron.weekly-digest]
+ schedule = "0 6 * * 1"
+ command = "curl -s -X POST http://localhost:$PORT/api/v1/internal/weekly-digest -H \"X-Internal-Secret: $INTERNAL_SECRET\""
++
++[cron.push-tick]
++schedule = "*/15 * * * *"
++command = "curl -s -X POST http://localhost:$PORT/api/v1/internal/push-tick -H \"X-Internal-Secret: $INTERNAL_SECRET\""
+diff --git a/start.sh b/start.sh
+index ec0d3e1..0e27d07 100644
+--- a/start.sh
++++ b/start.sh
+@@ -4,6 +4,9 @@ set -e
+ echo "Ensuring reportlab is installed..."
+ pip install --no-cache-dir "reportlab>=4.0.0" -q
+ 
++echo "Ensuring pywebpush is installed..."
++pip install --no-cache-dir "pywebpush>=1.14.0" -q
++
+ echo "Checking alembic state..."
+ 
+ # Проверяем существует ли таблица alembic_version

@@ -4,6 +4,9 @@ set -e
 echo "Ensuring reportlab is installed..."
 pip install --no-cache-dir "reportlab>=4.0.0" -q
 
+echo "Ensuring pywebpush is installed..."
+pip install --no-cache-dir "pywebpush>=1.14.0" -q
+
 echo "Checking alembic state..."
 
 # Проверяем существует ли таблица alembic_version

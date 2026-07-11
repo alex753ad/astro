@@ -14,6 +14,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { enablePush, pushSupported } from '../push';
 
 // ─── Мини-превью натальной карты ─────────────────────────────────────────────
 function MiniChartPreview({ chartId, authFetch }) {
@@ -170,26 +171,7 @@ function useProfileData(authFetch) {
   return { charts, setCharts, primaryChartId, setPrimaryChartId, history, subscription, loading };
 }
 
-// ─── Хук: уведомления в localStorage ─────────────────────────────────────────
-const NOTIF_KEY = 'astro_notifications';
-const NOTIF_DEFAULTS = {
-  daily_forecast:  true,
-  weekly_planner:  true,
-  key_transits:    true,
-  moon_phases:     false,
-};
-function useNotifications() {
-  const [notifs, setNotifs] = useState(() => {
-    try { return { ...NOTIF_DEFAULTS, ...JSON.parse(localStorage.getItem(NOTIF_KEY) || '{}') }; }
-    catch { return NOTIF_DEFAULTS; }
-  });
-  const toggle = (key) => setNotifs(prev => {
-    const next = { ...prev, [key]: !prev[key] };
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(next));
-    return next;
-  });
-  return { notifs, toggle };
-}
+// ─── Уведомления теперь на сервере (см. TabNotifications ниже) ─────────────────
 
 // ─── Toggle компонент ─────────────────────────────────────────────────────────
 function Toggle({ checked, onChange }) {
@@ -818,19 +800,74 @@ function TabReferral({ authFetch }) {
 }
 
 // ─── Вкладка: Уведомления ────────────────────────────────────────────────────
-function TabNotifications() {
-  const { notifs, toggle } = useNotifications();
+function TabNotifications({ authFetch }) {
+  const [settings, setSettings] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    if (!authFetch) return;
+    authFetch(`${API_BASE}/push/settings`)
+      .then(setSettings)
+      .catch(() => setSettings({
+        daily_forecast: true, daily_time: '08:00', planner: true, key_transits: true,
+      }));
+  }, [authFetch]);
+
+  const patch = async (partial) => {
+    const prev = settings;
+    setSettings({ ...settings, ...partial });
+    try {
+      const saved = await authFetch(`${API_BASE}/push/settings`, {
+        method: 'PATCH',
+        body: JSON.stringify(partial),
+      });
+      setSettings(saved);
+    } catch (e) {
+      setSettings(prev);
+      setMsg('Не удалось сохранить настройку');
+    }
+  };
+
+  const toggle = async (key) => {
+    const turningOn = !settings[key];
+    if (turningOn) {
+      try {
+        setBusy(true); setMsg('');
+        await enablePush(authFetch);   // разрешение + подписка на этом устройстве
+      } catch (e) {
+        setBusy(false);
+        setMsg(e.message || 'Не удалось включить уведомления');
+        return;
+      }
+      setBusy(false);
+    }
+    patch({ [key]: turningOn });
+  };
+
+  if (!settings) {
+    return (
+      <div style={S.card}>
+        <p style={S.cardTitle}>Push-уведомления</p>
+        <div style={S.muted}>Загрузка…</div>
+      </div>
+    );
+  }
 
   const items = [
-    { key: 'daily_forecast',  label: 'Ежедневный прогноз',     desc: 'Каждое утро в 8:00' },
-    { key: 'weekly_planner',  label: 'Планер на неделю',        desc: 'По понедельникам' },
-    { key: 'key_transits',    label: 'Важные транзиты',         desc: 'Когда начинается значимый транзит' },
-    { key: 'moon_phases',     label: 'Новолуние и полнолуние',  desc: 'Напоминание за день' },
+    { key: 'daily_forecast', label: 'Ежедневный прогноз', desc: `Каждый день в ${settings.daily_time || '08:00'}`, time: true },
+    { key: 'planner',        label: 'Планер',             desc: 'При старте нового периода планеты' },
+    { key: 'key_transits',   label: 'Важные транзиты',    desc: 'Когда начинается значимый транзит' },
   ];
 
   return (
     <div style={S.card}>
       <p style={S.cardTitle}>Push-уведомления</p>
+      {!pushSupported() && (
+        <div style={{ ...S.muted, marginBottom: 12 }}>
+          ⚠️ Этот браузер не поддерживает push-уведомления.
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {items.map((item, i) => (
           <div key={item.key}>
@@ -838,15 +875,50 @@ function TabNotifications() {
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>{item.label}</div>
                 <div style={S.muted}>{item.desc}</div>
+                {item.time && settings.daily_forecast && (
+                  <input
+                    type="time"
+                    value={settings.daily_time || '08:00'}
+                    onChange={(e) => patch({ daily_time: e.target.value })}
+                    style={{
+                      marginTop: 8, background: '#0f172a', color: '#e2e8f0',
+                      border: '1px solid #1e293b', borderRadius: 8, padding: '6px 10px', fontSize: 14,
+                    }}
+                  />
+                )}
               </div>
-              <Toggle checked={notifs[item.key]} onChange={() => toggle(item.key)} />
+              <Toggle checked={!!settings[item.key]} onChange={() => !busy && toggle(item.key)} />
             </div>
-            {i < items.length - 1 && <div style={{ borderBottom: '1px solid #1e293b' }} />}
+            <div style={{ borderBottom: '1px solid #1e293b' }} />
           </div>
         ))}
+        {/* Новолуние/полнолуние — в разработке */}
+        <div style={{ ...S.row, padding: '12px 0', opacity: 0.5 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>Новолуние и полнолуние</div>
+            <div style={S.muted}>Напоминание за день — скоро</div>
+          </div>
+          <Toggle checked={false} onChange={() => {}} />
+        </div>
       </div>
-      <div style={{ ...S.muted, marginTop: 16 }}>
-        ⚠️ Уведомления в разработке — настройки сохранятся когда функция будет запущена.
+
+      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <button
+          onClick={async () => {
+            try {
+              setMsg('');
+              await enablePush(authFetch);
+              await authFetch(`${API_BASE}/push/test`, { method: 'POST' });
+              setMsg('Тестовое уведомление отправлено');
+            } catch (e) {
+              setMsg(e.message || 'Не удалось отправить тест');
+            }
+          }}
+          style={{ background: '#7C6CFF', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+        >
+          Отправить тест
+        </button>
+        {msg && <span style={S.muted}>{msg}</span>}
       </div>
     </div>
   );
@@ -927,7 +999,7 @@ export default function ProfilePage() {
         {tab === 'history'       && <TabHistory      history={history} loading={loading.history} />}
         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
         {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
-        {tab === 'notifications' && <TabNotifications />}
+        {tab === 'notifications' && <TabNotifications authFetch={authFetch} />}
         {tab === 'crm' && user?.tier === 'premium' && (
           <div style={{ ...S.card, textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>

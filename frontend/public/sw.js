@@ -125,14 +125,16 @@ async function networkFirstWithChartsCache(request) {
 // ── PUSH NOTIFICATIONS (заготовка для транзит-уведомлений Фазы 2) ─────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  const { title, body } = event.data.json();
+  let payload = {};
+  try { payload = event.data.json(); } catch { payload = { body: event.data.text() }; }
+  const title = payload.title || '✦ Astrea';
   event.waitUntil(
     self.registration.showNotification(title, {
-      body,
+      body:    payload.body || '',
       icon:    '/icons/icon-192.png',
       badge:   '/icons/icon-192.png',
       vibrate: [200, 100, 200],
-      data:    { url: '/' },
+      data:    { url: payload.url || '/' },
     })
   );
 });

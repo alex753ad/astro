@@ -60,6 +60,8 @@ from backend.auth.router import router as auth_router
 from backend.profile.router import router as profile_router
 from backend.profile.settings_router import router as settings_router
 from backend.onboarding_router import router as onboarding_router
+from backend.push.router import router as push_router
+from backend.push.cron import router as push_cron_router
 from backend.share_router import router as share_router
 from backend.payments.payments_router import router as payments_router
 from backend.crm.router import router as crm_router
@@ -137,6 +139,8 @@ app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(settings_router)
 app.include_router(onboarding_router)
+app.include_router(push_router)
+app.include_router(push_cron_router)
 app.include_router(share_router)
 app.include_router(payments_router)
 app.include_router(crm_router)
