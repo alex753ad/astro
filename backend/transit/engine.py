@@ -61,6 +61,7 @@ class TransitEvent:
     end_date:       str             # last day orb is active    (ISO)
     transit_planet: str
     transit_sign:   str             # sign on peak_date
+    transit_degree: float           # degree-in-sign of transit planet at peak
     natal_planet:   str
     natal_sign:     str
     aspect_type:    str
@@ -96,6 +97,7 @@ class _Window:
     peak_dt:        datetime
     peak_orb:       float
     peak_sign:      str
+    peak_deg:       float
     applying:       bool
     last_dt:        datetime        # updated each step while in orb
 
@@ -135,7 +137,7 @@ def calculate_transits(
         for t_name in transit_planet_names:
             t_id = PLANETS[t_name]
             t_lon, _, _, t_speed = _calc_planet_position(t_id, round(jd, 6))
-            t_sign, _           = _longitude_to_sign(t_lon)
+            t_sign, t_deg       = _longitude_to_sign(t_lon)
 
             for n_name, n_data in natal_positions.items():
                 n_lon  = n_data["longitude"]
@@ -161,6 +163,7 @@ def calculate_transits(
                                 peak_dt=current,
                                 peak_orb=orb,
                                 peak_sign=t_sign,
+                                peak_deg=t_deg,
                                 applying=t_speed >= 0,
                                 last_dt=current,
                             )
@@ -171,6 +174,7 @@ def calculate_transits(
                                 w.peak_orb  = orb
                                 w.peak_dt   = current
                                 w.peak_sign = t_sign
+                                w.peak_deg  = t_deg
                                 w.applying  = t_speed >= 0
                     else:
                         if key in open_windows:
@@ -212,6 +216,7 @@ def _make_event(w: _Window, exact_dt: Optional[datetime]) -> TransitEvent:
         end_date=w.last_dt.strftime("%Y-%m-%d"),
         transit_planet=w.transit_planet,
         transit_sign=w.peak_sign,
+        transit_degree=round(w.peak_deg, 1),
         natal_planet=w.natal_planet,
         natal_sign=w.natal_sign,
         aspect_type=w.aspect_type,
