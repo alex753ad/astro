@@ -53,21 +53,18 @@ class BirthDataInput(BaseModel):
     @classmethod
     def validate_place(cls, v: str) -> str:
         v = v.strip()
-        # Запрещаем служебные символы, которые могут сломать геокодер
         if re.search(r"[<>{}\[\]\\]", v):
             raise ValueError("Название места содержит недопустимые символы.")
         return v
 
 
 class CoordinatesInput(BaseModel):
-    """Прямое указание координат (альтернатива геокодингу)."""
-    latitude: float = Field(..., ge=-90.0, le=90.0, description="Широта (-90..90)")
-    longitude: float = Field(..., ge=-180.0, le=180.0, description="Долгота (-180..180)")
+    latitude: float = Field(..., ge=-90.0, le=90.0)
+    longitude: float = Field(..., ge=-180.0, le=180.0)
 
     @field_validator("latitude")
     @classmethod
     def lat_not_pole(cls, v: float) -> float:
-        # Вычисления нестабильны на полюсах
         if abs(v) > 89.9:
             raise ValueError("Широта слишком близка к полюсу (|lat| ≤ 89.9°).")
         return round(v, 6)
@@ -96,16 +93,48 @@ class TransitRequest(BaseModel):
 # AUTH SCHEMAS
 # ═══════════════════════════════════════════════════════════
 
+# Разрешённые российские почтовые домены
+RU_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "yandex.ru", "ya.ru",
+    "mail.ru", "bk.ru", "list.ru", "inbox.ru", "internet.ru",
+    "rambler.ru", "lenta.ru", "autorambler.ru", "myrambler.ru", "ro.ru",
+})
+
+_RU_DOMAIN_ERROR = (
+    "Принимаем только почту российских сервисов: "
+    "Яндекс (yandex.ru), Mail.ru, Rambler и другие."
+)
+
+
+def _validate_ru_email(v: str) -> str:
+    v = v.lower().strip()
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$", v):
+        raise ValueError("Некорректный email-адрес.")
+    if len(v) > 254:
+        raise ValueError("Email слишком длинный (макс. 254 символа).")
+    domain = v.split("@")[1]
+    if domain not in RU_EMAIL_DOMAINS:
+        raise ValueError(_RU_DOMAIN_ERROR)
+    return v
+
+
+def _validate_password(v: str) -> str:
+    if v.isdigit():
+        raise ValueError("Пароль не может состоять только из цифр.")
+    return v
+
+
+# ── Старая схема — сохранена для тестов и обратной совместимости ──
+
 class RegisterRequest(BaseModel):
     email: str = Field(..., description="Email пользователя")
-    password: str = Field(..., min_length=8, max_length=128, description="Пароль (мин. 8 символов)")
-    ref_code: Optional[str] = Field(None, max_length=16, description="Реферальный код пригласившего")
+    password: str = Field(..., min_length=8, max_length=128)
+    ref_code: Optional[str] = Field(None, max_length=16)
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, v: str) -> str:
         v = v.lower().strip()
-        # Простая проверка формата без внешних зависимостей
         if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$", v):
             raise ValueError("Некорректный email-адрес.")
         if len(v) > 254:
@@ -115,10 +144,38 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        if v.isdigit():
-            raise ValueError("Пароль не может состоять только из цифр.")
-        return v
+        return _validate_password(v)
 
+
+# ── OTP-регистрация по email ──
+
+class SendEmailOTPRequest(BaseModel):
+    email: str = Field(..., description="Email российского сервиса")
+    password: str = Field(..., min_length=8, max_length=128)
+    ref_code: Optional[str] = Field(None, max_length=16)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        return _validate_ru_email(v)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+
+class VerifyEmailOTPRequest(BaseModel):
+    email: str
+    code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.lower().strip()
+
+
+# ── Общие auth-схемы ──
 
 class LoginRequest(BaseModel):
     email: str
@@ -147,7 +204,7 @@ class TokenResponse(BaseModel):
 
 class UserProfileResponse(BaseModel):
     id: str
-    email: str
+    email: Optional[str] = None
     tier: str
     is_email_confirmed: bool = False
     stripe_customer_id: Optional[str] = None
@@ -170,7 +227,7 @@ class CheckoutRequest(BaseModel):
     billing_period: str = Field("monthly", description="monthly или annual")
     success_url: str = Field(..., max_length=2048)
     cancel_url: str = Field(..., max_length=2048)
-    promo_code: str | None = Field(None, description="Stripe promotion code (опционально)")
+    promo_code: str | None = Field(None)
 
     @field_validator("tier")
     @classmethod
@@ -247,7 +304,7 @@ class AspectData(BaseModel):
     angle: float = Field(..., ge=0.0, le=360.0)
     orb: float = Field(..., ge=0.0, le=15.0)
     applying: bool
-    importance: str = "low"  # high / medium / low  (F4)
+    importance: str = "low"
 
 
 class PointData(BaseModel):
