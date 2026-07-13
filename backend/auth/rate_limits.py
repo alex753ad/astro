@@ -58,7 +58,7 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 12,
         "transits_ai": False,                  # полный AI-доступ — нет
         "transits_ai_per_month": 3,            # 3.4a: тизер Pro — 3 AI-транзита/мес
-        "profiles_limit": 5,
+        "profiles_limit": 1,                   # E3: сетка §4 — Lite 1 карта (было 5)
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
         "synastry": False,
@@ -73,7 +73,7 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 12,                 # 3.2: было 6 (Pro не мог быть хуже Lite)
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
-        "profiles_limit": 20,
+        "profiles_limit": 5,                    # E3: сетка §4 — Pro 5 карт (было 20)
         "lunar_months": 12,
         "planner_months": 12,
         "synastry": False,
