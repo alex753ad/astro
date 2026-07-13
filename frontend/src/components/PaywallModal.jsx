@@ -202,6 +202,11 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
 
         {error && <p style={s.error}>{error}</p>}
 
+        {/* E4: явный escape-hatch — не серый-на-сером */}
+        <button style={s.continueFree} onClick={onClose}>
+          Продолжить бесплатно
+        </button>
+
         <p style={s.legal}>{content.price}</p>
       </div>
     </div>
@@ -343,6 +348,20 @@ const s = {
     fontSize: '12px',
     color: '#C03030',
     textAlign: 'center',
+  },
+  continueFree: {
+    display: 'block',
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    color: '#6C3CE0',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    padding: '6px 0',
+    marginBottom: '10px',
+    textDecoration: 'underline',
   },
   legal: {
     margin: 0,
