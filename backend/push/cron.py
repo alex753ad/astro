@@ -166,6 +166,80 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
     return out
 
 
+# ── Фаза 3: троичное касание ретро (директ → ретро → директ) ──
+EXACT_TOUCH_ORB = 0.3     # порог «точного» касания в градусах
+TRIPLE_SCAN_DAYS = 300    # окно назад для подсчёта номера захода
+
+_TRIPLE_MSG = {
+    1: ("✦ Тема открывается", "тема открывается — первый заход"),
+    2: ("✦ Возврат темы", "тема возвращается для пересмотра (ретроград)"),
+    3: ("✦ Тема закрывается", "третий заход — тема закрывается и закрепляется"),
+}
+
+
+def _count_touches_until(tp: str, nlon: float, exact_angle: float, today: date_type) -> int:
+    """Сколько раз аспект точно совпал за окно [today-300, today] включительно."""
+    from backend.transit.engine import _angular_distance
+    prev_sign = None
+    crossings = 0
+    d = today - timedelta(days=TRIPLE_SCAN_DAYS)
+    end = today + timedelta(days=1)
+    while d <= end:
+        try:
+            diff = _angular_distance(_lon_on(tp, d), nlon) - exact_angle
+        except Exception:
+            d += timedelta(days=2)
+            continue
+        sign = 1 if diff >= 0 else -1
+        if prev_sign is not None and sign != prev_sign:
+            crossings += 1
+        prev_sign = sign
+        d += timedelta(days=2)
+    return max(1, min(crossings, 3))
+
+
+def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: str) -> list[dict]:
+    """Точное касание медленной планетой аспекта к личной планете сегодня —
+    с номером захода (1/2/3) для сценария директ→ретро→директ.
+    """
+    from backend.transit.engine import ASPECTS, _angular_distance
+
+    yday = today - timedelta(days=1)
+    tmrw = today + timedelta(days=1)
+    natal = {p["name"]: p["longitude"] for p in (chart.planets or []) if p.get("name") in PERSONAL_NATAL}
+
+    out: list[dict] = []
+    for tp in SLOW_PLANETS:
+        try:
+            lt_y = _lon_on(tp, yday)
+            lt_t = _lon_on(tp, today)
+            lt_m = _lon_on(tp, tmrw)
+        except Exception:
+            continue
+        pr = PLANET_RU.get(tp, tp)
+        for npl, nlon in natal.items():
+            nr = PLANET_RU.get(npl, npl)
+            for aspect, exact in ASPECTS.items():
+                orb_y = abs(_angular_distance(lt_y, nlon) - exact)
+                orb_t = abs(_angular_distance(lt_t, nlon) - exact)
+                orb_m = abs(_angular_distance(lt_m, nlon) - exact)
+                # точное касание сегодня = локальный минимум ниже порога
+                if orb_t <= EXACT_TOUCH_ORB and orb_t <= orb_y and orb_t <= orb_m:
+                    phase = _count_touches_until(tp, nlon, exact, today)
+                    title, tail = _TRIPLE_MSG.get(phase, _TRIPLE_MSG[1])
+                    ar = ASPECT_RU.get(aspect, aspect)
+                    out.append({
+                        "kind": "triple",
+                        "ref": f"triple:{tp}:{npl}:{aspect}:{today.isoformat()}",
+                        "priority": "significant", "weight": 98,
+                        "frag": f"{pr} {ar} к {nr}: {tail}",
+                        "title": title,
+                        "body": f"{pr} {ar} к вашему {nr} — {tail}.",
+                        "url": planner_url,
+                    })
+    return out
+
+
 # ── Тексты ──
 def _daily_body(chart: NatalChart, today: date_type) -> str:
     """Короткий тизер прогноза на день из активных транзитов (без AI)."""
@@ -278,6 +352,12 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
             cands.extend(_four_degree_candidates(chart, today, planner_url))
         except Exception as e:
             logger.warning("4deg candidates failed user=%s: %s", user.id, e)
+
+        # Фаза 3: точное касание с номером захода (директ→ретро→директ)
+        try:
+            cands.extend(_triple_touch_candidates(chart, today, planner_url))
+        except Exception as e:
+            logger.warning("triple-touch candidates failed user=%s: %s", user.id, e)
 
     # 6) Новолуние/полнолуние — за день (soft)
     if getattr(user, "push_moon_phases", False):
