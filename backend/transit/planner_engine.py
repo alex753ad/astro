@@ -70,6 +70,7 @@ def build_planner(
     to_date: date,
     today: Optional[date] = None,
     user_timezone: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> dict:
     """Собрать планер полностью в Python без ИИ.
 
@@ -78,9 +79,15 @@ def build_planner(
       month_title, month_sections, week_title, week_days,
       longterm_title, longterm
     }
+
+    E1 (Free-витрина): при tier="free" полный разбор (items) остаётся только
+    у текущего периода Солнца. Все прочие периоды/планеты, Луна и долгосрочные
+    транзиты возвращаются с items=[] и locked=true (текст на клиент не уходит).
     """
     if today is None:
         today = date.today()
+
+    free = (tier == "free")
 
     periods = compute_planner_periods(
         natal_profile=natal_profile,
@@ -96,16 +103,19 @@ def build_planner(
     month_sections = []
     for p in periods.get("fast_planets", []):
         eng = _KEY_TO_ENG.get(p["planet_key"], "")
+        is_sun = p["planet_key"] == "sun"
         sections_periods = []
         for period in p.get("periods", []):
             house = period.get("house")
             if not house:
                 continue
-            items = _planet_items(eng, house)
+            # E1: у Free разблокирован только текущий период Солнца
+            locked = free and not (is_sun and period.get("is_current", False))
             sections_periods.append({
                 "period": period["period"],
                 "house":  house,
-                "items":  items,
+                "items":  [] if locked else _planet_items(eng, house),
+                "locked": locked,
             })
         month_sections.append({
             "planet":          p["planet_key"],
@@ -127,7 +137,8 @@ def build_planner(
             "date":  passage["date"],
             "time":  passage.get("time", ""),
             "house": house,
-            "items": _moon_items(house) if house else [],
+            "items": [] if free else (_moon_items(house) if house else []),
+            "locked": free,
         })
 
     # ── longterm: медленные планеты ───────────────────────────────────────────
@@ -135,7 +146,6 @@ def build_planner(
     for p in periods.get("slow_planets", []):
         eng = _KEY_TO_ENG.get(p["planet_key"], "")
         house = p.get("house", 0)
-        items = _planet_items(eng, house)
         longterm.append({
             "planet":          p["planet_key"],
             "planet_name":     p["planet_name"],
@@ -143,7 +153,8 @@ def build_planner(
             "planet_subtitle": p.get("planet_subtitle", ""),
             "house":           house,
             "period":          p.get("period_label", ""),
-            "items":           items,
+            "items":           [] if free else _planet_items(eng, house),
+            "locked":          free,
         })
 
     return {

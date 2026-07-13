@@ -1475,6 +1475,7 @@ async def get_monthly_planner(
     chart_id: str,
     month_offset: int = 0,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     import calendar as cal_mod
     from datetime import date as date_type
@@ -1519,6 +1520,7 @@ async def get_monthly_planner(
         to_date=month_end,
         today=today,
         user_timezone=_tz,
+        tier=(user.tier if user else "free"),
     )
 
     return {"planner": planner}
