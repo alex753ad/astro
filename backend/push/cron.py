@@ -44,6 +44,14 @@ ASPECT_RU = {
     "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
 }
 FAST_PLANETS = ("Sun", "Mercury", "Venus", "Mars")
+SLOW_PLANETS = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+MEDIUM_PLANETS = ("Mercury", "Venus", "Mars")
+
+# E5/E6 — мягкие пуши (шум): ограничиваются потолком 1/48ч, вливаются в событийный.
+SOFT_KINDS = {"daily", "moon"}
+SOFT_CAP_HOURS = 48
+ADVANCE_MONTH_DAYS = 30   # упреждение «большого периода» (медленные планеты)
+ADVANCE_WEEK_DAYS = 7     # упреждение среднего периода (Венера/Марс/Меркурий)
 
 
 # ── Дедупликация ──
@@ -61,6 +69,31 @@ def _mark_sent(db: Session, user_id: str, kind: str, ref_key: str) -> None:
         db.commit()
     except IntegrityError:
         db.rollback()  # уже отмечено параллельным тиком
+
+
+def _soft_capped(db: Session, user_id: str, now_utc: datetime) -> bool:
+    """True, если мягкий пуш уже был за последние SOFT_CAP_HOURS (потолок шума)."""
+    last = (
+        db.query(PushSentLog)
+        .filter(PushSentLog.user_id == user_id, PushSentLog.kind.in_(list(SOFT_KINDS)))
+        .order_by(PushSentLog.sent_at.desc())
+        .first()
+    )
+    if last and last.sent_at and (now_utc - last.sent_at) < timedelta(hours=SOFT_CAP_HOURS):
+        return True
+    return False
+
+
+def _period_starts_on(planet: str, cusps: list[float], target: date_type) -> list[int]:
+    """Номера домов, в которые планета входит именно в дату `target`."""
+    from backend.transit.house_passages import calculate_house_passages
+    win_start = datetime(target.year, target.month, target.day) - timedelta(days=1)
+    win_end = datetime(target.year, target.month, target.day) + timedelta(days=1, hours=23)
+    out = []
+    for p in calculate_house_passages(planet, cusps, win_start, win_end):
+        if p["start_dt"].date() == target:
+            out.append(p["house"])
+    return out
 
 
 # ── Тексты ──
@@ -85,6 +118,111 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
     except Exception as e:
         logger.warning("daily body build failed: %s", e)
     return "Ваш персональный прогноз на сегодня готов."
+
+
+# ── Сбор кандидатов на пуш (без отправки) ──
+def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_type) -> list[dict]:
+    """Список событий-кандидатов на сегодня. Каждый:
+      {kind, ref, priority(soft/significant), weight, frag, title, body, url}
+    frag — короткий фрагмент для агрегированного пуша; weight — порядок значимости.
+    """
+    cands: list[dict] = []
+    planner_url = f"/planner/{chart.id}"
+
+    # 1) Ежедневный прогноз (soft)
+    if getattr(user, "push_daily_forecast", True):
+        cands.append({
+            "kind": "daily", "ref": today.isoformat(),
+            "priority": "soft", "weight": 10, "frag": "прогноз на день",
+            "title": "✦ Прогноз на сегодня", "body": _daily_body(chart, today), "url": "/home",
+        })
+
+    # Планер (significant): старт сегодня + упреждение неделя/месяц
+    if getattr(user, "push_planner", True):
+        try:
+            from backend.transit.house_passages import _extract_cusps
+            cusps = _extract_cusps({"houses": chart.houses})
+            if not all(c == 0.0 for c in cusps):
+                # 2) старт периода быстрой планеты сегодня
+                for planet in FAST_PLANETS:
+                    for house in _period_starts_on(planet, cusps, today):
+                        pr = PLANET_RU.get(planet, planet)
+                        cands.append({
+                            "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
+                            "priority": "significant", "weight": 60, "frag": f"период {pr}",
+                            "title": "✦ Планер", "body": f"{pr}: начался новый период (дом {house}).",
+                            "url": planner_url,
+                        })
+                # 3) за неделю — средние планеты (Венера/Марс/Меркурий)
+                wk = today + timedelta(days=ADVANCE_WEEK_DAYS)
+                for planet in MEDIUM_PLANETS:
+                    for house in _period_starts_on(planet, cusps, wk):
+                        pr = PLANET_RU.get(planet, planet)
+                        cands.append({
+                            "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
+                            "priority": "significant", "weight": 70, "frag": f"через неделю период {pr}",
+                            "title": "✦ Скоро период", "body": f"{pr}: через неделю начнётся период (дом {house}). Подготовьтесь.",
+                            "url": planner_url,
+                        })
+                # 4) за месяц — медленные планеты (большой период)
+                mo = today + timedelta(days=ADVANCE_MONTH_DAYS)
+                for planet in SLOW_PLANETS:
+                    for house in _period_starts_on(planet, cusps, mo):
+                        pr = PLANET_RU.get(planet, planet)
+                        cands.append({
+                            "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
+                            "priority": "significant", "weight": 100, "frag": f"скоро большой период: {pr}",
+                            "title": "✦ Большой период впереди",
+                            "body": f"{pr}: через месяц начнётся новый большой период (дом {house}). Готовьтесь заранее.",
+                            "url": planner_url,
+                        })
+        except Exception as e:
+            logger.warning("planner candidates failed user=%s: %s", user.id, e)
+
+    # 5) Важные транзиты — старт значимого транзита сегодня (significant)
+    if getattr(user, "push_key_transits", True):
+        try:
+            from backend.transit.engine import calculate_transits, ALERT_PLANETS
+            events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today)
+            for e in events:
+                if e.transit_planet not in ALERT_PLANETS:
+                    continue
+                if e.start_date != today.isoformat():
+                    continue
+                pr = PLANET_RU.get(e.transit_planet, e.transit_planet)
+                nr = PLANET_RU.get(e.natal_planet, e.natal_planet)
+                ar = ASPECT_RU.get(e.aspect_type, e.aspect_type)
+                cands.append({
+                    "kind": "transit",
+                    "ref": f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}",
+                    "priority": "significant", "weight": 90, "frag": f"{pr} {ar} к {nr}",
+                    "title": "✦ Важный транзит",
+                    "body": f"{pr} {ar} к вашему {nr} — начинается значимый транзит.",
+                    "url": planner_url,
+                })
+        except Exception as e:
+            logger.warning("transit candidates failed user=%s: %s", user.id, e)
+
+    # 6) Новолуние/полнолуние — за день (soft)
+    if getattr(user, "push_moon_phases", False):
+        try:
+            from backend.calendar.lunar_engine import get_moon_phases
+            tomorrow = today + timedelta(days=1)
+            for phase in get_moon_phases(tomorrow.year, tomorrow.month):
+                if phase.date != tomorrow.isoformat():
+                    continue
+                label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
+                cands.append({
+                    "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
+                    "priority": "soft", "weight": 30, "frag": label,
+                    "title": f"✦ {label} завтра",
+                    "body": f"{label} в {phase.sign} — завтра. Подготовьтесь заранее.",
+                    "url": "/lunar",
+                })
+        except Exception as e:
+            logger.warning("moon candidates failed user=%s: %s", user.id, e)
+
+    return cands
 
 
 # ── Основная логика по одному пользователю ──
@@ -113,104 +251,45 @@ def _process_user(db: Session, user: User) -> int:
     if (now_local.hour, now_local.minute) < (th, tm):
         return 0
 
-    sent = 0
+    # Сбор + отсев уже отправленного
+    cands = [
+        c for c in _collect_candidates(db, user, chart, today)
+        if not _already_sent(db, user.id, c["kind"], c["ref"])
+    ]
+    if not cands:
+        return 0
 
-    # 1) Ежедневный прогноз
-    if getattr(user, "push_daily_forecast", True):
-        ref = today.isoformat()
-        if not _already_sent(db, user.id, "daily", ref):
-            n = send_to_user(db, user.id, {
-                "title": "✦ Прогноз на сегодня",
-                "body": _daily_body(chart, today),
-                "url": "/home",
-            })
-            if n:
-                _mark_sent(db, user.id, "daily", ref)
-                sent += n
+    significant = [c for c in cands if c["priority"] != "soft"]
+    soft = [c for c in cands if c["priority"] == "soft"]
 
-    # 2) Планер — старт нового периода планеты (заход в дом сегодня)
-    if getattr(user, "push_planner", True):
-        try:
-            from backend.transit.house_passages import calculate_house_passages, _extract_cusps
-            cusps = _extract_cusps({"houses": chart.houses})
-            if not all(c == 0.0 for c in cusps):
-                win_start = datetime(today.year, today.month, today.day) - timedelta(days=1)
-                win_end = datetime(today.year, today.month, today.day) + timedelta(days=1, hours=23)
-                for planet in FAST_PLANETS:
-                    passages = calculate_house_passages(planet, cusps, win_start, win_end)
-                    for p in passages:
-                        start = p["start_dt"].date()
-                        if start != today:
-                            continue
-                        ref = f"{planet}:{p['house']}:{start.isoformat()}"
-                        if _already_sent(db, user.id, "planner", ref):
-                            continue
-                        pr = PLANET_RU.get(planet, planet)
-                        n = send_to_user(db, user.id, {
-                            "title": "✦ Планер",
-                            "body": f"{pr}: начался новый период (дом {p['house']}).",
-                            "url": f"/planner/{chart.id}",
-                        })
-                        if n:
-                            _mark_sent(db, user.id, "planner", ref)
-                            sent += n
-        except Exception as e:
-            logger.warning("planner push failed user=%s: %s", user.id, e)
+    # Приоритет + потолок: значимые идут всегда (мягкие вливаются);
+    # если значимых нет — мягкие подчиняются потолку 1/48ч.
+    if significant:
+        to_send = significant + soft
+    else:
+        if _soft_capped(db, user.id, datetime.utcnow()):
+            return 0
+        to_send = soft
 
-    # 3) Важные транзиты — старт значимого транзита сегодня
-    if getattr(user, "push_key_transits", True):
-        try:
-            from backend.transit.engine import calculate_transits, ALERT_PLANETS
-            events = calculate_transits(
-                natal_planets=chart.planets, from_date=today, to_date=today
-            )
-            for e in events:
-                if e.transit_planet not in ALERT_PLANETS:
-                    continue
-                if e.start_date != today.isoformat():
-                    continue
-                ref = f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}"
-                if _already_sent(db, user.id, "transit", ref):
-                    continue
-                pr = PLANET_RU.get(e.transit_planet, e.transit_planet)
-                nr = PLANET_RU.get(e.natal_planet, e.natal_planet)
-                ar = ASPECT_RU.get(e.aspect_type, e.aspect_type)
-                n = send_to_user(db, user.id, {
-                    "title": "✦ Важный транзит",
-                    "body": f"{pr} {ar} к вашему {nr} — начинается значимый транзит.",
-                    "url": f"/planner/{chart.id}",
-                })
-                if n:
-                    _mark_sent(db, user.id, "transit", ref)
-                    sent += n
-        except Exception as e:
-            logger.warning("transit push failed user=%s: %s", user.id, e)
+    # Порядок по убыванию значимости (медленные планеты первыми)
+    to_send.sort(key=lambda c: c["weight"], reverse=True)
 
-    # 4) Новолуние и полнолуние — за день до события
-    if getattr(user, "push_moon_phases", False):
-        try:
-            from backend.calendar.lunar_engine import get_moon_phases
-            tomorrow = today + timedelta(days=1)
-            phases = get_moon_phases(tomorrow.year, tomorrow.month)
-            for phase in phases:
-                if phase.date != tomorrow.isoformat():
-                    continue
-                ref = f"moon:{phase.type}:{phase.date}"
-                if _already_sent(db, user.id, "moon", ref):
-                    continue
-                label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
-                n = send_to_user(db, user.id, {
-                    "title": f"✦ {label} завтра",
-                    "body": f"{label} в {phase.sign} — завтра. Подготовьтесь заранее.",
-                    "url": "/lunar",
-                })
-                if n:
-                    _mark_sent(db, user.id, "moon", ref)
-                    sent += n
-        except Exception as e:
-            logger.warning("moon phase push failed user=%s: %s", user.id, e)
+    # Агрегация совпавших за день в один пуш
+    if len(to_send) == 1:
+        payload = {"title": to_send[0]["title"], "body": to_send[0]["body"], "url": to_send[0]["url"]}
+    else:
+        payload = {
+            "title": "✦ Ваш Timeline на сегодня",
+            "body": "Сегодня: " + " + ".join(c["frag"] for c in to_send),
+            "url": to_send[0]["url"],
+        }
 
-    return sent
+    n = send_to_user(db, user.id, payload)
+    if n:
+        for c in to_send:
+            _mark_sent(db, user.id, c["kind"], c["ref"])
+        return n
+    return 0
 
 
 @router.post("/push-tick")
