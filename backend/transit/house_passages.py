@@ -164,6 +164,14 @@ def calculate_house_passages(
     return periods
 
 
+# Сколько дней сканировать вперёд от конца периода, чтобы найти реальный выход из дома
+LOOKAHEAD_DAYS = {
+    "Sun":     40,
+    "Mercury": 90,
+    "Venus":   90,
+    "Mars":    100,
+}
+
 # Сколько дней сканировать назад от начала периода, чтобы найти реальное начало транзита
 LOOKBACK_DAYS = {
     "Sun":     40,
@@ -236,7 +244,8 @@ def compute_planner_periods(
     fast_result = []
     for planet in ("Sun", "Mercury", "Venus", "Mars"):
         lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 60))
-        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt)
+        lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 40))
+        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt + lookahead)
         # Оставляем только периоды, пересекающиеся с отображаемым месяцем
         passages = [p for p in all_passages if p["end_dt"] >= period_start_dt]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
