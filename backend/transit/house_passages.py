@@ -229,6 +229,8 @@ def compute_planner_periods(
 
     period_start_dt = datetime(from_date.year, from_date.month, from_date.day, 0, 0)
     period_end_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59)
+    # Полдень текущего дня — для пометки «текущего» периода (E1: Free-витрина планера)
+    today_dt = datetime(today.year, today.month, today.day, 12, 0)
 
     # ── Быстрые планеты: Солнце, Меркурий, Венера, Марс — на весь месяц ──
     fast_result = []
@@ -247,6 +249,7 @@ def compute_planner_periods(
                 {
                     "period": _fmt_period(p["start_dt"], p["end_dt"]),
                     "house":  p["house"],
+                    "is_current": p["start_dt"] <= today_dt <= p["end_dt"],
                 }
                 for p in passages
             ],

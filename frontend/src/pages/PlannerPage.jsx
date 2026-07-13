@@ -324,6 +324,26 @@ const styles = `
   }
   .upgrade-btn:hover { opacity: 0.88; }
 
+  /* E1 — Free-витрина: подсказка + блюр-тизер на заблокированных блоках */
+  .free-hint {
+    background: rgba(147,51,234,0.06);
+    border: 1px solid rgba(147,51,234,0.15);
+    border-radius: 12px; padding: 10px 14px;
+    font-size: 12.5px; color: #7C3AED; margin-bottom: 16px; line-height: 1.5;
+  }
+  .locked-teaser { position: relative; margin-top: 4px; }
+  .locked-teaser .decoy {
+    filter: blur(6px); opacity: 0.5; user-select: none; pointer-events: none;
+  }
+  .locked-teaser .decoy li { color: #94A3B8; }
+  .locked-trigger {
+    margin-top: 8px; font-size: 12.5px; color: #7C3AED; line-height: 1.5;
+    display: flex; gap: 6px; align-items: flex-start;
+  }
+  .locked-trigger .lk { flex-shrink: 0; }
+  .dark .free-hint { background: rgba(167,139,250,0.10); border-color: rgba(167,139,250,0.25); color: #C4B5FD; }
+  .dark .locked-trigger { color: #C4B5FD; }
+
   .error-box {
     background: #fff; border: 1px solid #FCA5A5;
     border-radius: 10px; padding: 18px; color: #DC2626; font-size: 14px;
@@ -541,7 +561,21 @@ function SectionHeader({ emoji, title, subtitle }) {
   );
 }
 
-function PeriodBlock({ planet, emoji, period, items, subtitle }) {
+// E1 — блюр-тизер для заблокированных блоков Free (текст не приходит с бэка)
+function LockedTeaser({ trigger }) {
+  return (
+    <div className="locked-teaser">
+      <ul className="period-items decoy" aria-hidden="true">
+        <li><span className="dot" style={{ background: "#CBD5E1" }} />Тема этого периода</li>
+        <li><span className="dot" style={{ background: "#CBD5E1" }} />Ключевые действия окна</li>
+        <li><span className="dot" style={{ background: "#CBD5E1" }} />Рекомендации по сферам</li>
+      </ul>
+      <div className="locked-trigger"><span className="lk">🔒</span><span>{trigger}</span></div>
+    </div>
+  );
+}
+
+function PeriodBlock({ planet, emoji, period, items, subtitle, locked }) {
   const color = PLANET_COLORS[planet] || "#64748B";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
@@ -552,19 +586,23 @@ function PeriodBlock({ planet, emoji, period, items, subtitle }) {
         </span>
       </div>
       {subtitle && <div className="period-subtitle">{subtitle}</div>}
-      <ul className="period-items">
-        {items.map((item, i) => (
-          <li key={i}>
-            <span className="dot" style={{ background: color }} />
-            {item}
-          </li>
-        ))}
-      </ul>
+      {locked ? (
+        <LockedTeaser trigger={`${period} — активный период по одной из ключевых тем вашей карты. Действия в это окно дают результат в 2–3 раза сильнее обычного.`} />
+      ) : (
+        <ul className="period-items">
+          {items.map((item, i) => (
+            <li key={i}>
+              <span className="dot" style={{ background: color }} />
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-function WeekDayBlock({ date, time, house, items }) {
+function WeekDayBlock({ date, time, house, items, locked }) {
   return (
     <div className="week-card">
       <div className="week-card-header">
@@ -572,19 +610,23 @@ function WeekDayBlock({ date, time, house, items }) {
         {time && <span className="week-time">{time}</span>}
         <span className="week-house-badge">🌙 Луна в {house} доме</span>
       </div>
-      <ul className="period-items">
-        {items.map((item, i) => (
-          <li key={i}>
-            <span className="dot" style={{ background: "#EAB308" }} />
-            {item}
-          </li>
-        ))}
-      </ul>
+      {locked ? (
+        <LockedTeaser trigger="Луна проходит по вашим домам — точные окна для конкретных дел. Откройте на Lite и выше." />
+      ) : (
+        <ul className="period-items">
+          {items.map((item, i) => (
+            <li key={i}>
+              <span className="dot" style={{ background: "#EAB308" }} />
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-function LongTermBlock({ planet, emoji, period, items, warning, subtitle }) {
+function LongTermBlock({ planet, emoji, period, items, warning, subtitle, locked }) {
   const color = PLANET_COLORS[planet] || "#64748B";
   return (
     <div className="lt-card" style={{ borderLeftColor: color }}>
@@ -594,14 +636,18 @@ function LongTermBlock({ planet, emoji, period, items, warning, subtitle }) {
         <span style={{ color }}>{period}</span>
       </div>
       {subtitle && <div className="lt-subtitle">{subtitle}</div>}
-      <ul className="period-items">
-        {items.map((item, i) => (
-          <li key={i}>
-            <span className="dot" style={{ background: color }} />
-            {item}
-          </li>
-        ))}
-      </ul>
+      {locked ? (
+        <LockedTeaser trigger="Долгосрочный транзит формирует тренды на месяцы и годы. Разбор доступен на Pro и выше." />
+      ) : (
+        <ul className="period-items">
+          {items.map((item, i) => (
+            <li key={i}>
+              <span className="dot" style={{ background: color }} />
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -637,7 +683,8 @@ export default function PlannerPage() {
 
   const { exportEvents, status: gcalStatus } = useGcalExport();
 
-  useEffect(() => { if (!isFree) { loadPlan(); loadPhases(); } else setLoading(false); }, [id, monthOffset]);
+  // E1: Free тоже грузит план — витрина с блюром (текущий период Солнца открыт)
+  useEffect(() => { loadPlan(); loadPhases(); }, [id, monthOffset]);
 
   async function loadPhases() {
     try {
@@ -751,15 +798,12 @@ export default function PlannerPage() {
           </div>
 
           {isFree && (
-            <div className="locked-box">
-              <div className="lock-icon">🔒</div>
-              <h3>Планировщик недоступен на бесплатном тарифе</h3>
-              <p>Подключите Lite или Pro, чтобы получить персональный астро-план</p>
-              <button className="upgrade-btn" onClick={() => navigate(-1)}>Выбрать тариф</button>
+            <div className="free-hint">
+              🔓 На бесплатном тарифе открыт текущий период Солнца. Остальные окна — под подпиской.
             </div>
           )}
 
-          {!isFree && (loading ? (
+          {(loading ? (
             <LoadingState />
           ) : error ? (
             <div className="error-box">
@@ -788,7 +832,8 @@ export default function PlannerPage() {
                   />
                   {(section.periods || []).map((p, pi) => (
                     <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji}
-                      period={p.period} items={p.items || []} subtitle={section.planet_subtitle} />
+                      period={p.period} items={p.items || []} subtitle={section.planet_subtitle}
+                      locked={p.locked} />
                   ))}
                 </div>
               ))}
@@ -797,7 +842,7 @@ export default function PlannerPage() {
                 <div>
                   <SectionHeader emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
                   {(planData?.week_days || []).map((day, i) => (
-                    <WeekDayBlock key={i} date={day.date} time={day.time} house={day.house} items={day.items || []} />
+                    <WeekDayBlock key={i} date={day.date} time={day.time} house={day.house} items={day.items || []} locked={day.locked} />
                   ))}
                 </div>
               )}
@@ -808,7 +853,8 @@ export default function PlannerPage() {
                   {(planData?.longterm || []).map((lt, i) => (
                     <LongTermBlock key={i} planet={lt.planet} emoji={lt.emoji}
                       period={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
-                      items={lt.items || []} warning={lt.warning} subtitle={lt.planet_subtitle} />
+                      items={lt.items || []} warning={lt.warning} subtitle={lt.planet_subtitle}
+                      locked={lt.locked} />
                   ))}
                 </div>
               )}
