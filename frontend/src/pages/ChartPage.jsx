@@ -15,6 +15,7 @@ import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import PaywallModal from '../components/PaywallModal';
+import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
 import OnboardingTooltips from '../components/OnboardingTooltips';
 import StreakBadge from '../components/StreakBadge';
 import useStreak, { schedulePushReminder } from '../hooks/useStreak';
@@ -221,6 +222,20 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallContext, setPaywallContext] = useState('free_to_lite');
+
+  // E4: показ активной модалки с ограничением частоты.
+  // forced=true — явное намерение (кнопка «Перейти на Pro»), лимит не применяется.
+  function openPaywall(context, forced = false) {
+    if (context) setPaywallContext(context);
+    if (!forced && !canShowPaywall()) return;
+    setShowPaywall(true);
+    if (!forced) markPaywallShown();
+  }
+  function closePaywall() {
+    setShowPaywall(false);
+    markPaywallDismissed();
+  }
+  const _upsellCtx = () => (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite');
   const [showReport, setShowReport]   = useState(false);
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
@@ -400,7 +415,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   function handleTabChange(key, minTier) {
     if (!tierAllowed(minTier)) {
-      setShowPaywall(true);
+      openPaywall(_upsellCtx());
       return;
     }
     handleTopTabChange(key);
@@ -528,9 +543,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                       </div>
                     </div>
                   ) : currentUser?.tier === 'lite' ? (
-                    <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => { setPaywallContext('lite_to_pro'); setShowPaywall(true); }} />
+                    <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => openPaywall('lite_to_pro', true)} />
                   ) : (
-                    <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => { setPaywallContext('free_to_lite'); setShowPaywall(true); }} />
+                    <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => openPaywall('free_to_lite', true)} />
                   )}
                 </div>
               )}
@@ -620,14 +635,14 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 {tierAllowed('pro') ? (
                   <RagChat
                     chartId={chartId}
-                    onPaywall={() => setShowPaywall(true)}
+                    onPaywall={() => openPaywall(_upsellCtx())}
                   />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: '#64748b' }}>
                     <span style={{ fontSize: 40 }}>🔒</span>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>AI Астролог Астрея</div>
                     <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Доступно на тарифах Pro и Premium</div>
-                    <button onClick={() => { setPaywallContext(currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite'); setShowPaywall(true); }} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                    <button onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Открыть доступ
                     </button>
                   </div>
@@ -672,7 +687,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => { setPaywallContext(ctx || (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite')); setShowPaywall(true); }} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx())} />
               </section>
             </main>
           </div>
@@ -695,7 +710,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       )}
 
       {showPaywall && (
-        <PaywallModal context={paywallContext} chartId={chartId} onClose={() => setShowPaywall(false)} />
+        <PaywallModal context={paywallContext} chartId={chartId} onClose={closePaywall} />
       )}
 
       {showReport && (
