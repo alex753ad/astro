@@ -348,6 +348,8 @@ class TransitEvent(BaseModel):
     peak_orb: float = Field(..., ge=0.0, le=15.0)
     exact_date: Optional[str] = None
     applying: bool = True
+    significant: bool = False
+    free_unlocked: bool = False
 
     @property
     def date(self) -> str:
