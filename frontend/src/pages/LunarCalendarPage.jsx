@@ -94,7 +94,7 @@ function fmtPhaseTime(event) {
     if (!src) return '';
     const [, mo, dd] = src.split('-');
     const tm = event.time.replace(/\s*GMT\+3/, '').replace(/\s*UTC/, '');
-    return `${dd}.${mo} - ${tm} ОМТ+3`;
+    return `${dd}.${mo} - ${tm} GMT+3`;
   }
   const src = event.exact_date || event.date;
   if (!src) return '';
@@ -103,7 +103,7 @@ function fmtPhaseTime(event) {
   const mo = String(d.getMonth()+1).padStart(2,'0');
   const hh = String(d.getHours()).padStart(2,'0');
   const mi = String(d.getMinutes()).padStart(2,'0');
-  return `${dd}.${mo} - ${hh}:${mi} ОМТ+3`;
+  return `${dd}.${mo} - ${hh}:${mi} GMT+3`;
 }
 
 // ══════════════════════════════════════════════════════════

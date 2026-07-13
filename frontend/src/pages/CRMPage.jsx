@@ -1544,7 +1544,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📊 Практика</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📊 Аналитика</div>
         <div style={S.muted}>{withReason.length ? `${withReason.length} к реактивации · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1805,6 +1805,45 @@ function GroupForecastPanel({ authFetch, clients }) {
   );
 }
 
+// ─── Блок важных периодов с выпадашкой ───────────────────────────────────────
+function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
+  const [openIds, setOpenIds] = useState({});
+  const toggle = (id) => setOpenIds(p => ({ ...p, [id]: !p[id] }));
+  return (
+    <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>⚡ Важные периоды у клиентов</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {grouped.map(g => (
+          <div key={g.client_id} style={{ borderRadius: 8, background: 'rgba(139,92,246,0.06)', overflow: 'hidden' }}>
+            <div
+              onClick={() => toggle(g.client_id)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 12px', cursor: 'pointer', userSelect: 'none' }}
+            >
+              <span style={{ fontWeight: 700, fontSize: 13 }}>{g.name}</span>
+              <span style={{ ...S.muted, fontSize: 16 }}>{openIds[g.client_id] ? '▲' : '▼'}</span>
+            </div>
+            {openIds[g.client_id] && g.events.map((a, j) => (
+              <div
+                key={j}
+                onClick={() => openClientTransits(a.client_id)}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+                  padding: '7px 12px', cursor: 'pointer',
+                  borderTop: '1px solid rgba(139,92,246,0.10)' }}
+              >
+                <span style={S.muted}>{ruEvent(a.event)}</span>
+                <span style={{ ...S.muted, whiteSpace: 'nowrap' }}>
+                  {fmtDate(a.exact_date)}{a.orb != null ? ` · орб ${a.orb}°` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Главный компонент ────────────────────────────────────────────────────────
 export default function CRMPage() {
   const { user, authFetch } = useAuth();
@@ -1880,42 +1919,26 @@ export default function CRMPage() {
         {view === 'list' && <BroadcastPanel authFetch={authFetch} clients={clients} />}
 
         {view === 'list' && alerts.length > 0 && (() => {
+          const fmtDate = (d) => {
+            if (!d) return '';
+            const [y, mo, dd] = d.slice(0, 10).split('-');
+            return `${dd}.${mo}.${y}`;
+          };
           const grouped = [];
           const seen = {};
           alerts.forEach(a => {
             if (!seen[a.client_id]) {
-              seen[a.client_id] = { client_id: a.client_id, name: a.name, events: [] };
+              seen[a.client_id] = { client_id: a.client_id, name: a.name, events: [], open: false };
               grouped.push(seen[a.client_id]);
             }
             seen[a.client_id].events.push(a);
           });
           return (
-            <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>⚡ Важные периоды у клиентов</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {grouped.map(g => (
-                  <div key={g.client_id} style={{ borderRadius: 8, background: 'rgba(139,92,246,0.06)', overflow: 'hidden' }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, padding: '8px 12px', borderBottom: '1px solid rgba(139,92,246,0.10)' }}>
-                      {g.name}
-                    </div>
-                    {g.events.map((a, j) => (
-                      <div
-                        key={j}
-                        onClick={() => openClientTransits(a.client_id)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                          padding: '7px 12px', cursor: 'pointer',
-                          borderBottom: j < g.events.length - 1 ? '1px solid rgba(139,92,246,0.07)' : 'none' }}
-                      >
-                        <span style={S.muted}>{ruEvent(a.event)}</span>
-                        <span style={{ ...S.muted, whiteSpace: 'nowrap' }}>
-                          {(a.exact_date || '').slice(0, 10)}{a.orb != null ? ` · орб ${a.orb}°` : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AlertsBlock
+              grouped={grouped}
+              fmtDate={fmtDate}
+              openClientTransits={openClientTransits}
+            />
           );
         })()}
 
