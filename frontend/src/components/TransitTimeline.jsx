@@ -319,10 +319,10 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#5A2880", marginBottom: 3 }}>
-            ✨ Ещё {lockedCount} активных транзитов скрыто
+            ✨ Открыт разбор 2 самых значимых транзитов
           </div>
           <div style={{ fontSize: 12, color: "#9070B0" }}>
-            Перейдите на Lite, чтобы видеть все транзиты и Timeline на год
+            Ещё {lockedCount} транзитов с AI-разбором — на Pro
           </div>
         </div>
         <button onClick={onUpgrade} style={{
@@ -332,7 +332,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
           boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
         }}>
-          Открыть Lite
+          Открыть Pro
         </button>
       </div>
     </div>
@@ -368,31 +368,11 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
           : (hovered && !blurred ? "rgba(139,92,246,0.06)" : "transparent"),
         transition: "background 0.2s ease",
         animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
-        // blur для заблокированных карточек — 80% opacity + blur
-        filter: blurred ? "blur(5px)" : "none",
-        opacity: blurred ? 0.4 : 1,
-        userSelect: blurred ? "none" : "auto",
+        // E2: список транзитов всегда виден; блокируется только AI-разбор (кнопка)
         pointerEvents: "auto",
         position: "relative",
       }}
     >
-      {/* Hover-попап на заблюренных карточках */}
-      {blurred && hovered && (
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 10,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "12px 16px", borderRadius: 16,
-          background: "rgba(255,255,255,0.97)",
-          border: "1.5px solid #E0D0F8",
-          boxShadow: "0 8px 24px -4px rgba(144,96,200,0.25)",
-          filter: "none", opacity: 1,
-          animation: "fadeSlideIn 0.2s ease",
-        }}>
-          <span style={{ fontSize: 13, color: "#5A2880", fontWeight: 500, lineHeight: 1.5, textAlign: "center" }}>
-            {hoverText}
-          </span>
-        </div>
-      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tt-text2)" }}>{displayDate ? formatDate(displayDate) : ""}</span>
@@ -418,7 +398,24 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
       {(event.transit_sign || event.natal_sign) && (
         <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{event.transit_degree != null ? `${event.transit_degree.toFixed(1)}° ` : ""}{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
-      {!blurred && (
+      {blurred ? (
+        <div style={{ marginTop: 10 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onUpgrade && onUpgrade(); }}
+            style={{
+              padding: "5px 14px", borderRadius: 10,
+              border: "1.5px solid var(--tt-border2)",
+              background: "transparent", color: "var(--tt-text2)",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            🔒 Разбор на Pro
+          </button>
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--tt-text3)", lineHeight: 1.5 }}>
+            На бесплатном тарифе открыт разбор 2 самых значимых транзитов. Остальные — на Pro.
+          </div>
+        </div>
+      ) : (
         <div style={{ marginTop: 10 }}>
           <button
             onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -554,7 +551,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const hasFullAccess = userTier === "pro" || userTier === "premium";
 
   useEffect(() => {
-    if (!chartId || mockMode || chartId === 'anonymous' || isFree) { setEvents(MOCK_EVENTS); setLoading(false); return; }
+    if (!chartId || mockMode || chartId === 'anonymous') { setEvents(MOCK_EVENTS); setLoading(false); return; }
     setLoading(true);
     const today = new Date();
     const from  = today.toISOString().slice(0, 10);
@@ -591,10 +588,11 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     });
   }, [events, twoWeeksFromNow, hasFullAccess, isLite]);
 
-  const isEventVisible = useCallback((event, idx) => {
+  // E2: у Free AI-разбор открыт только у топ-2 значимых транзитов (free_unlocked с бэка).
+  // Сам список событий виден всегда — «visible» тут = «разбор разблокирован».
+  const isEventVisible = useCallback((event) => {
     if (hasFullAccess || isLite) return true;
-    // Free: только первые 3 транзита из общего списка
-    return idx < 3;
+    return !!event.free_unlocked;
   }, [hasFullAccess, isLite]);
 
   const filteredEvents = useMemo(() => {
