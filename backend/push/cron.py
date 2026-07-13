@@ -96,6 +96,76 @@ def _period_starts_on(planet: str, cusps: list[float], target: date_type) -> lis
     return out
 
 
+# ── Фаза 2: транзит «за 4° applying» ──
+PERSONAL_NATAL = ("Sun", "Moon", "Mercury", "Venus", "Mars")
+APPLYING_ORB = 4.0
+
+
+def _lon_on(planet: str, d: date_type) -> float:
+    from backend.transit.engine import PLANETS, _calc_planet_position, _datetime_to_jd
+    jd = _datetime_to_jd(datetime(d.year, d.month, d.day, 12, 0))
+    lon, _, _, _ = _calc_planet_position(PLANETS[planet], round(jd, 6))
+    return lon
+
+
+def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: str) -> list[dict]:
+    """Медленная планета подходит на 4° (applying) к аспекту с личной планетой
+    ИЛИ к куспиду дома. Срабатывает один раз — в день пересечения порога 4°.
+    """
+    from backend.transit.engine import ASPECTS, _angular_distance
+    from backend.transit.house_passages import _extract_cusps
+
+    yday = today - timedelta(days=1)
+    natal = {p["name"]: p["longitude"] for p in (chart.planets or []) if p.get("name") in PERSONAL_NATAL}
+    cusps = _extract_cusps({"houses": chart.houses})
+    has_houses = not all(c == 0.0 for c in cusps)
+
+    out: list[dict] = []
+    for tp in SLOW_PLANETS:
+        try:
+            lt_t = _lon_on(tp, today)
+            lt_y = _lon_on(tp, yday)
+        except Exception:
+            continue
+        pr = PLANET_RU.get(tp, tp)
+
+        # аспект к личной планете
+        for npl, nlon in natal.items():
+            nr = PLANET_RU.get(npl, npl)
+            for aspect, exact in ASPECTS.items():
+                orb_t = abs(_angular_distance(lt_t, nlon) - exact)
+                orb_y = abs(_angular_distance(lt_y, nlon) - exact)
+                if orb_t <= APPLYING_ORB < orb_y:  # пересёк 4° на сближении
+                    ar = ASPECT_RU.get(aspect, aspect)
+                    out.append({
+                        "kind": "transit_approach",
+                        "ref": f"4deg:{tp}:{npl}:{aspect}:{today.isoformat()}",
+                        "priority": "significant", "weight": 95,
+                        "frag": f"{pr} подходит к {nr}",
+                        "title": "✦ Транзит на подходе",
+                        "body": f"{pr} {ar} к вашему {nr} — транзит на подходе (~4°). Готовьтесь.",
+                        "url": planner_url,
+                    })
+
+        # приближение к куспиду дома (вход в новую сферу)
+        if has_houses:
+            for idx, cusp in enumerate(cusps):
+                house = idx + 1
+                d_t = _angular_distance(lt_t, cusp)
+                d_y = _angular_distance(lt_y, cusp)
+                if d_t <= APPLYING_ORB < d_y:
+                    out.append({
+                        "kind": "cusp_approach",
+                        "ref": f"4deg_cusp:{tp}:{house}:{today.isoformat()}",
+                        "priority": "significant", "weight": 95,
+                        "frag": f"{pr} входит в дом {house}",
+                        "title": "✦ Смена сферы",
+                        "body": f"{pr} приближается к дому {house} — скоро новая сфера жизни (~4°).",
+                        "url": planner_url,
+                    })
+    return out
+
+
 # ── Тексты ──
 def _daily_body(chart: NatalChart, today: date_type) -> str:
     """Короткий тизер прогноза на день из активных транзитов (без AI)."""
@@ -202,6 +272,12 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 })
         except Exception as e:
             logger.warning("transit candidates failed user=%s: %s", user.id, e)
+
+        # Фаза 2: медленная планета «за 4° applying» к аспекту/куспиду
+        try:
+            cands.extend(_four_degree_candidates(chart, today, planner_url))
+        except Exception as e:
+            logger.warning("4deg candidates failed user=%s: %s", user.id, e)
 
     # 6) Новолуние/полнолуние — за день (soft)
     if getattr(user, "push_moon_phases", False):
