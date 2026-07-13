@@ -155,7 +155,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             )}
             {user?.tier === 'premium' && (
               <Link to="/dashboard/clients" className={navLink('/dashboard/clients')}>
-                Клиенты
+                Кабинет астролога
               </Link>
             )}
           </div>
@@ -230,7 +230,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             </Link>
             {user?.tier === 'premium' && (
               <Link to="/dashboard/clients" className={navLink('/dashboard/clients')} onClick={() => setMenuOpen(false)}>
-                Клиенты
+                Кабинет астролога
               </Link>
             )}
             <button
