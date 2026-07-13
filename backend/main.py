@@ -708,9 +708,9 @@ async def get_transits(
 
     Returns array of transit events sorted by date.
     """
-    tier_limiter.check_transit_access(user)
+    # E2: список транзитов виден всем тарифам (Free — с блюром AI-разбора на клиенте).
     from datetime import date as date_type
-    from backend.transit.engine import calculate_transits
+    from backend.transit.engine import calculate_transits, mark_transit_significance
     from backend.cache import transit_cache, make_profile_hash
 
     # 1. Load natal chart
@@ -739,7 +739,7 @@ async def get_transits(
         )
 
     # 3. Check cache
-    cache_key = f"transit:v2:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
+    cache_key = f"transit:v3:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
     cached = transit_cache.get(cache_key)
     if cached:
         logger.info("Transit cache hit: %s", cache_key[:40])
@@ -765,8 +765,13 @@ async def get_transits(
         logger.exception("Transit calculation failed")
         raise HTTPException(status_code=500, detail=f"Transit calculation error: {e}")
 
+    # E2: пометить значимые (топ-2 → free_unlocked) — tier-независимо, кэшируется
+    mark_transit_significance(events)
+
     # Transit alerts для Pro/Premium (медленные планеты) — только по главной карте
-    is_primary = (not user.primary_chart_id) or (str(user.primary_chart_id) == str(chart_id))
+    is_primary = user is not None and (
+        (not user.primary_chart_id) or (str(user.primary_chart_id) == str(chart_id))
+    )
     if user and getattr(user, "tier", "free") in ("pro", "premium") and is_primary:
         try:
             from backend.transit.engine import check_and_send_transit_alerts
@@ -790,6 +795,8 @@ async def get_transits(
             peak_orb=getattr(e, "peak_orb", None) or getattr(e, "orb", 0.0),
             exact_date=getattr(e, "exact_date", None),
             applying=getattr(e, "applying", True),
+            significant=getattr(e, "significant", False),
+            free_unlocked=getattr(e, "free_unlocked", False),
         )
         for e in events
     ]
@@ -1010,7 +1017,9 @@ async def interpret_transit_event(
     Request body: transit event data (from /transits response).
     Used when user clicks on a specific event in the timeline.
     """
-    tier_limiter.check_transit_ai_limit(user, db)
+    _tier = user.tier if user else "free"
+    if _tier != "free":
+        tier_limiter.check_transit_ai_limit(user, db)
     from backend.transit.prompts import (
         build_transit_event_prompt,
         get_template_transit_text,
@@ -1033,6 +1042,19 @@ async def interpret_transit_event(
             status_code=422,
             detail="Required fields: transit_planet, natal_planet, aspect_type",
         )
+
+    # E2: Free получает AI-разбор только по значимым транзитам (медленная→личная).
+    # Топ-2 из них surface на клиенте; сервер допускает любой значимый.
+    if _tier == "free":
+        from backend.transit.engine import is_significant_pair
+        if not is_significant_pair(transit_planet, natal_planet):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "На бесплатном тарифе открыт разбор 2 самых значимых транзитов. "
+                    "Оформите Pro, чтобы разбирать все транзиты."
+                ),
+            )
 
     profile = {
         "planets": chart.planets,
@@ -1552,7 +1574,7 @@ async def start_transits_async(
     Returns task_id immediately. Poll GET /api/v1/tasks/{task_id}/status for result.
     Use instead of /transits when period > 3 months.
     """
-    tier_limiter.check_transit_access(user)
+    # E2: список транзитов виден всем тарифам (Free — с блюром AI-разбора на клиенте).
 
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:

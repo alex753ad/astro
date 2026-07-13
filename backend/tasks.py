@@ -315,7 +315,7 @@ def task_calculate_transits(
     try:
         chart = _get_chart(db, chart_id)
 
-        cache_key = f"transit:v2:{chart_id}:{from_date}:{to_date}:{planet_filter}:{max_orb}"
+        cache_key = f"transit:v3:{chart_id}:{from_date}:{to_date}:{planet_filter}:{max_orb}"
         cached = transit_cache.get(cache_key)
         if cached:
             logger.info("Transit cache hit in task: %s", cache_key[:40])
@@ -337,6 +337,10 @@ def task_calculate_transits(
 
         self.update_state(state="STARTED", meta={"step": "serializing"})
 
+        # E2: пометить значимые (топ-2 → free_unlocked)
+        from backend.transit.engine import mark_transit_significance
+        mark_transit_significance(events)
+
         events_data = [
             {
                 "start_date": getattr(e, "start_date", None) or getattr(e, "date", ""),
@@ -351,6 +355,8 @@ def task_calculate_transits(
                 "peak_orb":       getattr(e, "peak_orb", None) or getattr(e, "orb", 0.0),
                 "exact_date":     getattr(e, "exact_date", None),
                 "applying":       getattr(e, "applying", True),
+                "significant":    getattr(e, "significant", False),
+                "free_unlocked":  getattr(e, "free_unlocked", False),
             }
             for e in events
         ]

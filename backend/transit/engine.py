@@ -68,6 +68,9 @@ class TransitEvent:
     peak_orb:       float           # tightest orb (degrees)
     exact_date:     Optional[str] = None   # precise peak datetime (ISO)
     applying:       bool = True
+    # E2 (Free-витрина транзитов): значимость + топ-2, разблокированные для Free
+    significant:    bool = False           # медленная планета к личной натальной
+    free_unlocked:  bool = False           # входит в топ-2 значимых (AI-разбор для Free)
 
     # ── convenience ──
     @property
@@ -224,6 +227,59 @@ def _make_event(w: _Window, exact_dt: Optional[datetime]) -> TransitEvent:
         exact_date=exact_dt.strftime("%Y-%m-%dT%H:%M") if exact_dt else None,
         applying=w.applying,
     )
+
+
+# E2 — значимость транзита: медленная планета к личной натальной планете
+_SIGNIFICANT_TRANSIT_PLANETS = {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}
+_PERSONAL_NATAL_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
+FREE_UNLOCKED_TRANSITS = 2  # сколько значимых транзитов открыто для Free
+
+
+def is_significant_pair(transit_planet: str, natal_planet: str) -> bool:
+    """Значим ли транзит (медленная планета к личной натальной)."""
+    return (
+        transit_planet in _SIGNIFICANT_TRANSIT_PLANETS
+        and natal_planet in _PERSONAL_NATAL_PLANETS
+    )
+
+
+def _is_significant(e: TransitEvent) -> bool:
+    return is_significant_pair(e.transit_planet, e.natal_planet)
+
+
+def mark_transit_significance(events: list[TransitEvent]) -> None:
+    """Проставить significant/free_unlocked на месте.
+
+    Значимые = медленная планета к личной. Из них топ-N по минимальному орбу
+    получают free_unlocked=True (AI-разбор открыт для Free). Tier-независимо —
+    результат можно кэшировать.
+    """
+    for e in events:
+        e.significant = _is_significant(e)
+        e.free_unlocked = False
+    significant = [e for e in events if e.significant]
+    top = sorted(significant, key=lambda e: e.peak_orb)[:FREE_UNLOCKED_TRANSITS]
+    for e in top:
+        e.free_unlocked = True
+
+
+def is_free_unlocked_event(
+    events: list[TransitEvent],
+    transit_planet: str,
+    natal_planet: str,
+    aspect_type: str,
+) -> bool:
+    """Есть ли среди топ-2 значимых транзит с такими планетами/аспектом."""
+    mark_transit_significance(events)
+    for e in events:
+        if (
+            e.free_unlocked
+            and e.transit_planet == transit_planet
+            and e.natal_planet == natal_planet
+            and e.aspect_type == aspect_type
+        ):
+            return True
+    return False
 
 
 def get_active_transits(
