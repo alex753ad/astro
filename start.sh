@@ -1,8 +1,14 @@
 #!/bin/bash
 set -e
-echo "=== DIAG: what DB does the container see? ==="
-echo "DATABASE_URL host: ${DATABASE_URL}" | sed 's/:[^:@]*@/:****@/'
-echo "=== end diag ==="
+
+# Если сервис помечен как бот — запускаем бота и выходим (БД не трогаем).
+if [ "$SERVICE_ROLE" = "bot" ]; then
+    echo "Starting Telegram pilot bot..."
+    pip install --no-cache-dir "aiogram>=3.4" httpx -q
+    exec python -m bot.pilot_bot
+fi
+
+# Иначе — обычный бэкенд.
 echo "Ensuring reportlab is installed..."
 pip install --no-cache-dir "reportlab>=4.0.0" -q
 echo "Ensuring pywebpush is installed..."
