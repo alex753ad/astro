@@ -19,6 +19,9 @@ import AdminPage from './pages/AdminPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import PilotClaim from './components/PilotClaim';
+import ExitSurveyModal from './components/ExitSurveyModal';
+import FeedbackButton from './components/FeedbackButton';
 import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 import NebulaBackground from './components/NebulaBackground';
@@ -312,6 +315,8 @@ function AppRoutes() {
             <Route path="/privacy"             element={<PrivacyPage />} />
             <Route path="/terms"               element={<TermsPage />} />
             <Route path="/reset-password"      element={<ResetPasswordPage />} />
+            <Route path="/pilot/claim"         element={<PilotClaim />} />
+            <Route path="/exit-survey"         element={<ExitSurveyModal page />} />
           </Routes>
         </main>
 
@@ -329,6 +334,7 @@ function AppRoutes() {
       </div>
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      <FeedbackButton />
     </div>
   );
 }
