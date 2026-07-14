@@ -15,7 +15,7 @@ const PLAN_COLORS = {
   premium: { bar: "#7F77DD", text: "#3C3489", badge: "bg-[#EEEDFE] text-[#3C3489]" },
 };
 const PLAN_PRICES = { lite: 790, pro: 1990, premium: 7990 };
-const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды"];
+const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот"];
 
 // Мок-данные пока нет реального API
 const MOCK = {
@@ -594,6 +594,134 @@ function TabPromos({ d, authFetch, onReload }) {
   );
 }
 
+// ─── Вкладка Пилот (E8–E11) ─────────────────────────────────────────────────────
+
+function TabPilot({ authFetch }) {
+  const [stats, setStats] = useState(null);
+  const [feedback, setFeedback] = useState([]);
+  const [exit, setExit] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [s, f, e] = await Promise.all([
+          authFetch("/api/v1/admin/stats").catch(() => null),
+          authFetch("/api/v1/feedback").catch(() => []),
+          authFetch("/api/v1/exit-survey/summary").catch(() => null),
+        ]);
+        setStats(s);
+        setFeedback(Array.isArray(f) ? f : []);
+        setExit(e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [authFetch]);
+
+  if (loading) return <div className="text-[13px] text-gray-400 py-8">Загрузка…</div>;
+
+  const ret = stats?.retention || {};
+  const fun = stats?.funnel_v2 || {};
+  const promo = stats?.promo || {};
+  const astro = stats?.astrologer || {};
+
+  const retDays = [
+    ["D1", ret.d1], ["D3", ret.d3], ["D7", ret.d7], ["D14", ret.d14], ["D30", ret.d30],
+  ];
+  const funSteps = [
+    { label: "Регистрация", val: fun.registered },
+    { label: "Построил карту", val: fun.chart_created },
+    { label: "Первый разбор", val: fun.first_interpretation },
+    { label: "Вернулся (2-й день)", val: fun.second_visit },
+  ];
+  const reasonLabels = {
+    onboarding: "Не понял, как пользоваться", no_value: "Не увидел пользы",
+    price: "Дорого", depth: "Мало глубины", tech: "Тех. проблемы",
+    curiosity: "Из любопытства", other: "Другое",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Верхние карточки */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard label="Активировали пилот" value={fmt(promo.activated || 0)} />
+        <MetricCard label="Астрологов ≥5 клиентов" value={fmt(astro.with_5plus_clients || 0)} />
+        <MetricCard label="Заходов по алерту" value={fmt(astro.opened_alert || 0)} />
+        <MetricCard label="Причин ухода собрано" value={fmt(exit?.total || 0)} />
+      </div>
+
+      {/* Retention */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="text-[13px] font-medium text-gray-500 mb-4">Retention (вернулись в Timeline)</div>
+        <div className="grid grid-cols-5 gap-3">
+          {retDays.map(([label, d]) => (
+            <div key={label} className="text-center">
+              <div className="text-[22px] font-medium text-gray-900">{d?.pct ?? 0}%</div>
+              <div className="text-[11px] text-gray-400">{label}</div>
+              <div className="text-[10px] text-gray-300">{d?.retained ?? 0}/{d?.eligible ?? 0}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Воронка */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="text-[13px] font-medium text-gray-500 mb-4">Воронка до ценности</div>
+        {funSteps.map((s, i) => {
+          const base = funSteps[0].val || 1;
+          const pct = Math.round((s.val || 0) / base * 100);
+          return (
+            <div key={i} className="flex items-center gap-3 mb-3">
+              <span className="w-40 text-[12px] text-gray-600">{s.label}</span>
+              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: pct + "%", background: "#7F77DD" }} />
+              </div>
+              <span className="w-12 text-right text-[12px] text-gray-600">{fmt(s.val || 0)}</span>
+              <span className="w-10 text-right text-[11px] text-gray-400">{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Причины ухода */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="text-[13px] font-medium text-gray-500 mb-4">Причины ухода (exit-survey)</div>
+        {exit && exit.by_code && Object.keys(exit.by_code).length > 0 ? (
+          Object.entries(exit.by_code).sort((a, b) => b[1] - a[1]).map(([code, n]) => (
+            <Row key={code} left={reasonLabels[code] || code} right={fmt(n)} />
+          ))
+        ) : (
+          <div className="text-[13px] text-gray-400">Пока нет ответов</div>
+        )}
+      </div>
+
+      {/* Feedback «Здесь что-то не так» */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="text-[13px] font-medium text-gray-500 mb-4">
+          «Здесь что-то не так» — последние сообщения
+        </div>
+        {feedback.length === 0 ? (
+          <div className="text-[13px] text-gray-400">Сообщений нет</div>
+        ) : (
+          <div className="space-y-3">
+            {feedback.slice(0, 30).map((f) => (
+              <div key={f.id} className="border-b border-gray-50 pb-2 last:border-0">
+                <div className="flex justify-between text-[12px]">
+                  <span className="font-medium text-gray-700">{f.screen || "—"}</span>
+                  <span className="text-gray-400 text-[11px]">{f.url}</span>
+                </div>
+                {f.message && <div className="text-[13px] text-gray-600 mt-1">{f.message}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Основной компонент ────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -689,6 +817,7 @@ export default function AdminPage() {
           {tab === 3 && <TabAI d={data} />}
           {tab === 4 && <TabEmails d={data} />}
           {tab === 5 && <TabPromos d={data} authFetch={authFetch} onReload={load} />}
+          {tab === 6 && <TabPilot authFetch={authFetch} />}
         </>
       )}
     </div>
