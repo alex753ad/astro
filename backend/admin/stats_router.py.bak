@@ -8,7 +8,6 @@ from sqlalchemy import func
 from backend.database import get_db
 from backend.models import User, NatalChart, Interpretation, Subscription, CouponSent, GiftCode
 from backend.admin.admin_router import require_admin
-from backend.metrics import (compute_retention, compute_funnel, compute_astrologer_metrics, compute_promo_activation)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -68,11 +67,6 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "created_at": u.created_at.isoformat() if u.created_at else None,
         })
 
-    retention = compute_retention(db)
-    funnel_v2 = compute_funnel(db)
-    astro = compute_astrologer_metrics(db)
-    promo = compute_promo_activation(db)
-
     return {
         "users": {
             "total": total_users,
@@ -109,10 +103,6 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "activation_pct": gift_pct,
         },
         "recent_users": recent_users,
-        "retention": retention,
-        "funnel_v2": funnel_v2,
-        "astrologer": astro,
-        "promo": promo,
         "churn": {"count": 0, "rate_pct": 0},
         "payment_errors": {"total": 0, "items": []},
         "ai_costs": {"gpt4o": 0, "deepseek": 0, "total": 0, "fallback_rate_pct": 0},

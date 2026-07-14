@@ -73,12 +73,6 @@ from backend.interpretation.rag_router import router as rag_router
 from backend.admin.admin_router import router as admin_manage_router
 from backend.admin.promo_router import router as promo_router
 from backend.admin.stats_router import router as admin_stats_router
-from backend.feedback.router import router as feedback_router
-from backend.pilot.router import router as pilot_router
-from backend.pilot.cron import router as pilot_cron_router
-from backend.exit_survey.router import router as exit_survey_router
-from backend.crm.access_router import router as crm_access_router
-from backend.metrics import log_event, maybe_mark_second_visit, EventName
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
@@ -158,11 +152,6 @@ app.include_router(rag_router)
 app.include_router(promo_router)
 app.include_router(admin_stats_router)
 app.include_router(admin_manage_router)
-app.include_router(feedback_router)
-app.include_router(pilot_router)
-app.include_router(pilot_cron_router)
-app.include_router(exit_survey_router)
-app.include_router(crm_access_router)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1517,10 +1506,6 @@ async def get_monthly_planner(
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
-
-    _uid = user.id if user else None
-    log_event(db, _uid, EventName.TIMELINE_OPEN, {"chart_id": chart_id})
-    maybe_mark_second_visit(db, _uid)
 
     if chart.time_unknown:
         return {"planner": {"error": "Время рождения неизвестно — планер недоступен."}}

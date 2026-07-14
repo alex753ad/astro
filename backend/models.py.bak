@@ -40,8 +40,6 @@ class User(Base):
 
     # Referral (011)
     referral_code = Column(String(16), unique=True, nullable=True)
-    pilot_started_at = Column(DateTime, nullable=True)
-    tg_user_id = Column(String(32), nullable=True, unique=True, index=True)
     referred_by   = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Digest settings (012)
@@ -379,44 +377,3 @@ class PushSentLog(Base):
     kind    = Column(String(16), nullable=False)
     ref_key = Column(String(128), nullable=False)
     sent_at = Column(DateTime, default=datetime.utcnow)
-
-
-# ── Пилот / метрики / обратная связь / exit-survey / TG-токены ──
-class Event(Base):
-    __tablename__ = "events"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
-    name = Column(String(64), nullable=False, index=True)
-    ts = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    meta = Column(JSON, nullable=True)
-
-
-class Feedback(Base):
-    __tablename__ = "feedback"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    screen = Column(String(120), nullable=True)
-    url = Column(String(500), nullable=True)
-    message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class ExitReason(Base):
-    __tablename__ = "exit_reasons"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    moment = Column(String(20), nullable=False, index=True)
-    reason_code = Column(String(40), nullable=True)
-    reason_text = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-
-class PilotToken(Base):
-    __tablename__ = "pilot_tokens"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    token = Column(String(64), nullable=False, unique=True, index=True)
-    tg_user_id = Column(String(32), nullable=False, index=True)
-    used = Column(Boolean, default=False, nullable=False)
-    used_by_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
