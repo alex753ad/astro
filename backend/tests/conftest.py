@@ -9,6 +9,10 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from backend.database import Base, get_db
 from backend.main import app, limiter
 
+# Legacy /register закрыт в проде, но нужен тестам — включаем тестовый режим.
+from backend.config import get_settings
+get_settings().testing = True
+
 # ── In-memory SQLite for tests ────────────────────────────
 TEST_DATABASE_URL = "sqlite:///./test.db"
 
