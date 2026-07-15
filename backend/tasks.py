@@ -732,7 +732,7 @@ async def _gen_broadcast_ai(profile: dict, tier: str, period_label: str, transit
 
 @celery_app.task(name="tasks.send_client_broadcast")
 def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: str | None = None,
-                               mode: str = "template") -> dict:
+                               mode: str = "template", custom_text: str | None = None) -> dict:
     """Ежемесячная брендовая рассылка прогноза клиентам астролога.
 
     mode="ai" → AI-текст на каждого клиента (гибрид, платно); иначе шаблон.
@@ -819,6 +819,7 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
                     send_client_broadcast(
                         email, brand, period_label, transits,
                         unsubscribe_url=_unsub_url(token), ai_text=ai_text,
+                        custom_text=custom_text,
                     )
                 )
             except Exception as e:

@@ -72,7 +72,7 @@ const PLANET_GLYPHS = {
 /**
  * Table of aspects between planets with importance indicator (F4).
  */
-export default function AspectTable({ aspects }) {
+export default function AspectTable({ aspects, onHoverAspect }) {
   if (!aspects?.length) return null;
 
   const importanceOrder = { high: 0, medium: 1, low: 2 };
@@ -105,12 +105,14 @@ export default function AspectTable({ aspects }) {
               const g2 = PLANET_GLYPHS[a.planet2] || a.planet2.slice(0, 2);
               const aspSym = ASPECT_SYMBOLS[a.aspect_type] || '?';
               return (
-                <tr key={i} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors">
+                <tr key={i} className="border-b border-brand-accent/5 hover:bg-brand-accent/5 transition-colors"
+                  onMouseEnter={() => onHoverAspect?.([a.planet1, a.planet2].slice().sort().join('|'))}
+                  onMouseLeave={() => onHoverAspect?.(null)}
+                >
                   <td className="py-2 pr-4">
                     <span
                       title={a.planet1}
-                      style={{ fontSize: 17, lineHeight: 1, verticalAlign: 'middle' }}
-                      className="text-brand-primary"
+                      style={{ fontSize: 17, lineHeight: 1, verticalAlign: 'middle', color: 'var(--text-primary)' }}
                     >
                       {g1}
                     </span>
@@ -123,8 +125,7 @@ export default function AspectTable({ aspects }) {
                     </span>
                     <span
                       title={a.planet2}
-                      style={{ fontSize: 17, lineHeight: 1, verticalAlign: 'middle' }}
-                      className="text-brand-primary"
+                      style={{ fontSize: 17, lineHeight: 1, verticalAlign: 'middle', color: 'var(--text-primary)' }}
                     >
                       {g2}
                     </span>

@@ -220,21 +220,39 @@ async def _send_as(from_name: str, to: str, subject: str, html: str) -> bool:
         return False
 
 
+def _paragraphs(text: str) -> str:
+    """Разбивает произвольный текст на HTML-абзацы <p>.
+
+    Сначала пробует делить по пустым строкам; если их нет — по одиночным
+    переводам строки, чтобы письмо не превратилось в один сплошной блок.
+    """
+    import re as _re
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    chunks = [c.strip() for c in _re.split(r"\n\s*\n", raw) if c.strip()]
+    if len(chunks) <= 1:
+        chunks = [c.strip() for c in raw.split("\n") if c.strip()]
+    return "".join(_p(c) for c in chunks)
+
+
 def build_client_broadcast(
     brand_name: str,
     period_label: str,
     transits: list[dict],
     unsubscribe_url: str | None = None,
     ai_text: str | None = None,
+    custom_text: str | None = None,
 ) -> tuple[str, str]:
     """Собирает (subject, html) брендового письма-прогноза на месяц.
 
     ai_text задан → тело из AI-текста (гибрид); иначе шаблонный список транзитов.
+    custom_text (необязательно) → авторский текст астролога, ставится в начале письма.
     """
     subject = f"Ваш астропрогноз на {period_label}"
+    intro = _paragraphs(custom_text) if custom_text else ""
     if ai_text:
-        paras = "".join(_p(line) for line in ai_text.strip().split("\n\n") if line.strip())
-        body = _h2(f"Ваш прогноз на {period_label}") + paras
+        body = _h2(f"Ваш прогноз на {period_label}") + intro + _paragraphs(ai_text)
     elif transits:
         rows = []
         for t in transits:
@@ -249,6 +267,7 @@ def build_client_broadcast(
             )
         body = (
             _h2(f"Ваш прогноз на {period_label}")
+            + intro
             + _p("Ключевые астрологические события месяца по вашей натальной карте:")
             + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
             + "".join(rows)
@@ -257,6 +276,7 @@ def build_client_broadcast(
     else:
         body = (
             _h2(f"Ваш прогноз на {period_label}")
+            + intro
             + _p("В этом месяце крупных транзитных событий по вашей карте не выделяется — спокойный, ресурсный период. Хорошее время для планомерных дел.")
         )
     html = _base_branded(brand_name, subject, subject, body, unsubscribe_url=unsubscribe_url)
@@ -277,6 +297,7 @@ def build_broadcast_ai_prompt(period_label: str, transits: list[dict]) -> str:
     return (
         f"Напиши тёплый персональный астрологический прогноз на {period_label} для клиента, "
         "от лица его астролога, по-русски, 150–220 слов, без списков и заголовков, живым языком. "
+        "Раздели текст на 3–4 абзаца, отделяя абзацы пустой строкой. "
         "Опирайся только на транзиты ниже, не выдумывай. Заверши мягким приглашением на консультацию.\n\n"
         f"ТРАНЗИТЫ МЕСЯЦА:\n{transit_block}"
     )
@@ -289,9 +310,11 @@ async def send_client_broadcast(
     transits: list[dict],
     unsubscribe_url: str | None = None,
     ai_text: str | None = None,
+    custom_text: str | None = None,
 ) -> bool:
     subject, html = build_client_broadcast(
-        brand_name, period_label, transits, unsubscribe_url=unsubscribe_url, ai_text=ai_text
+        brand_name, period_label, transits, unsubscribe_url=unsubscribe_url,
+        ai_text=ai_text, custom_text=custom_text,
     )
     return await _send_as(brand_name, to, subject, html)
 

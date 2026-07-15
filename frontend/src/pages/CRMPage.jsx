@@ -1169,6 +1169,7 @@ function BroadcastPanel({ authFetch, clients }) {
   const [queued, setQueued] = useState(0);
   const [history, setHistory] = useState(null);
   const [aiMode, setAiMode] = useState(false);
+  const [customText, setCustomText] = useState('');
 
   // Бренд + автоотправка (022)
   const [brandName, setBrandName] = useState('');
@@ -1202,7 +1203,7 @@ function BroadcastPanel({ authFetch, clients }) {
     setPreviewLoading(true); setPreviewHtml('');
     try {
       const r = await authFetch(`${API}/crm/broadcast/preview`, {
-        method: 'POST', body: JSON.stringify({ client_id: Number(previewClient), mode: aiMode ? 'ai' : 'template' }),
+        method: 'POST', body: JSON.stringify({ client_id: Number(previewClient), mode: aiMode ? 'ai' : 'template', custom_text: customText || null }),
       });
       setPreviewHtml(r.html || '');
     } catch (e) { alert('Ошибка: ' + (e.message || '')); }
@@ -1215,7 +1216,7 @@ function BroadcastPanel({ authFetch, clients }) {
     setSending(true);
     try {
       const r = await authFetch(`${API}/crm/broadcast/send`, {
-        method: 'POST', body: JSON.stringify({ mode: aiMode ? 'ai' : 'template' }),
+        method: 'POST', body: JSON.stringify({ mode: aiMode ? 'ai' : 'template', custom_text: customText || null }),
       });
       setQueued(r.recipients ?? withEmail.length);
     } catch (e) { alert('Ошибка: ' + (e.message || '')); }
@@ -1259,6 +1260,16 @@ function BroadcastPanel({ authFetch, clients }) {
             <input type="checkbox" checked={aiMode} onChange={e => setAiMode(e.target.checked)} />
             AI-версия письма (индивидуальный текст, платно) — иначе шаблонный список транзитов
           </label>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={S.label}>Ваш текст в письмо (необязательно) — добавится в начало письма каждому клиенту</label>
+            <textarea
+              style={{ ...S.input, minHeight: 90, resize: 'vertical' }}
+              value={customText}
+              onChange={e => setCustomText(e.target.value)}
+              placeholder={"Например: приветствие, анонс, спецпредложение…\nПустая строка между абзацами."}
+            />
+          </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 200 }}>

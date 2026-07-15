@@ -97,11 +97,13 @@ async def get_alerts(
 class BroadcastPreviewIn(BaseModel):
     client_id: int
     mode: str = "template"  # "template" | "ai"
+    custom_text: Optional[str] = None  # авторский текст астролога в письмо
 
 
 class BroadcastSendIn(BaseModel):
     client_ids: Optional[list[int]] = None
     mode: str = "template"  # "template" | "ai"
+    custom_text: Optional[str] = None  # авторский текст астролога в письмо
 
 
 class ProfilePatch(BaseModel):
@@ -184,7 +186,8 @@ async def broadcast_preview(
             logger.warning("Preview AI generation failed: %s", e)
 
     subject, html = build_client_broadcast(
-        brand, period_label, transits, unsubscribe_url=unsub_url, ai_text=ai_text
+        brand, period_label, transits, unsubscribe_url=unsub_url, ai_text=ai_text,
+        custom_text=payload.custom_text,
     )
     return {"subject": subject, "html": html, "to": client.email, "ai": bool(ai_text)}
 
@@ -210,7 +213,8 @@ async def broadcast_send(
     count = recipients.count()
 
     mode = "ai" if payload.mode == "ai" else "template"
-    send_client_broadcast_task.delay(astrologer.id, payload.client_ids, None, mode)
+    send_client_broadcast_task.delay(astrologer.id, payload.client_ids, None, mode,
+                                     custom_text=payload.custom_text)
     return {"queued": True, "recipients": count, "mode": mode}
 
 

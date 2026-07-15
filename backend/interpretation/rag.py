@@ -159,6 +159,13 @@ _ASP_RU = {
     "conjunction": "соединение", "sextile": "секстиль",
     "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
 }
+# Традиционные управители знаков (по одному управителю на знак)
+_SIGN_RULER = {
+    "Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury",
+    "Cancer": "Moon", "Leo": "Sun", "Virgo": "Mercury",
+    "Libra": "Venus", "Scorpio": "Mars", "Sagittarius": "Jupiter",
+    "Capricorn": "Saturn", "Aquarius": "Saturn", "Pisces": "Jupiter",
+}
 
 
 def build_chart_summary(chart: dict) -> str:
@@ -188,6 +195,19 @@ def build_chart_summary(chart: dict) -> str:
         sign = _SIGN_RU.get(mc["sign"], mc["sign"])
         lines.append(f"**MC (Середина Неба):** {sign} {mc.get('degree', '')}°")
 
+    # Управители домов (по знаку на куспиде) — считаем явно, не даём ИИ угадывать
+    houses = chart.get("houses") or []
+    if houses:
+        lines.append("\n**Управители домов** (по знаку на куспиде, традиционные):")
+        for h in sorted(houses, key=lambda x: x.get("number", 0)):
+            num = h.get("number", "")
+            sign_en = h.get("sign", "")
+            sign_ru = _SIGN_RU.get(sign_en, sign_en)
+            ruler_en = _SIGN_RULER.get(sign_en, "")
+            ruler_ru = _PLANET_RU.get(ruler_en, ruler_en)
+            if num and ruler_ru:
+                lines.append(f"  {num} дом — куспид в {sign_ru} → управитель {ruler_ru}")
+
     # Ключевые аспекты (топ-8 по орбу)
     aspects = chart.get("aspects") or []
     if aspects:
@@ -196,7 +216,8 @@ def build_chart_summary(chart: dict) -> str:
         for a in sorted_asp[:8]:
             p1  = _PLANET_RU.get(a.get("planet1", ""), a.get("planet1", ""))
             p2  = _PLANET_RU.get(a.get("planet2", ""), a.get("planet2", ""))
-            asp = _ASP_RU.get(a.get("aspect", ""), a.get("aspect", ""))
+            asp_key = a.get("aspect_type") or a.get("aspect", "")
+            asp = _ASP_RU.get(asp_key, asp_key)
             orb = a.get("orb", "")
             lines.append(f"  {p1} {asp} {p2} (орб {orb}°)")
 

@@ -196,6 +196,61 @@ def _fmt_period(start: datetime, end: datetime) -> str:
     return f"{_fmt_date_short(start, end.year)} — {_fmt_date_short(end)}"
 
 
+# Планеты, способные к ретроградности (без Солнца и Луны)
+RETRO_PLANETS = ("Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+
+
+def _speed_at(planet_id: int, dt: datetime) -> float:
+    _, _, _, speed = _calc_planet_position(planet_id, _datetime_to_jd(dt))
+    return speed
+
+
+def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
+    """Станции ретроградности (смена направления) внутри отображаемого месяца.
+
+    Возвращает элементы, совместимые с PlannerPage.buildTimeline:
+    {"date": "dd.mm", "status": "start"|"end", "planet_name": ..., "label": ...}
+    status="start" — планета поворачивает в ретро (директ→ретро),
+    status="end"   — возвращается к директному движению (ретро→директ).
+    """
+    start_dt = datetime(from_date.year, from_date.month, from_date.day, 0, 0)
+    end_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59)
+    result: list[dict] = []
+    for planet in RETRO_PLANETS:
+        pid = PLANETS.get(planet)
+        if pid is None:
+            continue
+        name_ru, key, _emoji = PLANET_NAMES_RU[planet]
+        dt = start_dt
+        prev_speed = _speed_at(pid, dt)
+        step = timedelta(days=1)
+        while dt < end_dt:
+            nxt = min(dt + step, end_dt)
+            speed = _speed_at(pid, nxt)
+            if prev_speed == 0:
+                prev_speed = speed
+            elif (prev_speed < 0) != (speed < 0):
+                # смена знака скорости — уточняем момент станции бисекцией
+                lo, hi = dt, nxt
+                for _ in range(20):
+                    mid = lo + (hi - lo) / 2
+                    if (_speed_at(pid, mid) < 0) == (prev_speed < 0):
+                        lo = mid
+                    else:
+                        hi = mid
+                going_retro = speed < 0  # директ→ретро
+                result.append({
+                    "date": hi.strftime("%d.%m"),
+                    "status": "start" if going_retro else "end",
+                    "planet": key,
+                    "planet_name": name_ru,
+                    "label": f"{'Начало' if going_retro else 'Окончание'} ретро {name_ru}",
+                })
+            prev_speed = speed
+            dt = nxt
+    return result
+
+
 def compute_planner_periods(
     natal_profile: dict,
     from_date: date,
@@ -246,8 +301,12 @@ def compute_planner_periods(
         lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 60))
         lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 40))
         all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt + lookahead)
-        # Оставляем только периоды, пересекающиеся с отображаемым месяцем
-        passages = [p for p in all_passages if p["end_dt"] >= period_start_dt]
+        # Оставляем только периоды, пересекающиеся с отображаемым месяцем:
+        # заканчиваются не раньше начала месяца И начинаются не позже конца месяца
+        passages = [
+            p for p in all_passages
+            if p["end_dt"] >= period_start_dt and p["start_dt"] <= period_end_dt
+        ]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         fast_result.append({
             "planet_name":    name_ru,
@@ -346,4 +405,5 @@ def compute_planner_periods(
         "fast_planets": fast_result,
         "moon_week":    moon_week,
         "slow_planets": slow_result,
+        "retrogrades":  compute_retrograde_stations(from_date, to_date),
     }

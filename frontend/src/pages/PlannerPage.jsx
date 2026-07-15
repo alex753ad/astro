@@ -561,6 +561,37 @@ function SectionHeader({ emoji, title, subtitle }) {
   );
 }
 
+// #1 — сворачиваемая секция месяца (клик по заголовку раскрывает/скрывает карточки)
+function CollapsibleMonthSection({ section }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div id={`plan-sec-${section.planet}`} style={{ marginBottom: 28, scrollMarginTop: 80 }}>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(o => !o); } }}
+        style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+        aria-expanded={open}
+      >
+        <span style={{ fontSize: 12, color: "#94A3B8", transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "none", flexShrink: 0 }}>▶</span>
+        <div style={{ flex: 1 }}>
+          <SectionHeader
+            emoji={section.emoji}
+            title={`${section.planet_name} — приоритеты месяца`}
+            subtitle={section.planet_subtitle}
+          />
+        </div>
+      </div>
+      {open && (section.periods || []).map((p, pi) => (
+        <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji}
+          period={p.period} items={p.items || []} subtitle={section.planet_subtitle}
+          locked={p.locked} />
+      ))}
+    </div>
+  );
+}
+
 // E1 — блюр-тизер для заблокированных блоков Free (текст не приходит с бэка)
 function LockedTeaser({ trigger }) {
   return (
@@ -824,18 +855,7 @@ export default function PlannerPage() {
               <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
               {tab === "month" && (planData?.month_sections || []).map((section, si) => (
-                <div key={si} id={`plan-sec-${section.planet}`} style={{ marginBottom: 28, scrollMarginTop: 80 }}>
-                  <SectionHeader
-                    emoji={section.emoji}
-                    title={`${section.planet_name} — приоритеты месяца`}
-                    subtitle={section.planet_subtitle}
-                  />
-                  {(section.periods || []).map((p, pi) => (
-                    <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji}
-                      period={p.period} items={p.items || []} subtitle={section.planet_subtitle}
-                      locked={p.locked} />
-                  ))}
-                </div>
+                <CollapsibleMonthSection key={si} section={section} />
               ))}
 
               {tab === "week" && (

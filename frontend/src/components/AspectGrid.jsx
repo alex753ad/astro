@@ -21,6 +21,18 @@ const ASPECT_SYMBOL = {
   trine:'△', opposition:'☍', quincunx:'⑁',
 };
 
+const PLANET_RU = {
+  Sun:'Солнце', Moon:'Луна', Mercury:'Меркурий', Venus:'Венера', Mars:'Марс',
+  Jupiter:'Юпитер', Saturn:'Сатурн', Uranus:'Уран', Neptune:'Нептун', Pluto:'Плутон',
+  'North Node':'Северный узел', Chiron:'Хирон', Lilith:'Лилит',
+  Ascendant:'Асцендент', Midheaven:'MC',
+};
+
+const ASPECT_RU = {
+  conjunction:'соединение', sextile:'секстиль', square:'квадрат',
+  trine:'трин', opposition:'оппозиция', quincunx:'квинконс',
+};
+
 const ASPECT_COLOR = {
   conjunction: '#d4a843',
   sextile:     '#4a9de0',
@@ -62,7 +74,7 @@ export default function AspectGrid({ aspects = [], planets = [] }) {
                   return (
                     <td
                       key={colPlanet}
-                      title={asp ? `${rowPlanet} ${asp.type} ${colPlanet} (орб ${asp.orb?.toFixed(1)}°)` : (isDiag ? rowPlanet : '')}
+                      title={asp ? `${PLANET_RU[rowPlanet] || rowPlanet} ${ASPECT_RU[asp.type] || asp.type} ${PLANET_RU[colPlanet] || colPlanet} (орб ${asp.orb?.toFixed(1)}°)` : (isDiag ? (PLANET_RU[rowPlanet] || rowPlanet) : '')}
                       style={{
                         width: CELL, height: CELL,
                         border: '0.5px solid rgba(139,143,163,0.25)',

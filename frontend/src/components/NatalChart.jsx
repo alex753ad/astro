@@ -142,7 +142,7 @@ function ChartSkeleton() {
 function NatalChartInner({
   planets = [], houses = [], aspects = [],
   ascendant, midheaven, timeUnknown, transitPlanets = [],
-  isCompact, highlightPlanet = null, dark = false,
+  isCompact, highlightPlanet = null, highlightAspect = null, dark = false,
 }) {
   const SIZE    = isCompact ? 320 : 560;
   const cx      = SIZE / 2;
@@ -328,8 +328,12 @@ function NatalChartInner({
           const color   = ASPECT_COLORS[asp.aspect_type];
           const isHarm  = asp.aspect_type === 'trine' || asp.aspect_type === 'sextile';
           const opacity = isHarm ? 0.45 : asp.aspect_type === 'conjunction' ? 0.65 : 0.55;
-          const involved = highlightPlanet && (asp.planet1 === highlightPlanet || asp.planet2 === highlightPlanet);
-          const dimAsp   = highlightPlanet && !involved;
+          const aspKey  = [asp.planet1, asp.planet2].slice().sort().join('|');
+          const byPlanet = highlightPlanet && (asp.planet1 === highlightPlanet || asp.planet2 === highlightPlanet);
+          const byAspect = highlightAspect && aspKey === highlightAspect;
+          const involved = byPlanet || byAspect;
+          const anyHighlight = highlightPlanet || highlightAspect;
+          const dimAsp   = anyHighlight && !involved;
           return (
             <line
               key={i}

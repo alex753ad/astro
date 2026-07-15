@@ -241,6 +241,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [shareUrl, setShareUrl]        = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [hoverPlanet, setHoverPlanet]  = useState(null); // cross-highlight: планета под курсором в таблице
+  const [hoverAspect, setHoverAspect]  = useState(null); // cross-highlight: аспект под курсором в таблице ("A|B")
 
   // Async-транзиты (Celery)
   const [asyncTransits, setAsyncTransits]     = useState(null);   // результат
@@ -559,6 +560,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 timeUnknown={chart.time_unknown}
                 transitPlanets={[]}
                 highlightPlanet={hoverPlanet}
+                highlightAspect={hoverAspect}
                 dark={dark}
               />
               {/* Поделиться — под колесом карты */}
@@ -624,7 +626,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                   <AspectGrid aspects={chart.aspects} planets={chart.planets} />
                 </div>
                 <div style={{ marginTop: 12 }}>
-                  <AspectTable aspects={chart.aspects} planets={chart.planets} />
+                  <AspectTable aspects={chart.aspects} planets={chart.planets} onHoverAspect={setHoverAspect} />
                 </div>
               </div>
             )}
@@ -839,12 +841,12 @@ function HouseTable({ houses = [], collapsed }) {
 const sp = {
   wrap: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px' },
-  row: { borderBottom: '0.5px solid #EDE8F5' },
-  glyph: { padding: '4px 6px 4px 0', color: '#7060A0', fontSize: '14px', width: '20px' },
-  nameCell: { padding: '4px 8px 4px 0', color: '#1E1A2E', whiteSpace: 'nowrap' },
-  signGlyph: { padding: '4px 4px 4px 0', fontSize: '14px', color: '#7060A0', width: '20px' },
-  signName: { padding: '4px 6px 4px 0', color: '#7060A0' },
-  deg: { padding: '4px 6px 4px 0', color: '#1E1A2E', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+  row: { borderBottom: '0.5px solid var(--border)' },
+  glyph: { padding: '4px 6px 4px 0', color: 'var(--text-secondary)', fontSize: '14px', width: '20px' },
+  nameCell: { padding: '4px 8px 4px 0', color: 'var(--text-primary)', whiteSpace: 'nowrap' },
+  signGlyph: { padding: '4px 4px 4px 0', fontSize: '14px', color: 'var(--text-secondary)', width: '20px' },
+  signName: { padding: '4px 6px 4px 0', color: 'var(--text-secondary)' },
+  deg: { padding: '4px 6px 4px 0', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   retro: { padding: '4px 0', width: '16px', textAlign: 'center' },
   retroMark: { color: '#e05050', fontWeight: '700', fontSize: '11px' },
 };

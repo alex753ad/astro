@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import date
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -44,7 +45,10 @@ class RagChatRequest(BaseModel):
 
 def _system_prompt(chart_summary: str, context_chunks: list[str]) -> str:
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
+    today = date.today().strftime("%d.%m.%Y")
     return f"""Ты — опытный астролог-консультант. Отвечаешь на вопросы пользователя о его натальной карте.
+
+Сегодняшняя дата: {today}. Все рекомендации по срокам и «благоприятным окнам» давай ТОЛЬКО относительно этой даты и будущего. Не ссылайся на прошедшие годы и периоды.
 
 {chart_summary}
 

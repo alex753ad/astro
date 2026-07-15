@@ -164,6 +164,7 @@ def build_planner(
         "week_days":      week_days,
         "longterm_title": "Долгосрочные транзиты",
         "longterm":       longterm,
+        "retrogrades":    periods.get("retrogrades", []),
     }
 
 
