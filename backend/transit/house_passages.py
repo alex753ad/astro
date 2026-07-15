@@ -170,11 +170,13 @@ LOOKAHEAD_DAYS = {
     "Mercury": 90,
     "Venus":   90,
     "Mars":    100,
-    "Jupiter": 420,
-    "Saturn":  1100,
-    "Uranus":  3000,
-    "Neptune": 5500,
-    "Pluto":   8500,
+    # Медленные планеты: окно должно перекрывать максимально возможное
+    # время нахождения в одном доме (иначе дата выхода обрезается по краю окна)
+    "Jupiter": 900,     # до ~1.5 года в доме
+    "Saturn":  1600,    # до ~4 лет
+    "Uranus":  4400,    # до ~12 лет
+    "Neptune": 7500,    # до ~20 лет
+    "Pluto":   20000,   # до ~55 лет (широкие дома у Плутона)
 }
 
 # Сколько дней сканировать назад от начала периода, чтобы найти реальное начало транзита
@@ -388,7 +390,10 @@ def compute_planner_periods(
     for planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
         lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 400))
         lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 400))
-        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt + lookahead)
+        all_passages = calculate_house_passages(
+            planet, cusps, period_start_dt - lookback, period_end_dt + lookahead,
+            step_hours=72,
+        )
         # текущий/действующий период: пересекается с месяцем (начался не позже конца месяца)
         passages = [
             p for p in all_passages
@@ -407,7 +412,7 @@ def compute_planner_periods(
             "planet_key":      key,
             "emoji":           emoji,
             "house":           main["house"],
-            "period_label":    _fmt_period(main["start_dt"], main["end_dt"]),
+            "period_label":    f'{main["start_dt"].strftime("%d.%m.%Y")} — {main["end_dt"].strftime("%d.%m.%Y")}',
             "planet_subtitle": PLANET_SUBTITLES.get(planet, ""),
         })
 
