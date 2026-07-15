@@ -19,7 +19,13 @@ from backend.database import get_db
 from backend.models import User, Subscription
 from backend.schemas import CheckoutRequest, CheckoutResponse, SubscriptionResponse
 from backend.auth.dependencies import get_current_user
-from backend.payments.robokassa_service import create_payment_url, verify_payment, activate_subscription
+from backend.payments.robokassa_service import (
+    create_payment_url,
+    verify_payment,
+    activate_subscription,
+    TIER_PRICES,
+)
+from backend.redis_client import get_redis
 
 logger = logging.getLogger("astro.payments")
 
@@ -50,44 +56,9 @@ async def checkout(
 
 # ── Stripe webhook (legacy — kept for tests) ──────────────
 
-@router.post("/webhook", include_in_schema=False)
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    from backend.config import get_settings as _settings
-    import stripe
-    from backend.payments.stripe_service import (
-        construct_webhook_event,
-        handle_checkout_completed,
-        handle_subscription_updated,
-        handle_subscription_deleted,
-        handle_payment_failed,
-    )
-    settings = _settings()
-    payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
-
-    if not sig_header:
-        raise HTTPException(400, "Missing Stripe signature")
-
-    try:
-        event = construct_webhook_event(payload, sig_header, settings.stripe_webhook_secret)
-    except Exception:
-        raise HTTPException(400, "Invalid signature")
-
-    event_type = event.get("type", "")
-    try:
-        if event_type == "checkout.session.completed":
-            handle_checkout_completed(event, db)
-        elif event_type == "customer.subscription.updated":
-            handle_subscription_updated(event, db)
-        elif event_type == "customer.subscription.deleted":
-            handle_subscription_deleted(event, db)
-        elif event_type == "invoice.payment_failed":
-            handle_payment_failed(event, db)
-    except Exception:
-        logger.exception("Stripe webhook handler error")
-
-    from fastapi.responses import JSONResponse
-    return JSONResponse({"received": True})
+# Legacy Stripe webhook удалён: провайдер — Robokassa. Маршрут закрыт, чтобы не
+# держать неиспользуемую платёжную поверхность. При необходимости вернуть —
+# восстановить из истории git вместе с backend/payments/stripe_service.py.
 
 
 # ── Robokassa webhook ──────────────────────────────────────
@@ -110,6 +81,30 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
     if not user_id or not tier:
         logger.warning("Robokassa: missing Shp params, InvId=%s", inv_id)
         return PlainTextResponse("missing params", status_code=400)
+
+    # Сверка суммы: подпись Robokassa покрывает OutSum, но добавляем проверку
+    # соответствия ожидаемой цене тарифа как defense-in-depth.
+    expected = TIER_PRICES.get((tier, period))
+    try:
+        paid = float(form.get("OutSum", "0"))
+    except ValueError:
+        paid = -1.0
+    if expected is None or abs(paid - float(expected)) > 0.01:
+        logger.warning(
+            "Robokassa: amount mismatch InvId=%s tier=%s period=%s paid=%s expected=%s",
+            inv_id, tier, period, paid, expected,
+        )
+        return PlainTextResponse("amount mismatch", status_code=400)
+
+    # Идемпотентность / anti-replay: обрабатываем каждый InvId только один раз.
+    try:
+        first_time = await get_redis().set(f"robokassa:inv:{inv_id}", "1", nx=True, ex=90 * 24 * 3600)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Robokassa idempotency store failed, proceeding: %s", exc)
+        first_time = True
+    if not first_time:
+        logger.info("Robokassa: duplicate InvId=%s ignored", inv_id)
+        return PlainTextResponse(f"OK{inv_id}")
 
     try:
         activate_subscription(user_id=user_id, tier=tier, period=period, db=db)

@@ -22,7 +22,8 @@ import random
 import string
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
@@ -34,7 +35,10 @@ from backend.auth.jwt import (
     decode_email_confirmation_token,
     decode_password_reset_token,
     decode_token,
+    remaining_ttl,
 )
+from backend.auth.token_store import deny
+from backend.limiter import limiter
 from backend.auth.oauth import OAuthError, exchange_google_code
 from backend.auth.passwords import hash_password, verify_password
 from backend.config import get_settings
@@ -260,6 +264,10 @@ async def register_legacy(
     data: RegisterRequest,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
+    # Legacy-путь без OTP оставлен только для тестов: в проде закрыт.
+    _s = get_settings()
+    if not (_s.testing or _s.debug):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already exists. Аккаунт с таким email уже существует.")
 
@@ -282,7 +290,8 @@ async def register_legacy(
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/login", response_model=TokenResponse, summary="Вход по email + пароль")
-async def login(data: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("10/minute")
+async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.query(User).filter(User.email == data.email).first()
     if user is None or user.hashed_password is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
@@ -298,7 +307,8 @@ async def login(data: LoginRequest, db: Session = Depends(get_db)) -> TokenRespo
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/refresh", response_model=TokenResponse, summary="Обновить access token")
-async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("30/minute")
+async def refresh_token(request: Request, data: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
     try:
         token_data = decode_token(data.refresh_token)
     except JWTError:
@@ -307,11 +317,52 @@ async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)) -> 
     if token_data.token_type != "refresh":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Ожидается refresh token.")
 
+    # Reuse-detection: если этот refresh уже был отозван (ротирован) — отклоняем.
+    from backend.auth.token_store import is_denied
+    if await is_denied(token_data.jti):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Refresh token уже использован.")
+
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Пользователь не найден или заблокирован.")
 
+    # Ротация: старый refresh отзываем, выдаём новую пару.
+    try:
+        await deny(token_data.jti, remaining_ttl(token_data.exp))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("refresh rotation deny failed: %s", exc)
+
     return _build_token_response(user, user.email or token_data.email)
+
+
+_logout_bearer = HTTPBearer(auto_error=True)
+
+
+@router.post("/logout", response_model=MessageResponse, summary="Выход — отзыв токенов")
+async def logout(
+    data: RefreshRequest | None = None,
+    credentials: HTTPAuthorizationCredentials = Depends(_logout_bearer),
+) -> MessageResponse:
+    """Отзывает текущий access-токен и (если передан) refresh-токен.
+
+    После вызова оба токена перестают работать до истечения их exp.
+    """
+    try:
+        access = decode_token(credentials.credentials)
+        await deny(access.jti, remaining_ttl(access.exp))
+    except JWTError:
+        pass  # некорректный access — отзывать нечего
+    except Exception as exc:  # noqa: BLE001
+        logger.error("logout deny(access) failed: %s", exc)
+    if data and data.refresh_token:
+        try:
+            refresh = decode_token(data.refresh_token)
+            await deny(refresh.jti, remaining_ttl(refresh.exp))
+        except JWTError:
+            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.error("logout deny(refresh) failed: %s", exc)
+    return MessageResponse(message="Вы вышли из аккаунта.")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -324,6 +375,14 @@ async def google_oauth(data: GoogleOAuthRequest, db: Session = Depends(get_db)) 
         google_user = await exchange_google_code(code=data.code, redirect_uri=data.redirect_uri)
     except OAuthError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Google OAuth: {exc}")
+
+    # Не доверяем неподтверждённому Google-email: иначе возможен захват/линковка
+    # аккаунта на чужой адрес.
+    if not google_user.email_verified:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Google не подтвердил email этого аккаунта.",
+        )
 
     user = db.query(User).filter(User.email == google_user.email).first()
     if user is None:
@@ -414,7 +473,9 @@ class ResetPasswordRequest(_BM):
 
 
 @router.post("/forgot-password", response_model=MessageResponse, summary="Запросить сброс пароля")
+@limiter.limit("5/minute")
 async def forgot_password(
+    request: Request,
     data: ForgotPasswordRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:

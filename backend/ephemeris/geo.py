@@ -6,6 +6,7 @@ Handles DST ambiguity edge-cases.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -62,7 +63,8 @@ async def geocode_place(place: str) -> GeoResult:
         "limit": 1,
         "accept-language": "en",
     }
-    headers = {"User-Agent": "AstroSPA/0.1 (26363@list.ru)"}
+    _contact = os.getenv("NOMINATIM_CONTACT", "https://astreatime.ru")
+    headers = {"User-Agent": f"AstreaTime/1.0 (+{_contact})"}
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:

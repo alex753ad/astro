@@ -12,14 +12,15 @@
 import asyncio
 import csv
 import json
+import os
 
 from telethon import TelegramClient
 from telethon.tl.functions.contacts import SearchRequest
 from telethon.tl.types import Channel
 
 # ── Настройки ──────────────────────────────────────────────
-API_ID   = 34459491               # ← вставь api_id (число)
-API_HASH = "6ed884d55382d388167e792b8884f554"              # ← вставь api_hash (строка)
+API_ID   = int(os.getenv("TG_API_ID", "0"))   # из окружения
+API_HASH = os.getenv("TG_API_HASH", "")       # из окружения
 PHONE    = "+79081978742"              # ← номер телефона: "+79991234567"
 PASSWORD = "Hkm88spn!"              # ← пароль двухшаговой проверки (или оставь "")
 SESSION  = "astro_search"

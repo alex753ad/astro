@@ -28,6 +28,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from backend.auth.jwt import decode_token, TokenData
+from backend.auth.token_store import is_denied
 from backend.database import get_db
 from backend.models import User
 
@@ -57,6 +58,13 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Expected an access token",
+        )
+
+    if await is_denied(token_data.jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     user = db.query(User).filter(User.id == token_data.user_id).first()
@@ -93,6 +101,9 @@ async def get_current_user_optional(
         return None
 
     if token_data.token_type != "access":
+        return None
+
+    if await is_denied(token_data.jti):
         return None
 
     user = db.query(User).filter(User.id == token_data.user_id).first()

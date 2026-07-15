@@ -11,7 +11,9 @@ import io
 import logging
 import os
 import secrets
+import time
 from datetime import date as date_type
+from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse, Response
@@ -20,12 +22,39 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import NatalChart
 from backend.auth.dependencies import get_current_user
+from backend.redis_client import get_redis
 
 logger = logging.getLogger("astro.share")
 
 router = APIRouter(tags=["share"])
 
 APP_URL = os.getenv("APP_URL", "https://astreatime.ru")
+
+# ── TTL публичных токенов шаринга ─────────────────────────────────────────────
+# Срок хранится в Redis (без миграции БД). Токены, созданные до включения TTL,
+# не имеют ключа и считаются бессрочными (legacy) — чтобы не ломать старые ссылки.
+SHARE_TTL_SECONDS = 90 * 24 * 3600
+
+
+async def _register_share_token(token: str) -> None:
+    try:
+        expiry = int(time.time()) + SHARE_TTL_SECONDS
+        # ключ живёт дольше логического срока, чтобы отличать «истёк» от «legacy»
+        await get_redis().setex(f"share:exp:{token}", SHARE_TTL_SECONDS + 30 * 24 * 3600, str(expiry))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("share token TTL register failed: %s", exc)
+
+
+async def _ensure_not_expired(token: str) -> None:
+    try:
+        raw = await get_redis().get(f"share:exp:{token}")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("share token TTL check failed (fail-open): %s", exc)
+        return
+    if raw is None:
+        return  # legacy-токен без срока
+    if int(raw) < int(time.time()):
+        raise HTTPException(status_code=404, detail="Share link expired")
 
 # ── знаки ────────────────────────────────────────────────────────────────────
 SIGN_RU = {
@@ -80,6 +109,7 @@ async def create_share_link(
 
     db.commit()
     db.refresh(chart)
+    await _register_share_token(chart.public_token)
 
     return {
         "share_url": f"{APP_URL}/chart/share/{chart.public_token}",
@@ -93,6 +123,7 @@ async def create_share_link(
 @router.get("/api/v1/share/{token}/data")
 async def share_data(token: str, db: Session = Depends(get_db)):
     """JSON-данные карты для SPA SharePage."""
+    await _ensure_not_expired(token)
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -116,6 +147,7 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     Мессенджеры читают OG-теги и показывают красивое превью.
     После этого JS редиректит пользователя на SPA.
     """
+    await _ensure_not_expired(token)
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -137,11 +169,16 @@ async def share_page(token: str, db: Session = Depends(get_db)):
         description_parts.append(f"↑ Асцендент: {asc_label}")
     description = " · ".join(description_parts) or "Персональный астрологический анализ"
 
-    og_title       = f"Натальная карта · {name}"
-    og_description = description
-    og_image       = f"{APP_URL}/share/{token}/card.png"
-    og_url         = f"{APP_URL}/chart/share/{token}"
-    spa_url        = f"{APP_URL}/chart/share/{token}"
+    # XSS: любое пользовательское значение (share_name) экранируется перед
+    # вставкой в HTML/мета-теги. Токен — из secrets.token_urlsafe (безопасный
+    # алфавит), но экранируем и его для единообразия.
+    safe_name = escape(name, quote=True)
+    og_title       = f"Натальная карта · {safe_name}"
+    og_description = escape(description, quote=True)
+    safe_token     = escape(token, quote=True)
+    og_image       = f"{APP_URL}/share/{safe_token}/card.png"
+    og_url         = f"{APP_URL}/chart/share/{safe_token}"
+    spa_url        = f"{APP_URL}/chart/share/{safe_token}"
 
     html = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -181,7 +218,18 @@ async def share_page(token: str, db: Session = Depends(get_db)):
   </script>
 </body>
 </html>"""
-    return HTMLResponse(content=html)
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Content-Security-Policy": (
+                "default-src 'none'; img-src 'self' https:; "
+                "style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+                "base-uri 'none'; frame-ancestors 'none'"
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        },
+    )
 
 
 # ── PNG карточка 1200×630 ─────────────────────────────────────────────────────
@@ -189,6 +237,7 @@ async def share_page(token: str, db: Session = Depends(get_db)):
 @router.get("/share/{token}/card.png")
 async def share_card_png(token: str, db: Session = Depends(get_db)):
     """Генерирует PNG 1200×630 для Stories / мессенджеров."""
+    await _ensure_not_expired(token)
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")

@@ -271,6 +271,22 @@ function useAuthInternal() {
 
   const logout = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    // Отзываем токены на сервере (fire-and-forget, сессию чистим в любом случае).
+    try {
+      const at = localStorage.getItem(ACCESS_TOKEN_KEY);
+      const rt = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (at) {
+        fetch(`${API_BASE}/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${at}`,
+          },
+          body: JSON.stringify({ refresh_token: rt || '' }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch { /* noop */ }
     setAccessToken(null);
     setRefreshToken(null);
     setUser(null);

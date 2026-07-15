@@ -17,6 +17,7 @@ from backend.models import NatalChart, User
 from backend.cache import transit_cache
 from backend.auth.dependencies import get_current_user_optional
 from backend.auth.rate_limits import tier_limiter
+from backend.authz import assert_chart_access
 from backend.limiter import limiter
 
 logger = logging.getLogger("astro")
@@ -32,10 +33,11 @@ def _parse_date(value: str, field: str = "date") -> date_type:
         raise HTTPException(status_code=422, detail=f"Invalid {field} format. Use YYYY-MM-DD.")
 
 
-def _load_chart(chart_id: str, db: Session) -> NatalChart:
+def _load_chart(chart_id: str, db: Session, user: User | None = None) -> NatalChart:
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    assert_chart_access(chart, user)
     return chart
 
 
@@ -59,7 +61,7 @@ async def get_transits(
     tier_limiter.check_transit_access(user)
     from backend.transit.engine import calculate_transits
 
-    chart = _load_chart(chart_id, db)
+    chart = _load_chart(chart_id, db, user)
     from_dt = _parse_date(from_date, "from_date")
     to_dt   = _parse_date(to_date, "to_date")
 
@@ -115,10 +117,11 @@ async def get_transit_positions(
     chart_id: str,
     on_date: str,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     from backend.transit.engine import get_planet_positions_for_date
 
-    _load_chart(chart_id, db)
+    _load_chart(chart_id, db, user)
     query_date = _parse_date(on_date, "on_date")
     planets = get_planet_positions_for_date(query_date)
     return {"date": on_date, "planets": planets}
@@ -135,12 +138,13 @@ async def interpret_transits(
     user: User | None = Depends(get_current_user_optional),
 ):
     tier_limiter.check_transit_access(user)
+    tier_limiter.check_transit_ai_limit(user, db)
     from backend.transit.engine import calculate_transits, get_transit_summary
     from backend.transit.prompts import build_transit_period_prompt, get_template_transit_text
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
-    chart = _load_chart(chart_id, db)
+    chart = _load_chart(chart_id, db, user)
     from_dt = _parse_date(from_date, "from_date")
     to_dt   = _parse_date(to_date, "to_date")
 
@@ -216,11 +220,12 @@ async def interpret_transit_event(
     user: User | None = Depends(get_current_user_optional),
 ):
     tier_limiter.check_transit_access(user)
+    tier_limiter.check_transit_ai_limit(user, db)
     from backend.transit.prompts import get_template_transit_text
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
-    chart = _load_chart(chart_id, db)
+    chart = _load_chart(chart_id, db, user)
     body = await request.json()
     transit_planet = body.get("transit_planet", "")
     natal_planet   = body.get("natal_planet", "")

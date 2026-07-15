@@ -1,22 +1,38 @@
-import hashlib
 import hmac
 import os
 import secrets
+import time
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import get_current_user
+from backend.auth.passwords import verify_password
 from backend.database import get_db
+from backend.limiter import limiter
 from backend.models import User
 
-# ── Admin password (hashed at module load) ──────────────────
-_ADMIN_PASSWORD_HASH = hashlib.sha256(b"24!28B91Gm").hexdigest()
+# ── Admin password (только из окружения, никогда в коде) ─────
+# Приоритет: ADMIN_PANEL_PASSWORD_HASH (bcrypt) → ADMIN_PANEL_PASSWORD (plaintext).
+# Если ни одно не задано — вход по паролю выключен.
+_ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PANEL_PASSWORD_HASH", "").strip()
+_ADMIN_PASSWORD_PLAIN = os.getenv("ADMIN_PANEL_PASSWORD", "").strip()
 
-# ── Simple in-process token store (survives until restart) ──
-# { token: True }  — stateless enough for single-instance deploy
-_ADMIN_TOKENS: set[str] = set()
+# ── In-process token store с TTL ─────────────────────────────
+_ADMIN_TOKEN_TTL = 12 * 3600  # 12 часов
+_ADMIN_TOKENS: dict[str, float] = {}  # token -> expiry unixtime
+
+
+def _verify_admin_password(candidate: str) -> bool:
+    if _ADMIN_PASSWORD_HASH:
+        try:
+            return verify_password(candidate, _ADMIN_PASSWORD_HASH)
+        except Exception:
+            return False
+    if _ADMIN_PASSWORD_PLAIN:
+        return hmac.compare_digest(candidate, _ADMIN_PASSWORD_PLAIN)
+    return False
 
 ADMIN_EMAILS: set[str] = set(
     e.strip() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()
@@ -30,7 +46,13 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 # ═══════════════════════════════════════════════════════════
 
 def _check_admin_token(token: str) -> bool:
-    return token in _ADMIN_TOKENS
+    exp = _ADMIN_TOKENS.get(token)
+    if exp is None:
+        return False
+    if exp < time.time():
+        _ADMIN_TOKENS.pop(token, None)
+        return False
+    return True
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -53,12 +75,12 @@ class AdminLoginResponse(BaseModel):
 
 
 @router.post("/login", response_model=AdminLoginResponse, summary="Вход в панель по паролю")
-def admin_login(data: AdminLoginRequest) -> AdminLoginResponse:
-    candidate_hash = hashlib.sha256(data.password.encode()).hexdigest()
-    if not hmac.compare_digest(candidate_hash, _ADMIN_PASSWORD_HASH):
+@limiter.limit("5/minute")
+def admin_login(request: Request, data: AdminLoginRequest) -> AdminLoginResponse:
+    if not _verify_admin_password(data.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный пароль.")
     token = secrets.token_hex(32)
-    _ADMIN_TOKENS.add(token)
+    _ADMIN_TOKENS[token] = time.time() + _ADMIN_TOKEN_TTL
     return AdminLoginResponse(admin_token=token)
 
 

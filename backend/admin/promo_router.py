@@ -143,13 +143,18 @@ def deactivate_promo(code: str, db: Session = Depends(get_db), _: User = Depends
 def apply_promo(
     code: str,
     plan: str,
-    user_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Возвращает итоговую цену после скидки.
     Вызывать до создания заказа в Robokassa.
+
+    user_id берётся ИЗ ТОКЕНА (не из параметра) — иначе проверку «once per user»
+    можно обойти подстановкой чужого id. Строка промокода блокируется
+    (SELECT ... FOR UPDATE), чтобы исключить гонку при проверке лимита.
     """
+    user_id = str(current_user.id)
     PLAN_PRICES = {"lite": 790, "pro": 1990, "premium": 7990}
     base_price = PLAN_PRICES.get(plan)
     if not base_price:
@@ -159,6 +164,7 @@ def apply_promo(
         SELECT id, discount_type, discount_value, duration, max_redemptions,
                times_redeemed, active, expires_at, applies_to_plans
         FROM promo_codes WHERE code = :c
+        FOR UPDATE
     """), {"c": code.upper()}).fetchone()
 
     if not row:
@@ -204,7 +210,9 @@ def record_promo_usage(code: str, user_id: int, plan: str, db: Session):
         VALUES (:c, :u, :p, NOW())
     """), {"c": code.upper(), "u": user_id, "p": plan})
     db.execute(text("""
-        UPDATE promo_codes SET times_redeemed = times_redeemed + 1 WHERE code = :c
+        UPDATE promo_codes SET times_redeemed = times_redeemed + 1
+        WHERE code = :c
+          AND (max_redemptions IS NULL OR times_redeemed < max_redemptions)
     """), {"c": code.upper()})
     db.commit()
 

@@ -31,6 +31,7 @@ from backend.ephemeris.geo import (
 )
 from backend.auth.dependencies import get_current_user_optional
 from backend.auth.rate_limits import tier_limiter
+from backend.authz import assert_chart_access
 from backend.limiter import limiter
 
 logger = logging.getLogger("astro")
@@ -158,10 +159,16 @@ async def calculate_chart(
     summary="Get saved chart",
 )
 @limiter.limit(settings.rate_limit_anon)
-async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_db)):
+async def get_chart(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    assert_chart_access(chart, user)
 
     return NatalChartResponse(
         id=chart.id,
@@ -189,13 +196,14 @@ async def interpret_chart(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
-    tier_limiter.check_interpretation_limit(user)
+    tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    assert_chart_access(chart, user)
 
     profile = {
         "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
@@ -203,6 +211,7 @@ async def interpret_chart(
     }
     interp_request = InterpretationRequest(natal_profile=profile)
     ai_router = get_router()
+    user_id_for_usage = user.id if user else None
 
     full_text = []
 
@@ -233,6 +242,11 @@ async def interpret_chart(
                             ))
                             save_db.commit()
                             logger.info("Saved interpretation to DB for chart %s, len=%d", chart_id, len(content))
+                        # Списываем расход интерпретации после успешной генерации
+                        if user_id_for_usage:
+                            usage_user = save_db.query(User).filter(User.id == user_id_for_usage).first()
+                            if usage_user:
+                                tier_limiter.commit_interpretation(usage_user, save_db)
                     finally:
                         save_db.close()
                 except Exception as save_exc:
@@ -257,13 +271,14 @@ async def interpret_chart_full(
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
-    tier_limiter.check_interpretation_limit(user)
+    tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    assert_chart_access(chart, user)
 
     profile = {
         "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
@@ -295,14 +310,27 @@ async def interpret_chart_full(
         except Exception as save_exc:
             logger.exception("Failed to save interpretation to DB: %s", save_exc)
 
+    if result.content and user is not None:
+        try:
+            tier_limiter.commit_interpretation(user, db)
+        except Exception as usage_exc:
+            logger.warning("Failed to commit interpretation usage: %s", usage_exc)
+
     return {"chart_id": chart_id, "content": result.content, "sections": result.sections, "engine": result.engine, "cached": result.cached}
 
 
-@router.get("/{chart_id}/debug/cusps", tags=["debug"])
-async def get_chart_cusps(chart_id: str, db: Session = Depends(get_db)):
+@router.get("/{chart_id}/debug/cusps", tags=["debug"], include_in_schema=False)
+async def get_chart_cusps(
+    chart_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    if not settings.debug:
+        raise HTTPException(status_code=404, detail="Not found")
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
+    assert_chart_access(chart, user)
     return {
         "timezone": getattr(chart, "timezone", None),
         "house_system": getattr(chart, "house_system", "unknown"),

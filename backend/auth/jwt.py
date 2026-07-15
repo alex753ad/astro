@@ -12,6 +12,7 @@ Refresh token — longer-lived (7 days), used to obtain new access tokens.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -31,6 +32,8 @@ class TokenData(BaseModel):
     email: str
     tier: str = "free"
     token_type: str = "access"  # "access" | "refresh"
+    jti: str = ""
+    exp: int = 0  # unix timestamp окончания действия
 
 
 class TokenPair(BaseModel):
@@ -89,6 +92,7 @@ def create_access_token(
         "type": "access",
         "iat": now,
         "exp": now + expires_delta,
+        "jti": uuid.uuid4().hex,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
@@ -111,6 +115,7 @@ def create_refresh_token(
         "type": "refresh",
         "iat": now,
         "exp": now + expires_delta,
+        "jti": uuid.uuid4().hex,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
@@ -150,7 +155,15 @@ def decode_token(token: str) -> TokenData:
         email=email,
         tier=tier,
         token_type=token_type,
+        jti=payload.get("jti", ""),
+        exp=int(payload.get("exp", 0)),
     )
+
+
+def remaining_ttl(exp: int) -> int:
+    """Сколько секунд осталось до истечения токена (>= 1)."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    return max(exp - now, 1)
 
 
 # ── Email confirmation token ───────────────────────────────
