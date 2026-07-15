@@ -992,7 +992,7 @@ async def generate_client_report(
             from backend.natal_pdf import generate_pdf_bytes
             pdf_bytes = generate_pdf_bytes(chart, interpretation=interpretation_text, astrologer_name=astrologer_name)
         except Exception:
-            logger.warning("natal_pdf failed, using simple fallback")
+            logger.exception("natal_pdf failed, using simple fallback")
             pdf_bytes = _simple_pdf(chart, client, astrologer_name)
 
         import urllib.parse
