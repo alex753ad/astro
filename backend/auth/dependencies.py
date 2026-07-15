@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -82,6 +82,7 @@ async def get_current_user(
 
 
 async def get_current_user_optional(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         _bearer_scheme_optional
     ),
@@ -91,12 +92,20 @@ async def get_current_user_optional(
 
     Does NOT raise on missing / invalid token — useful for endpoints
     that work for both anonymous and authenticated users.
+
+    Токен берётся из заголовка Authorization, а если его нет — из query-параметра
+    `?token=` (нужно для SSE/EventSource, который не умеет слать заголовки).
     """
-    if credentials is None:
+    token: Optional[str] = None
+    if credentials is not None:
+        token = credentials.credentials
+    if not token:
+        token = request.query_params.get("token")
+    if not token:
         return None
 
     try:
-        token_data = decode_token(credentials.credentials)
+        token_data = decode_token(token)
     except JWTError:
         return None
 

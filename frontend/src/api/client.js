@@ -178,12 +178,17 @@ function _connectSSE(url, onChunk, onDone, onError) {
 }
 
 export function streamInterpretation(chartId, onChunk, onDone, onError) {
-  const url = `${API_BASE}/chart/${chartId}/interpret`;
+  // EventSource не умеет слать заголовок Authorization — передаём токен в URL.
+  const token = localStorage.getItem('astro_access_token');
+  const q = token ? `?token=${encodeURIComponent(token)}` : '';
+  const url = `${API_BASE}/chart/${chartId}/interpret${q}`;
   return _connectSSE(url, onChunk, onDone, onError);
 }
 
 export function streamTransitInterpretation(chartId, fromDate, toDate, onChunk, onDone, onError) {
+  const token = localStorage.getItem('astro_access_token');
   const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
+  if (token) params.set('token', token);
   const url = `${API_BASE}/chart/${chartId}/transits/interpret?${params}`;
   return _connectSSE(url, onChunk, onDone, onError);
 }
