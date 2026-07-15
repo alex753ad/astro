@@ -1170,6 +1170,7 @@ function BroadcastPanel({ authFetch, clients }) {
   const [history, setHistory] = useState(null);
   const [aiMode, setAiMode] = useState(false);
   const [customText, setCustomText] = useState('');
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
 
   // Бренд + автоотправка (022)
   const [brandName, setBrandName] = useState('');
@@ -1206,6 +1207,7 @@ function BroadcastPanel({ authFetch, clients }) {
         method: 'POST', body: JSON.stringify({ client_id: Number(previewClient), mode: aiMode ? 'ai' : 'template', custom_text: customText || null }),
       });
       setPreviewHtml(r.html || '');
+      setPreviewCollapsed(false);
     } catch (e) { alert('Ошибка: ' + (e.message || '')); }
     setPreviewLoading(false);
   };
@@ -1285,11 +1287,24 @@ function BroadcastPanel({ authFetch, clients }) {
           </div>
 
           {previewHtml && (
-            <iframe
-              title="preview"
-              srcDoc={previewHtml}
-              style={{ width: '100%', height: 420, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, marginBottom: 12, background: '#0e0c1a' }}
-            />
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={S.label}>Предпросмотр письма</label>
+                <button
+                  style={{ ...S.btn(), padding: '4px 10px', fontSize: 12 }}
+                  onClick={() => setPreviewCollapsed(v => !v)}
+                >
+                  {previewCollapsed ? '▼ Развернуть' : '▲ Свернуть'}
+                </button>
+              </div>
+              {!previewCollapsed && (
+                <iframe
+                  title="preview"
+                  srcDoc={previewHtml}
+                  style={{ width: '100%', height: 420, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, background: '#0e0c1a' }}
+                />
+              )}
+            </div>
           )}
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

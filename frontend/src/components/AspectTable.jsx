@@ -84,7 +84,7 @@ export default function AspectTable({ aspects, onHoverAspect }) {
   return (
     <div className="p-6 at-scope">
       <style>{`.at-scope{--at-high:#7C3AED;--at-med:#2563EB;--at-low:#6B7280;} .dark .at-scope{--at-high:#A78BFA;--at-med:#6FA8DC;--at-low:#9B97B0;}`}</style>
-      <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2">
+      <h2 className="font-display text-lg font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
         <span className="text-brand-accent">△</span>
         Аспекты
       </h2>

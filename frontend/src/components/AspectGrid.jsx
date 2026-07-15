@@ -80,11 +80,11 @@ export default function AspectGrid({ aspects = [], planets = [] }) {
                         border: '0.5px solid rgba(139,143,163,0.25)',
                         textAlign: 'center',
                         verticalAlign: 'middle',
-                        background: isDiag ? 'var(--color-background-tertiary)' : 'transparent',
+                        background: isDiag ? 'var(--bg-card)' : 'transparent',
                         fontSize: isDiag ? '11px' : '13px',
                         fontWeight: isDiag ? '600' : '400',
                         color: isDiag
-                          ? 'var(--color-text-secondary)'
+                          ? 'var(--text-primary)'
                           : asp ? ASPECT_COLOR[asp.type] : 'transparent',
                         cursor: asp ? 'default' : 'default',
                         userSelect: 'none',
@@ -116,7 +116,7 @@ const s = {
     fontWeight: '500',
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
-    color: 'var(--color-text-tertiary)',
+    color: 'var(--text-secondary)',
     marginBottom: '10px',
   },
 };

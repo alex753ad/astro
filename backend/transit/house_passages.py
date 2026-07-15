@@ -170,6 +170,11 @@ LOOKAHEAD_DAYS = {
     "Mercury": 90,
     "Venus":   90,
     "Mars":    100,
+    "Jupiter": 420,
+    "Saturn":  1100,
+    "Uranus":  3000,
+    "Neptune": 5500,
+    "Pluto":   8500,
 }
 
 # Сколько дней сканировать назад от начала периода, чтобы найти реальное начало транзита
@@ -382,8 +387,13 @@ def compute_planner_periods(
     slow_result = []
     for planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
         lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 400))
-        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt)
-        passages = [p for p in all_passages if p["end_dt"] >= period_start_dt]
+        lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 400))
+        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt + lookahead)
+        # текущий/действующий период: пересекается с месяцем (начался не позже конца месяца)
+        passages = [
+            p for p in all_passages
+            if p["end_dt"] >= period_start_dt and p["start_dt"] <= period_end_dt
+        ]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         main = max(
             passages,
