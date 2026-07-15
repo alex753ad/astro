@@ -1,12 +1,14 @@
 # Astrea Timeline — Архитектура проекта
 
-> Версия: 3.0 | Май 2026
+> Версия: 3.1 | Июль 2026
 
 ---
 
 ## 1. Общее описание
 
-**Astrea Timeline** — веб-приложение для построения натальных карт, расчёта транзитов, лунного календаря и генерации персональных астрологических интерпретаций через LLM.
+**Astrea Timeline** — веб-приложение для построения натальных карт, расчёта транзитов, лунного календаря и генерации AI-интерпретаций.
+
+**Стек:** Python (55.9%) + JavaScript (41.9%) + HTML (1.7%) + CSS (0.3%)
 
 Монетизация — подписочная модель через Stripe: **Free / Lite (790₽) / Pro (1990₽) / Premium (7990₽)**.
 
@@ -22,6 +24,7 @@
 ┌──────────────────────────▼──────────────────────────────────┐
 │                FRONTEND — Vercel                             │
 │  React 18 + React Router 6 + Vite 5 + Tailwind 3.4          │
+│  (JavaScript 41.9% + HTML/CSS 2.0%)                         │
 │                                                              │
 │  pages/          components/        hooks/                   │
 │  ├─ LandingPage  ├─ NatalChart.jsx  ├─ useAuth.jsx           │
@@ -36,6 +39,7 @@
 ┌──────────────────────────▼──────────────────────────────────┐
 │                BACKEND — Railway (FastAPI)                    │
 │  Python 3.12 + FastAPI + SQLAlchemy 2.0 + Pydantic 2.7       │
+│  (Python 55.9%)                                              │
 │                                                              │
 │  /api/v1/                                                    │
 │  ├─ auth/          JWT + Google OAuth + bcrypt               │
@@ -84,8 +88,8 @@
 
 | Слой | Технология |
 |---|---|
-| Frontend | React 18.3, React Router 6, Vite 5, Tailwind 3.4 |
-| Backend | Python 3.12, FastAPI, Uvicorn |
+| Frontend | React 18.3, React Router 6, Vite 5, Tailwind 3.4 (JavaScript 41.9%) |
+| Backend | Python 3.12, FastAPI, Uvicorn (Python 55.9%) |
 | ORM / БД | SQLAlchemy 2.0, Alembic, PostgreSQL 16 |
 | Кэш / очереди | Redis 7, Celery |
 | Астрология | pyswisseph (Swiss Ephemeris), ephemeris-файлы `.se1` |
@@ -98,6 +102,7 @@
 | Deploy | Railway (backend + worker + cron), Vercel (frontend) |
 | CI/CD | GitHub Actions |
 | PDF | ReportLab |
+| Markup | HTML/CSS 2.0%, Dockerfile 0.1%, Batchfile 0.1% |
 
 ---
 
@@ -281,7 +286,7 @@ GitHub
 ```
 
 **Переменные окружения (Railway):**
-`DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `INTERNAL_SECRET`
+`DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `[...]`
 
 ---
 
@@ -295,3 +300,11 @@ GitHub
 ```
 
 Контроль расходов: daily budget per engine + per-tier rate limits через `slowapi`.
+
+---
+
+## 12. Метрики проекта
+
+- **Языки:** Python 55.9% | JavaScript 41.9% | HTML 1.7% | CSS 0.3% | Batchfile 0.1% | Dockerfile 0.1%
+- **Среда:** Production (Railway + Vercel)
+- **Версия документации:** 3.1 | Июль 2026
