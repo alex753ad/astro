@@ -23,6 +23,11 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os as _os
 
+# Шрифт с астросимволами и кириллицей, лежащий в самом репозитории —
+# гарантирует значки планет/знаков/аспектов в PDF на любом сервере.
+_ASSET_FONT = _os.path.join(_os.path.dirname(__file__), "assets", "fonts", "DejaVuSans.ttf")
+
+
 def _register_fonts():
     """Register Unicode fonts for Cyrillic + astrological symbols."""
     # Main font (Cyrillic)
@@ -35,6 +40,8 @@ def _register_fonts():
          "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
          "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        # Запасной шрифт из репозитория (кириллица) — если системных нет
+        (_ASSET_FONT, _ASSET_FONT),
     ]
     font_name = None
     for regular, bold in main_candidates:
@@ -50,10 +57,11 @@ def _register_fonts():
             except Exception:
                 continue
 
-    # Symbol font — NotoSansSymbols2 has all astro/zodiac glyphs
+    # Символьный шрифт с астро/зодиакальными глифами.
+    # Первый кандидат — встроенный в репозиторий DejaVuSans (есть на любом сервере).
     sym_candidates = [
-        "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf",
-        "/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.otf",
+        _ASSET_FONT,
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
         "C:/Windows/Fonts/seguisym.ttf",
     ]
@@ -80,6 +88,8 @@ def _draw_glyph(c, x, y, glyph, size, color):
     if _SYMBOL_FONT:
         c.setFillColor(color)
         c.setFont(_SYMBOL_FONT, size)
+        # ⚹ (U+26B9) отсутствует в DejaVu — рисуем совместимую шестилучевую звезду
+        glyph = "✶" if glyph == "⚹" else glyph
         c.drawCentredString(x, y - size * 0.35, glyph)
     else:
         # ASCII fallbacks
