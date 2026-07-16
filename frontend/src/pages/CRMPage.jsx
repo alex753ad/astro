@@ -1233,7 +1233,7 @@ function BroadcastPanel({ authFetch, clients }) {
   return (
     <div style={{ ...S.card }}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📧 Рассылка месяца</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Рассылка месяца</div>
         <div style={S.muted}>{withEmail.length} с email · {open ? '▲' : '▼'}</div>
       </div>
 
@@ -1388,7 +1388,7 @@ function IntakePanel({ authFetch, onConverted }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📋 Анкеты клиентов</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Анкеты клиентов</div>
         <div style={S.muted}>{submitted.length ? `${submitted.length} новых · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1570,7 +1570,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📊 Аналитика</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Аналитика</div>
         <div style={S.muted}>{withReason.length ? `${withReason.length} к реактивации · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1707,7 +1707,7 @@ function AuthorLibraryPanel({ authFetch }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>✍️ Мои трактовки</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Мои трактовки</div>
         <div style={S.muted}>{loaded ? `${items.length} · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1777,7 +1777,7 @@ function GroupForecastPanel({ authFetch, clients }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>🔮 Групповой прогноз</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Групповой прогноз</div>
         <div style={S.muted}>{ids.length ? `${ids.length} выбрано · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1837,7 +1837,7 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
   const toggle = (id) => setOpenIds(p => ({ ...p, [id]: !p[id] }));
   return (
     <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>⚡ Важные периоды у клиентов</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Важные периоды у клиентов</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {grouped.map(g => (
           <div key={g.client_id} style={{ borderRadius: 8, background: 'rgba(139,92,246,0.06)', overflow: 'hidden' }}>
@@ -1930,7 +1930,7 @@ export default function CRMPage() {
       <style>{CRM_THEME_CSS}</style>
       <div style={S.inner}>
         <div style={{ ...S.row, marginBottom: 24 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>👥 Клиенты</h1>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Клиенты</h1>
           <div style={S.muted}>{clients.length} клиентов</div>
         </div>
 

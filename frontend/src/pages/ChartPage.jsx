@@ -1007,7 +1007,7 @@ const sa = {
 };
 
 const s = {
-  page: { minHeight: '100vh', background: 'var(--bg)', paddingBottom: '60px' },
+  page: { minHeight: '100vh', background: 'transparent', paddingBottom: '60px' },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '18px 24px 14px',

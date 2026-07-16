@@ -170,7 +170,7 @@ function useGcalExport() {
 const styles = `
   .planner-root {
     min-height: 100vh;
-    background: var(--bg);
+    background: transparent;
     color: var(--text-primary);
     font-family: 'Inter', system-ui, sans-serif;
   }

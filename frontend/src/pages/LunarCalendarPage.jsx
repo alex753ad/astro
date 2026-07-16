@@ -311,7 +311,7 @@ export default function LunarCalendarPage() {
           100% { background-position: -200% 0; }
         }
         .lc-scope {
-          --lc-bg: var(--bg); --lc-card: var(--bg-card); --lc-border: var(--border);
+          --lc-bg: transparent; --lc-card: var(--bg-card); --lc-border: var(--border);
           --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope {
