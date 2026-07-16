@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useState, useRef, useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 
 // ── Astrology data ─────────────────────────────────────────
 
@@ -138,6 +139,45 @@ function ChartSkeleton() {
   );
 }
 
+// ── Intro «сборка карты» — variants (проигрывается один раз) ──
+
+const introContainerV = {
+  hidden: {},
+  visible: { transition: { delayChildren: 0.05, staggerChildren: 0.16 } },
+};
+const introRingV = {
+  hidden: { opacity: 0, scale: 0.94 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: 'easeOut' } },
+};
+const introHousesV = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.45, ease: 'easeOut' } },
+};
+const introAspectsV = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.025 } },
+};
+const introAspectLineV = {
+  hidden: { pathLength: 0, opacity: 0 },
+  visible: (op) => ({
+    pathLength: 1,
+    opacity: op,
+    transition: { pathLength: { duration: 0.5, ease: 'easeInOut' }, opacity: { duration: 0.2 } },
+  }),
+};
+const introPlanetsV = {
+  hidden: {},
+  visible: { transition: { delayChildren: 0.05, staggerChildren: 0.06 } },
+};
+const introPlanetV = {
+  hidden: { opacity: 0, scale: 0.6 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.34, 1.3, 0.64, 1] } },
+};
+const introLateV = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.4, ease: 'easeOut' } },
+};
+
 // ═══════════════════════════════════════════════════════════
 // INNER CHART COMPONENT
 // ═══════════════════════════════════════════════════════════
@@ -203,6 +243,18 @@ function NatalChartInner({
   const cHouseReg = dark ? 'rgba(205,196,224,0.22)' : '#C0B0A0'; /* zodiac data-color, intentional */
   const cHouseNum = dark ? 'var(--text-secondary)'  : 'var(--text-secondary)'; /* zodiac data-color, intentional */
 
+  // ── Intro-анимация: один раз при первом построении карты ──
+  const prefersReduced = useReducedMotion();
+  const hasPlayedRef = useRef(false);
+  const [, setIntroDone] = useState(false);
+  const playIntro = !prefersReduced && !hasPlayedRef.current && planets.length > 0;
+  const finishIntro = () => { hasPlayedRef.current = true; setIntroDone(true); };
+  useEffect(() => {
+    if (!playIntro) return;
+    const t = setTimeout(finishIntro, 2000); // подстраховка, если onAnimationComplete не сработает
+    return () => clearTimeout(t);
+  }, [playIntro]);
+
   return (
     <svg
       viewBox={`${-PADDING} ${-PADDING} ${VSIZE} ${VSIZE}`}
@@ -225,8 +277,14 @@ function NatalChartInner({
       `}</style>
       <circle cx={cx} cy={cy} r={R_ZOD_OUT} fill={discBase} stroke="none" />
 
+      <motion.g
+        variants={introContainerV}
+        initial={playIntro ? 'hidden' : false}
+        animate="visible"
+        onAnimationComplete={playIntro ? finishIntro : undefined}
+      >
 
-
+      <motion.g variants={introRingV} style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>
       {SIGN_GLYPHS.map((glyph, i) => {
         const el     = SIGN_ELEMENT[i];
         const midLon = i * 30 + 15;
@@ -284,7 +342,9 @@ function NatalChartInner({
       })}
 
       <circle cx={cx} cy={cy} r={R_TICK_IN} fill="none" stroke={cEdge2} strokeWidth={0.5} />
+      </motion.g>
 
+      <motion.g variants={introHousesV}>
       {!timeUnknown && houseCusps.length === 12 && houseCusps.map((house, i) => {
         const nextHouse = houseCusps[(i + 1) % 12];
         let lon1 = house.lon;
@@ -318,7 +378,9 @@ function NatalChartInner({
       })}
 
       <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill={discInner} stroke={discInnerStroke} strokeWidth={0.75} />
+      </motion.g>
 
+      <motion.g variants={introAspectsV}>
       {/* Аспекты — только в полном режиме */}
       {!isCompact && aspects
         .filter(asp => ['conjunction','sextile','trine','square','opposition'].includes(asp.aspect_type))
@@ -337,13 +399,26 @@ function NatalChartInner({
           const involved = byPlanet || byAspect;
           const anyHighlight = highlightPlanet || highlightAspect;
           const dimAsp   = anyHighlight && !involved;
+          const strokeW = asp.orb < 1 ? 1.5 : asp.orb < 3 ? 1.0 : 0.6;
+          if (playIntro) {
+            return (
+              <motion.line
+                key={i}
+                x1={pt1.x} y1={pt1.y} x2={pt2.x} y2={pt2.y}
+                stroke={color}
+                strokeWidth={strokeW}
+                variants={introAspectLineV}
+                custom={opacity}
+              />
+            );
+          }
           return (
             <line
               key={i}
               x1={pt1.x} y1={pt1.y} x2={pt2.x} y2={pt2.y}
               stroke={color}
               className={involved ? 'aspect-flow' : undefined}
-              strokeWidth={asp.orb < 1 ? 1.5 : asp.orb < 3 ? 1.0 : 0.6}
+              strokeWidth={strokeW}
               strokeOpacity={involved ? 0.8 : dimAsp ? 0.08 : opacity}
               strokeDasharray={involved ? undefined : (!asp.applying ? '4 3' : 'none')}
               style={{ transition: 'stroke-opacity 0.2s ease' }}
@@ -352,7 +427,9 @@ function NatalChartInner({
         })}
 
       <circle cx={cx} cy={cy} r={2.5} fill="var(--accent-glow)" />
+      </motion.g>
 
+      <motion.g variants={introPlanetsV}>
       {planetPositions.map((planet) => {
         const glyphPos = lonToXY(cx, cy, R_PLANET, planet.displayLon, ascLon);
         const realPos  = lonToXY(cx, cy, R_TICK_IN - 4, planet.longitude, ascLon);
@@ -363,7 +440,9 @@ function NatalChartInner({
         const isDimmed = highlightPlanet && !isActive;
 
         return (
-          <g key={planet.name} style={{
+          <motion.g key={planet.name} variants={introPlanetV}
+            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>
+          <g style={{
             transformBox: 'fill-box', transformOrigin: 'center',
             transform: isActive ? 'scale(1.2)' : 'none',
             filter: isActive ? 'brightness(1.3) drop-shadow(0 0 5px rgba(139,92,246,0.75))' : 'none',
@@ -413,9 +492,12 @@ function NatalChartInner({
                 fontSize={8} fill="#C04040" fontWeight="700">℞ {/* zodiac data-color, intentional */}</text>
             )}
           </g>
+          </motion.g>
         );
       })}
+      </motion.g>
 
+      <motion.g variants={introLateV}>
       {!timeUnknown && ascendant && (
         <>
           {[
@@ -514,6 +596,8 @@ function NatalChartInner({
           </g>
         );
       })()}
+      </motion.g>
+      </motion.g>
     </svg>
   );
 }
