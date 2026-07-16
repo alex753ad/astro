@@ -127,7 +127,7 @@ function ChartSkeleton() {
       `}</style>
       <div style={{
         width: '100%', aspectRatio: '1', borderRadius: 16,
-        background: 'linear-gradient(90deg,#1E2235 25%,rgba(255,255,255,0.04) 50%,#1E2235 75%)',
+        background: 'linear-gradient(90deg,var(--bg-deeper) 25%,var(--bg-card) 50%,var(--bg-deeper) 75%)',
         backgroundSize: '200% 100%',
         animation: 'chart-shimmer 1.8s ease-in-out infinite',
       }} />
@@ -612,11 +612,10 @@ export default function NatalChart({ loading = false, compact: _compactProp, ...
           bottom: 24,
           left: '50%',
           transform: 'translateX(-50%)',
-          background: '#FFFFFF',
-          border: '1.5px solid #E0D0F8',
+          background: 'var(--bg-card)',
+          border: '1.5px solid var(--border)',
           borderRadius: 16,
           padding: '14px 20px',
-          boxShadow: '0 8px 24px -4px rgba(144,96,200,0.25)',
           maxWidth: 320,
           width: '90%',
           zIndex: 20,
@@ -627,28 +626,28 @@ export default function NatalChart({ loading = false, compact: _compactProp, ...
           `}</style>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{
-              background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+              background: 'var(--accent)',
               color: '#fff', borderRadius: 8, padding: '2px 8px',
               fontSize: 11, fontWeight: 700,
             }}>
               {TOOLTIPS[activeTooltip].label}
             </span>
-            <span style={{ fontSize: 11, color: '#B0A0C8' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               {activeTooltip + 1} / {TOOLTIPS.length}
             </span>
           </div>
-          <p style={{ fontSize: 13, color: '#2D2540', lineHeight: 1.5, margin: '0 0 12px' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, margin: '0 0 12px' }}>
             {TOOLTIPS[activeTooltip].text}
           </p>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <button onClick={dismissOnboarding} style={{
-              background: 'none', border: 'none', color: '#B0A0C8',
+              background: 'none', border: 'none', color: 'var(--text-secondary)',
               fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: 'inherit',
             }}>
               Пропустить
             </button>
             <button onClick={nextTooltip} style={{
-              background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+              background: 'var(--accent)',
               border: 'none', color: '#fff', borderRadius: 10,
               padding: '6px 16px', fontSize: 12, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
