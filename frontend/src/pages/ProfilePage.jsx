@@ -18,8 +18,8 @@ import { enablePush, pushSupported } from '../push';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
-  .prof-scope { --prof-text:#1e293b; --prof-card:rgba(255,255,255,0.85); --prof-title:#7c3aed; --prof-muted:#94a3b8; --prof-tab-active:#fff; --prof-tab-color:#7c3aed; --prof-tab-muted:#64748b; --prof-input:rgba(139,92,246,0.08); --prof-divider:rgba(139,92,246,0.12); --prof-toggle-off:#e2e8f0; --prof-sub:#cbd5e1; --prof-bar-bg:rgba(51,65,85,0.12); }
-  .dark .prof-scope { --prof-text:#E2DFF0; --prof-card:rgba(26,18,48,0.55); --prof-title:#A78BFA; --prof-muted:#9B97B0; --prof-tab-active:rgba(124,108,255,0.2); --prof-tab-color:#A78BFA; --prof-tab-muted:#9B97B0; --prof-input:rgba(35,28,56,0.60); --prof-divider:rgba(139,92,246,0.2); --prof-toggle-off:rgba(148,163,184,0.15); --prof-sub:#9B97B0; --prof-bar-bg:rgba(139,92,246,0.1); }
+  .prof-scope { --prof-text:var(--text-primary); --prof-card:rgba(255,255,255,0.85); --prof-title:var(--accent); --prof-muted:var(--text-secondary); --prof-tab-active:#fff; --prof-tab-color:var(--accent); --prof-tab-muted:var(--text-secondary); --prof-input:var(--accent-muted); --prof-divider:rgba(139,92,246,0.12); --prof-toggle-off:var(--border); --prof-sub:var(--text-secondary); --prof-bar-bg:rgba(139,92,246,0.1); }
+  .dark .prof-scope { --prof-card:rgba(26,18,48,0.55); --prof-tab-active:rgba(139,92,246,0.2); --prof-divider:rgba(139,92,246,0.2); --prof-toggle-off:rgba(148,163,184,0.15); }
 `;
 
 // ─── Мини-превью натальной карты ─────────────────────────────────────────────
@@ -59,7 +59,7 @@ function MiniChartPreview({ chartId, authFetch }) {
         const ix2 = cx + r * 0.75 * Math.cos(a2), iy2 = cy - r * 0.75 * Math.sin(a2);
         return <path key={i} d={`M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2} L ${ix2} ${iy2} A ${r*0.75} ${r*0.75} 0 0 1 ${ix1} ${iy1} Z`} fill={ELEM[i]} stroke="#ccc" strokeWidth={0.5} />;
       })}
-      <circle cx={cx} cy={cy} r={r * 0.75} fill="#fdfbf9" stroke="#ddd" strokeWidth={0.5} />
+      <circle cx={cx} cy={cy} r={r * 0.75} fill="#fdfbf9" stroke="#ddd" /* zodiac data-color, intentional */ strokeWidth={0.5} />
       <circle cx={cx} cy={cy} r={r * 0.5} fill="#fff" stroke="#eee" strokeWidth={0.5} />
       {planets.slice(0, 10).map(p => {
         const pos = toXY(p.longitude);
@@ -123,11 +123,11 @@ const S = {
   btn: (variant = 'ghost') => ({
     padding: '8px 16px',
     borderRadius: 8,
-    border: variant === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none',
-    background: variant === 'primary' ? 'linear-gradient(135deg, #7C6CFF, #A78BFA)'
-              : variant === 'danger'  ? '#ef4444'
+    border: variant === 'ghost' ? '1px solid var(--border)' : 'none',
+    background: variant === 'primary' ? 'var(--accent)'
+              : variant === 'danger'  ? 'var(--color-danger)'
               : 'transparent',
-    color: variant === 'ghost' ? 'var(--prof-title)' : '#fff',
+    color: variant === 'ghost' ? 'var(--accent)' : '#fff',
     fontWeight: 600,
     fontSize: 13,
     cursor: 'pointer',
@@ -186,7 +186,7 @@ function Toggle({ checked, onChange }) {
       onClick={onChange}
       style={{
         width: 40, height: 22, borderRadius: 11, cursor: 'pointer',
-        background: checked ? '#7C6CFF' : '#e2e8f0',
+        background: checked ? 'var(--accent)' : 'var(--prof-toggle-off)',
         position: 'relative', transition: 'background 0.2s', flexShrink: 0,
       }}
     >
@@ -329,9 +329,9 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
   const LimitBanner = () => isFree && chartsLeft !== null ? (
     <div style={{
       padding: '12px 16px', borderRadius: 12,
-      background: chartsLeft === 0 ? 'rgba(239,68,68,0.08)' : 'rgba(124,108,255,0.08)',
-      border: `1px solid ${chartsLeft === 0 ? 'rgba(239,68,68,0.2)' : 'rgba(124,108,255,0.2)'}`,
-      fontSize: 13, color: chartsLeft === 0 ? '#ef4444' : '#7C6CFF', fontWeight: 600,
+      background: chartsLeft === 0 ? 'rgba(220,38,38,0.08)' : 'var(--accent-muted)',
+      border: `1px solid ${chartsLeft === 0 ? 'rgba(220,38,38,0.2)' : 'rgba(139,92,246,0.2)'}`,
+      fontSize: 13, color: chartsLeft === 0 ? 'var(--color-danger)' : 'var(--accent)', fontWeight: 600,
       display: 'flex', alignItems: 'center', gap: 8,
     }}>
       <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
@@ -396,7 +396,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                 <div style={{ display: 'flex', gap: 6 }}>
                   <Link
                     to={`/planner/${chart.id}`}
-                    style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
+                    style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: 'var(--accent-glow)', border: '1px solid var(--border)' }}
                   >
                     Планер
                   </Link>
@@ -404,7 +404,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                     <button
                       disabled={addingToClients === chart.id || addedToClients[chart.id]}
                       onClick={() => handleAddToClients(chart)}
-                      style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: '#f59e0b', border: '1px solid #f59e0b40' }}
+                      style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: 'var(--color-warning)', border: '1px solid var(--border)' }}
                     >
                       {addingToClients === chart.id ? '…' : addedToClients[chart.id] ? 'Добавлено' : 'в Клиенты'}
                     </button>
@@ -454,7 +454,7 @@ function TabHistory({ history, loading }) {
   );
 
   const ENGINE_LABEL = { gpt4o: 'GPT-4o', deepseek: 'DeepSeek', anthropic: 'Claude', template: 'Шаблон' };
-  const ENGINE_COLOR = { gpt4o: '#10b981', deepseek: '#3b82f6', anthropic: '#a78bfa', template: '#64748b' };
+  const ENGINE_COLOR = { gpt4o: 'var(--color-success)', deepseek: 'var(--color-air)', anthropic: 'var(--accent-glow)', template: 'var(--text-secondary)' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -471,7 +471,7 @@ function TabHistory({ history, loading }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               {item.engine && (
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: `${ENGINE_COLOR[item.engine] || '#64748b'}20`, color: ENGINE_COLOR[item.engine] || '#64748b' }}>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: `${ENGINE_COLOR[item.engine] || 'var(--text-secondary)'}20`, color: ENGINE_COLOR[item.engine] || 'var(--text-secondary)' }}>
                   {ENGINE_LABEL[item.engine] || item.engine}
                 </span>
               )}
@@ -503,13 +503,13 @@ function UsageBar({ label, used, limit, tierColor = '#7C6CFF' }) {
   const unlimited = limit === null || limit === undefined;
   const pct = unlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
   const exhausted = !unlimited && used >= limit;
-  const barColor = exhausted ? '#f87171' : (pct >= 80 ? '#f59e0b' : tierColor);
+  const barColor = exhausted ? 'var(--color-danger)' : (pct >= 80 ? 'var(--color-warning)' : tierColor);
 
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-        <span style={{ fontSize: 12, color: '#c4b5fd' }}>{label}</span>
-        <span style={{ fontSize: 12, color: exhausted ? '#f87171' : '#94a3b8', fontWeight: 600 }}>
+        <span style={{ fontSize: 12, color: 'var(--accent-glow)' }}>{label}</span>
+        <span style={{ fontSize: 12, color: exhausted ? 'var(--color-danger)' : 'var(--text-secondary)', fontWeight: 600 }}>
           {unlimited ? `${used} · безлимит` : `${used} / ${limit}`}
         </span>
       </div>
@@ -592,7 +592,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             )}
           </div>
           {subscription?.status && subscription.status !== 'free' && (
-            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: '#10b98120', color: '#10b981' }}>
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: 'rgba(52,211,153,0.12)', color: 'var(--color-success)' }}>
               {subscription.status === 'active' ? 'Активна' : subscription.status}
             </span>
           )}
@@ -606,9 +606,9 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           {features.map(f => {
             const ok = subscription?.features?.[f.key];
             return (
-              <div key={f.key} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${ok ? '#7C6CFF40' : '#33415540'}`, textAlign: 'center' }}>
+              <div key={f.key} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${ok ? 'var(--border)' : 'var(--border)'}`, textAlign: 'center', opacity: ok ? 1 : 0.5 }}>
                 <div style={{ fontSize: 16, marginBottom: 4 }}>{ok ? '✓' : '✗'}</div>
-                <div style={{ fontSize: 11, color: ok ? '#c4b5fd' : '#64748b' }}>{f.label}</div>
+                <div style={{ fontSize: 11, color: ok ? 'var(--accent-glow)' : 'var(--text-secondary)' }}>{f.label}</div>
               </div>
             );
           })}
@@ -641,7 +641,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             <p style={S.cardTitle}>Использование в этом месяце</p>
 
             {tier === 'free' ? (
-              <div style={{ fontSize: 13, color: '#c4b5fd', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: 'var(--accent-glow)', marginBottom: 12 }}>
                 {freeInterpAvailable
                   ? '🎁 У вас есть 1 бесплатная интерпретация карты'
                   : '✓ Бесплатная интерпретация использована'}
@@ -674,7 +674,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
 
             {/* Мягкий апсейл при исчерпании */}
             {tier !== 'premium' && !interpUnlimited && interpLimit > 0 && interpUsed >= interpLimit && (
-              <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: 4 }}>
                 Лимит интерпретаций исчерпан — перейдите на тариф выше, чтобы продолжить.
               </div>
             )}
@@ -687,7 +687,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         <div style={S.card}>
           <p style={S.cardTitle}>Перейти на тариф</p>
           {checkoutError && (
-            <div style={{ fontSize: 12, color: '#f87171', marginBottom: 12 }}>Ошибка: {checkoutError}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-danger)', marginBottom: 12 }}>Ошибка: {checkoutError}</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {availableTiers.map(t => (
@@ -721,7 +721,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
 
       {/* CRM для premium */}
       {user?.tier === 'premium' && (
-        <div style={{ ...S.card, border: '1px solid #F59E0B40', background: '#F59E0B08' }}>
+        <div style={{ ...S.card, border: '1px solid rgba(217,119,6,0.3)', background: 'rgba(217,119,6,0.05)' }}>
           <p style={S.cardTitle}>👥 CRM — Управление клиентами</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 16 }}>
             {[
@@ -732,13 +732,13 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
               { icon: '📝', label: 'Заметки' },
               { icon: '🔍', label: 'Поиск по базе' },
             ].map(f => (
-              <div key={f.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #F59E0B30', textAlign: 'center' }}>
+              <div key={f.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', textAlign: 'center' }}>
                 <div style={{ fontSize: 18, marginBottom: 4 }}>{f.icon}</div>
-                <div style={{ fontSize: 11, color: '#fbbf24' }}>{f.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-warning)' }}>{f.label}</div>
               </div>
             ))}
           </div>
-          <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'linear-gradient(135deg,#F59E0B,#D97706)' }}>
+          <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'var(--color-warning)' }}>
             Открыть CRM →
           </Link>
         </div>
@@ -773,7 +773,7 @@ function TabReferral({ authFetch }) {
       <div style={S.card}>
         <p style={S.cardTitle}>Пригласи друга</p>
         <p style={{ fontSize: 13, color: 'var(--prof-muted)', marginBottom: 16 }}>
-          Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: '#a78bfa' }}>2 недели Pro бесплатно</strong>.
+          Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: 'var(--accent-glow)' }}>2 недели Pro бесплатно</strong>.
         </p>
 
         <div style={{ marginBottom: 16 }}>
@@ -782,7 +782,7 @@ function TabReferral({ authFetch }) {
             <input
               readOnly
               value={data.ref_url || '—'}
-              style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '8px 12px', color: '#e2e8f0', fontSize: 13, fontFamily: 'inherit' }}
+              style={{ flex: 1, background: 'var(--bg-deeper)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit' }}
             />
             <button style={S.btn('primary')} onClick={copy}>
               {copied ? '✓ Скопировано' : 'Копировать'}
@@ -791,12 +791,12 @@ function TabReferral({ authFetch }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#a78bfa' }}>{data.referrals_count ?? 0}</div>
+          <div style={{ background: 'var(--bg-deeper)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent-glow)' }}>{data.referrals_count ?? 0}</div>
             <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Приглашено</div>
           </div>
-          <div style={{ background: '#0f172a', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#34d399' }}>{data.reward_weeks_earned ?? 0} нед.</div>
+          <div style={{ background: 'var(--bg-deeper)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-success)' }}>{data.reward_weeks_earned ?? 0} нед.</div>
             <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Бонус получено</div>
           </div>
         </div>
@@ -877,7 +877,7 @@ function TabNotifications({ authFetch }) {
           <div key={item.key}>
             <div style={{ ...S.row, padding: '12px 0' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>{item.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{item.label}</div>
                 <div style={S.muted}>{item.desc}</div>
                 {item.time && settings.daily_forecast && (
                   <input
@@ -885,15 +885,15 @@ function TabNotifications({ authFetch }) {
                     value={settings.daily_time || '08:00'}
                     onChange={(e) => patch({ daily_time: e.target.value })}
                     style={{
-                      marginTop: 8, background: '#0f172a', color: '#e2e8f0',
-                      border: '1px solid #1e293b', borderRadius: 8, padding: '6px 10px', fontSize: 14,
+                      marginTop: 8, background: 'var(--bg-deeper)', color: 'var(--text-primary)',
+                      border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', fontSize: 14,
                     }}
                   />
                 )}
               </div>
               <Toggle checked={!!settings[item.key]} onChange={() => toggle(item.key)} />
             </div>
-            <div style={{ borderBottom: '1px solid #1e293b' }} />
+            <div style={{ borderBottom: '1px solid var(--border)' }} />
           </div>
         ))}
       </div>
@@ -916,7 +916,7 @@ function TabNotifications({ authFetch }) {
               setMsg(e.message || 'Не удалось отправить тест');
             }
           }}
-          style={{ background: '#7C6CFF', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+          style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
         >
           Отправить тест
         </button>
@@ -942,7 +942,7 @@ function DangerZone({ authFetch, logout, navigate }) {
 
   return (
     <div style={{ ...S.card, border: '1px solid rgba(239,68,68,0.2)', marginTop: 8 }}>
-      <p style={{ ...S.cardTitle, color: '#fca5a5' }}>Удаление данных (GDPR)</p>
+      <p style={{ ...S.cardTitle, color: 'var(--color-danger)' }}>Удаление данных (GDPR)</p>
       <p style={{ ...S.muted, marginBottom: 14 }}>
         Удалит все карты, интерпретации и данные подписки. Аккаунт (email) сохраняется. Необратимо.
       </p>
@@ -954,7 +954,7 @@ function DangerZone({ authFetch, logout, navigate }) {
       ) : (
         <button
           onClick={() => setGdprConfirm(true)}
-          style={{ ...S.btn('ghost'), color: '#fca5a5', border: '1px solid rgba(239,68,68,0.4)' }}
+          style={{ ...S.btn('ghost'), color: 'var(--color-danger)', border: '1px solid rgba(220,38,38,0.4)' }}
         >
           Удалить все данные
         </button>
@@ -1008,7 +1008,7 @@ export default function ProfilePage() {
             <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM-база клиентов</div>
             <div style={{ ...S.muted, marginBottom: 16 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты.</div>
-            <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'linear-gradient(135deg,#F59E0B,#D97706)' }}>
+            <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'var(--color-warning)' }}>
               Открыть CRM →
             </Link>
           </div>
