@@ -171,7 +171,7 @@ const styles = `
     min-height: 100vh;
     background: linear-gradient(135deg, #F4EFFF 0%, #FFFDF0 100%);
     color: #1E293B;
-    font-family: 'Manrope', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
   }
   .planner-inner {
     max-width: 680px;
@@ -218,7 +218,7 @@ const styles = `
   .tab-btn {
     flex: 1; padding: 9px 12px; border-radius: 10px; border: none;
     cursor: pointer; font-size: 13px; font-weight: 600;
-    font-family: 'Manrope', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     transition: all 0.15s; background: transparent; color: #7C3AED;
   }
   .tab-btn.active {
@@ -319,7 +319,7 @@ const styles = `
   .upgrade-btn {
     padding: 11px 28px; border-radius: 12px; border: none;
     background: #9333EA; color: #fff; font-size: 14px; font-weight: 700;
-    cursor: pointer; font-family: 'Manrope', system-ui, sans-serif;
+    cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
     box-shadow: 0 4px 14px rgba(147,51,234,0.3); transition: opacity 0.15s;
   }
   .upgrade-btn:hover { opacity: 0.88; }
@@ -351,7 +351,7 @@ const styles = `
   .retry-btn {
     margin-top: 10px; background: #EF4444; color: #fff; border: none;
     border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
-    font-family: 'Manrope', system-ui, sans-serif; font-weight: 600;
+    font-family: 'Inter', system-ui, sans-serif; font-weight: 600;
   }
 
   .loading-box {
@@ -374,7 +374,7 @@ const styles = `
   .refresh-btn {
     width: 100%; padding: 11px; background: #9333EA; border: none;
     border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700;
-    cursor: pointer; font-family: 'Manrope', system-ui, sans-serif;
+    cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
     box-shadow: 0 4px 14px rgba(147,51,234,0.25); transition: opacity 0.15s;
   }
   .refresh-btn:hover { opacity: 0.88; }
@@ -383,7 +383,7 @@ const styles = `
     width: 100%; padding: 11px; background: #fff;
     border: 1.5px solid #DDD6FE; border-radius: 12px;
     color: #7C3AED; font-size: 14px; font-weight: 700;
-    cursor: pointer; font-family: 'Manrope', system-ui, sans-serif;
+    cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
     transition: all 0.15s;
   }
   .gcal-btn:hover:not(:disabled) { background: #F5F3FF; border-color: #A78BFA; }
