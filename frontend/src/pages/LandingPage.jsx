@@ -54,14 +54,14 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           margin: '0 0 20px',
           color: '#1a1230',
         }}>
-          Лучшая ветка реальности<br />
+          Лучшая ветка вашего времени —<br />
           <span style={{
             background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
           }}>
-            в твоём Планере
+            в вашем Планере
           </span>
         </h1>
 
@@ -72,8 +72,9 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           maxWidth: 540,
           margin: '0 auto 36px',
         }}>
-          Astrea Timeline превращает статичные расчёты натальной карты в динамический навигатор по вашей жизни.
-          Синхронизируйте ежедневные цели и задачи с личными планетными периодами и биоритмами.
+          Astrea превращает вашу натальную карту в живого навигатора по каждому дню. Она показывает,
+          когда именно ваши цели — карьера, отношения, ресурс — звучат сильнее всего, и что сделать прямо сейчас,
+          чтобы усилить результат.
         </p>
 
         <button
@@ -104,7 +105,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
           }}
         >
-          Активировать персональный Timeline
+          Собрать мой Timeline за минуту
         </button>
       </div>
 
@@ -163,13 +164,13 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               color="#EAB308"
               planet="Солнце"
               period="Период 01.07 — 20.07"
-              desc="Заниматься вопросами карьеры, статуса и продвижения, просить о повышении"
+              desc="Говорите о карьере, статусе и росте, просите о повышении — сейчас ваше имя звучит громче, и вас слышат яснее."
             />
             <PlanetItem
               color="#EC4899"
               planet="Венера"
               period="Период 01.07 — 28.07"
-              desc="Обновить гардероб, купить парфюм, украшения или аксессуары. Покупки в этот период усилят вашу харизму"
+              desc="Обновите гардероб, выберите парфюм, украшения или аксессуары — в эти дни ваша харизма работает сильнее, и люди тянутся к вам охотнее."
             />
 
             {/* AI Sintez badge */}
@@ -188,6 +189,17 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               <span style={{ fontSize: 10 }}>✦</span>
               AI Синтез
             </div>
+
+            <div style={{
+              marginTop: 16,
+              fontSize: 13,
+              fontStyle: 'italic',
+              color: '#8B5CF6',
+              lineHeight: 1.6,
+            }}>
+              И это лишь два окна вашего месяца — Astrea ведёт вас по всем планетам и покажет,
+              где действие сработает в 2–3 раза сильнее.
+            </div>
           </div>
         </div>
       </div>
@@ -204,16 +216,24 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         {[
           {
             title: 'Окна возможностей',
-            desc: 'Быть в нужном месте в нужное время — настоящее искусство. Планер подскажет идеальные часы для ваших планов.',
+            desc: 'Быть в нужном месте в нужное время — навык, который можно освоить. Astrea заранее показывает ваши личные окна, чтобы каждый важный шаг попадал в самый сильный момент.',
           },
           {
             title: 'Синергия действий',
-            desc: 'Свой путь мы выбираем сами. А космические циклы выступают попутным ветром, усиливая каждый шаг.',
-            highlight: true,
+            desc: 'Свой путь вы выбираете сами. Astrea подсказывает, где космические волны совпадают с вашими планами и усиливают каждый шаг попутным ветром.',
           },
           {
             title: 'Экология ресурса',
-            desc: 'Истинный баланс — это энергия, бережно направленная в нужное русло без стресса и выгорания.',
+            desc: 'Истинный баланс — это энергия, бережно направленная в нужное русло. Astrea помогает вкладывать силы туда, где они дают максимальную отдачу, и сохранять их для главного.',
+          },
+          {
+            title: 'Живой разговор с Astrea',
+            desc: 'Задайте любой вопрос о себе — и Astrea ответит по вашей карте и текущим транзитам сразу. Она соединяет вашу натальную основу с событиями момента и подсказывает лучший ход именно для вас, здесь и сейчас.',
+            highlight: true,
+          },
+          {
+            title: 'Глубина вашей карты — понятным языком',
+            desc: 'Astrea читает вашу натальную карту и транзиты как единую историю и переводит её в тёплый, ясный разбор. Вы узнаёте свои сильные стороны и лучшие моменты для действий так, будто рядом мудрый близкий человек.',
           },
         ].map((f) => (
           <div
@@ -242,6 +262,131 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           </div>
         ))}
       </div>
+      {/* Astrologer block */}
+      <div style={{
+        maxWidth: 820,
+        margin: '0 auto 48px',
+        padding: '0 24px',
+      }}>
+        <div style={{
+          textAlign: 'center',
+          maxWidth: 620,
+          margin: '0 auto 28px',
+        }}>
+          <h2 style={{
+            fontSize: 'clamp(26px, 3.5vw, 36px)',
+            fontWeight: 700,
+            lineHeight: 1.2,
+            margin: '0 0 14px',
+            color: '#1a1230',
+          }}>
+            Astrea станет вашим рабочим местом
+          </h2>
+          <p style={{ fontSize: 15, color: '#6B6885', lineHeight: 1.7, margin: 0 }}>
+            Ваша практика переезжает из заметок телефона в одно живое пространство —
+            и каждый повод написать превращается в новую консультацию.
+          </p>
+        </div>
+
+        {/* Cabinet image placeholder */}
+        <div style={{
+          borderRadius: 20,
+          border: '1px dashed rgba(139,92,246,0.3)',
+          background: 'rgba(248,244,255,0.6)',
+          minHeight: 240,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#9B97B0',
+          fontSize: 13,
+          fontWeight: 600,
+          letterSpacing: '0.04em',
+          marginBottom: 20,
+          textAlign: 'center',
+          padding: '0 24px',
+        }}>
+          Кабинет астролога — скриншот
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+          gap: 16,
+          marginBottom: 28,
+        }}>
+          {[
+            {
+              title: 'Вся база в одном месте',
+              desc: 'Карты, заметки и история каждого клиента живут рядом и всегда под рукой. Ваша практика становится единым, спокойным пространством, где легко ориентироваться.',
+            },
+            {
+              title: 'Astrea сама подсказывает момент',
+              desc: 'Она следит за периодами всех ваших клиентов и подсказывает, у кого прямо сейчас открывается важное окно. Каждый такой сигнал — тёплый повод написать и провести консультацию вовремя.',
+              highlight: true,
+            },
+            {
+              title: 'Готовы к встрече за 20 минут',
+              desc: 'Astrea собирает бриф по клиенту заранее: карта, актуальные транзиты, главные темы периода. Вы приходите на консультацию собранным и глубоким, а время до неё остаётся вашим.',
+            },
+            {
+              title: 'История, которая работает на вас',
+              desc: 'Все сессии, брифы и заметки по клиенту хранятся вместе и складываются в живую летопись отношений. Вы возвращаетесь к прошлым разговорам легко и ведёте каждого клиента как своего.',
+            },
+            {
+              title: 'Практика в цифрах',
+              desc: 'Ваши консультации и доход видны наглядно — вы видите, как растёт практика, и чувствуете отдачу от каждого шага. Одна консультация окупает месяц Premium, дальше — только ваш рост.',
+            },
+          ].map((f) => (
+            <div
+              key={f.title}
+              style={{
+                background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: 16,
+                border: `1px solid ${f.highlight ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.1)'}`,
+                padding: '24px 20px',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1230', marginBottom: 8 }}>{f.title}</div>
+              <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.6 }}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <button
+            onClick={handleActivate}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '16px 36px',
+              borderRadius: 14,
+              border: 'none',
+              background: '#1a1230',
+              color: '#fff',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              letterSpacing: '0.01em',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+            }}
+          >
+            Собрать мой Timeline за минуту
+          </button>
+        </div>
+      </div>
+
       {/* Footer links */}
       <div style={{
         textAlign: 'center',
