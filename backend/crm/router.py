@@ -355,6 +355,62 @@ async def get_analytics(
     }
 
 
+@router.get("/dashboard-widgets")
+async def get_dashboard_widgets(
+    user: User = _read,
+    db: Session = Depends(get_db),
+):
+    """Данные для нижней панели дашборда: ближайшая запись, ретроградные
+    планеты (тренды месяца) и статус Premium. Один read-only запрос."""
+    from datetime import timezone
+    from backend.models import Subscription
+    from backend.transit.engine import get_planet_positions_for_date
+
+    astrologer = _get_astrologer(user, db)
+    now = datetime.now(timezone.utc)
+
+    # 1) Ближайшая запланированная консультация среди всех клиентов астролога
+    row = (
+        db.query(Consultation, ClientProfile.name)
+        .join(ClientProfile, Consultation.client_id == ClientProfile.id)
+        .filter(
+            ClientProfile.astrologer_id == astrologer.id,
+            Consultation.status == "planned",
+            Consultation.date >= now.replace(tzinfo=None),
+        )
+        .order_by(Consultation.date.asc())
+        .first()
+    )
+    next_appointment = None
+    if row:
+        cons, client_name = row
+        next_appointment = {"client_name": client_name, "date": cons.date.isoformat()}
+
+    # 2) Текущие ретроградные планеты (тренды месяца)
+    retrogrades = [
+        p["name"] for p in get_planet_positions_for_date(now.date())
+        if p.get("retrograde")
+    ]
+
+    # 3) Premium: тир и дней до конца оплаченного периода
+    days_left = None
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user.id, Subscription.status == "active")
+        .order_by(Subscription.current_period_end.desc().nullslast())
+        .first()
+    )
+    if sub and sub.current_period_end:
+        delta = sub.current_period_end - now.replace(tzinfo=None)
+        days_left = max(0, delta.days)
+
+    return {
+        "next_appointment": next_appointment,
+        "retrogrades": retrogrades,
+        "premium": {"tier": user.tier, "days_left": days_left},
+    }
+
+
 @router.get("/search", response_model=list[ClientOut])
 async def search_clients(
     sun_sign:       Optional[str] = Query(None),
