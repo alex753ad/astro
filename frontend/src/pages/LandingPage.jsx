@@ -1,3 +1,4 @@
+/* zodiac data-color, intentional — LandingPage is a fixed light-theme design; colors are pinned by design, not theme-dependent tokens */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
@@ -22,9 +23,9 @@ export default function LandingPage({ onShowAuth, currentUser }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, var(--accent-muted) 0%, var(--accent-muted) 20%, var(--accent-muted) 45%, var(--accent-muted) 70%, var(--accent-muted) 100%)',
+      background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
       fontFamily: '"Space Grotesk", system-ui, sans-serif',
-      color: 'var(--bg-card)',
+      color: '#1a1230',
     }}>
 
 
@@ -39,7 +40,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           fontSize: 12,
           fontWeight: 700,
           letterSpacing: '0.12em',
-          color: 'var(--accent)',
+          color: '#8B5CF6',
           textTransform: 'uppercase',
           marginBottom: 20,
         }}>
@@ -51,11 +52,11 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           fontWeight: 700,
           lineHeight: 1.15,
           margin: '0 0 20px',
-          color: 'var(--bg-card)',
+          color: '#1a1230',
         }}>
           Лучшая ветка реальности<br />
           <span style={{
-            background: 'linear-gradient(135deg, var(--accent), var(--accent))',
+            background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
@@ -66,7 +67,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
 
         <p style={{
           fontSize: 16,
-          color: 'var(--text-secondary)',
+          color: '#6B6885',
           lineHeight: 1.7,
           maxWidth: 540,
           margin: '0 auto 36px',
@@ -84,7 +85,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             padding: '16px 36px',
             borderRadius: 14,
             border: 'none',
-            background: 'var(--bg-card)',
+            background: '#1a1230',
             color: '#fff',
             fontSize: 16,
             fontWeight: 700,
@@ -140,7 +141,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               fontSize: 10,
               fontWeight: 700,
               letterSpacing: '0.12em',
-              color: 'var(--text-secondary)',
+              color: '#9B97B0',
               textTransform: 'uppercase',
             }}>Swiss Ephemeris Core &amp; AI</span>
           </div>
@@ -151,7 +152,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.12em',
-              color: 'var(--accent)',
+              color: '#8B5CF6',
               textTransform: 'uppercase',
               marginBottom: 18,
             }}>
@@ -159,13 +160,13 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             </div>
 
             <PlanetItem
-              color="var(--color-warning)"
+              color="#EAB308"
               planet="Солнце"
               period="Период 01.07 — 20.07"
               desc="Заниматься вопросами карьеры, статуса и продвижения, просить о повышении"
             />
             <PlanetItem
-              color="var(--accent)"
+              color="#EC4899"
               planet="Венера"
               period="Период 01.07 — 28.07"
               desc="Обновить гардероб, купить парфюм, украшения или аксессуары. Покупки в этот период усилят вашу харизму"
@@ -179,7 +180,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               marginTop: 16,
               padding: '6px 14px',
               borderRadius: 20,
-              background: 'var(--bg-card)',
+              background: '#1a1230',
               color: '#fff',
               fontSize: 12,
               fontWeight: 600,
@@ -230,12 +231,12 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             <div style={{
               fontWeight: 700,
               fontSize: 15,
-              color: 'var(--bg-card)',
+              color: '#1a1230',
               marginBottom: 8,
             }}>{f.title}</div>
             <div style={{
               fontSize: 13,
-              color: 'var(--text-secondary)',
+              color: '#6B6885',
               lineHeight: 1.6,
             }}>{f.desc}</div>
           </div>
@@ -246,14 +247,14 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         textAlign: 'center',
         padding: '0 24px 48px',
         fontSize: 13,
-        color: 'var(--text-secondary)',
+        color: '#9B97B0',
       }}>
-        <Link to="/privacy" style={{ color: 'var(--accent)', textDecoration: 'none' }}
+        <Link to="/privacy" style={{ color: '#8B5CF6', textDecoration: 'none' }}
           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
         >Политика конфиденциальности</Link>
         <span style={{ margin: '0 10px' }}>·</span>
-        <Link to="/terms" style={{ color: 'var(--accent)', textDecoration: 'none' }}
+        <Link to="/terms" style={{ color: '#8B5CF6', textDecoration: 'none' }}
           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
         >Правила использования</Link>
@@ -297,12 +298,12 @@ function PlanetItem({ color, planet, period, desc }) {
             fontSize: 11,
             fontWeight: 600,
             color,
-            background: color === 'var(--color-warning)' ? 'rgba(234,179,8,0.1)' : 'rgba(236,72,153,0.1)',
+            background: color === '#EAB308' ? 'rgba(234,179,8,0.1)' : 'rgba(236,72,153,0.1)',
             padding: '2px 8px',
             borderRadius: 10,
           }}>{period}</span>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{desc}</div>
+        <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.5 }}>{desc}</div>
       </div>
     </div>
   );
@@ -351,10 +352,10 @@ function ZodiacWheelSVG() {
       <circle cx={cx} cy={cy} r={3} fill="rgba(139,92,246,0.5)" />
       {/* Planet dots */}
       {[
-        { angle: 30, dist: 42, c: 'var(--accent)' },
-        { angle: 110, dist: 38, c: 'var(--accent)' },
-        { angle: 200, dist: 45, c: 'var(--accent)' },
-        { angle: 300, dist: 40, c: 'var(--accent-glow)' },
+        { angle: 30, dist: 42, c: '#8B5CF6' },
+        { angle: 110, dist: 38, c: '#EC4899' },
+        { angle: 200, dist: 45, c: '#8B5CF6' },
+        { angle: 300, dist: 40, c: '#A78BFA' },
       ].map((p, i) => {
         const rad = ((p.angle - 90) * Math.PI) / 180;
         return <circle key={i} cx={cx + p.dist * Math.cos(rad)} cy={cy + p.dist * Math.sin(rad)} r={3} fill={p.c} />;

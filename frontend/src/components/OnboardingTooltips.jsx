@@ -113,7 +113,7 @@ const s = {
     fontWeight: 700,
   },
   title: {
-    fontSize: 16, fontWeight: 700, color: 'var(--bg-card)',
+    fontSize: 16, fontWeight: 700, color: 'var(--text-primary)',
   },
   text: {
     fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6,

@@ -109,7 +109,7 @@ export default function ZodiacPage() {
       />
 
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--bg-card)', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
           {info.ru}
         </h1>
         <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>
@@ -120,7 +120,7 @@ export default function ZodiacPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {faq.map((item, i) => (
             <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid var(--accent-muted)' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--bg-card)', margin: '0 0 8px' }}>{item.q}</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>{item.q}</h3>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0 }}>{item.a}</p>
             </div>
           ))}

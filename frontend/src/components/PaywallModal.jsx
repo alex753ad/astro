@@ -245,8 +245,8 @@ const s = {
   },
   badge: {
     display: 'inline-block',
-    background: 'var(--bg-card)',
-    color: 'var(--bg-card)',
+    background: 'var(--accent)',
+    color: '#fff',
     fontSize: '11px',
     fontWeight: '600',
     letterSpacing: '0.08em',
@@ -259,7 +259,7 @@ const s = {
     margin: '0 0 8px',
     fontSize: '20px',
     fontWeight: '600',
-    color: 'var(--bg-card)',
+    color: '#fff',
     lineHeight: 1.3,
   },
   subtitle: {
@@ -285,7 +285,7 @@ const s = {
   },
   benefitText: {
     fontSize: '14px',
-    color: 'var(--bg-card)',
+    color: '#fff',
     lineHeight: 1.4,
   },
   billingToggle: {
@@ -312,7 +312,7 @@ const s = {
   },
   toggleActive: {
     background: 'var(--bg-card)',
-    color: 'var(--bg-card)',
+    color: '#fff',
     borderColor: 'var(--bg-card)',
   },
   saveBadge: {
@@ -333,7 +333,7 @@ const s = {
     width: '100%',
     padding: '14px',
     background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
-    color: 'var(--bg-card)',
+    color: '#fff',
     border: 'none',
     borderRadius: '12px',
     fontSize: '15px',
@@ -381,7 +381,7 @@ const s = {
     borderRadius: '8px',
     fontSize: '13px',
     fontFamily: 'inherit',
-    color: 'var(--bg-card)',
+    color: '#fff',
     background: 'var(--border)',
     outline: 'none',
     letterSpacing: '0.04em',

@@ -12,7 +12,7 @@ const s = {
   p:       { fontSize: 15, lineHeight: 1.8, color: 'var(--border)', margin: '0 0 12px' },
   card:    { background: 'var(--bg-card)', border: '1px solid var(--text-primary)', borderRadius: 10, padding: '16px 20px', marginBottom: 10 },
   label:   { fontSize: 12, fontWeight: 700, color: 'var(--accent-glow)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 },
-  warn:    { background: 'var(--text-primary)', border: '1px solid var(--color-warning)', borderRadius: 10, padding: '16px 20px', marginBottom: 10, color: 'var(--color-warning)', fontSize: 14, lineHeight: 1.7 },
+  warn:    { background: 'var(--accent-muted)', border: '1px solid var(--color-warning)', borderRadius: 10, padding: '16px 20px', marginBottom: 10, color: 'var(--color-warning)', fontSize: 14, lineHeight: 1.7 },
   footer:  { marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--bg-card)', display: 'flex', gap: 20, fontSize: 13 },
   link:    { color: 'var(--accent-glow)', textDecoration: 'none' },
 };

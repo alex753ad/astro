@@ -330,7 +330,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
         <button onClick={onUpgrade} style={{
           padding: "9px 20px", borderRadius: 12, border: "none",
           background: "var(--accent)",
-          color: "var(--bg-card)", fontSize: 13, fontWeight: 700,
+          color: "#fff", fontSize: 13, fontWeight: 700,
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
           boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
         }}>
