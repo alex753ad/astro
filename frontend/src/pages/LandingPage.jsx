@@ -473,38 +473,46 @@ function ZodiacWheelSVG() {
 
   return (
     <svg width="140" height="140" viewBox="0 0 140 140" fill="none">
-      {/* Outer circle */}
-      <circle cx={cx} cy={cy} r={r} stroke="rgba(139,92,246,0.25)" strokeWidth="1" fill="rgba(139,92,246,0.04)" />
-      {/* Inner circle */}
-      <circle cx={cx} cy={cy} r={rInner} stroke="rgba(139,92,246,0.15)" strokeWidth="1" fill="none" />
-      {/* Segment lines */}
-      {lines.map((l, i) => (
-        <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="rgba(139,92,246,0.2)" strokeWidth="1" />
-      ))}
-      {/* Cross lines */}
-      {crossAngles.map((a, i) => {
-        const rad = ((a - 90) * Math.PI) / 180;
-        return (
-          <line
-            key={i}
-            x1={cx + 8 * Math.cos(rad)} y1={cy + 8 * Math.sin(rad)}
-            x2={cx + r * Math.cos(rad)} y2={cy + r * Math.sin(rad)}
-            stroke="rgba(139,92,246,0.5)" strokeWidth="1.5"
-          />
-        );
-      })}
-      {/* Center dot */}
-      <circle cx={cx} cy={cy} r={3} fill="rgba(139,92,246,0.5)" />
-      {/* Planet dots */}
-      {[
-        { angle: 30, dist: 42, c: '#8B5CF6' },
-        { angle: 110, dist: 38, c: '#EC4899' },
-        { angle: 200, dist: 45, c: '#8B5CF6' },
-        { angle: 300, dist: 40, c: '#A78BFA' },
-      ].map((p, i) => {
-        const rad = ((p.angle - 90) * Math.PI) / 180;
-        return <circle key={i} cx={cx + p.dist * Math.cos(rad)} cy={cy + p.dist * Math.sin(rad)} r={3} fill={p.c} />;
-      })}
+      <style>{`
+        @keyframes zodiacWheelRotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: 'zodiacWheelRotate 40s linear infinite' }}>
+        {/* Outer circle */}
+        <circle cx={cx} cy={cy} r={r} stroke="rgba(139,92,246,0.25)" strokeWidth="1" fill="rgba(139,92,246,0.04)" />
+        {/* Inner circle */}
+        <circle cx={cx} cy={cy} r={rInner} stroke="rgba(139,92,246,0.15)" strokeWidth="1" fill="none" />
+        {/* Segment lines */}
+        {lines.map((l, i) => (
+          <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="rgba(139,92,246,0.2)" strokeWidth="1" />
+        ))}
+        {/* Cross lines */}
+        {crossAngles.map((a, i) => {
+          const rad = ((a - 90) * Math.PI) / 180;
+          return (
+            <line
+              key={i}
+              x1={cx + 8 * Math.cos(rad)} y1={cy + 8 * Math.sin(rad)}
+              x2={cx + r * Math.cos(rad)} y2={cy + r * Math.sin(rad)}
+              stroke="rgba(139,92,246,0.5)" strokeWidth="1.5"
+            />
+          );
+        })}
+        {/* Center dot */}
+        <circle cx={cx} cy={cy} r={3} fill="rgba(139,92,246,0.5)" />
+        {/* Planet dots */}
+        {[
+          { angle: 30, dist: 42, c: '#8B5CF6' },
+          { angle: 110, dist: 38, c: '#EC4899' },
+          { angle: 200, dist: 45, c: '#8B5CF6' },
+          { angle: 300, dist: 40, c: '#A78BFA' },
+        ].map((p, i) => {
+          const rad = ((p.angle - 90) * Math.PI) / 180;
+          return <circle key={i} cx={cx + p.dist * Math.cos(rad)} cy={cy + p.dist * Math.sin(rad)} r={3} fill={p.c} />;
+        })}
+      </g>
     </svg>
   );
 }
