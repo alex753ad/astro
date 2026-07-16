@@ -137,7 +137,7 @@ export default function ForecastScale({ chartId, selectedDate: externalDate }) {
                 {isToday && (
                   <span style={{
                     width: 4, height: 4, borderRadius: 2,
-                    background: isSel ? '#fff' : 'var(--color-border-info, #3B82F6)',
+                    background: isSel ? '#fff' : 'var(--color-border-info, var(--color-air))',
                     marginTop: 1,
                   }} />
                 )}
@@ -290,7 +290,7 @@ function MonthForecast({ data }) {
 
 function ScoreBadge({ score }) {
   if (score == null) return null;
-  const color = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+  const color = score >= 70 ? 'var(--color-success)' : score >= 40 ? 'var(--color-warning)' : 'var(--color-danger)';
   return (
     <div style={{ ...s.badge, color, borderColor: color }}>{score}</div>
   );
@@ -305,7 +305,7 @@ function SphereList({ spheres, extended }) {
         {spheres.map((sp, i) => (
           <div key={i} style={{
             ...s.sphereCard,
-            borderLeftColor: sp.is_main ? 'var(--color-border-info, #3B82F6)' : 'var(--color-border-tertiary)',
+            borderLeftColor: sp.is_main ? 'var(--color-border-info, var(--color-air))' : 'var(--color-border-tertiary)',
           }}>
             <div style={s.sphereHead}>
               <span style={{ fontSize: 17 }}>{sp.emoji}</span>
@@ -328,7 +328,7 @@ function GreenDot() {
   return (
     <span style={{
       display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-      background: '#22c55e', flexShrink: 0, marginTop: 3,
+      background: 'var(--color-success)', flexShrink: 0, marginTop: 3,
     }} />
   );
 }
@@ -337,7 +337,7 @@ function RedDot() {
   return (
     <span style={{
       display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-      background: '#ef4444', flexShrink: 0, marginTop: 3,
+      background: 'var(--color-danger)', flexShrink: 0, marginTop: 3,
     }} />
   );
 }
@@ -351,7 +351,7 @@ function DoAvoid({ doItems, avoidItems }) {
     <div style={s.twoCol}>
       {doItems?.length > 0 && (
         <div>
-          <SectionLabel color="#22c55e">Что делать</SectionLabel>
+          <SectionLabel color="var(--color-success)">Что делать</SectionLabel>
           {doItems.map((item, i) => (
             <div key={i} style={s.dotRow}>
               <GreenDot />
@@ -362,7 +362,7 @@ function DoAvoid({ doItems, avoidItems }) {
       )}
       {avoidItems?.length > 0 && (
         <div>
-          <SectionLabel color="#ef4444">Чего избегать</SectionLabel>
+          <SectionLabel color="var(--color-danger)">Чего избегать</SectionLabel>
           {avoidItems.map((item, i) => (
             <div key={i} style={s.dotRow}>
               <RedDot />
@@ -387,7 +387,7 @@ function BestCaution({ best, caution }) {
     <div style={s.twoCol}>
       {best?.length > 0 && (
         <div>
-          <SectionLabel color="#22c55e">Лучшие дни</SectionLabel>
+          <SectionLabel color="var(--color-success)">Лучшие дни</SectionLabel>
           {best.map((d, i) => (
             <p key={i} style={s.listItem}>
               {typeof d === 'string' ? d : `${d.date?.slice(5)} — ${d.reason}`}
@@ -397,7 +397,7 @@ function BestCaution({ best, caution }) {
       )}
       {caution?.length > 0 && (
         <div>
-          <SectionLabel color="#f59e0b">Осторожно</SectionLabel>
+          <SectionLabel color="var(--color-warning)">Осторожно</SectionLabel>
           {caution.map((d, i) => (
             <p key={i} style={s.listItem}>
               {typeof d === 'string' ? d : `${d.date?.slice(5)} — ${d.reason}`}
@@ -461,8 +461,8 @@ const s = {
   },
   dayBtnSel: {
     background: 'var(--color-background-info, rgba(59,130,246,0.15))',
-    border: '1px solid var(--color-border-info, #3B82F6)',
-    color: 'var(--color-text-info, #3B82F6)',
+    border: '1px solid var(--color-border-info, var(--color-air))',
+    color: 'var(--color-text-info, var(--color-air))',
   },
   dayBtnToday: {
     border: '1px solid var(--color-border-secondary)',
@@ -557,7 +557,7 @@ const s = {
   retryBtn: {
     marginTop: 8, padding: '5px 14px', borderRadius: 8, fontSize: 12,
     border: '1px solid rgba(239,68,68,0.4)', background: 'transparent',
-    color: '#ef4444', cursor: 'pointer',
+    color: 'var(--color-danger)', cursor: 'pointer',
   },
   muted:  { color: 'var(--color-text-tertiary)', fontSize: 13, margin: 0 },
 };

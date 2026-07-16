@@ -47,9 +47,9 @@ export function ToastProvider({ children }) {
 }
 
 const STYLES = {
-  error:   { icon: '✕', color: '#F87171', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
-  success: { icon: '✓', color: '#4ADE80', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.3)' },
-  info:    { icon: 'ℹ', color: '#7C6CFF', bg: 'rgba(124,108,255,0.10)', border: 'rgba(124,108,255,0.3)' },
+  error:   { icon: '✕', color: 'var(--color-danger)', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
+  success: { icon: '✓', color: 'var(--color-success)', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.3)' },
+  info:    { icon: 'ℹ', color: 'var(--accent)', bg: 'rgba(124,108,255,0.10)', border: 'rgba(124,108,255,0.3)' },
 };
 
 function ToastContainer({ toasts, dismiss }) {
@@ -86,7 +86,7 @@ function ToastItem({ toast, dismiss }) {
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
         animation: 'toast-in 0.25s ease forwards',
         fontSize: 13,
-        color: '#E8EAF0',
+        color: 'var(--border)',
       }}
     >
       <span style={{ color: s.color, fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{s.icon}</span>
@@ -95,7 +95,7 @@ function ToastItem({ toast, dismiss }) {
         onClick={() => dismiss(toast.id)}
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: '#8B8FA3', fontSize: 16, padding: '0 2px', lineHeight: 1,
+          color: 'var(--text-secondary)', fontSize: 16, padding: '0 2px', lineHeight: 1,
           flexShrink: 0,
         }}
       >

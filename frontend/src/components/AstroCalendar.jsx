@@ -21,10 +21,10 @@ const MONTHS_RU = [
 
 // Цвета для типов событий
 const EVENT_BADGE = {
-  new_moon:  { emoji: '🌑', label: 'Новолуние',     bg: '#F0EAF8', color: '#7040A8' },
-  full_moon: { emoji: '🌕', label: 'Полнолуние',    bg: '#FFF5D6', color: '#A07010' },
-  ingress:   { emoji: '➡️', label: 'Вход в знак',  bg: '#EAF4FF', color: '#2060A0' },
-  aspect:    { emoji: '⚡',  label: 'Аспект',        bg: '#FFF0F5', color: '#A03060' },
+  new_moon:  { emoji: '🌑', label: 'Новолуние',     bg: 'var(--accent-muted)', color: 'var(--accent)' },
+  full_moon: { emoji: '🌕', label: 'Полнолуние',    bg: 'var(--accent-muted)', color: 'var(--color-warning)' },
+  ingress:   { emoji: '➡️', label: 'Вход в знак',  bg: 'var(--accent-muted)', color: 'var(--color-air)' },
+  aspect:    { emoji: '⚡',  label: 'Аспект',        bg: 'var(--accent-muted)', color: 'var(--color-danger)' },
 };
 
 export default function AstroCalendar() {
@@ -206,7 +206,7 @@ function MoonCard({ type, event, detail }) {
   const desc  = detail?.description || '';
 
   // Цвет левой полосы по типу
-  const borderColor = type === 'new_moon' ? '#C0A0E8' : '#E8C040';
+  const borderColor = type === 'new_moon' ? 'var(--accent-glow)' : 'var(--color-warning)';
 
   return (
     <section style={{ ...s.card, borderLeft: `3px solid ${borderColor}` }}>
@@ -265,78 +265,76 @@ const s = {
   },
   navBtn: {
     background: 'none',
-    border: '1px solid #E2D9F3',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '6px 16px',
     fontSize: 18,
-    color: '#9B7DC8',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   navTitle: {
-    margin: 0, fontSize: 18, fontWeight: 600, color: '#2D2540',
+    margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)',
   },
   content: { display: 'flex', flexDirection: 'column', gap: 16 },
 
-  // Белые карточки с пастельной тенью
   card: {
-    background: '#FFFFFF',
+    background: 'var(--bg-card)',
     padding: '18px 20px',
     borderRadius: 20,
-    boxShadow: '0 4px 16px -4px rgba(224,195,252,0.25)',
-    border: '1px solid #F0EAF8',
+    border: '1px solid var(--border)',
   },
   cardTitle: {
-    fontSize: 16, fontWeight: 600, color: '#2D2540', margin: '0 0 6px',
+    fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px',
   },
   tagline: {
-    margin: '0 0 12px', fontSize: 14, color: '#7060A0', fontStyle: 'italic',
+    margin: '0 0 12px', fontSize: 14, color: 'var(--text-secondary)', fontStyle: 'italic',
   },
   sectionLabel: {
     margin: '0 0 6px', fontSize: 11, fontWeight: 600,
-    letterSpacing: '0.06em', textTransform: 'uppercase', color: '#A090C0',
+    letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)',
   },
   themeList: { margin: 0, padding: 0, listStyle: 'none' },
-  themeItem: { fontSize: 13, lineHeight: 1.7, color: '#3D3560' },
+  themeItem: { fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)' },
   weekRow: {
     display: 'flex', alignItems: 'center', gap: 10,
-    padding: '6px 0', borderBottom: '1px solid #F5F0FC',
+    padding: '6px 0', borderBottom: '1px solid var(--border)',
   },
-  weekNum:   { fontSize: 12, fontWeight: 600, color: '#9B7DC8', width: 56, flexShrink: 0 },
-  weekDates: { fontSize: 12, color: '#B0A0C8', width: 48, flexShrink: 0 },
-  weekTone:  { fontSize: 13, color: '#3D3560' },
+  weekNum:   { fontSize: 12, fontWeight: 600, color: 'var(--accent)', width: 56, flexShrink: 0 },
+  weekDates: { fontSize: 12, color: 'var(--text-secondary)', width: 48, flexShrink: 0 },
+  weekTone:  { fontSize: 13, color: 'var(--text-primary)' },
   affirmation: {
     marginTop: 14, padding: '10px 14px', borderRadius: 12,
-    background: '#F5F0FF',
-    fontSize: 14, fontStyle: 'italic', color: '#7040A8', textAlign: 'center',
+    background: 'var(--accent-muted)',
+    fontSize: 14, fontStyle: 'italic', color: 'var(--accent)', textAlign: 'center',
   },
   moonHeader: {
     display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10,
   },
-  moonDate: { margin: '2px 0 0', fontSize: 12, color: '#B0A0C8' },
-  moonDesc: { margin: '0 0 10px', fontSize: 14, lineHeight: 1.6, color: '#3D3560' },
+  moonDate: { margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' },
+  moonDesc: { margin: '0 0 10px', fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)' },
   ritualBox: {
     marginTop: 10, padding: '10px 14px',
-    background: '#FAF5FF',
-    borderRadius: 12, fontSize: 13, color: '#5A3880',
+    background: 'var(--accent-muted)',
+    borderRadius: 12, fontSize: 13, color: 'var(--accent)',
   },
   eventRow: {
     display: 'flex', alignItems: 'flex-start', gap: 10,
-    padding: '6px 0', borderBottom: '1px solid #F5F0FC',
+    padding: '6px 0', borderBottom: '1px solid var(--border)',
   },
-  eventDate:    { fontSize: 12, color: '#B0A0C8', width: 36, flexShrink: 0 },
-  eventDesc:    { fontSize: 13, color: '#3D3560', flex: 1 },
-  eventMeaning: { fontSize: 12, color: '#9B7DC8', flex: 1 },
-  listItem: { margin: '2px 0', fontSize: 13, lineHeight: 1.5, color: '#3D3560' },
-  muted:    { color: '#B0A0C8', fontSize: 13 },
-  danger:   { color: '#E05070', fontSize: 13 },
+  eventDate:    { fontSize: 12, color: 'var(--text-secondary)', width: 36, flexShrink: 0 },
+  eventDesc:    { fontSize: 13, color: 'var(--text-primary)', flex: 1 },
+  eventMeaning: { fontSize: 12, color: 'var(--accent)', flex: 1 },
+  listItem: { margin: '2px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary)' },
+  muted:    { color: 'var(--text-secondary)', fontSize: 13 },
+  danger:   { color: 'var(--color-danger)', fontSize: 13 },
   gcalBtn: {
     width: '100%',
     padding: '10px 16px',
     borderRadius: 12,
-    border: '1px solid #E2D9F3',
-    background: '#FAFAFE',
-    color: '#5040A0',
+    border: '1px solid var(--border)',
+    background: 'var(--bg-card)',
+    color: 'var(--accent)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -344,6 +342,6 @@ const s = {
     textAlign: 'center',
   },
   gcalBtnLoading: { opacity: 0.6, cursor: 'not-allowed' },
-  gcalBtnSuccess: { background: '#F0FBF0', border: '1px solid #90D090', color: '#306030' },
-  gcalBtnError:   { background: '#FFF0F0', border: '1px solid #E090A0', color: '#A03050' },
+  gcalBtnSuccess: { background: 'var(--accent-muted)', border: '1px solid var(--color-success)', color: 'var(--color-success)' },
+  gcalBtnError:   { background: 'var(--accent-muted)', border: '1px solid var(--color-danger)', color: 'var(--color-danger)' },
 };

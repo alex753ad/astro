@@ -35,20 +35,20 @@ async function nominatimSearch(query) {
 
 const S = {
   wrap: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 20,
     boxShadow: '0 8px 40px rgba(139,92,246,0.10)',
     padding: '40px 44px 36px',
     maxWidth: 500,
     margin: '0 auto',
-    border: '1px solid rgba(139,92,246,0.10)',
+    border: '1px solid var(--border)',
   },
   label: {
     display: 'block',
     fontSize: 11,
     fontWeight: 700,
     letterSpacing: '0.09em',
-    color: '#9B97B0',
+    color: 'var(--text-secondary)',
     textTransform: 'uppercase',
     marginBottom: 7,
   },
@@ -56,9 +56,9 @@ const S = {
     width: '100%',
     padding: '13px 16px',
     borderRadius: 10,
-    border: '1.5px solid #EDE9FA',
-    background: '#FDFBFF',
-    color: '#1a1230',
+    border: '1.5px solid var(--border)',
+    background: 'var(--bg-deeper)',
+    color: 'var(--text-primary)',
     fontSize: 15,
     outline: 'none',
     fontFamily: '"Space Grotesk", system-ui, sans-serif',
@@ -66,8 +66,8 @@ const S = {
     transition: 'border-color 0.18s',
   },
   field: { marginBottom: 20 },
-  hint: { fontSize: 12, color: '#8B5CF6', marginTop: 5 },
-  error: { fontSize: 12, color: '#EF4444', marginTop: 5 },
+  hint: { fontSize: 12, color: 'var(--accent)', marginTop: 5 },
+  error: { fontSize: 12, color: 'var(--color-danger)', marginTop: 5 },
 };
 
 function Field({ label, error, hint, children }) {
@@ -117,7 +117,7 @@ function DateMaskInput({ value, onChange, error }) {
       onChange={handleChange}
       style={{
         ...S.input,
-        borderColor: error ? '#EF4444' : focused ? '#8B5CF6' : '#EDE9FA',
+        borderColor: error ? 'var(--color-danger)' : focused ? 'var(--accent)' : 'var(--border)',
       }}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
@@ -132,7 +132,7 @@ function StyledInput({ error, style, ...props }) {
       {...props}
       style={{
         ...S.input,
-        borderColor: error ? '#EF4444' : focused ? '#8B5CF6' : '#EDE9FA',
+        borderColor: error ? 'var(--color-danger)' : focused ? 'var(--accent)' : 'var(--border)',
         ...style,
       }}
       onFocus={e => { setFocused(true); props.onFocus?.(e); }}
@@ -190,7 +190,7 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
           autoComplete="off"
           style={{
             ...S.input,
-            borderColor: error ? '#EF4444' : focused ? '#8B5CF6' : '#EDE9FA',
+            borderColor: error ? 'var(--color-danger)' : focused ? 'var(--accent)' : 'var(--border)',
             paddingRight: 40,
           }}
           onFocus={() => { setFocused(true); if (suggestions.length) setOpen(true); }}
@@ -198,7 +198,7 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
         />
         {/* Location icon */}
         <svg style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }}
-          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2">
+          width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
           <circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 13 8 13s8-7.75 8-13a8 8 0 0 0-8-8z"/>
         </svg>
       </div>
@@ -211,22 +211,22 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
         <ul role="listbox" style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
           margin: '4px 0 0', padding: 0, listStyle: 'none',
-          background: '#fff', border: '1.5px solid #EDE9FA',
+          background: 'var(--bg-card)', border: '1.5px solid var(--border)',
           borderRadius: 12, boxShadow: '0 8px 24px rgba(139,92,246,0.12)',
           maxHeight: 220, overflowY: 'auto',
         }}>
           {suggestions.map((s, i) => (
             <li key={i} role="option" onMouseDown={() => handleSelect(s)}
               style={{
-                padding: '10px 16px', fontSize: 13, color: '#1a1230',
+                padding: '10px 16px', fontSize: 13, color: 'var(--text-primary)',
                 cursor: 'pointer',
-                borderBottom: i < suggestions.length - 1 ? '1px solid #F3F0FF' : 'none',
+                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = '#F8F5FF'}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-muted)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               <div style={{ fontWeight: 600 }}>{s.short}</div>
-              <div style={{ fontSize: 11, color: '#9B97B0', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                 {s.display.length > 60 ? s.display.slice(0, 60) + '…' : s.display}
               </div>
             </li>
@@ -289,13 +289,13 @@ export default function BirthForm({ onSubmit, loading }) {
     <div style={S.wrap}>
       {/* Title */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1a1230', margin: '0 0 6px' }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>
           Расчет натальной карты
         </h2>
-        <p style={{ fontSize: 14, color: '#8B5CF6', fontWeight: 600, margin: '0 0 6px' }}>
+        <p style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600, margin: '0 0 6px' }}>
           &amp; генерация персонального Timeline
         </p>
-        <p style={{ fontSize: 13, color: '#9B97B0', margin: 0 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
           Астро-ядро для ИИ-анализа, планирования и экспертной работы
         </p>
       </div>
@@ -304,11 +304,11 @@ export default function BirthForm({ onSubmit, loading }) {
       <div style={{
         marginBottom: 20,
         padding: '12px 16px',
-        background: '#F0FDF4',
-        border: '1px solid rgba(34,197,94,0.25)',
+        background: 'var(--accent-muted)',
+        border: '1px solid var(--color-success)',
         borderRadius: 12,
       }}>
-        <p style={{ fontSize: 12, color: '#166534', margin: '0 0 10px', lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12, color: 'var(--color-success)', margin: '0 0 10px', lineHeight: 1.5 }}>
           ⚠️ Эти данные необходимы исключительно для расчёта математических координат планет по эфемеридам (pyswisseph). Для ознакомления с интерфейсом вы можете использовать демо-данные.
         </p>
         <button
@@ -317,16 +317,16 @@ export default function BirthForm({ onSubmit, loading }) {
           style={{
             padding: '7px 18px',
             borderRadius: 20,
-            border: '1.5px solid #22C55E',
+            border: '1.5px solid var(--color-success)',
             background: 'transparent',
-            color: '#16A34A',
+            color: 'var(--color-success)',
             fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
             fontFamily: '"Space Grotesk", system-ui, sans-serif',
             transition: 'background 0.15s',
           }}
-          onMouseEnter={e => e.currentTarget.style.background = '#DCFCE7'}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-muted)'}
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
           ✦ Войти в демо-режим
@@ -366,9 +366,9 @@ export default function BirthForm({ onSubmit, loading }) {
               type="checkbox"
               checked={timeUnknown}
               onChange={e => { setTimeUnknown(e.target.checked); if (e.target.checked) set('birth_time', ''); }}
-              style={{ accentColor: '#8B5CF6', width: 14, height: 14 }}
+              style={{ accentColor: 'var(--accent)', width: 14, height: 14 }}
             />
-            <span style={{ fontSize: 13, color: '#9B97B0' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               Я не знаю точного времени (расчёт от 12:00 космограммы)
             </span>
           </label>
@@ -396,7 +396,7 @@ export default function BirthForm({ onSubmit, loading }) {
             border: 'none',
             background: loading
               ? 'rgba(139,92,246,0.5)'
-              : 'linear-gradient(135deg, #8B5CF6, #A78BFA)',
+              : 'var(--accent)',
             color: '#fff',
             fontSize: 16,
             fontWeight: 700,
@@ -428,15 +428,15 @@ export default function BirthForm({ onSubmit, loading }) {
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 8,
           marginTop: 18, padding: '12px 14px',
-          background: '#F8F5FF', borderRadius: 10,
-          border: '1px solid rgba(139,92,246,0.1)',
+          background: 'var(--accent-muted)', borderRadius: 10,
+          border: '1px solid var(--border)',
         }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2"
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2"
             style={{ flexShrink: 0, marginTop: 1 }}>
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 8v4M12 16h.01"/>
           </svg>
-          <p style={{ fontSize: 12, color: '#8B5CF6', margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 12, color: 'var(--accent)', margin: 0, lineHeight: 1.5 }}>
             Вычисления производятся на базе сертифицированных швейцарских эфемерид.
             Гарантированная точность планетных позиций для экспертного анализа.
           </p>

@@ -22,6 +22,7 @@ import piscesIcon      from '../assets/zodiac/pisces.png';
 
 // ── Знаки зодиака ──────────────────────────────────────────
 
+/* zodiac data-color, intentional */
 const SIGNS_RU = {
   Aries:       { name: 'Овен',      glyph: '♈', icon: ariesIcon,       color: '#E06050', bg: '#FFF0EE' },
   Taurus:      { name: 'Телец',     glyph: '♉', icon: taurusIcon,      color: '#70A030', bg: '#F2FAE8' },
@@ -298,7 +299,7 @@ export default function LunarCalendarPage() {
         </div>
 
         {error && (
-          <p style={{ color:'#C03030', fontSize:12, textAlign:'center', marginTop:8 }}>
+          <p style={{ color:'var(--color-danger)', fontSize:12, textAlign:'center', marginTop:8 }}>
             Ошибка: {error}
           </p>
         )}
@@ -310,12 +311,12 @@ export default function LunarCalendarPage() {
           100% { background-position: -200% 0; }
         }
         .lc-scope {
-          --lc-bg: #FDFBF9; --lc-card: #FFFFFF; --lc-border: #F0EAF8;
-          --lc-title: var(--text-primary); --lc-text2: #9080B0; --lc-text3: #B0A0C8; --lc-daynum: #2D2540;
+          --lc-bg: var(--bg); --lc-card: var(--bg-card); --lc-border: var(--border);
+          --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope {
           --lc-bg: transparent; --lc-card: rgba(26,18,48,0.60); --lc-border: rgba(139,92,246,0.16);
-          --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: #8983A0; --lc-daynum: var(--text-primary);
+          --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope .lc-blob { display: none; }
       `}</style>
@@ -403,7 +404,7 @@ function SkeletonRow() {
       {[1,2,3].map(i => (
         <div key={i} style={{
           flex: 1, height: 52, borderRadius: 12,
-          background: 'linear-gradient(90deg,#F0EAF8 25%,#FAF5FF 50%,#F0EAF8 75%)',
+          background: 'linear-gradient(90deg,var(--bg-deeper) 25%,var(--bg-card) 50%,var(--bg-deeper) 75%)',
           backgroundSize: '200% 100%',
           animation: 'shimmer 1.6s ease-in-out infinite',
         }} />
@@ -475,13 +476,13 @@ const pg = {
   blob1: {
     position:'absolute', top:-60, right:-160,
     width:500, height:500, borderRadius:'50%',
-    background:'radial-gradient(circle,#FFF0C3 0%,#FCE0EE 45%,#E0C3FC 80%,transparent 100%)',
+    background:'radial-gradient(circle,var(--accent-muted) 0%,transparent 100%)',
     filter:'blur(80px)', opacity:0.65, pointerEvents:'none', zIndex:0,
   },
   blob2: {
     position:'absolute', bottom:-80, left:-100,
     width:360, height:360, borderRadius:'50%',
-    background:'radial-gradient(circle,#C3E0FC 0%,#E0C3FC 70%,transparent 100%)',
+    background:'radial-gradient(circle,var(--accent-muted) 0%,transparent 100%)',
     filter:'blur(80px)', opacity:0.50, pointerEvents:'none', zIndex:0,
   },
   wrap: { position:'relative', zIndex:1, width:'100%', maxWidth:500 },

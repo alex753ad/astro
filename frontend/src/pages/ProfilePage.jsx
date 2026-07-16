@@ -18,7 +18,7 @@ import { enablePush, pushSupported } from '../push';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
-  .prof-scope { --prof-text:var(--text-primary); --prof-card:rgba(255,255,255,0.85); --prof-title:var(--accent); --prof-muted:var(--text-secondary); --prof-tab-active:#fff; --prof-tab-color:var(--accent); --prof-tab-muted:var(--text-secondary); --prof-input:var(--accent-muted); --prof-divider:rgba(139,92,246,0.12); --prof-toggle-off:var(--border); --prof-sub:var(--text-secondary); --prof-bar-bg:rgba(139,92,246,0.1); }
+  .prof-scope { --prof-text:var(--text-primary); --prof-card:rgba(255,255,255,0.85); --prof-title:var(--accent); --prof-muted:var(--text-secondary); --prof-tab-active:var(--bg-card); --prof-tab-color:var(--accent); --prof-tab-muted:var(--text-secondary); --prof-input:var(--accent-muted); --prof-divider:rgba(139,92,246,0.12); --prof-toggle-off:var(--border); --prof-sub:var(--text-secondary); --prof-bar-bg:rgba(139,92,246,0.1); }
   .dark .prof-scope { --prof-card:rgba(26,18,48,0.55); --prof-tab-active:rgba(139,92,246,0.2); --prof-divider:rgba(139,92,246,0.2); --prof-toggle-off:rgba(148,163,184,0.15); }
 `;
 
@@ -44,8 +44,10 @@ function MiniChartPreview({ chartId, authFetch }) {
     return { x: cx + r * 0.6 * Math.cos(a), y: cy - r * 0.6 * Math.sin(a) };
   };
 
+  /* zodiac data-color, intentional */
   const COLORS = { Sun: '#D4840A', Moon: '#7A8BA0', Mercury: '#7060C0', Venus: '#C04870', Mars: '#B83030', Jupiter: '#3868B0', Saturn: '#6A6050', Uranus: '#2090A8', Neptune: '#6050B8', Pluto: '#902020', 'North Node': '#308858' };
   const GLYPHS = { Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂', Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇' };
+  /* zodiac data-color, intentional */
   const ELEM = ['#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0','#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0','#FCCFBE','#D4E8C8','#FAF0D0','#C8DCF0'];
 
   return (
@@ -57,14 +59,14 @@ function MiniChartPreview({ chartId, authFetch }) {
         const x2 = cx + r * Math.cos(a2), y2 = cy - r * Math.sin(a2);
         const ix1 = cx + r * 0.75 * Math.cos(a1), iy1 = cy - r * 0.75 * Math.sin(a1);
         const ix2 = cx + r * 0.75 * Math.cos(a2), iy2 = cy - r * 0.75 * Math.sin(a2);
-        return <path key={i} d={`M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2} L ${ix2} ${iy2} A ${r*0.75} ${r*0.75} 0 0 1 ${ix1} ${iy1} Z`} fill={ELEM[i]} stroke="#ccc" strokeWidth={0.5} />;
+        return <path key={i} d={`M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x2} ${y2} L ${ix2} ${iy2} A ${r*0.75} ${r*0.75} 0 0 1 ${ix1} ${iy1} Z`} fill={ELEM[i]} stroke="var(--border)" strokeWidth={0.5} />;
       })}
-      <circle cx={cx} cy={cy} r={r * 0.75} fill="#fdfbf9" stroke="#ddd" /* zodiac data-color, intentional */ strokeWidth={0.5} />
-      <circle cx={cx} cy={cy} r={r * 0.5} fill="#fff" stroke="#eee" strokeWidth={0.5} />
+      <circle cx={cx} cy={cy} r={r * 0.75} fill="var(--bg)" stroke="var(--border)" /* zodiac data-color, intentional */ strokeWidth={0.5} />
+      <circle cx={cx} cy={cy} r={r * 0.5} fill="var(--bg-card)" stroke="var(--border)" strokeWidth={0.5} />
       {planets.slice(0, 10).map(p => {
         const pos = toXY(p.longitude);
         return (
-          <text key={p.name} x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="central" fontSize={7} fill={COLORS[p.name] || '#666'}>
+          <text key={p.name} x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="central" fontSize={7} fill={COLORS[p.name] || 'var(--text-secondary)'}>
             {GLYPHS[p.name] || '•'}
           </text>
         );
@@ -77,7 +79,8 @@ const API_BASE = '/api/v1';
 
 // ─── Цвета тарифов ───────────────────────────────────────────────────────────
 const TIER_LABELS = { free: 'Бесплатный', lite: 'Lite', pro: 'Pro', premium: 'Premium' };
-const TIER_COLORS = { free: '#8B8FA3', lite: '#38bdf8', pro: '#7C6CFF', premium: '#F59E0B' };
+/* tier data-color, intentional */
+const TIER_COLORS = { free: 'var(--text-secondary)', lite: 'var(--color-air)', pro: 'var(--accent)', premium: 'var(--color-warning)' };
 
 // ─── Стили (светлая и тёмная тема через CSS-переменные) ─────────────────────
 const S = {
@@ -139,8 +142,8 @@ const S = {
     display: 'inline-block',
     padding: '3px 12px',
     borderRadius: 20,
-    background: `${TIER_COLORS[tier] || '#888'}18`,
-    color: TIER_COLORS[tier] || '#888',
+    background: `${TIER_COLORS[tier] || 'var(--text-secondary)'}18`,
+    color: TIER_COLORS[tier] || 'var(--text-secondary)',
     fontSize: 12,
     fontWeight: 700,
   }),
@@ -194,7 +197,7 @@ function Toggle({ checked, onChange }) {
         position: 'absolute', top: 3,
         left: checked ? 21 : 3,
         width: 16, height: 16, borderRadius: '50%',
-        background: '#fff', transition: 'left 0.2s',
+        background: 'var(--bg-card)', transition: 'left 0.2s',
       }} />
     </div>
   );
@@ -498,7 +501,7 @@ const TIERS = [
 
 const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
 
-function UsageBar({ label, used, limit, tierColor = '#7C6CFF' }) {
+function UsageBar({ label, used, limit, tierColor = 'var(--accent)' }) {
   // limit === null / undefined → безлимит
   const unlimited = limit === null || limit === undefined;
   const pct = unlimited ? 0 : Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
@@ -621,7 +624,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         const use = subscription.usage || {};
         const feat = subscription.features || {};
         const tier = user?.tier || 'free';
-        const tierColor = TIER_COLORS[tier] || '#7C6CFF';
+        const tierColor = TIER_COLORS[tier] || 'var(--accent)';
 
         const interpLimit = lim.interpretations_per_month;   // 0 у free, число у lite, 15/100 pro/premium
         const interpUsed = use.ai_interpretations_this_month ?? 0;

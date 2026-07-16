@@ -27,11 +27,11 @@ const PLANET_GLYPHS = {
 };
 
 const ASPECT_COLORS = {
-  conjunction: "#F59E0B",
-  sextile: "#3B82F6",
-  square: "#EF4444",
-  trine: "#3B82F6",
-  opposition: "#EF4444",
+  conjunction: "var(--color-warning)",
+  sextile: "var(--color-air)",
+  square: "var(--color-danger)",
+  trine: "var(--color-air)",
+  opposition: "var(--color-danger)",
 };
 
 export default function TransitEventDetail({ event, chartId, onClose }) {
@@ -84,13 +84,13 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
 
   if (!event) return null;
 
-  const color = ASPECT_COLORS[event.aspect_type] || "#888";
+  const color = ASPECT_COLORS[event.aspect_type] || "var(--text-secondary)";
 
   return (
     <div style={{
-      background: "var(--card-bg, #141620)",
+      background: "var(--card-bg, var(--bg-card))",
       borderRadius: 14,
-      border: "1px solid var(--border, #1E2235)",
+      border: "1px solid var(--border, var(--bg-card))",
       overflow: "hidden",
       display: "flex",
       flexDirection: "column",
@@ -98,7 +98,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
       {/* Header */}
       <div style={{
         padding: "16px 20px",
-        borderBottom: "1px solid var(--border, #1E2235)",
+        borderBottom: "1px solid var(--border, var(--bg-card))",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-start",
@@ -117,13 +117,13 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
           <div style={{
             fontSize: 15,
             fontWeight: 600,
-            color: "var(--text-primary, #E8EAF0)",
+            color: "var(--text-primary, var(--border))",
           }}>
             {event.transit_planet} {ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase()} {event.natal_planet}
           </div>
           <div style={{
             fontSize: 12,
-            color: "var(--text-secondary, #8B8FA3)",
+            color: "var(--text-secondary, var(--text-secondary))",
             marginTop: 4,
           }}>
             {event.peak_date || event.date} • Орб {(event.peak_orb ?? event.orb)?.toFixed(1)}°
@@ -136,7 +136,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
           style={{
             background: "none",
             border: "none",
-            color: "var(--text-secondary, #8B8FA3)",
+            color: "var(--text-secondary, var(--text-secondary))",
             fontSize: 22,
             cursor: "pointer",
             padding: "4px 8px",
@@ -154,7 +154,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
           padding: 20,
           fontSize: 14.5,
           lineHeight: 1.75,
-          color: "var(--text-primary, #E8EAF0)",
+          color: "var(--text-primary, var(--border))",
           maxHeight: 400,
           overflowY: "auto",
           whiteSpace: "pre-wrap",
@@ -165,7 +165,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
           <div style={{
             textAlign: "center",
             padding: "20px 0",
-            color: "var(--text-secondary, #8B8FA3)",
+            color: "var(--text-secondary, var(--text-secondary))",
           }}>
             <div style={{ fontSize: 14, marginBottom: 12 }}>
               Не удалось загрузить интерпретацию
@@ -208,7 +208,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
             display: "flex",
             alignItems: "center",
             gap: 8,
-            color: "var(--text-secondary, #8B8FA3)",
+            color: "var(--text-secondary, var(--text-secondary))",
             fontSize: 13,
           }}>
             <span style={{

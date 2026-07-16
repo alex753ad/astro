@@ -9,10 +9,10 @@ import useAuth from "../hooks/useAuth";
 
 const PLAN_LABELS = { free: "Free", lite: "Lite", pro: "Pro", premium: "Premium" };
 const PLAN_COLORS = {
-  free:    { bar: "#B4B2A9", text: "#888780", badge: "bg-[#F1EFE8] text-[#5F5E5A]" },
-  lite:    { bar: "#378ADD", text: "#185FA5", badge: "bg-[#E6F1FB] text-[#185FA5]" },
-  pro:     { bar: "#639922", text: "#3B6D11", badge: "bg-[#EAF3DE] text-[#3B6D11]" },
-  premium: { bar: "#7F77DD", text: "#3C3489", badge: "bg-[#EEEDFE] text-[#3C3489]" },
+  free:    { bar: "var(--text-secondary)", text: "var(--text-secondary)780", badge: "bg-[var(--bg)] text-[var(--text-secondary)]" },
+  lite:    { bar: "var(--color-air)", text: "var(--color-air)", badge: "bg-[var(--accent-muted)] text-[var(--color-air)]" },
+  pro:     { bar: "var(--color-success)", text: "var(--color-success)", badge: "bg-[var(--accent-muted)] text-[var(--color-success)]" },
+  premium: { bar: "var(--accent)", text: "var(--accent)", badge: "bg-[var(--accent-muted)] text-[var(--accent)]" },
 };
 const PLAN_PRICES = { lite: 790, pro: 1990, premium: 7990 };
 const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот"];
@@ -83,7 +83,7 @@ function Badge({ plan }) {
 
 function MetricCard({ label, value, sub, subColor }) {
   return (
-    <div className="bg-[var(--color-background-secondary,#F7F5F0)] rounded-xl p-4">
+    <div className="bg-[var(--color-background-secondary,var(--bg-card))] rounded-xl p-4">
       <div className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{label}</div>
       <div className="text-[22px] font-medium text-gray-900 leading-none">{value}</div>
       {sub && <div className={`text-[11px] mt-1 ${subColor ?? "text-gray-400"}`}>{sub}</div>}
@@ -126,11 +126,11 @@ function TabOverview({ d }) {
   const mrr_by_plan = { lite: plans.lite * 790, pro: plans.pro * 1990, premium: plans.premium * 7990 };
   const funnel = d.funnel;
   const funnelSteps = [
-    { label: "Регистрация", val: funnel.registered, pct: 100,  color: "#B4B2A9" },
-    { label: "1-я карта",   val: funnel.made_chart, pct: Math.round(funnel.made_chart/funnel.registered*100), color: "#85B7EB" },
-    { label: "→ Lite",      val: funnel.lite,        pct: Math.round(funnel.lite/funnel.registered*100),       color: "#97C459" },
-    { label: "→ Pro",       val: funnel.pro,         pct: Math.round(funnel.pro/funnel.registered*100),        color: "#AFA9EC" },
-    { label: "→ Premium",   val: funnel.premium,     pct: Math.round(funnel.premium/funnel.registered*100),    color: "#7F77DD" },
+    { label: "Регистрация", val: funnel.registered, pct: 100,  color: "var(--text-secondary)" },
+    { label: "1-я карта",   val: funnel.made_chart, pct: Math.round(funnel.made_chart/funnel.registered*100), color: "var(--color-air)" },
+    { label: "→ Lite",      val: funnel.lite,        pct: Math.round(funnel.lite/funnel.registered*100),       color: "var(--color-success)" },
+    { label: "→ Pro",       val: funnel.pro,         pct: Math.round(funnel.pro/funnel.registered*100),        color: "var(--accent-glow)" },
+    { label: "→ Premium",   val: funnel.premium,     pct: Math.round(funnel.premium/funnel.registered*100),    color: "var(--accent)" },
   ];
 
   return (
@@ -676,7 +676,7 @@ function TabPilot({ authFetch }) {
             <div key={i} className="flex items-center gap-3 mb-3">
               <span className="w-40 text-[12px] text-gray-600">{s.label}</span>
               <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: pct + "%", background: "#7F77DD" }} />
+                <div className="h-full rounded-full" style={{ width: pct + "%", background: "var(--accent)" }} />
               </div>
               <span className="w-12 text-right text-[12px] text-gray-600">{fmt(s.val || 0)}</span>
               <span className="w-10 text-right text-[11px] text-gray-400">{pct}%</span>

@@ -37,16 +37,16 @@ function StreamingProgress() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', minHeight: 18 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary, var(--text-secondary))', minHeight: 18 }}>
         {STAGES[stageIdx]}
       </div>
       <div style={{
         width: '100%', height: 4, borderRadius: 2,
-        background: 'var(--border, #1E2235)', overflow: 'hidden',
+        background: 'var(--border, var(--bg-card))', overflow: 'hidden',
       }}>
         <div style={{
           height: '100%', width: `${progress}%`, borderRadius: 2,
-          background: 'linear-gradient(90deg, var(--accent, #7C6CFF), #C060A0)',
+          background: 'linear-gradient(90deg, var(--accent, var(--accent)), var(--accent))',
           transition: 'width 1s cubic-bezier(0.4,0,0.2,1)',
         }} />
       </div>
@@ -106,7 +106,7 @@ function renderMarkdown(text) {
       return (
         <h2 key={i} style={{
           fontSize: 17, fontWeight: 700,
-          color: 'var(--accent, #7C6CFF)',
+          color: 'var(--accent, var(--accent))',
           margin: '24px 0 10px',
         }}>
           {title}
@@ -120,9 +120,9 @@ function renderMarkdown(text) {
       return (
         <h3 key={i} style={{
           fontSize: 15, fontWeight: 700,
-          color: 'var(--text-primary, #E8EAF0)',
+          color: 'var(--text-primary, var(--border))',
           margin: '20px 0 8px',
-          borderBottom: '1px solid var(--border, #1E2235)',
+          borderBottom: '1px solid var(--border, var(--bg-card))',
           paddingBottom: 6,
         }}>
           {line.slice(4)}
@@ -133,7 +133,7 @@ function renderMarkdown(text) {
       return (
         <h2 key={i} style={{
           fontSize: 17, fontWeight: 700,
-          color: 'var(--accent, #7C6CFF)',
+          color: 'var(--accent, var(--accent))',
           margin: '24px 0 10px',
         }}>
           {line.slice(3)}
@@ -245,11 +245,11 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       <div className="solid-card p-6">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
+            <span style={{ color: 'var(--accent, var(--accent))' }}>✦</span>
             AI-интерпретация
           </h2>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #8B8FA3)', margin: '0 0 16px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, color: 'var(--color-text-secondary, var(--text-secondary))', margin: '0 0 16px', lineHeight: 1.6 }}>
           Персональный разбор натальной карты — характер, таланты, жизненные темы.
         </p>
         <button
@@ -259,7 +259,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             padding: '10px 20px', borderRadius: 10,
             border: '1px solid rgba(124,108,255,0.5)',
             background: 'linear-gradient(135deg, rgba(124,108,255,0.12), rgba(167,139,250,0.12))',
-            color: 'var(--accent, #7C6CFF)', fontSize: 14, fontWeight: 600,
+            color: 'var(--accent, var(--accent))', fontSize: 14, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
             transition: 'all 0.2s',
           }}
@@ -290,7 +290,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
+          <span style={{ color: 'var(--accent, var(--accent))' }}>✦</span>
           AI-интерпретация
         </h2>
         
@@ -300,11 +300,11 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       {streaming && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-          fontSize: 12, color: 'var(--text-secondary, #8B8FA3)',
+          fontSize: 12, color: 'var(--text-secondary, var(--text-secondary))',
         }}>
           <span style={{
             width: 8, height: 8, borderRadius: 4,
-            background: 'var(--accent, #7C6CFF)',
+            background: 'var(--accent, var(--accent))',
             animation: 'pulse 1.2s ease infinite',
           }} />
           Генерирую интерпретацию…
@@ -322,13 +322,13 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           background: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.2)', marginBottom: 12,
         }}>
-          <p style={{ margin: 0, fontSize: 13, color: '#FCA5A5' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>
             Не удалось загрузить интерпретацию: {error}
           </p>
           <button onClick={() => start()} style={{
             marginTop: 10, padding: '6px 16px', borderRadius: 8,
             border: '1px solid rgba(239,68,68,0.4)', background: 'transparent',
-            color: '#FCA5A5', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            color: 'var(--color-danger)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
             ↺ Попробовать снова
           </button>
@@ -340,7 +340,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <div
           ref={scrollRef}
           style={{
-            fontSize: 14, color: 'var(--text-primary, #E8EAF0)',
+            fontSize: 14, color: 'var(--text-primary, var(--border))',
             lineHeight: 1.75,
             maxHeight: 'none',
             overflowY: 'visible',
@@ -352,9 +352,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
               {sec.title && (
                 <h2 style={{
                   fontSize: 17, fontWeight: 700,
-                  color: 'var(--accent, #7C6CFF)',
+                  color: 'var(--accent, var(--accent))',
                   margin: '0 0 10px',
-                  borderBottom: '1px solid var(--border, #1E2235)',
+                  borderBottom: '1px solid var(--border, var(--bg-card))',
                   paddingBottom: 6,
                 }}>
                   {sec.title}
@@ -366,7 +366,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           {streaming && (
             <span style={{
               display: 'inline-block', width: 7, height: 17,
-              background: 'var(--accent, #7C6CFF)',
+              background: 'var(--accent, var(--accent))',
               marginLeft: 2, borderRadius: 2,
               animation: 'blink 0.8s step-end infinite',
               verticalAlign: 'text-bottom',
@@ -381,7 +381,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <div style={{ position: 'relative', marginTop: -60 }}>
           <div style={{
             height: 80,
-            background: 'linear-gradient(to bottom, transparent, var(--bg-card, #0F1117))',
+            background: 'linear-gradient(to bottom, transparent, var(--bg-card, var(--bg)))',
             pointerEvents: 'none',
           }} />
           <div style={{
@@ -389,15 +389,15 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
             textAlign: 'center',
           }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B8FA3)', margin: 0, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary, var(--text-secondary))', margin: 0, lineHeight: 1.6 }}>
               Это только начало. Расширенная интерпретация раскрывает<br />
-              <strong style={{ color: 'var(--text-primary, #E8EAF0)' }}>Луну, Венеру, 7-й дом и отношения</strong>.
+              <strong style={{ color: 'var(--text-primary, var(--border))' }}>Луну, Венеру, 7-й дом и отношения</strong>.
             </p>
             <button
               onClick={onUpgrade}
               style={{
                 padding: '11px 28px', borderRadius: 12, border: 'none',
-                background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+                background: 'linear-gradient(135deg, var(--accent), var(--accent))',
                 color: '#fff', fontSize: 14, fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'inherit',
                 boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
@@ -416,7 +416,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           marginTop: 24,
           padding: '10px 10px 10px 20px',
           borderRadius: 50,
-          background: 'linear-gradient(135deg, #7C6CFF, #9B59B6)',
+          background: 'linear-gradient(135deg, var(--accent), var(--accent))',
           boxShadow: '0 8px 32px rgba(124,108,255,0.45)',
           whiteSpace: 'nowrap',
           cursor: 'pointer',
@@ -428,7 +428,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             onClick={onUpgrade}
             style={{
               padding: '8px 16px', borderRadius: 50, border: 'none',
-              background: '#fff', color: '#7C6CFF',
+              background: '#fff', color: 'var(--accent)',
               fontSize: 12, fontWeight: 800,
               cursor: 'pointer', fontFamily: 'inherit',
               whiteSpace: 'nowrap',

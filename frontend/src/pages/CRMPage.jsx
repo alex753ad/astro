@@ -26,7 +26,7 @@ function useIsDark() {
 }
 
 const CRM_THEME_CSS = `
-  .crm-scope { --crm-text:#1e293b; --crm-card:rgba(255,255,255,0.85); --crm-title:#7c3aed; --crm-input:#f8f4ff; --crm-muted:#94a3b8; }
+  .crm-scope { --crm-text:var(--text-primary); --crm-card:var(--bg-card); --crm-title:var(--accent); --crm-input:var(--bg-deeper); --crm-muted:var(--text-secondary); }
   .dark .crm-scope { --crm-text:var(--text-primary); --crm-card:rgba(26,18,48,0.55); --crm-title:var(--accent-glow); --crm-input:rgba(35,28,56,0.60); --crm-muted:var(--text-secondary); }
 `;
 
@@ -46,7 +46,7 @@ function MiniChartPreview({ clientId, authFetch }) {
   }, [clientId]);
 
   if (!clientId) return null;
-  if (loading) return <div style={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: 11 }}>…</div>;
+  if (loading) return <div style={{ width: 80, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 11 }}>…</div>;
   if (!data) return null;
 
   return (
@@ -77,7 +77,7 @@ const S = {
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   btn: (v = 'ghost') => ({
     padding: '8px 16px', borderRadius: 8, border: v === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
-    background: v === 'primary' ? 'linear-gradient(135deg,var(--accent),var(--accent-glow))' : v === 'danger' ? '#ef4444' : 'transparent',
+    background: v === 'primary' ? 'linear-gradient(135deg,var(--accent),var(--accent-glow))' : v === 'danger' ? 'var(--color-danger)' : 'transparent',
     color: v === 'ghost' ? 'var(--crm-title)' : '#fff', fontWeight: 600, fontSize: 13,
   }),
   input: { width: '100%', background: 'var(--crm-input)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '8px 12px', color: 'var(--crm-text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
@@ -106,10 +106,10 @@ const ruEvent = (ev) => {
 };
 
 const STATUS_META = {
-  lead:     ['Лид', '#f59e0b'],
-  active:   ['Активный', '#22c55e'],
+  lead:     ['Лид', 'var(--color-warning)'],
+  active:   ['Активный', 'var(--color-success)'],
   regular:  ['Постоянный', 'var(--accent)'],
-  archived: ['Архив', '#64748b'],
+  archived: ['Архив', 'var(--text-secondary)'],
 };
 const STATUS_OPTIONS = Object.entries(STATUS_META).map(([v, m]) => [v, m[0]]);
 
@@ -128,7 +128,7 @@ const parseTags = (str) => (str || '').split(',').map(t => t.trim().replace(/^#/
 function TagChips({ tags }) {
   if (!tags || !tags.length) return null;
   return <>{tags.map((t, i) => (
-    <span key={i} style={{ fontSize: 11, color: '#38bdf8', background: '#38bdf822', padding: '2px 7px', borderRadius: 6, marginRight: 4 }}>#{t}</span>
+    <span key={i} style={{ fontSize: 11, color: 'var(--color-air)', background: 'var(--accent-muted)', padding: '2px 7px', borderRadius: 6, marginRight: 4 }}>#{t}</span>
   ))}</>;
 }
 
@@ -146,7 +146,7 @@ function BirthdayBadge({ birthDate }) {
   const n = daysToBirthday(birthDate);
   if (n === null || n > 14) return null;
   const label = n === 0 ? '🎂 ДР сегодня' : `🎂 ДР через ${n} дн.`;
-  return <span style={{ fontSize: 11, fontWeight: 600, color: '#ec4899', background: '#ec489922', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{label}</span>;
+  return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-muted)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{label}</span>;
 }
 
 function AddClientForm({ onSave, onCancel, authFetch }) {
@@ -221,7 +221,7 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
           <label style={S.label}>Заметки</label>
           <textarea style={{ ...S.input, minHeight: 60, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>
-        {error && <p style={{ color: '#f87171', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
+        {error && <p style={{ color: 'var(--color-danger)', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="submit" style={S.btn('primary')} disabled={loading}>{loading ? 'Сохраняю…' : 'Сохранить'}</button>
           <button type="button" style={S.btn()} onClick={onCancel}>Отмена</button>
@@ -576,7 +576,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                 <input style={S.input} placeholder="хорар, бизнес, сложный" value={editForm.tags} onChange={e => setEF('tags', e.target.value)} />
               </div>
             </div>
-            {editError && <p style={{ color: '#f87171', fontSize: 12, margin: '0 0 10px' }}>{editError}</p>}
+            {editError && <p style={{ color: 'var(--color-danger)', fontSize: 12, margin: '0 0 10px' }}>{editError}</p>}
             <button style={S.btn('primary')} onClick={saveEdit} disabled={editLoading}>
               {editLoading ? 'Сохраняю…' : 'Сохранить'}
             </button>
@@ -696,7 +696,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               .replace(/<\/section>/gi, '')
               .trim();
             return (
-              <div style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                 {cleaned}
               </div>
             );
@@ -721,7 +721,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                   minWidth: 220, padding: 4, marginTop: 4,
                 }}>
                   {templates.length === 0 && (
-                    <div style={{ padding: '8px 12px', color: '#64748b', fontSize: 13 }}>Нет шаблонов</div>
+                    <div style={{ padding: '8px 12px', color: 'var(--text-secondary)', fontSize: 13 }}>Нет шаблонов</div>
                   )}
                   {templates.map(tpl => (
                     <div
@@ -730,7 +730,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         padding: '6px 12px', borderRadius: 6,
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#334155'}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-deeper)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
                       <span
@@ -740,7 +740,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                           setNotes(tpl.content);
                           setShowTemplateDropdown(false);
                         }}
-                        style={{ cursor: 'pointer', fontSize: 13, color: '#e2e8f0', flex: 1 }}
+                        style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', flex: 1 }}
                       >
                         {tpl.title}
                       </span>
@@ -753,7 +753,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                             setTemplates(prev => prev.filter(t => t.id !== tpl.id));
                           } catch {}
                         }}
-                        style={{ cursor: 'pointer', color: '#64748b', fontSize: 14, padding: '0 4px', marginLeft: 8 }}
+                        style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14, padding: '0 4px', marginLeft: 8 }}
                         title="Удалить"
                       >
                         ✕
@@ -771,7 +771,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
 
           {/* Форма нового шаблона */}
           {showNewTemplateForm && (
-            <div style={{ background: '#f8f4ff', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+            <div style={{ background: 'var(--accent-muted)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
               <input
                 style={{ ...S.input, marginBottom: 8 }}
                 placeholder="Название шаблона"
@@ -907,10 +907,10 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {consultations.map(c => {
                 const badge = ({
-                  done: ['Проведена', '#22c55e'],
+                  done: ['Проведена', 'var(--color-success)'],
                   planned: ['Запланирована', 'var(--accent)'],
-                  canceled: ['Отменена', '#ef4444'],
-                })[c.status] || [c.status, '#64748b'];
+                  canceled: ['Отменена', 'var(--color-danger)'],
+                })[c.status] || [c.status, 'var(--text-secondary)'];
                 return (
                   <div key={c.id} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ ...S.row, marginBottom: c.notes ? 8 : 0 }}>
@@ -919,7 +919,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                         {c.topic && <span style={S.muted}>{c.topic}</span>}
                         <span style={{ fontSize: 11, fontWeight: 600, color: badge[1], background: badge[1] + '22', padding: '2px 8px', borderRadius: 6 }}>{badge[0]}</span>
                         {c.price != null && <span style={S.muted}>{c.price} ₽</span>}
-                        {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: '#0ea5e9' }}>🕐 хорар-карта</span>}
+                        {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-air)' }}>🕐 хорар-карта</span>}
                       </div>
                       <button style={S.btn('danger')} onClick={() => deleteConsultation(c.id)}>Удалить</button>
                     </div>
@@ -1110,7 +1110,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
 
       {/* ── Пустые состояния ── */}
       {filtered.length === 0 && (
-        <div style={{ ...S.card, color: '#64748b', textAlign: 'center', fontSize: 13 }}>
+        <div style={{ ...S.card, color: 'var(--text-secondary)', textAlign: 'center', fontSize: 13 }}>
           {isFiltered
             ? 'По заданным параметрам клиентов не найдено.'
             : clients.length === 0 ? 'Нет клиентов. Добавьте первого.' : 'Ничего не найдено.'}
@@ -1301,7 +1301,7 @@ function BroadcastPanel({ authFetch, clients }) {
                 <iframe
                   title="preview"
                   srcDoc={previewHtml}
-                  style={{ width: '100%', height: 420, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, background: '#0e0c1a' }}
+                  style={{ width: '100%', height: 420, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, background: 'var(--bg-deeper)' }}
                 />
               )}
             </div>
@@ -1321,7 +1321,7 @@ function BroadcastPanel({ authFetch, clients }) {
               {history.map((h, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>{h.name} · {h.period_ym}</span>
-                  <span style={{ color: h.status === 'success' ? '#22c55e' : '#ef4444' }}>
+                  <span style={{ color: h.status === 'success' ? 'var(--color-success)' : 'var(--color-danger)' }}>
                     {h.status === 'success' ? 'отправлено' : 'ошибка'}{h.sent_at ? ` · ${h.sent_at.slice(0, 10)}` : ''}
                   </span>
                 </div>
@@ -1923,7 +1923,7 @@ export default function CRMPage() {
     );
   }
 
-  if (loading) return <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Загрузка…</div>;
+  if (loading) return <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Загрузка…</div>;
 
   return (
     <div className="crm-scope" style={S.page}>

@@ -1,7 +1,7 @@
 /**
  * NebulaBackground — процедурный WebGL nebula как фиксированный фоновый слой.
  * ТЗ раздел 4 («Космос»): глубокий, но не отвлекающий; u_time — медленный дрейф,
- * u_mouse — ленивый параллакс, u_accent — из --accent (#8B5CF6),
+ * u_mouse — ленивый параллакс, u_accent — из --accent (var(--accent)),
  * u_glow — сдвиг по стихии активного знака (4.2). Honors prefers-reduced-motion.
  *
  * Использование:
@@ -27,10 +27,10 @@ export function elementForSign(sign) {
 
 // Цвета стихий (из DESIGN_SYSTEM, оба режима одинаковые)
 const ELEMENT_COLORS = {
-  fire:  '#E74C3C',
-  earth: '#27AE60',
-  air:   '#3498DB',
-  water: '#2980B9',
+  fire:  'var(--color-fire)',
+  earth: 'var(--color-earth)',
+  air:   'var(--color-air)',
+  water: 'var(--color-water)',
 };
 
 function hexToRgb(hex) {
@@ -107,7 +107,7 @@ function compile(gl, type, src) {
 }
 
 export default function NebulaBackground({
-  accentColor = '#8B5CF6',
+  accentColor = 'var(--accent)',
   element = null,
   intensity = 1.0,
 }) {

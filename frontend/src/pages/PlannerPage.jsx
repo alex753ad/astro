@@ -9,10 +9,11 @@ function getMonthName(date) {
   return date.toLocaleString("ru-RU", { month: "long", year: "numeric" });
 }
 
+/* zodiac data-color, intentional */
 const PLANET_COLORS = {
-  sun: "#EAB308", mercury: "#8B5CF6", venus: "#EC4899",
+  sun: "#EAB308", mercury: "#8B5CF6", venus: "var(--accent)",
   mars: "#EF4444", jupiter: "#8B5CF6", saturn: "#64748B",
-  uranus: "#06B6D4", neptune: "#4F46E5", pluto: "#7C3AED", moon: "#EAB308",
+  uranus: "var(--color-air)", neptune: "var(--accent)", pluto: "#7C3AED", moon: "#EAB308",
 };
 
 // ── Таймлайн: события месяца ──────────────────────────────────────────────────
@@ -546,7 +547,7 @@ function LockedTeaser({ trigger }) {
 }
 
 function PeriodBlock({ planet, emoji, period, items, subtitle, locked }) {
-  const color = PLANET_COLORS[planet] || "#64748B";
+  const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
       <div className="period-card-header">
@@ -597,7 +598,7 @@ function WeekDayBlock({ date, time, house, items, locked }) {
 }
 
 function LongTermBlock({ planet, emoji, period, items, warning, subtitle, locked }) {
-  const color = PLANET_COLORS[planet] || "#64748B";
+  const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="lt-card" style={{ borderLeftColor: color }}>
       {warning && <div className="lt-warning">⚠️ {warning}</div>}

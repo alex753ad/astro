@@ -19,6 +19,7 @@ const PLANET_GLYPHS = {
   'North Node': '☊', 'South Node': '☋',
 };
 
+/* zodiac data-color, intentional */
 const PLANET_COLORS = {
   Sun:          '#D4840A',
   Moon:         '#7A8BA0',
@@ -36,6 +37,7 @@ const PLANET_COLORS = {
 
 const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
 
+/* zodiac data-color, intentional */
 const ELEMENT_COLORS = {
   fill:   ['#FCCFBE', '#D4E8C8', '#FAF0D0', '#C8DCF0'],
   stroke: ['#D07050', '#60905A', '#C09040', '#5080B0'],
@@ -43,6 +45,7 @@ const ELEMENT_COLORS = {
 };
 const SIGN_ELEMENT = [0,1,2,3, 0,1,2,3, 0,1,2,3];
 
+/* zodiac data-color, intentional */
 const ASPECT_COLORS = {
   conjunction: '#C09020',
   sextile:     '#4070B0',
@@ -181,9 +184,9 @@ function NatalChartInner({
 
   // ── Фоны дисков: в тёмной теме — полупрозрачное тёмное стекло (nebula просвечивает),
   //    глифы-чипы остаются светлыми, чтобы цветные символы читались как в светлой теме.
-  const discBase        = dark ? 'rgba(26,18,48,0.55)'    : '#FDFBF9';
-  const discInner       = dark ? 'rgba(26,18,48,0.60)'    : '#FFFFFF';
-  const discInnerStroke = dark ? 'rgba(139,92,246,0.25)'  : '#D8C8E0';
+  const discBase        = dark ? 'rgba(26,18,48,0.55)'    : 'var(--bg)';
+  const discInner       = dark ? 'rgba(26,18,48,0.60)'    : 'var(--bg-card)';
+  const discInnerStroke = dark ? 'rgba(139,92,246,0.25)'  : 'var(--border)';
 
   // ── Палитра кольца/штрихов/домов: тёмные варианты для тёмной темы ──
   const EL_FILL = dark
@@ -196,9 +199,9 @@ function NatalChartInner({
   const cEdge     = dark ? 'rgba(205,196,224,0.28)' : '#D0C0B0';
   const cEdge2    = dark ? 'rgba(205,196,224,0.16)' : '#D0C4B8';
   const cTickMaj  = dark ? 'rgba(226,223,240,0.38)' : '#A09080';
-  const cHouseAng = dark ? '#A78BFA'                : '#9070C0';
-  const cHouseReg = dark ? 'rgba(205,196,224,0.22)' : '#C0B0A0';
-  const cHouseNum = dark ? '#9B97B0'                : '#A090C0';
+  const cHouseAng = dark ? 'var(--accent-glow)'     : '#9070C0'; /* zodiac data-color, intentional */
+  const cHouseReg = dark ? 'rgba(205,196,224,0.22)' : '#C0B0A0'; /* zodiac data-color, intentional */
+  const cHouseNum = dark ? 'var(--text-secondary)'  : 'var(--text-secondary)'; /* zodiac data-color, intentional */
 
   return (
     <svg
@@ -348,12 +351,12 @@ function NatalChartInner({
           );
         })}
 
-      <circle cx={cx} cy={cy} r={2.5} fill="#C0A8D8" />
+      <circle cx={cx} cy={cy} r={2.5} fill="var(--accent-glow)" />
 
       {planetPositions.map((planet) => {
         const glyphPos = lonToXY(cx, cy, R_PLANET, planet.displayLon, ascLon);
         const realPos  = lonToXY(cx, cy, R_TICK_IN - 4, planet.longitude, ascLon);
-        const color    = PLANET_COLORS[planet.name] || '#606060';
+        const color    = PLANET_COLORS[planet.name] || '#606060'; /* zodiac data-color, intentional */
         const showLine = Math.abs(planet.displayLon - planet.longitude) > 2;
         const r        = isCompact ? 10 : 12;
         const isActive = highlightPlanet === planet.name;
@@ -381,7 +384,7 @@ function NatalChartInner({
               />
             )}
 
-            <circle cx={glyphPos.x} cy={glyphPos.y} r={r} fill="#FFFFFF" />
+            <circle cx={glyphPos.x} cy={glyphPos.y} r={r} fill="var(--bg-card)" />
             <circle cx={glyphPos.x} cy={glyphPos.y} r={r}
               fill="none" stroke={color} strokeWidth={1.25} />
 
@@ -407,7 +410,7 @@ function NatalChartInner({
 
             {planet.retrograde && (
               <text x={glyphPos.x + 9} y={glyphPos.y - 8}
-                fontSize={8} fill="#C04040" fontWeight="700">℞</text>
+                fontSize={8} fill="#C04040" fontWeight="700">℞ {/* zodiac data-color, intentional */}</text>
             )}
           </g>
         );
@@ -416,11 +419,11 @@ function NatalChartInner({
       {!timeUnknown && ascendant && (
         <>
           {[
-            { lon: ascLon,                label: 'Asc', color: dark ? '#B79CF5' : '#8040A0' },
-            { lon: (ascLon + 180) % 360,  label: 'Dsc', color: dark ? '#B79CF5' : '#8040A0' },
+            { lon: ascLon,                label: 'Asc', color: dark ? '#B79CF5' : '#8040A0' }, /* zodiac data-color, intentional */
+            { lon: (ascLon + 180) % 360,  label: 'Dsc', color: dark ? '#B79CF5' : '#8040A0' }, /* zodiac data-color, intentional */
             ...(midheaven ? [
-              { lon: mcLon,               label: 'MC',  color: dark ? '#7FB0E8' : '#3060A0' },
-              { lon: (mcLon + 180) % 360, label: 'IC',  color: dark ? '#7FB0E8' : '#3060A0' },
+              { lon: mcLon,               label: 'MC',  color: dark ? '#7FB0E8' : '#3060A0' }, /* zodiac data-color, intentional */
+              { lon: (mcLon + 180) % 360, label: 'IC',  color: dark ? '#7FB0E8' : '#3060A0' }, /* zodiac data-color, intentional */
             ] : []),
           ].map(({ lon, label, color }) => {
             const pos = lonToXY(cx, cy, R_ZOD_OUT + 14, lon, ascLon);
@@ -486,7 +489,7 @@ function NatalChartInner({
                     stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />
 
                   <g className="transit-planet" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
-                    <circle cx={0} cy={0} r={12} fill="#FFFFFF" />
+                    <circle cx={0} cy={0} r={12} fill="var(--bg-card)" />
                     <circle cx={0} cy={0} r={12}
                       fill="none"
                       stroke={color}
@@ -502,7 +505,7 @@ function NatalChartInner({
 
                     {tp.retrograde && (
                       <text x={10} y={-9}
-                        fontSize={8} fill="#C04040" fontWeight="700">℞</text>
+                        fontSize={8} fill="#C04040" fontWeight="700">℞ {/* zodiac data-color, intentional */}</text>
                     )}
                   </g>
                 </g>

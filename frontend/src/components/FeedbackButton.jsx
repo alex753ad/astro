@@ -94,32 +94,32 @@ export default function FeedbackButton() {
 const fbStyles = `
 .fb-fab{
   position:fixed; right:16px; bottom:16px; z-index:9999;
-  background:rgba(30,22,50,.92); color:#e9ddff; border:1px solid #4a3a6e;
+  background:rgba(30,22,50,.92); color:var(--accent-muted); border:1px solid var(--bg-deeper);
   border-radius:22px; padding:9px 15px; font-size:13px; font-weight:600;
   cursor:pointer; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.3);
 }
 .fb-fab:hover{ background:rgba(45,33,74,.98); }
 .fb-panel{
   position:fixed; right:16px; bottom:16px; z-index:9999; width:300px;
-  background:#1b1430; border:1px solid #4a3a6e; border-radius:14px;
+  background:var(--bg-card); border:1px solid var(--bg-deeper); border-radius:14px;
   padding:16px; box-shadow:0 8px 32px rgba(0,0,0,.45);
 }
-.fb-title{ color:#e9ddff; font-size:14px; font-weight:700; margin-bottom:10px; }
+.fb-title{ color:var(--accent-muted); font-size:14px; font-weight:700; margin-bottom:10px; }
 .fb-input{
-  width:100%; box-sizing:border-box; background:#120d24; color:#e9ddff;
-  border:1px solid #3a2e5c; border-radius:10px; padding:10px; font-size:13px;
+  width:100%; box-sizing:border-box; background:var(--bg); color:var(--accent-muted);
+  border:1px solid var(--bg-deeper); border-radius:10px; padding:10px; font-size:13px;
   resize:vertical; font-family:inherit;
 }
 .fb-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 .fb-cancel{
-  background:transparent; color:#a898c8; border:none; padding:8px 12px;
+  background:transparent; color:var(--text-secondary); border:none; padding:8px 12px;
   font-size:13px; cursor:pointer;
 }
 .fb-send{
-  background:linear-gradient(135deg,#9060C8,#C060A0); color:#fff; border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent)); color:#fff; border:none;
   border-radius:10px; padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer;
 }
 .fb-send:disabled{ opacity:.6; cursor:default; }
-.fb-err{ color:#ff9b9b; font-size:12px; margin-top:8px; }
-.fb-done{ color:#b9ffcf; font-size:13px; line-height:1.5; padding:4px 0; }
+.fb-err{ color:var(--color-danger); font-size:12px; margin-top:8px; }
+.fb-done{ color:var(--accent-muted); font-size:13px; line-height:1.5; padding:4px 0; }
 `;

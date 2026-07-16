@@ -49,7 +49,7 @@ export default function StreakBadge({ streak, isNew }) {
       <span style={{ fontSize: 16, lineHeight: 1 }}>{emoji}</span>
       <span style={{
         fontSize: 13, fontWeight: 600,
-        color: streak >= 7 ? '#D4600A' : '#9A6010',
+        color: streak >= 7 ? 'var(--color-warning)' : 'var(--color-warning)',
       }}>
         {streak} {pluralDays(streak)} подряд
       </span>

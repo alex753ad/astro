@@ -70,7 +70,7 @@ export default function SharePage() {
   if (error) return (
     <div style={s.page}>
       <div style={s.center}>
-        <p style={{ color: '#C03030' }}>{error}</p>
+        <p style={{ color: 'var(--color-danger)' }}>{error}</p>
         <button onClick={() => navigate('/')} style={s.btn}>На главную</button>
       </div>
     </div>
@@ -80,7 +80,7 @@ export default function SharePage() {
     <div style={s.page}>
       <div style={s.center}>
         <div style={s.logo}>☽ ✦ ☾</div>
-        <p style={{ color: '#9080B0' }}>Загружаем карту…</p>
+        <p style={{ color: 'var(--text-secondary)' }}>Загружаем карту…</p>
       </div>
     </div>
   );
@@ -157,7 +157,7 @@ export default function SharePage() {
 const s = {
   page: {
     minHeight: '100vh',
-    background: 'linear-gradient(160deg, #0e0c1a 0%, #1a1030 100%)',
+    background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)',
     color: '#fff',
     fontFamily: "'Segoe UI', Arial, sans-serif",
   },
@@ -170,16 +170,16 @@ const s = {
     padding: '20px 32px',
     borderBottom: '1px solid rgba(112,80,200,0.2)',
   },
-  logo:  { fontSize: '20px', color: '#c9a8ff' },
-  brand: { fontSize: '16px', fontWeight: '700', color: '#c9a8ff', letterSpacing: '1px' },
+  logo:  { fontSize: '20px', color: 'var(--accent-glow)' },
+  brand: { fontSize: '16px', fontWeight: '700', color: 'var(--accent-glow)', letterSpacing: '1px' },
   main: {
     maxWidth: '720px', margin: '0 auto',
     padding: '32px 20px 60px',
     display: 'flex', flexDirection: 'column', gap: '24px',
   },
   titleBlock: {},
-  title:    { margin: '0 0 6px', fontSize: '28px', fontWeight: '700', color: '#f0e8ff' },
-  subtitle: { margin: 0, fontSize: '14px', color: '#9080b0' },
+  title:    { margin: '0 0 6px', fontSize: '28px', fontWeight: '700', color: 'var(--accent-muted)' },
+  subtitle: { margin: 0, fontSize: '14px', color: 'var(--text-secondary)' },
   badges: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
   badge: {
     background: 'rgba(112,80,200,0.15)',
@@ -188,9 +188,9 @@ const s = {
     padding: '10px 16px',
     minWidth: '120px',
   },
-  badgeLabel: { display: 'block', fontSize: '11px', color: '#9060C8', fontWeight: '700',
+  badgeLabel: { display: 'block', fontSize: '11px', color: 'var(--accent)', fontWeight: '700',
                 textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' },
-  badgeValue: { fontSize: '16px', fontWeight: '600', color: '#e0d0ff' },
+  badgeValue: { fontSize: '16px', fontWeight: '600', color: 'var(--accent-muted)' },
   chartWrap: {
     background: 'rgba(255,255,255,0.03)',
     borderRadius: '20px',
@@ -200,20 +200,20 @@ const s = {
   },
   actions: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
   btnPrimary: {
-    background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
     color: '#fff', border: 'none', borderRadius: '12px',
     padding: '12px 24px', fontSize: '15px', fontWeight: '700',
     cursor: 'pointer', fontFamily: 'inherit',
   },
   btnSecondary: {
     background: 'rgba(112,80,200,0.15)',
-    color: '#c9a8ff', border: '1px solid rgba(112,80,200,0.3)',
+    color: 'var(--accent-glow)', border: '1px solid rgba(112,80,200,0.3)',
     borderRadius: '12px', padding: '12px 20px',
     fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
   },
   btn: {
-    background: '#9060C8', color: '#fff', border: 'none',
+    background: 'var(--accent)', color: '#fff', border: 'none',
     borderRadius: '10px', padding: '10px 20px', cursor: 'pointer',
   },
-  promo: { fontSize: '13px', color: '#6050a0', textAlign: 'center', marginTop: '8px' },
+  promo: { fontSize: '13px', color: 'var(--accent)', textAlign: 'center', marginTop: '8px' },
 };

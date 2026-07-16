@@ -42,12 +42,13 @@ const ASPECT_SYMBOLS = {
   conjunction: "☌", sextile: "⚹", square: "□", trine: "△", opposition: "☍",
 };
 
+/* zodiac data-color, intentional */
 const ASPECT_COLORS = {
   conjunction: "#C08020",
   sextile:     "#3068B0",
-  square:      "#C03030",
+  square:      "var(--color-danger)",
   trine:       "#3068B0",
-  opposition:  "#C03030",
+  opposition:  "var(--color-danger)",
 };
 
 const ASPECT_BG = {
@@ -58,6 +59,7 @@ const ASPECT_BG = {
   opposition:  "rgba(192,48,48,0.08)",
 };
 
+/* zodiac data-color, intentional */
 const PLANET_ACCENT = {
   Sun:          "#D4840A",
   Moon:         "#7A8BA0",
@@ -124,7 +126,7 @@ function Skeleton({ width = "100%", height = 16, radius = 8, style = {} }) {
   return (
     <div style={{
       width, height, borderRadius: radius,
-      background: "linear-gradient(90deg, var(--tt-border) 25%, #F8F3FF 50%, var(--tt-border) 75%)",
+      background: "linear-gradient(90deg, var(--tt-border) 25%, var(--bg-card) 50%, var(--tt-border) 75%)",
       backgroundSize: "200% 100%",
       animation: "shimmer 1.8s ease-in-out infinite",
       ...style,
@@ -180,7 +182,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
           <span>Планеты</span>
           <span style={{ fontSize: 10, transform: expandedSection === "planets" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
           {planetFilter.length > 0 && planetFilter.length < ALL_PLANETS.length && (
-            <span style={{ background: "#C0A0E8", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{planetFilter.length}</span>
+            <span style={{ background: "var(--accent-glow)", color: "var(--bg-card)", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{planetFilter.length}</span>
           )}
         </button>
         {expandedSection === "planets" && (
@@ -217,8 +219,8 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
           <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
             <input type="range" min={0.5} max={3} step={0.5} value={orbFilter}
               onChange={e => setOrbFilter(Number(e.target.value))}
-              style={{ flex: 1, accentColor: "#C0A0E8" }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#5A3880", minWidth: 28 }}>{orbFilter}°</span>
+              style={{ flex: 1, accentColor: "var(--accent-glow)" }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--accent)", minWidth: 28 }}>{orbFilter}°</span>
           </div>
         )}
       </div>
@@ -312,23 +314,23 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
   return (
     <div style={{
       margin: "8px 0", padding: "16px 20px", borderRadius: 16,
-      background: "linear-gradient(135deg, #F5F0FF, #FFF0F8)",
-      border: "1.5px solid #E0D0F8",
+      background: "var(--accent-muted)",
+      border: "1.5px solid var(--border)",
       display: "flex", flexDirection: "column", gap: 10,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#5A2880", marginBottom: 3 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)", marginBottom: 3 }}>
             ✨ Открыт разбор 2 самых значимых транзитов
           </div>
-          <div style={{ fontSize: 12, color: "#9070B0" }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
             Ещё {lockedCount} транзитов с AI-разбором — на Pro
           </div>
         </div>
         <button onClick={onUpgrade} style={{
           padding: "9px 20px", borderRadius: 12, border: "none",
-          background: "linear-gradient(135deg, #9060C8, #C060A0)",
-          color: "#fff", fontSize: 13, fontWeight: 700,
+          background: "var(--accent)",
+          color: "var(--bg-card)", fontSize: 13, fontWeight: 700,
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
           boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
         }}>
@@ -345,9 +347,9 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
 
 function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
   const [hovered, setHovered] = useState(false);
-  const aspectColor  = ASPECT_COLORS[event.aspect_type] || "#7040A8";
+  const aspectColor  = ASPECT_COLORS[event.aspect_type] || "var(--accent)";
   const aspectBg     = ASPECT_BG[event.aspect_type]    || "rgba(112,64,168,0.06)";
-  const planetAccent = PLANET_ACCENT[event.transit_planet] || "#C0A0E8";
+  const planetAccent = PLANET_ACCENT[event.transit_planet] || "var(--accent-glow)";
   const displayDate  = event.peak_date || event.exact_date || event.date || "";
 
   // Формируем текст для hover-попапа
@@ -521,11 +523,11 @@ function InterpretationPanel({ event, chartId, onClose }) {
             {[90, 70, 85, 60].map((w, i) => <Skeleton key={i} width={`${w}%`} height={13} />)}
           </div>
         )}
-        {error && <div style={{ color: "#C03030", fontSize: 13 }}>{error}</div>}
+        {error && <div style={{ color: "var(--color-danger)", fontSize: 13 }}>{error}</div>}
         {text && (
           <div style={{ fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
             {text}
-            {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "#C0A0E8", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
+            {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "var(--accent-glow)", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
           </div>
         )}
       </div>
@@ -662,22 +664,22 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     <div className="tt-scope" style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
       <style>{`
         .tt-scope {
-          --tt-card: #FFFFFF; --tt-text: #2D2540; --tt-text2: #9080B0;
-          --tt-text3: #B0A0C8; --tt-border: #F0EAF8; --tt-border2: #E8DEF8;
-          --tt-acc-bg: #F0E8FF; --tt-acc-fg: #7040A8; --tt-acc-br: #C0A0E8; --tt-dot: #D8CEF0;
-          --tt-s1-bg: #F5F0FF; --tt-s1-fg: #7040A8;
-          --tt-s2-bg: #EAF1FF; --tt-s2-fg: #3068B0;
-          --tt-s3-bg: #FFF0F0; --tt-s3-fg: #C03030;
-          --tt-s4-bg: #FFF8E8; --tt-s4-fg: #C08020;
+          --tt-card: var(--bg-card); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
+          --tt-text3: var(--text-secondary); --tt-border: var(--border); --tt-border2: var(--border);
+          --tt-acc-bg: var(--accent-muted); --tt-acc-fg: var(--accent); --tt-acc-br: var(--accent-glow); --tt-dot: var(--border);
+          --tt-s1-bg: var(--accent-muted); --tt-s1-fg: var(--accent);
+          --tt-s2-bg: rgba(48,104,176,0.08); --tt-s2-fg: #3068B0;
+          --tt-s3-bg: rgba(192,48,48,0.08); --tt-s3-fg: var(--color-danger);
+          --tt-s4-bg: rgba(192,128,32,0.08); --tt-s4-fg: #C08020;
         }
         .dark .tt-scope {
           --tt-card: rgba(26,18,48,0.60); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
-          --tt-text3: #8983A0; --tt-border: rgba(139,92,246,0.14); --tt-border2: rgba(139,92,246,0.20);
-          --tt-acc-bg: rgba(139,92,246,0.22); --tt-acc-fg: #C6B4F2; --tt-acc-br: rgba(139,92,246,0.55); --tt-dot: rgba(139,92,246,0.45);
-          --tt-s1-bg: rgba(139,92,246,0.14); --tt-s1-fg: #C4B0F0;
-          --tt-s2-bg: rgba(52,152,219,0.16); --tt-s2-fg: #82C4F2;
-          --tt-s3-bg: rgba(248,113,113,0.15); --tt-s3-fg: #F79A9A;
-          --tt-s4-bg: rgba(251,191,36,0.15); --tt-s4-fg: #F3C978;
+          --tt-text3: var(--text-secondary); --tt-border: rgba(139,92,246,0.14); --tt-border2: rgba(139,92,246,0.20);
+          --tt-acc-bg: rgba(139,92,246,0.22); --tt-acc-fg: var(--accent-glow); --tt-acc-br: rgba(139,92,246,0.55); --tt-dot: rgba(139,92,246,0.45);
+          --tt-s1-bg: rgba(139,92,246,0.14); --tt-s1-fg: var(--accent-glow);
+          --tt-s2-bg: rgba(52,152,219,0.16); --tt-s2-fg: var(--color-air);
+          --tt-s3-bg: rgba(248,113,113,0.15); --tt-s3-fg: var(--color-danger);
+          --tt-s4-bg: rgba(251,191,36,0.15); --tt-s4-fg: var(--color-warning);
         }
         @keyframes shimmer     { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -685,13 +687,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #E8DEF8; border-radius: 3px; }
-        button:focus-visible { outline: 2px solid #C0A0E8; outline-offset: 2px; }
+        ::-webkit-scrollbar-thumb { background: var(--tt-border); border-radius: 3px; }
+        button:focus-visible { outline: 2px solid var(--accent-glow); outline-offset: 2px; }
         input[type="range"] { height: 4px; border-radius: 2px; }
       `}</style>
 
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, background: "linear-gradient(135deg, #9060C8, #E080B0)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: "var(--accent)", letterSpacing: "-0.02em" }}>
           Транзиты
         </h1>
         <p style={{ fontSize: 14, color: "var(--tt-text2)", margin: "6px 0 0" }}>

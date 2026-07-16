@@ -30,10 +30,10 @@ export default function PortalPage() {
   };
 
   if (error) return (
-    <div style={s.page}><div style={s.center}><p style={{ color: '#f0a0a0' }}>{error}</p></div></div>
+    <div style={s.page}><div style={s.center}><p style={{ color: 'var(--color-danger)' }}>{error}</p></div></div>
   );
   if (!data) return (
-    <div style={s.page}><div style={s.center}><div style={s.logo}>☽ ✦ ☾</div><p style={{ color: '#9080b0' }}>Загрузка…</p></div></div>
+    <div style={s.page}><div style={s.center}><div style={s.logo}>☽ ✦ ☾</div><p style={{ color: 'var(--text-secondary)' }}>Загрузка…</p></div></div>
   );
 
   const c = data.chart;
@@ -98,21 +98,21 @@ export default function PortalPage() {
 }
 
 const s = {
-  page: { minHeight: '100vh', background: 'linear-gradient(160deg, #0e0c1a 0%, #1a1030 100%)', color: '#fff', fontFamily: "'Segoe UI', Arial, sans-serif" },
+  page: { minHeight: '100vh', background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)', color: '#fff', fontFamily: "'Segoe UI', Arial, sans-serif" },
   center: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 16 },
-  logo: { fontSize: 22, color: '#c9a8ff' },
+  logo: { fontSize: 22, color: 'var(--accent-glow)' },
   header: { display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px', borderBottom: '1px solid rgba(112,80,200,0.2)' },
-  brand: { fontSize: 18, fontWeight: 700, color: '#c9a8ff', letterSpacing: 0.5 },
+  brand: { fontSize: 18, fontWeight: 700, color: 'var(--accent-glow)', letterSpacing: 0.5 },
   main: { maxWidth: 720, margin: '0 auto', padding: '32px 20px 60px', display: 'flex', flexDirection: 'column', gap: 20 },
   titleBlock: {},
-  title: { margin: '0 0 6px', fontSize: 26, fontWeight: 700, color: '#f0e8ff' },
-  subtitle: { margin: 0, fontSize: 14, color: '#9080b0' },
+  title: { margin: '0 0 6px', fontSize: 26, fontWeight: 700, color: 'var(--accent-muted)' },
+  subtitle: { margin: 0, fontSize: 14, color: 'var(--text-secondary)' },
   card: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(112,80,200,0.2)', borderRadius: 20, padding: '24px' },
-  sectionTitle: { fontSize: 13, fontWeight: 700, color: '#9060C8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 16 },
   chartWrap: { display: 'flex', justifyContent: 'center', marginBottom: 16 },
-  assignment: { borderLeft: '3px solid #9060C8', paddingLeft: 14 },
-  assignmentHead: { fontSize: 12, color: '#9080b0', marginBottom: 4 },
-  assignmentBody: { fontSize: 14, color: '#e0d0ff', lineHeight: 1.6, whiteSpace: 'pre-wrap' },
-  btnPrimary: { background: 'linear-gradient(135deg, #9060C8, #C060A0)', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
-  promo: { fontSize: 13, color: '#6050a0', textAlign: 'center', marginTop: 8 },
+  assignment: { borderLeft: '3px solid var(--accent)', paddingLeft: 14 },
+  assignmentHead: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 },
+  assignmentBody: { fontSize: 14, color: 'var(--accent-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap' },
+  btnPrimary: { background: 'linear-gradient(135deg, var(--accent), var(--accent))', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  promo: { fontSize: 13, color: 'var(--accent)', textAlign: 'center', marginTop: 8 },
 };

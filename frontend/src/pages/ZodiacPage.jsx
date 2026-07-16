@@ -102,26 +102,26 @@ export default function ZodiacPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f0ff', padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--accent-muted)', padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
       />
 
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 36, fontWeight: 700, color: '#1e1b4b', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 36, fontWeight: 700, color: 'var(--bg-card)', marginBottom: 8 }}>
           {info.ru}
         </h1>
-        <p style={{ color: '#64748b', marginBottom: 32 }}>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>
           {info.dates} · Стихия: {info.element} · Планета: {info.planet}
         </p>
 
-        <h2 style={{ fontSize: 20, fontWeight: 600, color: '#3730a3', marginBottom: 16 }}>Часто задаваемые вопросы</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--accent)', marginBottom: 16 }}>Часто задаваемые вопросы</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {faq.map((item, i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid #e0e7ff' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1e1b4b', margin: '0 0 8px' }}>{item.q}</h3>
-              <p style={{ fontSize: 14, color: '#475569', margin: 0 }}>{item.a}</p>
+            <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid var(--accent-muted)' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--bg-card)', margin: '0 0 8px' }}>{item.q}</h3>
+              <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0 }}>{item.a}</p>
             </div>
           ))}
         </div>

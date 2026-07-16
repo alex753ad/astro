@@ -9,8 +9,8 @@ import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
 const AN_THEME_CSS = `
-  .an-scope { --an-text:#1e293b; --an-card:rgba(255,255,255,0.85); --an-accent:#7c3aed; --an-muted:#94a3b8; --an-track:#e9d5ff; --an-sub:#7C6CFF; }
-  .dark .an-scope { --an-text:#E2DFF0; --an-card:rgba(26,18,48,0.55); --an-accent:#A78BFA; --an-muted:#9B97B0; --an-track:rgba(139,92,246,0.22); --an-sub:#A78BFA; }
+  .an-scope { --an-text:var(--bg-card); --an-card:rgba(255,255,255,0.85); --an-accent:var(--accent); --an-muted:var(--text-secondary); --an-track:var(--accent-muted); --an-sub:var(--accent); }
+  .dark .an-scope { --an-text:var(--text-primary); --an-card:rgba(26,18,48,0.55); --an-accent:var(--accent-glow); --an-muted:var(--text-secondary); --an-track:rgba(139,92,246,0.22); --an-sub:var(--accent-glow); }
 `;
 
 // ── Константы ────────────────────────────────────────────────────────────────
@@ -47,12 +47,12 @@ function Bar({ label, count, max, emoji }) {
         <span style={{ fontSize: 13, color: 'var(--an-text)' }}>
           {emoji ? `${emoji} ` : ''}{label}
         </span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>{count}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-glow)' }}>{count}</span>
       </div>
       <div style={{ height: 6, background: 'var(--an-track)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{
           height: '100%', width: `${pct}%`,
-          background: 'linear-gradient(90deg, #7C6CFF, #A78BFA)',
+          background: 'linear-gradient(90deg, var(--accent), var(--accent-glow))',
           borderRadius: 3, transition: 'width 0.5s ease',
         }} />
       </div>
@@ -83,8 +83,8 @@ function Sparkline({ data }) {
       {/* Залитая область */}
       <defs>
         <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7C6CFF" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#7C6CFF" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon
@@ -95,14 +95,14 @@ function Sparkline({ data }) {
       <polyline
         points={polyline}
         fill="none"
-        stroke="#7C6CFF"
+        stroke="var(--accent)"
         strokeWidth="2"
         strokeLinejoin="round"
         strokeLinecap="round"
       />
       {/* Точки */}
       {points.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="3" fill="#A78BFA" />
+        <circle key={i} cx={p.x} cy={p.y} r="3" fill="var(--accent-glow)" />
       ))}
       {/* Метки месяцев */}
       {points.map((p, i) => {
@@ -150,20 +150,20 @@ export default function AnalyticsPage() {
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Аналитика доступна на Premium</div>
-          <Link to="/upgrade" style={{ color: '#7C6CFF' }}>Перейти на Premium →</Link>
+          <Link to="/upgrade" style={{ color: 'var(--accent)' }}>Перейти на Premium →</Link>
         </div>
       </div>
     );
   }
 
   if (loading) return (
-    <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+    <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
       Загрузка…
     </div>
   );
 
   if (error) return (
-    <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+    <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-danger)' }}>
       Ошибка: {error}
     </div>
   );

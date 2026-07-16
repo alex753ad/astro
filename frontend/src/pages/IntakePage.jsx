@@ -61,11 +61,11 @@ export default function IntakePage() {
   };
 
   if (error) return (
-    <div style={s.page}><div style={s.center}><p style={{ color: '#f0a0a0' }}>{error}</p></div></div>
+    <div style={s.page}><div style={s.center}><p style={{ color: 'var(--color-danger)' }}>{error}</p></div></div>
   );
 
   if (!info) return (
-    <div style={s.page}><div style={s.center}><div style={s.logo}>☽ ✦ ☾</div><p style={{ color: '#9080b0' }}>Загрузка…</p></div></div>
+    <div style={s.page}><div style={s.center}><div style={s.logo}>☽ ✦ ☾</div><p style={{ color: 'var(--text-secondary)' }}>Загрузка…</p></div></div>
   );
 
   const alreadyDone = done || info.status === 'converted' || (info.submitted && info.status !== 'pending');
@@ -129,14 +129,14 @@ export default function IntakePage() {
 const s = {
   page: {
     minHeight: '100vh',
-    background: 'linear-gradient(160deg, #0e0c1a 0%, #1a1030 100%)',
+    background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)',
     color: '#fff',
     fontFamily: "'Segoe UI', Arial, sans-serif",
   },
   center: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 16 },
-  logo: { fontSize: 22, color: '#c9a8ff' },
+  logo: { fontSize: 22, color: 'var(--accent-glow)' },
   header: { display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px', borderBottom: '1px solid rgba(112,80,200,0.2)' },
-  brand: { fontSize: 18, fontWeight: 700, color: '#c9a8ff', letterSpacing: 0.5 },
+  brand: { fontSize: 18, fontWeight: 700, color: 'var(--accent-glow)', letterSpacing: 0.5 },
   main: { maxWidth: 520, margin: '0 auto', padding: '32px 20px 60px' },
   card: {
     background: 'rgba(255,255,255,0.03)',
@@ -145,19 +145,19 @@ const s = {
     padding: '28px 24px',
     display: 'flex', flexDirection: 'column',
   },
-  title: { margin: '0 0 6px', fontSize: 24, fontWeight: 700, color: '#f0e8ff' },
-  subtitle: { margin: '0 0 20px', fontSize: 14, color: '#9080b0' },
-  label: { fontSize: 12, color: '#9060C8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, margin: '12px 0 6px' },
+  title: { margin: '0 0 6px', fontSize: 24, fontWeight: 700, color: 'var(--accent-muted)' },
+  subtitle: { margin: '0 0 20px', fontSize: 14, color: 'var(--text-secondary)' },
+  label: { fontSize: 12, color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, margin: '12px 0 6px' },
   input: {
     background: 'rgba(255,255,255,0.05)',
     border: '1px solid rgba(112,80,200,0.3)',
     borderRadius: 10, padding: '11px 14px',
     color: '#fff', fontSize: 15, fontFamily: 'inherit', outline: 'none',
   },
-  check: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#b0a0d0', margin: '8px 0' },
+  check: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0' },
   btn: {
     marginTop: 20,
-    background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
     color: '#fff', border: 'none', borderRadius: 12,
     padding: '14px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
   },

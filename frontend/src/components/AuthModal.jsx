@@ -159,8 +159,8 @@ export default function AuthModal({ onClose }) {
   // ── Styles ──────────────────────────────────────────────
   const inp = {
     width: '100%', padding: '11px 14px', borderRadius: 8,
-    border: '1px solid #334155', background: '#0f172a',
-    color: '#e2e8f0', fontSize: 14, fontFamily: 'inherit',
+    border: '1px solid var(--border)', background: 'var(--bg-deeper)',
+    color: 'var(--text-primary)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   };
   const eye = {
@@ -172,26 +172,26 @@ export default function AuthModal({ onClose }) {
     width: '100%', padding: '12px', borderRadius: 10, border: 'none',
     background: disabled
       ? 'rgba(124,108,255,0.35)'
-      : 'linear-gradient(135deg,#7C6CFF,#A78BFA)',
+      : 'var(--accent)',
     color: '#fff', fontWeight: 700, fontSize: 14,
     cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
   });
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'#1e293b', border:'1px solid #334155', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
 
-        <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'#64748b', fontSize:22, cursor:'pointer' }}>×</button>
+        <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'var(--text-secondary)', fontSize:22, cursor:'pointer' }}>×</button>
 
         {/* ── FORGOT SENT ── */}
         {mode === 'forgot_sent' && (
           <div style={{ textAlign:'center' }}>
             <div style={{ fontSize:40, marginBottom:12 }}>📬</div>
-            <h2 style={{ margin:'0 0 10px', fontSize:18, fontWeight:700, color:'#f8fafc' }}>Письмо отправлено</h2>
-            <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px', lineHeight:1.6 }}>
-              Если аккаунт с адресом <strong style={{color:'#a78bfa'}}>{forgotEmail}</strong> существует — письмо со ссылкой уже в пути.
+            <h2 style={{ margin:'0 0 10px', fontSize:18, fontWeight:700, color:'var(--text-primary)' }}>Письмо отправлено</h2>
+            <p style={{ fontSize:13, color:'var(--text-secondary)', margin:'0 0 20px', lineHeight:1.6 }}>
+              Если аккаунт с адресом <strong style={{color:'var(--accent-glow)'}}>{forgotEmail}</strong> существует — письмо со ссылкой уже в пути.
             </p>
-            <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'#a78bfa', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
+            <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
               ← Вернуться ко входу
             </button>
           </div>
@@ -202,8 +202,8 @@ export default function AuthModal({ onClose }) {
           <>
             <div style={{ textAlign:'center', marginBottom:20 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>🔑</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'#f8fafc' }}>Восстановление пароля</h2>
-              <p style={{ margin:'6px 0 0', fontSize:13, color:'#64748b' }}>Введите email — пришлём ссылку для сброса</p>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Восстановление пароля</h2>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Введите email — пришлём ссылку для сброса</p>
             </div>
             <div style={{ marginBottom:14 }}>
               <input type="email" placeholder="Email" value={forgotEmail}
@@ -211,12 +211,12 @@ export default function AuthModal({ onClose }) {
                 onKeyDown={e => e.key === 'Enter' && handleForgot()}
                 style={inp} />
             </div>
-            {displayError && <div style={{ fontSize:12, color:'#f87171', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
+            {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
             <button onClick={handleForgot} disabled={forgotLoading} style={btn(forgotLoading)}>
               {forgotLoading ? 'Отправляем…' : 'Отправить ссылку'}
             </button>
-            <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#64748b' }}>
-              <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'#a78bfa', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>← Вернуться ко входу</button>
+            <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>
+              <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>← Вернуться ко входу</button>
             </p>
           </>
         )}
@@ -226,8 +226,8 @@ export default function AuthModal({ onClose }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>✦</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'#f8fafc' }}>Войти</h2>
-              <p style={{ margin:'6px 0 0', fontSize:13, color:'#64748b' }}>Войдите чтобы сохранять карты</p>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Войти</h2>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Войдите чтобы сохранять карты</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
               <input type="email" placeholder="Email" value={email}
@@ -245,17 +245,17 @@ export default function AuthModal({ onClose }) {
               </div>
             </div>
             <div style={{ textAlign:'right', marginBottom:10 }}>
-              <button onClick={() => switchMode('forgot')} style={{ background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+              <button onClick={() => switchMode('forgot')} style={{ background:'none', border:'none', color:'var(--text-secondary)', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
                 Забыли пароль?
               </button>
             </div>
-            {displayError && <div style={{ fontSize:12, color:'#f87171', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
+            {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
             <button onClick={handleLogin} disabled={loading} style={btn(loading)}>
               {loading ? 'Загрузка…' : 'Войти'}
             </button>
-            <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#64748b' }}>
+            <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>
               Нет аккаунта?{' '}
-              <button onClick={() => switchMode('register')} style={{ background:'none', border:'none', color:'#a78bfa', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
+              <button onClick={() => switchMode('register')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
                 Зарегистрироваться
               </button>
             </p>
@@ -267,8 +267,8 @@ export default function AuthModal({ onClose }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>✦</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'#f8fafc' }}>Создать аккаунт</h2>
-              <p style={{ margin:'6px 0 0', fontSize:13, color:'#64748b' }}>Бесплатно. Без карты.</p>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Создать аккаунт</h2>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Бесплатно. Без карты.</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
               <input type="text" placeholder="Ваше имя (необязательно)" value={name}
@@ -280,7 +280,7 @@ export default function AuthModal({ onClose }) {
                   onChange={e => setEmail(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSendCode()}
                   style={inp} />
-                <p style={{ margin:'4px 0 0', fontSize:11, color:'#64748b', lineHeight:1.5 }}>
+                <p style={{ margin:'4px 0 0', fontSize:11, color:'var(--text-secondary)', lineHeight:1.5 }}>
                   Используйте почту российского сервиса: yandex.ru, mail.ru, rambler.ru и др.
                 </p>
               </div>
@@ -295,7 +295,7 @@ export default function AuthModal({ onClose }) {
                     {showPass ? '🙈' : '👁'}
                   </button>
                 </div>
-                <p style={{ margin:'4px 0 0', fontSize:11, color:'#64748b', lineHeight:1.5 }}>
+                <p style={{ margin:'4px 0 0', fontSize:11, color:'var(--text-secondary)', lineHeight:1.5 }}>
                   Минимум 8 символов · буквы и цифры · не только цифры
                 </p>
               </div>
@@ -304,19 +304,19 @@ export default function AuthModal({ onClose }) {
                   placeholder="Повторите пароль"
                   value={password2} onChange={e => setPassword2(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSendCode()}
-                  style={{ ...inp, paddingRight:40, borderColor: password2 && password !== password2 ? '#f87171' : '#334155' }} />
+                  style={{ ...inp, paddingRight:40, borderColor: password2 && password !== password2 ? 'var(--color-danger)' : 'var(--border)' }} />
                 <button onClick={() => setShowPass2(p => !p)} style={eye} tabIndex={-1}>
                   {showPass2 ? '🙈' : '👁'}
                 </button>
               </div>
             </div>
-            {displayError && <div style={{ fontSize:12, color:'#f87171', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
+            {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
             <button onClick={handleSendCode} disabled={otpLoading} style={btn(otpLoading)}>
               {otpLoading ? 'Отправляю код…' : 'Получить код →'}
             </button>
-            <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'#64748b' }}>
+            <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>
               Уже есть аккаунт?{' '}
-              <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'#a78bfa', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
+              <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
                 Войти
               </button>
             </p>
@@ -328,9 +328,9 @@ export default function AuthModal({ onClose }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>📬</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'#f8fafc' }}>Введите код</h2>
-              <p style={{ margin:'8px 0 0', fontSize:13, color:'#94a3b8', lineHeight:1.6 }}>
-                Код отправлен на <strong style={{color:'#a78bfa'}}>{email}</strong>.<br/>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Введите код</h2>
+              <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>
+                Код отправлен на <strong style={{color:'var(--accent-glow)'}}>{email}</strong>.<br/>
                 Действителен 10 минут.
               </p>
             </div>
@@ -345,16 +345,16 @@ export default function AuthModal({ onClose }) {
                 autoFocus
               />
             </div>
-            {displayError && <div style={{ fontSize:12, color:'#f87171', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
+            {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
             <button onClick={handleVerify} disabled={otpLoading} style={btn(otpLoading)}>
               {otpLoading ? 'Проверяю…' : 'Подтвердить'}
             </button>
-            <p style={{ textAlign:'center', marginTop:14, fontSize:12, color:'#64748b' }}>
+            <p style={{ textAlign:'center', marginTop:14, fontSize:12, color:'var(--text-secondary)' }}>
               {cooldown > 0 ? (
                 `Отправить повторно через ${cooldown} сек.`
               ) : (
                 <button onClick={() => { setMode('register'); setOtpCode(''); setLocalErr(''); }}
-                  style={{ background:'none', border:'none', color:'#a78bfa', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+                  style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
                   Отправить код повторно
                 </button>
               )}

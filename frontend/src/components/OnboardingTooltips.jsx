@@ -96,9 +96,9 @@ const s = {
     zIndex: 900, padding: 16,
   },
   card: {
-    background: '#FFFFFF',
+    background: 'var(--bg-card)',
     borderRadius: 20,
-    border: '0.5px solid #EDE8F5',
+    border: '0.5px solid var(--border)',
     padding: '28px 24px 20px',
     maxWidth: 360, width: '100%',
     boxShadow: '0 16px 48px rgba(112,96,160,0.18)',
@@ -109,14 +109,14 @@ const s = {
     background: 'linear-gradient(135deg, rgba(124,108,255,0.15), rgba(192,96,160,0.15))',
     border: '1px solid rgba(124,108,255,0.25)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 22, color: '#7C6CFF',
+    fontSize: 22, color: 'var(--accent)',
     fontWeight: 700,
   },
   title: {
-    fontSize: 16, fontWeight: 700, color: '#1E1A2E',
+    fontSize: 16, fontWeight: 700, color: 'var(--bg-card)',
   },
   text: {
-    fontSize: 13, color: '#7060A0', lineHeight: 1.6,
+    fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6,
   },
   footer: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -127,21 +127,21 @@ const s = {
   },
   dot: {
     width: 6, height: 6, borderRadius: 3,
-    background: '#DDD8F0',
+    background: 'var(--border)',
     transition: 'all 0.2s',
   },
   dotActive: {
     width: 18,
-    background: '#7C6CFF',
+    background: 'var(--accent)',
   },
   skip: {
     background: 'none', border: 'none',
-    color: '#9080B0', fontSize: 12, cursor: 'pointer',
+    color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer',
     fontFamily: 'inherit', padding: '6px 10px',
   },
   next: {
     padding: '8px 18px', borderRadius: 10, border: 'none',
-    background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
     color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },

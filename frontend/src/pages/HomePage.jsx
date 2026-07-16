@@ -52,7 +52,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
+      background: 'linear-gradient(135deg, var(--accent-muted) 0%, var(--accent-muted) 20%, var(--accent-muted) 45%, var(--accent-muted) 70%, var(--accent-muted) 100%)',
       fontFamily: '"Space Grotesk", system-ui, sans-serif',
       padding: '32px 24px 60px',
     }}>
@@ -66,7 +66,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
           to="/"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            fontSize: 14, color: '#8B5CF6', textDecoration: 'none',
+            fontSize: 14, color: 'var(--accent)', textDecoration: 'none',
             fontWeight: 600,
           }}
           onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
@@ -86,7 +86,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
           padding: '14px 18px', borderRadius: 12,
           background: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.2)',
-          color: '#EF4444', fontSize: 13,
+          color: 'var(--color-danger)', fontSize: 13,
           whiteSpace: 'pre-line',
         }}>
           {error}

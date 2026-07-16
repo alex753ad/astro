@@ -34,12 +34,12 @@ const ASPECT_RU = {
 };
 
 const ASPECT_COLOR = {
-  conjunction: '#d4a843',
-  sextile:     '#4a9de0',
-  trine:       '#4ec98a',
-  square:      '#d94f4f',
-  opposition:  '#c84080',
-  quincunx:    '#a06cc8',
+  conjunction: 'var(--aspect-neutral)',
+  sextile:     'var(--aspect-harmony)',
+  trine:       'var(--color-success)',
+  square:      'var(--aspect-tension)',
+  opposition:  'var(--accent)',
+  quincunx:    'var(--accent)',
 };
 
 export default function AspectGrid({ aspects = [], planets = [] }) {

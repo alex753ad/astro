@@ -133,18 +133,18 @@ export default function RagChat({ chartId, onPaywall }) {
     <div className="rc-scope" style={s.wrap}>
       <style>{`
         .rc-scope {
-          --rc-bg: #FFFFFF; --rc-border: #EDE8F5; --rc-title: #1E1A2E; --rc-sub: #9080B0;
-          --rc-empty: #7060A0; --rc-chip-bg: #F4F0FA; --rc-chip-fg: #4A3080; --rc-ai: #9060C8;
-          --rc-assist-fg: #1E1A2E; --rc-input-bg: #FDFBFF; --rc-input-fg: #1E1A2E;
-          --rc-hint: #B0A0C8; --rc-err: #C03030;
+          --rc-bg: var(--bg-card); --rc-border: var(--border); --rc-title: var(--bg-card); --rc-sub: var(--text-secondary);
+          --rc-empty: var(--text-secondary); --rc-chip-bg: var(--border); --rc-chip-fg: var(--bg-deeper); --rc-ai: var(--accent);
+          --rc-assist-fg: var(--bg-card); --rc-input-bg: var(--bg-deeper); --rc-input-fg: var(--bg-card);
+          --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
         }
         .dark .rc-scope {
-          --rc-bg: transparent; --rc-border: rgba(139,92,246,0.16); --rc-title: #E2DFF0; --rc-sub: #9B97B0;
-          --rc-empty: #9B97B0; --rc-chip-bg: rgba(139,92,246,0.14); --rc-chip-fg: #C6B4F2; --rc-ai: #A78BFA;
-          --rc-assist-fg: #E2DFF0; --rc-input-bg: rgba(35,28,56,0.60); --rc-input-fg: #E2DFF0;
-          --rc-hint: #8983A0; --rc-err: #F87171;
+          --rc-bg: transparent; --rc-border: rgba(139,92,246,0.16); --rc-title: var(--text-primary); --rc-sub: var(--text-secondary);
+          --rc-empty: var(--text-secondary); --rc-chip-bg: rgba(139,92,246,0.14); --rc-chip-fg: var(--accent-glow); --rc-ai: var(--accent-glow);
+          --rc-assist-fg: var(--text-primary); --rc-input-bg: rgba(35,28,56,0.60); --rc-input-fg: var(--text-primary);
+          --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
         }
-        .dark .rc-scope textarea::placeholder { color: #8983A0; }
+        .dark .rc-scope textarea::placeholder { color: var(--text-secondary); }
       `}</style>
 
       {/* Шапка */}
@@ -279,7 +279,7 @@ const s = {
   aiLabel: { fontSize: 11, fontWeight: 700, color: 'var(--rc-ai)', letterSpacing: '0.05em' },
   bubbleUser: {
     maxWidth: '75%', padding: '10px 14px',
-    background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
     color: '#fff', borderRadius: '16px 16px 4px 16px',
     fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
   },
@@ -305,7 +305,7 @@ const s = {
   },
   sendBtn: {
     width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-    background: 'linear-gradient(135deg, #9060C8, #C060A0)',
+    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
     color: '#fff', border: 'none', fontSize: 18,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',

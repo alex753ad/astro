@@ -136,31 +136,31 @@ const xsStyles = `
   backdrop-filter:blur(4px);
 }
 .xs-card, .xs-page{
-  width:100%; max-width:380px; background:#1b1430; border:1px solid #4a3a6e;
+  width:100%; max-width:380px; background:var(--bg-card); border:1px solid var(--bg-deeper);
   border-radius:16px; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.5);
 }
 .xs-page{ margin:48px auto; }
-.xs-title{ color:#e9ddff; font-size:17px; font-weight:700; margin-bottom:16px; }
+.xs-title{ color:var(--accent-muted); font-size:17px; font-weight:700; margin-bottom:16px; }
 .xs-list{ display:flex; flex-direction:column; gap:8px; }
 .xs-opt{
-  text-align:left; background:#120d24; color:#cfc2ea; border:1px solid #3a2e5c;
+  text-align:left; background:var(--bg); color:var(--accent-glow); border:1px solid var(--bg-deeper);
   border-radius:10px; padding:11px 13px; font-size:14px; cursor:pointer;
 }
-.xs-opt:hover{ border-color:#6a54a0; }
-.xs-opt-on{ background:#2a1f4a; border-color:#9060C8; color:#fff; }
+.xs-opt:hover{ border-color:var(--accent); }
+.xs-opt-on{ background:var(--bg-deeper); border-color:var(--accent); color:#fff; }
 .xs-text{
-  width:100%; box-sizing:border-box; margin-top:10px; background:#120d24;
-  color:#e9ddff; border:1px solid #3a2e5c; border-radius:10px; padding:10px;
+  width:100%; box-sizing:border-box; margin-top:10px; background:var(--bg);
+  color:var(--accent-muted); border:1px solid var(--bg-deeper); border-radius:10px; padding:10px;
   font-size:13px; resize:vertical; font-family:inherit;
 }
 .xs-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
-.xs-skip{ background:transparent; color:#a898c8; border:none; padding:9px 12px;
+.xs-skip{ background:transparent; color:var(--text-secondary); border:none; padding:9px 12px;
   font-size:13px; cursor:pointer; }
 .xs-send{
-  background:linear-gradient(135deg,#9060C8,#C060A0); color:#fff; border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent)); color:#fff; border:none;
   border-radius:10px; padding:9px 18px; font-size:14px; font-weight:700; cursor:pointer;
 }
 .xs-send:disabled{ opacity:.5; cursor:default; }
-.xs-thanks{ color:#b9ffcf; font-size:15px; line-height:1.6; text-align:center; padding:12px; }
-.xs-sub{ color:#8f7fb5; font-size:13px; margin-top:8px; }
+.xs-thanks{ color:var(--accent-muted); font-size:15px; line-height:1.6; text-align:center; padding:12px; }
+.xs-sub{ color:var(--text-secondary); font-size:13px; margin-top:8px; }
 `;

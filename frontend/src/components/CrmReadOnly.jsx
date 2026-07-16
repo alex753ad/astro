@@ -133,27 +133,27 @@ export function CrmLock({ feature, clientName, onClose, onUpgrade }) {
 const roStyles = `
 .ro-banner{
   display:flex; align-items:center; gap:10px; margin:0 0 14px;
-  background:rgba(144,96,200,.12); border:1px solid #4a3a6e; border-radius:12px;
-  padding:11px 15px; color:#cfc2ea; font-size:13px; line-height:1.5;
+  background:rgba(144,96,200,.12); border:1px solid var(--bg-deeper); border-radius:12px;
+  padding:11px 15px; color:var(--accent-glow); font-size:13px; line-height:1.5;
 }
-.ro-dot{ width:8px; height:8px; border-radius:50%; background:#C060A0; flex:0 0 auto; }
+.ro-dot{ width:8px; height:8px; border-radius:50%; background:var(--accent); flex:0 0 auto; }
 .ro-overlay{
   position:fixed; inset:0; z-index:10000; background:rgba(8,5,18,.72);
   display:flex; align-items:center; justify-content:center; padding:20px;
   backdrop-filter:blur(4px);
 }
 .ro-card{
-  width:100%; max-width:380px; background:#1b1430; border:1px solid #4a3a6e;
+  width:100%; max-width:380px; background:var(--bg-card); border:1px solid var(--bg-deeper);
   border-radius:16px; padding:24px; box-shadow:0 12px 40px rgba(0,0,0,.5); text-align:center;
 }
 .ro-lock{ font-size:26px; margin-bottom:8px; }
-.ro-title{ color:#e9ddff; font-size:17px; font-weight:700; margin-bottom:10px; }
-.ro-body{ color:#bcaee0; font-size:14px; line-height:1.6; margin-bottom:18px; }
+.ro-title{ color:var(--accent-muted); font-size:17px; font-weight:700; margin-bottom:10px; }
+.ro-body{ color:var(--accent-glow); font-size:14px; line-height:1.6; margin-bottom:18px; }
 .ro-actions{ display:flex; gap:10px; justify-content:center; }
-.ro-later{ background:transparent; color:#a898c8; border:none; padding:9px 14px;
+.ro-later{ background:transparent; color:var(--text-secondary); border:none; padding:9px 14px;
   font-size:13px; cursor:pointer; }
 .ro-up{
-  background:linear-gradient(135deg,#9060C8,#C060A0); color:#fff; border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent)); color:#fff; border:none;
   border-radius:10px; padding:9px 18px; font-size:14px; font-weight:700; cursor:pointer;
 }
 `;

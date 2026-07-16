@@ -97,7 +97,7 @@ function ReportModal({ chartId, onClose }) {
             {pdfStep && <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>{pdfStep}</div>}
           </div>
           <button
-            style={{ ...sr.btn, background: 'linear-gradient(135deg, var(--accent), #C060A0)', opacity: loading ? 0.6 : 1 }}
+            style={{ ...sr.btn, background: 'var(--accent)', opacity: loading ? 0.6 : 1 }}
             onClick={handleDownloadFree}
             disabled={!!loading}
           >
@@ -131,17 +131,17 @@ function ReportModal({ chartId, onClose }) {
 
 const sr = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(30,26,46,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 },
-  modal: { background: '#FFFFFF', borderRadius: 20, border: '0.5px solid var(--border)', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', boxShadow: '0 20px 60px rgba(112,96,160,0.15)' },
-  close: { position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: '#9080B0', fontSize: 16, cursor: 'pointer' },
+  modal: { background: 'var(--bg-card)', borderRadius: 20, border: '0.5px solid var(--border)', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', boxShadow: '0 20px 60px rgba(112,96,160,0.15)' },
+  close: { position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer' },
   title: { margin: '0 0 4px', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' },
-  sub: { margin: '0 0 20px', fontSize: 13, color: '#7060A0', textAlign: 'center' },
+  sub: { margin: '0 0 20px', fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  item: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#F9F7FD' },
+  item: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-deeper)' },
   itemTitle: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 },
-  itemDesc: { fontSize: 11, color: '#7060A0' },
-  btn: { padding: '8px 16px', background: '#1E1A2E', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  error: { margin: '12px 0 0', fontSize: 12, color: '#C03030', textAlign: 'center' },
-  legal: { margin: '14px 0 0', fontSize: 11, color: '#9080B0', textAlign: 'center' },
+  itemDesc: { fontSize: 11, color: 'var(--text-secondary)' },
+  btn: { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  error: { margin: '12px 0 0', fontSize: 12, color: 'var(--color-danger)', textAlign: 'center' },
+  legal: { margin: '14px 0 0', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' },
 };
 
 // Horizontal top tabs (above the 3-column layout)
@@ -176,7 +176,7 @@ function SaveChartBanner({ onLogin }) {
         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
           ✦ Сохраните свою карту
         </div>
-        <div style={{ fontSize: 12, color: '#7060A0', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           Войдите или зарегистрируйтесь, чтобы не потерять результат
         </div>
       </div>
@@ -184,7 +184,7 @@ function SaveChartBanner({ onLogin }) {
         onClick={onLogin}
         style={{
           padding: '9px 20px', borderRadius: 10, border: 'none',
-          background: 'linear-gradient(135deg, var(--accent), #C060A0)',
+          background: 'var(--accent)',
           color: '#fff', fontSize: 13, fontWeight: 700,
           cursor: 'pointer', whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
@@ -462,7 +462,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               🖼 Карточка
             </button>
           )}
-          <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: '#1E1A2E', color: '#fff' }}>
+          <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}>
             📄 PDF-отчёт
           </button>
         </div>
@@ -518,7 +518,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 <button
                   key={key}
                   onClick={() => handleLeftBtn(key)}
-                  style={{ ...s.leftBtn, background: 'linear-gradient(135deg, var(--accent), #a855f7)', borderColor: 'transparent', color: '#fff' }}
+                  style={{ ...s.leftBtn, background: 'var(--accent)', borderColor: 'transparent', color: '#fff' }}
                 >
                   <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
                   <span style={{ flex: 1 }}>{label}</span>
@@ -640,11 +640,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                     onPaywall={() => openPaywall(_upsellCtx())}
                   />
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: '#64748b' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
                     <span style={{ fontSize: 40 }}>🔒</span>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>AI Астролог Астрея</div>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
                     <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Доступно на тарифах Pro и Premium</div>
-                    <button onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg, var(--accent), #C060A0)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                    <button onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Открыть доступ
                     </button>
                   </div>
@@ -848,7 +848,7 @@ const sp = {
   signName: { padding: '4px 6px 4px 0', color: 'var(--text-secondary)' },
   deg: { padding: '4px 6px 4px 0', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   retro: { padding: '4px 0', width: '16px', textAlign: 'center' },
-  retroMark: { color: '#e05050', fontWeight: '700', fontSize: '11px' },
+  retroMark: { color: 'var(--color-danger)', fontWeight: '700', fontSize: '11px' },
 };
 
 const ASPECT_LEGEND = [
@@ -865,11 +865,11 @@ function AspectLegend() {
     <div style={sl.wrap}>
       {ASPECT_LEGEND.map(({ symbol, name, type }) => (
         <div key={name} style={sl.row}>
-          <span style={{ ...sl.sym, color: type === 'tense' ? '#C84040' : '#2060B0' }}>
+          <span style={{ ...sl.sym, color: type === 'tense' ? 'var(--aspect-tension)' : 'var(--aspect-harmony)' }}>
             {symbol}
           </span>
           <span style={sl.label}>{name}</span>
-          <span style={{ ...sl.tag, color: type === 'tense' ? '#C84040' : '#2060B0' }}>
+          <span style={{ ...sl.tag, color: type === 'tense' ? 'var(--aspect-tension)' : 'var(--aspect-harmony)' }}>
             {type === 'tense' ? 'Напряж.' : 'Гарм.'}
           </span>
         </div>
@@ -886,10 +886,10 @@ const sl = {
   wrap: { display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '8px', borderTop: '0.5px solid var(--border)', paddingTop: '10px' },
   row: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' },
   sym: { width: '16px', textAlign: 'center', fontSize: '14px', flexShrink: 0 },
-  label: { flex: 1, color: '#7060A0' },
+  label: { flex: 1, color: 'var(--text-secondary)' },
   tag: { fontSize: '10px', opacity: 0.8 },
   retroRow: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', marginTop: '4px' },
-  retroR: { width: '16px', textAlign: 'center', color: '#e05050', fontWeight: '700', fontSize: '12px', flexShrink: 0 },
+  retroR: { width: '16px', textAlign: 'center', color: 'var(--color-danger)', fontWeight: '700', fontSize: '12px', flexShrink: 0 },
 };
 
 // ── Астро-глоссарий ──
@@ -911,7 +911,7 @@ function TooltipBadge({ term }) {
         style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: 16, height: 16, borderRadius: 8,
-          background: 'rgba(112,96,160,0.15)', color: '#7060A0',
+          background: 'var(--accent-muted)', color: 'var(--text-secondary)',
           fontSize: 10, fontWeight: 700, cursor: 'help',
           border: '1px solid rgba(112,96,160,0.3)',
           userSelect: 'none',
@@ -922,13 +922,13 @@ function TooltipBadge({ term }) {
           position: 'absolute', bottom: '100%', left: '50%',
           transform: 'translateX(-50%)',
           marginBottom: 6, zIndex: 100,
-          background: '#1E1A2E', border: '1px solid rgba(112,96,160,0.3)',
+          background: 'var(--accent)', border: '1px solid rgba(112,96,160,0.3)',
           borderRadius: 10, padding: '10px 14px',
           width: 220, fontSize: 12, lineHeight: 1.6,
-          color: '#C8CAD8', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          color: 'var(--text-secondary)', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
           pointerEvents: 'none',
         }}>
-          <strong style={{ color: '#A090D0' }}>{term}</strong><br />
+          <strong style={{ color: 'var(--accent-glow)' }}>{term}</strong><br />
           {TOOLTIPS[term]}
         </div>
       )}
@@ -939,7 +939,7 @@ function TooltipBadge({ term }) {
 function AstroGlossary() {
   return (
     <>
-      <p style={{ fontSize: 12, color: '#9080B0', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         Что означают термины в карте
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
@@ -956,7 +956,7 @@ function AstroGlossary() {
 function Centered({ text, danger }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
-      <p style={{ color: danger ? '#C03030' : '#7060A0', fontSize: '14px' }}>{text}</p>
+      <p style={{ color: danger ? 'var(--color-danger)' : 'var(--text-secondary)', fontSize: '14px' }}>{text}</p>
     </div>
   );
 }
@@ -1074,7 +1074,7 @@ const s = {
     width: '100%',
   },
   leftBtnActive: {
-    background: 'linear-gradient(135deg, var(--accent), #a855f7)',
+    background: 'var(--accent)',
     borderColor: 'transparent',
     color: '#fff',
   },
@@ -1109,7 +1109,7 @@ const s = {
   },
   overlayLoginBtn: {
     padding: '10px 24px', borderRadius: 10, border: 'none',
-    background: 'linear-gradient(135deg, var(--accent), #C060A0)',
+    background: 'var(--accent)',
     color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
   },
 

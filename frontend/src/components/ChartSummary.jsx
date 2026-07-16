@@ -35,10 +35,10 @@ function signFromDeg(absoluteDeg) {
 
 function theme(dark) {
   return {
-    bg:      dark ? 'rgba(26,18,48,0.55)' : '#ffffff',
-    fg:      dark ? '#E2DFF0'             : '#1E1A2E',
-    accent:  dark ? '#A78BFA'             : '#7C3AED',
-    muted:   dark ? '#9B97B0'             : '#7060A0',
+    bg:      dark ? 'rgba(26,18,48,0.55)' : 'var(--bg-card)',
+    fg:      dark ? 'var(--text-primary)'             : 'var(--bg-card)',
+    accent:  dark ? 'var(--accent-glow)'             : 'var(--accent)',
+    muted:   dark ? 'var(--text-secondary)'             : 'var(--text-secondary)',
     border:  dark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.1)',
   };
 }
@@ -93,7 +93,7 @@ export default function ChartSummary({ planets, ascendant, midheaven, houses, ti
                 <td style={{ ...tdBaseStyle, color: t.fg, fontWeight: 500 }}>
                   <span style={{ opacity: 0.7, marginRight: 6 }}>{PLANET_GLYPHS[p.name]}</span>
                   {PLANET_NAMES_RU[p.name] || p.name}
-                  {p.retrograde && <span style={{ fontSize: 11, color: '#f87171', marginLeft: 4 }}>℞</span>}
+                  {p.retrograde && <span style={{ fontSize: 11, color: 'var(--color-danger)', marginLeft: 4 }}>℞</span>}
                 </td>
                 <td style={{ ...tdBaseStyle, color: t.fg }}>
                   <span style={{ marginRight: 4 }}>{SIGN_GLYPHS[p.sign]}</span>
