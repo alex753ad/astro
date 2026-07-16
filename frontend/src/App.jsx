@@ -89,7 +89,7 @@ function useDarkMode() {
   const [dark, setDark] = useState(() => {
     const stored = localStorage.getItem('astrea_theme');
     if (stored) return stored === 'dark';
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
   });
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -111,29 +111,21 @@ function Header({ onShowAuth, dark, toggleDark }) {
   const navLink = (to) => {
     const isActive = location.pathname === to || location.pathname.startsWith(to + '/');
     return isActive
-      ? "px-3 py-1.5 rounded-full text-violet-600 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 border border-violet-300 dark:border-violet-600 transition-all duration-200 text-sm font-medium"
-      : "px-3 py-1.5 rounded-full text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-astro-purple/20 dark:hover:bg-violet-800/30 transition-all duration-200 text-sm";
+      ? "px-3 py-1.5 rounded-lg text-brand-accent bg-brand-accent/10 border border-brand-border transition-colors duration-200 text-sm font-medium"
+      : "px-3 py-1.5 rounded-lg text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors duration-200 text-sm";
   };
 
   return (
-    <header className="
-      sticky top-0 z-50
-      bg-white/80 dark:bg-slate-900/80 backdrop-blur-md
-      border-b border-astro-purple/20 dark:border-violet-800/30
-      shadow-sm
-    ">
+    <header className="sticky top-0 z-50 bg-brand-card/80 backdrop-blur-md border-b border-brand-border">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
 
         {/* Логотип */}
         <Link to="/" className="flex items-center gap-2 group">
           <span className="text-xl text-violet-400">✦</span>
-          <span className="
-            font-display text-lg font-bold text-slate-800 dark:text-slate-100
-            group-hover:text-violet-500 transition-colors duration-200
-          ">
+          <span className="font-display text-lg font-bold text-brand-text group-hover:text-brand-accent transition-colors duration-200">
             Astrea Timeline
           </span>
-          <span className="hidden sm:block text-sm text-slate-400 dark:text-slate-500 border-l border-violet-200 dark:border-violet-700 pl-3 ml-1">
+          <span className="hidden sm:block text-sm text-brand-muted border-l border-brand-border pl-3 ml-1">
             — плавное выравнивание жизни по ритму космических циклов
           </span>
         </Link>
@@ -168,21 +160,15 @@ function Header({ onShowAuth, dark, toggleDark }) {
             <>
               <Link
                 to="/profile"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full
-                           text-white font-medium transition-all duration-200"
-                style={{ background: 'linear-gradient(135deg, #7C6CFF, #a855f7)' }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                           text-white font-medium transition-colors duration-200"
+                style={{ background: 'var(--accent)' }}
               >
                 <span>{user.name || user.email?.split('@')[0]}</span>
               </Link>
               <button
                 onClick={logout}
-                className="
-                  hidden md:block
-                  px-4 py-1.5 rounded-full text-sm font-medium
-                  text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700
-                  hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-200
-                  transition-all duration-200
-                "
+                className="hidden md:block px-4 py-1.5 rounded-lg text-sm font-medium text-brand-muted border border-brand-border hover:border-brand-accent hover:text-brand-text transition-colors duration-200"
               >
                 Выйти
               </button>
@@ -190,12 +176,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
           ) : (
             <button
               onClick={onShowAuth}
-              className="
-                px-5 py-1.5 rounded-full text-sm font-semibold text-white
-                bg-gradient-to-r from-astro-purple to-astro-pink
-                hover:shadow-pastel hover:-translate-y-0.5
-                transition-all duration-300
-              "
+              className="btn-primary !h-auto px-5 py-1.5 text-sm"
             >
               Войти
             </button>
@@ -207,7 +188,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
           {user && lastChartId && (
             <button
               onClick={() => setMenuOpen(m => !m)}
-              className="md:hidden flex flex-col justify-center gap-1 p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="md:hidden flex flex-col justify-center gap-1 p-2 rounded-lg text-brand-muted hover:bg-brand-accent/10 transition-colors"
               aria-label="Меню"
             >
               <span className={`block w-5 h-0.5 bg-current transition-all duration-200 ${menuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
@@ -220,7 +201,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
       {/* Mobile dropdown */}
       {menuOpen && user && lastChartId && (
-        <div className="md:hidden border-t border-astro-purple/10 dark:border-violet-800/20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md">
+        <div className="md:hidden border-t border-brand-border bg-brand-card/95 backdrop-blur-md">
           <div className="max-w-6xl mx-auto px-4 py-2 flex flex-col gap-1">
             <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
               Натальная карта
@@ -238,7 +219,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             )}
             <button
               onClick={() => { logout(); setMenuOpen(false); }}
-              className="self-start mt-1 px-4 py-1.5 rounded-full text-sm font-medium text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-all duration-200"
+              className="self-start mt-1 px-4 py-1.5 rounded-lg text-sm font-medium text-brand-muted border border-brand-border hover:border-brand-accent hover:text-brand-text transition-colors duration-200"
             >
               Выйти
             </button>
@@ -259,41 +240,11 @@ function AppRoutes() {
   useOGMeta();
 
   return (
-    <div
-      className="relative min-h-screen bg-astro-bg text-slate-800 overflow-x-hidden"
-      style={dark ? { background: 'transparent' } : undefined}
-    >
+    <div className="relative min-h-screen overflow-x-hidden" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
 
       {/* Космический фон — только в тёмной теме */}
       {dark && <NebulaBackground element={null} />}
 
-      {/* Декоративные блобы — только в светлой теме (в тёмной их место занимает nebula) */}
-      {!dark && (
-        <>
-          <div
-            aria-hidden="true"
-            className="
-              pointer-events-none select-none
-              absolute top-[8%] right-[-200px]
-              w-[600px] h-[600px] rounded-full
-              bg-gradient-to-br from-astro-yellow via-astro-pink to-astro-purple
-              blur-[120px] opacity-60 z-0
-            "
-          />
-          <div
-            aria-hidden="true"
-            className="
-              pointer-events-none select-none
-              absolute bottom-[5%] left-[-150px]
-              w-[400px] h-[400px] rounded-full
-              bg-gradient-to-tr from-astro-blue to-astro-purple
-              blur-[100px] opacity-40 z-0
-            "
-          />
-        </>
-      )}
-
-      {/* Основной контент поверх блобов */}
       <div className="relative z-10 flex flex-col min-h-screen">
         <Header onShowAuth={() => setShowAuth(true)} dark={dark} toggleDark={toggleDark} />
 
@@ -320,11 +271,7 @@ function AppRoutes() {
           </Routes>
         </main>
 
-        <footer className="
-          border-t border-astro-purple/15 py-5
-          text-center text-slate-400 text-xs
-          bg-white/50 backdrop-blur-sm
-        ">
+        <footer className="border-t border-brand-border py-5 text-center text-brand-muted text-xs bg-brand-card/50">
           Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
           <span className="mx-2">·</span>
           <Link to="/privacy" className="hover:text-slate-600 transition-colors">Политика конфиденциальности</Link>

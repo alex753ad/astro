@@ -242,7 +242,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
 
   if (!started) {
     return (
-      <div className="glass-card p-6">
+      <div className="solid-card p-6">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: 'var(--accent, #7C6CFF)' }}>✦</span>
@@ -286,7 +286,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
     : sections;
 
   return (
-    <div className="glass-card p-6">
+    <div className="solid-card p-6">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>

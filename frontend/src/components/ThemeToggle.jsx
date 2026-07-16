@@ -1,35 +1,4 @@
-/**
- * ThemeToggle.jsx — F3
- *
- * Переключатель dark/light темы.
- * Сохраняет выбор в localStorage под ключом astrea_theme.
- *
- * Применяет класс 'dark' на <html> для Tailwind dark-mode.
- *
- * Использование:
- *   import ThemeToggle from './components/ThemeToggle';
- *   <ThemeToggle />
- */
-
-import React, { useState, useEffect } from 'react';
-
-const STORAGE_KEY = 'astrea_theme';
-
-export function useTheme() {
-  const [dark, setDark] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return stored === 'dark';
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light');
-  }, [dark]);
-
-  const toggle = () => setDark(d => !d);
-  return { dark, toggle };
-}
+import React from 'react';
 
 export default function ThemeToggle({ dark, onToggle }) {
   return (
@@ -39,16 +8,22 @@ export default function ThemeToggle({ dark, onToggle }) {
       aria-label={dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        width: 36, height: 36, borderRadius: 10,
-        border: '1px solid rgba(112,96,160,0.2)',
-        background: dark ? 'rgba(30,26,46,0.8)' : 'rgba(244,240,250,0.8)',
+        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        border: '1px solid var(--border)',
+        background: 'var(--bg-deeper)',
         cursor: 'pointer',
-        fontSize: 18,
-        transition: 'all 0.2s',
-        flexShrink: 0,
+        transition: 'border-color 0.2s',
       }}
     >
-      {dark ? '☀️' : '🌙'}
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        {dark
+          ? /* sun */ <><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></>
+          : /* moon */ <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        }
+      </svg>
     </button>
   );
 }
