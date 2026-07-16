@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import MotionButton from './MotionButton';
 
 const TODAY = new Date().toISOString().split('T')[0];
 const MIN_DATE = '1900-01-01';
@@ -311,7 +312,8 @@ export default function BirthForm({ onSubmit, loading }) {
         <p style={{ fontSize: 12, color: 'var(--color-success)', margin: '0 0 10px', lineHeight: 1.5 }}>
           ⚠️ Эти данные необходимы исключительно для расчёта математических координат планет по эфемеридам (pyswisseph). Для ознакомления с интерфейсом вы можете использовать демо-данные.
         </p>
-        <button
+        <MotionButton
+          level="secondary"
           type="button"
           onClick={fillDemo}
           style={{
@@ -330,7 +332,7 @@ export default function BirthForm({ onSubmit, loading }) {
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
           ✦ Войти в демо-режим
-        </button>
+        </MotionButton>
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
@@ -386,7 +388,8 @@ export default function BirthForm({ onSubmit, loading }) {
           />
         </Field>
 
-        <button
+        <MotionButton
+          level="primary"
           type="submit"
           disabled={loading}
           style={{
@@ -422,7 +425,7 @@ export default function BirthForm({ onSubmit, loading }) {
               Вычисляем карту…
             </span>
           ) : 'Рассчитать карту'}
-        </button>
+        </MotionButton>
 
         {/* Footer note */}
         <div style={{

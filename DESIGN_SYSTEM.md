@@ -132,6 +132,7 @@ background: var(--accent-glow);
 /* active */
 transform: scale(0.98);
 ```
+*Motion:* hover — подъём `y: -3px` + тень `0 8px 24px rgba(139,92,246,0.32)`; tap — упругий `scale: 0.95` (spring, stiffness ~90).
 
 **Secondary**
 ```css
@@ -142,6 +143,7 @@ border-radius: radius-lg;
 /* hover */
 border-color: var(--accent-muted);
 ```
+*Motion:* hover — подъём `y: -1px` + тень `0 4px 12px rgba(0,0,0,0.12)`; tap — упругий `scale: 0.97` (spring, stiffness ~90).
 
 **Ghost**
 ```css
@@ -151,6 +153,7 @@ color: var(--accent);
 /* hover */
 background: var(--accent-muted);
 ```
+*Motion:* без подъёма и без тени; tap — `scale: 0.98`.
 
 **Disabled (все варианты)**
 ```css
@@ -269,7 +272,7 @@ box-shadow: 0 24px 60px rgba(0,0,0,0.40);
 
 ### Де-слоп правила (v1.1)
 - **B1.** Candy-градиенты, glow-halo, radial aurora — запрещены. Фон плоский.
-- **B2.** Кнопки плоские. Glow-pill с `box-shadow` и `translateY(-1px)` на hover удалён.
+- **B2.** Кнопки не плоские: primary и secondary получают motion-отклик — hover-подъём (`y`) с тенью и упругий (spring) tap `scale`. Ghost — без подъёма и без тени, только tap `scale`. Цвета и заливки при этом не меняются — см. §5 Button.
 - **B3.** solid-card по умолчанию. glass-card — только поверх фонового изображения.
 - **B5.** Тумблер темы — SVG-глиф `stroke="currentColor"`, без эмодзи ☀️/🌙.
 - **B6.** Фон dark-темы — `#0F0A1A` (deep indigo), не slate/charcoal.
@@ -356,3 +359,4 @@ max-width: 1200px;  /* широкие страницы (Admin, CRM) */
 |---|---|---|
 | 1.0 | 2026-07 | Первая версия. Зафиксированы токены, компоненты, правила. |
 | 1.1 | 2026-07 | Де-слоп: плоские кнопки, solid-card по умолчанию, glow только как акцент, тумблер без эмодзи, aspect-* как отдельная шкала, токены-переменные как единый источник. |
+| 1.2 | 2026-07-16 | Кнопки получили motion-отклик (подъём+тень primary/secondary, упругий tap), B2 обновлён. |
