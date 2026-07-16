@@ -27,7 +27,7 @@ function useIsDark() {
 
 const CRM_THEME_CSS = `
   .crm-scope { --crm-text:#1e293b; --crm-card:rgba(255,255,255,0.85); --crm-title:#7c3aed; --crm-input:#f8f4ff; --crm-muted:#94a3b8; }
-  .dark .crm-scope { --crm-text:#E2DFF0; --crm-card:rgba(26,18,48,0.55); --crm-title:#A78BFA; --crm-input:rgba(35,28,56,0.60); --crm-muted:#9B97B0; }
+  .dark .crm-scope { --crm-text:var(--text-primary); --crm-card:rgba(26,18,48,0.55); --crm-title:var(--accent-glow); --crm-input:rgba(35,28,56,0.60); --crm-muted:var(--text-secondary); }
 `;
 
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ const S = {
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   btn: (v = 'ghost') => ({
     padding: '8px 16px', borderRadius: 8, border: v === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
-    background: v === 'primary' ? 'linear-gradient(135deg,#7C6CFF,#A78BFA)' : v === 'danger' ? '#ef4444' : 'transparent',
+    background: v === 'primary' ? 'linear-gradient(135deg,var(--accent),var(--accent-glow))' : v === 'danger' ? '#ef4444' : 'transparent',
     color: v === 'ghost' ? 'var(--crm-title)' : '#fff', fontWeight: 600, fontSize: 13,
   }),
   input: { width: '100%', background: 'var(--crm-input)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '8px 12px', color: 'var(--crm-text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
@@ -108,7 +108,7 @@ const ruEvent = (ev) => {
 const STATUS_META = {
   lead:     ['Лид', '#f59e0b'],
   active:   ['Активный', '#22c55e'],
-  regular:  ['Постоянный', '#8b5cf6'],
+  regular:  ['Постоянный', 'var(--accent)'],
   archived: ['Архив', '#64748b'],
 };
 const STATUS_OPTIONS = Object.entries(STATUS_META).map(([v, m]) => [v, m[0]]);
@@ -908,7 +908,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               {consultations.map(c => {
                 const badge = ({
                   done: ['Проведена', '#22c55e'],
-                  planned: ['Запланирована', '#8b5cf6'],
+                  planned: ['Запланирована', 'var(--accent)'],
                   canceled: ['Отменена', '#ef4444'],
                 })[c.status] || [c.status, '#64748b'];
                 return (
@@ -925,8 +925,8 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                     </div>
                     {c.notes && <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes}</div>}
                     {c.assignment && (
-                      <div style={{ marginTop: 8, borderLeft: '3px solid #8b5cf6', paddingLeft: 10, fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#8b5cf6' }}>ЗАДАНИЕ · </span>{c.assignment}
+                      <div style={{ marginTop: 8, borderLeft: '3px solid var(--accent)', paddingLeft: 10, fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>ЗАДАНИЕ · </span>{c.assignment}
                       </div>
                     )}
                   </div>
@@ -1102,7 +1102,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
       {isFiltered && (
         <div style={{ ...S.muted, marginBottom: 12, fontSize: 12 }}>
           Показаны результаты фильтра — {clients.length} кл.
-          <button style={{ marginLeft: 8, background: 'none', border: 'none', color: '#7C6CFF', cursor: 'pointer', fontSize: 12 }} onClick={resetFilter}>
+          <button style={{ marginLeft: 8, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12 }} onClick={resetFilter}>
             Сбросить
           </button>
         </div>
@@ -1137,7 +1137,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               {client.natal_chart_id && (
                 <Link
                   to={`/planner/${client.natal_chart_id}`}
-                  style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: '#a78bfa', border: '1px solid #a78bfa40' }}
+                  style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: 'var(--accent-glow)', border: '1px solid rgba(167,139,250,0.25)' }}
                 >
                   Планер
                 </Link>
@@ -1483,21 +1483,21 @@ function PracticeChart({ data, valueKey, formatValue }) {
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible', display: 'block' }}>
       <defs>
         <linearGradient id="pf-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7C6CFF" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#7C6CFF" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon
         points={`${points[0].x},${H - 18} ${polyline} ${points[points.length - 1].x},${H - 18}`}
         fill="url(#pf-fill)"
       />
-      <polyline points={polyline} fill="none" stroke="#7C6CFF" strokeWidth="2"
+      <polyline points={polyline} fill="none" stroke="var(--accent)" strokeWidth="2"
         strokeLinejoin="round" strokeLinecap="round" />
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="3" fill="#A78BFA" />
+          <circle cx={p.x} cy={p.y} r="3" fill="var(--accent-glow)" />
           {values[i] > 0 && (
-            <text x={p.x} y={p.y - 6} textAnchor="middle" fontSize="9" fill="#A78BFA">
+            <text x={p.x} y={p.y - 6} textAnchor="middle" fontSize="9" fill="var(--accent-glow)">
               {formatValue ? formatValue(values[i]) : values[i]}
             </text>
           )}
@@ -1617,7 +1617,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
                       padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
                       fontSize: 12, fontWeight: chartMode === key ? 700 : 400,
                       background: chartMode === key ? 'rgba(124,108,255,0.25)' : 'rgba(139,92,246,0.08)',
-                      color: chartMode === key ? '#A78BFA' : 'var(--crm-muted)',
+                      color: chartMode === key ? 'var(--accent-glow)' : 'var(--crm-muted)',
                       transition: 'all 0.15s',
                     }}
                   >{label}</button>
@@ -1653,7 +1653,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
                     >
                       <div>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</span>
-                        {r.reason && <span style={{ ...S.muted, marginLeft: 8, color: '#a78bfa' }}>повод: {ruEvent(r.reason)}</span>}
+                        {r.reason && <span style={{ ...S.muted, marginLeft: 8, color: 'var(--accent-glow)' }}>повод: {ruEvent(r.reason)}</span>}
                       </div>
                       <span style={S.muted}>{r.last_consultation ? `был(а): ${r.last_consultation.slice(0, 10)}` : 'без консультаций'}</span>
                     </div>
@@ -1734,7 +1734,7 @@ function AuthorLibraryPanel({ authFetch }) {
               {items.map(it => (
                 <div key={it.id} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 8, padding: '10px 12px' }}>
                   <div style={{ ...S.row, marginBottom: 6 }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>{it.key}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{it.key}</span>
                     <span style={{ display: 'flex', gap: 6 }}>
                       <button style={S.btn()} onClick={() => edit(it)}>✎</button>
                       <button style={S.btn('danger')} onClick={() => remove(it.id)}>✕</button>

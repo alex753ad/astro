@@ -94,10 +94,10 @@ function ReportModal({ chartId, onClose }) {
           <div style={{ flex: 1 }}>
             <div style={sr.itemTitle}>Базовый PDF — бесплатно</div>
             <div style={sr.itemDesc}>Натальная карта + позиции планет + аспекты</div>
-            {pdfStep && <div style={{ fontSize: 11, color: '#7C6CFF', marginTop: 4 }}>{pdfStep}</div>}
+            {pdfStep && <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>{pdfStep}</div>}
           </div>
           <button
-            style={{ ...sr.btn, background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', opacity: loading ? 0.6 : 1 }}
+            style={{ ...sr.btn, background: 'linear-gradient(135deg, var(--accent), #C060A0)', opacity: loading ? 0.6 : 1 }}
             onClick={handleDownloadFree}
             disabled={!!loading}
           >
@@ -131,13 +131,13 @@ function ReportModal({ chartId, onClose }) {
 
 const sr = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(30,26,46,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 },
-  modal: { background: '#FFFFFF', borderRadius: 20, border: '0.5px solid #EDE8F5', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', boxShadow: '0 20px 60px rgba(112,96,160,0.15)' },
+  modal: { background: '#FFFFFF', borderRadius: 20, border: '0.5px solid var(--border)', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', boxShadow: '0 20px 60px rgba(112,96,160,0.15)' },
   close: { position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: '#9080B0', fontSize: 16, cursor: 'pointer' },
-  title: { margin: '0 0 4px', fontSize: 18, fontWeight: 600, color: '#1E1A2E', textAlign: 'center' },
+  title: { margin: '0 0 4px', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' },
   sub: { margin: '0 0 20px', fontSize: 13, color: '#7060A0', textAlign: 'center' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  item: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid #EDE8F5', background: '#F9F7FD' },
-  itemTitle: { fontSize: 13, fontWeight: 500, color: '#1E1A2E', marginBottom: 2 },
+  item: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#F9F7FD' },
+  itemTitle: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 },
   itemDesc: { fontSize: 11, color: '#7060A0' },
   btn: { padding: '8px 16px', background: '#1E1A2E', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   error: { margin: '12px 0 0', fontSize: 12, color: '#C03030', textAlign: 'center' },
@@ -173,7 +173,7 @@ function SaveChartBanner({ onLogin }) {
       gap: 16, flexWrap: 'wrap',
     }}>
       <div>
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#1E1A2E', marginBottom: 4 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
           ✦ Сохраните свою карту
         </div>
         <div style={{ fontSize: 12, color: '#7060A0', lineHeight: 1.5 }}>
@@ -184,7 +184,7 @@ function SaveChartBanner({ onLogin }) {
         onClick={onLogin}
         style={{
           padding: '9px 20px', borderRadius: 10, border: 'none',
-          background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+          background: 'linear-gradient(135deg, var(--accent), #C060A0)',
           color: '#fff', fontSize: 13, fontWeight: 700,
           cursor: 'pointer', whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
@@ -518,7 +518,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 <button
                   key={key}
                   onClick={() => handleLeftBtn(key)}
-                  style={{ ...s.leftBtn, background: 'linear-gradient(135deg, #7C6CFF, #a855f7)', borderColor: 'transparent', color: '#fff' }}
+                  style={{ ...s.leftBtn, background: 'linear-gradient(135deg, var(--accent), #a855f7)', borderColor: 'transparent', color: '#fff' }}
                 >
                   <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
                   <span style={{ flex: 1 }}>{label}</span>
@@ -644,7 +644,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                     <span style={{ fontSize: 40 }}>🔒</span>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#1e293b' }}>AI Астролог Астрея</div>
                     <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Доступно на тарифах Pro и Premium</div>
-                    <button onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg, #7C6CFF, #C060A0)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                    <button onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg, var(--accent), #C060A0)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Открыть доступ
                     </button>
                   </div>
@@ -883,7 +883,7 @@ function AspectLegend() {
 }
 
 const sl = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '8px', borderTop: '0.5px solid #EDE8F5', paddingTop: '10px' },
+  wrap: { display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '8px', borderTop: '0.5px solid var(--border)', paddingTop: '10px' },
   row: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' },
   sym: { width: '16px', textAlign: 'center', fontSize: '14px', flexShrink: 0 },
   label: { flex: 1, color: '#7060A0' },
@@ -944,7 +944,7 @@ function AstroGlossary() {
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         {Object.keys(TOOLTIPS).map(term => (
-          <span key={term} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#1E1A2E' }}>
+          <span key={term} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-primary)' }}>
             {term} <TooltipBadge term={term} />
           </span>
         ))}
@@ -1074,7 +1074,7 @@ const s = {
     width: '100%',
   },
   leftBtnActive: {
-    background: 'linear-gradient(135deg, #7C6CFF, #a855f7)',
+    background: 'linear-gradient(135deg, var(--accent), #a855f7)',
     borderColor: 'transparent',
     color: '#fff',
   },
@@ -1109,7 +1109,7 @@ const s = {
   },
   overlayLoginBtn: {
     padding: '10px 24px', borderRadius: 10, border: 'none',
-    background: 'linear-gradient(135deg, #7C6CFF, #C060A0)',
+    background: 'linear-gradient(135deg, var(--accent), #C060A0)',
     color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
   },
 

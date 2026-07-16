@@ -671,7 +671,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           --tt-s4-bg: #FFF8E8; --tt-s4-fg: #C08020;
         }
         .dark .tt-scope {
-          --tt-card: rgba(26,18,48,0.60); --tt-text: #E2DFF0; --tt-text2: #9B97B0;
+          --tt-card: rgba(26,18,48,0.60); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
           --tt-text3: #8983A0; --tt-border: rgba(139,92,246,0.14); --tt-border2: rgba(139,92,246,0.20);
           --tt-acc-bg: rgba(139,92,246,0.22); --tt-acc-fg: #C6B4F2; --tt-acc-br: rgba(139,92,246,0.55); --tt-dot: rgba(139,92,246,0.45);
           --tt-s1-bg: rgba(139,92,246,0.14); --tt-s1-fg: #C4B0F0;
@@ -723,7 +723,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : filteredEvents.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "#FDFBF9" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
               Нет транзитов с текущими фильтрами.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте увеличить орб или сбросить фильтры.</span>
             </div>

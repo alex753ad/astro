@@ -311,11 +311,11 @@ export default function LunarCalendarPage() {
         }
         .lc-scope {
           --lc-bg: #FDFBF9; --lc-card: #FFFFFF; --lc-border: #F0EAF8;
-          --lc-title: #1E1A2E; --lc-text2: #9080B0; --lc-text3: #B0A0C8; --lc-daynum: #2D2540;
+          --lc-title: var(--text-primary); --lc-text2: #9080B0; --lc-text3: #B0A0C8; --lc-daynum: #2D2540;
         }
         .dark .lc-scope {
           --lc-bg: transparent; --lc-card: rgba(26,18,48,0.60); --lc-border: rgba(139,92,246,0.16);
-          --lc-title: #E2DFF0; --lc-text2: #9B97B0; --lc-text3: #8983A0; --lc-daynum: #E2DFF0;
+          --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: #8983A0; --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope .lc-blob { display: none; }
       `}</style>
