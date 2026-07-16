@@ -2,77 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── CSS-переменные для light / dark (F3) ─────────────────── */
+/* ── CSS-переменные DS v1.1 ────────────────────────────────── */
+/* Светлая тема */
 :root {
   --bg:              #FDFBF9;
   --bg-card:         #FFFFFF;
+  --bg-deeper:       #FDFBFF;
   --text-primary:    #1E1A2E;
-  --text-secondary:  #7060A0;
+  --text-secondary:  #6B6885;
   --border:          #EDE8F5;
   --accent:          #7C6CFF;
+  --accent-glow:     #8B5CF6;
+  --accent-muted:    rgba(139,92,246,0.08);
+  --color-success:   #059669;
+  --color-warning:   #D97706;
+  --color-danger:    #DC2626;
+  --color-fire:  #E74C3C;  --color-earth: #27AE60;
+  --color-air:   #3498DB;  --color-water: #2980B9;
+  --aspect-harmony: #3498DB; --aspect-tension: #E74C3C; --aspect-neutral: #F39C12;
 }
-
+/* Тёмная тема — основная */
 .dark {
   --bg:              #0F0A1A;
   --bg-card:         #1A1230;
+  --bg-deeper:       #231C38;
   --text-primary:    #E2DFF0;
   --text-secondary:  #9B97B0;
   --border:          #2A2245;
-  --accent:          #A78BFA;
+  --accent:          #8B5CF6;
+  --accent-glow:     #A78BFA;
+  --accent-muted:    rgba(139,92,246,0.15);
+  --color-success:   #34D399;
+  --color-warning:   #FBBF24;
+  --color-danger:    #F87171;
+  --color-fire:  #E74C3C;  --color-earth: #27AE60;
+  --color-air:   #3498DB;  --color-water: #2980B9;
+  --aspect-harmony: #3498DB; --aspect-tension: #E74C3C; --aspect-neutral: #F39C12;
 }
 
 @layer base {
   body {
-    @apply bg-brand-dark text-brand-text antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
     background-color: var(--bg);
     color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   ::selection {
-    @apply bg-brand-accent/30;
+    background-color: rgba(139,92,246,0.30);
   }
 
   /* Scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-brand-dark;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-brand-accent/40 rounded-full;
-  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track  { background: var(--bg); }
+  ::-webkit-scrollbar-thumb  { background: rgba(139,92,246,0.40); border-radius: 9999px; }
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-brand-card/60 backdrop-blur-sm border border-brand-accent/10 rounded-2xl;
+  /* Основная карточка — плотная, без blur */
+  .solid-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
   }
-
-  .glow-border {
-    @apply border border-brand-accent/20 shadow-[0_0_15px_rgba(139,92,246,0.1)];
+  /* Стекло — только для оверлеев/модалок */
+  .glass-card {
+    background: color-mix(in srgb, var(--bg-card) 60%, transparent);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
   }
 
   .btn-primary {
-    @apply px-6 py-3 bg-brand-accent hover:bg-brand-accent/80 text-white font-display
-           font-medium rounded-xl transition-all duration-200
-           shadow-[0_0_20px_rgba(139,92,246,0.3)] hover:shadow-[0_0_30px_rgba(139,92,246,0.5)]
-           active:scale-95;
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 44px; padding: 0 16px;
+    background: var(--accent); color: #fff;
+    font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 700;
+    border-radius: 12px;
+    transition: background-color .2s ease;
   }
+  .btn-primary:hover    { background: var(--accent-glow); }
+  .btn-primary:active   { transform: scale(.98); }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 
   .btn-secondary {
-    @apply px-6 py-3 bg-brand-card border border-brand-accent/20 text-brand-text
-           font-display font-medium rounded-xl transition-all duration-200
-           hover:border-brand-accent/40 active:scale-95;
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 44px; padding: 0 16px;
+    background: var(--bg-card); color: var(--text-primary);
+    border: 1.5px solid var(--border); border-radius: 12px;
+    font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 600;
+    transition: border-color .2s ease;
   }
+  .btn-secondary:hover  { border-color: var(--accent); }
+  .btn-secondary:active { transform: scale(.98); }
 
   .input-field {
-    @apply w-full px-4 py-3 bg-brand-deeper border border-brand-accent/10 rounded-xl
-           text-brand-text placeholder-brand-muted
-           focus:outline-none focus:border-brand-accent/40 focus:ring-1 focus:ring-brand-accent/20
-           transition-all duration-200;
+    width: 100%; padding: 13px 16px;
+    background: var(--bg-deeper); color: var(--text-primary);
+    border: 1.5px solid var(--border); border-radius: 12px;
+    font-size: 16px; transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .input-field::placeholder { color: var(--text-secondary); }
+  .input-field:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(139,92,246,.15);
   }
 }
 

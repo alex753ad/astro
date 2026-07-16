@@ -5,14 +5,6 @@ export default {
   theme: {
     extend: {
       colors: {
-        astro: {
-          bg:     '#FDFBF9',
-          card:   '#FFFFFF',
-          purple: '#E0C3FC',
-          blue:   '#C3E0FC',
-          pink:   '#FCE0EE',
-          yellow: '#FFF0C3',
-        },
         zodiac: {
           fire:  '#E74C3C',
           earth: '#27AE60',
@@ -20,22 +12,20 @@ export default {
           water: '#2980B9',
         },
         aspect: {
-          harmony: '#3498DB',
-          tension: '#E74C3C',
-          neutral: '#F39C12',
+          harmony: 'var(--aspect-harmony)',
+          tension: 'var(--aspect-tension)',
+          neutral: 'var(--aspect-neutral)',
         },
         brand: {
-          dark:   '#0F0A1A',
-          deeper: '#1A1230',
-          card:   '#231C38',
-          accent: '#8B5CF6',
-          glow:   '#A78BFA',
-          text:   '#E2DFF0',
-          muted:  '#9B97B0',
+          bg:     'var(--bg)',
+          card:   'var(--bg-card)',
+          deeper: 'var(--bg-deeper)',
+          border: 'var(--border)',
+          text:   'var(--text-primary)',
+          muted:  'var(--text-secondary)',
+          accent: 'var(--accent)',
+          glow:   'var(--accent-glow)',
         },
-      },
-      boxShadow: {
-        pastel: '0 10px 25px -5px rgba(224, 195, 252, 0.3)',
       },
       fontFamily: {
         display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
