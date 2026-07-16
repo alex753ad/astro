@@ -145,7 +145,7 @@ function daysToBirthday(bd) {
 function BirthdayBadge({ birthDate }) {
   const n = daysToBirthday(birthDate);
   if (n === null || n > 14) return null;
-  const label = n === 0 ? '🎂 ДР сегодня' : `🎂 ДР через ${n} дн.`;
+  const label = n === 0 ? 'ДР сегодня' : `ДР через ${n} дн.`;
   return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-muted)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{label}</span>;
 }
 
@@ -502,10 +502,10 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   return (
     <div>
       <div style={{ ...S.row, marginBottom: 16 }}>
-        <button style={S.btn()} onClick={onBack}>← Назад</button>
+        <button style={S.btn()} onClick={onBack}>Назад</button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={S.btn('primary')} onClick={loadBrief}>✨ Подготовить встречу</button>
-          <button style={S.btn()} onClick={() => loadSummary(false)}>🧾 Резюме клиента</button>
+          <button style={S.btn('primary')} onClick={loadBrief}>Подготовить встречу</button>
+          <button style={S.btn()} onClick={() => loadSummary(false)}>Резюме клиента</button>
           <select
             value={wordLimit}
             onChange={e => setWordLimit(Number(e.target.value))}
@@ -517,7 +517,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
             ))}
           </select>
           <button style={S.btn('primary')} onClick={generateReport} disabled={reportLoading}>
-            {reportLoading ? 'Создаю…' : '📄 Создать PDF отчёт'}
+            {reportLoading ? 'Создаю…' : 'Создать PDF отчёт'}
           </button>
         </div>
       </div>
@@ -632,7 +632,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         {portal?.enabled && portal?.url && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
             <input style={{ ...S.input, flex: 1, minWidth: 220 }} value={portal.url} readOnly />
-            <button style={S.btn()} onClick={copyPortal}>{portalCopied ? '✓ Скопировано' : 'Копировать'}</button>
+            <button style={S.btn()} onClick={copyPortal}>{portalCopied ? 'Скопировано' : 'Копировать'}</button>
           </div>
         )}
       </div>
@@ -686,7 +686,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
       {tab === 'ai' && (
         <div style={S.card}>
           {!aiText && !aiLoading && (
-            <button style={S.btn('primary')} onClick={loadAI}>✨ Получить AI-интерпретацию</button>
+            <button style={S.btn('primary')} onClick={loadAI}>Получить AI-интерпретацию</button>
           )}
           {aiLoading && <div style={S.muted}>Генерирую интерпретацию…</div>}
           {aiText && (() => {
@@ -712,7 +712,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           <div style={{ display: 'flex', gap: 8, marginBottom: 8, position: 'relative' }}>
             <div style={{ position: 'relative' }}>
               <button style={S.btn()} onClick={() => { setShowTemplateDropdown(v => !v); setShowNewTemplateForm(false); }}>
-                📋 Шаблоны
+                Шаблоны
               </button>
               {showTemplateDropdown && (
                 <div style={{
@@ -756,7 +756,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                         style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14, padding: '0 4px', marginLeft: 8 }}
                         title="Удалить"
                       >
-                        ✕
+                        ×
                       </span>
                     </div>
                   ))}
@@ -919,7 +919,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                         {c.topic && <span style={S.muted}>{c.topic}</span>}
                         <span style={{ fontSize: 11, fontWeight: 600, color: badge[1], background: badge[1] + '22', padding: '2px 8px', borderRadius: 6 }}>{badge[0]}</span>
                         {c.price != null && <span style={S.muted}>{c.price} ₽</span>}
-                        {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-air)' }}>🕐 хорар-карта</span>}
+                        {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-air)' }}>хорар-карта</span>}
                       </div>
                       <button style={S.btn('danger')} onClick={() => deleteConsultation(c.id)}>Удалить</button>
                     </div>
@@ -1040,9 +1040,9 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               {allTags.map(t => <option key={t} value={t}>#{t}</option>)}
             </select>
           )}
-          <button style={S.btn('ghost')} onClick={exportCSV}>⬇ CSV</button>
+          <button style={S.btn('ghost')} onClick={exportCSV}>CSV</button>
           <button style={S.btn(showFilter ? 'primary' : 'ghost')} onClick={() => setShowFilter(v => !v)}>
-            🔍 Фильтр по карте
+            Фильтр по карте
           </button>
           <button style={S.btn('primary')} onClick={onAdd}>+ Добавить клиента</button>
         </div>
@@ -1148,7 +1148,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
                   <button style={{ ...S.btn(), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</button>
                 </>
               ) : (
-                <button style={{ ...S.btn(), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(client.id)}>✕</button>
+                <button style={{ ...S.btn(), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(client.id)}>×</button>
               )}
             </div>
           </div>
@@ -1161,7 +1161,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
 // ─── Панель рассылки (021) ────────────────────────────────────────────────────
 function BroadcastPanel({ authFetch, clients }) {
   const withEmail = clients.filter(c => c.email);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [previewClient, setPreviewClient] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1232,9 +1232,9 @@ function BroadcastPanel({ authFetch, clients }) {
 
   return (
     <div style={{ ...S.card }}>
-      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📧 Рассылка месяца</div>
-        <div style={S.muted}>{withEmail.length} с email · {open ? '▲' : '▼'}</div>
+      <div style={S.row}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Рассылка месяца</div>
+        <div style={S.muted}>{withEmail.length} с email ·</div>
       </div>
 
       {open && (
@@ -1312,7 +1312,7 @@ function BroadcastPanel({ authFetch, clients }) {
               {sending ? 'Ставлю в очередь…' : `Отправить прогноз месяца (${withEmail.length})`}
             </button>
             <button style={S.btn()} onClick={loadHistory}>История</button>
-            {queued > 0 && <span style={S.muted}>✓ Поставлено в очередь: {queued}</span>}
+            {queued > 0 && <span style={S.muted}>Поставлено в очередь: {queued}</span>}
           </div>
 
           {history && (
@@ -1336,7 +1336,7 @@ function BroadcastPanel({ authFetch, clients }) {
 
 // ─── Панель анкет (023) ───────────────────────────────────────────────────────
 function IntakePanel({ authFetch, onConverted }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [intakes, setIntakes] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -1387,9 +1387,9 @@ function IntakePanel({ authFetch, onConverted }) {
 
   return (
     <div style={S.card}>
-      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📋 Анкеты клиентов</div>
-        <div style={S.muted}>{submitted.length ? `${submitted.length} новых · ` : ''}{open ? '▲' : '▼'}</div>
+      <div style={S.row}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Анкеты клиентов</div>
+        <div style={S.muted}>{submitted.length ? `${submitted.length} новых · ` : ''}</div>
       </div>
 
       {open && (
@@ -1407,7 +1407,7 @@ function IntakePanel({ authFetch, onConverted }) {
           {newUrl && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
               <input style={{ ...S.input, flex: 1, minWidth: 220 }} value={newUrl} readOnly />
-              <button style={S.btn()} onClick={() => copy(newUrl)}>{copied === newUrl ? '✓ Скопировано' : 'Копировать'}</button>
+              <button style={S.btn()} onClick={() => copy(newUrl)}>{copied === newUrl ? 'Скопировано' : 'Копировать'}</button>
             </div>
           )}
 
@@ -1424,7 +1424,7 @@ function IntakePanel({ authFetch, onConverted }) {
                       </div>
                       <span style={S.muted}>{(i.submitted_at || '').slice(0, 10)}</span>
                     </div>
-                    {d.question && <div style={{ fontSize: 13, color: 'var(--crm-text)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>❓ {d.question}</div>}
+                    {d.question && <div style={{ fontSize: 13, color: 'var(--crm-text)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{d.question}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button style={S.btn('primary')} onClick={() => convert(i.id)} disabled={busyId === i.id}>
                         {busyId === i.id ? 'Добавляю…' : 'Добавить в клиенты'}
@@ -1443,8 +1443,8 @@ function IntakePanel({ authFetch, onConverted }) {
                 <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13 }}>
                   <span style={S.muted}>Ожидает заполнения</span>
                   <span style={{ display: 'flex', gap: 8 }}>
-                    <button style={S.btn()} onClick={() => copy(i.url)}>{copied === i.url ? '✓' : 'Ссылка'}</button>
-                    <button style={S.btn('danger')} onClick={() => remove(i.id)}>✕</button>
+                    <button style={S.btn()} onClick={() => copy(i.url)}>{copied === i.url ? 'Готово' : 'Ссылка'}</button>
+                    <button style={S.btn('danger')} onClick={() => remove(i.id)}>×</button>
                   </span>
                 </div>
               ))}
@@ -1517,7 +1517,7 @@ function PracticeChart({ data, valueKey, formatValue }) {
 
 // ─── Панель аналитики (09/15/16) ─────────────────────────────────────────────
 function StatsPanel({ authFetch, onOpenClient }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [stats, setStats] = useState(null);
   const [insights, setInsights] = useState(null);
@@ -1569,9 +1569,9 @@ function StatsPanel({ authFetch, onOpenClient }) {
 
   return (
     <div style={S.card}>
-      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>📊 Аналитика</div>
-        <div style={S.muted}>{withReason.length ? `${withReason.length} к реактивации · ` : ''}{open ? '▲' : '▼'}</div>
+      <div style={S.row}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Аналитика</div>
+        <div style={S.muted}>{withReason.length ? `${withReason.length} к реактивации · ` : ''}</div>
       </div>
 
       {open && (
@@ -1670,7 +1670,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
 
 // ─── Библиотека авторских трактовок (028) ─────────────────────────────────────
 function AuthorLibraryPanel({ authFetch }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ key: '', content: '' });
@@ -1706,15 +1706,15 @@ function AuthorLibraryPanel({ authFetch }) {
 
   return (
     <div style={S.card}>
-      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>✍️ Мои трактовки</div>
-        <div style={S.muted}>{loaded ? `${items.length} · ` : ''}{open ? '▲' : '▼'}</div>
+      <div style={S.row}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Мои трактовки</div>
+        <div style={S.muted}>{loaded ? `${items.length} · ` : ''}</div>
       </div>
 
       {open && (
         <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
-            Ваши формулировки подмешиваются в AI-разборы (отчёт, бриф, резюме) по совпадению ключей.
+            Ваши формулировки подмешиваются в ИИ-разборы (отчёт, бриф, резюме) по совпадению ключей.
             Ключи: <b>planet_sign</b> (sun_taurus), <b>planet_house_N</b> (saturn_house_7), <b>asc_sign</b> (asc_leo). Планеты — по-английски строчными.
           </div>
 
@@ -1736,8 +1736,8 @@ function AuthorLibraryPanel({ authFetch }) {
                   <div style={{ ...S.row, marginBottom: 6 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{it.key}</span>
                     <span style={{ display: 'flex', gap: 6 }}>
-                      <button style={S.btn()} onClick={() => edit(it)}>✎</button>
-                      <button style={S.btn('danger')} onClick={() => remove(it.id)}>✕</button>
+                      <button style={S.btn()} onClick={() => edit(it)}>Изм.</button>
+                      <button style={S.btn('danger')} onClick={() => remove(it.id)}>×</button>
                     </span>
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{it.content}</div>
@@ -1754,7 +1754,7 @@ function AuthorLibraryPanel({ authFetch }) {
 // ─── Групповой прогноз (18) ───────────────────────────────────────────────────
 function GroupForecastPanel({ authFetch, clients }) {
   const withChart = clients.filter(c => c.natal_chart_id);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState({});
   const [planet, setPlanet] = useState('');
   const [running, setRunning] = useState(false);
@@ -1776,9 +1776,9 @@ function GroupForecastPanel({ authFetch, clients }) {
 
   return (
     <div style={S.card}>
-      <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>🔮 Групповой прогноз</div>
-        <div style={S.muted}>{ids.length ? `${ids.length} выбрано · ` : ''}{open ? '▲' : '▼'}</div>
+      <div style={S.row}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Групповой прогноз</div>
+        <div style={S.muted}>{ids.length ? `${ids.length} выбрано · ` : ''}</div>
       </div>
 
       {open && (
@@ -1837,7 +1837,7 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
   const toggle = (id) => setOpenIds(p => ({ ...p, [id]: !p[id] }));
   return (
     <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>⚡ Важные периоды у клиентов</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Важные периоды у клиентов</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {grouped.map(g => (
           <div key={g.client_id} style={{ borderRadius: 8, background: 'rgba(139,92,246,0.06)', overflow: 'hidden' }}>
@@ -1872,13 +1872,13 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
 
 // ─── Раскладка Astrea: сайдбар + разделы + нижняя полоса ──────────────────────
 const NAV_ITEMS = [
-  { id: 'clients',   icon: '👥', title: 'Клиенты' },
-  { id: 'library',   icon: '✍️', title: 'Мои трактовки' },
-  { id: 'intake',    icon: '📝', title: 'Анкета клиентов' },
-  { id: 'broadcast', icon: '📧', title: 'Рассылка месяца' },
-  { id: 'alerts',    icon: '⚡', title: 'Важные периоды' },
-  { id: 'forecast',  icon: '🔮', title: 'Прогноз по группе' },
-  { id: 'analytics', icon: '📊', title: 'Аналитика' },
+  { id: 'clients',   title: 'Клиенты' },
+  { id: 'library',   title: 'Мои трактовки' },
+  { id: 'intake',    title: 'Анкета клиентов' },
+  { id: 'broadcast', title: 'Рассылка месяца' },
+  { id: 'alerts',    title: 'Важные периоды' },
+  { id: 'forecast',  title: 'Прогноз по группе' },
+  { id: 'analytics', title: 'Аналитика' },
 ];
 
 const SL = {
@@ -1898,24 +1898,35 @@ const SL = {
     border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '14px 16px' },
 };
 
-// Раздел в мини-виде: заголовок + краткая строка, по клику разворачивается в полный
-function Section({ icon, title, subtitle, defaultOpen = false, children }) {
-  const [open, setOpen] = useState(defaultOpen);
+// Профиль астролога с загрузкой аватара (сохраняется в браузере)
+function AvatarProfile({ user }) {
+  const storeKey = `astrea_avatar_${user?.id || user?.email || 'me'}`;
+  const [src, setSrc] = useState(() => { try { return localStorage.getItem(storeKey) || ''; } catch { return ''; } });
+  const inputRef = useRef();
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => { const url = reader.result; setSrc(url); try { localStorage.setItem(storeKey, url); } catch {} };
+    reader.readAsDataURL(f);
+  };
+  const initial = (user?.name || user?.email || '?').slice(0, 1).toUpperCase();
   return (
-    <div style={{ ...S.card, padding: open ? '20px 24px' : '14px 20px', marginBottom: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', marginBottom: 8, borderBottom: '1px solid rgba(139,92,246,0.15)' }}>
       <button
-        onClick={() => setOpen(o => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', background: 'transparent',
-          border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: 0, color: 'var(--crm-text)' }}
+        onClick={() => inputRef.current?.click()}
+        title="Загрузить аватар"
+        style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, overflow: 'hidden',
+          background: 'var(--accent-muted)', color: 'var(--crm-title)', fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
       >
-        <span style={{ fontSize: 18 }}>{icon}</span>
-        <span style={{ flex: 1 }}>
-          <span style={{ display: 'block', fontWeight: 700, fontSize: 15 }}>{title}</span>
-          {!open && subtitle && <span style={{ ...S.muted, display: 'block', marginTop: 2 }}>{subtitle}</span>}
-        </span>
-        <span style={{ ...S.muted, fontSize: 12 }}>{open ? 'Свернуть ▲' : 'Развернуть ▼'}</span>
+        {src ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
       </button>
-      {open && <div style={{ marginTop: 16 }}>{children}</div>}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || user?.email}</div>
+        <div style={S.muted}>Астролог</div>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
     </div>
   );
 }
@@ -1941,9 +1952,8 @@ function WidgetBar({ authFetch }) {
   const retro = (w?.retrogrades || []).map(n => PLANET_RU[n] || n);
   const premium = w?.premium;
 
-  const Cell = ({ icon, label, value }) => (
+  const Cell = ({ label, value }) => (
     <div style={SL.widget}>
-      <span style={{ fontSize: 20 }}>{icon}</span>
       <span style={{ minWidth: 0 }}>
         <span style={{ ...S.muted, display: 'block' }}>{label}</span>
         <span style={{ fontWeight: 600, fontSize: 13, display: 'block' }}>{value}</span>
@@ -1953,11 +1963,11 @@ function WidgetBar({ authFetch }) {
 
   return (
     <div style={SL.bar}>
-      <Cell icon="🕐" label="Ближайшая запись"
+      <Cell label="Ближайшая запись"
         value={appt ? `${fmt(appt.date)} · ${appt.client_name}` : 'Нет записей'} />
-      <Cell icon="🌌" label="Тренды месяца"
+      <Cell label="Тренды месяца"
         value={retro.length ? `Ретроградные: ${retro.join(', ')}` : 'Планеты директны'} />
-      <Cell icon="⭐" label="Premium статус"
+      <Cell label="Premium статус"
         value={premium?.days_left != null ? `Доступно ещё ${premium.days_left} дн.`
           : (premium?.tier === 'premium' ? 'Активен' : premium?.tier || '—')} />
     </div>
@@ -2007,11 +2017,10 @@ export default function CRMPage() {
       <div className="crm-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{CRM_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM доступен на Premium</div>
           <div style={{ ...S.muted, marginBottom: 16 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты.</div>
           <Link to="/upgrade" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}>
-            Перейти на Premium →
+            Перейти на Premium
           </Link>
         </div>
       </div>
@@ -2041,7 +2050,8 @@ export default function CRMPage() {
 
   const sections = {
     clients: (
-      <Section icon="👥" title="Клиенты" subtitle={`${clients.length} клиентов`} defaultOpen>
+      <div>
+        <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 700 }}>Клиенты</h2>
         <ClientList
           clients={displayedClients}
           allClients={clients}
@@ -2054,20 +2064,21 @@ export default function CRMPage() {
             setFilteredClients(p => p ? p.filter(c => c.id !== id) : null);
           }}
         />
-      </Section>
+      </div>
     ),
-    library:  <Section icon="✍️" title="Мои трактовки" subtitle="Библиотека авторских текстов"><AuthorLibraryPanel authFetch={authFetch} /></Section>,
-    intake:   <Section icon="📝" title="Анкета клиентов" subtitle="Сбор данных для натальной карты"><IntakePanel authFetch={authFetch} onConverted={loadClients} /></Section>,
-    broadcast: <Section icon="📧" title="Рассылка месяца" subtitle="Письма клиентам по транзитам"><BroadcastPanel authFetch={authFetch} clients={clients} /></Section>,
-    alerts: (
-      <Section icon="⚡" title="Важные периоды" subtitle={`${groupedAlerts.length} клиентов со значимыми транзитами`}>
-        {groupedAlerts.length > 0
-          ? <AlertsBlock grouped={groupedAlerts} fmtDate={fmtAlertDate} openClientTransits={openClientTransits} />
-          : <div style={S.muted}>Значимых транзитов у клиентов не найдено.</div>}
-      </Section>
-    ),
-    forecast: <Section icon="🔮" title="Прогноз по группе" subtitle="Транзиты по выбранным клиентам"><GroupForecastPanel authFetch={authFetch} clients={clients} /></Section>,
-    analytics: <Section icon="📊" title="Аналитика" subtitle="Статистика по базе клиентов"><StatsPanel authFetch={authFetch} onOpenClient={openClientTransits} /></Section>,
+    library:   <AuthorLibraryPanel authFetch={authFetch} />,
+    intake:    <IntakePanel authFetch={authFetch} onConverted={loadClients} />,
+    broadcast: <BroadcastPanel authFetch={authFetch} clients={clients} />,
+    alerts: groupedAlerts.length > 0
+      ? <AlertsBlock grouped={groupedAlerts} fmtDate={fmtAlertDate} openClientTransits={openClientTransits} />
+      : (
+        <div style={S.card}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Важные периоды у клиентов</div>
+          <div style={S.muted}>Значимых транзитов у клиентов не найдено.</div>
+        </div>
+      ),
+    forecast:  <GroupForecastPanel authFetch={authFetch} clients={clients} />,
+    analytics: <StatsPanel authFetch={authFetch} onOpenClient={openClientTransits} />,
   };
 
   return (
@@ -2075,22 +2086,13 @@ export default function CRMPage() {
       <style>{CRM_THEME_CSS}</style>
       <div style={SL.shell}>
         <aside style={SL.sidebar}>
-          <div style={SL.brand}><span style={{ fontSize: 20 }}>✦</span><span>Рабочий кабинет<br/>Astrea</span></div>
+          <div style={SL.brand}><span>Рабочий кабинет<br/>Astrea</span></div>
+          <AvatarProfile user={user} />
           {NAV_ITEMS.map(n => (
             <button key={n.id} onClick={() => goSection(n.id)} style={SL.navBtn(activeSection === n.id)}>
-              <span>{n.icon}</span><span>{n.title}</span>
+              {n.title}
             </button>
           ))}
-          <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 8px 0', borderTop: '1px solid rgba(139,92,246,0.15)' }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--crm-title)' }}>
-              {(user?.name || user?.email || '?').slice(0, 1).toUpperCase()}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || user?.email}</div>
-              <div style={S.muted}>Астролог</div>
-            </div>
-          </div>
         </aside>
 
         <main style={SL.content}>
