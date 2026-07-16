@@ -240,7 +240,7 @@ function AppRoutes() {
   useOGMeta();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden" style={{ background: 'var(--bg)', color: 'var(--text-primary)' }}>
+    <div className="relative min-h-screen overflow-x-hidden" style={{ background: dark ? 'transparent' : 'var(--bg)', color: 'var(--text-primary)' }}>
 
       {/* Космический фон — только в тёмной теме */}
       {dark && <NebulaBackground element={null} />}
