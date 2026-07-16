@@ -1233,7 +1233,7 @@ function BroadcastPanel({ authFetch, clients }) {
   return (
     <div style={{ ...S.card }}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>Рассылка месяца</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📧 Рассылка месяца</div>
         <div style={S.muted}>{withEmail.length} с email · {open ? '▲' : '▼'}</div>
       </div>
 
@@ -1388,7 +1388,7 @@ function IntakePanel({ authFetch, onConverted }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>Анкеты клиентов</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📋 Анкеты клиентов</div>
         <div style={S.muted}>{submitted.length ? `${submitted.length} новых · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1570,7 +1570,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>Аналитика</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>📊 Аналитика</div>
         <div style={S.muted}>{withReason.length ? `${withReason.length} к реактивации · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1707,7 +1707,7 @@ function AuthorLibraryPanel({ authFetch }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>Мои трактовки</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>✍️ Мои трактовки</div>
         <div style={S.muted}>{loaded ? `${items.length} · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1777,7 +1777,7 @@ function GroupForecastPanel({ authFetch, clients }) {
   return (
     <div style={S.card}>
       <div style={{ ...S.row, cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>Групповой прогноз</div>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>🔮 Групповой прогноз</div>
         <div style={S.muted}>{ids.length ? `${ids.length} выбрано · ` : ''}{open ? '▲' : '▼'}</div>
       </div>
 
@@ -1837,7 +1837,7 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
   const toggle = (id) => setOpenIds(p => ({ ...p, [id]: !p[id] }));
   return (
     <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Важные периоды у клиентов</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>⚡ Важные периоды у клиентов</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {grouped.map(g => (
           <div key={g.client_id} style={{ borderRadius: 8, background: 'rgba(139,92,246,0.06)', overflow: 'hidden' }}>
@@ -1870,6 +1870,100 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
   );
 }
 
+// ─── Раскладка Astrea: сайдбар + разделы + нижняя полоса ──────────────────────
+const NAV_ITEMS = [
+  { id: 'clients',   icon: '👥', title: 'Клиенты' },
+  { id: 'library',   icon: '✍️', title: 'Мои трактовки' },
+  { id: 'intake',    icon: '📝', title: 'Анкета клиентов' },
+  { id: 'broadcast', icon: '📧', title: 'Рассылка месяца' },
+  { id: 'alerts',    icon: '⚡', title: 'Важные периоды' },
+  { id: 'forecast',  icon: '🔮', title: 'Прогноз по группе' },
+  { id: 'analytics', icon: '📊', title: 'Аналитика' },
+];
+
+const SL = {
+  shell: { maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 24, alignItems: 'flex-start' },
+  sidebar: { flex: '0 0 240px', position: 'sticky', top: 24, alignSelf: 'flex-start',
+    background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: 16,
+    display: 'flex', flexDirection: 'column', gap: 4, minHeight: 'calc(100vh - 48px)' },
+  brand: { display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', fontWeight: 700, color: 'var(--crm-title)' },
+  navBtn: (active) => ({ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
+    border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, textAlign: 'left', width: '100%',
+    fontWeight: active ? 700 : 500,
+    color: active ? 'var(--crm-title)' : 'var(--crm-text)',
+    background: active ? 'var(--accent-muted)' : 'transparent' }),
+  content: { flex: 1, minWidth: 0 },
+  bar: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginTop: 8 },
+  widget: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--crm-card)',
+    border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '14px 16px' },
+};
+
+// Раздел в мини-виде: заголовок + краткая строка, по клику разворачивается в полный
+function Section({ icon, title, subtitle, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ ...S.card, padding: open ? '20px 24px' : '14px 20px', marginBottom: 16 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', background: 'transparent',
+          border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: 0, color: 'var(--crm-text)' }}
+      >
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <span style={{ flex: 1 }}>
+          <span style={{ display: 'block', fontWeight: 700, fontSize: 15 }}>{title}</span>
+          {!open && subtitle && <span style={{ ...S.muted, display: 'block', marginTop: 2 }}>{subtitle}</span>}
+        </span>
+        <span style={{ ...S.muted, fontSize: 12 }}>{open ? 'Свернуть ▲' : 'Развернуть ▼'}</span>
+      </button>
+      {open && <div style={{ marginTop: 16 }}>{children}</div>}
+    </div>
+  );
+}
+
+// Нижняя полоса виджетов (на всех разделах)
+function WidgetBar({ authFetch }) {
+  const [w, setW] = useState(null);
+  useEffect(() => {
+    authFetch(`${API}/clients/dashboard-widgets`).then(setW).catch(() => {});
+  }, []);
+
+  const fmt = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    if (+day === +today) return `Сегодня в ${time}`;
+    return `${d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })} в ${time}`;
+  };
+
+  const appt = w?.next_appointment;
+  const retro = (w?.retrogrades || []).map(n => PLANET_RU[n] || n);
+  const premium = w?.premium;
+
+  const Cell = ({ icon, label, value }) => (
+    <div style={SL.widget}>
+      <span style={{ fontSize: 20 }}>{icon}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ ...S.muted, display: 'block' }}>{label}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, display: 'block' }}>{value}</span>
+      </span>
+    </div>
+  );
+
+  return (
+    <div style={SL.bar}>
+      <Cell icon="🕐" label="Ближайшая запись"
+        value={appt ? `${fmt(appt.date)} · ${appt.client_name}` : 'Нет записей'} />
+      <Cell icon="🌌" label="Тренды месяца"
+        value={retro.length ? `Ретроградные: ${retro.join(', ')}` : 'Планеты директны'} />
+      <Cell icon="⭐" label="Premium статус"
+        value={premium?.days_left != null ? `Доступно ещё ${premium.days_left} дн.`
+          : (premium?.tier === 'premium' ? 'Активен' : premium?.tier || '—')} />
+    </div>
+  );
+}
+
 // ─── Главный компонент ────────────────────────────────────────────────────────
 export default function CRMPage() {
   const { user, authFetch } = useAuth();
@@ -1879,6 +1973,7 @@ export default function CRMPage() {
   const [view, setView] = useState('list'); // 'list' | 'add' | 'card'
   const [selected, setSelected] = useState(null);
   const [alerts, setAlerts] = useState([]);
+  const [activeSection, setActiveSection] = useState('clients');
   const [cardTab, setCardTab] = useState('chart');
 
   const displayedClients = filteredClients ?? clients;
@@ -1925,84 +2020,103 @@ export default function CRMPage() {
 
   if (loading) return <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Загрузка…</div>;
 
+  const goSection = (id) => { setActiveSection(id); setView('list'); setSelected(null); };
+
+  const fmtAlertDate = (d) => {
+    if (!d) return '';
+    const [y, mo, dd] = d.slice(0, 10).split('-');
+    return `${dd}.${mo}.${y}`;
+  };
+  const groupedAlerts = (() => {
+    const grouped = [], seen = {};
+    alerts.forEach(a => {
+      if (!seen[a.client_id]) {
+        seen[a.client_id] = { client_id: a.client_id, name: a.name, events: [], open: false };
+        grouped.push(seen[a.client_id]);
+      }
+      seen[a.client_id].events.push(a);
+    });
+    return grouped;
+  })();
+
+  const sections = {
+    clients: (
+      <Section icon="👥" title="Клиенты" subtitle={`${clients.length} клиентов`} defaultOpen>
+        <ClientList
+          clients={displayedClients}
+          allClients={clients}
+          authFetch={authFetch}
+          onFilteredClients={data => setFilteredClients(data)}
+          onSelect={c => { setSelected(c); setCardTab('chart'); setView('card'); }}
+          onAdd={() => setView('add')}
+          onDelete={id => {
+            setClients(p => p.filter(c => c.id !== id));
+            setFilteredClients(p => p ? p.filter(c => c.id !== id) : null);
+          }}
+        />
+      </Section>
+    ),
+    library:  <Section icon="✍️" title="Мои трактовки" subtitle="Библиотека авторских текстов"><AuthorLibraryPanel authFetch={authFetch} /></Section>,
+    intake:   <Section icon="📝" title="Анкета клиентов" subtitle="Сбор данных для натальной карты"><IntakePanel authFetch={authFetch} onConverted={loadClients} /></Section>,
+    broadcast: <Section icon="📧" title="Рассылка месяца" subtitle="Письма клиентам по транзитам"><BroadcastPanel authFetch={authFetch} clients={clients} /></Section>,
+    alerts: (
+      <Section icon="⚡" title="Важные периоды" subtitle={`${groupedAlerts.length} клиентов со значимыми транзитами`}>
+        {groupedAlerts.length > 0
+          ? <AlertsBlock grouped={groupedAlerts} fmtDate={fmtAlertDate} openClientTransits={openClientTransits} />
+          : <div style={S.muted}>Значимых транзитов у клиентов не найдено.</div>}
+      </Section>
+    ),
+    forecast: <Section icon="🔮" title="Прогноз по группе" subtitle="Транзиты по выбранным клиентам"><GroupForecastPanel authFetch={authFetch} clients={clients} /></Section>,
+    analytics: <Section icon="📊" title="Аналитика" subtitle="Статистика по базе клиентов"><StatsPanel authFetch={authFetch} onOpenClient={openClientTransits} /></Section>,
+  };
+
   return (
     <div className="crm-scope" style={S.page}>
       <style>{CRM_THEME_CSS}</style>
-      <div style={S.inner}>
-        <div style={{ ...S.row, marginBottom: 24 }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Клиенты</h1>
-          <div style={S.muted}>{clients.length} клиентов</div>
-        </div>
+      <div style={SL.shell}>
+        <aside style={SL.sidebar}>
+          <div style={SL.brand}><span style={{ fontSize: 20 }}>✦</span><span>Рабочий кабинет<br/>Astrea</span></div>
+          {NAV_ITEMS.map(n => (
+            <button key={n.id} onClick={() => goSection(n.id)} style={SL.navBtn(activeSection === n.id)}>
+              <span>{n.icon}</span><span>{n.title}</span>
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 8px 0', borderTop: '1px solid rgba(139,92,246,0.15)' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--crm-title)' }}>
+              {(user?.name || user?.email || '?').slice(0, 1).toUpperCase()}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || user?.email}</div>
+              <div style={S.muted}>Астролог</div>
+            </div>
+          </div>
+        </aside>
 
-        {view === 'list' && <StatsPanel authFetch={authFetch} onOpenClient={openClientTransits} />}
-
-        {view === 'list' && <GroupForecastPanel authFetch={authFetch} clients={clients} />}
-
-        {view === 'list' && <AuthorLibraryPanel authFetch={authFetch} />}
-
-        {view === 'list' && <IntakePanel authFetch={authFetch} onConverted={loadClients} />}
-
-        {view === 'list' && <BroadcastPanel authFetch={authFetch} clients={clients} />}
-
-        {view === 'list' && alerts.length > 0 && (() => {
-          const fmtDate = (d) => {
-            if (!d) return '';
-            const [y, mo, dd] = d.slice(0, 10).split('-');
-            return `${dd}.${mo}.${y}`;
-          };
-          const grouped = [];
-          const seen = {};
-          alerts.forEach(a => {
-            if (!seen[a.client_id]) {
-              seen[a.client_id] = { client_id: a.client_id, name: a.name, events: [], open: false };
-              grouped.push(seen[a.client_id]);
-            }
-            seen[a.client_id].events.push(a);
-          });
-          return (
-            <AlertsBlock
-              grouped={grouped}
-              fmtDate={fmtDate}
-              openClientTransits={openClientTransits}
+        <main style={SL.content}>
+          {view === 'card' && selected ? (
+            <ClientCard
+              client={selected}
+              authFetch={authFetch}
+              initialTab={cardTab}
+              onBack={() => { setSelected(null); setView('list'); }}
+              onUpdated={updated => {
+                setClients(p => p.map(c => c.id === updated.id ? updated : c));
+                setSelected(updated);
+              }}
             />
-          );
-        })()}
+          ) : view === 'add' ? (
+            <AddClientForm
+              authFetch={authFetch}
+              onSave={c => { setClients(p => [...p, c]); setView('list'); }}
+              onCancel={() => setView('list')}
+            />
+          ) : (
+            sections[activeSection]
+          )}
 
-        {view === 'list' && (
-          <ClientList
-            clients={displayedClients}
-            allClients={clients}
-            authFetch={authFetch}
-            onFilteredClients={data => setFilteredClients(data)}
-            onSelect={c => { setSelected(c); setCardTab('chart'); setView('card'); }}
-            onAdd={() => setView('add')}
-            onDelete={id => {
-              setClients(p => p.filter(c => c.id !== id));
-              setFilteredClients(p => p ? p.filter(c => c.id !== id) : null);
-            }}
-          />
-        )}
-
-        {view === 'add' && (
-          <AddClientForm
-            authFetch={authFetch}
-            onSave={c => { setClients(p => [...p, c]); setView('list'); }}
-            onCancel={() => setView('list')}
-          />
-        )}
-
-        {view === 'card' && selected && (
-          <ClientCard
-            client={selected}
-            authFetch={authFetch}
-            initialTab={cardTab}
-            onBack={() => { setSelected(null); setView('list'); }}
-            onUpdated={updated => {
-              setClients(p => p.map(c => c.id === updated.id ? updated : c));
-              setSelected(updated);
-            }}
-          />
-        )}
+          <WidgetBar authFetch={authFetch} />
+        </main>
       </div>
     </div>
   );
