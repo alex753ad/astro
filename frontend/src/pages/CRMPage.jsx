@@ -11,6 +11,7 @@ import TransitTimeline from '../components/TransitTimeline';
 import ChartSummary from '../components/ChartSummary';
 import AspectTable from '../components/AspectTable';
 import AspectGrid from '../components/AspectGrid';
+import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 
@@ -235,6 +236,7 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
 // ─── Карточка клиента ─────────────────────────────────────────────────────────
 function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   const dark = useIsDark();
+  const prefersReduced = useReducedMotion();
   const [chart, setChart] = useState(null);
   const [notes, setNotes] = useState(client.notes || '');
   const [notesLoading, setNotesLoading] = useState(false);
@@ -697,9 +699,14 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               .replace(/<\/section>/gi, '')
               .trim();
             return (
-              <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              <motion.div
+                initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}
+              >
                 {cleaned}
-              </div>
+              </motion.div>
             );
           })()}
         </div>

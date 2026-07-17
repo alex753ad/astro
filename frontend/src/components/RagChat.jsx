@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
 
@@ -25,6 +26,7 @@ export default function RagChat({ chartId, onPaywall }) {
   const [error, setError]           = useState(null);
   const bottomRef                    = useRef(null);
   const abortRef                     = useRef(null);
+  const prefersReduced               = useReducedMotion();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -169,16 +171,24 @@ export default function RagChat({ chartId, onPaywall }) {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div key={i} style={msg.role === 'user' ? s.msgUser : s.msgAssistant}>
-            {msg.role === 'assistant' && (
-              <span style={s.aiLabel}>✦ AI</span>
-            )}
-            <div style={msg.role === 'user' ? s.bubbleUser : s.bubbleAssistant}>
-              {msg.content || (msg.streaming ? <TypingDots /> : '')}
-            </div>
-          </div>
-        ))}
+        <AnimatePresence>
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              style={msg.role === 'user' ? s.msgUser : s.msgAssistant}
+            >
+              {msg.role === 'assistant' && (
+                <span style={s.aiLabel}>✦ AI</span>
+              )}
+              <div style={msg.role === 'user' ? s.bubbleUser : s.bubbleAssistant}>
+                {msg.content || (msg.streaming ? <TypingDots /> : '')}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {error && <p style={s.error}>{error}</p>}
         <div ref={bottomRef} />

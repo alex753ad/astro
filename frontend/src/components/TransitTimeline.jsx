@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import MotionButton from "./MotionButton";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -359,11 +360,11 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
 
   return (
     <div
-      onClick={blurred ? onUpgrade : onClick}
+      className="tt-event-card"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        padding: "13px 16px", cursor: "pointer",
+        padding: "13px 16px",
         borderBottom: "1px solid rgba(139,92,246,0.1)",
         background: isSelected
           ? "rgba(139,92,246,0.08)"
@@ -419,7 +420,8 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         </div>
       ) : (
         <div style={{ marginTop: 10 }}>
-          <button
+          <MotionButton
+            level="secondary"
             onClick={(e) => { e.stopPropagation(); onClick(); }}
             style={{
               padding: "5px 14px",
@@ -435,7 +437,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
             }}
           >
             ✦ Интерпретация
-          </button>
+          </MotionButton>
         </div>
       )}
     </div>
@@ -684,6 +686,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         @keyframes shimmer     { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes blink       { 50% { opacity: 0; } }
+        .tt-event-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .tt-event-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }

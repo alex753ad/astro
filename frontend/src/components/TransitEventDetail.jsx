@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { streamTransitEventInterpretation } from "../api/client";
 
 const ASPECT_LABELS_RU = {
@@ -39,6 +40,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(null);
   const textRef = useRef(null);
+  const prefersReduced = useReducedMotion();
 
   const loadInterpretation = useCallback(async () => {
     if (!event || !chartId) return;
@@ -148,8 +150,11 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
       </div>
 
       {/* Interpretation body */}
-      <div
+      <motion.div
         ref={textRef}
+        initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
         style={{
           padding: 20,
           fontSize: 14.5,
@@ -221,7 +226,7 @@ export default function TransitEventDetail({ event, chartId, onClose }) {
             Генерирую интерпретацию...
           </div>
         ) : null}
-      </div>
+      </motion.div>
     </div>
   );
 }
