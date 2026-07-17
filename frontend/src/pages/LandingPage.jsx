@@ -1,6 +1,7 @@
 /* zodiac data-color, intentional — LandingPage is a fixed light-theme design; colors are pinned by design, not theme-dependent tokens */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import MotionButton from '../components/MotionButton';
 
 export default function LandingPage({ onShowAuth, currentUser }) {
   const navigate = useNavigate();
@@ -77,7 +78,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           чтобы усилить результат.
         </p>
 
-        <button
+        <MotionButton
+          level="primary"
           onClick={handleActivate}
           style={{
             display: 'inline-flex',
@@ -106,7 +108,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           }}
         >
           Собрать мой Timeline за минуту
-        </button>
+        </MotionButton>
       </div>
 
       {/* Preview card */}
@@ -354,7 +356,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         </div>
 
         <div style={{ textAlign: 'center' }}>
-          <button
+          <MotionButton
+            level="secondary"
             onClick={handleActivate}
             style={{
               display: 'inline-flex',
@@ -383,7 +386,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             }}
           >
             Собрать мой Timeline за минуту
-          </button>
+          </MotionButton>
         </div>
       </div>
 

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import MotionButton from '../components/MotionButton';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
@@ -96,13 +97,14 @@ function ReportModal({ chartId, onClose }) {
             <div style={sr.itemDesc}>Натальная карта + позиции планет + аспекты</div>
             {pdfStep && <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>{pdfStep}</div>}
           </div>
-          <button
+          <MotionButton
+            level="primary"
             style={{ ...sr.btn, background: 'var(--accent)', opacity: loading ? 0.6 : 1 }}
             onClick={handleDownloadFree}
             disabled={!!loading}
           >
             {loading === 'free' ? '…' : '⬇ Скачать'}
-          </button>
+          </MotionButton>
         </div>
 
         <div style={sr.list}>
@@ -112,13 +114,14 @@ function ReportModal({ chartId, onClose }) {
                 <div style={sr.itemTitle}>{opt.label}</div>
                 <div style={sr.itemDesc}>{opt.desc}</div>
               </div>
-              <button
+              <MotionButton
+                level="secondary"
                 style={{ ...sr.btn, opacity: loading && loading !== opt.type ? 0.5 : 1 }}
                 onClick={() => handleBuy(opt.type)}
                 disabled={!!loading}
               >
                 {loading === opt.type ? '…' : opt.price}
-              </button>
+              </MotionButton>
             </div>
           ))}
         </div>
@@ -180,7 +183,8 @@ function SaveChartBanner({ onLogin }) {
           Войдите или зарегистрируйтесь, чтобы не потерять результат
         </div>
       </div>
-      <button
+      <MotionButton
+        level="primary"
         onClick={onLogin}
         style={{
           padding: '9px 20px', borderRadius: 10, border: 'none',
@@ -191,7 +195,7 @@ function SaveChartBanner({ onLogin }) {
         }}
       >
         Войти / Регистрация
-      </button>
+      </MotionButton>
     </div>
   );
 }
@@ -458,13 +462,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {currentUser && (
-            <button onClick={handleDownloadCard} style={s.plannerLinkBtn} title="Скачать карточку для Stories">
+            <MotionButton level="secondary" onClick={handleDownloadCard} style={s.plannerLinkBtn} title="Скачать карточку для Stories">
               🖼 Карточка
-            </button>
+            </MotionButton>
           )}
-          <button onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}>
+          <MotionButton level="primary" onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}>
             📄 PDF-отчёт
-          </button>
+          </MotionButton>
         </div>
       </header>
 
@@ -540,7 +544,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                       </div>
                       <div style={s.overlayLogin}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>✦ Войдите, чтобы прочитать интерпретацию</div>
-                        <button onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</button>
+                        <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
                       </div>
                     </div>
                   ) : currentUser?.tier === 'lite' ? (
@@ -565,7 +569,8 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               />
               {/* Поделиться — под колесом карты */}
               <div style={{ textAlign: 'center', marginTop: 12 }}>
-                <button
+                <MotionButton
+                  level="secondary"
                   onClick={handleShare}
                   disabled={shareLoading}
                   style={{ ...s.leftBtn, display: 'inline-flex', width: 'auto', padding: '8px 20px' }}
@@ -573,7 +578,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 >
                   <span style={s.leftBtnIcon}>🔗</span>
                   <span>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
-                </button>
+                </MotionButton>
               </div>
             </div>
           </div>
@@ -588,12 +593,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '8px 0 0' }}>
                   Перейдите на главную страницу, чтобы рассчитать новую карту.
                 </p>
-                <button
+                <MotionButton
+                  level="primary"
                   onClick={() => navigate('/home')}
                   style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
                 >
                   На главную
-                </button>
+                </MotionButton>
               </div>
             )}
 
@@ -644,9 +650,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                     <span style={{ fontSize: 40 }}>🔒</span>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
                     <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Доступно на тарифах Pro и Premium</div>
-                    <button onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                    <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Открыть доступ
-                    </button>
+                    </MotionButton>
                   </div>
                 )}
               </div>
@@ -796,12 +802,13 @@ function PlanetTable({ planets = [], ascendant, midheaven, collapsed, onHoverPla
         </tbody>
       </table>
       {collapsed && rows.length > PREVIEW && (
-        <button
+        <MotionButton
+          level="ghost"
           onClick={() => setExpanded(e => !e)}
           style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 6, padding: 0, fontFamily: 'inherit' }}
         >
           {expanded ? '▲ Свернуть' : `▼ Показать все (${rows.length})`}
-        </button>
+        </MotionButton>
       )}
     </div>
   );
@@ -827,12 +834,13 @@ function HouseTable({ houses = [], collapsed }) {
         </tbody>
       </table>
       {collapsed && houses.length > PREVIEW && (
-        <button
+        <MotionButton
+          level="ghost"
           onClick={() => setExpanded(e => !e)}
           style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 6, padding: 0, fontFamily: 'inherit' }}
         >
           {expanded ? '▲ Свернуть' : `▼ Показать все 12 домов`}
-        </button>
+        </MotionButton>
       )}
     </div>
   );

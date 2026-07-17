@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth.jsx';
+import MotionButton from './MotionButton';
 
 const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
 
@@ -212,9 +213,9 @@ export default function AuthModal({ onClose }) {
                 style={inp} />
             </div>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
-            <button onClick={handleForgot} disabled={forgotLoading} style={btn(forgotLoading)}>
+            <MotionButton level="primary" onClick={handleForgot} disabled={forgotLoading} style={btn(forgotLoading)}>
               {forgotLoading ? 'Отправляем…' : 'Отправить ссылку'}
-            </button>
+            </MotionButton>
             <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>
               <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>← Вернуться ко входу</button>
             </p>
@@ -250,9 +251,9 @@ export default function AuthModal({ onClose }) {
               </button>
             </div>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
-            <button onClick={handleLogin} disabled={loading} style={btn(loading)}>
+            <MotionButton level="primary" onClick={handleLogin} disabled={loading} style={btn(loading)}>
               {loading ? 'Загрузка…' : 'Войти'}
-            </button>
+            </MotionButton>
             <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>
               Нет аккаунта?{' '}
               <button onClick={() => switchMode('register')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
@@ -311,9 +312,9 @@ export default function AuthModal({ onClose }) {
               </div>
             </div>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
-            <button onClick={handleSendCode} disabled={otpLoading} style={btn(otpLoading)}>
+            <MotionButton level="primary" onClick={handleSendCode} disabled={otpLoading} style={btn(otpLoading)}>
               {otpLoading ? 'Отправляю код…' : 'Получить код →'}
-            </button>
+            </MotionButton>
             <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>
               Уже есть аккаунт?{' '}
               <button onClick={() => switchMode('login')} style={{ background:'none', border:'none', color:'var(--accent-glow)', cursor:'pointer', fontSize:13, fontFamily:'inherit' }}>
@@ -346,9 +347,9 @@ export default function AuthModal({ onClose }) {
               />
             </div>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
-            <button onClick={handleVerify} disabled={otpLoading} style={btn(otpLoading)}>
+            <MotionButton level="primary" onClick={handleVerify} disabled={otpLoading} style={btn(otpLoading)}>
               {otpLoading ? 'Проверяю…' : 'Подтвердить'}
-            </button>
+            </MotionButton>
             <p style={{ textAlign:'center', marginTop:14, fontSize:12, color:'var(--text-secondary)' }}>
               {cooldown > 0 ? (
                 `Отправить повторно через ${cooldown} сек.`

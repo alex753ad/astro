@@ -15,6 +15,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
+import MotionButton from '../components/MotionButton';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
@@ -240,7 +241,7 @@ function TabProfile({ user, logout, authFetch }) {
             <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--prof-muted)' }}>Google</span>
           )}
         </div>
-        <button style={S.btn('ghost')} onClick={logout}>Выйти</button>
+        <MotionButton level="ghost" style={S.btn('ghost')} onClick={logout}>Выйти</MotionButton>
       </div>
 
       {isAdmin && (
@@ -248,8 +249,9 @@ function TabProfile({ user, logout, authFetch }) {
           <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginBottom: 8 }}>🔧 Тестовый тариф</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['free', 'lite', 'pro', 'premium'].map(t => (
-              <button
+              <MotionButton
                 key={t}
+                level={user?.tier === t ? 'primary' : 'ghost'}
                 onClick={() => setTier(t)}
                 disabled={!!switching || user?.tier === t}
                 style={{
@@ -260,7 +262,7 @@ function TabProfile({ user, logout, authFetch }) {
                 }}
               >
                 {switching === t ? '...' : t}
-              </button>
+              </MotionButton>
             ))}
           </div>
         </div>
@@ -404,18 +406,19 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                     Планер
                   </Link>
                   {user?.tier === 'premium' && (
-                    <button
+                    <MotionButton
+                      level="ghost"
                       disabled={addingToClients === chart.id || addedToClients[chart.id]}
                       onClick={() => handleAddToClients(chart)}
                       style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 12px', color: 'var(--color-warning)', border: '1px solid var(--border)' }}
                     >
                       {addingToClients === chart.id ? '…' : addedToClients[chart.id] ? 'Добавлено' : 'в Клиенты'}
-                    </button>
+                    </MotionButton>
                   )}
                   {deleteConfirm === chart.id ? (
                     <>
-                      <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(chart.id)}>Удалить</button>
-                      <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</button>
+                      <MotionButton level="primary" style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(chart.id)}>Удалить</MotionButton>
+                      <MotionButton level="ghost" style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</MotionButton>
                     </>
                   ) : (
                     <button style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(chart.id)}>✕</button>
@@ -423,7 +426,8 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                 </div>
                 {/* Кнопка "Сделать главной" — только для не-главных карт */}
                 {!isPrimary && charts.length > 1 && (
-                  <button
+                  <MotionButton
+                    level="ghost"
                     disabled={settingPrimary === chart.id}
                     onClick={() => handleSetPrimary(chart.id)}
                     style={{
@@ -436,7 +440,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                     }}
                   >
                     {settingPrimary === chart.id ? '…' : 'Сделать главной'}
-                  </button>
+                  </MotionButton>
                 )}
               </div>
             </div>
@@ -700,13 +704,14 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                   <span style={{ fontSize: 13, color: 'var(--prof-muted)' }}>{t.price}</span>
                   <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginTop: 3 }}>{t.desc}</div>
                 </div>
-                <button
+                <MotionButton
+                  level="primary"
                   onClick={() => handleCheckout(t.id)}
                   disabled={!!checkoutLoading}
                   style={{ ...S.btn('primary'), whiteSpace: 'nowrap', opacity: checkoutLoading && checkoutLoading !== t.id ? 0.5 : 1 }}
                 >
                   {checkoutLoading === t.id ? 'Открываю…' : `Перейти →`}
-                </button>
+                </MotionButton>
               </div>
             ))}
           </div>
@@ -716,9 +721,9 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
       {/* Управление подпиской через Stripe Portal */}
       {user?.tier !== 'free' && (
         <div style={S.card}>
-          <button onClick={handlePortal} disabled={portalLoading} style={S.btn('ghost')}>
+          <MotionButton level="ghost" onClick={handlePortal} disabled={portalLoading} style={S.btn('ghost')}>
             {portalLoading ? 'Открываю…' : 'Управление подпиской (Stripe) →'}
-          </button>
+          </MotionButton>
         </div>
       )}
 
@@ -787,9 +792,9 @@ function TabReferral({ authFetch }) {
               value={data.ref_url || '—'}
               style={{ flex: 1, background: 'var(--bg-deeper)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit' }}
             />
-            <button style={S.btn('primary')} onClick={copy}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={copy}>
               {copied ? '✓ Скопировано' : 'Копировать'}
-            </button>
+            </MotionButton>
           </div>
         </div>
 
@@ -907,7 +912,8 @@ function TabNotifications({ authFetch }) {
         </div>
       )}
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <button
+        <MotionButton
+          level="primary"
           onClick={async () => {
             try {
               setMsg('');
@@ -922,7 +928,7 @@ function TabNotifications({ authFetch }) {
           style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
         >
           Отправить тест
-        </button>
+        </MotionButton>
         {msg && <span style={S.muted}>{msg}</span>}
       </div>
     </div>
@@ -951,16 +957,17 @@ function DangerZone({ authFetch, logout, navigate }) {
       </p>
       {gdprConfirm ? (
         <div style={{ display: 'flex', gap: 8 }}>
-          <button style={S.btn('danger')} onClick={handleGDPR}>Да, удалить все данные</button>
-          <button style={S.btn('ghost')} onClick={() => setGdprConfirm(false)}>Отмена</button>
+          <MotionButton level="primary" style={S.btn('danger')} onClick={handleGDPR}>Да, удалить все данные</MotionButton>
+          <MotionButton level="ghost" style={S.btn('ghost')} onClick={() => setGdprConfirm(false)}>Отмена</MotionButton>
         </div>
       ) : (
-        <button
+        <MotionButton
+          level="ghost"
           onClick={() => setGdprConfirm(true)}
           style={{ ...S.btn('ghost'), color: 'var(--color-danger)', border: '1px solid rgba(220,38,38,0.4)' }}
         >
           Удалить все данные
-        </button>
+        </MotionButton>
       )}
     </div>
   );

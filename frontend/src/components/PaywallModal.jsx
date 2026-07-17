@@ -9,6 +9,7 @@
 
 import React, { useState } from 'react';
 import { createCheckoutSession, validatePromoCode } from '../api/client';
+import MotionButton from './MotionButton';
 
 const PAYWALL_CONTENT = {
   free_to_lite: {
@@ -155,19 +156,21 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
 
         {/* Billing toggle */}
         <div style={s.billingToggle}>
-          <button
+          <MotionButton
+            level="secondary"
             style={{ ...s.toggleBtn, ...(billing === 'monthly' ? s.toggleActive : {}) }}
             onClick={() => setBilling('monthly')}
           >
             {content.monthly}
-          </button>
-          <button
+          </MotionButton>
+          <MotionButton
+            level="secondary"
             style={{ ...s.toggleBtn, ...(billing === 'annual' ? s.toggleActive : {}) }}
             onClick={() => setBilling('annual')}
           >
             {content.annual}
             <span style={s.saveBadge}>{content.annualSave}</span>
-          </button>
+          </MotionButton>
         </div>
 
         {billing === 'annual' && (
@@ -185,9 +188,9 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
             onKeyDown={e => e.key === 'Enter' && handleApplyPromo()}
           />
           {!promoApplied && (
-            <button style={s.promoBtn} onClick={handleApplyPromo} disabled={promoLoading || !promoInput.trim()}>
+            <MotionButton level="secondary" style={s.promoBtn} onClick={handleApplyPromo} disabled={promoLoading || !promoInput.trim()}>
               {promoLoading ? '…' : 'Применить'}
-            </button>
+            </MotionButton>
           )}
           {promoApplied && (
             <button style={s.promoClear} onClick={() => { setPromoApplied(''); setPromoInput(''); }}>✕</button>
@@ -196,16 +199,16 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         {promoError && <p style={s.promoErrorMsg}>{promoError}</p>}
 
         {/* CTA */}
-        <button style={s.cta} onClick={handleUpgrade} disabled={loading}>
+        <MotionButton level="primary" style={s.cta} onClick={handleUpgrade} disabled={loading}>
           {loading ? 'Открываем страницу оплаты…' : content.cta}
-        </button>
+        </MotionButton>
 
         {error && <p style={s.error}>{error}</p>}
 
         {/* E4: явный escape-hatch — не серый-на-сером */}
-        <button style={s.continueFree} onClick={onClose}>
+        <MotionButton level="ghost" style={s.continueFree} onClick={onClose}>
           Продолжить бесплатно
-        </button>
+        </MotionButton>
 
         <p style={s.legal}>{content.price}</p>
       </div>
