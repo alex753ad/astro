@@ -186,6 +186,7 @@ function NatalChartInner({
   planets = [], houses = [], aspects = [],
   ascendant, midheaven, timeUnknown, transitPlanets = [],
   isCompact, highlightPlanet = null, highlightAspect = null, dark = false,
+  onHoverPlanet = null,
 }) {
   const SIZE    = isCompact ? 320 : 560;
   const cx      = SIZE / 2;
@@ -246,9 +247,10 @@ function NatalChartInner({
   // ── Intro-анимация: один раз при первом построении карты ──
   const prefersReduced = useReducedMotion();
   const hasPlayedRef = useRef(false);
-  const [, setIntroDone] = useState(false);
+  const [introDone, setIntroDone] = useState(false);
   const playIntro = !prefersReduced && !hasPlayedRef.current && planets.length > 0;
   const finishIntro = () => { hasPlayedRef.current = true; setIntroDone(true); };
+  const breathingEnabled = !prefersReduced && introDone;
   useEffect(() => {
     if (!playIntro) return;
     const t = setTimeout(finishIntro, 2000); // подстраховка, если onAnimationComplete не сработает
@@ -430,7 +432,7 @@ function NatalChartInner({
       </motion.g>
 
       <motion.g variants={introPlanetsV}>
-      {planetPositions.map((planet) => {
+      {planetPositions.map((planet, planetIdx) => {
         const glyphPos = lonToXY(cx, cy, R_PLANET, planet.displayLon, ascLon);
         const realPos  = lonToXY(cx, cy, R_TICK_IN - 4, planet.longitude, ascLon);
         const color    = PLANET_COLORS[planet.name] || '#606060'; /* zodiac data-color, intentional */
@@ -442,13 +444,23 @@ function NatalChartInner({
         return (
           <motion.g key={planet.name} variants={introPlanetV}
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>
-          <g style={{
-            transformBox: 'fill-box', transformOrigin: 'center',
-            transform: isActive ? 'scale(1.2)' : 'none',
-            filter: isActive ? 'brightness(1.3) drop-shadow(0 0 5px rgba(139,92,246,0.75))' : 'none',
-            opacity: isDimmed ? 0.3 : 1,
-            transition: 'transform 0.2s ease, filter 0.2s ease, opacity 0.2s ease',
-          }}>
+          <motion.g
+            style={{
+              transformBox: 'fill-box', transformOrigin: 'center',
+              filter: isActive ? 'brightness(1.3) drop-shadow(0 0 5px rgba(139,92,246,0.75))' : 'none',
+              opacity: isDimmed ? 0.3 : 1,
+              transition: 'filter 0.2s ease, opacity 0.2s ease',
+              cursor: 'pointer',
+            }}
+            animate={{ scale: isActive ? 1.2 : breathingEnabled ? [1, 1.03, 1] : 1 }}
+            transition={isActive
+              ? { duration: 0.2, ease: 'easeOut' }
+              : breathingEnabled
+                ? { duration: 4, ease: 'easeInOut', repeat: Infinity, delay: planetIdx * 0.35 }
+                : { duration: 0.2 }}
+            onMouseEnter={() => onHoverPlanet?.(planet.name)}
+            onMouseLeave={() => onHoverPlanet?.(null)}
+          >
             {(() => {
               const t1 = lonToXY(cx, cy, R_TICK_IN + 1, planet.longitude, ascLon);
               const t2 = lonToXY(cx, cy, R_TICK_IN - 5, planet.longitude, ascLon);
@@ -491,7 +503,7 @@ function NatalChartInner({
               <text x={glyphPos.x + 9} y={glyphPos.y - 8}
                 fontSize={8} fill="#C04040" fontWeight="700">℞ {/* zodiac data-color, intentional */}</text>
             )}
-          </g>
+          </motion.g>
           </motion.g>
         );
       })}

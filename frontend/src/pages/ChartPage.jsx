@@ -566,6 +566,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 transitPlanets={[]}
                 highlightPlanet={hoverPlanet}
                 highlightAspect={hoverAspect}
+                onHoverPlanet={setHoverPlanet}
                 dark={dark}
               />
               {/* Поделиться — под колесом карты */}
