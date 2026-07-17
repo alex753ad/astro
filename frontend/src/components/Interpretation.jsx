@@ -9,6 +9,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { streamInterpretation } from '../api/client';
 import { useToast } from './Toast';
 
@@ -160,6 +161,8 @@ function renderMarkdown(text) {
 
 export default function Interpretation({ chartId, userTier, onUpgrade }) {
   const toast = useToast();
+  const prefersReduced = useReducedMotion();
+  const sectionInitial = prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 };
 
   const [sections,   setSections]  = useState([]); // [{ name, title, text }]
   const [streaming, setStreaming] = useState(false);
@@ -347,22 +350,30 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             paddingRight: 4,
           }}
         >
-          {visibleSections.map((sec) => (
-            <div key={sec.name} style={{ marginBottom: 24 }}>
-              {sec.title && (
-                <h2 style={{
-                  fontSize: 17, fontWeight: 700,
-                  color: 'var(--accent, var(--accent))',
-                  margin: '0 0 10px',
-                  borderBottom: '1px solid var(--border, var(--bg-card))',
-                  paddingBottom: 6,
-                }}>
-                  {sec.title}
-                </h2>
-              )}
-              {renderMarkdown(sec.text)}
-            </div>
-          ))}
+          <AnimatePresence mode="popLayout">
+            {visibleSections.map((sec) => (
+              <motion.div
+                key={sec.name}
+                initial={sectionInitial}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                style={{ marginBottom: 24 }}
+              >
+                {sec.title && (
+                  <h2 style={{
+                    fontSize: 17, fontWeight: 700,
+                    color: 'var(--accent, var(--accent))',
+                    margin: '0 0 10px',
+                    borderBottom: '1px solid var(--border, var(--bg-card))',
+                    paddingBottom: 6,
+                  }}>
+                    {sec.title}
+                  </h2>
+                )}
+                {renderMarkdown(sec.text)}
+              </motion.div>
+            ))}
+          </AnimatePresence>
           {streaming && (
             <span style={{
               display: 'inline-block', width: 7, height: 17,

@@ -4,6 +4,7 @@
  */
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 const ToastContext = createContext(null);
 
@@ -59,23 +60,33 @@ function ToastContainer({ toasts, dismiss }) {
       zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 8,
       pointerEvents: 'none',
     }}>
-      <style>{`
-        @keyframes toast-in {
-          from { opacity: 0; transform: translateX(40px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-      `}</style>
-      {toasts.map(t => (
-        <ToastItem key={t.id} toast={t} dismiss={dismiss} />
-      ))}
+      <AnimatePresence>
+        {toasts.map(t => (
+          <ToastItem key={t.id} toast={t} dismiss={dismiss} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
 
 function ToastItem({ toast, dismiss }) {
   const s = STYLES[toast.type];
+  const prefersReduced = useReducedMotion();
+  const variants = prefersReduced
+    ? {
+        hidden:  { opacity: 0 },
+        visible: { opacity: 1, transition: { duration: 0.25, ease: 'easeOut' } },
+        exit:    { opacity: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+      }
+    : {
+        hidden:  { opacity: 0, x: 60 },
+        visible: { opacity: 1, x: 0, transition: { duration: 0.25, ease: 'easeOut' } },
+        exit:    { opacity: 0, x: 60, transition: { duration: 0.2, ease: 'easeOut' } },
+      };
   return (
-    <div
+    <motion.div
+      key={toast.id}
+      variants={variants} initial="hidden" animate="visible" exit="exit"
       style={{
         pointerEvents: 'auto',
         display: 'flex', alignItems: 'center', gap: 10,
@@ -84,7 +95,6 @@ function ToastItem({ toast, dismiss }) {
         backdropFilter: 'blur(12px)',
         border: `1px solid ${s.border}`,
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        animation: 'toast-in 0.25s ease forwards',
         fontSize: 13,
         color: 'var(--border)',
       }}
@@ -101,6 +111,6 @@ function ToastItem({ toast, dismiss }) {
       >
         ×
       </button>
-    </div>
+    </motion.div>
   );
 }
