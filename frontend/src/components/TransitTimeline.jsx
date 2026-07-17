@@ -315,7 +315,7 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
 // STATS SUMMARY
 // ═══════════════════════════════════════════════════════════
 
-function StatsSummary({ events }) {
+function StatsSummary({ events, isFullyLoaded }) {
   const stats = [
     { label: "Всего",        value: events.length,                                          color: "var(--tt-s1-fg)", bg: "var(--tt-s1-bg)" },
     { label: "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "var(--tt-s2-fg)", bg: "var(--tt-s2-bg)" },
@@ -326,7 +326,9 @@ function StatsSummary({ events }) {
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {stats.map(({ label, value, color, bg }) => (
         <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 14, border: "1px solid var(--tt-border)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
-          <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
+          {isFullyLoaded
+            ? <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
+            : <Skeleton width={28} height={22} radius={6} />}
           <span style={{ fontSize: 11, color: "var(--tt-text2)" }}>{label}</span>
         </div>
       ))}
@@ -441,9 +443,6 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
           >
             🔒 Разбор на Pro
           </button>
-          <div style={{ marginTop: 6, fontSize: 11, color: "var(--tt-text3)", lineHeight: 1.5 }}>
-            На бесплатном тарифе открыт разбор 2 самых значимых транзитов. Остальные — на Pro.
-          </div>
         </div>
       ) : (
         <div style={{ marginTop: 10 }}>
@@ -805,7 +804,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </p>
       </div>
 
-      {!loading && <StatsSummary events={filteredEvents} />}
+      {!loading && <StatsSummary events={filteredEvents} isFullyLoaded={reachedEnd} />}
 
       {!loading && dates.length > 0 && (
         <div style={{ margin: "16px 0" }}>
