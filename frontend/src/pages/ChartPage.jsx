@@ -681,7 +681,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       {topTab === 'transits' && (
         <div style={{ position: 'relative' }}>
           <div style={showPaywall ? { filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
-            <main style={s.main}>
+            <main style={{ ...s.main, gap: '12px' }}>
               <section style={s.card}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
                   <MotionButton level="ghost" onClick={() => handleTopTabChange('chart')} style={s.transitBackBtn}>

@@ -285,6 +285,21 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
     }
   }, [activeDate, dates]);
 
+  // Мышиное колесо крутит вертикаль — переводим его в горизонтальную прокрутку полосы.
+  // React onWheel не всегда даёт preventDefault сработать (пассивные листенеры),
+  // поэтому вешаем нативный обработчик с { passive: false }.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleWheel = (e) => {
+      if (e.deltaY === 0) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+
   return (
     <div ref={scrollRef} style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", msOverflowStyle: "none" }}>
       {dates.map(d => {
