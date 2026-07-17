@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import useAuth from '../hooks/useAuth.jsx';
 import MotionButton from './MotionButton';
 
@@ -18,9 +19,27 @@ async function getLastChart(accessToken) {
   }
 }
 
+const overlayVariants = {
+  hidden:  { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit:    { opacity: 0, transition: { duration: 0.15, ease: 'easeOut' } },
+};
+
 export default function AuthModal({ onClose }) {
   const { login, loading, error, clearError } = useAuth();
   const navigate = useNavigate();
+  const prefersReduced = useReducedMotion();
+  const dialogVariants = prefersReduced
+    ? {
+        hidden:  { opacity: 0 },
+        visible: { opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } },
+        exit:    { opacity: 0, transition: { duration: 0.15, ease: 'easeOut' } },
+      }
+    : {
+        hidden:  { opacity: 0, scale: 0.96 },
+        visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: 'easeOut' } },
+        exit:    { opacity: 0, scale: 0.96, transition: { duration: 0.15, ease: 'easeOut' } },
+      };
 
   // mode: 'login' | 'register' | 'register_verify' | 'forgot' | 'forgot_sent'
   const [mode, setMode] = useState('login');
@@ -179,8 +198,12 @@ export default function AuthModal({ onClose }) {
   });
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
+    <motion.div
+      variants={overlayVariants} initial="hidden" animate="visible" exit="exit"
+      style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <motion.div
+        variants={dialogVariants} initial="hidden" animate="visible" exit="exit"
+        onClick={e => e.stopPropagation()} style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
 
         <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'var(--text-secondary)', fontSize:22, cursor:'pointer' }}>×</button>
 
@@ -363,7 +386,7 @@ export default function AuthModal({ onClose }) {
           </>
         )}
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

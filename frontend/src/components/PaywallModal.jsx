@@ -8,8 +8,15 @@
  */
 
 import React, { useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { createCheckoutSession, validatePromoCode } from '../api/client';
 import MotionButton from './MotionButton';
+
+const overlayVariants = {
+  hidden:  { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit:    { opacity: 0, transition: { duration: 0.15, ease: 'easeOut' } },
+};
 
 const PAYWALL_CONTENT = {
   free_to_lite: {
@@ -89,6 +96,18 @@ export function getPaywallContext(errorDetail) {
 
 export default function PaywallModal({ context = 'free_to_lite', onClose, chartId }) {
   const content = PAYWALL_CONTENT[context] || PAYWALL_CONTENT.free_to_lite;
+  const prefersReduced = useReducedMotion();
+  const dialogVariants = prefersReduced
+    ? {
+        hidden:  { opacity: 0 },
+        visible: { opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } },
+        exit:    { opacity: 0, transition: { duration: 0.15, ease: 'easeOut' } },
+      }
+    : {
+        hidden:  { opacity: 0, scale: 0.96 },
+        visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: 'easeOut' } },
+        exit:    { opacity: 0, scale: 0.96, transition: { duration: 0.15, ease: 'easeOut' } },
+      };
   const [billing, setBilling]         = useState('monthly');
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState(null);
@@ -132,8 +151,12 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
   }
 
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
+    <motion.div
+      variants={overlayVariants} initial="hidden" animate="visible" exit="exit"
+      style={s.overlay} onClick={onClose}>
+      <motion.div
+        variants={dialogVariants} initial="hidden" animate="visible" exit="exit"
+        style={s.modal} onClick={e => e.stopPropagation()}>
 
         <button style={s.close} onClick={onClose}>✕</button>
 
@@ -211,8 +234,8 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         </MotionButton>
 
         <p style={s.legal}>{content.price}</p>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

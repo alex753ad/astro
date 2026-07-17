@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
@@ -719,9 +720,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </main>
       )}
 
-      {showPaywall && (
-        <PaywallModal context={paywallContext} chartId={chartId} onClose={closePaywall} />
-      )}
+      <AnimatePresence>
+        {showPaywall && (
+          <PaywallModal context={paywallContext} chartId={chartId} onClose={closePaywall} />
+        )}
+      </AnimatePresence>
 
       {showReport && (
         <ReportModal chartId={chartId} onClose={() => setShowReport(false)} />

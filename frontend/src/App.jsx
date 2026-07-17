@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
 import HomePage from './pages/HomePage';
@@ -236,6 +237,8 @@ function AppRoutes() {
   const { user } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [dark, toggleDark] = useDarkMode();
+  const location = useLocation();
+  const prefersReducedMotion = useReducedMotion();
 
   useOGMeta();
 
@@ -249,26 +252,36 @@ function AppRoutes() {
         <Header onShowAuth={() => setShowAuth(true)} dark={dark} toggleDark={toggleDark} />
 
         <main className="flex-1">
-          <Routes>
-            <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
-            <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
-            <Route path="/chart/share/:token" element={<SharePage />} />
-            <Route path="/intake/:token" element={<IntakePage />} />
-            <Route path="/portal/:token" element={<PortalPage />} />
-            <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} dark={dark} />} />
-            <Route path="/planner/:id"    element={<PlannerPage dark={dark} />} />
-            <Route path="/profile"        element={<ProfilePage />} />
-            <Route path="/lunar"          element={<LunarCalendarPage />} />
-            <Route path="/gift"           element={<GiftPage />} />
-            <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
-            <Route path="/dashboard/clients"     element={<CRMPage />} />
-            <Route path="/admin"                element={<AdminPage />} />
-            <Route path="/privacy"             element={<PrivacyPage />} />
-            <Route path="/terms"               element={<TermsPage />} />
-            <Route path="/reset-password"      element={<ResetPasswordPage />} />
-            <Route path="/pilot/claim"         element={<PilotClaim />} />
-            <Route path="/exit-survey"         element={<ExitSurveyModal page />} />
-          </Routes>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={prefersReducedMotion ? undefined : { opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+            >
+              <Routes location={location}>
+                <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+                <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+                <Route path="/chart/share/:token" element={<SharePage />} />
+                <Route path="/intake/:token" element={<IntakePage />} />
+                <Route path="/portal/:token" element={<PortalPage />} />
+                <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} dark={dark} />} />
+                <Route path="/planner/:id"    element={<PlannerPage dark={dark} />} />
+                <Route path="/profile"        element={<ProfilePage />} />
+                <Route path="/lunar"          element={<LunarCalendarPage />} />
+                <Route path="/gift"           element={<GiftPage />} />
+                <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
+                <Route path="/dashboard/clients"     element={<CRMPage />} />
+                <Route path="/admin"                element={<AdminPage />} />
+                <Route path="/privacy"             element={<PrivacyPage />} />
+                <Route path="/terms"               element={<TermsPage />} />
+                <Route path="/reset-password"      element={<ResetPasswordPage />} />
+                <Route path="/pilot/claim"         element={<PilotClaim />} />
+                <Route path="/exit-survey"         element={<ExitSurveyModal page />} />
+              </Routes>
+            </motion.div>
+          </AnimatePresence>
         </main>
 
         <footer className="border-t border-brand-border py-5 text-center text-brand-muted text-xs bg-brand-card/50">
@@ -280,7 +293,9 @@ function AppRoutes() {
         </footer>
       </div>
 
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      <AnimatePresence>
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      </AnimatePresence>
       <FeedbackButton />
     </div>
   );
