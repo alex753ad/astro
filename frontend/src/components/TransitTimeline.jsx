@@ -315,7 +315,7 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
 // STATS SUMMARY
 // ═══════════════════════════════════════════════════════════
 
-function StatsSummary({ events, isFullyLoaded }) {
+function StatsSummary({ events }) {
   const stats = [
     { label: "Всего",        value: events.length,                                          color: "var(--tt-s1-fg)", bg: "var(--tt-s1-bg)" },
     { label: "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "var(--tt-s2-fg)", bg: "var(--tt-s2-bg)" },
@@ -326,9 +326,7 @@ function StatsSummary({ events, isFullyLoaded }) {
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {stats.map(({ label, value, color, bg }) => (
         <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 14, border: "1px solid var(--tt-border)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
-          {isFullyLoaded
-            ? <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
-            : <Skeleton width={28} height={22} radius={6} />}
+          <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
           <span style={{ fontSize: 11, color: "var(--tt-text2)" }}>{label}</span>
         </div>
       ))}
@@ -717,6 +715,18 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
   }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
+  // Счётчики StatsSummary — статистика текущего календарного месяца (тот же
+  // месяц, что в заголовке «Транзиты — <месяц год>»), не всего загруженного диапазона.
+  const currentMonthEvents = useMemo(() => {
+    const now = new Date();
+    return events.filter(e => {
+      const dateStr = e.peak_date || e.start_date || e.date;
+      if (!dateStr) return false;
+      const d = new Date(dateStr + "T00:00:00");
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
+  }, [events]);
+
   const dates            = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
@@ -804,7 +814,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </p>
       </div>
 
-      {!loading && <StatsSummary events={filteredEvents} isFullyLoaded={reachedEnd} />}
+      {!loading && <StatsSummary events={currentMonthEvents} />}
 
       {!loading && dates.length > 0 && (
         <div style={{ margin: "16px 0" }}>
