@@ -519,14 +519,15 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             {/* AI-кнопки прижаты к низу */}
             <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {LEFT_BTNS_BOTTOM.map(({ key, label, icon }) => (
-                <button
+                <MotionButton
+                  level="ghost"
                   key={key}
                   onClick={() => handleLeftBtn(key)}
                   style={{ ...s.leftBtn, background: 'var(--accent)', borderColor: 'transparent', color: '#fff' }}
                 >
                   <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
                   <span style={{ flex: 1 }}>{label}</span>
-                </button>
+                </MotionButton>
               ))}
             </div>
           </div>

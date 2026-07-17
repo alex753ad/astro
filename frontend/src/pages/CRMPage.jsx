@@ -11,6 +11,7 @@ import TransitTimeline from '../components/TransitTimeline';
 import ChartSummary from '../components/ChartSummary';
 import AspectTable from '../components/AspectTable';
 import AspectGrid from '../components/AspectGrid';
+import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 
 // Реактивно читаем класс .dark на <html>
@@ -223,8 +224,8 @@ function AddClientForm({ onSave, onCancel, authFetch }) {
         </div>
         {error && <p style={{ color: 'var(--color-danger)', fontSize: 12, margin: '0 0 12px' }}>{error}</p>}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="submit" style={S.btn('primary')} disabled={loading}>{loading ? 'Сохраняю…' : 'Сохранить'}</button>
-          <button type="button" style={S.btn()} onClick={onCancel}>Отмена</button>
+          <MotionButton level="primary" type="submit" style={S.btn('primary')} disabled={loading}>{loading ? 'Сохраняю…' : 'Сохранить'}</MotionButton>
+          <MotionButton level="secondary" type="button" style={S.btn()} onClick={onCancel}>Отмена</MotionButton>
         </div>
       </form>
     </div>
@@ -502,10 +503,10 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   return (
     <div>
       <div style={{ ...S.row, marginBottom: 16 }}>
-        <button style={S.btn()} onClick={onBack}>Назад</button>
+        <MotionButton level="secondary" style={S.btn()} onClick={onBack}>Назад</MotionButton>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={S.btn('primary')} onClick={loadBrief}>Подготовить встречу</button>
-          <button style={S.btn()} onClick={() => loadSummary(false)}>Резюме клиента</button>
+          <MotionButton level="primary" style={S.btn('primary')} onClick={loadBrief}>Подготовить встречу</MotionButton>
+          <MotionButton level="secondary" style={S.btn()} onClick={() => loadSummary(false)}>Резюме клиента</MotionButton>
           <select
             value={wordLimit}
             onChange={e => setWordLimit(Number(e.target.value))}
@@ -516,9 +517,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               <option key={w} value={w}>{w} слов</option>
             ))}
           </select>
-          <button style={S.btn('primary')} onClick={generateReport} disabled={reportLoading}>
+          <MotionButton level="primary" style={S.btn('primary')} onClick={generateReport} disabled={reportLoading}>
             {reportLoading ? 'Создаю…' : 'Создать PDF отчёт'}
-          </button>
+          </MotionButton>
         </div>
       </div>
 
@@ -533,9 +534,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
             <div style={S.muted}>{client.birth_date}{client.birth_time ? ` · ${client.birth_time}` : ''} · {client.birth_place}{client.source ? ` · ${client.source}` : ''}</div>
             {client.tags && client.tags.length > 0 && <div style={{ marginTop: 6 }}><TagChips tags={client.tags} /></div>}
           </div>
-          <button style={S.btn()} onClick={() => { setEditing(v => !v); setEditError(''); }}>
+          <MotionButton level="secondary" style={S.btn()} onClick={() => { setEditing(v => !v); setEditError(''); }}>
             {editing ? 'Отмена' : 'Редактировать'}
-          </button>
+          </MotionButton>
         </div>
 
         {editing && (
@@ -577,9 +578,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               </div>
             </div>
             {editError && <p style={{ color: 'var(--color-danger)', fontSize: 12, margin: '0 0 10px' }}>{editError}</p>}
-            <button style={S.btn('primary')} onClick={saveEdit} disabled={editLoading}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={saveEdit} disabled={editLoading}>
               {editLoading ? 'Сохраняю…' : 'Сохранить'}
-            </button>
+            </MotionButton>
           </div>
         )}
       </div>
@@ -588,7 +589,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         <div style={S.card}>
           <div style={{ ...S.row, marginBottom: 12 }}>
             <label style={S.label}>Бриф к встрече</label>
-            <button style={S.btn()} onClick={() => setBriefOpen(false)}>Закрыть</button>
+            <MotionButton level="secondary" style={S.btn()} onClick={() => setBriefOpen(false)}>Закрыть</MotionButton>
           </div>
           {briefLoading && !briefText && <div style={S.muted}>Готовлю бриф…</div>}
           {briefText && (
@@ -596,9 +597,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               <div style={{ fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
                 {briefText}
               </div>
-              <button style={S.btn('primary')} onClick={saveBriefToConsultation} disabled={briefSaving || briefLoading}>
+              <MotionButton level="primary" style={S.btn('primary')} onClick={saveBriefToConsultation} disabled={briefSaving || briefLoading}>
                 {briefSaving ? 'Сохраняю…' : 'Сохранить как подготовку'}
-              </button>
+              </MotionButton>
             </>
           )}
         </div>
@@ -609,8 +610,8 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           <div style={{ ...S.row, marginBottom: 12 }}>
             <label style={S.label}>Резюме клиента{summaryCached && !summaryLoading ? ' · из кэша' : ''}</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button style={S.btn()} onClick={() => loadSummary(true)} disabled={summaryLoading}>Обновить</button>
-              <button style={S.btn()} onClick={() => setSummaryOpen(false)}>Закрыть</button>
+              <MotionButton level="secondary" style={S.btn()} onClick={() => loadSummary(true)} disabled={summaryLoading}>Обновить</MotionButton>
+              <MotionButton level="secondary" style={S.btn()} onClick={() => setSummaryOpen(false)}>Закрыть</MotionButton>
             </div>
           </div>
           {summaryLoading && !summaryText && <div style={S.muted}>Генерирую…</div>}
@@ -626,13 +627,13 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         <div style={S.row}>
           <label style={S.label}>Портал клиента (read-only ссылка)</label>
           {portal?.enabled
-            ? <button style={S.btn()} onClick={() => setPortalEnabled(false)} disabled={portalBusy}>Выключить</button>
-            : <button style={S.btn('primary')} onClick={() => setPortalEnabled(true)} disabled={portalBusy}>Включить портал</button>}
+            ? <MotionButton level="secondary" style={S.btn()} onClick={() => setPortalEnabled(false)} disabled={portalBusy}>Выключить</MotionButton>
+            : <MotionButton level="primary" style={S.btn('primary')} onClick={() => setPortalEnabled(true)} disabled={portalBusy}>Включить портал</MotionButton>}
         </div>
         {portal?.enabled && portal?.url && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
             <input style={{ ...S.input, flex: 1, minWidth: 220 }} value={portal.url} readOnly />
-            <button style={S.btn()} onClick={copyPortal}>{portalCopied ? 'Скопировано' : 'Копировать'}</button>
+            <MotionButton level="secondary" style={S.btn()} onClick={copyPortal}>{portalCopied ? 'Скопировано' : 'Копировать'}</MotionButton>
           </div>
         )}
       </div>
@@ -686,7 +687,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
       {tab === 'ai' && (
         <div style={S.card}>
           {!aiText && !aiLoading && (
-            <button style={S.btn('primary')} onClick={loadAI}>Получить AI-интерпретацию</button>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={loadAI}>Получить AI-интерпретацию</MotionButton>
           )}
           {aiLoading && <div style={S.muted}>Генерирую интерпретацию…</div>}
           {aiText && (() => {
@@ -785,7 +786,8 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                 onChange={e => setNewTplContent(e.target.value)}
               />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
+                <MotionButton
+                  level="primary"
                   style={S.btn('primary')}
                   disabled={tplSaving || !newTplTitle.trim()}
                   onClick={async () => {
@@ -804,19 +806,19 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                   }}
                 >
                   {tplSaving ? 'Сохраняю…' : 'Сохранить шаблон'}
-                </button>
-                <button style={S.btn()} onClick={() => setShowNewTemplateForm(false)}>Отмена</button>
+                </MotionButton>
+                <MotionButton level="secondary" style={S.btn()} onClick={() => setShowNewTemplateForm(false)}>Отмена</MotionButton>
               </div>
             </div>
           )}
 
           <div style={{ marginBottom: 8 }}>
-            <button style={S.btn()} onClick={() => {
+            <MotionButton level="secondary" style={S.btn()} onClick={() => {
               const d = new Date();
               const stamp = `[${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}] `;
               setNotes(prev => stamp + (prev ? '\n' + prev : ''));
               if (textareaRef.current) textareaRef.current.focus();
-            }}>+ запись с датой</button>
+            }}>+ запись с датой</MotionButton>
           </div>
           <textarea
             ref={textareaRef}
@@ -824,9 +826,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
             value={notes}
             onChange={e => setNotes(e.target.value)}
           />
-          <button style={S.btn('primary')} onClick={saveNotes} disabled={notesLoading}>
+          <MotionButton level="primary" style={S.btn('primary')} onClick={saveNotes} disabled={notesLoading}>
             {notesLoading ? 'Сохраняю…' : 'Сохранить'}
-          </button>
+          </MotionButton>
         </div>
       )}
 
@@ -834,9 +836,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         <div style={S.card}>
           <div style={{ ...S.row, marginBottom: 12 }}>
             <label style={S.label}>Консультации</label>
-            <button style={S.btn('primary')} onClick={() => setShowConsForm(v => !v)}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={() => setShowConsForm(v => !v)}>
               {showConsForm ? 'Отмена' : '+ Консультация'}
-            </button>
+            </MotionButton>
           </div>
 
           {showConsForm && (
@@ -893,9 +895,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                 value={consForm.assignment}
                 onChange={e => setCF('assignment', e.target.value)}
               />
-              <button style={S.btn('primary')} onClick={saveConsultation} disabled={consSaving}>
+              <MotionButton level="primary" style={S.btn('primary')} onClick={saveConsultation} disabled={consSaving}>
                 {consSaving ? 'Сохраняю…' : 'Сохранить'}
-              </button>
+              </MotionButton>
             </div>
           )}
 
@@ -921,7 +923,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                         {c.price != null && <span style={S.muted}>{c.price} ₽</span>}
                         {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-air)' }}>хорар-карта</span>}
                       </div>
-                      <button style={S.btn('danger')} onClick={() => deleteConsultation(c.id)}>Удалить</button>
+                      <MotionButton level="primary" style={S.btn('danger')} onClick={() => deleteConsultation(c.id)}>Удалить</MotionButton>
                     </div>
                     {c.notes && <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes}</div>}
                     {c.assignment && (
@@ -1040,11 +1042,11 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               {allTags.map(t => <option key={t} value={t}>#{t}</option>)}
             </select>
           )}
-          <button style={S.btn('ghost')} onClick={exportCSV}>CSV</button>
-          <button style={S.btn(showFilter ? 'primary' : 'ghost')} onClick={() => setShowFilter(v => !v)}>
+          <MotionButton level="ghost" style={S.btn('ghost')} onClick={exportCSV}>CSV</MotionButton>
+          <MotionButton level={showFilter ? 'primary' : 'ghost'} style={S.btn(showFilter ? 'primary' : 'ghost')} onClick={() => setShowFilter(v => !v)}>
             Фильтр по карте
-          </button>
-          <button style={S.btn('primary')} onClick={onAdd}>+ Добавить клиента</button>
+          </MotionButton>
+          <MotionButton level="primary" style={S.btn('primary')} onClick={onAdd}>+ Добавить клиента</MotionButton>
         </div>
       </div>
 
@@ -1090,10 +1092,10 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-end' }}>
-            <button style={S.btn('primary')} onClick={applyFilter} disabled={filterLoading}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={applyFilter} disabled={filterLoading}>
               {filterLoading ? 'Ищу…' : 'Применить'}
-            </button>
-            <button style={S.btn()} onClick={resetFilter}>Сбросить</button>
+            </MotionButton>
+            <MotionButton level="secondary" style={S.btn()} onClick={resetFilter}>Сбросить</MotionButton>
           </div>
         </div>
       )}
@@ -1144,8 +1146,8 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               )}
               {deleteConfirm === client.id ? (
                 <>
-                  <button style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(client.id)}>Удалить</button>
-                  <button style={{ ...S.btn(), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</button>
+                  <MotionButton level="primary" style={{ ...S.btn('danger'), fontSize: 12, padding: '6px 10px' }} onClick={() => handleDelete(client.id)}>Удалить</MotionButton>
+                  <MotionButton level="secondary" style={{ ...S.btn(), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(null)}>Отмена</MotionButton>
                 </>
               ) : (
                 <button style={{ ...S.btn(), fontSize: 12, padding: '6px 10px' }} onClick={() => setDeleteConfirm(client.id)}>×</button>
@@ -1249,9 +1251,9 @@ function BroadcastPanel({ authFetch, clients }) {
               <label style={S.label}>Ваш бренд (имя отправителя)</label>
               <input style={S.input} value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Например: Астролог Мария" />
             </div>
-            <button style={S.btn()} onClick={saveBrand} disabled={brandSaving}>
+            <MotionButton level="secondary" style={S.btn()} onClick={saveBrand} disabled={brandSaving}>
               {brandSaving ? 'Сохраняю…' : 'Сохранить'}
-            </button>
+            </MotionButton>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={brandAuto} onChange={e => setBrandAuto(e.target.checked)} />
@@ -1281,21 +1283,22 @@ function BroadcastPanel({ authFetch, clients }) {
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}{!c.email ? ' (нет email)' : ''}</option>)}
               </select>
             </div>
-            <button style={S.btn()} onClick={doPreview} disabled={!previewClient || previewLoading}>
+            <MotionButton level="secondary" style={S.btn()} onClick={doPreview} disabled={!previewClient || previewLoading}>
               {previewLoading ? 'Гружу…' : 'Предпросмотр'}
-            </button>
+            </MotionButton>
           </div>
 
           {previewHtml && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label style={S.label}>Предпросмотр письма</label>
-                <button
+                <MotionButton
+                  level="secondary"
                   style={{ ...S.btn(), padding: '4px 10px', fontSize: 12 }}
                   onClick={() => setPreviewCollapsed(v => !v)}
                 >
                   {previewCollapsed ? '▼ Развернуть' : '▲ Свернуть'}
-                </button>
+                </MotionButton>
               </div>
               {!previewCollapsed && (
                 <iframe
@@ -1308,10 +1311,10 @@ function BroadcastPanel({ authFetch, clients }) {
           )}
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button style={S.btn('primary')} onClick={doSend} disabled={sending || withEmail.length === 0}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={doSend} disabled={sending || withEmail.length === 0}>
               {sending ? 'Ставлю в очередь…' : `Отправить прогноз месяца (${withEmail.length})`}
-            </button>
-            <button style={S.btn()} onClick={loadHistory}>История</button>
+            </MotionButton>
+            <MotionButton level="secondary" style={S.btn()} onClick={loadHistory}>История</MotionButton>
             {queued > 0 && <span style={S.muted}>Поставлено в очередь: {queued}</span>}
           </div>
 
@@ -1399,15 +1402,15 @@ function IntakePanel({ authFetch, onConverted }) {
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            <button style={S.btn('primary')} onClick={createLink} disabled={creating}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={createLink} disabled={creating}>
               {creating ? 'Создаю…' : '+ Создать ссылку-анкету'}
-            </button>
+            </MotionButton>
           </div>
 
           {newUrl && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
               <input style={{ ...S.input, flex: 1, minWidth: 220 }} value={newUrl} readOnly />
-              <button style={S.btn()} onClick={() => copy(newUrl)}>{copied === newUrl ? 'Скопировано' : 'Копировать'}</button>
+              <MotionButton level="secondary" style={S.btn()} onClick={() => copy(newUrl)}>{copied === newUrl ? 'Скопировано' : 'Копировать'}</MotionButton>
             </div>
           )}
 
@@ -1426,10 +1429,10 @@ function IntakePanel({ authFetch, onConverted }) {
                     </div>
                     {d.question && <div style={{ fontSize: 13, color: 'var(--crm-text)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{d.question}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button style={S.btn('primary')} onClick={() => convert(i.id)} disabled={busyId === i.id}>
+                      <MotionButton level="primary" style={S.btn('primary')} onClick={() => convert(i.id)} disabled={busyId === i.id}>
                         {busyId === i.id ? 'Добавляю…' : 'Добавить в клиенты'}
-                      </button>
-                      <button style={S.btn('danger')} onClick={() => remove(i.id)}>Удалить</button>
+                      </MotionButton>
+                      <MotionButton level="primary" style={S.btn('danger')} onClick={() => remove(i.id)}>Удалить</MotionButton>
                     </div>
                   </div>
                 );
@@ -1443,7 +1446,7 @@ function IntakePanel({ authFetch, onConverted }) {
                 <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13 }}>
                   <span style={S.muted}>Ожидает заполнения</span>
                   <span style={{ display: 'flex', gap: 8 }}>
-                    <button style={S.btn()} onClick={() => copy(i.url)}>{copied === i.url ? 'Готово' : 'Ссылка'}</button>
+                    <MotionButton level="secondary" style={S.btn()} onClick={() => copy(i.url)}>{copied === i.url ? 'Готово' : 'Ссылка'}</MotionButton>
                     <button style={S.btn('danger')} onClick={() => remove(i.id)}>×</button>
                   </span>
                 </div>
@@ -1722,8 +1725,8 @@ function AuthorLibraryPanel({ authFetch }) {
             <input style={S.input} placeholder="Ключ, напр. saturn_house_7" value={form.key} onChange={e => setForm(p => ({ ...p, key: e.target.value }))} />
             <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }} placeholder="Ваш авторский текст трактовки…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button style={S.btn('primary')} onClick={save} disabled={saving}>{saving ? 'Сохраняю…' : (editId ? 'Обновить' : 'Добавить')}</button>
-              {editId && <button style={S.btn()} onClick={cancel}>Отмена</button>}
+              <MotionButton level="primary" style={S.btn('primary')} onClick={save} disabled={saving}>{saving ? 'Сохраняю…' : (editId ? 'Обновить' : 'Добавить')}</MotionButton>
+              {editId && <MotionButton level="secondary" style={S.btn()} onClick={cancel}>Отмена</MotionButton>}
             </div>
           </div>
 
@@ -1736,7 +1739,7 @@ function AuthorLibraryPanel({ authFetch }) {
                   <div style={{ ...S.row, marginBottom: 6 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{it.key}</span>
                     <span style={{ display: 'flex', gap: 6 }}>
-                      <button style={S.btn()} onClick={() => edit(it)}>Изм.</button>
+                      <MotionButton level="secondary" style={S.btn()} onClick={() => edit(it)}>Изм.</MotionButton>
                       <button style={S.btn('danger')} onClick={() => remove(it.id)}>×</button>
                     </span>
                   </div>
@@ -1791,11 +1794,11 @@ function GroupForecastPanel({ authFetch, clients }) {
             <select style={{ ...S.input, width: 'auto' }} value={planet} onChange={e => setPlanet(e.target.value)}>
               {PLANETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
-            <button style={S.btn('primary')} onClick={run} disabled={running || ids.length === 0}>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={run} disabled={running || ids.length === 0}>
               {running ? 'Считаю…' : 'Прогноз по выбранным'}
-            </button>
-            <button style={S.btn()} onClick={() => setSelected(Object.fromEntries(withChart.map(c => [c.id, true])))}>Все</button>
-            <button style={S.btn()} onClick={() => setSelected({})}>Сброс</button>
+            </MotionButton>
+            <MotionButton level="secondary" style={S.btn()} onClick={() => setSelected(Object.fromEntries(withChart.map(c => [c.id, true])))}>Все</MotionButton>
+            <MotionButton level="secondary" style={S.btn()} onClick={() => setSelected({})}>Сброс</MotionButton>
           </div>
 
           <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid rgba(139,92,246,0.12)', borderRadius: 8, padding: 8, marginBottom: 12 }}>

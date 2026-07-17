@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import MotionButton from "../components/MotionButton";
 
 const API_BASE = "https://astro-production-abcc.up.railway.app";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -757,10 +758,10 @@ export default function PlannerPage() {
               </h1>
               {isPro && !isFree && (
                 <div className="month-nav">
-                  <button className="month-nav-btn" onClick={() => setMonthOffset(o => o - 1)}>‹</button>
+                  <MotionButton level="secondary" className="month-nav-btn" onClick={() => setMonthOffset(o => o - 1)}>‹</MotionButton>
                   <span className="month-nav-label">{monthLabel}</span>
                   {monthOffset < 11 && (
-                    <button className="month-nav-btn" onClick={() => setMonthOffset(o => o + 1)}>›</button>
+                    <MotionButton level="secondary" className="month-nav-btn" onClick={() => setMonthOffset(o => o + 1)}>›</MotionButton>
                   )}
                 </div>
               )}
@@ -779,7 +780,7 @@ export default function PlannerPage() {
           ) : error ? (
             <div className="error-box">
               <div>⚠️ {error}</div>
-              <button className="retry-btn" onClick={loadPlan}>Повторить</button>
+              <MotionButton level="primary" className="retry-btn" onClick={loadPlan}>Повторить</MotionButton>
             </div>
           ) : (
             <>
@@ -820,14 +821,15 @@ export default function PlannerPage() {
               )}
 
               <div className="refresh-footer">
-                <button className="refresh-btn" onClick={() => { loadPlan(); loadPhases(); }}>🔄 Пересчитать план</button>
-                <button
+                <MotionButton level="primary" className="refresh-btn" onClick={() => { loadPlan(); loadPhases(); }}>🔄 Пересчитать план</MotionButton>
+                <MotionButton
+                  level="secondary"
                   className={`gcal-btn${gcalStatus === "success" ? " success" : gcalStatus === "error" ? " error" : ""}`}
                   disabled={gcalStatus === "loading"}
                   onClick={() => exportEvents(buildExportEvents())}
                 >
                   {gcalLabel}
-                </button>
+                </MotionButton>
               </div>
             </>
           ))}
