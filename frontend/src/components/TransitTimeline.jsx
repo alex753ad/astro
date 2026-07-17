@@ -110,6 +110,33 @@ function formatExactTime(exactDate) {
 function isHarmonic(aspect) { return aspect === "trine" || aspect === "sextile"; }
 function isTense(aspect)    { return aspect === "square" || aspect === "opposition"; }
 
+// ── Помесячная догрузка транзитов ──────────────────────────
+
+function addDaysISO(dateStr, days) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function addMonthISO(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return new Date(d.getFullYear(), d.getMonth() + 1, d.getDate()).toISOString().slice(0, 10);
+}
+
+function eventKey(e) {
+  return `${e.peak_date || e.start_date || e.date}-${e.transit_planet}-${e.natal_planet}-${e.aspect_type}`;
+}
+
+function mergeEvents(prev, incoming) {
+  const seen = new Set(prev.map(eventKey));
+  const merged = prev.slice();
+  for (const e of incoming) {
+    const k = eventKey(e);
+    if (!seen.has(k)) { seen.add(k); merged.push(e); }
+  }
+  return merged;
+}
+
 // Возвращает индекс события, которое открыто для free-пользователей
 // (первый транзит Венеры или Юпитера с позитивным аспектом)
 function getFreeUnlockedIndex(events) {
@@ -541,9 +568,15 @@ function InterpretationPanel({ event, chartId, onClose }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
+const TRANSITS_URL = (chartId, from, to) =>
+  `https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`;
+
 export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade }) {
   const [events,        setEvents]        = useState([]);
-  const [loading,       setLoading]       = useState(true);
+  const [loading,       setLoading]       = useState(true);   // первый запрос
+  const [loadingMore,   setLoadingMore]   = useState(false);  // догрузка следующего месяца
+  const [loadedUntil,   setLoadedUntil]   = useState(null);   // to_date последнего загруженного месяца
+  const [reachedEnd,    setReachedEnd]    = useState(false);  // догрузили до горизонта тарифа
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [planetFilter,  setPlanetFilter]  = useState([]);
   const [aspectFilter,  setAspectFilter]  = useState([]);
@@ -552,24 +585,91 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   const isFree = !userTier || userTier === "free";
   const isLite = userTier === "lite";
+  const isPremium = userTier === "premium";
   const hasFullAccess = userTier === "pro" || userTier === "premium";
 
-  useEffect(() => {
-    if (!chartId || mockMode || chartId === 'anonymous') { setEvents(MOCK_EVENTS); setLoading(false); return; }
-    setLoading(true);
+  // Горизонт догрузки: Free нужен на 12 мес вперёд для блюр-тизера,
+  // Premium — 24 мес, остальные платные — 2 мес (как раньше).
+  const maxMonths = isFree ? 12 : (isPremium ? 24 : 2);
+  const horizonEnd = useMemo(() => {
     const today = new Date();
-    const from  = today.toISOString().slice(0, 10);
-    // Free/анонимы грузят 12 месяцев — блюр на фронте, данные нужны для показа
-    const months = (!userTier || userTier === 'free') ? 12 : 2;
-    const to    = new Date(today.getFullYear(), today.getMonth() + months, 0).toISOString().slice(0, 10);
+    return new Date(today.getFullYear(), today.getMonth() + maxMonths, 0).toISOString().slice(0, 10);
+  }, [maxMonths]);
+
+  // ── Первый запрос: ближайший месяц — список появляется быстро ──
+  useEffect(() => {
+    setEvents([]);
+    setLoadedUntil(null);
+    setReachedEnd(false);
+
+    if (!chartId || mockMode || chartId === 'anonymous') {
+      setEvents(MOCK_EVENTS);
+      setLoading(false);
+      setReachedEnd(true);
+      return;
+    }
+
+    setLoading(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const to    = addMonthISO(today) > horizonEnd ? horizonEnd : addMonthISO(today);
     const token = localStorage.getItem('astro_access_token');
-    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`, {
+
+    fetch(TRANSITS_URL(chartId, today, to), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => r.json())
-      .then(data => { setEvents(data.events || []); setLoading(false); })
-      .catch(() => { setEvents(MOCK_EVENTS); setLoading(false); });
-  }, [chartId, mockMode, userTier]);
+      .then(data => {
+        setEvents(data.events || []);
+        setLoadedUntil(to);
+        if (to >= horizonEnd) setReachedEnd(true);
+        setLoading(false);
+      })
+      .catch(() => { setEvents(MOCK_EVENTS); setLoading(false); setReachedEnd(true); });
+  }, [chartId, mockMode, horizonEnd]);
+
+  // ── Догрузка следующего месяца (по прокрутке — см. sentinel ниже) ──
+  const loadMore = useCallback(() => {
+    if (loadingMore || reachedEnd || loading || !chartId || mockMode || chartId === 'anonymous' || loadedUntil == null) return;
+    if (loadedUntil >= horizonEnd) { setReachedEnd(true); return; }
+
+    setLoadingMore(true);
+    const from = addDaysISO(loadedUntil, 1);
+    const to   = addMonthISO(from) > horizonEnd ? horizonEnd : addMonthISO(from);
+    const token = localStorage.getItem('astro_access_token');
+
+    fetch(TRANSITS_URL(chartId, from, to), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(data => {
+        setEvents(prev => mergeEvents(prev, data.events || []));
+        setLoadedUntil(to);
+        if (to >= horizonEnd) setReachedEnd(true);
+      })
+      .catch(() => {}) // оставляем loadedUntil как есть — следующий триггер повторит тот же диапазон
+      .finally(() => setLoadingMore(false));
+  }, [loadingMore, reachedEnd, loading, chartId, mockMode, loadedUntil, horizonEnd]);
+
+  // ── Free: догружаем до горизонта в фоне, не дожидаясь скролла —
+  //    иначе счётчик FreePlanBanner/блюр-тизер занижен, пока пользователь не долистал ──
+  useEffect(() => {
+    if (!isFree || loading || loadingMore || reachedEnd || loadedUntil == null) return;
+    const t = setTimeout(loadMore, 400);
+    return () => clearTimeout(t);
+  }, [isFree, loading, loadingMore, reachedEnd, loadedUntil, loadMore]);
+
+  // ── Sentinel для скролл-догрузки (все тарифы) ──
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    if (loading || reachedEnd || !sentinelRef.current) return;
+    const el = sentinelRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: '400px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loading, reachedEnd, loadMore]);
 
   // ── Логика видимости транзитов ──
   // Free: первые 2 недели + 1 позитивный транзит (Venus/Jupiter trine/sextile)
@@ -739,7 +839,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
               const visible = isEventVisible(event, globalIdx);
               return (
                 <EventCard
-                  key={`${event.peak_date||event.start_date||event.date}-${event.transit_planet}-${event.natal_planet}-${event.aspect_type}`}
+                  key={eventKey(event)}
                   event={event} index={idx}
                   isSelected={selectedEvent === event}
                   onClick={() => handleEventClick(event)}
@@ -749,6 +849,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
               );
             })
           )}
+          {!loading && loadingMore && (
+            <>
+              <EventCardSkeleton />
+              <EventCardSkeleton />
+            </>
+          )}
+          {!loading && !reachedEnd && <div ref={sentinelRef} style={{ height: 1 }} />}
         </div>
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>

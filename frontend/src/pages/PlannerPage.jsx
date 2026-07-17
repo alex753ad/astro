@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
 
@@ -524,11 +524,22 @@ function CollapsibleMonthSection({ section }) {
           />
         </div>
       </div>
-      {open && (section.periods || []).map((p, pi) => (
-        <PeriodBlock key={pi} planet={section.planet} emoji={section.emoji}
-          period={p.period} items={p.items || []} subtitle={section.planet_subtitle}
-          locked={p.locked} />
-      ))}
+      {open && (() => {
+        const periods = section.periods || [];
+        let bannerShown = false;
+        return periods.map((p, pi) => {
+          const showBanner = p.locked && !bannerShown;
+          if (showBanner) bannerShown = true;
+          return (
+            <Fragment key={pi}>
+              {showBanner && <LockedPeriodsGroupHint />}
+              <PeriodBlock planet={section.planet} emoji={section.emoji}
+                period={p.period} items={p.items || []} subtitle={section.planet_subtitle}
+                locked={p.locked} />
+            </Fragment>
+          );
+        });
+      })()}
     </div>
   );
 }
@@ -542,7 +553,16 @@ function LockedTeaser({ trigger }) {
         <li><span className="dot" style={{ background: "var(--border)" }} />Ключевые действия окна</li>
         <li><span className="dot" style={{ background: "var(--border)" }} />Рекомендации по сферам</li>
       </ul>
-      <div className="locked-trigger"><span className="lk">🔒</span><span>{trigger}</span></div>
+      {trigger && <div className="locked-trigger"><span className="lk">🔒</span><span>{trigger}</span></div>}
+    </div>
+  );
+}
+
+// Общая плашка над группой заблокированных периодов месяца (вместо повтора фразы в каждом)
+function LockedPeriodsGroupHint() {
+  return (
+    <div className="free-hint">
+      🔒 Периоды до конца горизонта — под подпиской. Активные окна дают результат. Откройте, чтобы увидеть даты и разбор.
     </div>
   );
 }
@@ -559,7 +579,7 @@ function PeriodBlock({ planet, emoji, period, items, subtitle, locked }) {
       </div>
       {subtitle && <div className="period-subtitle">{subtitle}</div>}
       {locked ? (
-        <LockedTeaser trigger={`${period} — активный период по одной из ключевых тем вашей карты. Действия в это окно дают результат в 2–3 раза сильнее обычного.`} />
+        <LockedTeaser />
       ) : (
         <ul className="period-items">
           {items.map((item, i) => (
