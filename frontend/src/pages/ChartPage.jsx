@@ -699,6 +699,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                   midheaven={chart.midheaven}
                   timeUnknown={chart.time_unknown}
                   transitPlanets={transitPlanets}
+                  reserveTransitPadding
                   dark={dark}
                 />
               </section>
