@@ -1,10 +1,14 @@
 /* zodiac data-color, intentional — LandingPage is a fixed light-theme design; colors are pinned by design, not theme-dependent tokens */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
+
+const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
 export default function LandingPage({ onShowAuth, currentUser }) {
   const navigate = useNavigate();
+  const prefersReduced = useReducedMotion();
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -12,6 +16,30 @@ export default function LandingPage({ onShowAuth, currentUser }) {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
+  // Однократный деликатный «подскок» главной CTA после паузы бездействия.
+  // Не цикл: срабатывает один раз и больше не повторяется.
+  const [ctaNudge, setCtaNudge] = useState(false);
+  useEffect(() => {
+    if (prefersReduced) return;
+    const t = setTimeout(() => setCtaNudge(true), 4000);
+    return () => clearTimeout(t);
+  }, [prefersReduced]);
+
+  // ── Варианты анимаций (при prefers-reduced-motion — только fade, без сдвига) ──
+  const heroContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
+  const heroItem = prefersReduced
+    ? { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.4, ease: 'easeOut' } } }
+    : { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } } };
+
+  const sectionReveal = prefersReduced
+    ? { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.5, ease: 'easeOut' } } }
+    : { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } };
+
+  const gridContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
+
+  const cardHover = prefersReduced ? undefined : { y: -3 };
+  const previewShadow = '0 12px 40px rgba(0,0,0,0.10)';
 
   const handleActivate = () => {
     if (currentUser) {
@@ -31,13 +59,18 @@ export default function LandingPage({ onShowAuth, currentUser }) {
 
 
       {/* Hero */}
-      <div style={{
-        textAlign: 'center',
-        padding: isMobile ? '40px 20px 32px' : '80px 40px 40px',
-        maxWidth: 700,
-        margin: '0 auto',
-      }}>
-        <div style={{
+      <motion.div
+        variants={heroContainer}
+        initial="hidden"
+        animate="visible"
+        style={{
+          textAlign: 'center',
+          padding: isMobile ? '40px 20px 32px' : '80px 40px 40px',
+          maxWidth: 700,
+          margin: '0 auto',
+        }}
+      >
+        <motion.div variants={heroItem} style={{
           fontSize: 12,
           fontWeight: 700,
           letterSpacing: '0.12em',
@@ -46,9 +79,9 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           marginBottom: 20,
         }}>
           Интеллектуальный планер
-        </div>
+        </motion.div>
 
-        <h1 style={{
+        <motion.h1 variants={heroItem} style={{
           fontSize: 'clamp(36px, 5vw, 58px)',
           fontWeight: 700,
           lineHeight: 1.15,
@@ -56,17 +89,23 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           color: '#1a1230',
         }}>
           Лучшая ветка вашего времени —<br />
-          <span style={{
-            background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+          <motion.span
+            style={{
+              background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
+              // Растягиваем градиент вдвое, чтобы было куда его смещать.
+              backgroundSize: prefersReduced ? '100% 100%' : '200% 100%',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+            animate={prefersReduced ? undefined : { backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+            transition={prefersReduced ? undefined : { duration: 7, ease: 'easeInOut', repeat: Infinity }}
+          >
             в вашем Планере
-          </span>
-        </h1>
+          </motion.span>
+        </motion.h1>
 
-        <p style={{
+        <motion.p variants={heroItem} style={{
           fontSize: 16,
           color: '#6B6885',
           lineHeight: 1.7,
@@ -76,40 +115,49 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           Astrea превращает вашу натальную карту в живого навигатора по каждому дню. Она показывает,
           когда именно ваши цели — карьера, отношения, ресурс — звучат сильнее всего, и что сделать прямо сейчас,
           чтобы усилить результат.
-        </p>
+        </motion.p>
 
-        <MotionButton
-          level="primary"
-          onClick={handleActivate}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '16px 36px',
-            borderRadius: 14,
-            border: 'none',
-            background: '#1a1230',
-            color: '#fff',
-            fontSize: 16,
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            letterSpacing: '0.01em',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
-          }}
-        >
-          Собрать мой Timeline за минуту
-        </MotionButton>
-      </div>
+        <motion.div variants={heroItem}>
+          {/* Отдельная обёртка: подскок живёт здесь и не мешает hover самой кнопки */}
+          <motion.div
+            style={{ display: 'inline-block' }}
+            animate={ctaNudge ? { y: [0, -4, 0] } : { y: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+          >
+            <MotionButton
+              level="primary"
+              onClick={handleActivate}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '16px 36px',
+                borderRadius: 14,
+                border: 'none',
+                background: '#1a1230',
+                color: '#fff',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                letterSpacing: '0.01em',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+              }}
+            >
+              Собрать мой Timeline за минуту
+            </MotionButton>
+          </motion.div>
+        </motion.div>
+      </motion.div>
 
       {/* Preview card */}
       <div style={{
@@ -117,16 +165,23 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         margin: '48px auto 0',
         padding: '0 24px',
       }}>
-        <div style={{
-          background: 'rgba(255,255,255,0.7)',
-          backdropFilter: 'blur(16px)',
-          borderRadius: 20,
-          border: '1px solid rgba(139,92,246,0.15)',
-          overflow: 'hidden',
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : '1fr 1.4fr',
-          minHeight: 220,
-        }}>
+        <motion.div
+          initial={prefersReduced
+            ? { opacity: 0, boxShadow: previewShadow }
+            : { opacity: 0, scale: 0.96, boxShadow: '0 0px 0px rgba(0,0,0,0)' }}
+          animate={{ opacity: 1, scale: 1, boxShadow: previewShadow }}
+          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.55 }}
+          style={{
+            background: 'rgba(255,255,255,0.7)',
+            backdropFilter: 'blur(16px)',
+            borderRadius: 20,
+            border: '1px solid rgba(139,92,246,0.15)',
+            overflow: 'hidden',
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1.4fr',
+            minHeight: 220,
+          }}
+        >
           {/* Left — zodiac wheel placeholder */}
           <div style={{
             display: 'flex',
@@ -203,18 +258,24 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               где действие сработает в 2–3 раза сильнее.
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Features */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-        gap: 16,
-        maxWidth: 820,
-        margin: '32px auto 48px',
-        padding: '0 24px',
-      }}>
+      <motion.div
+        variants={gridContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={VIEWPORT_ONCE}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+          gap: 16,
+          maxWidth: 820,
+          margin: '32px auto 48px',
+          padding: '0 24px',
+        }}
+      >
         {[
           {
             title: 'Окна возможностей',
@@ -238,8 +299,10 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             desc: 'Astrea читает вашу натальную карту и транзиты как единую историю и переводит её в тёплый, ясный разбор. Вы узнаёте свои сильные стороны и лучшие моменты для действий так, будто рядом мудрый близкий человек.',
           },
         ].map((f) => (
-          <div
+          <motion.div
             key={f.title}
+            variants={sectionReveal}
+            whileHover={cardHover}
             style={{
               background: f.highlight
                 ? 'rgba(139,92,246,0.08)'
@@ -261,20 +324,26 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               color: '#6B6885',
               lineHeight: 1.6,
             }}>{f.desc}</div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
       {/* Astrologer block */}
       <div style={{
         maxWidth: 820,
         margin: '0 auto 48px',
         padding: '0 24px',
       }}>
-        <div style={{
-          textAlign: 'center',
-          maxWidth: 620,
-          margin: '0 auto 28px',
-        }}>
+        <motion.div
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          style={{
+            textAlign: 'center',
+            maxWidth: 620,
+            margin: '0 auto 28px',
+          }}
+        >
           <h2 style={{
             fontSize: 'clamp(26px, 3.5vw, 36px)',
             fontWeight: 700,
@@ -288,34 +357,46 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             Ваша практика переезжает из заметок телефона в одно живое пространство —
             и каждый повод написать превращается в новую консультацию.
           </p>
-        </div>
+        </motion.div>
 
         {/* Cabinet image placeholder */}
-        <div style={{
-          borderRadius: 20,
-          border: '1px dashed rgba(139,92,246,0.3)',
-          background: 'rgba(248,244,255,0.6)',
-          minHeight: 240,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#9B97B0',
-          fontSize: 13,
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          marginBottom: 20,
-          textAlign: 'center',
-          padding: '0 24px',
-        }}>
+        <motion.div
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          style={{
+            borderRadius: 20,
+            border: '1px dashed rgba(139,92,246,0.3)',
+            background: 'rgba(248,244,255,0.6)',
+            minHeight: 240,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#9B97B0',
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            marginBottom: 20,
+            textAlign: 'center',
+            padding: '0 24px',
+          }}
+        >
           Кабинет астролога — скриншот
-        </div>
+        </motion.div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
-          gap: 16,
-          marginBottom: 28,
-        }}>
+        <motion.div
+          variants={gridContainer}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+            gap: 16,
+            marginBottom: 28,
+          }}
+        >
           {[
             {
               title: 'Вся база в одном месте',
@@ -339,8 +420,10 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               desc: 'Ваши консультации и доход видны наглядно — вы видите, как растёт практика, и чувствуете отдачу от каждого шага. Одна консультация окупает месяц Premium, дальше — только ваш рост.',
             },
           ].map((f) => (
-            <div
+            <motion.div
               key={f.title}
+              variants={sectionReveal}
+              whileHover={cardHover}
               style={{
                 background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
                 backdropFilter: 'blur(8px)',
@@ -351,11 +434,17 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             >
               <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1230', marginBottom: 8 }}>{f.title}</div>
               <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.6 }}>{f.desc}</div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
-        <div style={{ textAlign: 'center' }}>
+        <motion.div
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
+          style={{ textAlign: 'center' }}
+        >
           <MotionButton
             level="secondary"
             onClick={handleActivate}
@@ -387,7 +476,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           >
             Собрать мой Timeline за минуту
           </MotionButton>
-        </div>
+        </motion.div>
       </div>
 
       {/* Footer links */}
