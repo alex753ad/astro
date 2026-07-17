@@ -64,8 +64,7 @@
 @layer components {
   /* Основная карточка */
   .solid-card {
-    background: color-mix(in srgb, var(--bg-card) 75%, transparent);
-    backdrop-filter: blur(8px);
+    background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 16px;
     transition: transform 0.2s ease, box-shadow 0.2s ease;

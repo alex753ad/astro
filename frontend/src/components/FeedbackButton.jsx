@@ -94,7 +94,7 @@ export default function FeedbackButton() {
 const fbStyles = `
 .fb-fab{
   position:fixed; right:16px; bottom:16px; z-index:9999;
-  background:rgba(30,22,50,.92); color:var(--accent-muted); border:1px solid var(--bg-deeper);
+  background:rgba(30,22,50,.92); color:#fff; border:1px solid var(--bg-deeper);
   border-radius:22px; padding:9px 15px; font-size:13px; font-weight:600;
   cursor:pointer; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.3);
 }
@@ -104,9 +104,9 @@ const fbStyles = `
   background:var(--bg-card); border:1px solid var(--bg-deeper); border-radius:14px;
   padding:16px; box-shadow:0 8px 32px rgba(0,0,0,.45);
 }
-.fb-title{ color:var(--accent-muted); font-size:14px; font-weight:700; margin-bottom:10px; }
+.fb-title{ color:var(--text-primary); font-size:14px; font-weight:700; margin-bottom:10px; }
 .fb-input{
-  width:100%; box-sizing:border-box; background:var(--bg); color:var(--accent-muted);
+  width:100%; box-sizing:border-box; background:var(--bg); color:var(--text-primary);
   border:1px solid var(--bg-deeper); border-radius:10px; padding:10px; font-size:13px;
   resize:vertical; font-family:inherit;
 }
@@ -121,5 +121,5 @@ const fbStyles = `
 }
 .fb-send:disabled{ opacity:.6; cursor:default; }
 .fb-err{ color:var(--color-danger); font-size:12px; margin-top:8px; }
-.fb-done{ color:var(--accent-muted); font-size:13px; line-height:1.5; padding:4px 0; }
+.fb-done{ color:var(--text-primary); font-size:13px; line-height:1.5; padding:4px 0; }
 `;

@@ -683,8 +683,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           <div style={showPaywall ? { filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
             <main style={s.main}>
               <section style={s.card}>
-                <div style={s.transitDateLabel}>
-                  Транзиты на {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                  <MotionButton level="ghost" onClick={() => handleTopTabChange('chart')} style={s.transitBackBtn}>
+                    ← К карте
+                  </MotionButton>
+                  <div style={{ ...s.transitDateLabel, marginBottom: 0 }}>
+                    Транзиты на {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
                 </div>
                 <NatalChart
                   planets={chart.planets}
@@ -1159,6 +1164,7 @@ const s = {
     display: 'flex', flexDirection: 'column', gap: '64px',
   },
   transitDateLabel: { fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '14px' },
+  transitBackBtn: { display: 'flex', alignItems: 'center', gap: 4, fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', whiteSpace: 'nowrap' },
   card: { background: 'var(--bg-card)', borderRadius: '16px', border: '0.5px solid var(--border)', padding: '20px' },
   plannerHead: { marginBottom: '14px' },
   plannerTitle: { fontSize: '15px', fontWeight: '500', color: 'var(--text-primary)', display: 'block' },
