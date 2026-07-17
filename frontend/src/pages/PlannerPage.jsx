@@ -11,11 +11,81 @@ function getMonthName(date) {
 }
 
 /* zodiac data-color, intentional */
+// Плоские акцентные цвета планет — для бордеров/бейджей (не для кружков, см. PlanetDot ниже).
 const PLANET_COLORS = {
-  sun: "#EAB308", mercury: "#8B5CF6", venus: "var(--accent)",
-  mars: "#EF4444", jupiter: "#8B5CF6", saturn: "#64748B",
-  uranus: "var(--color-air)", neptune: "var(--accent)", pluto: "#7C3AED", moon: "#EAB308",
+  sun: "#FDD85D", moon: "#8E8E96", mercury: "#3498DB", venus: "#EC4899",
+  mars: "#E74C3C", jupiter: "#9B59B6", saturn: "#1E3A6E", uranus: "#1ABC9C",
+  neptune: "#3F3D9E", pluto: "#7C3AED",
 };
+
+/* zodiac data-color, intentional */
+// Градиентные пары для кружков планет: radial-gradient(circle at 34% 30%, c1, c2).
+const PLANET_DOT_GRADIENTS = {
+  sun:     { c1: "#FFE896", c2: "#FDD85D" }, // рендерится особо — см. PlanetDot (плоское + свечение)
+  moon:    { c1: "#C8C8CE", c2: "#8E8E96" },
+  mercury: { c1: "#8FD3F4", c2: "#3498DB" },
+  venus:   { c1: "#FF9EC4", c2: "#EC4899" },
+  mars:    { c1: "#FF6B5A", c2: "#E74C3C" },
+  jupiter: { c1: "#C9A7F0", c2: "#9B59B6" },
+  saturn:  { c1: "#3F5C8A", c2: "#1E3A6E" },
+  uranus:  { c1: "#7FE7D8", c2: "#1ABC9C" },
+  neptune: { c1: "#7C86E0", c2: "#3F3D9E" },
+  pluto:   { c1: "#B98BE0", c2: "#7C3AED" },
+};
+
+/* zodiac data-color, intentional */
+// Фазы Луны, затмения и узлы — не планеты, но рендерятся тем же PlanetDot.
+const PHASE_DOT_STYLES = {
+  new_moon:      { c1: "#5A5A64", c2: "#2E2E36" },
+  full_moon:     { solid: "#FDC05D" },
+  solar_eclipse: { solid: "#1a1230", ring: "#FFE000" },
+  lunar_eclipse: { solid: "#1a1230", ring: "#FFE000" },
+  north_node:    { c1: "#FFB86B", c2: "#E8842A", node: "☊" },
+  south_node:    { c1: "#FFB86B", c2: "#E8842A", node: "☋" },
+};
+
+// Тип не распознан (неизвестная планета/фаза) — нейтральный серый кружок.
+const FALLBACK_DOT_GRADIENT = { c1: "#A6A6B0", c2: "#6E6E78" };
+
+// Кружок планеты/фазы: градиентная заливка + опциональные символ узла и ретро-метка.
+function PlanetDot({ type, size = 18, retro = false, node }) {
+  const style = PLANET_DOT_GRADIENTS[type] || PHASE_DOT_STYLES[type] || FALLBACK_DOT_GRADIENT;
+  const symbol = node ?? style.node;
+
+  let background, boxShadow, border;
+  if (style.solid) {
+    background = style.solid;
+    if (style.ring) border = `${Math.max(1, size * 0.11)}px solid ${style.ring}`;
+  } else if (type === "sun") {
+    background = `radial-gradient(circle at 50% 42%, ${style.c1}, ${style.c2} 70%)`;
+    boxShadow = "0 0 5px rgba(253,216,93,0.5)";
+  } else {
+    background = `radial-gradient(circle at 34% 30%, ${style.c1}, ${style.c2})`;
+  }
+
+  return (
+    <span style={{
+      position: "relative", display: "inline-block", flexShrink: 0,
+      width: size, height: size, borderRadius: "50%",
+      background, boxShadow, border,
+    }}>
+      {symbol && (
+        <span style={{
+          position: "absolute", inset: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff", fontSize: size * 0.55, lineHeight: 1,
+        }}>{symbol}</span>
+      )}
+      {retro && (
+        <span style={{
+          position: "absolute", bottom: -3, right: -(size * 0.3),
+          fontSize: size * 0.5, color: "#E11D0C", fontFamily: "Georgia, serif", fontWeight: 700,
+          textShadow: "-1px 0 #fff, 1px 0 #fff, 0 -1px #fff, 0 1px #fff",
+        }}>R</span>
+      )}
+    </span>
+  );
+}
 
 // ── Таймлайн: события месяца ──────────────────────────────────────────────────
 
@@ -26,10 +96,6 @@ const SIGN_PREP = {
   "Стрелец": "Стрельце", "Козерог": "Козероге", "Водолей": "Водолее", "Рыбы": "Рыбах",
 };
 const signPrep = (s) => SIGN_PREP[s] || s || "";
-
-const PHASE_EMOJI = {
-  new_moon: "🌑", full_moon: "🌕", solar_eclipse: "🌚", lunar_eclipse: "🌘", retro: "℞",
-};
 
 function phaseTooltip(type, sign, fallback) {
   const inSign = sign ? ` в ${signPrep(sign)}` : "";
@@ -55,7 +121,7 @@ function buildTimeline(planData, phases) {
       if (!dd) return;
       events.push({
         id: `${sec.planet}-${i}`, kind: "passage", date: start, day: dd, mon: mm,
-        emoji: sec.emoji, planet: sec.planet, name: sec.planet_name, house: p.house,
+        planet: sec.planet, name: sec.planet_name, house: p.house,
       });
     });
   });
@@ -66,17 +132,18 @@ function buildTimeline(planData, phases) {
     events.push({
       id: `phase-${i}`, kind: "phase", day: dd, mon: mm,
       date: `${String(dd).padStart(2, "0")}.${String(mm).padStart(2, "0")}`,
-      emoji: ph.emoji || PHASE_EMOJI[ph.type] || "🌙",
+      phaseType: ph.type,
       tooltip: phaseTooltip(ph.type, ph.sign, ph.description),
     });
   });
 
-  // Готовый маркер ретроградности (planData.retrogrades появится позже)
+  // Станции ретроградности: бэк отдаёт planet (слаг) вместе с датой станции —
+  // рисуем кружок ЭТОЙ планеты с меткой retro, отдельного ℞-узла больше нет.
   (planData?.retrogrades || []).forEach((r, i) => {
     const [dd, mm] = (r.date || "").split(".").map(Number);
     if (!dd) return;
     events.push({
-      id: `retro-${i}`, kind: "phase", day: dd, mon: mm, date: r.date, emoji: "℞",
+      id: `retro-${i}`, kind: "phase", day: dd, mon: mm, date: r.date, planet: r.planet,
       tooltip: r.label || `${r.status === "end" ? "Окончание" : "Начало"} ретро ${r.planet_name || ""}`.trim(),
     });
   });
@@ -443,12 +510,16 @@ function Timeline({ events, onPlanet }) {
           const left = 6 + ((ev.day - min) / span) * 88;
           const tipSide = left > 55 ? "left" : "right";
           if (ev.kind === "phase") {
+            // Станция ретро несёт planet (слаг) — лунная фаза его не имеет.
+            const isRetro = !!ev.planet;
             return (
               <div className="tl-node phase" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
                 <span className="tl-dot" />
                 <span className="tl-date">{ev.day}</span>
                 <span className="tl-icowrap">
-                  <span className="tl-ico">{ev.emoji}</span>
+                  <span className="tl-ico">
+                    <PlanetDot type={ev.planet || ev.phaseType} retro={isRetro} />
+                  </span>
                   <span className={`tl-tip tl-tip--${tipSide}`}>{ev.tooltip}</span>
                 </span>
               </div>
@@ -463,7 +534,7 @@ function Timeline({ events, onPlanet }) {
                   className="tl-ico link"
                   onClick={() => onPlanet(ev.planet)}
                 >
-                  {ev.emoji}
+                  <PlanetDot type={ev.planet} />
                 </button>
                 <span className={`tl-tip tl-tip--${tipSide}`}>{ev.name} — {ev.house} дом</span>
               </span>
@@ -488,11 +559,11 @@ function TabBar({ tabs, active, onChange }) {
   );
 }
 
-function SectionHeader({ emoji, title, subtitle }) {
+function SectionHeader({ planet, emoji, title, subtitle }) {
   return (
     <div className="section-header">
       <div className="section-icon">
-        {emoji}
+        {planet ? <PlanetDot type={planet} size={22} /> : emoji}
       </div>
       <div className="section-header-text">
         <h3>{title}</h3>
@@ -518,6 +589,7 @@ function CollapsibleMonthSection({ section }) {
         <span style={{ fontSize: 12, color: "var(--text-secondary)", transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "none", flexShrink: 0 }}>▶</span>
         <div style={{ flex: 1 }}>
           <SectionHeader
+            planet={section.planet}
             emoji={section.emoji}
             title={`${section.planet_name} — приоритеты месяца`}
             subtitle={section.planet_subtitle}
@@ -533,7 +605,7 @@ function CollapsibleMonthSection({ section }) {
           return (
             <Fragment key={pi}>
               {showBanner && <LockedPeriodsGroupHint />}
-              <PeriodBlock planet={section.planet} emoji={section.emoji}
+              <PeriodBlock planet={section.planet}
                 period={p.period} items={p.items || []} subtitle={section.planet_subtitle}
                 locked={p.locked} />
             </Fragment>
@@ -567,12 +639,12 @@ function LockedPeriodsGroupHint() {
   );
 }
 
-function PeriodBlock({ planet, emoji, period, items, subtitle, locked }) {
+function PeriodBlock({ planet, period, items, subtitle, locked }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
       <div className="period-card-header">
-        <span style={{ fontSize: 15 }}>{emoji}</span>
+        <PlanetDot type={planet} size={20} />
         <span className="period-badge" style={{ color, background: `${color}18` }}>
           Период {period}
         </span>
@@ -618,13 +690,13 @@ function WeekDayBlock({ date, time, house, items, locked }) {
   );
 }
 
-function LongTermBlock({ planet, emoji, period, items, warning, subtitle, locked }) {
+function LongTermBlock({ planet, period, items, warning, subtitle, locked }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="lt-card" style={{ borderLeftColor: color }}>
       {warning && <div className="lt-warning">⚠️ {warning}</div>}
-      <div className="lt-title">
-        <span style={{ marginRight: 6 }}>{emoji}</span>
+      <div className="lt-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <PlanetDot type={planet} size={20} />
         <span style={{ color }}>{period}</span>
       </div>
       {subtitle && <div className="lt-subtitle">{subtitle}</div>}
@@ -821,7 +893,7 @@ export default function PlannerPage() {
 
               {tab === "week" && (
                 <div>
-                  <SectionHeader emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
+                  <SectionHeader planet="moon" emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
                   {(planData?.week_days || []).map((day, i) => (
                     <WeekDayBlock key={i} date={day.date} time={day.time} house={day.house} items={day.items || []} locked={day.locked} />
                   ))}
@@ -832,7 +904,7 @@ export default function PlannerPage() {
                 <div>
                   <SectionHeader emoji="🪐" title={planData?.longterm_title || "Долгосрочные транзиты"} subtitle="Социальные и высшие планеты — тренды на годы" />
                   {(planData?.longterm || []).map((lt, i) => (
-                    <LongTermBlock key={i} planet={lt.planet} emoji={lt.emoji}
+                    <LongTermBlock key={i} planet={lt.planet}
                       period={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
                       items={lt.items || []} warning={lt.warning} subtitle={lt.planet_subtitle}
                       locked={lt.locked} />
