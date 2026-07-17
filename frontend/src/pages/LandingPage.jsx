@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
+import chartPreview from '../assets/chart-preview.png';
+import crmPreview from '../assets/crm-preview.png';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
@@ -16,15 +18,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
-
-  // Однократный деликатный «подскок» главной CTA после паузы бездействия.
-  // Не цикл: срабатывает один раз и больше не повторяется.
-  const [ctaNudge, setCtaNudge] = useState(false);
-  useEffect(() => {
-    if (prefersReduced) return;
-    const t = setTimeout(() => setCtaNudge(true), 4000);
-    return () => clearTimeout(t);
-  }, [prefersReduced]);
 
   // ── Варианты анимаций (при prefers-reduced-motion — только fade, без сдвига) ──
   const heroContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
@@ -118,44 +111,37 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         </motion.p>
 
         <motion.div variants={heroItem}>
-          {/* Отдельная обёртка: подскок живёт здесь и не мешает hover самой кнопки */}
-          <motion.div
-            style={{ display: 'inline-block' }}
-            animate={ctaNudge ? { y: [0, -4, 0] } : { y: 0 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
+          <MotionButton
+            level="primary"
+            onClick={handleActivate}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '16px 36px',
+              borderRadius: 14,
+              border: 'none',
+              background: '#1a1230',
+              color: '#fff',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              letterSpacing: '0.01em',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+            }}
           >
-            <MotionButton
-              level="primary"
-              onClick={handleActivate}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '16px 36px',
-                borderRadius: 14,
-                border: 'none',
-                background: '#1a1230',
-                color: '#fff',
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                letterSpacing: '0.01em',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
-              }}
-            >
-              Собрать мой Timeline за минуту
-            </MotionButton>
-          </motion.div>
+            Собрать мой Timeline за минуту
+          </MotionButton>
         </motion.div>
       </motion.div>
 
@@ -182,7 +168,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             minHeight: 220,
           }}
         >
-          {/* Left — zodiac wheel placeholder */}
+          {/* Left — natal chart preview */}
           <div style={{
             display: 'flex',
             flexDirection: isMobile ? 'row' : 'column',
@@ -194,7 +180,19 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             background: 'rgba(248,244,255,0.6)',
             gap: 16,
           }}>
-            <ZodiacWheelSVG />
+            <img
+              src={chartPreview}
+              alt="Натальная карта в Astrea"
+              loading="lazy"
+              style={{
+                width: '100%',
+                maxWidth: 200,
+                height: 'auto',
+                objectFit: 'contain',
+                borderRadius: 16,
+                display: 'block',
+              }}
+            />
             <span style={{
               fontSize: 10,
               fontWeight: 700,
@@ -268,11 +266,14 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         whileInView="visible"
         viewport={VIEWPORT_ONCE}
         style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+          // 5 карточек: flex-wrap + center даёт ряд 3 + центрированный ряд 2,
+          // без «висящих» влево карточек неполного ряда.
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
           gap: 16,
           maxWidth: 820,
-          margin: '32px auto 48px',
+          margin: '32px auto 0',
           padding: '0 24px',
         }}
       >
@@ -304,6 +305,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             variants={sectionReveal}
             whileHover={cardHover}
             style={{
+              flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
               background: f.highlight
                 ? 'rgba(139,92,246,0.08)'
                 : 'rgba(255,255,255,0.6)',
@@ -327,6 +329,48 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           </motion.div>
         ))}
       </motion.div>
+
+      {/* CTA под сеткой возможностей */}
+      <motion.div
+        variants={sectionReveal}
+        initial="hidden"
+        whileInView="visible"
+        viewport={VIEWPORT_ONCE}
+        style={{ textAlign: 'center', margin: '32px 0 48px', padding: '0 24px' }}
+      >
+        <MotionButton
+          level="primary"
+          onClick={handleActivate}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '16px 36px',
+            borderRadius: 14,
+            border: 'none',
+            background: '#1a1230',
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            letterSpacing: '0.01em',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+          }}
+        >
+          Открыть таймлайн
+        </MotionButton>
+      </motion.div>
+
       {/* Astrologer block */}
       <div style={{
         maxWidth: 820,
@@ -359,7 +403,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           </p>
         </motion.div>
 
-        {/* Cabinet image placeholder */}
+        {/* Cabinet screenshot */}
         <motion.div
           variants={sectionReveal}
           initial="hidden"
@@ -367,22 +411,23 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           viewport={VIEWPORT_ONCE}
           style={{
             borderRadius: 20,
-            border: '1px dashed rgba(139,92,246,0.3)',
-            background: 'rgba(248,244,255,0.6)',
-            minHeight: 240,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#9B97B0',
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: '0.04em',
+            border: '1px solid rgba(139,92,246,0.15)',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.10)',
+            overflow: 'hidden',
             marginBottom: 20,
-            textAlign: 'center',
-            padding: '0 24px',
           }}
         >
-          Кабинет астролога — скриншот
+          <img
+            src={crmPreview}
+            alt="Кабинет астролога в Astrea"
+            loading="lazy"
+            style={{
+              width: '100%',
+              height: 'auto',
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
         </motion.div>
 
         <motion.div
@@ -391,8 +436,10 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
           style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+            // Тот же приём, что и в первой сетке: ряд 3 + центрированный ряд 2.
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
             gap: 16,
             marginBottom: 28,
           }}
@@ -425,6 +472,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               variants={sectionReveal}
               whileHover={cardHover}
               style={{
+                flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
                 background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
                 backdropFilter: 'blur(8px)',
                 borderRadius: 16,
@@ -474,7 +522,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
             }}
           >
-            Собрать мой Timeline за минуту
+            Открыть пространство Astrea
           </MotionButton>
         </motion.div>
       </div>
