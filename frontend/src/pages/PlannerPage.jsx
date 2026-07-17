@@ -844,11 +844,12 @@ export default function PlannerPage() {
                 <MotionButton level="primary" className="refresh-btn" onClick={() => { loadPlan(); loadPhases(); }}>🔄 Пересчитать план</MotionButton>
                 <MotionButton
                   level="secondary"
-                  className={`gcal-btn${gcalStatus === "success" ? " success" : gcalStatus === "error" ? " error" : ""}`}
-                  disabled={gcalStatus === "loading"}
-                  onClick={() => exportEvents(buildExportEvents())}
+                  className={`gcal-btn${!isFree && gcalStatus === "success" ? " success" : ""}${!isFree && gcalStatus === "error" ? " error" : ""}`}
+                  disabled={isFree || gcalStatus === "loading"}
+                  onClick={() => { if (!isFree) exportEvents(buildExportEvents()); }}
+                  title={isFree ? "Экспорт в Google Calendar доступен на Lite и выше" : undefined}
                 >
-                  {gcalLabel}
+                  {isFree ? "🔒 Экспорт в Google Calendar — на Lite и выше" : gcalLabel}
                 </MotionButton>
               </div>
             </>
