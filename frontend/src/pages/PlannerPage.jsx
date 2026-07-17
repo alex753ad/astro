@@ -492,57 +492,223 @@ const styles = `
   .tl-node.phase .tl-icowrap { cursor: default; }
   .tl-node.phase:hover .tl-ico, .tl-node.phase:focus-within .tl-ico { transform: scale(1.22); }
   .tl-node:hover .tl-tip, .tl-node:focus-within .tl-tip { opacity: 1; }
+
+  /* Стопка событий одного дня */
+  .tl-stack { position: relative; display: inline-flex; }
+  .tl-stack::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: var(--border); transform: translate(3px, 3px); z-index: 0;
+  }
+  .tl-stack > * { position: relative; z-index: 1; }
+  .tl-count {
+    position: absolute; top: -6px; right: -9px; z-index: 2;
+    min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box;
+    border-radius: 8px; background: var(--accent); color: #fff;
+    font-size: 9px; font-weight: 700; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--bg-card);
+  }
+  .tl-pop {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .tl-pop-day {
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 8px 2px;
+  }
+  .tl-pop-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: none; border: none; text-align: left; font-family: inherit;
+    padding: 7px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.3;
+  }
+  .tl-pop-item:hover:not(:disabled), .tl-pop-item:focus-visible:not(:disabled) { background: var(--accent-muted); }
+  .tl-pop-item:disabled { cursor: default; }
 `;
 
 // ── Вспомогательные компоненты ────────────────────────────────────────────────
 
+// Пропсы кружка для события: фаза → тип фазы/планеты + флаг ретро; переход → планета.
+function dotPropsFor(ev) {
+  return ev.kind === "phase"
+    ? { type: ev.planet || ev.phaseType, retro: !!ev.planet }
+    : { type: ev.planet, retro: false };
+}
+
+// Подпись события для тултипа/поповера.
+function eventLabel(ev) {
+  return ev.kind === "phase" ? ev.tooltip : `${ev.name} — ${ev.house} дом`;
+}
+
 function Timeline({ events, onPlanet }) {
+  const [openDay, setOpenDay] = useState(null);
+  const [popPos, setPopPos] = useState(null); // { cx, top, bottom, place }
+  const popRef = useRef(null);
+
+  // Закрытие поповера: клик вне, Escape, скролл/ресайз окна.
+  useEffect(() => {
+    if (openDay == null) return;
+    const onDoc = (e) => {
+      if (popRef.current && popRef.current.contains(e.target)) return;
+      // клик по самому узлу-стопке обрабатывает его onClick (toggle), не гасим тут
+      if (e.target.closest && e.target.closest(".tl-node.stacked")) return;
+      setOpenDay(null);
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpenDay(null); };
+    const onMove = () => setOpenDay(null);
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [openDay]);
+
   if (!events.length) return null;
-  const min = Math.min(...events.map((e) => e.day));
-  const max = Math.max(...events.map((e) => e.day));
+
+  // ── Часть 1: группировка событий по дню (порядок внутри группы — как в данных) ──
+  const groupsMap = new Map();
+  for (const ev of events) {
+    if (!groupsMap.has(ev.day)) groupsMap.set(ev.day, []);
+    groupsMap.get(ev.day).push(ev);
+  }
+  const groups = [...groupsMap.entries()]
+    .map(([day, evs]) => ({ day, evs }))
+    .sort((a, b) => a.day - b.day);
+
+  const min = groups[0].day;
+  const max = groups[groups.length - 1].day;
   const span = max - min || 1;
 
+  // ── Часть 2: базовая позиция по дате + защита от слипания соседей ──
+  const LO = 5, HI = 95, MIN_GAP = 9; // % ширины рельса
+  const pos = groups.map((g) => 6 + ((g.day - min) / span) * 88);
+  // прямой проход — раздвигаем налезающие вправо
+  for (let i = 1; i < pos.length; i++) {
+    if (pos[i] < pos[i - 1] + MIN_GAP) pos[i] = pos[i - 1] + MIN_GAP;
+  }
+  // обратный проход — если упёрлись в правый край, поджимаем соседей внутрь
+  if (pos.length && pos[pos.length - 1] > HI) pos[pos.length - 1] = HI;
+  for (let i = pos.length - 2; i >= 0; i--) {
+    if (pos[i] > pos[i + 1] - MIN_GAP) pos[i] = pos[i + 1] - MIN_GAP;
+  }
+  if (pos.length && pos[0] < LO) pos[0] = LO; // страховка от вылета за левый край
+
+  const toggleGroup = (day, el) => {
+    if (openDay === day) { setOpenDay(null); return; }
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setPopPos({
+      cx: rect.left + rect.width / 2,
+      top: rect.bottom,
+      bottom: rect.top,
+      place: spaceBelow > 220 ? "below" : "above",
+    });
+    setOpenDay(day);
+  };
+
+  const openGroup = openDay != null ? groups.find((g) => g.day === openDay) : null;
+  const popStyle = (() => {
+    if (!openGroup || !popPos) return null;
+    const W = Math.min(230, window.innerWidth - 16);
+    let left = popPos.cx - W / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - W - 8));
+    const s = { position: "fixed", left, width: W, zIndex: 100 };
+    if (popPos.place === "below") s.top = popPos.top + 8;
+    else s.bottom = window.innerHeight - popPos.bottom + 8;
+    return s;
+  })();
+
   return (
-    <div className="tl-scroll">
-      <div className="tl-rail">
-        <div className="tl-line" />
-        {events.map((ev) => {
-          const left = 6 + ((ev.day - min) / span) * 88;
-          const tipSide = left > 55 ? "left" : "right";
-          if (ev.kind === "phase") {
-            // Станция ретро несёт planet (слаг) — лунная фаза его не имеет.
-            const isRetro = !!ev.planet;
+    <>
+      <div className="tl-scroll" onScroll={() => setOpenDay(null)}>
+        <div className="tl-rail">
+          <div className="tl-line" />
+          {groups.map((g, gi) => {
+            const left = pos[gi];
+            const tipSide = left > 55 ? "left" : "right";
+
+            // Несколько событий в один день — узел-стопка с поповером.
+            if (g.evs.length > 1) {
+              const first = g.evs[0];
+              return (
+                <div className="tl-node stacked" key={`grp-${g.day}`} style={{ left: `${left}%` }}>
+                  <span className="tl-dot" />
+                  <span className="tl-date">{g.day}</span>
+                  <span className="tl-icowrap">
+                    <button
+                      className="tl-ico link"
+                      onClick={(e) => toggleGroup(g.day, e.currentTarget.closest(".tl-node"))}
+                      aria-expanded={openDay === g.day}
+                      aria-label={`События ${g.day} числа: ${g.evs.length}`}
+                    >
+                      <span className="tl-stack">
+                        <PlanetDot {...dotPropsFor(first)} />
+                        <span className="tl-count">{g.evs.length}</span>
+                      </span>
+                    </button>
+                  </span>
+                </div>
+              );
+            }
+
+            // Одно событие — как прежде.
+            const ev = g.evs[0];
+            if (ev.kind === "phase") {
+              return (
+                <div className="tl-node phase" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
+                  <span className="tl-dot" />
+                  <span className="tl-date">{ev.day}</span>
+                  <span className="tl-icowrap">
+                    <span className="tl-ico">
+                      <PlanetDot {...dotPropsFor(ev)} />
+                    </span>
+                    <span className={`tl-tip tl-tip--${tipSide}`}>{ev.tooltip}</span>
+                  </span>
+                </div>
+              );
+            }
             return (
-              <div className="tl-node phase" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
+              <div className="tl-node" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
                 <span className="tl-dot" />
                 <span className="tl-date">{ev.day}</span>
                 <span className="tl-icowrap">
-                  <span className="tl-ico">
-                    <PlanetDot type={ev.planet || ev.phaseType} retro={isRetro} />
-                  </span>
-                  <span className={`tl-tip tl-tip--${tipSide}`}>{ev.tooltip}</span>
+                  <button className="tl-ico link" onClick={() => onPlanet(ev.planet)}>
+                    <PlanetDot type={ev.planet} />
+                  </button>
+                  <span className={`tl-tip tl-tip--${tipSide}`}>{ev.name} — {ev.house} дом</span>
                 </span>
               </div>
             );
-          }
-          return (
-            <div className="tl-node" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
-              <span className="tl-dot" />
-              <span className="tl-date">{ev.day}</span>
-              <span className="tl-icowrap">
-                <button
-                  className="tl-ico link"
-                  onClick={() => onPlanet(ev.planet)}
-                >
-                  <PlanetDot type={ev.planet} />
-                </button>
-                <span className={`tl-tip tl-tip--${tipSide}`}>{ev.name} — {ev.house} дом</span>
-              </span>
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
-    </div>
+
+      {openGroup && popStyle && (
+        <div className="tl-pop" ref={popRef} style={popStyle}>
+          <div className="tl-pop-day">{openGroup.day} число · {openGroup.evs.length} события</div>
+          {openGroup.evs.map((ev) => {
+            const clickable = !!ev.planet; // переходы и ретро несут planet; лунные фазы — нет
+            return (
+              <button
+                key={ev.id}
+                className="tl-pop-item"
+                disabled={!clickable}
+                onClick={() => { if (clickable) { onPlanet(ev.planet); setOpenDay(null); } }}
+              >
+                <PlanetDot {...dotPropsFor(ev)} />
+                <span>{eventLabel(ev)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
