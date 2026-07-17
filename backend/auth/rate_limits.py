@@ -122,6 +122,9 @@ def get_feature_flags(user: Optional[User]) -> dict:
         "unlimited_interpretations": tier in ("pro", "premium"),
         "unlimited_charts": flags["charts_per_month"] is None and flags.get("charts_per_day") is None,
         "pdf_reports": flags["pdf_export"],
+        "google_calendar": tier != "free",
+        "rag_chat": tier in ("pro", "premium"),
+        "crm": tier == "premium",
     }
 
 

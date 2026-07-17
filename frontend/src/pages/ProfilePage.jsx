@@ -498,12 +498,49 @@ function TabHistory({ history, loading }) {
 
 // ─── Вкладка: Подписка ────────────────────────────────────────────────────────
 const TIERS = [
-  { id: 'lite',    label: 'Lite',    price: '790 ₽/мес',   desc: 'Интерпретации, транзиты, лунный календарь' },
-  { id: 'pro',     label: 'Pro',     price: '1 990 ₽/мес', desc: 'AI-транзиты, RAG-чат, PDF-отчёты' },
-  { id: 'premium', label: 'Premium', price: '7 990 ₽/мес', desc: 'Всё включено + брендирование астролога' },
+  { id: 'lite',    label: 'Lite',    price: '790 ₽/мес',   desc: 'Все планеты, транзиты, Google Calendar, лунный календарь' },
+  { id: 'pro',     label: 'Pro',     price: '1 990 ₽/мес', desc: 'AI-транзиты ∞, до 5 карт, RAG-чат Astrea, долгосрочный прогноз, PDF' },
+  { id: 'premium', label: 'Premium', price: '7 990 ₽/мес', desc: 'Всё из Pro + CRM астролога, безлимит карт, горизонт 24 мес' },
 ];
 
 const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
+
+// planner_months → подпись горизонта планера
+const PLANNER_LABELS = { 0: 'текущий период', 3: 'месяц', 12: 'долгосрочно' };
+
+// Строит 9 строк «Что включено» из subscription.features / subscription.limits.
+function buildFeatureRows(feat = {}, lim = {}) {
+  const plannerMonths = lim.planner_months ?? feat.planner_months;
+  const transitsMonths = lim.transits_months ?? feat.transits_months;
+  const profilesLimit = lim.profiles_limit !== undefined ? lim.profiles_limit : feat.profiles_limit;
+  const lunarMonths = lim.lunar_months ?? feat.lunar_months ?? 0;
+
+  return [
+    {
+      label: 'Планер',
+      ok: true,
+      value: PLANNER_LABELS[plannerMonths] ?? (plannerMonths ? `${plannerMonths} мес` : '—'),
+    },
+    {
+      label: 'Транзиты',
+      ok: !!feat.transits,
+      value: feat.transits
+        ? `${transitsMonths} мес${feat.transits_ai ? ' + AI' : ''}`
+        : null,
+    },
+    { label: 'Лунный календарь', ok: lunarMonths > 0 },
+    { label: 'Google Calendar', ok: !!feat.google_calendar },
+    {
+      label: 'Карты',
+      ok: true,
+      value: (profilesLimit === null || profilesLimit === undefined) ? '∞' : `${profilesLimit}`,
+    },
+    { label: 'RAG-чат', ok: !!feat.rag_chat },
+    { label: 'PDF', ok: !!feat.pdf_reports },
+    { label: 'CRM', ok: !!feat.crm },
+    { label: 'Безлим. интерпретации', ok: !!feat.unlimited_interpretations },
+  ];
+}
 
 function UsageBar({ label, used, limit, tierColor = 'var(--accent)' }) {
   // limit === null / undefined → безлимит
@@ -571,13 +608,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
     }
   };
 
-  const features = [
-    { label: 'Транзиты',              key: 'transits' },
-    { label: 'Безлим. интерпретации', key: 'unlimited_interpretations' },
-    { label: 'История',               key: 'history' },
-    { label: 'PDF-отчёты',            key: 'pdf_reports' },
-    { label: 'Синастрия',             key: 'synastry' },
-  ];
+  const features = buildFeatureRows(subscription?.features, subscription?.limits);
 
   if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
 
@@ -610,15 +641,15 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
       <div style={S.card}>
         <p style={S.cardTitle}>Что включено</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-          {features.map(f => {
-            const ok = subscription?.features?.[f.key];
-            return (
-              <div key={f.key} style={{ padding: '10px 12px', borderRadius: 8, border: `1px solid ${ok ? 'var(--border)' : 'var(--border)'}`, textAlign: 'center', opacity: ok ? 1 : 0.5 }}>
-                <div style={{ fontSize: 16, marginBottom: 4 }}>{ok ? '✓' : '✗'}</div>
-                <div style={{ fontSize: 11, color: ok ? 'var(--accent-glow)' : 'var(--text-secondary)' }}>{f.label}</div>
-              </div>
-            );
-          })}
+          {features.map(f => (
+            <div key={f.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', textAlign: 'center', opacity: f.ok ? 1 : 0.5 }}>
+              <div style={{ fontSize: 16, marginBottom: 4 }}>{f.ok ? '✓' : '✗'}</div>
+              <div style={{ fontSize: 11, color: f.ok ? 'var(--accent-glow)' : 'var(--text-secondary)' }}>{f.label}</div>
+              {f.value && (
+                <div style={{ fontSize: 10, color: 'var(--prof-muted)', marginTop: 2 }}>{f.value}</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
