@@ -1,7 +1,10 @@
 """Application configuration via environment variables."""
 
-from pydantic_settings import BaseSettings
+import json
 from functools import lru_cache
+
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -22,10 +25,28 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     # ── Rate limiting ──
+    # Доверенные обратные прокси (IP или CIDR через запятую). Пусто = не верить
+    # X-Forwarded-For вообще. Никогда не указывайте "*": любой клиент сможет
+    # подделать свой IP и обойти лимиты.
+    trusted_proxy_ips: str = ""
+    # Хранилище счётчиков; пусто — берётся redis_url.
+    rate_limit_storage_uri: str = ""
+    # Блокировка аккаунта после серии неудачных входов.
+    login_max_failures: int = 10
+    login_lockout_seconds: int = 900
+
     rate_limit_anon: str = "30/minute"
     rate_limit_auth: str = "100/minute"
     rate_limit_free_charts_per_day: int = 5
     rate_limit_free_interpretations_per_day: int = 2
+
+    # ── SSE ──
+    # Тикет живёт ровно столько, сколько нужно на открытие EventSource.
+    sse_ticket_ttl_seconds: int = 60
+
+    # ── Anonymous charts ──
+    # Сколько живёт анонимная карта до привязки к аккаунту (cleanup-таска).
+    anon_chart_ttl_days: int = 30
 
     # ── Ephemeris ──
     ephe_path: str = "data/ephe"
@@ -56,17 +77,44 @@ class Settings(BaseSettings):
     frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
     testing: bool = False
-    # Прод-безопасный дефолт. Для локальной разработки добавьте localhost через
-    # переменную окружения ALLOWED_ORIGINS (comma-separated).
-    cors_origins: str = "https://www.astreatime.ru,https://astreatime.ru"  # env: ALLOWED_ORIGINS
+    # Прод-безопасный дефолт. Для локальной разработки добавьте localhost.
+    # Читается из CORS_ORIGINS или ALLOWED_ORIGINS (второе имя раньше было
+    # только в комментарии и по факту игнорировалось).
+    cors_origins: str = Field(
+        default="https://www.astreatime.ru,https://astreatime.ru",
+        validation_alias=AliasChoices("CORS_ORIGINS", "ALLOWED_ORIGINS"),
+    )
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+        # Поля с validation_alias иначе нельзя задать по имени в конструкторе.
+        "populate_by_name": True,
+    }
 
     @property
     def cors_origins_list(self) -> list[str]:
-        if isinstance(self.cors_origins, list):
-            return self.cors_origins
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        """Origins из строки: поддерживаются JSON-массив и список через запятую.
+
+        В .env значение записано JSON-массивом, а прежняя реализация просто
+        резала строку по запятой — получались origins вида '["https://a.ru"'
+        со скобками и кавычками, которые не совпадали ни с одним реальным
+        заголовком Origin, то есть CORS молча не работал.
+        """
+        raw = self.cors_origins
+        if isinstance(raw, list):
+            return [str(o).strip() for o in raw if str(o).strip()]
+
+        raw = (raw or "").strip()
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                return [str(o).strip() for o in parsed if str(o).strip()]
+            except (json.JSONDecodeError, TypeError):
+                pass  # не JSON — разбираем как обычный список
+
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 @lru_cache

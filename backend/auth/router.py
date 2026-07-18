@@ -27,7 +27,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import get_current_user
+from backend.auth.dependencies import get_current_user, is_session_revoked
 from backend.auth.jwt import (
     create_email_confirmation_token,
     create_password_reset_token,
@@ -37,10 +37,12 @@ from backend.auth.jwt import (
     decode_token,
     remaining_ttl,
 )
-from backend.auth.token_store import deny
+from backend.auth import login_guard
+from backend.auth.sse_tickets import issue as issue_sse_ticket
+from backend.auth.token_store import deny, is_denied
 from backend.limiter import limiter
 from backend.auth.oauth import OAuthError, exchange_google_code
-from backend.auth.passwords import hash_password, verify_password
+from backend.auth.passwords import hash_password, validate_password, verify_password
 from backend.config import get_settings
 from backend.database import get_db
 from backend.models import User
@@ -54,10 +56,6 @@ from backend.schemas import (
     TokenResponse,
     UserProfileResponse,
     VerifyEmailOTPRequest,
-)
-
-ADMIN_EMAILS: set[str] = set(
-    e.strip() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()
 )
 
 logger = logging.getLogger("astro.auth")
@@ -139,7 +137,7 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
 
 
 def _build_token_response(user: User, email: str) -> TokenResponse:
-    tokens = create_token_pair(user.id, email, user.tier)
+    tokens = create_token_pair(user.id, email, user.tier, user.token_version or 0)
     return TokenResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -149,7 +147,7 @@ def _build_token_response(user: User, email: str) -> TokenResponse:
         email=email,
         name=user.name,
         tier=user.tier,
-        is_admin=(user.email or "") in ADMIN_EMAILS,
+        is_admin=bool(user.is_admin),
     )
 
 
@@ -203,23 +201,55 @@ async def register_email_send(
     data: SendEmailOTPRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(status.HTTP_409_CONFLICT, "Аккаунт с таким email уже существует.")
+    """Отправляет OTP на email.
 
+    Ответ одинаков независимо от того, занят адрес или нет: раньше занятый
+    отдавал 409, и форма регистрации работала как оракул существования
+    аккаунта. Занятому адресу вместо кода уходит письмо-уведомление — это и
+    сигнал владельцу, и выравнивание объёма работы между ветками.
+    """
     r = await _get_redis()
+
+    # Троттлинг проверяется до ветвления и ключ ставится в обоих случаях:
+    # иначе занятый адрес отличался бы отсутствием 429 на повторный запрос.
     if await r.exists(_resend_key(data.email)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             "Подождите минуту перед повторной отправкой.",
         )
 
+    existing = db.query(User).filter(User.email == data.email).first()
+
+    # Хеширование выполняется в любом случае — bcrypt занимает сотни
+    # миллисекунд и иначе разница во времени ответа выдавала бы ветку.
+    hashed_pw = hash_password(data.password)
     code = _gen_otp()
-    await _store_otp(r, data.email, code, hash_password(data.password), data.ref_code or "", data.name or "")
 
-    from backend.email_service import send_otp_email
-    await send_otp_email(data.email, code)
+    if existing:
+        await r.setex(_resend_key(data.email), OTP_RESEND_TTL, "1")
+        try:
+            from backend.email_service import _send, _base, _h2, _p, _btn
+            body = (
+                _h2("Аккаунт уже существует")
+                + _p("Кто-то попытался зарегистрироваться с вашим адресом в "
+                     "<strong>Astrea Timeline</strong>. Аккаунт уже создан ранее.")
+                + _p("Если это были вы — просто войдите. Если нет — проигнорируйте письмо.")
+                + _btn("Войти →", f"{get_settings().frontend_url}/login")
+            )
+            await _send(
+                data.email,
+                "Попытка регистрации — Astrea Timeline",
+                _base("Аккаунт уже существует", "Вход в аккаунт", body),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Existing-account notice failed for %s: %s", data.email, exc)
+        logger.info("Registration attempt on existing account: %s", data.email)
+    else:
+        await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "")
+        from backend.email_service import send_otp_email
+        await send_otp_email(data.email, code)
+        logger.info("Email OTP sent → %s", data.email)
 
-    logger.info("Email OTP sent → %s", data.email)
     return MessageResponse(message="Код подтверждения отправлен на почту.")
 
 
@@ -292,13 +322,25 @@ async def register_legacy(
 @router.post("/login", response_model=TokenResponse, summary="Вход по email + пароль")
 @limiter.limit("10/minute")
 async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    # Лимит по IP не мешает перебору одного аккаунта с ботнета — считаем
+    # неудачи ещё и по email.
+    if await login_guard.is_locked(data.email):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Слишком много неудачных попыток входа. Попробуйте позже.",
+        )
+
     user = db.query(User).filter(User.email == data.email).first()
     if user is None or user.hashed_password is None:
+        await login_guard.record_failure(data.email)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not verify_password(data.password, user.hashed_password):
+        await login_guard.record_failure(data.email)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
+
+    await login_guard.reset(data.email)
     return _build_token_response(user, user.email)
 
 
@@ -325,6 +367,11 @@ async def refresh_token(request: Request, data: RefreshRequest, db: Session = De
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Пользователь не найден или заблокирован.")
+
+    # Refresh, выданный до смены пароля / logout-all, не должен выдавать новые
+    # access-токены — иначе глобальная ревокация обходится одним запросом.
+    if is_session_revoked(user, token_data):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия отозвана.")
 
     # Ротация: старый refresh отзываем, выдаём новую пару.
     try:
@@ -440,6 +487,7 @@ async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
         name=user.name,
         tier=user.tier,
         is_email_confirmed=user.is_email_confirmed,
+        is_admin=bool(user.is_admin),
         stripe_customer_id=user.stripe_customer_id,
         created_at=user.created_at.isoformat() if user.created_at else None,
     )
@@ -454,6 +502,22 @@ async def delete_account(
     db.commit()
     logger.info("User deleted: %s (%s)", user.email, user.id)
     return MessageResponse(message="Account deleted. Аккаунт удалён.")
+
+
+# ═══════════════════════════════════════════════════════════
+# SSE-ТИКЕТЫ
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/sse-ticket", summary="Одноразовый тикет для EventSource")
+async def create_sse_ticket(user: User = Depends(get_current_user)) -> dict:
+    """Обменять access-токен на одноразовый тикет для SSE-подключения.
+
+    EventSource не умеет слать Authorization, а класть в query сам access-токен
+    небезопасно (логи прокси, Referer, история). Тикет живёт ~минуту и гасится
+    при первом использовании.
+    """
+    ticket = await issue_sse_ticket(user.id)
+    return {"ticket": ticket, "expires_in": get_settings().sse_ticket_ttl_seconds}
 
 
 # ═══════════════════════════════════════════════════════════
@@ -512,16 +576,45 @@ async def reset_password(
     except JWTError:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ссылка недействительна или истёкла.")
 
-    if len(data.new_password) < 8:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пароль минимум 8 символов.")
-    if data.new_password.isdigit():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пароль не может состоять только из цифр.")
+    # Ссылка одноразовая: повторный переход по уже использованной — как по истёкшей.
+    if await is_denied(token_data.jti):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ссылка недействительна или истёкла.")
+
+    # Та же политика, что и при регистрации: раньше сброс проверял только
+    # длину и «только цифры», поэтому мимо него проходили пароли, которые
+    # форма регистрации отклоняла.
+    try:
+        validate_password(data.new_password)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Пользователь не найден.")
 
     user.hashed_password = hash_password(data.new_password)
+    # Смена пароля отзывает все ранее выданные access/refresh токены: иначе
+    # угнавший сессию сохранял бы доступ и после того, как владелец сменил пароль.
+    user.token_version = (user.token_version or 0) + 1
     db.commit()
+
+    # Гасим ссылку только после успешной смены пароля.
+    await deny(token_data.jti, remaining_ttl(token_data.exp))
+
     logger.info("Password reset completed: %s", user.email)
     return MessageResponse(message="Пароль успешно изменён.")
+
+
+@router.post("/logout-all", response_model=MessageResponse, summary="Выйти на всех устройствах")
+async def logout_all(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    """Отзывает все выданные ранее токены пользователя.
+
+    Текущий access-токен тоже перестаёт работать — клиенту нужно войти заново.
+    """
+    user.token_version = (user.token_version or 0) + 1
+    db.commit()
+    logger.info("All sessions revoked: %s", user.email)
+    return MessageResponse(message="Вы вышли на всех устройствах.")

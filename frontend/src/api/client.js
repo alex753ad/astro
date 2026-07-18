@@ -70,13 +70,37 @@ export async function getTransits(chartId, fromDate, toDate, options = {}) {
 
 // ── SSE Streaming ──
 
-function _connectSSE(url, onChunk, onDone, onError) {
+/**
+ * Меняет access-токен на одноразовый тикет для EventSource.
+ *
+ * Сам access-токен в query класть нельзя: URL оседает в логах прокси, Referer
+ * и истории браузера. Тикет живёт ~минуту и гасится при первом использовании,
+ * поэтому запрашивается заново на каждое подключение (включая реконнекты).
+ * Возвращает null для анонима — SSE-эндпоинты доступны и без авторизации.
+ */
+async function _sseTicket() {
+  const token = localStorage.getItem('astro_access_token');
+  if (!token) return null;
+  try {
+    const resp = await fetch(`${API_BASE}/auth/sse-ticket`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return null;
+    return (await resp.json()).ticket ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function _connectSSE(buildUrl, onChunk, onDone, onError) {
   let lastEventId = null;
   let hasData     = false;
   let isDone      = false;
   let attempt     = 0;
   let eventSource = null;
   let retryTimeout = null;
+  let cancelled   = false;
   const maxRetries = 3;
 
   // Буфер для парсинга тегов <section> из потока
@@ -113,7 +137,10 @@ function _connectSSE(url, onChunk, onDone, onError) {
     return { text: result, remaining: '' };
   }
 
-  function connect() {
+  async function connect() {
+    const url = await buildUrl();
+    if (cancelled) return;
+
     const connectUrl = lastEventId
       ? url + (url.includes('?') ? '&' : '?') + 'last_event_id=' + encodeURIComponent(lastEventId)
       : url;
@@ -172,25 +199,29 @@ function _connectSSE(url, onChunk, onDone, onError) {
   connect();
 
   return () => {
+    cancelled = true;
     clearTimeout(retryTimeout);
     eventSource?.close();
   };
 }
 
 export function streamInterpretation(chartId, onChunk, onDone, onError) {
-  // EventSource не умеет слать заголовок Authorization — передаём токен в URL.
-  const token = localStorage.getItem('astro_access_token');
-  const q = token ? `?token=${encodeURIComponent(token)}` : '';
-  const url = `${API_BASE}/chart/${chartId}/interpret${q}`;
-  return _connectSSE(url, onChunk, onDone, onError);
+  const buildUrl = async () => {
+    const ticket = await _sseTicket();
+    const q = ticket ? `?ticket=${encodeURIComponent(ticket)}` : '';
+    return `${API_BASE}/chart/${chartId}/interpret${q}`;
+  };
+  return _connectSSE(buildUrl, onChunk, onDone, onError);
 }
 
 export function streamTransitInterpretation(chartId, fromDate, toDate, onChunk, onDone, onError) {
-  const token = localStorage.getItem('astro_access_token');
-  const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
-  if (token) params.set('token', token);
-  const url = `${API_BASE}/chart/${chartId}/transits/interpret?${params}`;
-  return _connectSSE(url, onChunk, onDone, onError);
+  const buildUrl = async () => {
+    const ticket = await _sseTicket();
+    const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
+    if (ticket) params.set('ticket', ticket);
+    return `${API_BASE}/chart/${chartId}/transits/interpret?${params}`;
+  };
+  return _connectSSE(buildUrl, onChunk, onDone, onError);
 }
 
 export async function streamTransitEventInterpretation(chartId, transitEvent, onChunk, onDone, onError) {

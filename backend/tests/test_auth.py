@@ -91,7 +91,7 @@ class TestRegister:
         email = "db_check@example.com"
         client.post("/api/v1/auth/register", json={
             "email": email,
-            "password": "password123",
+            "password": "Str0ngPassphrase!",
         })
         user = db.query(User).filter(User.email == email).first()
         assert user is not None
@@ -109,7 +109,7 @@ class TestRegister:
     def test_register_invalid_email(self, client: TestClient):
         resp = client.post("/api/v1/auth/register", json={
             "email": "not-an-email",
-            "password": "password123",
+            "password": "Str0ngPassphrase!",
         })
         assert resp.status_code == 422
 

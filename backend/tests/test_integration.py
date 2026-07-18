@@ -203,7 +203,8 @@ class TestChartGetEndpoint:
     def test_get_chart_returns_200(self, client, mock_calculator, mock_geo, user_free, auth_headers_free):
         chart_id = self._create_chart(client, mock_calculator, mock_geo, headers=auth_headers_free)
         assert chart_id is not None
-        resp = client.get(f"/api/v1/chart/{chart_id}")
+        # Карта принадлежит пользователю — читать её можно только владельцу.
+        resp = client.get(f"/api/v1/chart/{chart_id}", headers=auth_headers_free)
         assert resp.status_code == 200
 
     def test_get_nonexistent_chart_returns_404(self, client):

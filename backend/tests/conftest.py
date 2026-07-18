@@ -1,26 +1,78 @@
 """backend/tests/conftest.py — shared pytest fixtures."""
 
+import os
+
+# Тестовый режим должен быть виден ДО импорта backend.main: часть роутов
+# (debug) регистрируется на этапе импорта в зависимости от флага.
+os.environ.setdefault("TESTING", "true")
+
+# Лимитер в проде считает в Redis; slowapi ходит туда синхронным клиентом,
+# который не перехватывается фикстурой fake_redis. В тестах — in-memory.
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 from unittest.mock import patch, AsyncMock, MagicMock
 
 from backend.database import Base, get_db
 from backend.main import app, limiter
 
+import backend.main
+import backend.redis_client
+
 # Legacy /register закрыт в проде, но нужен тестам — включаем тестовый режим.
 from backend.config import get_settings
 get_settings().testing = True
 
 # ── In-memory SQLite for tests ────────────────────────────
-TEST_DATABASE_URL = "sqlite:///./test.db"
+# StaticPool + одно соединение: иначе каждая сессия получит свою пустую БД.
+TEST_DATABASE_URL = "sqlite://"
 
 engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# lifespan в main.py делает create_all на боевом engine (Postgres) — в тестах
+# подменяем его на SQLite, иначе TestClient не стартует без живой БД.
+backend.main.engine = engine
+
+
+# ── Redis: in-memory заглушка вместо живого сервера ──────
+@pytest.fixture(autouse=True)
+def fake_redis():
+    """Подменяем общий async-клиент Redis на fakeredis для всех тестов.
+
+    Модули делают `from backend.redis_client import get_redis`, то есть имя
+    связывается на импорте — патчить нужно каждый из них, а не только
+    backend.redis_client.
+    """
+    import contextlib
+    import fakeredis.aioredis
+
+    client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    targets = [
+        "backend.redis_client.get_redis",
+        "backend.auth.token_store.get_redis",
+        "backend.auth.sse_tickets.get_redis",
+        "backend.auth.login_guard.get_redis",
+        "backend.share_router.get_redis",
+        "backend.payments.payments_router.get_redis",
+    ]
+    with contextlib.ExitStack() as stack:
+        for target in targets:
+            stack.enter_context(patch(target, return_value=client))
+        # auth/router.py держит собственный клиент (OTP-регистрация), мимо
+        # backend.redis_client — его геттер асинхронный.
+        stack.enter_context(
+            patch("backend.auth.router._get_redis", AsyncMock(return_value=client))
+        )
+        yield client
 
 
 # ── Rate limiter: отключаем глобально для всех тестов ────

@@ -19,18 +19,20 @@ load_dotenv()  # загружает .env до всех os.getenv()
 
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import APIRouter, FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.config import get_settings
+from backend.limiter import limiter
 from backend.database import get_db, engine, Base
 from backend.schemas import (
     BirthDataInput,
@@ -90,8 +92,9 @@ logger = logging.getLogger("astro")
 settings = get_settings()
 
 # ── Rate limiter ──
+# Общий инстанс из backend.limiter: раньше здесь создавался второй Limiter, и
+# счётчики main.py жили отдельно от счётчиков auth/admin-роутеров.
 # Отключается в тестах через limiter.enabled = False в conftest.py
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Lifespan ──
@@ -131,13 +134,65 @@ async def tier_middleware(request: Request, call_next):
     request.state.user_tier = user_tier
     return await call_next(request)
 
+# ── Проверка секрета подписи ──
+# Дефолтный или короткий jwt_secret означает, что токены может выпустить кто
+# угодно. В проде это должно валить старт, а не тихо работать.
+_INSECURE_JWT_SECRETS = {"CHANGE-ME-IN-PRODUCTION", "", "secret", "changeme"}
+MIN_JWT_SECRET_LENGTH = 32
+
+if not (settings.debug or settings.testing):
+    if settings.jwt_secret in _INSECURE_JWT_SECRETS:
+        raise RuntimeError(
+            "JWT_SECRET не задан или равен значению-заглушке. "
+            "Сгенерируйте секрет: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
+    if len(settings.jwt_secret) < MIN_JWT_SECRET_LENGTH:
+        raise RuntimeError(
+            f"JWT_SECRET короче {MIN_JWT_SECRET_LENGTH} символов "
+            f"({len(settings.jwt_secret)}) — подберётся перебором."
+        )
+
+# ── Доверенные прокси ──
+# Без этого request.client.host остаётся адресом прокси. Список строгий:
+# "*" здесь означал бы, что любой клиент подделает свой IP заголовком.
+if settings.trusted_proxy_ips:
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts=[h.strip() for h in settings.trusted_proxy_ips.split(",") if h.strip()],
+    )
+else:
+    logger.warning(
+        "TRUSTED_PROXY_IPS не задан — X-Forwarded-For игнорируется, "
+        "лимиты считаются по адресу прокси."
+    )
+
 # ── CORS ──
+# Списки явные, а не ["*"]: с allow_credentials=True браузер и так отвергает
+# "*", а Starlette в ответ на preflight отражает запрошенные значения —
+# фактически разрешая любой метод и заголовок.
+CORS_ALLOW_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "X-Chart-Token"]
+
+# Сочетание allow_credentials=True с "*" в origins недопустимо: браузер
+# отбросит такой ответ, а на сервере это тихая ошибка конфигурации.
+if "*" in settings.cors_origins_list:
+    message = (
+        "ALLOWED_ORIGINS содержит '*' вместе с allow_credentials=True — "
+        "укажите конкретные origins."
+    )
+    if settings.debug or settings.testing:
+        logger.error(message)
+    else:
+        raise RuntimeError(message)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=CORS_ALLOW_METHODS,
+    allow_headers=CORS_ALLOW_HEADERS,
 )
 
 # ── Routers ──
@@ -194,6 +249,66 @@ def health_db(db: Session = Depends(get_db)):
     except Exception as e:
         db_status = f"error: {e}"
     return HealthResponse(status="ok", version="0.1.0", database=db_status)
+
+
+# ── Debug-роуты ──
+# Регистрируются только при DEBUG/TESTING: в проде их не должно быть ни в
+# приложении, ни в /openapi.json. Подключение — в конце модуля, после того
+# как все debug-эндпоинты объявлены.
+debug_router = APIRouter(tags=["debug"])
+DEBUG_ROUTES_ENABLED = settings.debug or settings.testing
+
+
+# ═══════════════════════════════════════════════════════════
+# CHART ACCESS
+# ═══════════════════════════════════════════════════════════
+
+def new_anon_chart_credentials() -> tuple[str, datetime]:
+    """Токен доступа и срок жизни для новой анонимной карты."""
+    return (
+        secrets.token_urlsafe(32),
+        datetime.utcnow() + timedelta(days=settings.anon_chart_ttl_days),
+    )
+
+
+def resolve_chart_access(
+    chart_id: str,
+    user: User | None,
+    token: str | None,
+    db: Session,
+) -> NatalChart:
+    """Вернуть карту, если запрашивающий имеет на неё право, иначе 404.
+
+    Правила:
+      - карта с user_id — только владельцу;
+      - анонимная карта — по совпадающему непросроченному access_token.
+
+    Везде 404, а не 403: ответ не должен раскрывать существование чужой карты.
+    """
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if chart is None:
+        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+
+    if chart.user_id is not None:
+        if user is not None and chart.user_id == user.id:
+            return chart
+        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+
+    # Анонимная карта: сверяем capability-токен в постоянное время.
+    if (
+        token
+        and chart.access_token
+        and secrets.compare_digest(token, chart.access_token)
+        and not (chart.expires_at and chart.expires_at < datetime.utcnow())
+    ):
+        return chart
+
+    raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+
+
+def chart_token(request: Request) -> str | None:
+    """Capability-токен анонимной карты из заголовка X-Chart-Token."""
+    return request.headers.get("X-Chart-Token")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -518,11 +633,14 @@ async def save_anonymous_chart(
     summary="Get saved chart",
 )
 @limiter.limit(settings.rate_limit_anon)
-async def get_chart(request: Request, chart_id: str, db: Session = Depends(get_db)):
+async def get_chart(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
     """Retrieve a previously calculated natal chart by ID."""
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     planets = [PlanetPosition(**p) for p in chart.planets]
     houses = [HouseData(**h) for h in chart.houses]
@@ -580,9 +698,7 @@ async def interpret_chart(
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     # Build natal profile from stored data
     profile = {
@@ -644,9 +760,7 @@ async def interpret_chart_full(
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     profile = {
         "planets": chart.planets,
@@ -725,9 +839,7 @@ async def get_transits(
     from backend.cache import transit_cache, make_profile_hash
 
     # 1. Load natal chart
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     # 2. Parse and validate dates
     try:
@@ -834,9 +946,11 @@ async def get_transits(
     summary="Current transit planet positions for a given date",
 )
 async def get_transit_positions(
+    request: Request,
     chart_id: str,
     on_date: str,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """Return ecliptic longitudes of all transit planets for the given date.
 
@@ -846,9 +960,7 @@ async def get_transit_positions(
     from datetime import date as date_type
     from backend.transit.engine import get_planet_positions_for_date
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     try:
         query_date = date_type.fromisoformat(on_date)
@@ -885,9 +997,7 @@ async def interpret_transits(
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     # Parse dates
     try:
@@ -1038,9 +1148,7 @@ async def interpret_transit_event(
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     # Parse transit event from request body
     body = await request.json()
@@ -1169,15 +1277,14 @@ async def get_weekly_forecast(
     week_start: str,   # YYYY-MM-DD
     week_end: str,     # YYYY-MM-DD
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     from datetime import date as date_type
     from backend.transit.engine import calculate_transits
     from backend.transit.forecast_prompt import build_weekly_forecast_prompt, parse_forecast_response
     import httpx, os
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     try:
         from_dt = date_type.fromisoformat(week_start)
@@ -1283,15 +1390,14 @@ async def get_daily_forecast(
     chart_id: str,
     on_date: str,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     from datetime import date as date_type, timedelta
     from backend.transit.engine import calculate_transits, get_active_transits
     from backend.transit.forecast_prompt import build_daily_forecast_prompt, parse_forecast_response
     import httpx, os
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     try:
         query_date = date_type.fromisoformat(on_date)
@@ -1399,15 +1505,14 @@ async def get_monthly_forecast(
     from_date: str,
     to_date: str,
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
 ):
     from datetime import date as date_type
     from backend.transit.engine import calculate_transits
     from backend.transit.forecast_prompt import build_monthly_forecast_prompt, parse_forecast_response
     import httpx, os
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     try:
         from_dt = date_type.fromisoformat(from_date)
@@ -1514,9 +1619,7 @@ async def get_monthly_planner(
     from datetime import date as date_type
     from backend.transit.planner_engine import build_planner
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     _uid = user.id if user else None
     log_event(db, _uid, EventName.TIMELINE_OPEN, {"chart_id": chart_id})
@@ -1591,9 +1694,7 @@ async def start_transits_async(
     """
     # E2: список транзитов виден всем тарифам (Free — с блюром AI-разбора на клиенте).
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     try:
         from_dt = __import__("datetime").date.fromisoformat(from_date)
@@ -1641,9 +1742,7 @@ async def start_pdf_generation(
             detail="Сохраните карту перед скачиванием PDF. Войдите или зарегистрируйтесь."
         )
 
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
     # BOLA: только владелец (или анонимная карта)
     from backend.authz import assert_chart_access
@@ -1761,7 +1860,7 @@ async def get_task_status(task_id: str):
     return {"task_id": task_id, "status": result.state.lower()}
 
 
-@app.get('/api/v1/debug/moon', tags=['debug'])
+@debug_router.get('/api/v1/debug/moon')
 async def debug_moon():
     import swisseph as swe, os
     ephe_path = os.getenv('EPHE_PATH', 'data/ephe')
@@ -1988,13 +2087,25 @@ async def get_lunar_calendar(
 
 
 # ── DEBUG: show house cusps ───────────────────────────────────────────────────
-@app.get("/api/v1/chart/{chart_id}/debug/cusps", tags=["debug"])
-async def get_chart_cusps(chart_id: str, db: Session = Depends(get_db)):
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
+@debug_router.get("/api/v1/chart/{chart_id}/debug/cusps")
+async def get_chart_cusps(
+    request: Request,
+    chart_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+):
+    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
     return {
         "timezone": getattr(chart, "timezone", None),
         "house_system": getattr(chart, "house_system", "unknown"),
         "houses": chart.houses,
     }
+
+
+# ── Подключение debug-роутов ──
+# В проде (DEBUG=false, TESTING=false) роуты не регистрируются вовсе, поэтому
+# отсутствуют и в /openapi.json.
+if DEBUG_ROUTES_ENABLED:
+    app.include_router(debug_router)
+else:
+    logger.info("Debug routes disabled (DEBUG=false).")

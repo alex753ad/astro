@@ -33,6 +33,17 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
 
+    # Админ-доступ (038) — роль в БД, а не список email из окружения:
+    # переживает рестарт и не требует передеплоя для выдачи/отзыва.
+    is_admin = Column(Boolean, default=False, nullable=False, server_default="false")
+
+    # Глобальная ревокация сессий (037). Версия вшивается в токен при выдаче;
+    # инкремент при смене пароля / logout-all делает недействительными все
+    # ранее выданные токены. Счётчик, а не отметка времени: iat округлён до
+    # секунды, и по нему нельзя отличить токен, выданный за миг до ревокации,
+    # от выданного сразу после.
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
+
     # First free interpretation (3.3) — одноразовый «вкус» для Free, навсегда
     free_interpretation_used = Column(
         Boolean, default=False, nullable=False, server_default="false"
@@ -95,6 +106,12 @@ class NatalChart(Base):
     house_system = Column(String(20), default="placidus")
     public_token = Column(String(64), nullable=True, unique=True, index=True)
     share_name   = Column(String(100), nullable=True)  # имя для публичной страницы
+
+    # Capability-токен анонимной карты (user_id IS NULL): доступ к своей карте
+    # до привязки к аккаунту. Не путать с public_token — тот открывает публичную
+    # страницу шаринга. Гасится при claim.
+    access_token = Column(String(64), nullable=True, unique=True, index=True)
+    expires_at   = Column(DateTime, nullable=True, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

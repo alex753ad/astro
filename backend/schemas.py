@@ -119,9 +119,10 @@ def _validate_ru_email(v: str) -> str:
 
 
 def _validate_password(v: str) -> str:
-    if v.isdigit():
-        raise ValueError("Пароль не может состоять только из цифр.")
-    return v
+    """Делегирует единой политике из backend.auth.passwords."""
+    from backend.auth.passwords import validate_password
+
+    return validate_password(v)
 
 
 # ── Старая схема — сохранена для тестов и обратной совместимости ──
@@ -210,6 +211,7 @@ class UserProfileResponse(BaseModel):
     name: Optional[str] = None
     tier: str
     is_email_confirmed: bool = False
+    is_admin: bool = False
     stripe_customer_id: Optional[str] = None
     created_at: Optional[str] = None
 

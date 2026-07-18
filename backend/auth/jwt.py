@@ -34,6 +34,8 @@ class TokenData(BaseModel):
     token_type: str = "access"  # "access" | "refresh"
     jti: str = ""
     exp: int = 0  # unix timestamp окончания действия
+    iat: int = 0  # unix timestamp выпуска
+    token_version: int = 0  # версия сессии — см. User.token_version
 
 
 class TokenPair(BaseModel):
@@ -79,6 +81,7 @@ def create_access_token(
     email: str,
     tier: str = "free",
     expires_delta: Optional[timedelta] = None,
+    token_version: int = 0,
 ) -> str:
     """Create a short-lived access token (always signed with current secret)."""
     if expires_delta is None:
@@ -93,6 +96,7 @@ def create_access_token(
         "iat": now,
         "exp": now + expires_delta,
         "jti": uuid.uuid4().hex,
+        "tv": token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
@@ -102,6 +106,7 @@ def create_refresh_token(
     email: str,
     tier: str = "free",
     expires_delta: Optional[timedelta] = None,
+    token_version: int = 0,
 ) -> str:
     """Create a longer-lived refresh token (always signed with current secret)."""
     if expires_delta is None:
@@ -116,15 +121,18 @@ def create_refresh_token(
         "iat": now,
         "exp": now + expires_delta,
         "jti": uuid.uuid4().hex,
+        "tv": token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_token_pair(user_id: str, email: str, tier: str = "free") -> TokenPair:
+def create_token_pair(
+    user_id: str, email: str, tier: str = "free", token_version: int = 0
+) -> TokenPair:
     """Create both access and refresh tokens."""
     return TokenPair(
-        access_token=create_access_token(user_id, email, tier),
-        refresh_token=create_refresh_token(user_id, email, tier),
+        access_token=create_access_token(user_id, email, tier, token_version=token_version),
+        refresh_token=create_refresh_token(user_id, email, tier, token_version=token_version),
         expires_in=settings.jwt_access_token_expire_minutes * 60,
     )
 
@@ -157,6 +165,8 @@ def decode_token(token: str) -> TokenData:
         token_type=token_type,
         jti=payload.get("jti", ""),
         exp=int(payload.get("exp", 0)),
+        iat=int(payload.get("iat", 0)),
+        token_version=int(payload.get("tv", 0)),
     )
 
 
@@ -182,7 +192,11 @@ def create_email_confirmation_token(user_id: str, email: str) -> str:
 
 
 def create_password_reset_token(user_id: str, email: str) -> str:
-    """Create a password reset token (valid 1 hour)."""
+    """Create a password reset token (valid 1 hour).
+
+    jti нужен, чтобы погасить ссылку после использования: без него одна и та же
+    ссылка из письма работала бы весь час сколько угодно раз.
+    """
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
@@ -190,6 +204,7 @@ def create_password_reset_token(user_id: str, email: str) -> str:
         "type": "password_reset",
         "iat": now,
         "exp": now + timedelta(hours=1),
+        "jti": uuid.uuid4().hex,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
@@ -203,6 +218,9 @@ def decode_password_reset_token(token: str) -> TokenData:
         user_id=payload["sub"],
         email=payload["email"],
         token_type="password_reset",
+        jti=payload.get("jti", ""),
+        exp=int(payload.get("exp", 0)),
+        iat=int(payload.get("iat", 0)),
     )
 
 
