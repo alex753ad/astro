@@ -33,6 +33,10 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
 
+    # Админ-доступ (038) — роль в БД, а не список email из окружения:
+    # переживает рестарт и не требует передеплоя для выдачи/отзыва.
+    is_admin = Column(Boolean, default=False, nullable=False, server_default="false")
+
     # Глобальная ревокация сессий (037). Версия вшивается в токен при выдаче;
     # инкремент при смене пароля / logout-all делает недействительными все
     # ранее выданные токены. Счётчик, а не отметка времени: iat округлён до

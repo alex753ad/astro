@@ -58,10 +58,6 @@ from backend.schemas import (
     VerifyEmailOTPRequest,
 )
 
-ADMIN_EMAILS: set[str] = set(
-    e.strip() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()
-)
-
 logger = logging.getLogger("astro.auth")
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -151,7 +147,7 @@ def _build_token_response(user: User, email: str) -> TokenResponse:
         email=email,
         name=user.name,
         tier=user.tier,
-        is_admin=(user.email or "") in ADMIN_EMAILS,
+        is_admin=bool(user.is_admin),
     )
 
 
@@ -459,6 +455,7 @@ async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
         name=user.name,
         tier=user.tier,
         is_email_confirmed=user.is_email_confirmed,
+        is_admin=bool(user.is_admin),
         stripe_customer_id=user.stripe_customer_id,
         created_at=user.created_at.isoformat() if user.created_at else None,
     )
