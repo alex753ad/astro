@@ -17,16 +17,82 @@ class ApiError extends Error {
   }
 }
 
+const ACCESS_TOKEN_KEY  = 'astro_access_token';
+const REFRESH_TOKEN_KEY = 'astro_refresh_token';
+
+// Параллельные 401 не должны обновлять токен наперегонки: ротация делает
+// использованный refresh недействительным, и второй запрос разлогинил бы юзера.
+let refreshInFlight = null;
+
+async function refreshAccessToken() {
+  if (refreshInFlight) return refreshInFlight;
+
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) return null;
+
+  refreshInFlight = (async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!resp.ok) {
+        // Refresh мёртв (истёк, отозван, сменён пароль) — сессии больше нет.
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+        return null;
+      }
+      const data = await resp.json();
+      localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
+      if (data.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+      return data.access_token;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+/**
+ * fetch с авторизацией и однократным повтором после обновления токена.
+ *
+ * Access-токен живёт 15 минут. Без этого повтора протухший токен приводил к
+ * ошибке на экране: сервер отвечает 401, а клиент не пытался обновиться.
+ * Принимает абсолютный URL — используется и из client.js, и со страниц с
+ * собственным базовым адресом.
+ */
+export async function authFetch(url, options = {}) {
+  const send = (token) => fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  let resp = await send(token);
+
+  if (resp.status === 401 && token) {
+    const fresh = await refreshAccessToken();
+    if (fresh) resp = await send(fresh);
+  }
+
+  return resp;
+}
+
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
-  const token = localStorage.getItem('astro_access_token');
-  const resp = await fetch(url, {
+  const resp = await authFetch(url, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
-    ...options,
   });
 
   if (!resp.ok) {

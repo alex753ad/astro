@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
+import { authFetch } from '../api/client';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
@@ -375,10 +376,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       return;
     }
 
-    const token = localStorage.getItem('astro_access_token');
-    fetch(`${API_BASE}/chart/${chartId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    authFetch(`${API_BASE}/chart/${chartId}`)
       .then(r => { if (!r.ok) throw new Error('Карта не найдена'); return r.json(); })
       .then(data => {
         setChart(data);
@@ -392,10 +390,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   // Загружаем транзитные позиции при открытии вкладки транзитов
   useEffect(() => {
     if (topTab !== 'transits' || !chart || !chartId || chartId === 'anonymous' || transitPlanets.length > 0) return;
-    const token = localStorage.getItem('astro_access_token');
-    fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    authFetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.planets?.length) setTransitPlanets(data.planets); })
       .catch(() => {});

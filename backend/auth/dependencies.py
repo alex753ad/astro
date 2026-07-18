@@ -110,10 +110,16 @@ async def get_current_user_optional(
     ),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
-    """Return the current user if a valid token is provided, else None.
+    """Вернуть пользователя, если предъявлены учётные данные; иначе None.
 
-    Does NOT raise on missing / invalid token — useful for endpoints
-    that work for both anonymous and authenticated users.
+    None означает ровно одно: клиент ничего не предъявил — это анонимный
+    запрос. Если же учётные данные пришли, но не приняты (истёк срок, отозван,
+    сменился пароль), поднимается 401.
+
+    Раньше в этом случае возвращался None, и запрос молча продолжался как
+    анонимный. На эндпоинтах с проверкой владельца это давало 404 «карта не
+    найдена» вместо 401: клиент не понимал, что нужно обновить токен, и
+    пользователь с протухшим access-токеном терял доступ к своим картам.
 
     Токен берётся только из заголовка Authorization. Для SSE/EventSource,
     который не умеет слать заголовки, предусмотрен одноразовый `?ticket=`
@@ -125,33 +131,31 @@ async def get_current_user_optional(
 
     if not token:
         ticket = request.query_params.get("ticket")
-        if ticket:
-            user_id = await redeem_sse_ticket(ticket)
-            if user_id is None:
-                return None
-            user = db.query(User).filter(User.id == user_id).first()
-            if user is None or not user.is_active:
-                return None
-            return user
-        return None
+        if not ticket:
+            return None  # анонимный запрос — единственный случай None
 
-    try:
-        token_data = decode_token(token)
-    except JWTError:
-        return None
+        user_id = await redeem_sse_ticket(ticket)
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="SSE ticket is invalid or already used",
+            )
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is deactivated",
+            )
+        return user
 
-    if token_data.token_type != "access":
-        return None
-
-    if await is_denied(token_data.jti):
-        return None
-
-    user = db.query(User).filter(User.id == token_data.user_id).first()
-    if user is None or not user.is_active:
-        return None
-    if is_session_revoked(user, token_data):
-        return None
-    return user
+    # Дальше — та же проверка, что и в get_current_user: предъявленный токен
+    # либо принимается, либо отклоняется явной ошибкой.
+    return await get_current_user(credentials=credentials, db=db)
 
 
 TIER_HIERARCHY = ["free", "lite", "pro", "premium"]
