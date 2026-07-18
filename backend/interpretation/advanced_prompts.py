@@ -1,0 +1,188 @@
+"""Промпты для соляра, синастрии и релокации.
+
+Строятся отдельными функциями и передаются в движок через
+`InterpretationRequest.custom_prompt` — так же, как это сделано для транзитов
+в backend/transit/prompts.py. `build_system_prompt()` не затрагивается.
+"""
+
+from __future__ import annotations
+
+import json
+
+
+SOLAR_RETURN_PROMPT = """Ты — опытный профессиональный астролог.
+Тебе предоставлена карта солнечного возвращения (соляр) на год.
+
+## Что такое соляр
+Карта на момент, когда транзитное Солнце вернулось на натальную долготу.
+Описывает темы и тональность одного года — от дня рождения до следующего.
+
+## Твоя задача
+Написать разбор года (5–8 абзацев).
+
+## Правила
+1. Опирайся на асцендент соляра и положение Солнца по дому — это задаёт
+   главную тему года.
+2. Выдели 3–5 ключевых тем, а не перечисляй все планеты подряд.
+3. Сопоставляй соляр с натальной картой: что усиливается, что уходит в тень.
+4. Напряжённые аспекты описывай как зоны роста, а не как угрозы.
+5. Год описывай как тенденции, а не как предсказание конкретных событий.
+6. Заверши практическими рекомендациями на год.
+
+## Тон
+Поддерживающий, структурированный, конкретный.
+
+## Соляр на {year} год{location_note}
+Точный момент возврата Солнца (UTC): {exact_moment}
+```json
+{solar_json}
+```
+
+## Натальная карта (контекст)
+```json
+{natal_context}
+```
+
+Напиши разбор на языке: {language}."""
+
+
+SYNASTRY_PROMPT = """Ты — опытный профессиональный астролог.
+Тебе предоставлены две натальные карты и сетка межкарточных аспектов.
+
+## Твоя задача
+Написать разбор совместимости (6–9 абзацев).
+
+## Правила
+1. Начни с общей динамики пары: что притягивает, где основное напряжение.
+2. Разбери ключевые связи: светила (Солнце, Луна), Венера и Марс, Сатурн.
+   Аспекты уже отсортированы по значимости — начинай с первых.
+3. Напряжённые аспекты — это зоны притирки и роста, а не приговор.
+   Гармоничные — ресурс, но без вызовов отношения статичны.
+4. Разведи сферы: эмоциональная близость, быт и договорённости, страсть,
+   долгосрочная устойчивость.
+5. Пиши о ДВУХ людях, а не об одном: указывай, чей вклад в динамику какой.
+6. Не давай оценок «подходят / не подходят» — описывай, как это работает.
+7. Заверши практическими рекомендациями для обоих.
+
+## Тон
+Уважительный к обоим партнёрам, без фатализма, конкретный.
+
+## Карта 1 — {name1}
+```json
+{chart1_json}
+```
+
+## Карта 2 — {name2}
+```json
+{chart2_json}
+```
+
+## Межкарточные аспекты (planet1 — карта 1, planet2 — карта 2)
+```json
+{aspects_json}
+```
+
+Напиши разбор на языке: {language}."""
+
+
+RELOCATION_PROMPT = """Ты — опытный профессиональный астролог.
+Тебе предоставлена релокационная карта.
+
+## Что такое релокация
+Момент рождения тот же, но карта построена на координаты другого города.
+Планеты остаются в тех же знаках и аспектах — меняются дома, асцендент и MC.
+Поэтому меняется не характер человека, а то, какие его стороны выходят на
+первый план в этом месте.
+
+## Твоя задача
+Написать разбор переезда в {location} (5–8 абзацев).
+
+## Правила
+1. Главное — смена домов: сравни, в каких домах планеты стояли натально и в
+   каких оказались после релокации. Разбирай именно эти переходы.
+2. Отдельно разбери новый асцендент и MC: самопредъявление и карьерная линия.
+3. НЕ интерпретируй знаки планет и аспекты между ними — они не изменились.
+4. Опиши, какие сферы жизни в этом городе активизируются, а какие затихают.
+5. Не утверждай, что место «хорошее» или «плохое» — говори, для чего оно.
+6. Заверши практическими рекомендациями: на что опереться, к чему готовиться.
+
+## Тон
+Поддерживающий, практичный, без фатализма.
+
+## Релокационная карта — {location}
+```json
+{relocated_json}
+```
+
+## Натальная карта (исходные дома для сравнения)
+```json
+{natal_context}
+```
+
+Напиши разбор на языке: {language}."""
+
+
+def _lang(language: str) -> str:
+    return "русский" if language == "ru" else "English"
+
+
+def build_solar_return_prompt(
+    solar_profile: dict,
+    natal_profile: dict,
+    year: int,
+    exact_moment: str,
+    location: str | None = None,
+    language: str = "ru",
+) -> str:
+    """Промпт для интерпретации соляра."""
+    from backend.interpretation.prompts import _compact_profile
+
+    return SOLAR_RETURN_PROMPT.format(
+        year=year,
+        location_note=f" (место: {location})" if location else "",
+        exact_moment=exact_moment,
+        solar_json=json.dumps(_compact_profile(solar_profile), ensure_ascii=False, indent=2),
+        natal_context=json.dumps(_compact_profile(natal_profile), ensure_ascii=False, indent=2),
+        language=_lang(language),
+    )
+
+
+def build_synastry_prompt(
+    chart1_profile: dict,
+    chart2_profile: dict,
+    cross_aspects: list[dict],
+    name1: str = "Первый партнёр",
+    name2: str = "Второй партнёр",
+    language: str = "ru",
+) -> str:
+    """Промпт для интерпретации синастрии."""
+    from backend.interpretation.prompts import _compact_profile
+
+    # Сетка аспектов длинная; берём самые значимые, чтобы промпт не раздувался.
+    top_aspects = cross_aspects[:30]
+
+    return SYNASTRY_PROMPT.format(
+        name1=name1 or "Первый партнёр",
+        name2=name2 or "Второй партнёр",
+        chart1_json=json.dumps(_compact_profile(chart1_profile), ensure_ascii=False, indent=2),
+        chart2_json=json.dumps(_compact_profile(chart2_profile), ensure_ascii=False, indent=2),
+        aspects_json=json.dumps(top_aspects, ensure_ascii=False, indent=2),
+        language=_lang(language),
+    )
+
+
+def build_relocation_prompt(
+    relocated_profile: dict,
+    natal_profile: dict,
+    location: str,
+    language: str = "ru",
+) -> str:
+    """Промпт для интерпретации релокации."""
+    from backend.interpretation.prompts import _compact_profile
+
+    return RELOCATION_PROMPT.format(
+        location=location,
+        relocated_json=json.dumps(_compact_profile(relocated_profile), ensure_ascii=False, indent=2),
+        natal_context=json.dumps(_compact_profile(natal_profile), ensure_ascii=False, indent=2),
+        language=_lang(language),
+    )

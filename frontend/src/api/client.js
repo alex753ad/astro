@@ -423,3 +423,96 @@ export async function createReportCheckoutSession(reportType, chartId) {
     body: JSON.stringify({ report_type: reportType, chart_id: chartId }),
   });
 }
+
+// ── Соляр / синастрия / релокация (только для админов) ──
+//
+// Расчёты — обычный request(). Стримы: соляр и релокация это GET, поэтому
+// идут через EventSource + одноразовый тикет; синастрия передаёт партнёра в
+// теле, поэтому это POST + ReadableStream (как streamTransitEventInterpretation).
+// onChunk во всех трёх получает обычную строку текста.
+
+export async function calculateSolarReturn(chartId, year, location = null) {
+  return request(`/chart/${chartId}/solar-return`, {
+    method: 'POST',
+    body: JSON.stringify({ year, location }),
+  });
+}
+
+export function streamSolarReturnInterpretation(chartId, year, location, onChunk, onDone, onError) {
+  const buildUrl = async () => {
+    const ticket = await _sseTicket();
+    const params = new URLSearchParams();
+    if (location) params.set('location', location);
+    if (ticket) params.set('ticket', ticket);
+    const qs = params.toString();
+    return `${API_BASE}/chart/${chartId}/solar-return/${year}/interpret${qs ? `?${qs}` : ''}`;
+  };
+  return _connectSSE(buildUrl, (c) => { if (c.type === 'text') onChunk(c.text); }, onDone, onError);
+}
+
+export async function calculateSynastry(chartId, partnerData) {
+  return request('/chart/synastry', {
+    method: 'POST',
+    body: JSON.stringify({ chart_id: chartId, partner: partnerData }),
+  });
+}
+
+export async function streamSynastryInterpretation(chartId, partnerData, onChunk, onDone, onError) {
+  try {
+    const resp = await authFetch(`${API_BASE}/chart/synastry/interpret`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chart_id: chartId, partner: partnerData }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      onError?.(body.detail || `Ошибка ${resp.status}`);
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') { onDone?.(); return; }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.text) onChunk(parsed.text);
+          if (parsed.error) onError?.(parsed.error);
+        } catch { /* пропускаем неполные фреймы */ }
+      }
+    }
+    onDone?.();
+  } catch (err) {
+    onError?.(err.message);
+  }
+}
+
+export async function calculateRelocation(chartId, location) {
+  return request(`/chart/${chartId}/relocation`, {
+    method: 'POST',
+    body: JSON.stringify({ location }),
+  });
+}
+
+export function streamRelocationInterpretation(chartId, location, onChunk, onDone, onError) {
+  const buildUrl = async () => {
+    const ticket = await _sseTicket();
+    const params = new URLSearchParams({ location });
+    if (ticket) params.set('ticket', ticket);
+    return `${API_BASE}/chart/${chartId}/relocation/interpret?${params}`;
+  };
+  return _connectSSE(buildUrl, (c) => { if (c.type === 'text') onChunk(c.text); }, onDone, onError);
+}

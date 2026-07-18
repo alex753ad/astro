@@ -65,6 +65,7 @@ from backend.onboarding_router import router as onboarding_router
 from backend.push.router import router as push_router
 from backend.push.cron import router as push_cron_router
 from backend.share_router import router as share_router
+from backend.advanced_charts_router import router as advanced_charts_router
 from backend.payments.payments_router import router as payments_router
 from backend.crm.router import router as crm_router
 from backend.crm.author_router import router as author_router
@@ -203,6 +204,7 @@ app.include_router(onboarding_router)
 app.include_router(push_router)
 app.include_router(push_cron_router)
 app.include_router(share_router)
+app.include_router(advanced_charts_router)
 app.include_router(payments_router)
 app.include_router(crm_router)
 app.include_router(author_router)
