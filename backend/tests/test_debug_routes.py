@@ -5,6 +5,7 @@
 импорта backend.main, поэтому в уже импортированном модуле её не отменить.
 """
 
+import inspect
 import subprocess
 import sys
 
@@ -16,6 +17,23 @@ DEBUG_PATHS = [
     "/api/v1/chart/{chart_id}/debug/cusps",
 ]
 
+def collect_paths(routes):
+    """Все пути приложения, включая вложенные в роутеры-обёртки.
+
+    В части версий FastAPI include_router оставляет в app.routes объект-
+    обёртку без атрибута .path, а сами роуты лежат в его .routes — прямой
+    перебор r.path на таких версиях падает с AttributeError.
+    """
+    found = set()
+    for route in routes:
+        path = getattr(route, "path", None)
+        if path is not None:
+            found.add(path)
+        nested = getattr(route, "routes", None)
+        if nested:
+            found |= collect_paths(nested)
+    return found
+
 
 class TestDebugRoutesEnabled:
     """TESTING=true — роуты зарегистрированы (conftest выставляет флаг)."""
@@ -23,7 +41,7 @@ class TestDebugRoutesEnabled:
     def test_routes_registered(self):
         from backend.main import app
 
-        paths = {r.path for r in app.routes}
+        paths = collect_paths(app.routes)
         for path in DEBUG_PATHS:
             assert path in paths
 
@@ -56,8 +74,9 @@ class TestDebugRoutesDisabled:
         """Импортирует backend.main в чистом процессе с выключенным debug."""
         code = (
             "import json\n"
-            "from backend.main import app\n"
-            "paths = sorted({r.path for r in app.routes})\n"
+            + inspect.getsource(collect_paths)
+            + "from backend.main import app\n"
+            "paths = sorted(collect_paths(app.routes))\n"
             "spec = sorted(app.openapi()['paths'].keys())\n"
             "print('@@' + json.dumps({'routes': paths, 'openapi': spec}))\n"
         )
@@ -65,6 +84,9 @@ class TestDebugRoutesDisabled:
             "DEBUG": "false",
             "TESTING": "false",
             "JWT_SECRET": "test-secret-not-the-default-placeholder",
+            # Пустой список доверенных прокси — валидное значение; задаём явно,
+            # чтобы в stderr пробы не было лишнего шума при разборе падений.
+            "TRUSTED_PROXY_IPS": "",
             "PATH": __import__("os").environ.get("PATH", ""),
             "SYSTEMROOT": __import__("os").environ.get("SYSTEMROOT", ""),
         }
