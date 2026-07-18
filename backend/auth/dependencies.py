@@ -20,6 +20,7 @@ Usage in endpoints:
 
 from __future__ import annotations
 
+from datetime import timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
@@ -36,6 +37,20 @@ from backend.models import User
 # HTTPBearer extracts "Authorization: Bearer <token>" header
 _bearer_scheme = HTTPBearer(auto_error=True)
 _bearer_scheme_optional = HTTPBearer(auto_error=False)
+
+
+def is_session_revoked(user: User, token_data: TokenData) -> bool:
+    """True, если версия сессии в токене устарела.
+
+    Денилист по jti отзывает конкретный токен, но при смене пароля нужно
+    погасить сразу все выданные ранее — их jti серверу неизвестны. Версия
+    вшивается в токен при выдаче, поэтому инкремент счётчика у пользователя
+    разом обесценивает все старые токены.
+
+    Токены, выпущенные до появления счётчика, не имеют claim `tv` и читаются
+    как версия 0 — совпадает со стартовым значением, поэтому не отзываются.
+    """
+    return token_data.token_version != (user.token_version or 0)
 
 
 async def get_current_user(
@@ -73,6 +88,12 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
+        )
+    if is_session_revoked(user, token_data):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
         raise HTTPException(
@@ -127,6 +148,8 @@ async def get_current_user_optional(
 
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if user is None or not user.is_active:
+        return None
+    if is_session_revoked(user, token_data):
         return None
     return user
 

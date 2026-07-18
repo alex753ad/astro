@@ -27,7 +27,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import get_current_user
+from backend.auth.dependencies import get_current_user, is_session_revoked
 from backend.auth.jwt import (
     create_email_confirmation_token,
     create_password_reset_token,
@@ -38,7 +38,7 @@ from backend.auth.jwt import (
     remaining_ttl,
 )
 from backend.auth.sse_tickets import issue as issue_sse_ticket
-from backend.auth.token_store import deny
+from backend.auth.token_store import deny, is_denied
 from backend.limiter import limiter
 from backend.auth.oauth import OAuthError, exchange_google_code
 from backend.auth.passwords import hash_password, verify_password
@@ -140,7 +140,7 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
 
 
 def _build_token_response(user: User, email: str) -> TokenResponse:
-    tokens = create_token_pair(user.id, email, user.tier)
+    tokens = create_token_pair(user.id, email, user.tier, user.token_version or 0)
     return TokenResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -326,6 +326,11 @@ async def refresh_token(request: Request, data: RefreshRequest, db: Session = De
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Пользователь не найден или заблокирован.")
+
+    # Refresh, выданный до смены пароля / logout-all, не должен выдавать новые
+    # access-токены — иначе глобальная ревокация обходится одним запросом.
+    if is_session_revoked(user, token_data):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия отозвана.")
 
     # Ротация: старый refresh отзываем, выдаём новую пару.
     try:
@@ -529,6 +534,10 @@ async def reset_password(
     except JWTError:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ссылка недействительна или истёкла.")
 
+    # Ссылка одноразовая: повторный переход по уже использованной — как по истёкшей.
+    if await is_denied(token_data.jti):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ссылка недействительна или истёкла.")
+
     if len(data.new_password) < 8:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пароль минимум 8 символов.")
     if data.new_password.isdigit():
@@ -539,6 +548,28 @@ async def reset_password(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Пользователь не найден.")
 
     user.hashed_password = hash_password(data.new_password)
+    # Смена пароля отзывает все ранее выданные access/refresh токены: иначе
+    # угнавший сессию сохранял бы доступ и после того, как владелец сменил пароль.
+    user.token_version = (user.token_version or 0) + 1
     db.commit()
+
+    # Гасим ссылку только после успешной смены пароля.
+    await deny(token_data.jti, remaining_ttl(token_data.exp))
+
     logger.info("Password reset completed: %s", user.email)
     return MessageResponse(message="Пароль успешно изменён.")
+
+
+@router.post("/logout-all", response_model=MessageResponse, summary="Выйти на всех устройствах")
+async def logout_all(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    """Отзывает все выданные ранее токены пользователя.
+
+    Текущий access-токен тоже перестаёт работать — клиенту нужно войти заново.
+    """
+    user.token_version = (user.token_version or 0) + 1
+    db.commit()
+    logger.info("All sessions revoked: %s", user.email)
+    return MessageResponse(message="Вы вышли на всех устройствах.")

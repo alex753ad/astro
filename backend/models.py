@@ -33,6 +33,13 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
 
+    # Глобальная ревокация сессий (037). Версия вшивается в токен при выдаче;
+    # инкремент при смене пароля / logout-all делает недействительными все
+    # ранее выданные токены. Счётчик, а не отметка времени: iat округлён до
+    # секунды, и по нему нельзя отличить токен, выданный за миг до ревокации,
+    # от выданного сразу после.
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
+
     # First free interpretation (3.3) — одноразовый «вкус» для Free, навсегда
     free_interpretation_used = Column(
         Boolean, default=False, nullable=False, server_default="false"
