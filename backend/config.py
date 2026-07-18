@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     rate_limit_free_charts_per_day: int = 5
     rate_limit_free_interpretations_per_day: int = 2
 
+    # ── Anonymous charts ──
+    # Сколько живёт анонимная карта до привязки к аккаунту (cleanup-таска).
+    anon_chart_ttl_days: int = 30
+
     # ── Ephemeris ──
     ephe_path: str = "data/ephe"
 

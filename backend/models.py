@@ -96,6 +96,12 @@ class NatalChart(Base):
     public_token = Column(String(64), nullable=True, unique=True, index=True)
     share_name   = Column(String(100), nullable=True)  # имя для публичной страницы
 
+    # Capability-токен анонимной карты (user_id IS NULL): доступ к своей карте
+    # до привязки к аккаунту. Не путать с public_token — тот открывает публичную
+    # страницу шаринга. Гасится при claim.
+    access_token = Column(String(64), nullable=True, unique=True, index=True)
+    expires_at   = Column(DateTime, nullable=True, index=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="charts", foreign_keys=[user_id])
