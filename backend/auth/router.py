@@ -42,7 +42,7 @@ from backend.auth.sse_tickets import issue as issue_sse_ticket
 from backend.auth.token_store import deny, is_denied
 from backend.limiter import limiter
 from backend.auth.oauth import OAuthError, exchange_google_code
-from backend.auth.passwords import hash_password, verify_password
+from backend.auth.passwords import hash_password, validate_password, verify_password
 from backend.config import get_settings
 from backend.database import get_db
 from backend.models import User
@@ -580,10 +580,13 @@ async def reset_password(
     if await is_denied(token_data.jti):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ссылка недействительна или истёкла.")
 
-    if len(data.new_password) < 8:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пароль минимум 8 символов.")
-    if data.new_password.isdigit():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пароль не может состоять только из цифр.")
+    # Та же политика, что и при регистрации: раньше сброс проверял только
+    # длину и «только цифры», поэтому мимо него проходили пароли, которые
+    # форма регистрации отклоняла.
+    try:
+        validate_password(data.new_password)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if not user:

@@ -119,9 +119,10 @@ def _validate_ru_email(v: str) -> str:
 
 
 def _validate_password(v: str) -> str:
-    if v.isdigit():
-        raise ValueError("Пароль не может состоять только из цифр.")
-    return v
+    """Делегирует единой политике из backend.auth.passwords."""
+    from backend.auth.passwords import validate_password
+
+    return validate_password(v)
 
 
 # ── Старая схема — сохранена для тестов и обратной совместимости ──
