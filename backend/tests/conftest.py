@@ -42,12 +42,26 @@ backend.main.engine = engine
 # ── Redis: in-memory заглушка вместо живого сервера ──────
 @pytest.fixture(autouse=True)
 def fake_redis():
-    """Подменяем общий async-клиент Redis на fakeredis для всех тестов."""
+    """Подменяем общий async-клиент Redis на fakeredis для всех тестов.
+
+    Модули делают `from backend.redis_client import get_redis`, то есть имя
+    связывается на импорте — патчить нужно каждый из них, а не только
+    backend.redis_client.
+    """
+    import contextlib
     import fakeredis.aioredis
 
     client = fakeredis.aioredis.FakeRedis(decode_responses=True)
-    with patch.object(backend.redis_client, "get_redis", return_value=client), \
-         patch("backend.auth.token_store.get_redis", return_value=client):
+    targets = [
+        "backend.redis_client.get_redis",
+        "backend.auth.token_store.get_redis",
+        "backend.auth.sse_tickets.get_redis",
+        "backend.share_router.get_redis",
+        "backend.payments.payments_router.get_redis",
+    ]
+    with contextlib.ExitStack() as stack:
+        for target in targets:
+            stack.enter_context(patch(target, return_value=client))
         yield client
 
 

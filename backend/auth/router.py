@@ -37,6 +37,7 @@ from backend.auth.jwt import (
     decode_token,
     remaining_ttl,
 )
+from backend.auth.sse_tickets import issue as issue_sse_ticket
 from backend.auth.token_store import deny
 from backend.limiter import limiter
 from backend.auth.oauth import OAuthError, exchange_google_code
@@ -454,6 +455,22 @@ async def delete_account(
     db.commit()
     logger.info("User deleted: %s (%s)", user.email, user.id)
     return MessageResponse(message="Account deleted. Аккаунт удалён.")
+
+
+# ═══════════════════════════════════════════════════════════
+# SSE-ТИКЕТЫ
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/sse-ticket", summary="Одноразовый тикет для EventSource")
+async def create_sse_ticket(user: User = Depends(get_current_user)) -> dict:
+    """Обменять access-токен на одноразовый тикет для SSE-подключения.
+
+    EventSource не умеет слать Authorization, а класть в query сам access-токен
+    небезопасно (логи прокси, Referer, история). Тикет живёт ~минуту и гасится
+    при первом использовании.
+    """
+    ticket = await issue_sse_ticket(user.id)
+    return {"ticket": ticket, "expires_in": get_settings().sse_ticket_ttl_seconds}
 
 
 # ═══════════════════════════════════════════════════════════

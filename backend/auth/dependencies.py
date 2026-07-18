@@ -28,6 +28,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from backend.auth.jwt import decode_token, TokenData
+from backend.auth.sse_tickets import redeem as redeem_sse_ticket
 from backend.auth.token_store import is_denied
 from backend.database import get_db
 from backend.models import User
@@ -93,15 +94,24 @@ async def get_current_user_optional(
     Does NOT raise on missing / invalid token — useful for endpoints
     that work for both anonymous and authenticated users.
 
-    Токен берётся из заголовка Authorization, а если его нет — из query-параметра
-    `?token=` (нужно для SSE/EventSource, который не умеет слать заголовки).
+    Токен берётся только из заголовка Authorization. Для SSE/EventSource,
+    который не умеет слать заголовки, предусмотрен одноразовый `?ticket=`
+    (см. backend/auth/sse_tickets.py) — сам access-токен в query не принимается.
     """
     token: Optional[str] = None
     if credentials is not None:
         token = credentials.credentials
+
     if not token:
-        token = request.query_params.get("token")
-    if not token:
+        ticket = request.query_params.get("ticket")
+        if ticket:
+            user_id = await redeem_sse_ticket(ticket)
+            if user_id is None:
+                return None
+            user = db.query(User).filter(User.id == user_id).first()
+            if user is None or not user.is_active:
+                return None
+            return user
         return None
 
     try:
