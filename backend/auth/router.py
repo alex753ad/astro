@@ -201,23 +201,55 @@ async def register_email_send(
     data: SendEmailOTPRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(status.HTTP_409_CONFLICT, "Аккаунт с таким email уже существует.")
+    """Отправляет OTP на email.
 
+    Ответ одинаков независимо от того, занят адрес или нет: раньше занятый
+    отдавал 409, и форма регистрации работала как оракул существования
+    аккаунта. Занятому адресу вместо кода уходит письмо-уведомление — это и
+    сигнал владельцу, и выравнивание объёма работы между ветками.
+    """
     r = await _get_redis()
+
+    # Троттлинг проверяется до ветвления и ключ ставится в обоих случаях:
+    # иначе занятый адрес отличался бы отсутствием 429 на повторный запрос.
     if await r.exists(_resend_key(data.email)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             "Подождите минуту перед повторной отправкой.",
         )
 
+    existing = db.query(User).filter(User.email == data.email).first()
+
+    # Хеширование выполняется в любом случае — bcrypt занимает сотни
+    # миллисекунд и иначе разница во времени ответа выдавала бы ветку.
+    hashed_pw = hash_password(data.password)
     code = _gen_otp()
-    await _store_otp(r, data.email, code, hash_password(data.password), data.ref_code or "", data.name or "")
 
-    from backend.email_service import send_otp_email
-    await send_otp_email(data.email, code)
+    if existing:
+        await r.setex(_resend_key(data.email), OTP_RESEND_TTL, "1")
+        try:
+            from backend.email_service import _send, _base, _h2, _p, _btn
+            body = (
+                _h2("Аккаунт уже существует")
+                + _p("Кто-то попытался зарегистрироваться с вашим адресом в "
+                     "<strong>Astrea Timeline</strong>. Аккаунт уже создан ранее.")
+                + _p("Если это были вы — просто войдите. Если нет — проигнорируйте письмо.")
+                + _btn("Войти →", f"{get_settings().frontend_url}/login")
+            )
+            await _send(
+                data.email,
+                "Попытка регистрации — Astrea Timeline",
+                _base("Аккаунт уже существует", "Вход в аккаунт", body),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Existing-account notice failed for %s: %s", data.email, exc)
+        logger.info("Registration attempt on existing account: %s", data.email)
+    else:
+        await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "")
+        from backend.email_service import send_otp_email
+        await send_otp_email(data.email, code)
+        logger.info("Email OTP sent → %s", data.email)
 
-    logger.info("Email OTP sent → %s", data.email)
     return MessageResponse(message="Код подтверждения отправлен на почту.")
 
 

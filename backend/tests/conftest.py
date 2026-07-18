@@ -67,6 +67,11 @@ def fake_redis():
     with contextlib.ExitStack() as stack:
         for target in targets:
             stack.enter_context(patch(target, return_value=client))
+        # auth/router.py держит собственный клиент (OTP-регистрация), мимо
+        # backend.redis_client — его геттер асинхронный.
+        stack.enter_context(
+            patch("backend.auth.router._get_redis", AsyncMock(return_value=client))
+        )
         yield client
 
 
