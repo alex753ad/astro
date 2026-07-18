@@ -3,24 +3,46 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 from unittest.mock import patch, AsyncMock, MagicMock
 
 from backend.database import Base, get_db
 from backend.main import app, limiter
 
+import backend.main
+import backend.redis_client
+
 # Legacy /register закрыт в проде, но нужен тестам — включаем тестовый режим.
 from backend.config import get_settings
 get_settings().testing = True
 
 # ── In-memory SQLite for tests ────────────────────────────
-TEST_DATABASE_URL = "sqlite:///./test.db"
+# StaticPool + одно соединение: иначе каждая сессия получит свою пустую БД.
+TEST_DATABASE_URL = "sqlite://"
 
 engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# lifespan в main.py делает create_all на боевом engine (Postgres) — в тестах
+# подменяем его на SQLite, иначе TestClient не стартует без живой БД.
+backend.main.engine = engine
+
+
+# ── Redis: in-memory заглушка вместо живого сервера ──────
+@pytest.fixture(autouse=True)
+def fake_redis():
+    """Подменяем общий async-клиент Redis на fakeredis для всех тестов."""
+    import fakeredis.aioredis
+
+    client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    with patch.object(backend.redis_client, "get_redis", return_value=client), \
+         patch("backend.auth.token_store.get_redis", return_value=client):
+        yield client
 
 
 # ── Rate limiter: отключаем глобально для всех тестов ────
