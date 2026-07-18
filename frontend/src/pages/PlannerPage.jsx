@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
+import { authFetch } from "../api/client";
 
 const API_BASE = "https://astro-production-abcc.up.railway.app";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -937,11 +938,10 @@ export default function PlannerPage() {
   async function loadPlan() {
     setLoading(true); setError(null); setPlanData(null);
     try {
-      const token = localStorage.getItem("astro_access_token");
       const url = isPro && monthOffset !== 0
         ? `${API_BASE}/api/v1/chart/${id}/planner/monthly?month_offset=${monthOffset}`
         : `${API_BASE}/api/v1/chart/${id}/planner/monthly`;
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const res = await authFetch(url);
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `Ошибка ${res.status}`); }
       const data = await res.json();
       setPlanData(data.planner);
