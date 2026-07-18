@@ -151,12 +151,30 @@ else:
     )
 
 # ── CORS ──
+# Списки явные, а не ["*"]: с allow_credentials=True браузер и так отвергает
+# "*", а Starlette в ответ на preflight отражает запрошенные значения —
+# фактически разрешая любой метод и заголовок.
+CORS_ALLOW_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "X-Chart-Token"]
+
+# Сочетание allow_credentials=True с "*" в origins недопустимо: браузер
+# отбросит такой ответ, а на сервере это тихая ошибка конфигурации.
+if "*" in settings.cors_origins_list:
+    message = (
+        "ALLOWED_ORIGINS содержит '*' вместе с allow_credentials=True — "
+        "укажите конкретные origins."
+    )
+    if settings.debug or settings.testing:
+        logger.error(message)
+    else:
+        raise RuntimeError(message)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=CORS_ALLOW_METHODS,
+    allow_headers=CORS_ALLOW_HEADERS,
 )
 
 # ── Routers ──
