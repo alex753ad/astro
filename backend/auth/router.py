@@ -37,6 +37,7 @@ from backend.auth.jwt import (
     decode_token,
     remaining_ttl,
 )
+from backend.auth import login_guard
 from backend.auth.sse_tickets import issue as issue_sse_ticket
 from backend.auth.token_store import deny, is_denied
 from backend.limiter import limiter
@@ -293,13 +294,25 @@ async def register_legacy(
 @router.post("/login", response_model=TokenResponse, summary="Вход по email + пароль")
 @limiter.limit("10/minute")
 async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    # Лимит по IP не мешает перебору одного аккаунта с ботнета — считаем
+    # неудачи ещё и по email.
+    if await login_guard.is_locked(data.email):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Слишком много неудачных попыток входа. Попробуйте позже.",
+        )
+
     user = db.query(User).filter(User.email == data.email).first()
     if user is None or user.hashed_password is None:
+        await login_guard.record_failure(data.email)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not verify_password(data.password, user.hashed_password):
+        await login_guard.record_failure(data.email)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
+
+    await login_guard.reset(data.email)
     return _build_token_response(user, user.email)
 
 

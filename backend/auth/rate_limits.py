@@ -20,9 +20,8 @@ import time
 from typing import Optional
 
 from fastapi import HTTPException, Request, status
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from backend.limiter import client_ip
 from backend.config import get_settings
 from backend.models import User
 
@@ -137,7 +136,7 @@ def _base_id(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return f"token:{auth[7:67]}"
-    return f"ip:{get_remote_address(request)}"
+    return f"ip:{client_ip(request)}"
 
 
 # /chart/calculate — два ключа, два декоратора в main.py
@@ -162,8 +161,6 @@ def interpret_premium_key(request: Request) -> str:
     return f"interp:premium:{_base_id(request)}"
 
 
-# Глобальный лимитер
-limiter = Limiter(key_func=_base_id)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -368,8 +365,7 @@ class TierRateLimiter:
         if user is None or user.tier != "premium":
             return
         from backend.cache import ip_monitor
-        from slowapi.util import get_remote_address
-        ip = get_remote_address(request)
+        ip = client_ip(request)
         if ip_monitor.record_and_check(str(user.id), ip):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

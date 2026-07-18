@@ -26,13 +26,13 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.config import get_settings
+from backend.limiter import limiter
 from backend.database import get_db, engine, Base
 from backend.schemas import (
     BirthDataInput,
@@ -92,8 +92,9 @@ logger = logging.getLogger("astro")
 settings = get_settings()
 
 # ── Rate limiter ──
+# Общий инстанс из backend.limiter: раньше здесь создавался второй Limiter, и
+# счётчики main.py жили отдельно от счётчиков auth/admin-роутеров.
 # Отключается в тестах через limiter.enabled = False в conftest.py
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Lifespan ──
@@ -132,6 +133,22 @@ async def tier_middleware(request: Request, call_next):
             user_tier = "free"
     request.state.user_tier = user_tier
     return await call_next(request)
+
+# ── Доверенные прокси ──
+# Без этого request.client.host остаётся адресом прокси. Список строгий:
+# "*" здесь означал бы, что любой клиент подделает свой IP заголовком.
+if settings.trusted_proxy_ips:
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts=[h.strip() for h in settings.trusted_proxy_ips.split(",") if h.strip()],
+    )
+else:
+    logger.warning(
+        "TRUSTED_PROXY_IPS не задан — X-Forwarded-For игнорируется, "
+        "лимиты считаются по адресу прокси."
+    )
 
 # ── CORS ──
 app.add_middleware(

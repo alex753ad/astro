@@ -22,6 +22,16 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     # ── Rate limiting ──
+    # Доверенные обратные прокси (IP или CIDR через запятую). Пусто = не верить
+    # X-Forwarded-For вообще. Никогда не указывайте "*": любой клиент сможет
+    # подделать свой IP и обойти лимиты.
+    trusted_proxy_ips: str = ""
+    # Хранилище счётчиков; пусто — берётся redis_url.
+    rate_limit_storage_uri: str = ""
+    # Блокировка аккаунта после серии неудачных входов.
+    login_max_failures: int = 10
+    login_lockout_seconds: int = 900
+
     rate_limit_anon: str = "30/minute"
     rate_limit_auth: str = "100/minute"
     rate_limit_free_charts_per_day: int = 5

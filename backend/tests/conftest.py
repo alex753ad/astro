@@ -6,6 +6,10 @@ import os
 # (debug) регистрируется на этапе импорта в зависимости от флага.
 os.environ.setdefault("TESTING", "true")
 
+# Лимитер в проде считает в Redis; slowapi ходит туда синхронным клиентом,
+# который не перехватывается фикстурой fake_redis. В тестах — in-memory.
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -56,6 +60,7 @@ def fake_redis():
         "backend.redis_client.get_redis",
         "backend.auth.token_store.get_redis",
         "backend.auth.sse_tickets.get_redis",
+        "backend.auth.login_guard.get_redis",
         "backend.share_router.get_redis",
         "backend.payments.payments_router.get_redis",
     ]
