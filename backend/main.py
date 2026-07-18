@@ -134,6 +134,24 @@ async def tier_middleware(request: Request, call_next):
     request.state.user_tier = user_tier
     return await call_next(request)
 
+# ── Проверка секрета подписи ──
+# Дефолтный или короткий jwt_secret означает, что токены может выпустить кто
+# угодно. В проде это должно валить старт, а не тихо работать.
+_INSECURE_JWT_SECRETS = {"CHANGE-ME-IN-PRODUCTION", "", "secret", "changeme"}
+MIN_JWT_SECRET_LENGTH = 32
+
+if not (settings.debug or settings.testing):
+    if settings.jwt_secret in _INSECURE_JWT_SECRETS:
+        raise RuntimeError(
+            "JWT_SECRET не задан или равен значению-заглушке. "
+            "Сгенерируйте секрет: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
+    if len(settings.jwt_secret) < MIN_JWT_SECRET_LENGTH:
+        raise RuntimeError(
+            f"JWT_SECRET короче {MIN_JWT_SECRET_LENGTH} символов "
+            f"({len(settings.jwt_secret)}) — подберётся перебором."
+        )
+
 # ── Доверенные прокси ──
 # Без этого request.client.host остаётся адресом прокси. Список строгий:
 # "*" здесь означал бы, что любой клиент подделает свой IP заголовком.
