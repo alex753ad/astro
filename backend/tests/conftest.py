@@ -1,5 +1,11 @@
 """backend/tests/conftest.py — shared pytest fixtures."""
 
+import os
+
+# Тестовый режим должен быть виден ДО импорта backend.main: часть роутов
+# (debug) регистрируется на этапе импорта в зависимости от флага.
+os.environ.setdefault("TESTING", "true")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

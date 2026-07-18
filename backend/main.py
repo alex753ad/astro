@@ -23,7 +23,7 @@ import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import APIRouter, FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -196,6 +196,14 @@ def health_db(db: Session = Depends(get_db)):
     except Exception as e:
         db_status = f"error: {e}"
     return HealthResponse(status="ok", version="0.1.0", database=db_status)
+
+
+# ── Debug-роуты ──
+# Регистрируются только при DEBUG/TESTING: в проде их не должно быть ни в
+# приложении, ни в /openapi.json. Подключение — в конце модуля, после того
+# как все debug-эндпоинты объявлены.
+debug_router = APIRouter(tags=["debug"])
+DEBUG_ROUTES_ENABLED = settings.debug or settings.testing
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1799,7 +1807,7 @@ async def get_task_status(task_id: str):
     return {"task_id": task_id, "status": result.state.lower()}
 
 
-@app.get('/api/v1/debug/moon', tags=['debug'])
+@debug_router.get('/api/v1/debug/moon')
 async def debug_moon():
     import swisseph as swe, os
     ephe_path = os.getenv('EPHE_PATH', 'data/ephe')
@@ -2026,7 +2034,7 @@ async def get_lunar_calendar(
 
 
 # ── DEBUG: show house cusps ───────────────────────────────────────────────────
-@app.get("/api/v1/chart/{chart_id}/debug/cusps", tags=["debug"])
+@debug_router.get("/api/v1/chart/{chart_id}/debug/cusps")
 async def get_chart_cusps(
     request: Request,
     chart_id: str,
@@ -2039,3 +2047,12 @@ async def get_chart_cusps(
         "house_system": getattr(chart, "house_system", "unknown"),
         "houses": chart.houses,
     }
+
+
+# ── Подключение debug-роутов ──
+# В проде (DEBUG=false, TESTING=false) роуты не регистрируются вовсе, поэтому
+# отсутствуют и в /openapi.json.
+if DEBUG_ROUTES_ENABLED:
+    app.include_router(debug_router)
+else:
+    logger.info("Debug routes disabled (DEBUG=false).")
