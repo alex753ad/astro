@@ -7,6 +7,7 @@ Usage:
     pdf_bytes = generate_pdf_bytes(chart_record, interpretation_text)
 """
 
+import base64
 import io
 import math
 import random
@@ -18,6 +19,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, Frame
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.utils import ImageReader
 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -324,7 +326,8 @@ def _page_cover(c, d):
     for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]: _corner(c, cx2, cy2, 8)
 
     wcx, wcy, wr = W/2, H*0.62, 88
-    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
+    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wr * 2, d["wheel_png"])):
+        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
     ty = H*0.915
     c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 9)
@@ -505,7 +508,8 @@ def _page_wheel(c, d):
     # Big wheel centred on page
     wcx, wcy = W / 2, H / 2 - 10 * mm
     wr = min(W, H) * 0.36
-    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
+    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wr * 2, d["wheel_png"])):
+        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
     # Draw aspect lines inside inner circle
     planets = d.get("planets", [])
@@ -730,7 +734,21 @@ def _parse_interp_string(text: str) -> dict:
 
 # ── Public API ─────────────────────────────────────────────
 
-def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | None = None) -> bytes:
+def _draw_wheel_png(c, cx, cy, size, wheel_png_b64: str) -> bool:
+    """Вставляет PNG колеса по центру (cx, cy) с заданным size.
+    Возвращает True при успехе, False при ошибке."""
+    try:
+        png_bytes = base64.b64decode(wheel_png_b64)
+        img_reader = ImageReader(io.BytesIO(png_bytes))
+        x = cx - size / 2
+        y = cy - size / 2
+        c.drawImage(img_reader, x, y, width=size, height=size, mask='auto')
+        return True
+    except Exception:
+        return False
+
+
+def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | None = None, wheel_png: str | None = None) -> bytes:
     """
     Generate a PDF and return it as bytes.
 
@@ -758,11 +776,13 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
             "aspects": ch.aspects or [],
             "interpretation": interpretation,
             "astrologer_name": astrologer_name,
+            "wheel_png": wheel_png,
         }
     else:
         data = dict(chart)
         data.setdefault("interpretation", interpretation)
         data.setdefault("astrologer_name", astrologer_name)
+        data["wheel_png"] = wheel_png
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)

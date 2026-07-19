@@ -24,6 +24,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, FastAPI, Depends, HTTPException, Request
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from slowapi import _rate_limit_exceeded_handler
@@ -1723,6 +1724,10 @@ async def start_transits_async(
     return {"task_id": task.id, "status": "pending"}
 
 
+class PdfRequest(BaseModel):
+    wheel_png: str | None = None  # base64 PNG колеса, опционально
+
+
 @app.post(
     "/api/v1/chart/{chart_id}/pdf",
     tags=["chart"],
@@ -1732,6 +1737,7 @@ async def start_transits_async(
 async def start_pdf_generation(
     request: Request,
     chart_id: str,
+    pdf_body: PdfRequest | None = None,
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
@@ -1813,10 +1819,12 @@ async def start_pdf_generation(
             pass
 
     from backend.natal_pdf import generate_pdf_bytes
+    wheel_png = pdf_body.wheel_png if pdf_body else None
     pdf_bytes = generate_pdf_bytes(
         chart,
         interpretation=interpretation_text,
         astrologer_name=astrologer_name,
+        wheel_png=wheel_png,
     )
 
     filename = f"natal_chart_{chart_id[:8]}.pdf"

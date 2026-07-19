@@ -261,6 +261,7 @@ function NatalChartInner({
 
   return (
     <svg
+      id={isCompact ? undefined : "natal-chart-svg"}
       viewBox={`${-PADDING} ${-PADDING} ${VSIZE} ${VSIZE}`}
       width="100%"
       height="100%"

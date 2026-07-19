@@ -41,6 +41,29 @@ function ReportModal({ chartId, onClose }) {
   const [error, setError]     = React.useState(null);
   const [pdfStep, setPdfStep] = React.useState('');  // прогресс генерации PDF
 
+  // ── Захват SVG колеса в прозрачный PNG (base64) ──
+  async function captureSvgPng(svgId, size = 1200) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return null;
+    try {
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+      const cvs = document.createElement('canvas');
+      cvs.width = size;
+      cvs.height = size;
+      const ctx = cvs.getContext('2d');
+      ctx.clearRect(0, 0, size, size); // прозрачный фон
+      ctx.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      return cvs.toDataURL('image/png').split(',')[1];
+    } catch {
+      return null;
+    }
+  }
+
   // ── Скачать PDF (sync) ──
   async function handleDownloadFree() {
     setLoading('free');
@@ -48,9 +71,15 @@ function ReportModal({ chartId, onClose }) {
     setPdfStep('Генерируем PDF…');
     try {
       const token = localStorage.getItem('astro_access_token');
+      const wheelPng = await captureSvgPng('natal-chart-svg');
+      const body = wheelPng ? JSON.stringify({ wheel_png: wheelPng }) : undefined;
       const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/pdf`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(wheelPng ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body,
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -362,9 +391,15 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (!token) { alert('Войдите, чтобы скачать PDF'); return; }
     setPdfLoading(true);
     try {
+      const wheelPng = await captureSvgPng('natal-chart-svg');
+      const body = wheelPng ? JSON.stringify({ wheel_png: wheelPng }) : undefined;
       const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/pdf`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(wheelPng ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body,
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
