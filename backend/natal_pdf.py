@@ -112,15 +112,15 @@ def _draw_glyph(c, x, y, glyph, size, color):
 
 W, H = A4
 
-C_BG      = colors.HexColor("#0C0D14")
-C_GOLD    = colors.HexColor("#C9A84C")
-C_GOLD2   = colors.HexColor("#E8CC7A")
-C_SILVER  = colors.HexColor("#A8B0C0")
+C_BG      = colors.HexColor("#FDFBFF")
+C_GOLD    = colors.HexColor("#7B5EA7")
+C_GOLD2   = colors.HexColor("#5B3E87")
+C_SILVER  = colors.HexColor("#8890A0")
 C_ACCENT  = colors.HexColor("#7B5EA7")
-C_TEXT    = colors.HexColor("#DDD5C0")
-C_MUTED   = colors.HexColor("#7A7060")
-C_BORDER  = colors.HexColor("#2A2438")
-C_STAR    = colors.HexColor("#F0E8D0")
+C_TEXT    = colors.HexColor("#1A1230")
+C_MUTED   = colors.HexColor("#6B6080")
+C_BORDER  = colors.HexColor("#D8D0F0")
+C_STAR    = colors.HexColor("#7B5EA7")
 C_RETRO   = colors.HexColor("#CC6655")
 C_TRINE   = colors.HexColor("#4A9060")
 C_SQUARE  = colors.HexColor("#CC5544")
