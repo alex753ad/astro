@@ -251,8 +251,7 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
         c.setLineWidth(0.5 if radius < r else 0.8)
         c.circle(cx, cy, radius, fill=0, stroke=1)
-    _nebula(c, cx, cy, r*0.5, r*0.5, C_ACCENT, alpha=0.08)
-    c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.15))
+    c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
     c.circle(cx, cy, r*0.62, fill=1, stroke=0)
 
     # Draw planets at real positions
@@ -315,10 +314,8 @@ def _bg(c):
 def _page_cover(c, d):
     c.saveState()
     _bg(c)
-    _nebula(c, W*0.2, H*0.8, 160, 100, C_ACCENT, alpha=0.06)
-    _nebula(c, W*0.8, H*0.2, 140, 90, colors.HexColor("#3A2060"), alpha=0.07)
-    _nebula(c, W*0.5, H*0.5, 200, 200, C_ACCENT, alpha=0.03)
-    _stars(c, 7, 220)
+    _nebula(c, W*0.2, H*0.8, 160, 100, C_ACCENT, alpha=0.03)
+    _nebula(c, W*0.5, H*0.5, 200, 200, C_ACCENT, alpha=0.02)
 
     m = 12*mm
     _border(c, m, m, W-2*m, H-2*m, lw=0.7)
@@ -343,8 +340,8 @@ def _page_cover(c, d):
     parts.append(d["birth_place"])
     c.drawCentredString(W/2, ty-48, "  ·  ".join(parts))
 
-    by = wcy - wr - 18
-    for label, key, bx in [("ASC","ascendant",W/2-55),("MC","midheaven",W/2+10)]:
+    by = wcy - wr - 22
+    for label, key, bx in [("ASC","ascendant",W/2-60),("MC","midheaven",W/2+8)]:
         val = d.get(key) or {}
         sign = val.get("sign",""); deg = val.get("degree",0)
         g = SIGN_GLYPHS.get(sign,"")
