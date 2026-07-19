@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AuthProvider } from './hooks/useAuth.jsx';
@@ -7,6 +7,9 @@ import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import ChartPage from './pages/ChartPage';
 import PlannerPage from './pages/PlannerPage';
+import SolarReturnPage from './pages/SolarReturnPage';
+import SynastryPage from './pages/SynastryPage';
+import RelocationPage from './pages/RelocationPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
@@ -104,10 +107,21 @@ function useDarkMode() {
 function Header({ onShowAuth, dark, toggleDark }) {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
+  const calcRef = useRef(null);
   const location = useLocation();
   const lastChartId = localStorage.getItem('astro_last_chart_id');
   const lastChartName = localStorage.getItem('astro_last_chart_name');
   const navChartLabel = lastChartName || (user?.email?.split('@')[0]) || 'Карта';
+
+  // Дропдаун «Расчёты» закрывается по клику вне него.
+  useEffect(() => {
+    function handler(e) {
+      if (calcRef.current && !calcRef.current.contains(e.target)) setCalcOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const navLink = (to) => {
     const isActive = location.pathname === to || location.pathname.startsWith(to + '/');
@@ -148,6 +162,38 @@ function Header({ onShowAuth, dark, toggleDark }) {
                   Лунный календарь
                 </Link>
               </>
+            )}
+            {/* Расчёты — только для админов */}
+            {user?.is_admin && lastChartId && (
+              <div className="relative" ref={calcRef}>
+                <button
+                  onClick={() => setCalcOpen(o => !o)}
+                  className="px-3 py-1.5 rounded-lg text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors duration-200 text-sm"
+                  aria-haspopup="menu"
+                  aria-expanded={calcOpen}
+                >
+                  Расчёты ▾
+                </button>
+                {calcOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-1 min-w-[180px] rounded-lg border border-brand-border bg-brand-card/95 backdrop-blur-md shadow-lg py-1 z-50"
+                  >
+                    <Link to={`/solar-return/${lastChartId}`} onClick={() => setCalcOpen(false)}
+                      className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
+                      Соляр
+                    </Link>
+                    <Link to={`/synastry/${lastChartId}`} onClick={() => setCalcOpen(false)}
+                      className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
+                      Синастрия
+                    </Link>
+                    <Link to={`/relocation/${lastChartId}`} onClick={() => setCalcOpen(false)}
+                      className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
+                      Релокация
+                    </Link>
+                  </div>
+                )}
+              </div>
             )}
             {user?.tier === 'premium' && (
               <Link to="/dashboard/clients" className={navLink('/dashboard/clients')}>
@@ -218,6 +264,19 @@ function Header({ onShowAuth, dark, toggleDark }) {
                 Кабинет астролога
               </Link>
             )}
+            {user?.is_admin && (
+              <>
+                <Link to={`/solar-return/${lastChartId}`} className={navLink(`/solar-return/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                  Соляр
+                </Link>
+                <Link to={`/synastry/${lastChartId}`} className={navLink(`/synastry/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                  Синастрия
+                </Link>
+                <Link to={`/relocation/${lastChartId}`} className={navLink(`/relocation/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                  Релокация
+                </Link>
+              </>
+            )}
             <button
               onClick={() => { logout(); setMenuOpen(false); }}
               className="self-start mt-1 px-4 py-1.5 rounded-lg text-sm font-medium text-brand-muted border border-brand-border hover:border-brand-accent hover:text-brand-text transition-colors duration-200"
@@ -268,6 +327,9 @@ function AppRoutes() {
                 <Route path="/portal/:token" element={<PortalPage />} />
                 <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} dark={dark} />} />
                 <Route path="/planner/:id"    element={<PlannerPage dark={dark} />} />
+                <Route path="/solar-return/:chartId" element={<SolarReturnPage />} />
+                <Route path="/synastry/:chartId"     element={<SynastryPage />} />
+                <Route path="/relocation/:chartId"   element={<RelocationPage />} />
                 <Route path="/profile"        element={<ProfilePage />} />
                 <Route path="/lunar"          element={<LunarCalendarPage />} />
                 <Route path="/gift"           element={<GiftPage />} />

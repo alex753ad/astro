@@ -300,7 +300,10 @@ class InterpretationRouter:
     def _validate_response(self, content: str, expected_sections: list[str], context: str = "natal") -> bool:
         if not content or len(content) < 100:
             return False
-        if context == "transit":
+        # Проверка ниже ищет натальные ключевые слова и осмысленна только для
+        # натальной интерпретации. Остальные контексты пишут о своём (транзиты,
+        # год соляра, совместимость, смена домов) и забраковывались бы зря.
+        if context != "natal":
             return True
         return "###" in content or any(
             w in content.lower()
