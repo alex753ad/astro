@@ -104,13 +104,12 @@ async def _get_share_quote(
 
     prompt = (
         f"Натальная карта: {combo}.\n"
-        "Напиши ровно 2 коротких предложения (максимум 30 слов суммарно) — "
-        "смешное хвастовство от первого лица. "
-        "Человек преувеличенно хвалится своими астрологическими качествами, "
-        "с самоиронией и лёгким абсурдом. Без вступлений, только сами предложения. "
-        "Пример стиля: «Конечно, я мог бы устроиться в банк, но мой гениальный мозг "
-        "требует монетизировать спасение мира. Зато когда я разбогатею — вы все сможете "
-        "гордиться, что кивали во время моих монологов!»"
+        "Напиши ровно 2 коротких законченных предложения (вместе не больше 25 слов) — "
+        "смешное хвастовство от первого лица, с самоиронией. "
+        "Каждое предложение доведи до конца и поставь точку. "
+        "Без вступлений и пояснений, только сами предложения. "
+        "Пример стиля: «Мой мозг работает в пяти измерениях, а вы пока застряли в трёх. "
+        "Зато когда я разбогатею, вы все сможете гордиться, что терпеливо кивали.»"
     )
 
     quote = ""
@@ -136,10 +135,14 @@ async def _get_share_quote(
             resp.raise_for_status()
             data = resp.json()
             quote = data["choices"][0]["message"]["content"].strip()
-            # страховка от длинных ответов: оставляем не больше 2 предложений
+            # оставляем не больше 2 законченных предложений
             import re as _re
-            sentences = _re.split(r"(?<=[.!?])\s+", quote)
-            quote = " ".join(sentences[:2]).strip()
+            sentences = [s.strip() for s in _re.findall(r"[^.!?]+[.!?]+", quote)]
+            if sentences:
+                quote = " ".join(sentences[:2]).strip()
+            # гарантируем завершающий знак, если ответ оборвался
+            if quote and quote[-1] not in ".!?":
+                quote += "."
     except Exception as exc:
         logger.error("share quote LLM failed: %s", exc)
         quote = f"С {combo} скучно точно не бывает — я это гарантирую. Астрология предупреждала, но кто её слушает!"
@@ -491,12 +494,14 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
     if place:
         draw.text((ML, info_y), place, font=font_small, fill=C_MUTED)
 
-    # ── юмористическая фраза (привязана к низу, над CTA) ──
+    # ── юмористическая фраза (по центру свободной зоны между местом и CTA) ──
     bar_h = 150
-    quote_lines = textwrap.wrap(quote, width=34)[:5]
-    line_h = 46
+    quote_lines = textwrap.wrap(quote, width=32)
+    line_h = 52
     quote_block_h = len(quote_lines) * line_h
-    quote_y = H - bar_h - 60 - quote_block_h
+    zone_top = info_y + 60          # сразу под датой/местом
+    zone_bottom = H - bar_h - 60    # отступ над CTA-полоской
+    quote_y = zone_top + max(0, (zone_bottom - zone_top - quote_block_h) // 2)
     for line in quote_lines:
         draw.text((ML, quote_y), line, font=font_quote, fill=C_DARK)
         quote_y += line_h
