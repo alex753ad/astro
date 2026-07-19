@@ -242,7 +242,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     markPaywallDismissed();
   }
   const _upsellCtx = () => (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite');
-  const [showReport, setShowReport]   = useState(false);
+  const [pdfLoading, setPdfLoading]   = useState(false);
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
@@ -356,6 +356,34 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     a.click();
   }
 
+  async function handleDownloadPdf() {
+    if (pdfLoading) return;
+    const token = localStorage.getItem('astro_access_token');
+    if (!token) { alert('Войдите, чтобы скачать PDF'); return; }
+    setPdfLoading(true);
+    try {
+      const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/pdf`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+      const blob = await resp.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `natal_chart_${chartId.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Не удалось сгенерировать PDF: ' + e.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!chartId) return;
     setLoading(true);
@@ -462,8 +490,8 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               🖼 Карточка
             </MotionButton>
           )}
-          <MotionButton level="primary" onClick={() => setShowReport(true)} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}>
-            📄 PDF-отчёт
+          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
+            {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
           </MotionButton>
         </div>
       </header>
@@ -726,10 +754,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           <PaywallModal context={paywallContext} chartId={chartId} onClose={closePaywall} />
         )}
       </AnimatePresence>
-
-      {showReport && (
-        <ReportModal chartId={chartId} onClose={() => setShowReport(false)} />
-      )}
 
     </div>
   );

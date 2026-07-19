@@ -135,9 +135,9 @@ export default function RagChat({ chartId, onPaywall }) {
     <div className="rc-scope" style={s.wrap}>
       <style>{`
         .rc-scope {
-          --rc-bg: var(--bg-card); --rc-border: var(--border); --rc-title: var(--bg-card); --rc-sub: var(--text-secondary);
-          --rc-empty: var(--text-secondary); --rc-chip-bg: var(--border); --rc-chip-fg: var(--bg-deeper); --rc-ai: var(--accent);
-          --rc-assist-fg: var(--bg-card); --rc-input-bg: var(--bg-deeper); --rc-input-fg: var(--bg-card);
+          --rc-bg: var(--bg-card); --rc-border: var(--border); --rc-title: var(--text-primary); --rc-sub: var(--text-secondary);
+          --rc-empty: var(--text-secondary); --rc-chip-bg: var(--accent-muted); --rc-chip-fg: var(--text-primary); --rc-ai: var(--accent);
+          --rc-assist-fg: var(--text-primary); --rc-input-bg: var(--bg-deeper); --rc-input-fg: var(--text-primary);
           --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
         }
         .dark .rc-scope {
@@ -151,7 +151,7 @@ export default function RagChat({ chartId, onPaywall }) {
 
       {/* Шапка */}
       <div style={s.header}>
-        <span style={s.headerTitle}>💬 Чат с AI-астрологом</span>
+        <span style={s.headerTitle}>Чат с AI-астрологом</span>
         <span style={s.headerSub}>Задайте вопрос о своей натальной карте</span>
       </div>
 
@@ -159,7 +159,6 @@ export default function RagChat({ chartId, onPaywall }) {
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <div style={s.emptyIcon}>🔮</div>
             <p style={s.emptyText}>AI знает вашу карту. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
