@@ -232,37 +232,6 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     )
 
 
-# ── PNG карточка 1200×630 ─────────────────────────────────────────────────────
-
-@router.get("/share/{token}/card.png")
-async def share_card_png(token: str, db: Session = Depends(get_db)):
-    """Генерирует PNG 1200×630 для Stories / мессенджеров."""
-    await _ensure_not_expired(token)
-    chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-    except ImportError:
-        raise HTTPException(status_code=503, detail="Pillow not installed")
-
-    planets = chart.planets or []
-    name = chart.share_name or "Натальная карта"
-    sun    = _get_planet(planets, "Sun")
-    moon   = _get_planet(planets, "Moon")
-    asc    = chart.ascendant or {}
-
-    sun_sign   = SIGN_RU.get(sun.get("sign", ""), "")   if sun  else ""
-    moon_sign  = SIGN_RU.get(moon.get("sign", ""), "")  if moon else ""
-    asc_sign   = SIGN_RU.get(asc.get("sign", ""), "")
-
-    sun_emoji  = SIGN_EMOJI.get(sun.get("sign", ""), "")   if sun  else ""
-    moon_emoji = SIGN_EMOJI.get(moon.get("sign", ""), "")  if moon else ""
-    asc_emoji  = SIGN_EMOJI.get(asc.get("sign", ""), "")
-
-    today_str = date_type.today().strftime("%-d %B %Y")
-
 # ── PNG карточка 1080×1920 (формат Stories) ───────────────────────────────────
 
 @router.get("/share/{token}/card.png")
