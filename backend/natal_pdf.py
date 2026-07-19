@@ -335,32 +335,36 @@ def _page_cover(c, d):
     parts.append(d["birth_place"])
     c.drawCentredString(W/2, ty-50, "  ·  ".join(parts))
 
-    # Колесо крупнее — занимает большую часть страницы
+    # Колесо крупнее — рисуем родной функцией (светлое, под стиль PDF),
+    # не используем wheel_png с фронта, т.к. он тёмный.
     wheel_size = min(W, H) * 0.72
     wr = wheel_size / 2
     wcx = W / 2
-    wcy = H * 0.44
-    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
-        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
+    wcy = H * 0.46
+    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
-    # ASC / MC — два бэджа справа от колеса, вертикально по центру колеса
-    bx0 = wcx + wr + 6
+    # ASC / MC — два бэджа в строку под колесом, по центру
+    by = wcy - wr - 24
+    badge_w = 62
+    gap = 10
+    total_w = badge_w * 2 + gap
+    bx_start = W / 2 - total_w / 2
     for i, (label, key) in enumerate([("ASC", "ascendant"), ("MC", "midheaven")]):
         val = d.get(key) or {}
         sign = val.get("sign", ""); deg = val.get("degree", 0)
         g = SIGN_GLYPHS.get(sign, "")
-        by2 = wcy + 12 - i * 26
+        bx = bx_start + i * (badge_w + gap)
         c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
-        c.roundRect(bx0, by2 - 6, 54, 20, 4, fill=1, stroke=0)
+        c.roundRect(bx, by - 6, badge_w, 20, 4, fill=1, stroke=0)
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.5))
-        c.setLineWidth(0.5); c.roundRect(bx0, by2 - 6, 54, 20, 4, fill=0, stroke=1)
+        c.setLineWidth(0.5); c.roundRect(bx, by - 6, badge_w, 20, 4, fill=0, stroke=1)
         c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
-        c.drawString(bx0 + 4, by2 + 7, label)
-        _draw_glyph(c, bx0 + 24, by2 + 12, g, 9, C_GOLD2)
+        c.drawString(bx + 5, by + 7, label)
+        _draw_glyph(c, bx + 28, by + 12, g, 9, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
-        c.drawString(bx0 + 32, by2 + 7, f"{sign[:3]} {deg:.1f}")
+        c.drawString(bx + 36, by + 7, f"{sign[:3]} {deg:.1f}")
 
-    _divider(c, W*0.25, wcy - wr - 16, W*0.5)
+    _divider(c, W*0.25, by - 20, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
     hs = d.get("house_system", "Placidus").capitalize()
     astrologer = d.get("astrologer_name")
@@ -369,7 +373,7 @@ def _page_cover(c, d):
         if astrologer
         else f"Система домов: {hs}  ·  Astrea Timeline"
     )
-    c.drawCentredString(W/2, wcy - wr - 28, footer_text)
+    c.drawCentredString(W/2, by - 32, footer_text)
 
     c.restoreState()
 
