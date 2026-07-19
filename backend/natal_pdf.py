@@ -238,18 +238,18 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
         sign_start_lon = i * 30
         # Convert to drawing angle: ASC at left (angle 180°)
         start_angle = 180 + (sign_start_lon - asc_lon)
-        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.13)
+        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.30)
         c.setFillColor(seg)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.3))
-        c.setLineWidth(0.4)
+        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.55))
+        c.setLineWidth(0.6)
         c.wedge(cx-r, cy-r, cx+r, cy+r, start_angle, 30, fill=1, stroke=1)
         mid_a = math.radians(start_angle + 15)
         gx = cx + r*0.78*math.cos(mid_a); gy = cy + r*0.78*math.sin(mid_a)
         _draw_glyph(c, gx, gy, sign_glyphs[i], 8, C_GOLD2)
 
-    for radius, alpha in [(r*0.65, 0.25), (r*0.9, 0.4), (r, 0.6)]:
+    for radius, alpha in [(r*0.65, 0.45), (r*0.9, 0.65), (r, 0.9)]:
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
-        c.setLineWidth(0.5 if radius < r else 0.8)
+        c.setLineWidth(0.7 if radius < r else 1.2)
         c.circle(cx, cy, radius, fill=0, stroke=1)
     c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
     c.circle(cx, cy, r*0.62, fill=1, stroke=0)
@@ -335,29 +335,30 @@ def _page_cover(c, d):
     parts.append(d["birth_place"])
     c.drawCentredString(W/2, ty-50, "  ·  ".join(parts))
 
-    # Колесо по центру страницы
-    wheel_size = min(W, H) * 0.60
+    # Колесо крупнее — занимает большую часть страницы
+    wheel_size = min(W, H) * 0.72
     wr = wheel_size / 2
     wcx = W / 2
-    wcy = H * 0.46
+    wcy = H * 0.44
     if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
         _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
-    # ASC / MC под колесом
-    by = wcy - wr - 22
-    for label, key, bx in [("ASC","ascendant",W/2-60),("MC","midheaven",W/2+8)]:
+    # ASC / MC — два бэджа справа от колеса, вертикально по центру колеса
+    bx0 = wcx + wr + 6
+    for i, (label, key) in enumerate([("ASC", "ascendant"), ("MC", "midheaven")]):
         val = d.get(key) or {}
-        sign = val.get("sign",""); deg = val.get("degree",0)
-        g = SIGN_GLYPHS.get(sign,"")
+        sign = val.get("sign", ""); deg = val.get("degree", 0)
+        g = SIGN_GLYPHS.get(sign, "")
+        by2 = wcy + 12 - i * 26
         c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
-        c.roundRect(bx, by-6, 50, 18, 4, fill=1, stroke=0)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.4))
-        c.setLineWidth(0.4); c.roundRect(bx, by-6, 50, 18, 4, fill=0, stroke=1)
+        c.roundRect(bx0, by2 - 6, 54, 20, 4, fill=1, stroke=0)
+        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.5))
+        c.setLineWidth(0.5); c.roundRect(bx0, by2 - 6, 54, 20, 4, fill=0, stroke=1)
         c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
-        c.drawString(bx+4, by+5, label)
-        _draw_glyph(c, bx+22, by+10, g, 9, C_GOLD2)
+        c.drawString(bx0 + 4, by2 + 7, label)
+        _draw_glyph(c, bx0 + 24, by2 + 12, g, 9, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
-        c.drawString(bx+30, by+5, f"{sign[:3]} {deg:.1f}")
+        c.drawString(bx0 + 32, by2 + 7, f"{sign[:3]} {deg:.1f}")
 
     _divider(c, W*0.25, by-16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
@@ -614,7 +615,7 @@ def _page_interp(c, d, first_page_num=3):
         # footer on current page
         c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
         c.drawCentredString(W/2, m+6,
-            "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
+            "Астрея — навигатор решений. Астрология описывает тенденции, а не определяет судьбу.")
         c.showPage()
         page_idx += 1
         cx_col, cw_col, iy = _interp_page_begin(c, page_idx)
@@ -679,7 +680,7 @@ def _page_interp(c, d, first_page_num=3):
     # Footer on last page
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
     c.drawCentredString(W/2, m+6,
-        "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
+        "Астрея — навигатор решений. Астрология описывает тенденции, а не определяет судьбу.")
 
     return page_idx  # number of extra interp pages added
 
@@ -790,8 +791,6 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     c.setAuthor(author)
 
     _page_cover(c, data)
-    c.showPage()
-    _page_wheel(c, data)
     c.showPage()
     _page_data(c, data)
     c.showPage()
