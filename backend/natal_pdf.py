@@ -314,32 +314,36 @@ def _bg(c):
 def _page_cover(c, d):
     c.saveState()
     _bg(c)
-    _nebula(c, W*0.2, H*0.8, 160, 100, C_ACCENT, alpha=0.03)
-    _nebula(c, W*0.5, H*0.5, 200, 200, C_ACCENT, alpha=0.02)
 
     m = 12*mm
     _border(c, m, m, W-2*m, H-2*m, lw=0.7)
     o = m+4
     for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]: _corner(c, cx2, cy2, 8)
 
-    wcx, wcy, wr = W/2, H*0.62, 88
-    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wr * 2, d["wheel_png"])):
-        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
-
-    ty = H*0.915
+    # Заголовок и данные сверху
+    ty = H - m - 22
     c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 9)
-    c.drawCentredString(W/2, ty, "✦  НАТАЛЬНАЯ КАРТА  ✦")
+    c.drawCentredString(W/2, ty, "НАТАЛЬНАЯ КАРТА")
     _divider(c, W*0.2, ty-8, W*0.6)
 
     c.setFillColor(C_TEXT); c.setFont(_FONT_BOLD, 22)
-    c.drawCentredString(W/2, ty-30, d["name"])
+    c.drawCentredString(W/2, ty-32, d["name"])
 
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 8)
     parts = [d["birth_date"]]
     if d.get("birth_time"): parts.append(d["birth_time"])
     parts.append(d["birth_place"])
-    c.drawCentredString(W/2, ty-48, "  ·  ".join(parts))
+    c.drawCentredString(W/2, ty-50, "  ·  ".join(parts))
 
+    # Колесо по центру страницы
+    wheel_size = min(W, H) * 0.60
+    wr = wheel_size / 2
+    wcx = W / 2
+    wcy = H * 0.46
+    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
+        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
+
+    # ASC / MC под колесом
     by = wcy - wr - 22
     for label, key, bx in [("ASC","ascendant",W/2-60),("MC","midheaven",W/2+8)]:
         val = d.get(key) or {}
@@ -487,8 +491,6 @@ def _page_wheel(c, d):
     """Dedicated full-page zodiac wheel with planets and aspects."""
     c.saveState()
     _bg(c)
-    _nebula(c, W * 0.5, H * 0.5, 280, 280, C_ACCENT, alpha=0.06)
-    _stars(c, 42, 180)
 
     m = 12 * mm
     _border(c, m, m, W - 2 * m, H - 2 * m, lw=0.6)
