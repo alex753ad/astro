@@ -83,7 +83,7 @@ async def _get_share_quote(
 ) -> str:
     """Возвращает юмористическую фразу из кэша или генерирует через LLM."""
     redis = get_redis()
-    cache_key = f"share:quote:{token}"
+    cache_key = f"share:quote:v2:{token}"
 
     try:
         cached = await redis.get(cache_key)
@@ -104,7 +104,8 @@ async def _get_share_quote(
 
     prompt = (
         f"Натальная карта: {combo}.\n"
-        "Напиши ровно 2 предложения — смешное хвастовство от первого лица. "
+        "Напиши ровно 2 коротких предложения (максимум 30 слов суммарно) — "
+        "смешное хвастовство от первого лица. "
         "Человек преувеличенно хвалится своими астрологическими качествами, "
         "с самоиронией и лёгким абсурдом. Без вступлений, только сами предложения. "
         "Пример стиля: «Конечно, я мог бы устроиться в банк, но мой гениальный мозг "
@@ -135,6 +136,10 @@ async def _get_share_quote(
             resp.raise_for_status()
             data = resp.json()
             quote = data["choices"][0]["message"]["content"].strip()
+            # страховка от длинных ответов: оставляем не больше 2 предложений
+            import re as _re
+            sentences = _re.split(r"(?<=[.!?])\s+", quote)
+            quote = " ".join(sentences[:2]).strip()
     except Exception as exc:
         logger.error("share quote LLM failed: %s", exc)
         quote = f"С {combo} скучно точно не бывает — я это гарантирую. Астрология предупреждала, но кто её слушает!"
@@ -486,15 +491,17 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
     if place:
         draw.text((ML, info_y), place, font=font_small, fill=C_MUTED)
 
-    # ── юмористическая фраза ──
-    quote_y = info_y + 60
-    quote_lines = textwrap.wrap(quote, width=38)
-    for line in quote_lines[:6]:  # не более 6 строк
-        draw.text((ML, quote_y), line, font=font_quote, fill=C_MUTED)
-        quote_y += 46
+    # ── юмористическая фраза (привязана к низу, над CTA) ──
+    bar_h = 150
+    quote_lines = textwrap.wrap(quote, width=34)[:5]
+    line_h = 46
+    quote_block_h = len(quote_lines) * line_h
+    quote_y = H - bar_h - 60 - quote_block_h
+    for line in quote_lines:
+        draw.text((ML, quote_y), line, font=font_quote, fill=C_DARK)
+        quote_y += line_h
 
     # ── CTA-полоска внизу ──
-    bar_h = 150
     draw.rectangle([0, H - bar_h, W, H], fill=C_DARK)
     draw.text((ML, H - bar_h // 2 - 44), "astreatime.ru", font=font_small, fill=(0xEA, 0xE0, 0xFF))
     draw.text((ML, H - bar_h // 2 - 4), "Узнай свою карту", font=font_small, fill=(0xC9, 0xA8, 0xFF))
