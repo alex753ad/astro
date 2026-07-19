@@ -360,7 +360,7 @@ def _page_cover(c, d):
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
         c.drawString(bx0 + 32, by2 + 7, f"{sign[:3]} {deg:.1f}")
 
-    _divider(c, W*0.25, by-16, W*0.5)
+    _divider(c, W*0.25, wcy - wr - 16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
     hs = d.get("house_system", "Placidus").capitalize()
     astrologer = d.get("astrologer_name")
@@ -369,7 +369,7 @@ def _page_cover(c, d):
         if astrologer
         else f"Система домов: {hs}  ·  Astrea Timeline"
     )
-    c.drawCentredString(W/2, by-28, footer_text)
+    c.drawCentredString(W/2, wcy - wr - 28, footer_text)
 
     c.restoreState()
 
