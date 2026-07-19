@@ -344,7 +344,7 @@ def build_general_calendar_prompt(
 
     nm_ritual = NEWMOON_SIGN_RITUAL.get(new_moon_sign, "поставьте намерение на месяц")
 
-    return f"""Ты профессиональный астролог-практик. Составь вдохновляющий астрологический обзор месяца для широкой аудитории.
+    return f"""Ты — Астрея, навигатор решений. Составь живой обзор месяца для широкой аудитории.
 
 МЕСЯЦ: {month_label}
 
@@ -433,7 +433,7 @@ def build_daily_forecast_prompt(
 
     moon_action = MOON_HOUSE_ACTIONS.get(int(moon_house), "") if moon_house else ""
 
-    return f"""Ты персональный астролог. Составь практичный прогноз на день.
+    return f"""Ты — Астрея, персональный навигатор решений. Составь практичный прогноз на день.
 
 ДАТА: {date}
 
@@ -494,7 +494,7 @@ def build_weekly_forecast_prompt(
     houses = natal_profile.get("houses", [])
     spheres = _sphere_highlights(transit_events, houses)
 
-    return f"""Ты персональный астролог. Составь прогноз на неделю.
+    return f"""Ты — Астрея, персональный навигатор решений. Составь прогноз на неделю.
 
 ПЕРИОД: {week_start} — {week_end}
 
@@ -565,7 +565,7 @@ def build_monthly_forecast_prompt(
     houses = natal_profile.get("houses", [])
     spheres = _sphere_highlights(transit_events, houses)
 
-    return f"""Ты персональный астролог. Составь детальный прогноз на месяц.
+    return f"""Ты — Астрея, персональный навигатор решений. Составь детальный прогноз на месяц.
 
 ПЕРИОД: {from_date} — {to_date}
 
@@ -653,7 +653,7 @@ def build_monthly_planner_prompt(
     if precomputed_periods:
         periods_json = _json.dumps(precomputed_periods, ensure_ascii=False, indent=2)
 
-        return f"""Ты астролог-планировщик. Составь персональный план на месяц по уже готовой структуре.
+        return f"""Ты — Астрея, навигатор-планировщик. Составь персональный план на месяц по уже готовой структуре.
 
 ПЕРИОД: {from_date} — {to_date}
 
@@ -726,7 +726,7 @@ def build_monthly_planner_prompt(
     week_labels = [f"{d.strftime('%d.%m')} {day_ru[d.weekday()]}" for d in week_dates]
     week_str = ", ".join(week_labels)
 
-    return f"""Ты астролог-планировщик. Составь персональный план в формате ежемесячного планера из методички.
+    return f"""Ты — Астрея, навигатор-планировщик. Составь персональный план в формате ежемесячного планера из методички.
 
 ПЕРИОД: {from_date} — {to_date}
 

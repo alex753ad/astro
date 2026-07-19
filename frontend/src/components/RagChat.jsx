@@ -151,7 +151,7 @@ export default function RagChat({ chartId, onPaywall }) {
 
       {/* Шапка */}
       <div style={s.header}>
-        <span style={s.headerTitle}>Чат с AI-астрологом</span>
+        <span style={s.headerTitle}>Астрея</span>
         <span style={s.headerSub}>Задайте вопрос о своей натальной карте</span>
       </div>
 
@@ -159,7 +159,7 @@ export default function RagChat({ chartId, onPaywall }) {
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>AI знает вашу карту. Спросите что угодно.</p>
+            <p style={s.emptyText}>Астрея знает вашу карту. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>
@@ -180,7 +180,7 @@ export default function RagChat({ chartId, onPaywall }) {
               style={msg.role === 'user' ? s.msgUser : s.msgAssistant}
             >
               {msg.role === 'assistant' && (
-                <span style={s.aiLabel}>✦ AI</span>
+                <span style={s.aiLabel}>✦ Астрея</span>
               )}
               <div style={msg.role === 'user' ? s.bubbleUser : s.bubbleAssistant}>
                 {msg.content || (msg.streaming ? <TypingDots /> : '')}
