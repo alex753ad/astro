@@ -16,14 +16,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "astrea_memory",
-        sa.Column("user_id", sa.String(length=36), nullable=False),
-        sa.Column("summary", sa.Text(), server_default="", nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("user_id"),
-    )
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS astrea_memory (
+            user_id VARCHAR(36) NOT NULL,
+            summary TEXT DEFAULT '' NOT NULL,
+            updated_at TIMESTAMP WITHOUT TIME ZONE,
+            PRIMARY KEY (user_id),
+            FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
 
 
 def downgrade() -> None:
