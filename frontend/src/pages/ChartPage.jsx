@@ -36,33 +36,33 @@ const REPORT_OPTIONS = [
   { type: 'synastry', label: 'Отчёт о совместимости',          price: '$9', desc: 'Синастрия двух карт + межаспектная сетка' },
 ];
 
+// ── Захват SVG колеса в прозрачный PNG (base64) — общая утилита ──
+async function captureSvgPng(svgId, size = 1200) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return null;
+  try {
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const cvs = document.createElement('canvas');
+    cvs.width = size;
+    cvs.height = size;
+    const ctx = cvs.getContext('2d');
+    ctx.clearRect(0, 0, size, size); // прозрачный фон
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    return cvs.toDataURL('image/png').split(',')[1];
+  } catch {
+    return null;
+  }
+}
+
 function ReportModal({ chartId, onClose }) {
   const [loading, setLoading] = React.useState(null);
   const [error, setError]     = React.useState(null);
   const [pdfStep, setPdfStep] = React.useState('');  // прогресс генерации PDF
-
-  // ── Захват SVG колеса в прозрачный PNG (base64) ──
-  async function captureSvgPng(svgId, size = 1200) {
-    const svg = document.getElementById(svgId);
-    if (!svg) return null;
-    try {
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
-      const img = new Image();
-      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-      const cvs = document.createElement('canvas');
-      cvs.width = size;
-      cvs.height = size;
-      const ctx = cvs.getContext('2d');
-      ctx.clearRect(0, 0, size, size); // прозрачный фон
-      ctx.drawImage(img, 0, 0, size, size);
-      URL.revokeObjectURL(url);
-      return cvs.toDataURL('image/png').split(',')[1];
-    } catch {
-      return null;
-    }
-  }
 
   // ── Скачать PDF (sync) ──
   async function handleDownloadFree() {
