@@ -8,9 +8,11 @@ Endpoints:
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
 import secrets
+import textwrap
 import time
 from datetime import date as date_type
 from html import escape
@@ -68,6 +70,81 @@ SIGN_EMOJI = {
     "Leo": "♌", "Virgo": "♍", "Libra": "♎", "Scorpio": "♏",
     "Sagittarius": "♐", "Capricorn": "♑", "Aquarius": "♒", "Pisces": "♓",
 }
+
+
+_QUOTE_TTL = 30 * 24 * 3600  # 30 дней
+
+
+async def _get_share_quote(
+    token: str,
+    sun_sign: str,
+    moon_sign: str,
+    asc_sign: str,
+) -> str:
+    """Возвращает юмористическую фразу из кэша или генерирует через LLM."""
+    redis = get_redis()
+    cache_key = f"share:quote:{token}"
+
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            return cached.decode("utf-8") if isinstance(cached, bytes) else cached
+    except Exception as exc:
+        logger.warning("share quote cache get failed: %s", exc)
+
+    # Генерируем через DeepSeek (дешевле GPT-4o, достаточно для юмора)
+    parts = []
+    if sun_sign:
+        parts.append(f"Солнце в {sun_sign}")
+    if moon_sign:
+        parts.append(f"Луна в {moon_sign}")
+    if asc_sign:
+        parts.append(f"Асцендент в {asc_sign}")
+    combo = ", ".join(parts) if parts else "неизвестная карта"
+
+    prompt = (
+        f"Натальная карта: {combo}.\n"
+        "Напиши ровно 2 предложения — смешное хвастовство от первого лица. "
+        "Человек преувеличенно хвалится своими астрологическими качествами, "
+        "с самоиронией и лёгким абсурдом. Без вступлений, только сами предложения. "
+        "Пример стиля: «Конечно, я мог бы устроиться в банк, но мой гениальный мозг "
+        "требует монетизировать спасение мира. Зато когда я разбогатею — вы все сможете "
+        "гордиться, что кивали во время моих монологов!»"
+    )
+
+    quote = ""
+    try:
+        import httpx as _httpx
+        from backend.config import get_settings as _get_settings
+        _settings = _get_settings()
+        async with _httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {_settings.deepseek_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 120,
+                    "temperature": 0.9,
+                    "stream": False,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            quote = data["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        logger.error("share quote LLM failed: %s", exc)
+        quote = f"С {combo} скучно точно не бывает — я это гарантирую. Астрология предупреждала, но кто её слушает!"
+
+    try:
+        await redis.setex(cache_key, _QUOTE_TTL, quote)
+    except Exception as exc:
+        logger.warning("share quote cache set failed: %s", exc)
+
+    return quote
 
 
 def _get_planet(planets: list[dict], name: str) -> dict | None:
@@ -160,6 +237,12 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     asc_sign = asc_data.get("sign", "")
     asc_label = f"{SIGN_EMOJI.get(asc_sign, '')} {SIGN_RU.get(asc_sign, asc_sign)}" if asc_sign else ""
 
+    sun_sign_ru  = SIGN_RU.get((_get_planet(planets, "Sun") or {}).get("sign", ""), "")
+    moon_sign_ru = SIGN_RU.get((_get_planet(planets, "Moon") or {}).get("sign", ""), "")
+    asc_sign_ru  = SIGN_RU.get(asc_sign, "")
+    quote = await _get_share_quote(token, sun_sign_ru, moon_sign_ru, asc_sign_ru)
+    safe_quote = escape(quote, quote=True)
+
     description_parts = []
     if sun:
         description_parts.append(f"☀ Солнце: {sun}")
@@ -208,13 +291,37 @@ async def share_page(token: str, db: Session = Depends(get_db)):
 <body style="background:#0e0c1a;color:#fff;font-family:sans-serif;
              display:flex;align-items:center;justify-content:center;
              height:100vh;margin:0;">
-  <div style="text-align:center;">
+  <div style="text-align:center;max-width:480px;padding:0 24px;">
     <div style="font-size:32px;margin-bottom:12px;">☽ ✦ ☾</div>
     <div style="font-size:20px;font-weight:700;color:#c9a8ff;">Astrea Timeline</div>
-    <p style="color:#9080b0;margin:12px 0;">Переход к карте...</p>
+    <p style="color:#9080b0;font-size:15px;line-height:1.6;margin:20px 0 24px;">{safe_quote}</p>
+    <button onclick="shareCard()" style="
+      background:linear-gradient(135deg,#8b5cf6,#a855f7);
+      color:#fff;border:none;border-radius:14px;
+      padding:14px 32px;font-size:16px;font-weight:600;
+      cursor:pointer;font-family:inherit;letter-spacing:0.02em;">
+      ✦ Поделиться картой
+    </button>
   </div>
   <script>
-    window.location.href = "{spa_url}";
+    const SHARE_URL = "{spa_url}";
+    const CARD_URL  = "{og_image}";
+    async function shareCard() {{
+      if (navigator.share) {{
+        try {{
+          await navigator.share({{
+            title: "{og_title}",
+            text: "{safe_quote}",
+            url: SHARE_URL,
+          }});
+          return;
+        }} catch (e) {{ /* отменили — падаем в fallback */ }}
+      }}
+      try {{ await navigator.clipboard.writeText(SHARE_URL); }}
+      catch (e) {{ }}
+      alert("Ссылка скопирована!");
+    }}
+    setTimeout(() => {{ window.location.href = SHARE_URL; }}, 3000);
   </script>
 </body>
 </html>"""
@@ -256,6 +363,8 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
     sun_sign   = SIGN_RU.get(sun.get("sign", ""), "")   if sun  else ""
     moon_sign  = SIGN_RU.get(moon.get("sign", ""), "")  if moon else ""
     asc_sign   = SIGN_RU.get(asc.get("sign", ""), "")
+
+    quote = await _get_share_quote(token, sun_sign, moon_sign, asc_sign)
 
     sun_emoji  = SIGN_EMOJI.get(sun.get("sign", ""), "")   if sun  else ""
     moon_emoji = SIGN_EMOJI.get(moon.get("sign", ""), "")  if moon else ""
@@ -345,6 +454,7 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
     font_label  = load_font(26, bold=False)
     font_planet = load_font(58, bold=True)
     font_small  = load_font(28, bold=False)
+    font_quote  = load_font(32, bold=False)
 
     # ── логотип ──
     draw.text((ML, 80), "ASTREA TIMELINE", font=font_logo, fill=C_PURPLE)
@@ -375,6 +485,13 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
         info_y += 40
     if place:
         draw.text((ML, info_y), place, font=font_small, fill=C_MUTED)
+
+    # ── юмористическая фраза ──
+    quote_y = info_y + 60
+    quote_lines = textwrap.wrap(quote, width=38)
+    for line in quote_lines[:6]:  # не более 6 строк
+        draw.text((ML, quote_y), line, font=font_quote, fill=C_MUTED)
+        quote_y += 46
 
     # ── CTA-полоска внизу ──
     bar_h = 150
