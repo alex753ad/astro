@@ -263,79 +263,156 @@ async def share_card_png(token: str, db: Session = Depends(get_db)):
 
     today_str = date_type.today().strftime("%-d %B %Y")
 
-    W, H = 1200, 630
-    img = Image.new("RGB", (W, H), color=(14, 12, 26))
+# ── PNG карточка 1080×1920 (формат Stories) ───────────────────────────────────
+
+@router.get("/share/{token}/card.png")
+async def share_card_png(token: str, db: Session = Depends(get_db)):
+    """Генерирует вертикальную PNG-карточку 1080×1920 для Stories / мессенджеров."""
+    await _ensure_not_expired(token)
+    chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Pillow not installed")
+
+    planets = chart.planets or []
+    name = chart.share_name or "Натальная карта"
+    sun    = _get_planet(planets, "Sun")
+    moon   = _get_planet(planets, "Moon")
+    asc    = chart.ascendant or {}
+
+    sun_sign   = SIGN_RU.get(sun.get("sign", ""), "")   if sun  else ""
+    moon_sign  = SIGN_RU.get(moon.get("sign", ""), "")  if moon else ""
+    asc_sign   = SIGN_RU.get(asc.get("sign", ""), "")
+
+    sun_emoji  = SIGN_EMOJI.get(sun.get("sign", ""), "")   if sun  else ""
+    moon_emoji = SIGN_EMOJI.get(moon.get("sign", ""), "")  if moon else ""
+    asc_emoji  = SIGN_EMOJI.get(asc.get("sign", ""), "")
+
+    today_str = date_type.today().strftime("%-d %B %Y")
+
+    W, H = 1080, 1920
+    img = Image.new("RGB", (W, H))
     draw = ImageDraw.Draw(img)
 
-    # ── градиентный фон (простой) ──
-    for y in range(H):
-        ratio = y / H
-        r = int(14  + (45  - 14)  * ratio)
-        g = int(12  + (27  - 12)  * ratio)
-        b = int(26  + (78  - 26)  * ratio)
-        draw.line([(0, y), (W, y)], fill=(r, g, b))
+    # ── фон: диагональный градиент как на лендинге ──
+    # linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)
+    stops = [
+        (0.00, (0xF8, 0xF0, 0xFF)),
+        (0.20, (0xF0, 0xE8, 0xFF)),
+        (0.45, (0xFC, 0xE8, 0xF4)),
+        (0.70, (0xE8, 0xF0, 0xFF)),
+        (1.00, (0xF0, 0xF8, 0xFF)),
+    ]
 
-    # ── декоративные круги ──
-    draw.ellipse([-80, -80, 280, 280], outline=(112, 80, 200, 60), width=1)
-    draw.ellipse([-140, -140, 340, 340], outline=(112, 80, 200, 30), width=1)
-    draw.ellipse([920, 350, 1380, 810], outline=(192, 96, 160, 40), width=1)
+    def gradient_color(t: float) -> tuple[int, int, int]:
+        t = max(0.0, min(1.0, t))
+        for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
+            if t0 <= t <= t1:
+                f = (t - t0) / (t1 - t0) if t1 > t0 else 0
+                return tuple(int(c0[k] + (c1[k] - c0[k]) * f) for k in range(3))
+        return stops[-1][1]
 
-    # ── шрифты (NotoSans поддерживает кириллицу) ──
-    FONT_REGULAR = "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
-    FONT_BOLD    = "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
-    FONT_MEDIUM  = "/usr/share/fonts/truetype/noto/NotoSans-Medium.ttf"
-    FALLBACK     = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    diag = W + H
+    small_w, small_h = 2, H
+    tmp = Image.new("RGB", (small_w, small_h))
+    tdraw = ImageDraw.Draw(tmp)
+    for y in range(small_h):
+        tdraw.point((0, y), fill=gradient_color((0 + y) / diag))
+        tdraw.point((1, y), fill=gradient_color((W + y) / diag))
+    img = tmp.resize((W, H))
+    draw = ImageDraw.Draw(img)
+
+    # ── декоративные дуги (полупрозрачные, как на лендинге) ──
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    odraw = ImageDraw.Draw(overlay)
+    odraw.ellipse([-260, -260, 520, 520], outline=(139, 92, 246, 70), width=2)
+    odraw.ellipse([-360, -360, 620, 620], outline=(139, 92, 246, 35), width=2)
+    odraw.ellipse([680, 1500, 1400, 2220], outline=(236, 72, 153, 60), width=2)
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # ── шрифт: DejaVu Sans, поддерживает кириллицу и астросимволы, лежит в репо ──
+    ASSET_FONT = os.path.join(os.path.dirname(__file__), "assets", "fonts", "DejaVuSans.ttf")
+    FONT_CANDIDATES_BOLD = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ASSET_FONT,
+    ]
+    FONT_CANDIDATES_REGULAR = [
+        ASSET_FONT,
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
 
     def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-        candidates = [FONT_BOLD if bold else FONT_MEDIUM, FONT_REGULAR, FALLBACK]
+        candidates = FONT_CANDIDATES_BOLD if bold else FONT_CANDIDATES_REGULAR
         for path in candidates:
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                pass
+            if os.path.exists(path):
+                try:
+                    return ImageFont.truetype(path, size)
+                except Exception:
+                    pass
         return ImageFont.load_default()
 
-    font_logo   = load_font(20)
-    font_title  = load_font(56, bold=True)
-    font_label  = load_font(18)
-    font_planet = load_font(32, bold=True)
-    font_small  = load_font(17)
+    def fit_font(text: str, base_size: int, max_width: int, bold: bool = True, min_size: int = 40):
+        size = base_size
+        while size > min_size:
+            f = load_font(size, bold)
+            if draw.textlength(text, font=f) <= max_width:
+                return f
+            size -= 3
+        return load_font(min_size, bold)
+
+    C_PURPLE = (139, 92, 246)
+    C_DARK   = (0x1A, 0x12, 0x30)
+    C_MUTED  = (0x6B, 0x68, 0x85)
+    ML = 90
+    CONTENT_W = W - ML * 2
+
+    font_logo   = load_font(28, bold=True)
+    font_title  = fit_font(name, 72, CONTENT_W, bold=True)
+    font_label  = load_font(26, bold=False)
+    font_planet = load_font(58, bold=True)
+    font_small  = load_font(28, bold=False)
 
     # ── логотип ──
-    draw.text((60, 44), "ASTREA TIMELINE", font=font_logo, fill=(180, 150, 255))
+    draw.text((ML, 80), "ASTREA TIMELINE", font=font_logo, fill=C_PURPLE)
 
     # ── имя / заголовок ──
-    draw.text((60, 100), name, font=font_title, fill=(255, 248, 255))
+    draw.text((ML, 150), name, font=font_title, fill=C_DARK)
 
-    # ── планеты ──
-    y_row = 270
+    # ── планеты (стек вертикально) ──
+    y_row = 420
+    row_h = 210
     pairs = [
         ("Солнце",    f"{sun_emoji} {sun_sign}"   if sun_sign   else "—"),
         ("Луна",      f"{moon_emoji} {moon_sign}" if moon_sign  else "—"),
         ("Асцендент", f"{asc_emoji} {asc_sign}"   if asc_sign   else "—"),
     ]
-    col_x = [60, 440, 820]
-    for i, (label, value) in enumerate(pairs):
-        x = col_x[i]
-        draw.rectangle([x, y_row - 10, x + 320, y_row - 8], fill=(140, 100, 240))
-        draw.text((x, y_row),      label, font=font_label,  fill=(180, 155, 255))
-        draw.text((x, y_row + 32), value, font=font_planet, fill=(255, 248, 255))
+    for label, value in pairs:
+        draw.rectangle([ML, y_row - 14, ML + CONTENT_W, y_row - 11], fill=C_PURPLE)
+        draw.text((ML, y_row), label, font=font_label, fill=C_PURPLE)
+        draw.text((ML, y_row + 42), value, font=font_planet, fill=C_DARK)
+        y_row += row_h
 
     # ── дата + место ──
-    place = (chart.birth_place or "")[:50]
+    place = (chart.birth_place or "")[:60]
     birth = chart.birth_date or ""
-    info_y = 410
+    info_y = y_row + 20
     if birth:
-        draw.text((60, info_y), birth, font=font_small, fill=(200, 185, 235))
-        info_y += 28
+        draw.text((ML, info_y), birth, font=font_small, fill=C_MUTED)
+        info_y += 40
     if place:
-        draw.text((60, info_y), place, font=font_small, fill=(200, 185, 235))
+        draw.text((ML, info_y), place, font=font_small, fill=C_MUTED)
 
     # ── CTA-полоска внизу ──
-    draw.rectangle([0, H - 80, W, H], fill=(38, 22, 70))
-    draw.text((60, H - 54), "astreatime.ru  ·  Узнай свою карту",
-              font=font_small, fill=(200, 170, 255))
-    draw.text((W - 220, H - 54), today_str, font=font_small, fill=(160, 140, 210))
+    bar_h = 150
+    draw.rectangle([0, H - bar_h, W, H], fill=C_DARK)
+    draw.text((ML, H - bar_h // 2 - 44), "astreatime.ru", font=font_small, fill=(0xEA, 0xE0, 0xFF))
+    draw.text((ML, H - bar_h // 2 - 4), "Узнай свою карту", font=font_small, fill=(0xC9, 0xA8, 0xFF))
+    draw.text((ML, H - bar_h // 2 + 46), today_str, font=load_font(22), fill=(0xA0, 0x90, 0xC0))
 
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)

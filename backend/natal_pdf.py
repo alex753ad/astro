@@ -96,7 +96,7 @@ def _draw_glyph(c, x, y, glyph, size, color):
         FALLBACK = {
             "☉": "Su", "☽": "Mo", "☿": "Me", "♀": "Ve", "♂": "Ma",
             "♃": "Ju", "♄": "Sa", "♅": "Ur", "♆": "Ne", "♇": "Pl",
-            "☊": "NN",
+            "☊": "NN", "☋": "SN",
             "♈": "Ar", "♉": "Ta", "♊": "Ge", "♋": "Cn", "♌": "Le",
             "♍": "Vi", "♎": "Li", "♏": "Sc", "♐": "Sg", "♑": "Cp",
             "♒": "Aq", "♓": "Pi",
@@ -128,8 +128,10 @@ C_CONJ    = colors.HexColor("#C9A84C")
 PLANET_GLYPHS = {
     "Sun":"☉","Moon":"☽","Mercury":"☿","Venus":"♀","Mars":"♂",
     "Jupiter":"♃","Saturn":"♄","Uranus":"♅","Neptune":"♆","Pluto":"♇",
+    "North Node":"☊","South Node":"☋",
     "Солнце":"☉","Луна":"☽","Меркурий":"☿","Венера":"♀","Марс":"♂",
     "Юпитер":"♃","Сатурн":"♄","Уран":"♅","Нептун":"♆","Плутон":"♇",
+    "Северный узел":"☊","Южный узел":"☋",
 }
 SIGN_GLYPHS = {
     "Aries":"♈","Taurus":"♉","Gemini":"♊","Cancer":"♋","Leo":"♌","Virgo":"♍",
@@ -299,7 +301,7 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
             c.circle(px, py, 8, fill=0, stroke=1)
             # Glyph
             glyph = PLANET_GLYPHS.get(pos["name"], "?")
-            _draw_glyph(c, px, py + 3, glyph, 10, col)
+            _draw_glyph(c, px, py, glyph, 10, col)
 
 
 def _bg(c):
@@ -395,7 +397,7 @@ def _page_data(c, d):
         c.circle(bx+br, py, br, fill=1, stroke=0)
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.5))
         c.setLineWidth(0.5); c.circle(bx+br, py, br, fill=0, stroke=1)
-        _draw_glyph(c, bx+br, py+3, PLANET_GLYPHS.get(pl["name"],"?"), 10, C_GOLD2)
+        _draw_glyph(c, bx+br, py, PLANET_GLYPHS.get(pl["name"],"?"), 10, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_BOLD, 8)
         c.drawString(bx+br*2+5, py-3, pl["name"])
         sg = SIGN_GLYPHS.get(pl["sign"],"")
