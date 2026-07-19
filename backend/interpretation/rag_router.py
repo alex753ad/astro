@@ -17,12 +17,13 @@ from datetime import date
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import get_current_user, require_tier
-from backend.database import get_db
-from backend.models import NatalChart, User
+from backend.database import get_db, SessionLocal
+from backend.models import NatalChart, User, AstreaMemory
 from backend.interpretation.rag import retrieve, build_chart_summary
 from backend.config import get_settings
 
@@ -43,9 +44,16 @@ class RagChatRequest(BaseModel):
     history: list[dict] = []  # [{role: "user"|"assistant", content: "..."}]
 
 
-def _system_prompt(chart_summary: str, context_chunks: list[str]) -> str:
+def _system_prompt(chart_summary: str, context_chunks: list[str], memory_summary: str = "") -> str:
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
     today = date.today().strftime("%d.%m.%Y")
+    memory_block = ""
+    if memory_summary:
+        memory_block = (
+            "\n## Что ты уже знаешь об этом человеке (из прошлых бесед):\n"
+            f"{memory_summary}\n"
+            "Опирайся на это, если уместно, но не пересказывай вслух без повода.\n"
+        )
     return f"""Тебя зовут Астрея. Ты — навигатор решений: помогаешь человеку понять его карту и выбрать, что делать и когда. Не предсказываешь судьбу.
 
 Характер. Спокойная и собранная, говоришь ясно и по делу, без суеты и лишних восклицаний. Тепло проявляешь через пользу — не «всё будет хорошо», а «вот что сейчас сработает». Если тянут в гадание или мистику, мягко возвращаешь к тому, что видно в карте и что с этим делать.
@@ -58,7 +66,7 @@ def _system_prompt(chart_summary: str, context_chunks: list[str]) -> str:
 
 ## Знания из базы под этот вопрос:
 {kb_text}
-
+{memory_block}
 ## Границы:
 1. Говори только по этой карте — конкретные планеты, знаки, дома. Никаких общих советов «для всех Тельцов».
 2. Без страшилок и фатальных предсказаний. Напряжённое — зона работы, а не приговор.
@@ -66,6 +74,80 @@ def _system_prompt(chart_summary: str, context_chunks: list[str]) -> str:
 4. Русский язык, 3–6 абзацев.
 """
 
+
+
+def _load_memory(db: Session, user_id: str) -> str:
+    """Слой 2: читает сводку-память Астреи о пользователе (пустая строка, если нет)."""
+    try:
+        row = db.get(AstreaMemory, user_id)
+        return row.summary if row and row.summary else ""
+    except Exception as e:
+        logger.warning("astrea memory load failed: %s", e)
+        return ""
+
+
+async def _update_memory(user_id: str, question: str, history: list[dict]) -> None:
+    """Слой 2: сворачивает текущий диалог в память (фоново, после ответа).
+
+    Один дешёвый вызов DeepSeek на реплику. Ошибки не критичны — память
+    просто не обновится, чат от этого не страдает.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            row = db.get(AstreaMemory, user_id)
+            current = row.summary if row else ""
+
+            lines: list[str] = []
+            for m in history[-MAX_HISTORY:]:
+                content = (m.get("content") or "").strip()
+                if not content:
+                    continue
+                who = "Пользователь" if m.get("role") == "user" else "Астрея"
+                lines.append(f"{who}: {content}")
+            lines.append(f"Пользователь: {question}")
+            dialog = "\n".join(lines)[:4000]
+
+            fold_prompt = (
+                "Ты ведёшь краткую память об одном человеке для ассистента Астреи.\n"
+                f"Текущая сводка (может быть пустой):\n{current or '—'}\n\n"
+                f"Новый диалог:\n{dialog}\n\n"
+                "Обнови сводку: до 120 слов, от третьего лица, только устойчивые факты о "
+                "человеке — его цели, решения, что он отметил сделанным, что советовала "
+                "Астрея. Без приветствий и пояснений, верни только обновлённую сводку."
+            )
+
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(
+                    _DEEPSEEK_URL,
+                    headers={
+                        "Authorization": f"Bearer {settings.deepseek_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": fold_prompt}],
+                        "max_tokens": 220,
+                        "temperature": 0.3,
+                        "stream": False,
+                    },
+                )
+                resp.raise_for_status()
+                new_summary = resp.json()["choices"][0]["message"]["content"].strip()
+
+            if not new_summary:
+                return
+            new_summary = new_summary[:2000]
+
+            if row:
+                row.summary = new_summary
+            else:
+                db.add(AstreaMemory(user_id=user_id, summary=new_summary))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("astrea memory update failed: %s", e)
 
 
 async def _sse_generator(messages: list[dict], tier: str):
@@ -147,9 +229,10 @@ async def rag_chat(
     # RAG: получаем релевантные фрагменты
     context_chunks = retrieve(question, chart_data, top_k=6)
 
-    # Собираем system prompt
+    # Собираем system prompt (+ память Астреи о пользователе, слой 2)
     chart_summary = build_chart_summary(chart_data)
-    system = _system_prompt(chart_summary, context_chunks)
+    memory_summary = _load_memory(db, user.id)
+    system = _system_prompt(chart_summary, context_chunks, memory_summary)
 
     # История + новый вопрос
     history = body.history[-MAX_HISTORY:]
@@ -167,4 +250,5 @@ async def rag_chat(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
+        background=BackgroundTask(_update_memory, user.id, question, history),
     )

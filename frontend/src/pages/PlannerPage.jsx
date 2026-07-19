@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
 import { authFetch } from "../api/client";
 
@@ -897,6 +897,17 @@ function LoadingState() {
 export default function PlannerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Слой 3: пуш привёл сюда с темой для разговора — переводим сразу в чат
+  // на странице карты, где Astrea встретит пользователя первой репликой.
+  useEffect(() => {
+    const topic = searchParams.get('astrea');
+    if (topic) {
+      navigate(`/chart/${id}?astrea=${encodeURIComponent(topic)}`, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const userRaw = localStorage.getItem("astro_user");
   const userTier = (() => {

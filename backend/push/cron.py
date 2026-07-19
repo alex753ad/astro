@@ -144,7 +144,7 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "frag": f"{pr} подходит к {nr}",
                         "title": "✦ Транзит на подходе",
                         "body": f"{pr} {ar} к вашему {nr} — транзит на подходе (~4°). Готовьтесь.",
-                        "url": planner_url,
+                        "url": _with_topic(planner_url, _topic_key("approach", planet=tp, aspect=aspect, natal=npl)),
                     })
 
         # приближение к куспиду дома (вход в новую сферу)
@@ -161,7 +161,7 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "frag": f"{pr} входит в дом {house}",
                         "title": "✦ Смена сферы",
                         "body": f"{pr} приближается к дому {house} — скоро новая сфера жизни (~4°).",
-                        "url": planner_url,
+                        "url": _with_topic(planner_url, _topic_key("cusp_approach", planet=tp, house=house)),
                     })
     return out
 
@@ -235,7 +235,7 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
                         "frag": f"{pr} {ar} к {nr}: {tail}",
                         "title": title,
                         "body": f"{pr} {ar} к вашему {nr} — {tail}.",
-                        "url": planner_url,
+                        "url": _with_topic(planner_url, _topic_key(f"triple{phase}", planet=tp, aspect=aspect, natal=npl)),
                     })
     return out
 
@@ -264,6 +264,24 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
     return "Ваш персональный прогноз на сегодня готов."
 
 
+# ── Слой 3: тема для проактивного чата ──
+# Компактный ключ темы, который прокидывается в URL пуша как ?astrea=<topic>.
+# ChartPage/PlannerPage читают его и просят RagChat начать разговор первой репликой.
+def _topic_key(kind: str, planet: str | None = None, house: int | None = None,
+               aspect: str | None = None, natal: str | None = None) -> str:
+    parts = [kind]
+    if planet: parts.append(planet.lower().replace(" ", "_"))
+    if aspect: parts.append(aspect)
+    if natal:  parts.append(natal.lower().replace(" ", "_"))
+    if house:  parts.append(f"h{house}")
+    return "-".join(parts)
+
+
+def _with_topic(url: str, topic: str) -> str:
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}astrea={topic}"
+
+
 # ── Сбор кандидатов на пуш (без отправки) ──
 def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_type) -> list[dict]:
     """Список событий-кандидатов на сегодня. Каждый:
@@ -278,7 +296,8 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
         cands.append({
             "kind": "daily", "ref": today.isoformat(),
             "priority": "soft", "weight": 10, "frag": "прогноз на день",
-            "title": "✦ Прогноз на сегодня", "body": _daily_body(chart, today), "url": "/home",
+            "title": "✦ Прогноз на сегодня", "body": _daily_body(chart, today),
+            "url": _with_topic(f"/chart/{chart.id}", _topic_key("daily")),
         })
 
     # Планер (significant): старт сегодня + упреждение неделя/месяц
@@ -295,7 +314,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                             "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
                             "priority": "significant", "weight": 60, "frag": f"период {pr}",
                             "title": "✦ Планер", "body": f"{pr}: начался новый период (дом {house}).",
-                            "url": planner_url,
+                            "url": _with_topic(planner_url, _topic_key("planner_start", planet=planet, house=house)),
                         })
                 # 3) за неделю — средние планеты (Венера/Марс/Меркурий)
                 wk = today + timedelta(days=ADVANCE_WEEK_DAYS)
@@ -306,7 +325,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
                             "priority": "significant", "weight": 70, "frag": f"через неделю период {pr}",
                             "title": "✦ Скоро период", "body": f"{pr}: через неделю начнётся период (дом {house}). Подготовьтесь.",
-                            "url": planner_url,
+                            "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
                 # 4) за месяц — медленные планеты (большой период)
                 mo = today + timedelta(days=ADVANCE_MONTH_DAYS)
@@ -318,7 +337,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                             "priority": "significant", "weight": 100, "frag": f"скоро большой период: {pr}",
                             "title": "✦ Большой период впереди",
                             "body": f"{pr}: через месяц начнётся новый большой период (дом {house}). Готовьтесь заранее.",
-                            "url": planner_url,
+                            "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
                         })
         except Exception as e:
             logger.warning("planner candidates failed user=%s: %s", user.id, e)
@@ -342,7 +361,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                     "priority": "significant", "weight": 90, "frag": f"{pr} {ar} к {nr}",
                     "title": "✦ Важный транзит",
                     "body": f"{pr} {ar} к вашему {nr} — начинается значимый транзит.",
-                    "url": planner_url,
+                    "url": _with_topic(planner_url, _topic_key("transit", planet=e.transit_planet, aspect=e.aspect_type, natal=e.natal_planet)),
                 })
         except Exception as e:
             logger.warning("transit candidates failed user=%s: %s", user.id, e)
@@ -373,7 +392,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                     "priority": "soft", "weight": 30, "frag": label,
                     "title": f"✦ {label} завтра",
                     "body": f"{label} в {phase.sign} — завтра. Подготовьтесь заранее.",
-                    "url": "/lunar",
+                    "url": _with_topic("/lunar", _topic_key("moon", planet=phase.type)),
                 })
         except Exception as e:
             logger.warning("moon candidates failed user=%s: %s", user.id, e)

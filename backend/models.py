@@ -437,3 +437,20 @@ class PilotToken(Base):
     used_by_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Слой 2: память Астреи о пользователе между сессиями ──
+class AstreaMemory(Base):
+    """Компактная память Астреи об одном человеке (одна строка на пользователя).
+
+    summary — сводка до ~120 слов: кто человек, его цели, что он решил или
+    отметил сделанным, что советовала Астрея. rag-chat подмешивает её в
+    системный промпт при каждом запросе и обновляет после диалога (фоном).
+    """
+    __tablename__ = "astrea_memory"
+
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    summary = Column(Text, nullable=False, default="", server_default="")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

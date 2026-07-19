@@ -19,14 +19,126 @@ const SUGGESTIONS = [
   'Что означает мой Асцендент?',
 ];
 
-export default function RagChat({ chartId, onPaywall }) {
+// ── Слой 3: проактивность ──
+// Декодирует ?astrea=<topic> из пуша в открывающую реплику Астреи
+// и в вопрос, который реально уйдёт в rag-chat, если пользователь согласится обсудить.
+const PLANET_RU = {
+  sun: 'Солнце', moon: 'Луна', mercury: 'Меркурий', venus: 'Венера', mars: 'Марс',
+  jupiter: 'Юпитер', saturn: 'Сатурн', uranus: 'Уран', neptune: 'Нептун', pluto: 'Плутон',
+  new_moon: 'Новолуние', full_moon: 'Полнолуние',
+};
+const ASPECT_RU = {
+  conjunction: 'соединение', sextile: 'секстиль', square: 'квадрат',
+  trine: 'трин', opposition: 'оппозиция',
+};
+
+function decodeTopic(topic) {
+  if (!topic) return null;
+  const parts = topic.split('-');
+  const kind = parts[0];
+  const get = (i) => parts[i];
+  const planetName = (key) => PLANET_RU[key] || key;
+  const houseOf = (arr) => {
+    const h = arr.find(p => /^h\d+$/.test(p));
+    return h ? h.slice(1) : null;
+  };
+
+  if (kind === 'daily') {
+    return {
+      greeting: 'Заглянула в твой день — есть, что обсудить, если хочешь.',
+      question: 'Расскажи подробнее, что важного в моём прогнозе на сегодня?',
+    };
+  }
+  if (kind === 'planner_start') {
+    const planet = planetName(get(1));
+    const house = houseOf(parts);
+    return {
+      greeting: `У тебя начался период ${planet}${house ? ` — активен дом ${house}` : ''}. Обсудим, что это значит?`,
+      question: `Что означает начавшийся период ${planet}${house ? ` в доме ${house}` : ''} в моей карте?`,
+    };
+  }
+  if (kind === 'planner_week') {
+    const planet = planetName(get(1));
+    const house = houseOf(parts);
+    return {
+      greeting: `Через неделю у тебя начинается период ${planet}${house ? ` (дом ${house})` : ''}. Хочешь подготовиться заранее?`,
+      question: `Как мне подготовиться к периоду ${planet}${house ? ` в доме ${house}` : ''}, который начнётся через неделю?`,
+    };
+  }
+  if (kind === 'planner_month') {
+    const planet = planetName(get(1));
+    const house = houseOf(parts);
+    return {
+      greeting: `Через месяц у тебя открывается большой период ${planet}${house ? ` (дом ${house})` : ''}. Обсудим, к чему готовиться?`,
+      question: `Что мне важно знать про приближающийся большой период ${planet}${house ? ` в доме ${house}` : ''}?`,
+    };
+  }
+  if (kind === 'transit') {
+    const planet = planetName(get(1));
+    const aspect = ASPECT_RU[get(2)] || get(2);
+    const natal = planetName(get(3));
+    return {
+      greeting: `Сегодня начался важный транзит: ${planet} ${aspect} к твоему ${natal}. Обсудим?`,
+      question: `Что означает транзит ${planet} ${aspect} к моему ${natal}, который начался сегодня?`,
+    };
+  }
+  if (kind === 'approach') {
+    const planet = planetName(get(1));
+    const aspect = ASPECT_RU[get(2)] || get(2);
+    const natal = planetName(get(3));
+    return {
+      greeting: `${planet} приближается к аспекту (${aspect}) с твоим ${natal}. Ещё есть время подготовиться — обсудим?`,
+      question: `${planet} через несколько дней образует ${aspect} с моим ${natal}. Как мне подготовиться?`,
+    };
+  }
+  if (kind === 'cusp_approach') {
+    const planet = planetName(get(1));
+    const house = houseOf(parts);
+    return {
+      greeting: `${planet} скоро войдёт в дом ${house} — новая сфера жизни активируется. Обсудим, что это значит?`,
+      question: `${planet} скоро входит в дом ${house} моей карты. Что мне это принесёт?`,
+    };
+  }
+  if (kind.startsWith('triple')) {
+    const phase = kind.slice(6);
+    const planet = planetName(get(1));
+    const aspect = ASPECT_RU[get(2)] || get(2);
+    const natal = planetName(get(3));
+    const phaseText = phase === '1' ? 'открывается впервые' : phase === '2' ? 'возвращается для пересмотра' : 'закрывается и закрепляется';
+    return {
+      greeting: `Тема ${planet} ${aspect} к твоему ${natal} ${phaseText}. Обсудим?`,
+      question: `Тема ${planet} ${aspect} к моему ${natal} сейчас ${phaseText}. Что мне с этим делать?`,
+    };
+  }
+  if (kind === 'moon') {
+    const label = planetName(get(1)) || 'Лунная фаза';
+    return {
+      greeting: `Завтра ${label.toLowerCase()} — хороший повод свериться с планами. Обсудим?`,
+      question: `Что мне важно учесть в связи с завтрашним ${label.toLowerCase()}?`,
+    };
+  }
+  return null;
+}
+
+export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
   const [messages, setMessages]     = useState([]);
   const [input, setInput]           = useState('');
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
+  const [proactive, setProactive]   = useState(null); // {greeting, question} — ждёт клика «Обсудим»
   const bottomRef                    = useRef(null);
   const abortRef                     = useRef(null);
   const prefersReduced               = useReducedMotion();
+
+  // Слой 3: если чат открыт из пуша (?astrea=...), Астрея говорит первой.
+  useEffect(() => {
+    if (!proactiveTopic || messages.length > 0) return;
+    const decoded = decodeTopic(proactiveTopic);
+    if (!decoded) return;
+    setMessages([{ role: 'assistant', content: decoded.greeting, streaming: false, proactive: true }]);
+    setProactive(decoded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proactiveTopic]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,6 +150,7 @@ export default function RagChat({ chartId, onPaywall }) {
   async function send(question) {
     if (!question.trim() || loading) return;
     setError(null);
+    setProactive(null);
 
     const userMsg = { role: 'user', content: question };
     const history = messages.slice(-10); // последние 10 сообщений
@@ -151,7 +264,7 @@ export default function RagChat({ chartId, onPaywall }) {
 
       {/* Шапка */}
       <div style={s.header}>
-        <span style={s.headerTitle}>Астрея</span>
+        <span style={s.headerTitle}>Чат с AI-астрологом</span>
         <span style={s.headerSub}>Задайте вопрос о своей натальной карте</span>
       </div>
 
@@ -159,7 +272,7 @@ export default function RagChat({ chartId, onPaywall }) {
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>Астрея знает вашу карту. Спросите что угодно.</p>
+            <p style={s.emptyText}>AI знает вашу карту. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>
@@ -180,11 +293,19 @@ export default function RagChat({ chartId, onPaywall }) {
               style={msg.role === 'user' ? s.msgUser : s.msgAssistant}
             >
               {msg.role === 'assistant' && (
-                <span style={s.aiLabel}>✦ Астрея</span>
+                <span style={s.aiLabel}>✦ AI</span>
               )}
               <div style={msg.role === 'user' ? s.bubbleUser : s.bubbleAssistant}>
                 {msg.content || (msg.streaming ? <TypingDots /> : '')}
               </div>
+              {msg.proactive && proactive && (
+                <button
+                  style={{ ...s.suggestion, marginTop: 4 }}
+                  onClick={() => { const q = proactive.question; setProactive(null); send(q); }}
+                >
+                  Обсудим →
+                </button>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
