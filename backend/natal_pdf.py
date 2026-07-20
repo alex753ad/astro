@@ -224,34 +224,37 @@ def _page_num(c, n, total):
 def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
     """Draw zodiac wheel. If planets provided, place them at real positions."""
     sign_glyphs = list(SIGN_GLYPHS.values())[:12]
+    # Brighter element colours: Fire / Earth / Air / Water
     seg_colors = [
-        colors.HexColor("#8B3A3A"), colors.HexColor("#5C7A3A"),
-        colors.HexColor("#3A5C8B"), colors.HexColor("#7A5C3A"),
+        colors.HexColor("#C04040"), colors.HexColor("#6CA840"),
+        colors.HexColor("#3A80C8"), colors.HexColor("#8050B8"),
     ] * 3
     # Ascendant longitude — rotate wheel so ASC is on left (180°)
     asc_lon = 0.0
     if ascendant and isinstance(ascendant, dict):
         asc_lon = ascendant.get("longitude", 0.0) or 0.0
 
+    # Outer ring (r*0.88 – r): sign glyphs live here
+    # Middle ring (r*0.65 – r*0.88): planet glyphs live here
+    # Inner circle (0 – r*0.62): aspect lines + centre fill
     for i in range(12):
-        # Each sign sector starts at its ecliptic longitude
         sign_start_lon = i * 30
-        # Convert to drawing angle: ASC at left (angle 180°)
         start_angle = 180 + (sign_start_lon - asc_lon)
-        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.30)
+        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.48)
         c.setFillColor(seg)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.55))
+        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.70))
         c.setLineWidth(0.6)
         c.wedge(cx-r, cy-r, cx+r, cy+r, start_angle, 30, fill=1, stroke=1)
+        # Sign glyph in outer ring at r*0.94
         mid_a = math.radians(start_angle + 15)
-        gx = cx + r*0.78*math.cos(mid_a); gy = cy + r*0.78*math.sin(mid_a)
-        _draw_glyph(c, gx, gy, sign_glyphs[i], 8, C_GOLD2)
+        gx = cx + r*0.94*math.cos(mid_a); gy = cy + r*0.94*math.sin(mid_a)
+        _draw_glyph(c, gx, gy, sign_glyphs[i], 9, colors.HexColor("#FFFFFF"))
 
-    for radius, alpha in [(r*0.65, 0.45), (r*0.9, 0.65), (r, 0.9)]:
+    for radius, alpha in [(r*0.65, 0.55), (r*0.88, 0.75), (r, 1.0)]:
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
-        c.setLineWidth(0.7 if radius < r else 1.2)
+        c.setLineWidth(0.8 if radius < r else 1.4)
         c.circle(cx, cy, radius, fill=0, stroke=1)
-    c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
+    c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.94))
     c.circle(cx, cy, r*0.62, fill=1, stroke=0)
 
     # Draw aspect lines inside inner circle (before planets so glyphs appear on top)
@@ -285,7 +288,7 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
             "Neptune": colors.HexColor("#8880C0"), "Pluto": colors.HexColor("#B03030"),
             "North Node": colors.HexColor("#60B878"),
         }
-        r_planet = r * 0.82  # ring outside inner circle
+        r_planet = r * 0.76  # middle ring between r*0.65 and r*0.88
         # Spread overlapping planets
         positions = []
         for pl in planets:
