@@ -2,7 +2,7 @@
  * ChartPage.jsx — вкладки: Карта / Интерпретация / Аспекты / Транзиты / Планировщик
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
@@ -511,14 +511,23 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       .finally(() => setLoading(false));
   }, [chartId]);
 
+  // Загружаем транзитные позиции для даты (общий загрузчик для вкладки и таймлайна)
+  const loadTransitPositions = useCallback(async (dateStr) => {
+    if (!chartId || chartId === 'anonymous' || !dateStr) return;
+    try {
+      const resp = await authFetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${dateStr}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.planets?.length) setTransitPlanets(data.planets);
+      }
+    } catch {}
+  }, [chartId]);
+
   // Загружаем транзитные позиции при открытии вкладки транзитов
   useEffect(() => {
     if (topTab !== 'transits' || !chart || !chartId || chartId === 'anonymous' || transitPlanets.length > 0) return;
-    authFetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${selectedDate}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.planets?.length) setTransitPlanets(data.planets); })
-      .catch(() => {});
-  }, [topTab, chart, chartId]);
+    loadTransitPositions(selectedDate);
+  }, [topTab, chart, chartId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Не блокируем вкладку транзитов — блюр внутри компонента TransitTimeline
@@ -547,8 +556,17 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   }
 
   function handleDateSelect(date, dayEvents, positions) {
-    setTransitPlanets(positions ?? []);
+    // Выбрана дата с позициями — показываем их.
+    if (positions?.length) {
+      setTransitPlanets(positions);
+      if (date) setSelectedDate(date);
+      return;
+    }
+    // Снятие выбора или пустой ответ — не обнуляем кольцо, а возвращаем
+    // позиции для текущей даты, чтобы планеты всегда были на карте.
+    const d = date || selectedDate;
     if (date) setSelectedDate(date);
+    loadTransitPositions(d);
   }
 
   function handleShowAuth() {
