@@ -186,8 +186,10 @@ function NatalChartInner({
   planets = [], houses = [], aspects = [],
   ascendant, midheaven, timeUnknown, transitPlanets = [],
   isCompact, highlightPlanet = null, highlightAspect = null, dark = false,
-  onHoverPlanet = null, reserveTransitPadding = false,
+  onHoverPlanet = null, reserveTransitPadding = false, forExport = false,
 }) {
+  // При экспорте PNG всегда используем светлую палитру
+  if (forExport) dark = false;
   const SIZE    = isCompact ? 320 : 560;
   const cx      = SIZE / 2;
   const cy      = SIZE / 2;
@@ -621,7 +623,7 @@ function NatalChartInner({
 // WRAPPER: skeleton + touch
 // ═══════════════════════════════════════════════════════════
 
-export default function NatalChart({ loading = false, compact: _compactProp, ...props }) {
+export default function NatalChart({ loading = false, compact: _compactProp, forExport = false, ...props }) {
   // Touch state
   const containerRef = useRef(null);
   const [scale,    setScale]    = useState(1);
@@ -703,7 +705,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, ...
           transition: touchState.current.active ? 'none' : 'transform 0.3s ease',
           willChange: 'transform',
         }}>
-          <NatalChartInner {...props} isCompact={false} />
+          <NatalChartInner {...props} isCompact={false} forExport={forExport} />
         </div>
       </div>
 
