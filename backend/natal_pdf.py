@@ -221,192 +221,90 @@ def _page_num(c, n, total):
     c.drawCentredString(W/2, 14*mm, f"— {n} / {total} —")
 
 
-def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None, houses=None):
-    """Draw zodiac wheel matching screenshot style."""
+def _wheel(c, cx, cy, r, planets=None, ascendant=None):
+    """Draw zodiac wheel. If planets provided, place them at real positions."""
     sign_glyphs = list(SIGN_GLYPHS.values())[:12]
-
-    # Pastel element colours: Fire/Earth/Air/Water
-    ELEM_COLORS = [
-        colors.HexColor("#F2A89A"),  # Fire  — coral
-        colors.HexColor("#D4C9A8"),  # Earth — beige
-        colors.HexColor("#A8CBE8"),  # Air   — sky blue
-        colors.HexColor("#B8D4B8"),  # Water — sage green
-    ]
-    seg_colors = ELEM_COLORS * 3
-
-    BADGE_BLUE = colors.HexColor("#4A6FA5")
-    BADGE_SIZE = r * 0.0325  # half-side of badge square
-
+    seg_colors = [
+        colors.HexColor("#C04040"), colors.HexColor("#6AAF3A"),
+        colors.HexColor("#3A72C4"), colors.HexColor("#C49A2A"),
+    ] * 3
+    # Ascendant longitude — rotate wheel so ASC is on left (180°)
     asc_lon = 0.0
     if ascendant and isinstance(ascendant, dict):
         asc_lon = ascendant.get("longitude", 0.0) or 0.0
 
-    r_outer             = r
-    r_badge             = r * 0.855
-    r_planet_ring_outer = r * 0.72
-    r_planet_ring_inner = r * 0.58
-    r_asp_inner         = r * 0.56
+    r_sign_inner = r * 0.88  # inner edge of zodiac sign ring (narrow)
 
-    RING_COLOR = colors.Color(0.55, 0.55, 0.6, alpha=0.7)
-
-    # ── 1. White base ───────────────────────────────────────────────────────
-    c.setFillColor(colors.white)
-    c.circle(cx, cy, r_outer, fill=1, stroke=0)
-
-    # ── 2. Outer ring: pastel segments ─────────────────────────────────────
     for i in range(12):
+        # Each sign sector starts at its ecliptic longitude
         sign_start_lon = i * 30
+        # Convert to drawing angle: ASC at left (angle 180°)
         start_angle = 180 + (sign_start_lon - asc_lon)
-        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.85)
+        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.45)
         c.setFillColor(seg)
-        c.setStrokeColor(colors.Color(0.7, 0.7, 0.7, alpha=0.4))
-        c.setLineWidth(0.3)
-        c.wedge(cx - r_outer, cy - r_outer, cx + r_outer, cy + r_outer,
-                start_angle, 30, fill=1, stroke=1)
-
-    # White fill over inner area
-    c.setFillColor(colors.white)
-    c.circle(cx, cy, r_planet_ring_outer, fill=1, stroke=0)
-
-    # ── 3. Ring borders ─────────────────────────────────────────────────────
-    for radius, lw in [(r_outer, 1.2), (r_planet_ring_outer, 0.7), (r_planet_ring_inner, 0.5)]:
-        c.setStrokeColor(RING_COLOR)
-        c.setLineWidth(lw)
-        c.circle(cx, cy, radius, fill=0, stroke=1)
-
-    # ── 4. Sign division ticks ──────────────────────────────────────────────
-    for i in range(12):
-        ang = math.radians(180 + (i * 30 - asc_lon))
-        x1 = cx + (r_badge + BADGE_SIZE) * math.cos(ang)
-        y1 = cy + (r_badge + BADGE_SIZE) * math.sin(ang)
-        x2 = cx + r_outer * math.cos(ang)
-        y2 = cy + r_outer * math.sin(ang)
-        c.setStrokeColor(colors.Color(0.5, 0.5, 0.55, alpha=0.6))
+        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.3))
         c.setLineWidth(0.4)
-        c.line(x1, y1, x2, y2)
+        c.wedge(cx-r, cy-r, cx+r, cy+r, start_angle, 30, fill=1, stroke=1)
+        mid_a = math.radians(start_angle + 15)
+        gx = cx + r*0.94*math.cos(mid_a); gy = cy + r*0.94*math.sin(mid_a)
+        _draw_glyph(c, gx, gy, sign_glyphs[i], 7, C_GOLD2)
 
-    # ── 5. House lines ──────────────────────────────────────────────────────
-    if houses:
-        for h in houses:
-            lon = h.get("degree", h.get("longitude", 0)) if isinstance(h, dict) else getattr(h, "degree", 0)
-            num = h.get("number", 0) if isinstance(h, dict) else getattr(h, "number", 0)
-            ang = math.radians(180 + (lon - asc_lon))
-            x1 = cx + r_planet_ring_inner * math.cos(ang)
-            y1 = cy + r_planet_ring_inner * math.sin(ang)
-            x2 = cx + r_outer * math.cos(ang)
-            y2 = cy + r_outer * math.sin(ang)
-            c.setStrokeColor(colors.Color(0.35, 0.35, 0.4, alpha=0.7))
-            c.setLineWidth(1.0 if num in (1, 4, 7, 10) else 0.5)
-            c.line(x1, y1, x2, y2)
+    for radius, alpha in [(r_sign_inner, 0.5), (r, 0.6)]:
+        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
+        c.setLineWidth(0.5 if radius < r else 0.8)
+        c.circle(cx, cy, radius, fill=0, stroke=1)
+    c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
+    c.circle(cx, cy, r*0.85, fill=1, stroke=0)
 
-    # ── 6. Sign badge squares ───────────────────────────────────────────────
-    for i in range(12):
-        mid_a = math.radians(180 + (i * 30 + 15 - asc_lon))
-        bx = cx + r_badge * math.cos(mid_a)
-        by = cy + r_badge * math.sin(mid_a)
-        bs = BADGE_SIZE
-        c.saveState()
-        c.translate(bx, by)
-        c.rotate(math.degrees(mid_a) + 90)
-        c.setFillColor(BADGE_BLUE)
-        c.setStrokeColor(colors.white)
-        c.setLineWidth(0.3)
-        c.rect(-bs, -bs, bs * 2, bs * 2, fill=1, stroke=1)
-        c.restoreState()
-        _draw_glyph(c, bx, by, sign_glyphs[i], bs * 1.3, colors.white)
-
-    # ── 7. Aspect lines ─────────────────────────────────────────────────────
-    HARD_ASPECTS = {"square", "opposition", "квадрат", "оппозиция"}
-    SOFT_ASPECTS = {"trine", "тригон"}
-    SEX_ASPECTS  = {"sextile", "секстиль"}
-    CONJ_ASPECTS = {"conjunction", "соединение"}
-    C_ASP_HARD = colors.HexColor("#CC3333")
-    C_ASP_SOFT = colors.HexColor("#3366CC")
-    C_ASP_CONJ = colors.HexColor("#C9A84C")
-    C_ASP_MISC = colors.Color(0.5, 0.5, 0.5, alpha=0.4)
-
-    if aspects and planets:
-        aspect_pts = {}
-        for pl in planets:
-            lon  = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
-            name = pl.get("name", "")     if isinstance(pl, dict) else getattr(pl, "name", "")
-            ang  = math.radians(180 + (lon - asc_lon))
-            aspect_pts[name] = (cx + r_asp_inner * math.cos(ang), cy + r_asp_inner * math.sin(ang))
-
-        for asp in aspects[:30]:
-            p1 = asp.get("planet1", "")
-            p2 = asp.get("planet2", "")
-            at = asp.get("aspect_type", asp.get("aspect", ""))
-            if p1 not in aspect_pts or p2 not in aspect_pts:
-                continue
-            x1, y1 = aspect_pts[p1]
-            x2, y2 = aspect_pts[p2]
-            if at in HARD_ASPECTS:
-                col, lw, dash = C_ASP_HARD, 0.9, []
-            elif at in SOFT_ASPECTS:
-                col, lw, dash = C_ASP_SOFT, 0.7, []
-            elif at in SEX_ASPECTS:
-                col, lw, dash = C_ASP_SOFT, 0.7, [3, 2]
-            elif at in CONJ_ASPECTS:
-                col, lw, dash = C_ASP_CONJ, 0.8, []
-            else:
-                col, lw, dash = C_ASP_MISC, 0.5, [2, 3]
-            c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.65))
-            c.setLineWidth(lw)
-            c.setDash(dash) if dash else c.setDash([])
-            c.line(x1, y1, x2, y2)
-        c.setDash([])
-
-    # ── 8. Planets ──────────────────────────────────────────────────────────
-    planet_colors_map = {
-        "Sun": colors.HexColor("#C8952A"), "Moon": colors.HexColor("#7090B8"),
-        "Mercury": colors.HexColor("#7060A8"), "Venus": colors.HexColor("#B06070"),
-        "Mars": colors.HexColor("#B84030"), "Jupiter": colors.HexColor("#3070B8"),
-        "Saturn": colors.HexColor("#707060"), "Uranus": colors.HexColor("#3090A0"),
-        "Neptune": colors.HexColor("#6060A8"), "Pluto": colors.HexColor("#882020"),
-        "North Node": colors.HexColor("#308858"), "South Node": colors.HexColor("#886030"),
-    }
-
+    # Draw planets at real positions
     if planets:
-        r_pl = (r_planet_ring_outer + r_planet_ring_inner) / 2
-        pl_radius = BADGE_SIZE
-
+        planet_colors_map = {
+            "Sun": C_GOLD2, "Moon": colors.HexColor("#A0B0C8"),
+            "Mercury": colors.HexColor("#A090D0"), "Venus": colors.HexColor("#D08090"),
+            "Mars": colors.HexColor("#D06050"), "Jupiter": colors.HexColor("#6090D0"),
+            "Saturn": colors.HexColor("#909080"), "Uranus": colors.HexColor("#60A8B8"),
+            "Neptune": colors.HexColor("#8880C0"), "Pluto": colors.HexColor("#B03030"),
+            "North Node": colors.HexColor("#60B878"),
+        }
+        r_planet = r * 0.76  # ring just inside sign ring
+        # Spread overlapping planets
         positions = []
         for pl in planets:
-            lon  = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
-            name = pl.get("name", "")     if isinstance(pl, dict) else getattr(pl, "name", "")
+            lon = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
+            name = pl.get("name", "") if isinstance(pl, dict) else getattr(pl, "name", "")
             positions.append({"name": name, "lon": lon, "disp": lon})
-
-        for _ in range(40):
+        # Simple push-apart
+        for _ in range(30):
             moved = False
             for i in range(len(positions)):
-                for j in range(i + 1, len(positions)):
+                for j in range(i+1, len(positions)):
                     diff = positions[j]["disp"] - positions[i]["disp"]
-                    while diff >  180: diff -= 360
+                    while diff > 180: diff -= 360
                     while diff < -180: diff += 360
                     if abs(diff) < 7:
                         push = (7 - abs(diff)) / 2 + 0.1
                         if diff >= 0:
-                            positions[i]["disp"] -= push
-                            positions[j]["disp"] += push
+                            positions[i]["disp"] -= push; positions[j]["disp"] += push
                         else:
-                            positions[i]["disp"] += push
-                            positions[j]["disp"] -= push
+                            positions[i]["disp"] += push; positions[j]["disp"] -= push
                         moved = True
             if not moved:
                 break
 
         for pos in positions:
             draw_angle = math.radians(180 + (pos["disp"] - asc_lon))
-            px = cx + r_pl * math.cos(draw_angle)
-            py = cy + r_pl * math.sin(draw_angle)
-            col = planet_colors_map.get(pos["name"], colors.HexColor("#5060A0"))
-            c.setFillColor(colors.white)
-            c.setStrokeColor(col)
-            c.setLineWidth(1.0)
-            c.circle(px, py, pl_radius, fill=1, stroke=1)
+            px = cx + r_planet * math.cos(draw_angle)
+            py = cy + r_planet * math.sin(draw_angle)
+            col = planet_colors_map.get(pos["name"], C_GOLD2)
+            # Circle background
+            c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.85))
+            c.circle(px, py, 8, fill=1, stroke=0)
+            c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.7))
+            c.setLineWidth(0.7)
+            c.circle(px, py, 8, fill=0, stroke=1)
+            # Glyph
             glyph = PLANET_GLYPHS.get(pos["name"], "?")
-            _draw_glyph(c, px, py, glyph, pl_radius * 1.3, col)
+            _draw_glyph(c, px, py, glyph, 10, col)
 
 
 def _bg(c):
@@ -439,33 +337,31 @@ def _page_cover(c, d):
     parts.append(d["birth_place"])
     c.drawCentredString(W/2, ty-50, "  ·  ".join(parts))
 
-    # Колесо крупнее — рисуем родной функцией (светлое, под стиль PDF),
-    # не используем wheel_png с фронта, т.к. он тёмный.
-    wheel_size = min(W, H) * 0.72
+    # Колесо по центру страницы
+    wheel_size = min(W, H) * 0.60
     wr = wheel_size / 2
     wcx = W / 2
     wcy = H * 0.46
-    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"), aspects=d.get("aspects", []), houses=d.get("houses", []))
+    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
+        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
-    # ASC / MC — чистый текст без рамок, по центру
-    by = wcy - wr - 14
-    for i, (label, key) in enumerate([("ASC", "ascendant"), ("MC", "midheaven")]):
+    # ASC / MC под колесом
+    by = wcy - wr - 22
+    for label, key, bx in [("ASC","ascendant",W/2-60),("MC","midheaven",W/2+8)]:
         val = d.get(key) or {}
-        sign = val.get("sign", "")
-        deg = val.get("degree", 0)
-        g = SIGN_GLYPHS.get(sign, "")
-        # symmetrical around W/2: left item at -70, right at +70
-        item_x = W / 2 + (i * 2 - 1) * 70
-        c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 7.5)
-        c.drawString(item_x, by, label)
-        _draw_glyph(c, item_x + 22, by + 4, g, 10, C_GOLD)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
-        c.drawString(item_x + 32, by, f"{sign} {deg:.1f}\u00b0")
-    # centre dot separator
-    c.setFillColor(C_MUTED)
-    c.circle(W / 2, by + 3, 1.5, fill=1, stroke=0)
+        sign = val.get("sign",""); deg = val.get("degree",0)
+        g = SIGN_GLYPHS.get(sign,"")
+        c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
+        c.roundRect(bx, by-6, 50, 18, 4, fill=1, stroke=0)
+        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.4))
+        c.setLineWidth(0.4); c.roundRect(bx, by-6, 50, 18, 4, fill=0, stroke=1)
+        c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
+        c.drawString(bx+4, by+5, label)
+        _draw_glyph(c, bx+22, by+10, g, 9, C_GOLD2)
+        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
+        c.drawString(bx+30, by+5, f"{sign[:3]} {deg:.1f}")
 
-    _divider(c, W*0.25, by - 20, W*0.5)
+    _divider(c, W*0.25, by-16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
     hs = d.get("house_system", "Placidus").capitalize()
     astrologer = d.get("astrologer_name")
@@ -474,7 +370,7 @@ def _page_cover(c, d):
         if astrologer
         else f"Система домов: {hs}  ·  Astrea Timeline"
     )
-    c.drawCentredString(W/2, by - 32, footer_text)
+    c.drawCentredString(W/2, by-28, footer_text)
 
     c.restoreState()
 
@@ -614,14 +510,14 @@ def _page_wheel(c, d):
     wcx, wcy = W / 2, H / 2 - 10 * mm
     wr = min(W, H) * 0.36
     if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wr * 2, d["wheel_png"])):
-        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"), aspects=d.get("aspects", []), houses=d.get("houses", []))
+        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
     # Draw aspect lines inside inner circle
     planets = d.get("planets", [])
     aspects = d.get("aspects", [])
     asc_lon = (d.get("ascendant") or {}).get("longitude", 0.0) or 0.0
-    r_inner = wr * 0.62
-    r_asp = wr * 0.55
+    r_inner = wr * 0.82
+    r_asp = wr * 0.75
 
     planet_angles = {}
     for pl in planets:
@@ -720,7 +616,7 @@ def _page_interp(c, d, first_page_num=3):
         # footer on current page
         c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
         c.drawCentredString(W/2, m+6,
-            "Астрея — навигатор решений. Астрология описывает тенденции, а не определяет судьбу.")
+            "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
         c.showPage()
         page_idx += 1
         cx_col, cw_col, iy = _interp_page_begin(c, page_idx)
@@ -785,7 +681,7 @@ def _page_interp(c, d, first_page_num=3):
     # Footer on last page
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
     c.drawCentredString(W/2, m+6,
-        "Астрея — навигатор решений. Астрология описывает тенденции, а не определяет судьбу.")
+        "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
 
     return page_idx  # number of extra interp pages added
 
@@ -896,6 +792,8 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     c.setAuthor(author)
 
     _page_cover(c, data)
+    c.showPage()
+    _page_wheel(c, data)
     c.showPage()
     _page_data(c, data)
     c.showPage()
