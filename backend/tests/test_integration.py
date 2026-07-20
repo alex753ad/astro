@@ -259,14 +259,20 @@ class TestChartGetEndpoint:
 class TestFullCyclePOSTtoGETtoInterpret:
     """Полный цикл: POST /calculate → GET /{id} → SSE stream interpret."""
 
-    def test_full_cycle_sse_stream(self, client, mock_calculator, mock_geo, mock_llm):
-        """Создаём карту, получаем её, запрашиваем SSE-интерпретацию."""
-        # 1. Создаём карту
+    def test_full_cycle_sse_stream(self, client, mock_calculator, mock_geo, mock_llm, user_free, auth_headers_free):
+        """Создаём карту, получаем её, запрашиваем SSE-интерпретацию.
+
+        Цикл идёт от лица авторизованного пользователя: интерпретация закрыта
+        для анонимов (403 by design — им доступно только превью), поэтому полный
+        цикл с интерпретацией проверяется на залогиненном free-пользователе,
+        у которого доступна первая бесплатная интерпретация.
+        """
+        # 1. Создаём карту (от лица пользователя — карта принадлежит ему)
         payload = {
             "name": "Полный цикл", "birth_date": "1990-06-15", "birth_time": "10:30",
             "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
         }
-        post_resp = client.post("/api/v1/chart/calculate", json=payload)
+        post_resp = client.post("/api/v1/chart/calculate", json=payload, headers=auth_headers_free)
         assert post_resp.status_code == 200
 
         chart_id = (
@@ -277,11 +283,8 @@ class TestFullCyclePOSTtoGETtoInterpret:
         if chart_id is None:
             pytest.skip("Chart creation did not return an ID")
 
-        token = post_resp.json().get("access_token")
-        headers = {"X-Chart-Token": token} if token else {}
-
         # 2. Получаем карту
-        get_resp = client.get(f"/api/v1/chart/{chart_id}", headers=headers)
+        get_resp = client.get(f"/api/v1/chart/{chart_id}", headers=auth_headers_free)
         assert get_resp.status_code == 200
 
         # 3. Запрашиваем интерпретацию (non-SSE endpoint для простоты)
@@ -289,7 +292,7 @@ class TestFullCyclePOSTtoGETtoInterpret:
         interpret_resp = client.get(
             f"/api/v1/chart/{chart_id}/interpret",
             params={"stream": "false"},
-            headers=headers,
+            headers=auth_headers_free,
         )
         # Принимаем 200 (full) или 200 SSE
         assert interpret_resp.status_code in (200, 307)
