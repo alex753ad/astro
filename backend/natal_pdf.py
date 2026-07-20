@@ -221,7 +221,7 @@ def _page_num(c, n, total):
     c.drawCentredString(W/2, 14*mm, f"— {n} / {total} —")
 
 
-def _wheel(c, cx, cy, r, planets=None, ascendant=None):
+def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
     """Draw zodiac wheel. If planets provided, place them at real positions."""
     sign_glyphs = list(SIGN_GLYPHS.values())[:12]
     seg_colors = [
@@ -253,6 +253,27 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
         c.circle(cx, cy, radius, fill=0, stroke=1)
     c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
     c.circle(cx, cy, r*0.62, fill=1, stroke=0)
+
+    # Draw aspect lines inside inner circle (before planets so glyphs appear on top)
+    if aspects and planets:
+        r_asp = r * 0.56
+        aspect_pts = {}
+        for pl in planets:
+            lon = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
+            name = pl.get("name", "") if isinstance(pl, dict) else getattr(pl, "name", "")
+            ang = math.radians(180 + (lon - asc_lon))
+            aspect_pts[name] = (cx + r_asp * math.cos(ang), cy + r_asp * math.sin(ang))
+        for asp in aspects[:30]:
+            p1 = asp.get("planet1", "")
+            p2 = asp.get("planet2", "")
+            at = asp.get("aspect_type", asp.get("aspect", ""))
+            col = ASPECT_COLORS.get(at, C_MUTED)
+            if p1 in aspect_pts and p2 in aspect_pts:
+                x1, y1 = aspect_pts[p1]
+                x2, y2 = aspect_pts[p2]
+                c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.25))
+                c.setLineWidth(0.5)
+                c.line(x1, y1, x2, y2)
 
     # Draw planets at real positions
     if planets:
@@ -341,28 +362,25 @@ def _page_cover(c, d):
     wr = wheel_size / 2
     wcx = W / 2
     wcy = H * 0.46
-    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
+    _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"), aspects=d.get("aspects", []))
 
-    # ASC / MC — два бэджа в строку под колесом, по центру
-    by = wcy - wr - 24
-    badge_w = 62
-    gap = 10
-    total_w = badge_w * 2 + gap
-    bx_start = W / 2 - total_w / 2
+    # ASC / MC — чистый текст без рамок, по центру
+    by = wcy - wr - 14
     for i, (label, key) in enumerate([("ASC", "ascendant"), ("MC", "midheaven")]):
         val = d.get(key) or {}
-        sign = val.get("sign", ""); deg = val.get("degree", 0)
+        sign = val.get("sign", "")
+        deg = val.get("degree", 0)
         g = SIGN_GLYPHS.get(sign, "")
-        bx = bx_start + i * (badge_w + gap)
-        c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
-        c.roundRect(bx, by - 6, badge_w, 20, 4, fill=1, stroke=0)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.5))
-        c.setLineWidth(0.5); c.roundRect(bx, by - 6, badge_w, 20, 4, fill=0, stroke=1)
-        c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
-        c.drawString(bx + 5, by + 7, label)
-        _draw_glyph(c, bx + 28, by + 12, g, 9, C_GOLD2)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
-        c.drawString(bx + 36, by + 7, f"{sign[:3]} {deg:.1f}")
+        # symmetrical around W/2: left item at -70, right at +70
+        item_x = W / 2 + (i * 2 - 1) * 70
+        c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 7.5)
+        c.drawString(item_x, by, label)
+        _draw_glyph(c, item_x + 22, by + 4, g, 10, C_GOLD)
+        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
+        c.drawString(item_x + 32, by, f"{sign} {deg:.1f}\u00b0")
+    # centre dot separator
+    c.setFillColor(C_MUTED)
+    c.circle(W / 2, by + 3, 1.5, fill=1, stroke=0)
 
     _divider(c, W*0.25, by - 20, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
