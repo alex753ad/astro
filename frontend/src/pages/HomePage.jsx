@@ -20,6 +20,10 @@ export default function HomePage({ currentUser, onShowAuth }) {
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
         }));
         sessionStorage.setItem('anonymous_chart_result', JSON.stringify(chart));
+        // Capability-токен: даёт анонимной карте доступ к планеру и транзитам.
+        if (chart.access_token) {
+          sessionStorage.setItem('chart_token', chart.access_token);
+        }
       }
       navigate(chart.id ? `/chart/${chart.id}` : '/chart/anonymous');
     } catch (err) {

@@ -485,8 +485,14 @@ async def calculate_chart(
         db.commit()
         db.refresh(chart_record)
     else:
-        # Anonymous — return calculated data without persisting
-        chart_record.id = None
+        # Anonymous — сохраняем с временным capability-токеном (7 дней),
+        # чтобы у карты был реальный id и доступ к планеру/транзитам до
+        # регистрации. При регистрации карта привязывается к пользователю.
+        chart_record.access_token = secrets.token_urlsafe(32)
+        chart_record.expires_at = datetime.utcnow() + timedelta(days=7)
+        db.add(chart_record)
+        db.commit()
+        db.refresh(chart_record)
 
     # Welcome-письмо после первой карты
     if user:
@@ -525,6 +531,7 @@ async def calculate_chart(
         ascendant=asc_resp,
         midheaven=mc_resp,
         warnings=warnings,
+        access_token=(chart_record.access_token if user is None else None),
     )
 
 

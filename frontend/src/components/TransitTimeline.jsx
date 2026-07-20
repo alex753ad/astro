@@ -110,6 +110,17 @@ function formatExactTime(exactDate) {
 function isHarmonic(aspect) { return aspect === "trine" || aspect === "sextile"; }
 function isTense(aspect)    { return aspect === "square" || aspect === "opposition"; }
 
+// Заголовки доступа к карте: bearer (залогинен) и/или X-Chart-Token (аноним).
+function chartAuthHeaders(extra = {}) {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('astro_access_token') : null;
+  const chartTok = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('chart_token') : null;
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(chartTok ? { 'X-Chart-Token': chartTok } : {}),
+  };
+}
+
 // ── Помесячная догрузка транзитов ──────────────────────────
 
 function addDaysISO(dateStr, days) {
@@ -532,11 +543,10 @@ function InterpretationPanel({ event, chartId, onClose }) {
       return;
     }
 
-    const token = localStorage.getItem('astro_access_token');
     const ctrl  = new AbortController();
     fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/event/interpret`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: chartAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ transit_planet: event.transit_planet, natal_planet: event.natal_planet, aspect_type: event.aspect_type }),
       signal: ctrl.signal,
     })
@@ -638,10 +648,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     setLoading(true);
     const today = new Date().toISOString().slice(0, 10);
     const to    = addMonthISO(today) > horizonEnd ? horizonEnd : addMonthISO(today);
-    const token = localStorage.getItem('astro_access_token');
-
     fetch(TRANSITS_URL(chartId, today, to), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: chartAuthHeaders(),
     })
       .then(r => r.json())
       .then(data => {
@@ -661,10 +669,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     setLoadingMore(true);
     const from = addDaysISO(loadedUntil, 1);
     const to   = addMonthISO(from) > horizonEnd ? horizonEnd : addMonthISO(from);
-    const token = localStorage.getItem('astro_access_token');
 
     fetch(TRANSITS_URL(chartId, from, to), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: chartAuthHeaders(),
     })
       .then(r => r.json())
       .then(data => {
@@ -790,9 +797,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     let positions = [];
     if (chartId && chartId !== 'anonymous' && !mockMode) {
       try {
-        const token = localStorage.getItem('astro_access_token');
         const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: chartAuthHeaders(),
         });
         if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }
       } catch {}

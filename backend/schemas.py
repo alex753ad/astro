@@ -335,6 +335,9 @@ class NatalChartResponse(BaseModel):
     ascendant: Optional[PointData] = None
     midheaven: Optional[PointData] = None
     warnings: list[str] = []
+    # Capability-токен анонимной карты (возвращается только для неавторизованного
+    # расчёта): фронт сохраняет его и шлёт в X-Chart-Token для планера/транзитов.
+    access_token: Optional[str] = None
 
 
 class TransitEvent(BaseModel):
