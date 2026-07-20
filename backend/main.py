@@ -448,7 +448,6 @@ async def calculate_chart(
 
     if user:
         # Check monthly chart limit for the user's tier
-        from datetime import datetime
         tier = user.tier or "free"
         limits = get_tier_limits(tier)
         monthly_limit = limits.get("charts_per_month")
