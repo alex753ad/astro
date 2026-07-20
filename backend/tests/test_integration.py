@@ -212,10 +212,20 @@ class TestChartGetEndpoint:
         assert resp.status_code == 404
 
     def test_get_chart_contains_planets(self, client, mock_calculator, mock_geo):
-        chart_id = self._create_chart(client, mock_calculator, mock_geo)
+        payload = {
+            "name": "Тест", "birth_date": "1990-06-15", "birth_time": "10:30",
+            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
+            "house_system": "placidus",
+        }
+        post = client.post("/api/v1/chart/calculate", json=payload)
+        pdata = post.json()
+        chart_id = pdata.get("id")
         if chart_id is None:
             pytest.skip("Chart creation failed — skipping GET test")
-        resp = client.get(f"/api/v1/chart/{chart_id}")
+        # Анонимная карта доступна по capability-токену (как это делает фронт).
+        token = pdata.get("access_token")
+        headers = {"X-Chart-Token": token} if token else {}
+        resp = client.get(f"/api/v1/chart/{chart_id}", headers=headers)
         data = resp.json()
         chart_data = data.get("chart", data)
         assert "planets" in chart_data
@@ -235,7 +245,9 @@ class TestChartGetEndpoint:
         if chart_id is None:
             pytest.skip("No chart ID returned")
 
-        get_resp = client.get(f"/api/v1/chart/{chart_id}")
+        token = post_data.get("access_token")
+        headers = {"X-Chart-Token": token} if token else {}
+        get_resp = client.get(f"/api/v1/chart/{chart_id}", headers=headers)
         get_data = get_resp.json()
 
         # Дата рождения должна совпадать
@@ -265,8 +277,11 @@ class TestFullCyclePOSTtoGETtoInterpret:
         if chart_id is None:
             pytest.skip("Chart creation did not return an ID")
 
+        token = post_resp.json().get("access_token")
+        headers = {"X-Chart-Token": token} if token else {}
+
         # 2. Получаем карту
-        get_resp = client.get(f"/api/v1/chart/{chart_id}")
+        get_resp = client.get(f"/api/v1/chart/{chart_id}", headers=headers)
         assert get_resp.status_code == 200
 
         # 3. Запрашиваем интерпретацию (non-SSE endpoint для простоты)
@@ -274,6 +289,7 @@ class TestFullCyclePOSTtoGETtoInterpret:
         interpret_resp = client.get(
             f"/api/v1/chart/{chart_id}/interpret",
             params={"stream": "false"},
+            headers=headers,
         )
         # Принимаем 200 (full) или 200 SSE
         assert interpret_resp.status_code in (200, 307)
