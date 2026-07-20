@@ -248,7 +248,7 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
         # Sign glyph in outer ring at r*0.94
         mid_a = math.radians(start_angle + 15)
         gx = cx + r*0.94*math.cos(mid_a); gy = cy + r*0.94*math.sin(mid_a)
-        _draw_glyph(c, gx, gy, sign_glyphs[i], 9, colors.HexColor("#FFFFFF"))
+        _draw_glyph(c, gx, gy, sign_glyphs[i], 11, colors.HexColor("#FFFFFF"))
 
     for radius, alpha in [(r*0.65, 0.55), (r*0.88, 0.75), (r, 1.0)]:
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
@@ -274,8 +274,8 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
             if p1 in aspect_pts and p2 in aspect_pts:
                 x1, y1 = aspect_pts[p1]
                 x2, y2 = aspect_pts[p2]
-                c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.25))
-                c.setLineWidth(0.5)
+                c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.50))
+                c.setLineWidth(0.9)
                 c.line(x1, y1, x2, y2)
 
     # Draw planets at real positions
