@@ -1037,31 +1037,6 @@ export default function PlannerPage() {
             <div className="planner-subtitle">Персональный астрологический план</div>
           </div>
 
-          {(() => {
-            const sun = (planData?.month_sections || []).find(s => s.planet === 'sun');
-            const cur = sun?.periods?.[0];
-            if (!sun || !cur) return null;
-            const spheres = (cur.items || []).slice(0, 3).join(' · ');
-            return (
-              <div style={{
-                margin: '0 0 16px', padding: '16px 20px', borderRadius: 16,
-                background: 'linear-gradient(135deg, rgba(253,216,93,0.14), rgba(124,108,255,0.10))',
-                border: '1.5px solid rgba(253,216,93,0.35)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <span style={{ fontSize: 20, lineHeight: 1.2, flexShrink: 0 }}>☉</span>
-                  <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.55 }}>
-                    Сейчас у вас идёт период Солнца{cur.period ? ` (${cur.period})` : ''} — главная тема этого времени.
-                    {spheres && <> Ваши сферы сейчас: {spheres}.</>}
-                    <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-                      Ниже — периоды других планет и что делать в каждом.
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
           {isFree && (
             <div className="free-hint">
               ✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на Lite.
