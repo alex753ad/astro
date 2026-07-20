@@ -136,7 +136,7 @@ function useAuthInternal() {
   }, [accessToken, refreshToken, user]);
 
   // ── Apply token data from API response ──────────────────
-  const applyTokenResponse = useCallback((data) => {
+  const applyTokenResponse = useCallback(async (data) => {
     const newUser = {
       id:       data.user_id,
       email:    data.email,
@@ -152,15 +152,17 @@ function useAuthInternal() {
     scheduleRefresh(data.access_token, data.refresh_token);
     loadFeatures(data.access_token);
 
-    // Bind anonymous chart after login/registration
+    // Bind anonymous chart after login/registration.
+    // Возвращаем id привязанной карты через newUser.boundChartId, чтобы
+    // AuthModal мог сразу перевести пользователя в его планер.
     const savedChart = localStorage.getItem('anonymous_chart');
     if (savedChart) {
       try {
         const { data: chartData, expiresAt } = JSON.parse(savedChart);
         if (Date.now() < expiresAt) {
-          saveAnonymousChart(chartData).then(() => {
-            localStorage.removeItem('anonymous_chart');
-          }).catch(() => {});
+          const saved = await saveAnonymousChart(chartData);
+          localStorage.removeItem('anonymous_chart');
+          if (saved?.id) newUser.boundChartId = saved.id;
         } else {
           localStorage.removeItem('anonymous_chart');
         }
@@ -329,6 +331,7 @@ function useAuthInternal() {
     register,
     login,
     loginWithGoogle,
+    applyTokenResponse,
     logout,
     clearError,
 

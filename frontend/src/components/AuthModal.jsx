@@ -26,7 +26,7 @@ const overlayVariants = {
 };
 
 export default function AuthModal({ onClose }) {
-  const { login, loading, error, clearError } = useAuth();
+  const { login, applyTokenResponse, loading, error, clearError } = useAuth();
   const navigate = useNavigate();
   const prefersReduced = useReducedMotion();
   const dialogVariants = prefersReduced
@@ -88,11 +88,17 @@ export default function AuthModal({ onClose }) {
     setLocalErr(''); clearError();
     if (!email || !password) { setLocalErr('Заполните все поля'); return; }
     try {
-      await login(email, password);
+      const u = await login(email, password);
       onClose();
+      // Только что привязанная анонимная карта — ведём сразу в её планер.
+      if (u?.boundChartId) {
+        navigate(`/planner/${u.boundChartId}`);
+        return;
+      }
+      // Иначе — планер последней сохранённой карты, если она есть.
       const token = localStorage.getItem('astro_access_token');
       const last = await getLastChart(token);
-      navigate(last ? `/chart/${last.id}` : '/home');
+      navigate(last ? `/planner/${last.id}` : '/home');
     } catch {}
   };
 
@@ -138,18 +144,12 @@ export default function AuthModal({ onClose }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Ошибка подтверждения');
 
-      localStorage.setItem('astro_access_token', data.access_token);
-      localStorage.setItem('astro_refresh_token', data.refresh_token);
-      localStorage.setItem('astro_user', JSON.stringify({
-        id: data.user_id,
-        email: data.email,
-        name: data.name ?? null,
-        tier: data.tier,
-        is_admin: data.is_admin ?? false,
-      }));
+      // Через хук: обновляет React-состояние, сохраняет токены и привязывает
+      // анонимную карту. boundChartId — id только что сохранённой карты.
+      const u = await applyTokenResponse(data);
 
       onClose();
-      window.location.replace('/home');
+      navigate(u?.boundChartId ? `/planner/${u.boundChartId}` : '/home');
     } catch (e) {
       setLocalErr(e.message);
     } finally {
@@ -291,8 +291,8 @@ export default function AuthModal({ onClose }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>✦</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Создать аккаунт</h2>
-              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Бесплатно. Без карты.</p>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Сохраните, чтобы увидеть весь план</h2>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Бесплатно, 10 секунд.</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
               <input type="text" placeholder="Ваше имя (необязательно)" value={name}
@@ -371,7 +371,7 @@ export default function AuthModal({ onClose }) {
             </div>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
             <MotionButton level="primary" onClick={handleVerify} disabled={otpLoading} style={btn(otpLoading)}>
-              {otpLoading ? 'Проверяю…' : 'Подтвердить'}
+              {otpLoading ? 'Открываю план…' : 'Показать мой план'}
             </MotionButton>
             <p style={{ textAlign:'center', marginTop:14, fontSize:12, color:'var(--text-secondary)' }}>
               {cooldown > 0 ? (

@@ -801,7 +801,7 @@ function LockedTeaser({ trigger }) {
 function LockedPeriodsGroupHint() {
   return (
     <div className="free-hint">
-      🔒 Периоды до конца горизонта — под подпиской. Активные окна дают результат. Откройте, чтобы увидеть даты и разбор.
+      🔒 Дальше по месяцу — периоды других планет с их компенсациями. Активное окно работает, только пока оно открыто. Откройте, чтобы увидеть даты и что делать.
     </div>
   );
 }
@@ -842,7 +842,7 @@ function WeekDayBlock({ date, time, house, items, locked }) {
         <span className="week-house-badge">🌙 Луна в {house} доме</span>
       </div>
       {locked ? (
-        <LockedTeaser trigger="Луна проходит по вашим домам — точные окна для конкретных дел. Откройте на Lite и выше." />
+        <LockedTeaser trigger="Луна проходит по вашим домам и открывает короткие окна под конкретные дела — разговоры, покупки, отдых. Точные дни — на Lite." />
       ) : (
         <ul className="period-items">
           {items.map((item, i) => (
@@ -868,7 +868,7 @@ function LongTermBlock({ planet, period, items, warning, subtitle, locked }) {
       </div>
       {subtitle && <div className="lt-subtitle">{subtitle}</div>}
       {locked ? (
-        <LockedTeaser trigger="Долгосрочный транзит формирует тренды на месяцы и годы. Разбор доступен на Pro и выше." />
+        <LockedTeaser trigger="Медленные планеты задают ваши большие темы на месяцы и годы вперёд — и как их прожить мягче. Разбор — на Pro." />
       ) : (
         <ul className="period-items">
           {items.map((item, i) => (
@@ -1040,7 +1040,7 @@ export default function PlannerPage() {
 
           {isFree && (
             <div className="free-hint">
-              🔓 На бесплатном тарифе открыт текущий период Солнца. Остальные окна — под подпиской.
+              ✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на Lite.
             </div>
           )}
 

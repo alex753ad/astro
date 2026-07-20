@@ -209,10 +209,10 @@ function SaveChartBanner({ onLogin }) {
     }}>
       <div>
         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
-          ✦ Сохраните свою карту
+          ✦ Ваш план на месяц готов
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          Войдите или зарегистрируйтесь, чтобы не потерять результат
+          Сохраните карту — и увидите, что делать в каждый период
         </div>
       </div>
       <MotionButton
@@ -226,8 +226,63 @@ function SaveChartBanner({ onLogin }) {
           boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
         }}
       >
-        Войти / Регистрация
+        Показать мой план
       </MotionButton>
+    </div>
+  );
+}
+
+// Пик (5.2): первая фраза «это про тебя», построенная из натального Солнца.
+// Работает и для анонимной карты — использует только уже посчитанные натальные
+// данные (chart.planets), без дополнительных запросов к бэку.
+const SUN_HOUSE_THEME = {
+  1:  'ваша личность, тело и то, как вас видят',
+  2:  'деньги, ценности и чувство опоры',
+  3:  'общение, учёба и ближний круг',
+  4:  'дом, семья и внутренняя основа',
+  5:  'творчество, дети и то, что вас зажигает',
+  6:  'работа, здоровье и ежедневные дела',
+  7:  'партнёрство и близкие отношения',
+  8:  'глубокие перемены, совместные ресурсы и доверие',
+  9:  'смыслы, путешествия и рост кругозора',
+  10: 'карьера, статус и признание',
+  11: 'цели, окружение и большие планы',
+  12: 'внутренняя работа, отдых и восстановление',
+};
+const SIGN_RU_NOM = {
+  Aries: 'Овне', Taurus: 'Тельце', Gemini: 'Близнецах', Cancer: 'Раке',
+  Leo: 'Льве', Virgo: 'Деве', Libra: 'Весах', Scorpio: 'Скорпионе',
+  Sagittarius: 'Стрельце', Capricorn: 'Козероге', Aquarius: 'Водолее', Pisces: 'Рыбах',
+};
+
+function SunPeakBanner({ chart }) {
+  const sun = (chart?.planets || []).find(p => p.name === 'Sun');
+  if (!sun) return null;
+
+  const signRu = SIGN_RU_NOM[sun.sign] || sun.sign;
+  const theme = sun.house ? SUN_HOUSE_THEME[sun.house] : null;
+
+  // При неизвестном времени рождения дома не считаются — говорим только о знаке.
+  const line = theme
+    ? `Ваше Солнце в ${signRu}, ${sun.house} дом — это про ${theme}. Ваш главный ресурс сейчас здесь.`
+    : `Ваше Солнце в ${signRu} — это ядро вашего характера и то, откуда вы черпаете силы.`;
+
+  return (
+    <div style={{
+      margin: '0 0 16px',
+      padding: '16px 20px', borderRadius: 16,
+      background: 'linear-gradient(135deg, rgba(253,216,93,0.14), rgba(124,108,255,0.10))',
+      border: '1.5px solid rgba(253,216,93,0.35)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{ fontSize: 20, lineHeight: 1.2, flexShrink: 0 }}>☉</span>
+        <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.55 }}>
+          {line}
+          <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+            А ещё по вашей карте движутся Луна, Венера, Марс — у каждого сейчас свой период.
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -599,6 +654,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
           {/* ── Центр: колесо карты ── */}
           <div style={s.centerCol}>
+            <SunPeakBanner chart={chart} />
             <div style={s.wheelCard}>
               {/* Интерпретация — поверх карты */}
               {leftPanel === 'interpretation' && (
