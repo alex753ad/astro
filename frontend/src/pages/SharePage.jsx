@@ -133,10 +133,20 @@ export default function SharePage() {
           />
         </div>
 
+        {/* Приглашение построить свою карту */}
+        <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+            А что сейчас в вашей карте?
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            Постройте свою за минуту и узнайте, какой период у вас идёт прямо сейчас — бесплатно.
+          </div>
+        </div>
+
         {/* Кнопки */}
         <div style={s.actions}>
           <button onClick={() => navigate('/')} style={s.btnPrimary}>
-            ✦ Рассчитать свою карту
+            ✦ Построить мою карту
           </button>
           <button onClick={handleCopyLink} style={s.btnSecondary}>
             {copied ? '✓ Скопировано' : '🔗 Копировать ссылку'}

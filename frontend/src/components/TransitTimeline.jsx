@@ -354,6 +354,20 @@ function StatsSummary({ events }) {
 // ═══════════════════════════════════════════════════════════
 
 function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
+  let headline = `✨ Открыт разбор 2 самых значимых транзитов`;
+  let sub = `Ещё ${lockedCount} транзитов с AI-разбором — на Pro`;
+
+  if (featuredTransit) {
+    const tp = `${PLANET_GLYPHS[featuredTransit.transit_planet] || "★"} ${PLANET_LABELS_RU[featuredTransit.transit_planet] || featuredTransit.transit_planet}`;
+    const asp = (ASPECT_LABELS_RU[featuredTransit.aspect_type] || featuredTransit.aspect_type).toLowerCase();
+    const np = PLANET_LABELS_RU[featuredTransit.natal_planet] || featuredTransit.natal_planet;
+    const tail = isHarmonic(featuredTransit.aspect_type)
+      ? "один из лучших периодов года"
+      : "важный период — Astrea подскажет, как пройти его мягче";
+    headline = `${tp} ${asp} ваш ${np} — ${tail}`;
+    sub = `Разбор этого и ещё ${lockedCount} периодов — на Pro`;
+  }
+
   return (
     <div style={{
       margin: "8px 0", padding: "16px 20px", borderRadius: 16,
@@ -364,10 +378,10 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)", marginBottom: 3 }}>
-            ✨ Открыт разбор 2 самых значимых транзитов
+            {headline}
           </div>
           <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            Ещё {lockedCount} транзитов с AI-разбором — на Pro
+            {sub}
           </div>
         </div>
         <button onClick={onUpgrade} style={{
@@ -841,13 +855,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         <FilterBar planetFilter={planetFilter} setPlanetFilter={setPlanetFilter} aspectFilter={aspectFilter} setAspectFilter={setAspectFilter} orbFilter={orbFilter} setOrbFilter={setOrbFilter} />
       </div>
 
-      {!loading && isFree && hiddenCount > 0 && (
-        <FreePlanBanner
-          lockedCount={hiddenCount}
-          onUpgrade={handleUpgrade}
-        />
-      )}
-
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {loading ? (
@@ -887,6 +894,14 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           </div>
         )}
       </div>
+
+      {!loading && isFree && hiddenCount > 0 && (
+        <FreePlanBanner
+          lockedCount={hiddenCount}
+          featuredTransit={events[featuredTransitIndex]}
+          onUpgrade={handleUpgrade}
+        />
+      )}
 
       {!loading && (
         <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid var(--tt-border)", fontSize: 12, color: "var(--tt-text3)", textAlign: "center", opacity: 0.8 }}>
