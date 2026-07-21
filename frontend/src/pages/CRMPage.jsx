@@ -15,6 +15,25 @@ import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 
+// Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
+// style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
+// документа, var(--...) не резолвится и атрибут откатывается к initial — для fill
+// это чёрный. Отсюда чёрный круг колеса в захваченном PNG.
+function resolveSvgVarColors(liveEl, cloneEl) {
+  for (const prop of ['fill', 'stroke', 'stop-color']) {
+    const val = cloneEl.getAttribute(prop);
+    if (val && val.includes('var(')) {
+      const resolved = getComputedStyle(liveEl).getPropertyValue(prop);
+      if (resolved) cloneEl.setAttribute(prop, resolved.trim());
+    }
+  }
+  const liveChildren = liveEl.children;
+  const cloneChildren = cloneEl.children;
+  for (let i = 0; i < liveChildren.length; i++) {
+    resolveSvgVarColors(liveChildren[i], cloneChildren[i]);
+  }
+}
+
 // Захват SVG колеса клиента в PNG (для единого колеса в PDF-отчёте, как на ChartPage).
 // Если элемент не в DOM (астролог не на вкладке "Карта") — вернёт null,
 // backend в этом случае сам нарисует колесо (fallback уже есть).
@@ -22,7 +41,9 @@ async function captureSvgPng(svgId, size = 1200) {
   const svg = document.getElementById(svgId);
   if (!svg) return null;
   try {
-    const svgData = new XMLSerializer().serializeToString(svg);
+    const clone = svg.cloneNode(true);
+    resolveSvgVarColors(svg, clone);
+    const svgData = new XMLSerializer().serializeToString(clone);
     const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
