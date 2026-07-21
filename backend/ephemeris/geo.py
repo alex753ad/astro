@@ -6,10 +6,13 @@ Handles DST ambiguity edge-cases.
 
 from __future__ import annotations
 
+import asyncio
 import os
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
+import httpx
 import pytz
 from timezonefinder import TimezoneFinder
 
@@ -18,6 +21,16 @@ _tf = TimezoneFinder()
 # ── Geocoding cache (24h TTL) ──
 from backend.cache import RedisCache
 _geo_cache = RedisCache("geo", 24 * 3600)
+
+_NEGATIVE_TTL = 5 * 60  # неудачный геокодинг кэшируем ненадолго — не долбить API повторно
+
+# ── Троттлинг Nominatim: политика сервиса — максимум 1 запрос/сек.
+# Semaphore(1) сериализует запросы на весь процесс, пауза между вызовами
+# гарантирует интервал. При масштабировании на несколько воркеров троттлинг
+# нужно будет выносить в Redis (single-worker deployment — см. start.sh).
+_nominatim_semaphore = asyncio.Semaphore(1)
+_last_nominatim_request = 0.0
+_MIN_INTERVAL = 1.1  # сек
 
 
 @dataclass
@@ -41,44 +54,90 @@ class AmbiguousTimeError(Exception):
         self.options = options or []
 
 
+async def _nominatim_get(client: "httpx.AsyncClient", params: dict) -> "httpx.Response":
+    """Один запрос к Nominatim: троттлинг на весь процесс + retry на 429.
+
+    До 2 повторных попыток при 429, пауза берётся из Retry-After (капается
+    5 сек, чтобы не растягивать ответ пользователю на неадекватное время).
+    """
+    global _last_nominatim_request
+
+    url = "https://nominatim.openstreetmap.org/search"
+    _contact = os.getenv("NOMINATIM_CONTACT", "https://astreatime.ru")
+    headers = {"User-Agent": f"AstreaTime/1.0 (+{_contact})"}
+
+    resp = None
+    for attempt in range(3):
+        async with _nominatim_semaphore:
+            elapsed = time.monotonic() - _last_nominatim_request
+            if elapsed < _MIN_INTERVAL:
+                await asyncio.sleep(_MIN_INTERVAL - elapsed)
+            resp = await client.get(url, params=params, headers=headers)
+            _last_nominatim_request = time.monotonic()
+
+        if resp.status_code != 429 or attempt == 2:
+            return resp
+
+        retry_after = resp.headers.get("Retry-After")
+        try:
+            pause = min(float(retry_after), 5.0) if retry_after else 2.0
+        except ValueError:
+            pause = 2.0
+        await asyncio.sleep(pause)
+
+    return resp
+
+
 async def geocode_place(place: str) -> GeoResult:
     """Geocode a place name to coordinates using Nominatim.
 
     Returns GeoResult with lat, lon, display name, and timezone.
     Raises GeocodingError if place cannot be found.
-    Results are cached for 24 hours.
+    Results are cached for 24 hours; failures are cached briefly to avoid
+    hammering Nominatim with the same bad/rate-limited query.
     """
-    import httpx
+    # Прямой ключ — точный ввод. Нормализованный — до первой запятой, чтобы
+    # "Moscow", "Moscow, Russia" и "Moscow, Central Federal District, Russia"
+    # были одним кэш-хитом. Прямой ключ проверяется первым и не теряет
+    # точность при повторном точном совпадении.
+    direct_key = place.lower().strip()
+    normalized_key = direct_key.split(",")[0].strip()
 
-    # Check cache first
-    cache_key = place.lower().strip()
-    cached = _geo_cache.get(cache_key)
+    cached = _geo_cache.get(direct_key)
+    if cached is None and normalized_key != direct_key:
+        cached = _geo_cache.get(normalized_key)
     if cached:
         return GeoResult(**cached)
 
-    url = "https://nominatim.openstreetmap.org/search"
+    neg_key = f"neg:{direct_key}"
+    negative = _geo_cache.get(neg_key)
+    if negative:
+        raise GeocodingError(negative["error"])
+
     params = {
         "q": place,
         "format": "json",
         "limit": 1,
         "accept-language": "en",
     }
-    _contact = os.getenv("NOMINATIM_CONTACT", "https://astreatime.ru")
-    headers = {"User-Agent": f"AstreaTime/1.0 (+{_contact})"}
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            resp = await client.get(url, params=params, headers=headers)
+            resp = await _nominatim_get(client, params)
             resp.raise_for_status()
         except httpx.HTTPError as e:
-            raise GeocodingError(f"Geocoding service error: {e}") from e
+            error_msg = f"Geocoding service error: {e}"
+            _geo_cache.set(neg_key, {"error": error_msg}, ttl=_NEGATIVE_TTL)
+            raise GeocodingError(error_msg) from e
 
     data = resp.json()
     if not data:
-        raise GeocodingError(
+        error_msg = (
             f"Place not found: '{place}'. Please provide a more specific location "
             "(e.g., 'Berlin, Germany' instead of just 'Berlin')."
         )
+        _geo_cache.set(neg_key, {"error": error_msg}, ttl=_NEGATIVE_TTL)
+        raise GeocodingError(error_msg)
 
     lat = float(data[0]["lat"])
     lon = float(data[0]["lon"])
@@ -95,13 +154,15 @@ async def geocode_place(place: str) -> GeoResult:
         timezone=tz_name,
     )
 
-    # Store in cache
-    _geo_cache.set(cache_key, {
+    payload = {
         "latitude": result.latitude,
         "longitude": result.longitude,
         "display_name": result.display_name,
         "timezone": result.timezone,
-    })
+    }
+    _geo_cache.set(direct_key, payload)
+    if normalized_key != direct_key:
+        _geo_cache.set(normalized_key, payload)
 
     return result
 
