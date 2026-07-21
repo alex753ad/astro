@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
 import { authFetch } from "../api/client";
-
-const API_BASE = "https://astro-production-abcc.up.railway.app";
+import { BACKEND_BASE as API_BASE } from "../config";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 

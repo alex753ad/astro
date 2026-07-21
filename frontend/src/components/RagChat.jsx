@@ -8,8 +8,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
+import { API_BASE } from '../config';
 
 const SUGGESTIONS = [
   'Что говорит моя карта о карьере?',

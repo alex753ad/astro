@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BACKEND_BASE as API_BASE } from "../config";
 
 // E10 — Exit-survey. Два режима одним компонентом:
 //   1) Модалка перед активным уходом (удаление аккаунта / отключение):
@@ -7,8 +8,6 @@ import { useEffect, useState } from "react";
 //   2) Страница по ссылке из письма /exit-survey?m=dormant&u=<id>:
 //        смонтировать <ExitSurveyModal page /> на маршруте /exit-survey —
 //        moment и user_id берутся из query.
-
-const API_BASE = "https://astro-production-abcc.up.railway.app";
 
 export default function ExitSurveyModal({
   moment: momentProp,

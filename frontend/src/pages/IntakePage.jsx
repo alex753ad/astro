@@ -5,8 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
+import { API_BASE } from '../config';
 
 export default function IntakePage() {
   const { token } = useParams();

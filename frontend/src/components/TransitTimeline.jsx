@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
+import { API_BASE } from "../config";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -544,7 +545,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
     }
 
     const ctrl  = new AbortController();
-    fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/event/interpret`, {
+    fetch(`${API_BASE}/chart/${chartId}/transits/event/interpret`, {
       method: "POST",
       headers: chartAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ transit_planet: event.transit_planet, natal_planet: event.natal_planet, aspect_type: event.aspect_type }),
@@ -605,7 +606,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
 // ═══════════════════════════════════════════════════════════
 
 const TRANSITS_URL = (chartId, from, to) =>
-  `https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits?from_date=${from}&to_date=${to}`;
+  `${API_BASE}/chart/${chartId}/transits?from_date=${from}&to_date=${to}`;
 
 export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade }) {
   const [events,        setEvents]        = useState([]);
@@ -797,7 +798,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     let positions = [];
     if (chartId && chartId !== 'anonymous' && !mockMode) {
       try {
-        const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/transits/positions?on_date=${next}`, {
+        const resp = await fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${next}`, {
           headers: chartAuthHeaders(),
         });
         if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }

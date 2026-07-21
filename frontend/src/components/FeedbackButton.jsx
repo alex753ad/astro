@@ -1,10 +1,9 @@
 import { useState } from "react";
+import { BACKEND_BASE as API_BASE } from "../config";
 
 // E8 — «Здесь что-то не так». Плавающая кнопка на каждом экране.
 // Монтируется ОДИН раз в корне приложения (App.jsx), появляется поверх всего.
 // Пишет в POST /api/v1/feedback с контекстом экрана (url + screen).
-
-const API_BASE = "https://astro-production-abcc.up.railway.app";
 
 // Логический экран из pathname (для группировки точек трения в метриках)
 function screenFromPath(path) {

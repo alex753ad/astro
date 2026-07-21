@@ -13,6 +13,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGoogleCalendar } from './hooks/useGoogleCalendar';
 import { useAuth } from './hooks/useAuth';
+import { API_BASE } from '../config';
 
 const MONTHS_RU = [
   'Январь','Февраль','Март','Апрель','Май','Июнь',
@@ -46,7 +47,7 @@ export default function AstroCalendar() {
     try {
       const monthStr = `${year}-${String(month).padStart(2,'0')}`;
       const res = await fetch(
-        `https://astro-production-abcc.up.railway.app/api/v1/calendar/monthly?month=${monthStr}`
+        `${API_BASE}/calendar/monthly?month=${monthStr}`
       );
       if (!res.ok) throw new Error(`${res.status}`);
       setData(await res.json());

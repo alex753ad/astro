@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
+import { API_BASE } from '../config';
 
 import ariesIcon       from '../assets/zodiac/aries.png';
 import taurusIcon      from '../assets/zodiac/taurus.png';
@@ -139,7 +140,7 @@ export default function LunarCalendarPage() {
     try {
       const ms  = `${year}-${String(month).padStart(2,'0')}`;
       const res = await fetch(
-        `https://astro-production-abcc.up.railway.app/api/v1/calendar/monthly?month=${ms}`
+        `${API_BASE}/calendar/monthly?month=${ms}`
       );
       if (!res.ok) throw new Error(res.status);
       setData(await res.json());
@@ -147,7 +148,7 @@ export default function LunarCalendarPage() {
       // Пробуем ежедневные знаки
       try {
         const r2 = await fetch(
-          `https://astro-production-abcc.up.railway.app/api/v1/calendar/lunar?year=${year}&month=${month}`
+          `${API_BASE}/calendar/lunar?year=${year}&month=${month}`
         );
         if (r2.ok) {
           const j2  = await r2.json();

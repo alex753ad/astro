@@ -7,7 +7,7 @@
  * - Error handling with retry
  */
 
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
+import { API_BASE } from '../config';
 
 class ApiError extends Error {
   constructor(message, status, detail) {

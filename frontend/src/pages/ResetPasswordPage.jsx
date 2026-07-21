@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
+import { API_BASE } from '../config';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();

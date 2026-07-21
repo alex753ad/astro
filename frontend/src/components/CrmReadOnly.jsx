@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BACKEND_BASE as API_BASE } from "../config";
 
 // E9 — read-only слой CRM для экс-пилотного астролога.
 //
@@ -8,8 +9,6 @@ import { useEffect, useState } from "react";
 //   <CrmLock feature clientName onClose /> — модалка-замок при клике по
 //                          заблокированному действию (тексты — согласованы)
 //   guardWrite(res, show) — помощник: ловит 403 crm_readonly и открывает замок
-
-const API_BASE = "https://astro-production-abcc.up.railway.app";
 
 // ── доступ ──
 export function useCrmAccess() {

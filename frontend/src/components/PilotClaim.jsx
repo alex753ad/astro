@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BACKEND_BASE as API_BASE } from "../config";
 
 // Страница /pilot/claim?t=<token> — активация пилота по одноразовой ссылке из бота.
 //
@@ -8,7 +9,6 @@ import { useEffect, useState } from "react";
 //      после входа возвращаемся сюда (см. LoginPage-заметку в wiring);
 //   3) если залогинен — POST /pilot/claim {token}, показываем результат.
 
-const API_BASE = "https://astro-production-abcc.up.railway.app";
 const LS_KEY = "pilot_claim_token";
 
 export default function PilotClaim() {

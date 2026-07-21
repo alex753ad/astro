@@ -7,6 +7,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { authFetch } from '../api/client';
+import { API_BASE, BACKEND_BASE } from '../config';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
@@ -84,7 +85,7 @@ function ReportModal({ chartId, onClose, setForExport }) {
       const token = localStorage.getItem('astro_access_token');
       const wheelPng = await captureChartPng(setForExport);
       const body = wheelPng ? JSON.stringify({ wheel_png: wheelPng }) : undefined;
-      const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/pdf`, {
+      const resp = await fetch(`${API_BASE}/chart/${chartId}/pdf`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -204,7 +205,6 @@ const LEFT_BTNS_BOTTOM = [
   { key: 'chat',           label: 'AI Астролог Астрея', icon: '✦', minTier: 'pro' },
 ];
 
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
 
 // Баннер «Сохраните карту» для анонимного пользователя
 function SaveChartBanner({ onLogin }) {
@@ -489,7 +489,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     try {
       const wheelPng = await captureChartPng(setChartForExport);
       const body = wheelPng ? JSON.stringify({ wheel_png: wheelPng }) : undefined;
-      const resp = await fetch(`https://astro-production-abcc.up.railway.app/api/v1/chart/${chartId}/pdf`, {
+      const resp = await fetch(`${API_BASE}/chart/${chartId}/pdf`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

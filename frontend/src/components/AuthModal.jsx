@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import useAuth from '../hooks/useAuth.jsx';
 import MotionButton from './MotionButton';
-
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
+import { API_BASE } from '../config';
 
 async function getLastChart(accessToken) {
   try {

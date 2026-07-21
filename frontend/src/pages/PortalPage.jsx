@@ -6,9 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import NatalChart from '../components/NatalChart';
-
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1';
-const BACKEND  = 'https://astro-production-abcc.up.railway.app';
+import { API_BASE, BACKEND_BASE as BACKEND } from '../config';
 
 export default function PortalPage() {
   const { token } = useParams();

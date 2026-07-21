@@ -11,8 +11,9 @@
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { ApiError, getSubscription, saveAnonymousChart } from '../api/client';
+import { API_BASE as CONFIG_API_BASE } from '../config';
 
-const API_BASE = 'https://astro-production-abcc.up.railway.app/api/v1/auth';
+const API_BASE = `${CONFIG_API_BASE}/auth`;
 
 // ── Storage keys ──────────────────────────────────────────
 const ACCESS_TOKEN_KEY  = 'astro_access_token';
