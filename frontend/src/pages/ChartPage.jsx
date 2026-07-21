@@ -265,14 +265,37 @@ const SIGN_RU_NOM = {
   Sagittarius: 'Стрельце', Capricorn: 'Козероге', Aquarius: 'Водолее', Pisces: 'Рыбах',
 };
 
-function SunPeakBanner({ chart }) {
+function SunPeakBanner({ chart, sunPeriod }) {
+  // Приоритет — реальный период Солнца из планера (та же цепочка «построй планер»).
+  if (sunPeriod) {
+    const spheres = (sunPeriod.items || []).slice(0, 3).join(' · ');
+    return (
+      <div style={{
+        margin: '0 0 16px', padding: '16px 20px', borderRadius: 16,
+        background: 'linear-gradient(135deg, rgba(253,216,93,0.14), rgba(124,108,255,0.10))',
+        border: '1.5px solid rgba(253,216,93,0.35)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <span style={{ fontSize: 20, lineHeight: 1.2, flexShrink: 0 }}>☉</span>
+          <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.55 }}>
+            Сейчас у вас идёт период Солнца{sunPeriod.period ? ` (${sunPeriod.period})` : ''} — главная тема этого времени.
+            {spheres && <> Ваши сферы сейчас: {spheres}.</>}
+            <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+              Ниже — периоды других планет и что делать в каждом.
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Фолбэк (нет планера, напр. неизвестно время рождения) — натальное Солнце.
   const sun = (chart?.planets || []).find(p => p.name === 'Sun');
   if (!sun) return null;
 
   const signRu = SIGN_RU_NOM[sun.sign] || sun.sign;
   const theme = sun.house ? SUN_HOUSE_THEME[sun.house] : null;
 
-  // При неизвестном времени рождения дома не считаются — говорим только о знаке.
   const line = theme
     ? `Ваше Солнце в ${signRu}, ${sun.house} дом — это про ${theme}. Ваш главный ресурс сейчас здесь.`
     : `Ваше Солнце в ${signRu} — это ядро вашего характера и то, откуда вы черпаете силы.`;
@@ -313,6 +336,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   const [chart, setChart]                   = useState(null);
   const [transitPlanets, setTransitPlanets] = useState([]);
+  const [sunPeriod, setSunPeriod] = useState(null);
   const [selectedDate, setSelectedDate]     = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -511,7 +535,14 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       return;
     }
 
-    authFetch(`${API_BASE}/chart/${chartId}`)
+    const _tok = localStorage.getItem('astro_access_token');
+    const _chartTok = sessionStorage.getItem('chart_token');
+    fetch(`${API_BASE}/chart/${chartId}`, {
+      headers: {
+        ...(_tok ? { Authorization: `Bearer ${_tok}` } : {}),
+        ...(_chartTok ? { 'X-Chart-Token': _chartTok } : {}),
+      },
+    })
       .then(r => { if (!r.ok) throw new Error('Карта не найдена'); return r.json(); })
       .then(data => {
         setChart(data);
@@ -522,11 +553,39 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       .finally(() => setLoading(false));
   }, [chartId]);
 
+  // Период Солнца из планера для блока-пика (5.2). Работает и для анонимной
+  // карты — шлём X-Chart-Token. Фолбэк на натальную фразу — внутри SunPeakBanner.
+  useEffect(() => {
+    if (!chart || !chartId || chartId === 'anonymous' || chart.time_unknown) return;
+    const token = localStorage.getItem('astro_access_token');
+    const chartTok = sessionStorage.getItem('chart_token');
+    fetch(`${API_BASE}/chart/${chartId}/planner/monthly`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(chartTok ? { 'X-Chart-Token': chartTok } : {}),
+      },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const sun = (data?.planner?.month_sections || []).find(s => s.planet === 'sun');
+        const cur = sun?.periods?.[0];
+        if (cur) setSunPeriod({ period: cur.period, items: cur.items || [] });
+      })
+      .catch(() => {});
+  }, [chart, chartId]);
+
   // Загружаем транзитные позиции для даты (общий загрузчик для вкладки и таймлайна)
   const loadTransitPositions = useCallback(async (dateStr) => {
     if (!chartId || chartId === 'anonymous' || !dateStr) return;
     try {
-      const resp = await authFetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${dateStr}`);
+      const token = localStorage.getItem('astro_access_token');
+      const chartTok = sessionStorage.getItem('chart_token');
+      const resp = await fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${dateStr}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(chartTok ? { 'X-Chart-Token': chartTok } : {}),
+        },
+      });
       if (resp.ok) {
         const data = await resp.json();
         if (data?.planets?.length) setTransitPlanets(data.planets);
@@ -683,7 +742,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
           {/* ── Центр: колесо карты ── */}
           <div style={s.centerCol}>
-            <SunPeakBanner chart={chart} />
+            <SunPeakBanner chart={chart} sunPeriod={sunPeriod} />
             <div style={s.wheelCard}>
               {/* Интерпретация — поверх карты */}
               {leftPanel === 'interpretation' && (
