@@ -1038,12 +1038,16 @@ export default function PlannerPage() {
                               🔒 Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на Pro.
                             </LockedGroupHint>
                           )}
-                          <PeriodBlock planet={lt.planet}
-                            badgeText={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
-                            subtitle={lt.planet_subtitle}
-                            warning={lt.warning}
-                            items={lt.items || []}
-                            locked={lt.locked} />
+                          <div style={{ marginBottom: 20 }}>
+                            <SectionHeader planet={lt.planet}
+                              title={`${lt.planet_name} в ${lt.house} Доме`}
+                              subtitle={lt.planet_subtitle} />
+                            <PeriodBlock planet={lt.planet}
+                              badgeText={lt.period}
+                              warning={lt.warning}
+                              items={lt.items || []}
+                              locked={lt.locked} />
+                          </div>
                         </Fragment>
                       );
                     });

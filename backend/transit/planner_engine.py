@@ -81,13 +81,18 @@ def build_planner(
     }
 
     E1 (Free-витрина): при tier="free" полный разбор (items) остаётся только
-    у текущего периода Солнца. Все прочие периоды/планеты, Луна и долгосрочные
-    транзиты возвращаются с items=[] и locked=true (текст на клиент не уходит).
+    у текущего периода Солнца. Все прочие периоды/планеты и Луна возвращаются
+    с items=[] и locked=true (текст на клиент не уходит).
+
+    Тарифная сетка по разделам:
+      Месяц/Неделя — открыты с Lite и выше (locked только на Free).
+      Долгосрочно  — открыт только с Pro и выше (locked на Free и Lite).
     """
     if today is None:
         today = date.today()
 
     free = (tier == "free")
+    is_pro = tier in ("pro", "premium")
 
     periods = compute_planner_periods(
         natal_profile=natal_profile,
@@ -141,11 +146,12 @@ def build_planner(
             "locked": free,
         })
 
-    # ── longterm: медленные планеты ───────────────────────────────────────────
+    # ── longterm: медленные планеты — открыто только с Pro (сетка тарифов) ────
     longterm = []
     for p in periods.get("slow_planets", []):
         eng = _KEY_TO_ENG.get(p["planet_key"], "")
         house = p.get("house", 0)
+        locked = not is_pro
         longterm.append({
             "planet":          p["planet_key"],
             "planet_name":     p["planet_name"],
@@ -153,8 +159,8 @@ def build_planner(
             "planet_subtitle": p.get("planet_subtitle", ""),
             "house":           house,
             "period":          p.get("period_label", ""),
-            "items":           [] if free else _planet_items(eng, house),
-            "locked":          free,
+            "items":           [] if locked else _planet_items(eng, house),
+            "locked":          locked,
         })
 
     return {
