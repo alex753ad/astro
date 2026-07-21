@@ -15,10 +15,6 @@ const SIGN_RU = {
   Leo: 'Лев', Virgo: 'Дева', Libra: 'Весы', Scorpio: 'Скорпион',
   Sagittarius: 'Стрелец', Capricorn: 'Козерог', Aquarius: 'Водолей', Pisces: 'Рыбы',
 };
-const SIGN_EMOJI = {
-  Aries: '♈', Taurus: '♉', Gemini: '♊', Cancer: '♋', Leo: '♌', Virgo: '♍',
-  Libra: '♎', Scorpio: '♏', Sagittarius: '♐', Capricorn: '♑', Aquarius: '♒', Pisces: '♓',
-};
 
 function getPlanet(planets, name) {
   return planets?.find(p => p.name === name);
@@ -26,12 +22,11 @@ function getPlanet(planets, name) {
 
 function SignBadge({ label, planet }) {
   if (!planet) return null;
-  const emoji = SIGN_EMOJI[planet.sign] || '';
   const ru    = SIGN_RU[planet.sign] || planet.sign;
   return (
     <div style={s.badge}>
       <span style={s.badgeLabel}>{label}</span>
-      <span style={s.badgeValue}>{emoji} {ru}</span>
+      <span style={s.badgeValue}>{ru}</span>
     </div>
   );
 }
@@ -92,12 +87,6 @@ export default function SharePage() {
   return (
     <div style={s.page}>
 
-      {/* Шапка */}
-      <header style={s.header}>
-        <div style={s.logo}>☽ ✦ ☾</div>
-        <span style={s.brand}>Astrea Timeline</span>
-      </header>
-
       <main style={s.main}>
 
         {/* Заголовок */}
@@ -114,7 +103,7 @@ export default function SharePage() {
             <div style={s.badge}>
               <span style={s.badgeLabel}>↑ Асцендент</span>
               <span style={s.badgeValue}>
-                {SIGN_EMOJI[asc.sign] || ''} {SIGN_RU[asc.sign] || asc.sign}
+                {SIGN_RU[asc.sign] || asc.sign}
               </span>
             </div>
           )}

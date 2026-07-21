@@ -136,7 +136,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
         {/* Логотип */}
         <Link to="/" className="flex items-center gap-2 group">
-          <span className="text-xl text-violet-400">✦</span>
+          <img src="/logo_120x120.png" alt="Astrea Timeline" className="w-8 h-8 rounded-full" />
           <span className="font-display text-lg font-bold text-brand-text group-hover:text-brand-accent transition-colors duration-200">
             Astrea Timeline
           </span>
