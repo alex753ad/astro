@@ -221,7 +221,7 @@ def _page_num(c, n, total):
     c.drawCentredString(W/2, 14*mm, f"— {n} / {total} —")
 
 
-def _wheel(c, cx, cy, r, planets=None, ascendant=None):
+def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
     """Draw zodiac wheel. If planets provided, place them at real positions."""
     sign_glyphs = list(SIGN_GLYPHS.values())[:12]
     seg_colors = [
@@ -247,7 +247,7 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
         c.wedge(cx-r, cy-r, cx+r, cy+r, start_angle, 30, fill=1, stroke=1)
         mid_a = math.radians(start_angle + 15)
         gx = cx + r*0.94*math.cos(mid_a); gy = cy + r*0.94*math.sin(mid_a)
-        _draw_glyph(c, gx, gy, sign_glyphs[i], 7, C_GOLD2)
+        _draw_glyph(c, gx, gy, sign_glyphs[i], 9, C_GOLD2)
 
     for radius, alpha in [(r_sign_inner, 0.5), (r, 0.6)]:
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
@@ -255,6 +255,29 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
         c.circle(cx, cy, radius, fill=0, stroke=1)
     c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
     c.circle(cx, cy, r*0.85, fill=1, stroke=0)
+
+    # Aspect lines — по истинной долготе (не по «раздвинутым» позициям глифов),
+    # рисуются под планетами, внутри круга.
+    if planets and aspects:
+        r_aspect = r * 0.62
+        aspect_pts = {}
+        for pl in planets:
+            lon = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
+            name = pl.get("name", "") if isinstance(pl, dict) else getattr(pl, "name", "")
+            a = math.radians(180 + (lon - asc_lon))
+            aspect_pts[name] = (cx + r_aspect * math.cos(a), cy + r_aspect * math.sin(a))
+
+        for asp in aspects:
+            p1 = asp.get("planet1", "") if isinstance(asp, dict) else getattr(asp, "planet1", "")
+            p2 = asp.get("planet2", "") if isinstance(asp, dict) else getattr(asp, "planet2", "")
+            at = asp.get("aspect_type", "") if isinstance(asp, dict) else getattr(asp, "aspect_type", "")
+            if p1 in aspect_pts and p2 in aspect_pts:
+                col = ASPECT_COLORS.get(at, C_MUTED)
+                x1, y1 = aspect_pts[p1]
+                x2, y2 = aspect_pts[p2]
+                c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.35))
+                c.setLineWidth(0.6)
+                c.line(x1, y1, x2, y2)
 
     # Draw planets at real positions
     if planets:
@@ -296,15 +319,15 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
             px = cx + r_planet * math.cos(draw_angle)
             py = cy + r_planet * math.sin(draw_angle)
             col = planet_colors_map.get(pos["name"], C_GOLD2)
-            # Circle background
+            # Circle background — подогнан под увеличенный глиф (15pt)
             c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.85))
-            c.circle(px, py, 8, fill=1, stroke=0)
+            c.circle(px, py, 10, fill=1, stroke=0)
             c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.7))
             c.setLineWidth(0.7)
-            c.circle(px, py, 8, fill=0, stroke=1)
+            c.circle(px, py, 10, fill=0, stroke=1)
             # Glyph — крупнее, чтобы заполнял кружок (как на экранном эталоне)
             glyph = PLANET_GLYPHS.get(pos["name"], "?")
-            _draw_glyph(c, px, py, glyph, 13, col)
+            _draw_glyph(c, px, py, glyph, 15, col)
 
 
 def _bg(c):
@@ -343,7 +366,7 @@ def _page_cover(c, d):
     wcx = W / 2
     wcy = H * 0.46
     if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
-        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
+        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"), aspects=d.get("aspects", []))
 
     # ASC / MC под колесом — ширина бейджа считается по фактическому тексту,
     # чтобы глиф/подпись не наезжали друг на друга и не вылезали за бейдж.
