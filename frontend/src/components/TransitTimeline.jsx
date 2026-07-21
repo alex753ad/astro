@@ -374,7 +374,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
     const asp = (ASPECT_LABELS_RU[featuredTransit.aspect_type] || featuredTransit.aspect_type).toLowerCase();
     const np = PLANET_LABELS_RU[featuredTransit.natal_planet] || featuredTransit.natal_planet;
     const tail = isHarmonic(featuredTransit.aspect_type)
-      ? "один из лучших периодов года"
+      ? "один из лучших периодов месяца"
       : "важный период — Astrea подскажет, как пройти его мягче";
     headline = `${tp} ${asp} ваш ${np} — ${tail}`;
     sub = `Разбор этого и ещё ${lockedCount} периодов — на Pro`;
@@ -423,7 +423,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
 
   // Формируем текст для hover-попапа
   const hoverText = blurred
-    ? `${PLANET_GLYPHS[event.transit_planet] || "★"} ${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase() || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet} (${displayDate ? formatDate(displayDate) : ""}) — ${isHarmonic(event.aspect_type) ? "один из лучших периодов года" : "важный транзит для вашего развития"}. Разблокировать?`
+    ? `${PLANET_GLYPHS[event.transit_planet] || "★"} ${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase() || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet} (${displayDate ? formatDate(displayDate) : ""}) — ${isHarmonic(event.aspect_type) ? "один из лучших периодов месяца" : "важный транзит для вашего развития"}. На Pro — разбор, что это значит для вас и что сделать.`
     : "";
 
   return (

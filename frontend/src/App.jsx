@@ -163,8 +163,8 @@ function Header({ onShowAuth, dark, toggleDark }) {
                 </Link>
               </>
             )}
-            {/* Расчёты — только для админов */}
-            {user?.is_admin && lastChartId && (
+            {/* «Скоро» — анонс будущих функций, видно всем; переход внутрь работает только у админа */}
+            {lastChartId && (
               <div className="relative" ref={calcRef}>
                 <button
                   onClick={() => setCalcOpen(o => !o)}
@@ -172,25 +172,35 @@ function Header({ onShowAuth, dark, toggleDark }) {
                   aria-haspopup="menu"
                   aria-expanded={calcOpen}
                 >
-                  Расчёты ▾
+                  Скоро ▾
                 </button>
                 {calcOpen && (
                   <div
                     role="menu"
                     className="absolute right-0 mt-1 min-w-[180px] rounded-lg border border-brand-border bg-brand-card/95 backdrop-blur-md shadow-lg py-1 z-50"
                   >
-                    <Link to={`/solar-return/${lastChartId}`} onClick={() => setCalcOpen(false)}
-                      className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
-                      Соляр
-                    </Link>
-                    <Link to={`/synastry/${lastChartId}`} onClick={() => setCalcOpen(false)}
-                      className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
-                      Синастрия
-                    </Link>
-                    <Link to={`/relocation/${lastChartId}`} onClick={() => setCalcOpen(false)}
-                      className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
-                      Релокация
-                    </Link>
+                    {user?.is_admin ? (
+                      <>
+                        <Link to={`/solar-return/${lastChartId}`} onClick={() => setCalcOpen(false)}
+                          className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
+                          Соляр
+                        </Link>
+                        <Link to={`/synastry/${lastChartId}`} onClick={() => setCalcOpen(false)}
+                          className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
+                          Синастрия
+                        </Link>
+                        <Link to={`/relocation/${lastChartId}`} onClick={() => setCalcOpen(false)}
+                          className="block px-4 py-2 text-sm text-brand-muted hover:text-brand-text hover:bg-brand-accent/10 transition-colors">
+                          Релокация
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <div className="px-4 py-2 text-sm text-brand-muted cursor-default">Соляр</div>
+                        <div className="px-4 py-2 text-sm text-brand-muted cursor-default">Синастрия</div>
+                        <div className="px-4 py-2 text-sm text-brand-muted cursor-default">Релокация</div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -264,17 +274,29 @@ function Header({ onShowAuth, dark, toggleDark }) {
                 Кабинет астролога
               </Link>
             )}
-            {user?.is_admin && (
+            {/* «Скоро» — анонс будущих функций, видно всем; переход внутрь работает только у админа */}
+            {lastChartId && (
               <>
-                <Link to={`/solar-return/${lastChartId}`} className={navLink(`/solar-return/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
-                  Соляр
-                </Link>
-                <Link to={`/synastry/${lastChartId}`} className={navLink(`/synastry/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
-                  Синастрия
-                </Link>
-                <Link to={`/relocation/${lastChartId}`} className={navLink(`/relocation/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
-                  Релокация
-                </Link>
+                <div className="px-3 pt-2 pb-1 text-xs font-semibold text-brand-muted uppercase tracking-wide">Скоро</div>
+                {user?.is_admin ? (
+                  <>
+                    <Link to={`/solar-return/${lastChartId}`} className={navLink(`/solar-return/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                      Соляр
+                    </Link>
+                    <Link to={`/synastry/${lastChartId}`} className={navLink(`/synastry/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                      Синастрия
+                    </Link>
+                    <Link to={`/relocation/${lastChartId}`} className={navLink(`/relocation/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                      Релокация
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <span className="px-3 py-1.5 text-sm text-brand-muted">Соляр</span>
+                    <span className="px-3 py-1.5 text-sm text-brand-muted">Синастрия</span>
+                    <span className="px-3 py-1.5 text-sm text-brand-muted">Релокация</span>
+                  </>
+                )}
               </>
             )}
             <button

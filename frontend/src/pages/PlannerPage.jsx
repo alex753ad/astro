@@ -331,36 +331,10 @@ const styles = `
     margin-top: 5px; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   }
 
-  .week-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
-    border-left: 3px solid var(--color-warning);
-  }
-  .week-card-header {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
-  }
-  .week-date { font-size: 13px; color: var(--color-warning); font-weight: 700; }
-  .week-time { font-size: 12px; color: var(--text-secondary); }
-  .week-house-badge {
-    margin-left: auto; font-size: 11px;
-    background: rgba(217,119,6,0.10); color: var(--color-warning);
-    padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap;
-  }
-
-  .lt-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
-    border-left: 3px solid transparent;
-    transition: border-color 0.2s ease;
-  }
   @media (prefers-reduced-motion: reduce) {
-    .period-card, .week-card, .lt-card { transition: none; }
+    .period-card { transition: none; }
   }
   .lt-warning { font-size: 11px; color: var(--color-warning); margin-bottom: 8px; }
-  .lt-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
-  .lt-subtitle { font-size: 12px; color: var(--text-secondary); font-style: italic; margin-bottom: 10px; }
 
   .locked-box {
     background: var(--bg-card); border: 1px solid var(--border);
@@ -770,9 +744,13 @@ function CollapsibleMonthSection({ section }) {
           if (showBanner) bannerShown = true;
           return (
             <Fragment key={pi}>
-              {showBanner && <LockedPeriodsGroupHint />}
+              {showBanner && (
+                <LockedGroupHint>
+                  🔒 Дальше по месяцу — периоды Марса, Венеры, Сатурна и других планет с их компенсациями. Открой их на Lite, чтобы увидеть даты и что делать в каждом окне.
+                </LockedGroupHint>
+              )}
               <PeriodBlock planet={section.planet}
-                period={p.period} items={p.items || []}
+                badgeText={`Период ${p.period}`} items={p.items || []}
                 locked={p.locked} />
             </Fragment>
           );
@@ -796,77 +774,27 @@ function LockedTeaser({ trigger }) {
   );
 }
 
-// Общая плашка над группой заблокированных периодов месяца (вместо повтора фразы в каждом)
-function LockedPeriodsGroupHint() {
-  return (
-    <div className="free-hint">
-      🔒 Дальше по месяцу — периоды других планет с их компенсациями. Активное окно работает, только пока оно открыто. Откройте, чтобы увидеть даты и что делать.
-    </div>
-  );
+// Общая плашка над группой заблокированных периодов раздела (вместо повтора фразы в каждой карточке)
+function LockedGroupHint({ children }) {
+  return <div className="free-hint">{children}</div>;
 }
 
-function PeriodBlock({ planet, period, items, locked }) {
+// Единая карточка периода — используется в разделах "Месяц", "Неделя" и "Долгосрочно",
+// чтобы визуально не отличались (заголовок-бейдж + список пунктов).
+function PeriodBlock({ planet, badgeText, subtitle, warning, items, locked }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
+      {warning && <div className="lt-warning">⚠️ {warning}</div>}
       <div className="period-card-header">
         <PlanetDot type={planet} size={20} />
         <span className="period-badge" style={{ color, background: `${color}18` }}>
-          Период {period}
+          {badgeText}
         </span>
       </div>
+      {subtitle && <div className="period-subtitle">{subtitle}</div>}
       {locked ? (
         <LockedTeaser />
-      ) : (
-        <ul className="period-items">
-          {items.map((item, i) => (
-            <li key={i}>
-              <span className="dot" style={{ background: color }} />
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function WeekDayBlock({ date, time, house, items, locked }) {
-  return (
-    <div className="week-card">
-      <div className="week-card-header">
-        <span className="week-date">{date}</span>
-        {time && <span className="week-time">{time}</span>}
-        <span className="week-house-badge">🌙 Луна в {house} доме</span>
-      </div>
-      {locked ? (
-        <LockedTeaser trigger="Луна проходит по вашим домам и открывает короткие окна под конкретные дела — разговоры, покупки, отдых. Точные дни — на Lite." />
-      ) : (
-        <ul className="period-items">
-          {items.map((item, i) => (
-            <li key={i}>
-              <span className="dot" style={{ background: "var(--color-warning)" }} />
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function LongTermBlock({ planet, period, items, warning, subtitle, locked }) {
-  const color = PLANET_COLORS[planet] || "var(--text-secondary)";
-  return (
-    <div className="lt-card" style={{ borderLeftColor: color }}>
-      {warning && <div className="lt-warning">⚠️ {warning}</div>}
-      <div className="lt-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <PlanetDot type={planet} size={20} />
-        <span style={{ color }}>{period}</span>
-      </div>
-      {subtitle && <div className="lt-subtitle">{subtitle}</div>}
-      {locked ? (
-        <LockedTeaser trigger="Медленные планеты задают ваши большие темы на месяцы и годы вперёд — и как их прожить мягче. Разбор — на Pro." />
       ) : (
         <ul className="period-items">
           {items.map((item, i) => (
@@ -1069,21 +997,57 @@ export default function PlannerPage() {
               {tab === "week" && (
                 <div>
                   <SectionHeader planet="moon" emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
-                  {(planData?.week_days || []).map((day, i) => (
-                    <WeekDayBlock key={i} date={day.date} time={day.time} house={day.house} items={day.items || []} locked={day.locked} />
-                  ))}
+                  {(() => {
+                    const days = planData?.week_days || [];
+                    let bannerShown = false;
+                    return days.map((day, i) => {
+                      const showBanner = day.locked && !bannerShown;
+                      if (showBanner) bannerShown = true;
+                      return (
+                        <Fragment key={i}>
+                          {showBanner && (
+                            <LockedGroupHint>
+                              🔒 Дальше по неделе — Луна проходит по вашим домам и открывает короткие окна под конкретные дела: разговоры, покупки, отдых. Открой на Lite, чтобы увидеть точные дни.
+                            </LockedGroupHint>
+                          )}
+                          <PeriodBlock planet="moon"
+                            badgeText={day.time ? `${day.date} · ${day.time}` : day.date}
+                            subtitle={`Луна в ${day.house} доме`}
+                            items={day.items || []}
+                            locked={day.locked} />
+                        </Fragment>
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
               {tab === "longterm" && (
                 <div>
                   <SectionHeader emoji="🪐" title={planData?.longterm_title || "Долгосрочные транзиты"} subtitle="Социальные и высшие планеты — тренды на годы" />
-                  {(planData?.longterm || []).map((lt, i) => (
-                    <LongTermBlock key={i} planet={lt.planet}
-                      period={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
-                      items={lt.items || []} warning={lt.warning} subtitle={lt.planet_subtitle}
-                      locked={lt.locked} />
-                  ))}
+                  {(() => {
+                    const items = planData?.longterm || [];
+                    let bannerShown = false;
+                    return items.map((lt, i) => {
+                      const showBanner = lt.locked && !bannerShown;
+                      if (showBanner) bannerShown = true;
+                      return (
+                        <Fragment key={i}>
+                          {showBanner && (
+                            <LockedGroupHint>
+                              🔒 Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на Pro.
+                            </LockedGroupHint>
+                          )}
+                          <PeriodBlock planet={lt.planet}
+                            badgeText={`${lt.planet_name} в ${lt.house} Доме — ${lt.period}`}
+                            subtitle={lt.planet_subtitle}
+                            warning={lt.warning}
+                            items={lt.items || []}
+                            locked={lt.locked} />
+                        </Fragment>
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
