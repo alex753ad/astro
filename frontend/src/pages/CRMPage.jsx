@@ -15,6 +15,40 @@ import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 
+// Захват SVG колеса клиента в PNG (для единого колеса в PDF-отчёте, как на ChartPage).
+// Если элемент не в DOM (астролог не на вкладке "Карта") — вернёт null,
+// backend в этом случае сам нарисует колесо (fallback уже есть).
+async function captureSvgPng(svgId, size = 1200) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return null;
+  try {
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const cvs = document.createElement('canvas');
+    cvs.width = size;
+    cvs.height = size;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    return cvs.toDataURL('image/png').split(',')[1];
+  } catch {
+    return null;
+  }
+}
+
+async function captureChartPng(setForExport, size = 1200) {
+  setForExport(true);
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const png = await captureSvgPng('natal-chart-svg', size);
+  setForExport(false);
+  return png;
+}
+
 // Реактивно читаем класс .dark на <html>
 function useIsDark() {
   const [dark, setDark] = _useStateD(() => document.documentElement.classList.contains('dark'));
@@ -241,6 +275,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   const [notes, setNotes] = useState(client.notes || '');
   const [notesLoading, setNotesLoading] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [chartForExport, setChartForExport] = useState(false); // светлая тема при PNG-экспорте колеса
   const [aiText, setAiText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [tab, setTab] = useState(initialTab || 'chart');
@@ -472,13 +507,16 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
     setReportLoading(true);
     try {
       const token = localStorage.getItem('astro_access_token');
+      // Колесо клиента из DOM, если открыта вкладка "Карта" — то же колесо, что на экране.
+      // Нет в DOM — backend сам нарисует (fallback уже есть).
+      const wheelPng = await captureChartPng(setChartForExport);
       const res = await fetch(`${API}/clients/${client.id}/report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ word_limit: wordLimit }),
+        body: JSON.stringify({ word_limit: wordLimit, wheel_png: wheelPng }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
@@ -659,7 +697,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         <div style={S.card}>
           {chart ? (
             <>
-              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={dark} />
+              <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={dark} forExport={chartForExport} />
               <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
                 <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} houses={chart.houses} timeUnknown={!client.birth_time} plain dark={dark} />
               </div>

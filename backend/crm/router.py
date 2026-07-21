@@ -993,13 +993,17 @@ async def generate_client_report(
     import traceback as _tb
     from fastapi.responses import Response as FastAPIResponse
     try:
-        # Читаем word_limit из тела запроса (опционально)
+        # Читаем word_limit/wheel_png из тела запроса (опционально)
         word_limit = None
+        wheel_png = None
         try:
             body = await request.json()
             wl = body.get("word_limit")
             if isinstance(wl, int) and 1000 <= wl <= 5000:
                 word_limit = wl
+            wp = body.get("wheel_png")
+            if isinstance(wp, str) and wp:
+                wheel_png = wp
         except Exception:
             pass
 
@@ -1046,7 +1050,10 @@ async def generate_client_report(
 
         try:
             from backend.natal_pdf import generate_pdf_bytes
-            pdf_bytes = generate_pdf_bytes(chart, interpretation=interpretation_text, astrologer_name=astrologer_name)
+            pdf_bytes = generate_pdf_bytes(
+                chart, interpretation=interpretation_text, astrologer_name=astrologer_name,
+                wheel_png=wheel_png,
+            )
         except Exception:
             logger.exception("natal_pdf failed, using simple fallback")
             pdf_bytes = _simple_pdf(chart, client, astrologer_name)

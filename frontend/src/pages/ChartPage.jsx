@@ -95,7 +95,8 @@ function ReportModal({ chartId, onClose, setForExport }) {
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
+        const msg = typeof err.detail === 'string' ? err.detail : err.detail?.message;
+        throw new Error(msg || `HTTP ${resp.status}`);
       }
       const blob = await resp.blob();
       const url  = URL.createObjectURL(blob);
@@ -499,7 +500,8 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${resp.status}`);
+        const msg = typeof err.detail === 'string' ? err.detail : err.detail?.message;
+        throw new Error(msg || `HTTP ${resp.status}`);
       }
       const blob = await resp.blob();
       const url  = URL.createObjectURL(blob);
@@ -674,9 +676,20 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               🖼 Карточка
             </MotionButton>
           )}
-          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
-            {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
-          </MotionButton>
+          {tierAllowed('pro') ? (
+            <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
+              {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
+            </MotionButton>
+          ) : (
+            <MotionButton
+              level="secondary"
+              onClick={() => window.open('https://t.me/astreyatimelinebot', '_blank', 'noopener,noreferrer')}
+              style={{ ...s.plannerLinkBtn, opacity: 0.75 }}
+              title="Скачивание PDF откроется после подписки. Открыть @astreyatimelinebot"
+            >
+              🔒 PDF-отчёт
+            </MotionButton>
+          )}
         </div>
       </header>
 

@@ -1767,7 +1767,10 @@ async def start_pdf_generation(
     if not get_feature_flags(user).get("pdf_reports"):
         raise HTTPException(
             status_code=403,
-            detail={"error": "tier_required", "required": "pro", "feature": "pdf_export"},
+            detail={
+                "error": "tier_required", "required": "pro", "feature": "pdf_export",
+                "message": "Доступно после подписки — откройте @astreyatimelinebot",
+            },
         )
 
     # Load interpretation from DB
