@@ -297,7 +297,7 @@ export default function BirthForm({ onSubmit, loading }) {
           &amp; генерация персонального Timeline
         </p>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-          Астро-ядро для ИИ-анализа, планирования и экспертной работы
+          Постройте карту за минуту и узнайте, какой период у вас идёт прямо сейчас.
         </p>
       </div>
 

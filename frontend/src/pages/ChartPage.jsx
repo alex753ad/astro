@@ -219,7 +219,7 @@ function SaveChartBanner({ onLogin }) {
     }}>
       <div>
         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
-          ✦ Ваш план на месяц готов
+          ✦ Ваш таймлайн готов
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           Сохраните карту — и увидите, что делать в каждый период
@@ -236,7 +236,7 @@ function SaveChartBanner({ onLogin }) {
           boxShadow: '0 4px 12px rgba(124,108,255,0.35)',
         }}
       >
-        Показать мой план
+        Показать
       </MotionButton>
     </div>
   );
@@ -742,7 +742,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
           {/* ── Центр: колесо карты ── */}
           <div style={s.centerCol}>
-            <SunPeakBanner chart={chart} sunPeriod={sunPeriod} />
+            {isAnon && <SunPeakBanner chart={chart} sunPeriod={sunPeriod} />}
             <div style={s.wheelCard}>
               {/* Интерпретация — поверх карты */}
               {leftPanel === 'interpretation' && (
@@ -861,7 +861,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
                     <span style={{ fontSize: 40 }}>🔒</span>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
-                    <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Доступно на тарифах Pro и Premium</div>
+                    <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Astrea помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на Pro.</div>
                     <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Открыть доступ
                     </MotionButton>

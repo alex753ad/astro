@@ -290,7 +290,7 @@ export default function AuthModal({ onClose }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>✦</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Сохраните, чтобы увидеть весь план</h2>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Сохраните, чтобы увидеть таймлайн</h2>
               <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Бесплатно, 10 секунд.</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
@@ -370,7 +370,7 @@ export default function AuthModal({ onClose }) {
             </div>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
             <MotionButton level="primary" onClick={handleVerify} disabled={otpLoading} style={btn(otpLoading)}>
-              {otpLoading ? 'Открываю план…' : 'Показать мой план'}
+              {otpLoading ? 'Открываю таймлайн…' : 'Показать'}
             </MotionButton>
             <p style={{ textAlign:'center', marginTop:14, fontSize:12, color:'var(--text-secondary)' }}>
               {cooldown > 0 ? (

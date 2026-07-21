@@ -741,7 +741,7 @@ function SectionHeader({ planet, emoji, title, subtitle }) {
 
 // #1 — сворачиваемая секция месяца (клик по заголовку раскрывает/скрывает карточки)
 function CollapsibleMonthSection({ section }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(section.planet === 'sun');
   return (
     <div id={`plan-sec-${section.planet}`} style={{ marginBottom: 28, scrollMarginTop: 80 }}>
       <div
@@ -1088,7 +1088,6 @@ export default function PlannerPage() {
               )}
 
               <div className="refresh-footer">
-                <MotionButton level="primary" className="refresh-btn" onClick={() => { loadPlan(); loadPhases(); }}>🔄 Пересчитать план</MotionButton>
                 <MotionButton
                   level="secondary"
                   className={`gcal-btn${!isFree && gcalStatus === "success" ? " success" : ""}${!isFree && gcalStatus === "error" ? " error" : ""}`}
