@@ -302,9 +302,9 @@ def _wheel(c, cx, cy, r, planets=None, ascendant=None):
             c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.7))
             c.setLineWidth(0.7)
             c.circle(px, py, 8, fill=0, stroke=1)
-            # Glyph
+            # Glyph — крупнее, чтобы заполнял кружок (как на экранном эталоне)
             glyph = PLANET_GLYPHS.get(pos["name"], "?")
-            _draw_glyph(c, px, py, glyph, 10, col)
+            _draw_glyph(c, px, py, glyph, 13, col)
 
 
 def _bg(c):
@@ -345,21 +345,40 @@ def _page_cover(c, d):
     if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
         _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
 
-    # ASC / MC под колесом
+    # ASC / MC под колесом — ширина бейджа считается по фактическому тексту,
+    # чтобы глиф/подпись не наезжали друг на друга и не вылезали за бейдж.
     by = wcy - wr - 22
-    for label, key, bx in [("ASC","ascendant",W/2-60),("MC","midheaven",W/2+8)]:
+    badge_h = 18
+    pad_x = 6
+    gap = 4
+    glyph_box = 10
+    gap_badges = 10
+
+    entries = []
+    for label, key in [("ASC", "ascendant"), ("MC", "midheaven")]:
         val = d.get(key) or {}
-        sign = val.get("sign",""); deg = val.get("degree",0)
-        g = SIGN_GLYPHS.get(sign,"")
+        sign = val.get("sign", ""); deg = val.get("degree", 0)
+        value_text = f"{sign[:3]} {deg:.1f}"
+        label_w = c.stringWidth(label, _FONT_BOLD, 7)
+        value_w = c.stringWidth(value_text, _FONT_NAME, 7)
+        width = pad_x * 2 + label_w + gap + glyph_box + gap + value_w
+        entries.append((label, sign, value_text, width, label_w))
+
+    total_w = entries[0][3] + gap_badges + entries[1][3]
+    bx = W / 2 - total_w / 2
+    for label, sign, value_text, width, label_w in entries:
+        g = SIGN_GLYPHS.get(sign, "")
         c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
-        c.roundRect(bx, by-6, 50, 18, 4, fill=1, stroke=0)
+        c.roundRect(bx, by-6, width, badge_h, 4, fill=1, stroke=0)
         c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.4))
-        c.setLineWidth(0.4); c.roundRect(bx, by-6, 50, 18, 4, fill=0, stroke=1)
+        c.setLineWidth(0.4); c.roundRect(bx, by-6, width, badge_h, 4, fill=0, stroke=1)
         c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
-        c.drawString(bx+4, by+5, label)
-        _draw_glyph(c, bx+22, by+10, g, 9, C_GOLD2)
+        c.drawString(bx+pad_x, by+5, label)
+        glyph_cx = bx + pad_x + label_w + gap + glyph_box / 2
+        _draw_glyph(c, glyph_cx, by+10, g, 9, C_GOLD2)
         c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
-        c.drawString(bx+30, by+5, f"{sign[:3]} {deg:.1f}")
+        c.drawString(bx + pad_x + label_w + gap + glyph_box + gap, by+5, value_text)
+        bx += width + gap_badges
 
     _divider(c, W*0.25, by-16, W*0.5)
     c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
@@ -487,97 +506,6 @@ def _interp_page_begin(c, page_num_placeholder):
     c.drawCentredString(W/2, H-m-10, "ИНТЕРПРЕТАЦИЯ НАТАЛЬНОЙ КАРТЫ")
     _divider(c, m+10, H-m-18, W-2*m-20)
     return m+10, W-2*m-20, H-m-34
-
-
-def _page_wheel(c, d):
-    """Dedicated full-page zodiac wheel with planets and aspects."""
-    c.saveState()
-    _bg(c)
-
-    m = 12 * mm
-    _border(c, m, m, W - 2 * m, H - 2 * m, lw=0.6)
-    o = m + 4
-    for cx2, cy2 in [(o, o), (W - o, o), (o, H - o), (W - o, H - o)]:
-        _corner(c, cx2, cy2, 6)
-
-    # Title
-    c.setFillColor(C_GOLD2)
-    c.setFont(_FONT_BOLD, 10)
-    c.drawCentredString(W / 2, H - m - 10, "НАТАЛЬНАЯ КАРТА — ЗОДИАКАЛЬНЫЙ КРУГ")
-    _divider(c, m + 10, H - m - 18, W - 2 * m - 20)
-
-    # Big wheel centred on page
-    wcx, wcy = W / 2, H / 2 - 10 * mm
-    wr = min(W, H) * 0.36
-    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wr * 2, d["wheel_png"])):
-        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"))
-
-    # Draw aspect lines inside inner circle
-    planets = d.get("planets", [])
-    aspects = d.get("aspects", [])
-    asc_lon = (d.get("ascendant") or {}).get("longitude", 0.0) or 0.0
-    r_inner = wr * 0.82
-    r_asp = wr * 0.75
-
-    planet_angles = {}
-    for pl in planets:
-        lon = pl.get("longitude", 0) if isinstance(pl, dict) else 0
-        name = pl.get("name", "") if isinstance(pl, dict) else ""
-        draw_angle = math.radians(180 + (lon - asc_lon))
-        planet_angles[name] = (
-            wcx + r_inner * math.cos(draw_angle),
-            wcy + r_inner * math.sin(draw_angle),
-        )
-
-    for asp in aspects[:30]:
-        p1 = asp.get("planet1", "")
-        p2 = asp.get("planet2", "")
-        at = asp.get("aspect_type", "")
-        col = ASPECT_COLORS.get(at, C_MUTED)
-        if p1 in planet_angles and p2 in planet_angles:
-            x1, y1 = planet_angles[p1]
-            x2, y2 = planet_angles[p2]
-            c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.25))
-            c.setLineWidth(0.5)
-            c.line(x1, y1, x2, y2)
-
-    # Planet table at bottom
-    table_x = m + 8
-    table_y = m + 12 * mm
-    col_w = (W - 2 * m - 16) / 5
-    c.setFillColor(C_GOLD2)
-    c.setFont(_FONT_BOLD, 7)
-    for i, header in enumerate(["Планета", "Знак", "Градус", "Дом", "R"]):
-        c.drawString(table_x + i * col_w, table_y + 4, header)
-    c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.3))
-    c.setLineWidth(0.4)
-    c.line(table_x, table_y, table_x + (W - 2 * m - 16), table_y)
-    row_y = table_y - 11
-    for pl in planets:
-        name = pl.get("name", "")
-        sign = pl.get("sign", "")
-        deg = pl.get("degree_in_sign", pl.get("degree", 0))
-        house = pl.get("house", "")
-        retro = "℞" if pl.get("retrograde") else ""
-        glyph = PLANET_GLYPHS.get(name, "")
-        _draw_glyph(c, table_x + 5, row_y + 4, glyph, 8, C_GOLD2)
-        c.setFillColor(C_TEXT)
-        c.setFont(_FONT_NAME, 7)
-        c.drawString(table_x + 13, row_y, name)
-        sg = SIGN_GLYPHS.get(sign, "")
-        _draw_glyph(c, table_x + col_w + 5, row_y + 4, sg, 8, C_GOLD)
-        c.setFillColor(C_TEXT)
-        c.drawString(table_x + col_w + 14, row_y, sign[:3])
-        c.drawString(table_x + col_w * 2, row_y, f"{deg:.1f}°")
-        c.drawString(table_x + col_w * 3, row_y, str(house) if house else "—")
-        if retro:
-            c.setFillColor(C_RETRO)
-            c.drawString(table_x + col_w * 4, row_y, retro)
-        row_y -= 11
-        if row_y < m + 4 * mm:
-            break
-
-    c.restoreState()
 
 
 def _page_interp(c, d, first_page_num=3):
@@ -792,8 +720,6 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     c.setAuthor(author)
 
     _page_cover(c, data)
-    c.showPage()
-    _page_wheel(c, data)
     c.showPage()
     _page_data(c, data)
     c.showPage()
