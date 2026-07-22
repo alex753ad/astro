@@ -2,6 +2,7 @@
 // Маршрут: /terms
 
 import { Link } from 'react-router-dom';
+import { TIER_NAMES } from '../constants';
 
 const s = {
   page:    { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--border)', fontFamily: "'Inter', system-ui, sans-serif", padding: '48px 20px' },
@@ -40,10 +41,10 @@ export default function TermsPage() {
 
         <h2 style={s.h2}>2. Тарифные планы</h2>
         {[
-          { label: 'Free', text: 'Расчёт карты, базовые транзиты. Бесплатно, без ограничения по времени.' },
-          { label: 'Lite', text: 'Полные транзиты, AI-интерпретации ключевых периодов, лунный календарь. Ежемесячная/годовая подписка.' },
-          { label: 'Pro', text: 'Все функции Lite + планер, еженедельный дайджест, приоритетный AI. Ежемесячная/годовая подписка.' },
-          { label: 'Premium', text: 'Все функции Pro + CRM-кабинет астролога, аналитика клиентской базы. Ежемесячная/годовая подписка.' },
+          { label: TIER_NAMES.free, text: 'Расчёт карты, базовые транзиты. Бесплатно, без ограничения по времени.' },
+          { label: TIER_NAMES.lite, text: 'Полные транзиты, AI-интерпретации ключевых периодов, лунный календарь. Ежемесячная/годовая подписка.' },
+          { label: TIER_NAMES.pro, text: `Все функции ${TIER_NAMES.lite} + планер, еженедельный дайджест, приоритетный AI. Ежемесячная/годовая подписка.` },
+          { label: TIER_NAMES.premium, text: `Все функции ${TIER_NAMES.pro} + CRM-кабинет астролога, аналитика клиентской базы. Ежемесячная/годовая подписка.` },
         ].map(({ label, text }) => (
           <div key={label} style={s.card}>
             <div style={s.label}>{label}</div>

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import User, NatalChart, PushSentLog
 from backend.push.sender import send_to_user
+from backend.email_service import TIER_NAMES
 
 logger = logging.getLogger("astro.pilot.cron")
 
@@ -35,7 +36,7 @@ PILOT_DAYS = int(os.getenv("PILOT_DAYS", "30"))
 FAREWELL_LEAD_DAYS = 3
 # Код на продолжение (пилот пользователя целится в Pro). Premium-код — astroprem90.
 PROMO_CODE = os.getenv("CONTINUE_PRO_CODE", "astropro90")
-PROMO_OFFER = os.getenv("CONTINUE_PRO_OFFER", "Pro — 690 ₽ в месяц на 3 месяца")
+PROMO_OFFER = os.getenv("CONTINUE_PRO_OFFER", f"{TIER_NAMES['pro']} — 690 ₽ в месяц на 3 месяца")
 PROMO_DEADLINE = os.getenv("CONTINUE_DEADLINE")     # задаёт админ в панели (см. E8_wiring)
 
 PLANET_RU = {

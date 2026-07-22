@@ -1231,12 +1231,13 @@ async def interpret_transit_event(
     # Топ-2 из них surface на клиенте; сервер допускает любой значимый.
     if _tier == "free":
         from backend.transit.engine import is_significant_pair
+        from backend.email_service import TIER_NAMES
         if not is_significant_pair(transit_planet, natal_planet):
             raise HTTPException(
                 status_code=403,
                 detail=(
                     "На бесплатном тарифе открыт разбор 2 самых значимых транзитов. "
-                    "Оформите Pro, чтобы разбирать все транзиты."
+                    f"Оформите {TIER_NAMES['pro']}, чтобы разбирать все транзиты."
                 ),
             )
 

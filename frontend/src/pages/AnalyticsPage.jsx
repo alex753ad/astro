@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { TIER_NAMES } from '../constants';
 
 const AN_THEME_CSS = `
   .an-scope { --an-text:var(--bg-card); --an-card:rgba(255,255,255,0.85); --an-accent:var(--accent); --an-muted:var(--text-secondary); --an-track:var(--accent-muted); --an-sub:var(--accent); }
@@ -149,8 +150,8 @@ export default function AnalyticsPage() {
         <style>{AN_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Аналитика доступна на Premium</div>
-          <Link to="/upgrade" style={{ color: 'var(--accent)' }}>Перейти на Premium →</Link>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Аналитика доступна на {TIER_NAMES.premium}</div>
+          <Link to="/upgrade" style={{ color: 'var(--accent)' }}>Перейти на {TIER_NAMES.premium} →</Link>
         </div>
       </div>
     );

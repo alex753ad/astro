@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import chartPreview from '../assets/chart-preview.png';
 import crmPreview from '../assets/crm-preview.png';
+import { TIER_NAMES } from '../constants';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
@@ -464,7 +465,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             },
             {
               title: 'Практика в цифрах',
-              desc: 'Ваши консультации и доход видны наглядно — вы видите, как растёт практика, и чувствуете отдачу от каждого шага. Одна консультация окупает месяц Premium, дальше — только ваш рост.',
+              desc: `Ваши консультации и доход видны наглядно — вы видите, как растёт практика, и чувствуете отдачу от каждого шага. Одна консультация окупает месяц ${TIER_NAMES.premium}, дальше — только ваш рост.`,
             },
           ].map((f) => (
             <motion.div

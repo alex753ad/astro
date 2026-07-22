@@ -249,18 +249,20 @@ class TierRateLimiter:
         if limit == 0 and flags.get("first_interpretation_free"):
             if not getattr(user, "free_interpretation_used", False):
                 return  # разрешаем первую и единственную бесплатную
+            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     "Вы использовали бесплатную интерпретацию. "
-                    "Оформите Lite, чтобы разбирать карты дальше."
+                    f"Оформите {TIER_NAMES['lite']}, чтобы разбирать карты дальше."
                 ),
             )
 
         if limit == 0:
+            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="AI-интерпретации недоступны на Free плане. Оформите Lite.",
+                detail=f"AI-интерпретации недоступны на {TIER_NAMES['free']} плане. Оформите {TIER_NAMES['lite']}.",
             )
 
         if limit is None:
@@ -271,11 +273,12 @@ class TierRateLimiter:
             return
         used = get_monthly_usage(db, str(user.id), "interpretation")
         if used >= limit:
+            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
                     f"Лимит {limit} интерпретаций в месяц исчерпан для тарифа "
-                    f"{tier.capitalize()}. Оформите более высокий тариф."
+                    f"{TIER_NAMES.get(tier, tier.capitalize())}. Оформите более высокий тариф."
                 ),
             )
 
@@ -304,9 +307,10 @@ class TierRateLimiter:
         tier = user.tier if user else "free"
         flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
         if flags["transits_months"] == 0:
+            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Транзиты недоступны на Free плане. Оформите Lite.",
+                detail=f"Транзиты недоступны на {TIER_NAMES['free']} плане. Оформите {TIER_NAMES['lite']}.",
             )
 
     def check_transit_ai_limit(self, user: Optional[User], db=None) -> None:
@@ -324,9 +328,10 @@ class TierRateLimiter:
 
         quota = flags.get("transits_ai_per_month") or 0
         if quota <= 0:
+            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="AI-расшифровка транзитов доступна на Pro и выше.",
+                detail=f"AI-расшифровка транзитов доступна на {TIER_NAMES['pro']} и выше.",
             )
 
         # Lite — квота в месяц
@@ -339,11 +344,12 @@ class TierRateLimiter:
             return
         used = get_monthly_usage(db, str(user.id), "transit_ai")
         if used >= quota:
+            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
                     f"Использовано {quota} AI-расшифровок транзитов в этом месяце "
-                    f"на тарифе Lite. Перейдите на Pro для безлимита."
+                    f"на тарифе {TIER_NAMES['lite']}. Перейдите на {TIER_NAMES['pro']} для безлимита."
                 ),
             )
 

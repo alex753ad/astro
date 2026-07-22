@@ -6,8 +6,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
+import { TIER_NAMES } from "../constants";
 
-const PLAN_LABELS = { free: "Free", lite: "Lite", pro: "Pro", premium: "Premium" };
+const PLAN_LABELS = TIER_NAMES;
 const PLAN_COLORS = {
   free:    { bar: "var(--text-secondary)", text: "var(--text-secondary)780", badge: "bg-[var(--bg)] text-[var(--text-secondary)]" },
   lite:    { bar: "var(--color-air)", text: "var(--color-air)", badge: "bg-[var(--accent-muted)] text-[var(--color-air)]" },
@@ -46,9 +47,9 @@ const MOCK = {
     { name: "Day 2 — транзит",         open_pct: 48, click_pct: 18 },
     { name: "Day 7 — апгрейд-нудж",   open_pct: 34, click_pct: 14 },
     { name: "Day 14 — купон 30%",      open_pct: 41, click_pct: 22 },
-    { name: "Welcome Lite",            open_pct: 58, click_pct: 16 },
-    { name: "Lite Day 14 → Pro тизер", open_pct: 29, click_pct: 9  },
-    { name: "Pro Day 30 → Premium",    open_pct: 36, click_pct: 11 },
+    { name: `Welcome ${TIER_NAMES.lite}`,                                     open_pct: 58, click_pct: 16 },
+    { name: `${TIER_NAMES.lite} Day 14 → ${TIER_NAMES.pro} тизер`,            open_pct: 29, click_pct: 9  },
+    { name: `${TIER_NAMES.pro} Day 30 → ${TIER_NAMES.premium}`,               open_pct: 36, click_pct: 11 },
     { name: "Еженедельный дайджест",   open_pct: 52, click_pct: 19 },
     { name: "Ошибка оплаты → Portal",  open_pct: 71, click_pct: 54 },
   ],
@@ -128,9 +129,9 @@ function TabOverview({ d }) {
   const funnelSteps = [
     { label: "Регистрация", val: funnel.registered, pct: 100,  color: "var(--text-secondary)" },
     { label: "1-я карта",   val: funnel.made_chart, pct: Math.round(funnel.made_chart/funnel.registered*100), color: "var(--color-air)" },
-    { label: "→ Lite",      val: funnel.lite,        pct: Math.round(funnel.lite/funnel.registered*100),       color: "var(--color-success)" },
-    { label: "→ Pro",       val: funnel.pro,         pct: Math.round(funnel.pro/funnel.registered*100),        color: "var(--accent-glow)" },
-    { label: "→ Premium",   val: funnel.premium,     pct: Math.round(funnel.premium/funnel.registered*100),    color: "var(--accent)" },
+    { label: `→ ${TIER_NAMES.lite}`,      val: funnel.lite,        pct: Math.round(funnel.lite/funnel.registered*100),       color: "var(--color-success)" },
+    { label: `→ ${TIER_NAMES.pro}`,       val: funnel.pro,         pct: Math.round(funnel.pro/funnel.registered*100),        color: "var(--accent-glow)" },
+    { label: `→ ${TIER_NAMES.premium}`,   val: funnel.premium,     pct: Math.round(funnel.premium/funnel.registered*100),    color: "var(--accent)" },
   ];
 
   return (
@@ -344,7 +345,7 @@ function TabRevenue({ d }) {
           ))}
           <div className="my-2 border-t border-gray-100" />
           <Row left={<strong>Итого MRR</strong>} right={<strong>{fmtMoney(total_mrr)}</strong>} />
-          <div className="mt-2 text-[11px] text-gray-400">{plans.premium} Premium-клиентов генерируют {Math.round(mrr_by_plan.premium / total_mrr * 100)}% выручки</div>
+          <div className="mt-2 text-[11px] text-gray-400">{plans.premium} {TIER_NAMES.premium}-клиентов генерируют {Math.round(mrr_by_plan.premium / total_mrr * 100)}% выручки</div>
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Подарочные коды</div>

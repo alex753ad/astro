@@ -14,6 +14,7 @@ import AspectGrid from '../components/AspectGrid';
 import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
+import { TIER_NAMES } from '../constants';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -2056,7 +2057,7 @@ function WidgetBar({ authFetch }) {
         value={appt ? `${fmt(appt.date)} · ${appt.client_name}` : 'Нет записей'} />
       <Cell label="Тренды месяца"
         value={retro.length ? `Ретроградные: ${retro.join(', ')}` : 'Планеты директны'} />
-      <Cell label="Premium статус"
+      <Cell label={`${TIER_NAMES.premium} статус`}
         value={premium?.days_left != null ? `Доступно ещё ${premium.days_left} дн.`
           : (premium?.tier === 'premium' ? 'Активен' : premium?.tier || '—')} />
     </div>
@@ -2107,10 +2108,10 @@ export default function CRMPage() {
       <div className="crm-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{CRM_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM доступен на Premium</div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM доступен на {TIER_NAMES.premium}</div>
           <div style={{ ...S.muted, marginBottom: 16 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты.</div>
           <Link to="/upgrade" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}>
-            Перейти на Premium
+            Перейти на {TIER_NAMES.premium}
           </Link>
         </div>
       </div>

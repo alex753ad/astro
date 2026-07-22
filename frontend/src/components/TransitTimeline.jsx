@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
+import { TIER_NAMES } from "../constants";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -367,7 +368,7 @@ function StatsSummary({ events }) {
 
 function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
   let headline = `✨ Открыт разбор 2 самых значимых транзитов`;
-  let sub = `Ещё ${lockedCount} транзитов с AI-разбором — на Pro`;
+  let sub = `Ещё ${lockedCount} транзитов с AI-разбором — на ${TIER_NAMES.pro}`;
 
   if (featuredTransit) {
     const tp = `${PLANET_GLYPHS[featuredTransit.transit_planet] || "★"} ${PLANET_LABELS_RU[featuredTransit.transit_planet] || featuredTransit.transit_planet}`;
@@ -377,7 +378,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
       ? "один из лучших периодов месяца"
       : "важный период — Astrea подскажет, как пройти его мягче";
     headline = `${tp} ${asp} ваш ${np} — ${tail}`;
-    sub = `Разбор этого и ещё ${lockedCount} периодов — на Pro`;
+    sub = `Разбор этого и ещё ${lockedCount} периодов — на ${TIER_NAMES.pro}`;
   }
 
   return (
@@ -403,7 +404,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
           boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
         }}>
-          Открыть Pro
+          Открыть {TIER_NAMES.pro}
         </button>
       </div>
     </div>
@@ -423,7 +424,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
 
   // Формируем текст для hover-попапа
   const hoverText = blurred
-    ? `${PLANET_GLYPHS[event.transit_planet] || "★"} ${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase() || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet} (${displayDate ? formatDate(displayDate) : ""}) — ${isHarmonic(event.aspect_type) ? "один из лучших периодов месяца" : "важный транзит для вашего развития"}. На Pro — разбор, что это значит для вас и что сделать.`
+    ? `${PLANET_GLYPHS[event.transit_planet] || "★"} ${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase() || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet} (${displayDate ? formatDate(displayDate) : ""}) — ${isHarmonic(event.aspect_type) ? "один из лучших периодов месяца" : "важный транзит для вашего развития"}. На ${TIER_NAMES.pro} — разбор, что это значит для вас и что сделать.`
     : "";
 
   return (
@@ -480,7 +481,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
               fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            Разбор на Pro
+            Разбор на {TIER_NAMES.pro}
           </button>
         </div>
       ) : (

@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { createCheckoutSession, validatePromoCode } from '../api/client';
 import MotionButton from './MotionButton';
+import { TIER_NAMES } from '../constants';
 
 const overlayVariants = {
   hidden:  { opacity: 0 },
@@ -20,7 +21,7 @@ const overlayVariants = {
 
 const PAYWALL_CONTENT = {
   free_to_lite: {
-    badge: 'Lite',
+    badge: TIER_NAMES.lite,
     title: 'Какой планетарный период сейчас влияет на вашу жизнь',
     subtitle: 'И что это значит для вас — по вашей карте, а не в общем',
     benefits: [
@@ -31,7 +32,7 @@ const PAYWALL_CONTENT = {
       { icon: '🗺️', text: 'Карты партнёра, детей, родителей — до 5 в месяц' },
       { icon: '✨', text: 'Виральная карточка вашей карты для Stories' },
     ],
-    cta: 'Перейти на Lite — 790 ₽/мес',
+    cta: `Перейти на ${TIER_NAMES.lite} — 790 ₽/мес`,
     price: 'Отмена в любой момент · Без обязательств',
     tier: 'lite',
     monthly: '790 ₽ / мес',
@@ -40,7 +41,7 @@ const PAYWALL_CONTENT = {
     annualSave: '−21%',
   },
   lite_to_pro: {
-    badge: 'Pro',
+    badge: TIER_NAMES.pro,
     title: 'Вы видите транзит — Astrea говорит, что в нём делать',
     subtitle: 'Компенсации под вашу карту и AI-астролог, который помнит всё, что вы ему рассказали',
     benefits: [
@@ -51,7 +52,7 @@ const PAYWALL_CONTENT = {
       { icon: '📄', text: 'PDF-экспорт — 5 отчётов в месяц' },
       { icon: '🗺️', text: 'До 20 карт в месяц — для всей семьи и окружения' },
     ],
-    cta: 'Перейти на Pro — 1 990 ₽/мес',
+    cta: `Перейти на ${TIER_NAMES.pro} — 1 990 ₽/мес`,
     price: 'Отмена в любой момент · Без обязательств',
     tier: 'pro',
     monthly: '1 990 ₽ / мес',
@@ -60,7 +61,7 @@ const PAYWALL_CONTENT = {
     annualSave: '−20%',
   },
   pro_to_premium: {
-    badge: 'Premium',
+    badge: TIER_NAMES.premium,
     title: 'Подготовка к консультации — 20 минут вместо 2 часов',
     subtitle: 'При 3 клиентах по 4 000 ₽ подписка окупается с первой консультации',
     benefits: [
@@ -71,7 +72,7 @@ const PAYWALL_CONTENT = {
       { icon: '📊', text: '100 AI-интерпретаций в месяц — около 3–4 полных разборов в день' },
       { icon: '🗺️', text: 'Безлимитные карты и клиентские профили' },
     ],
-    cta: 'Перейти на Premium — 7 990 ₽/мес',
+    cta: `Перейти на ${TIER_NAMES.premium} — 7 990 ₽/мес`,
     price: 'При 3 клиентах по 4 000 ₽ — окупается с первой консультации',
     tier: 'premium',
     monthly: '7 990 ₽ / мес',

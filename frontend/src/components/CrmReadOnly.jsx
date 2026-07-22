@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BACKEND_BASE as API_BASE } from "../config";
+import { TIER_NAMES } from "../constants";
 
 // E9 — read-only слой CRM для экс-пилотного астролога.
 //
@@ -51,7 +52,7 @@ export function CrmReadOnlyBanner() {
       <div className="ro-banner">
         <span className="ro-dot" />
         Ваш месяц закончился — CRM открыта в режиме просмотра. Данные и карты
-        клиентов сохранены. Действия доступны на Premium.
+        клиентов сохранены. Действия доступны на {TIER_NAMES.premium}.
       </div>
     </>
   );
@@ -67,7 +68,7 @@ function lockText(feature, name) {
         title: "Написать клиенту",
         body:
           `У ${who} сейчас идёт активный период — хороший момент напомнить о себе. ` +
-          `Но кнопка здесь закрыта. На Premium вы бы уже написали ему — и, скорее ` +
+          `Но кнопка здесь закрыта. На ${TIER_NAMES.premium} вы бы уже написали ему — и, скорее ` +
           `всего, получили бы сессию.`,
       };
     case "consultations":
@@ -76,28 +77,28 @@ function lockText(feature, name) {
         title: "Консультации и бриф",
         body:
           `История с ${who} — в ваших заметках где-то. Жаль, что не здесь: бриф ` +
-          `и записи сессий на Premium собраны в одном месте, и перед следующей ` +
+          `и записи сессий на ${TIER_NAMES.premium} собраны в одном месте, и перед следующей ` +
           `встречей вам не нужно было бы ничего искать.`,
       };
     case "portal":
       return {
         title: "Портал клиента",
         body:
-          `Клиентский портал для ${who} на Premium: карта и домашние задания ` +
+          `Клиентский портал для ${who} на ${TIER_NAMES.premium}: карта и домашние задания ` +
           `под вашим брендом, доступные по ссылке. Сейчас создание закрыто.`,
       };
     case "report":
       return {
         title: "PDF-отчёт",
         body:
-          `Брендированный PDF-отчёт для ${who} доступен на Premium. ` +
+          `Брендированный PDF-отчёт для ${who} доступен на ${TIER_NAMES.premium}. ` +
           `Данные карты сохранены — вернуть генерацию можно в любой момент.`,
       };
     default:
       return {
         title: "Действие закрыто",
         body:
-          `Это действие доступно на Premium. Ваши данные и карты клиентов ` +
+          `Это действие доступно на ${TIER_NAMES.premium}. Ваши данные и карты клиентов ` +
           `сохранены — ничего не потеряно.`,
       };
   }
@@ -120,7 +121,7 @@ export function CrmLock({ feature, clientName, onClose, onUpgrade }) {
               className="ro-up"
               onClick={onUpgrade || (() => { window.location.href = "/profile?upgrade=premium"; })}
             >
-              Вернуться на Premium
+              Вернуться на {TIER_NAMES.premium}
             </button>
           </div>
         </div>

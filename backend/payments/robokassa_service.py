@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import get_settings
 from backend.models import User, Subscription
+from backend.email_service import TIER_NAMES
 
 settings = get_settings()
 logger = logging.getLogger("astro.robokassa")
@@ -27,7 +28,7 @@ TIER_PRICES: dict[tuple[str, str], float] = {
     ("premium", "annual"):  79900.00,
 }
 
-TIER_LABELS = {"lite": "Lite", "pro": "Pro", "premium": "Premium"}
+TIER_LABELS = TIER_NAMES
 PERIOD_DAYS = {"monthly": 30, "annual": 365}
 
 

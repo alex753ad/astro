@@ -6,20 +6,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { TIER_NAMES } from '../constants';
 
 const API_BASE = '/api/v1';
 
 const TIERS = [
   {
     id: 'lite',
-    name: 'Lite',
+    name: TIER_NAMES.lite,
     color: 'var(--color-air)',
     desc: 'Карты, лунный календарь, виральные карточки',
     prices: { 1: 790, 3: 2100, 12: 7490 },
   },
   {
     id: 'pro',
-    name: 'Pro',
+    name: TIER_NAMES.pro,
     color: 'var(--accent)',
     desc: 'AI-транзиты, PDF-отчёты, планер на год',
     prices: { 1: 1990, 3: 5490, 12: 18990 },

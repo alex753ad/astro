@@ -16,6 +16,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 import MotionButton from '../components/MotionButton';
+import { TIER_NAMES } from '../constants';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
@@ -79,7 +80,7 @@ function MiniChartPreview({ chartId, authFetch }) {
 const API_BASE = '/api/v1';
 
 // ─── Цвета тарифов ───────────────────────────────────────────────────────────
-const TIER_LABELS = { free: 'Бесплатный', lite: 'Lite', pro: 'Pro', premium: 'Premium' };
+const TIER_LABELS = TIER_NAMES;
 /* tier data-color, intentional */
 const TIER_COLORS = { free: 'var(--text-secondary)', lite: 'var(--color-air)', pro: 'var(--accent)', premium: 'var(--color-warning)' };
 
@@ -492,9 +493,9 @@ function TabHistory({ history, loading }) {
 
 // ─── Вкладка: Подписка ────────────────────────────────────────────────────────
 const TIERS = [
-  { id: 'lite',    label: 'Lite',    price: '790 ₽/мес',   desc: 'Все планеты, транзиты, Google Calendar, лунный календарь' },
-  { id: 'pro',     label: 'Pro',     price: '1 990 ₽/мес', desc: 'AI-транзиты ∞, до 5 карт, RAG-чат Astrea, долгосрочный прогноз, PDF' },
-  { id: 'premium', label: 'Premium', price: '7 990 ₽/мес', desc: 'Всё из Pro + CRM астролога, безлимит карт, горизонт 24 мес' },
+  { id: 'lite',    label: TIER_NAMES.lite,    price: '790 ₽/мес',   desc: 'Все планеты, транзиты, Google Calendar, лунный календарь' },
+  { id: 'pro',     label: TIER_NAMES.pro,     price: '1 990 ₽/мес', desc: 'AI-транзиты ∞, до 5 карт, RAG-чат Astrea, долгосрочный прогноз, PDF' },
+  { id: 'premium', label: TIER_NAMES.premium, price: '7 990 ₽/мес', desc: `Всё из ${TIER_NAMES.pro} + CRM астролога, безлимит карт, горизонт 24 мес` },
 ];
 
 const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
@@ -806,7 +807,7 @@ function TabReferral({ authFetch }) {
       <div style={S.card}>
         <p style={S.cardTitle}>Пригласи друга</p>
         <p style={{ fontSize: 13, color: 'var(--prof-muted)', marginBottom: 16 }}>
-          Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: 'var(--accent-glow)' }}>2 недели Pro бесплатно</strong>.
+          Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: 'var(--accent-glow)' }}>2 недели {TIER_NAMES.pro} бесплатно</strong>.
         </p>
 
         <div style={{ marginBottom: 16 }}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BACKEND_BASE as API_BASE } from "../config";
+import { TIER_NAMES } from "../constants";
 
 // Страница /pilot/claim?t=<token> — активация пилота по одноразовой ссылке из бота.
 //
@@ -93,7 +94,7 @@ export default function PilotClaim() {
           {state === "ok" && (
             <>
               <div className="pc-badge">✦</div>
-              <div className="pc-title">Premium на 30 дней открыт</div>
+              <div className="pc-title">{TIER_NAMES.premium} на 30 дней открыт</div>
               <div className="pc-sub">Открываем ваш планер…</div>
             </>
           )}
