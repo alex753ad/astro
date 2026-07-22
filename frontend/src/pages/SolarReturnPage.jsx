@@ -33,7 +33,7 @@ const S = {
 async function nominatimSearch(query) {
   if (!query || query.length < 3) return [];
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&accept-language=ru`;
     const resp = await fetch(url, { headers: { 'Accept-Language': 'ru,en' } });
     const data = await resp.json();
     return data.map(d => ({

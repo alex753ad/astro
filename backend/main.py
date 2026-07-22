@@ -17,8 +17,10 @@ from __future__ import annotations
 from dotenv import load_dotenv
 load_dotenv()  # загружает .env до всех os.getenv()
 
+import asyncio
 import json
 import logging
+import os
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -99,14 +101,67 @@ settings = get_settings()
 # Отключается в тестах через limiter.enabled = False в conftest.py
 
 
+# ── Внутренний планировщик (замена Railway [cron.*]) ──
+# Railway-кроны запускаются в отдельном одноразовом контейнере, где выполняется
+# только command, а не startCommand — localhost:$PORT там ничего не слушает,
+# и curl из railway.toml никогда не достукивался. Планируем тик внутри процесса.
+_scheduler_task: asyncio.Task | None = None
+
+
+async def _scheduler_loop():
+    from backend.push.cron import run_push_tick
+    from backend.onboarding_router import run_weekly_digest
+
+    await asyncio.sleep(60)  # дать приложению подняться
+    logger.info("Push scheduler started, interval 15m")
+
+    last_weekly_digest = None
+    while True:
+        db = SessionLocal()
+        try:
+            result = await run_push_tick(db)
+            logger.info("Push tick: users=%s delivered=%s", result.get("users"), result.get("delivered"))
+        except Exception:
+            logger.exception("Push tick failed")
+        finally:
+            db.close()
+
+        now = datetime.utcnow()
+        if now.weekday() == 0 and now.hour == 6 and last_weekly_digest != now.date():
+            db = SessionLocal()
+            try:
+                result = await run_weekly_digest(db)
+                logger.info("Weekly digest: sent=%s", result.get("sent"))
+                last_weekly_digest = now.date()
+            except Exception:
+                logger.exception("Weekly digest failed")
+            finally:
+                db.close()
+
+        await asyncio.sleep(15 * 60)
+
+
 # ── Lifespan ──
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: create tables if they don't exist (dev convenience)
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables ensured.")
+
+    global _scheduler_task
+    if os.getenv("SERVICE_ROLE") == "bot" or os.getenv("PUSH_SCHEDULER") == "off":
+        logger.info("Push scheduler disabled (SERVICE_ROLE=bot or PUSH_SCHEDULER=off)")
+    else:
+        _scheduler_task = asyncio.create_task(_scheduler_loop())
+
     yield
     # Shutdown
+    if _scheduler_task:
+        _scheduler_task.cancel()
+        try:
+            await _scheduler_task
+        except asyncio.CancelledError:
+            pass
     logger.info("Shutting down.")
 
 

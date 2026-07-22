@@ -119,18 +119,11 @@ async def send_onboarding_emails(
     return {"sent_day2": sent_day2, "sent_day7": sent_day7}
 
 
-@router.post("/weekly-digest")
-async def send_weekly_digests(
-    x_internal_secret: str = Header(default=""),
-    db: Session = Depends(get_db),
-):
-    """Railway Cron: ежедневно 09:00 МСК. Отправляет дайджест пользователям,
+async def run_weekly_digest(db: Session) -> dict:
+    """Основная логика — переиспользуется HTTP-эндпоинтом ниже и внутренним
+    планировщиком в main.py (см. lifespan). Отправляет дайджест пользователям,
     у которых сегодня настроен день получения (digest_day_of_week == today.weekday()).
     """
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
     from datetime import date as date_type
     from backend.models import User
     from backend.email_service import send_weekly_digest
@@ -151,6 +144,18 @@ async def send_weekly_digests(
             logger.warning("Weekly digest failed for %s: %s", user.email, e)
 
     return {"sent": sent, "weekday": today_weekday}
+
+
+@router.post("/weekly-digest")
+async def send_weekly_digests(
+    x_internal_secret: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Railway Cron: ежедневно 09:00 МСК."""
+    secret = os.getenv("INTERNAL_SECRET", "")
+    if secret and x_internal_secret != secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await run_weekly_digest(db)
 
 
 @router.post("/lunar-returns")

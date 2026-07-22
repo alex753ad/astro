@@ -467,15 +467,9 @@ def _process_user(db: Session, user: User) -> int:
     return 0
 
 
-@router.post("/push-tick")
-async def push_tick(
-    x_internal_secret: str = Header(default=""),
-    db: Session = Depends(get_db),
-):
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
+async def run_push_tick(db: Session) -> dict:
+    """Основная логика тика — переиспользуется HTTP-эндпоинтом ниже и
+    внутренним планировщиком в main.py (см. lifespan)."""
     # Только пользователи с хотя бы одной подпиской
     user_ids = [row[0] for row in db.query(PushSubscription.user_id).distinct().all()]
     if not user_ids:
@@ -492,3 +486,14 @@ async def push_tick(
             db.rollback()
 
     return {"users": processed, "delivered": total}
+
+
+@router.post("/push-tick")
+async def push_tick(
+    x_internal_secret: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    secret = os.getenv("INTERNAL_SECRET", "")
+    if secret and x_internal_secret != secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return await run_push_tick(db)

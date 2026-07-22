@@ -118,7 +118,7 @@ async def geocode_place(place: str) -> GeoResult:
         "q": place,
         "format": "json",
         "limit": 1,
-        "accept-language": "en",
+        "accept-language": "ru",
     }
 
     async with httpx.AsyncClient(timeout=10.0) as client:

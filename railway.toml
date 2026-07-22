@@ -1,10 +1,2 @@
 [deploy]
 startCommand = "/app/start.sh"
-
-[cron.weekly-digest]
-schedule = "0 6 * * 1"
-command = "curl -s -X POST http://localhost:$PORT/api/v1/internal/weekly-digest -H \"X-Internal-Secret: $INTERNAL_SECRET\""
-
-[cron.push-tick]
-schedule = "*/15 * * * *"
-command = "curl -s -X POST http://localhost:$PORT/api/v1/internal/push-tick -H \"X-Internal-Secret: $INTERNAL_SECRET\""

@@ -460,9 +460,6 @@ function TabHistory({ history, loading }) {
     </div>
   );
 
-  const ENGINE_LABEL = { gpt4o: 'GPT-4o', deepseek: 'DeepSeek', anthropic: 'Claude', template: 'Шаблон' };
-  const ENGINE_COLOR = { gpt4o: 'var(--color-success)', deepseek: 'var(--color-air)', anthropic: 'var(--accent-glow)', template: 'var(--text-secondary)' };
-
   const cleanPreview = (text) => (text || '').replace(/<\/?section[^>]*>/gi, '').trim();
 
   return (
@@ -479,11 +476,6 @@ function TabHistory({ history, loading }) {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              {item.engine && (
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: `${ENGINE_COLOR[item.engine] || 'var(--text-secondary)'}20`, color: ENGINE_COLOR[item.engine] || 'var(--text-secondary)' }}>
-                  {ENGINE_LABEL[item.engine] || item.engine}
-                </span>
-              )}
               <Link
                 to={`/chart/${item.chart_id}`}
                 style={{ fontSize: 12, color: 'var(--prof-title)', textDecoration: 'none' }}

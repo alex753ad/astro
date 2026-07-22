@@ -1950,18 +1950,38 @@ const NAV_ITEMS = [
   { id: 'analytics', title: 'Аналитика' },
 ];
 
+function useIsMobile(maxWidth = 900) {
+  const query = `(max-width: ${maxWidth}px)`;
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = (e) => setIsMobile(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+  return isMobile;
+}
+
 const SL = {
-  shell: { maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 24, alignItems: 'flex-start' },
-  sidebar: { flex: '0 0 240px', position: 'sticky', top: 24, alignSelf: 'flex-start',
+  shell: (isMobile) => ({ maxWidth: 1200, margin: '0 auto', display: 'flex',
+    flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 16 : 24, alignItems: isMobile ? 'stretch' : 'flex-start' }),
+  sidebar: (isMobile) => ({ flex: isMobile ? 'none' : '0 0 240px', width: isMobile ? '100%' : undefined,
+    position: isMobile ? 'static' : 'sticky', top: 24, alignSelf: 'flex-start',
     background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: 16,
-    display: 'flex', flexDirection: 'column', gap: 4, minHeight: 'calc(100vh - 48px)' },
+    display: 'flex', flexDirection: 'column', gap: 4, minHeight: isMobile ? 'auto' : 'calc(100vh - 48px)' }),
+  navWrap: (isMobile) => isMobile
+    ? { display: 'flex', flexDirection: 'row', overflowX: 'auto', gap: 8, paddingBottom: 4 }
+    : { display: 'flex', flexDirection: 'column', gap: 4 },
   brand: { display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', fontWeight: 700, color: 'var(--crm-title)' },
-  navBtn: (active) => ({ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
-    border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, textAlign: 'left', width: '100%',
+  navBtn: (active, isMobile) => ({ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
+    border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, textAlign: 'left',
+    width: isMobile ? 'auto' : '100%', whiteSpace: isMobile ? 'nowrap' : 'normal', flexShrink: 0,
     fontWeight: active ? 700 : 500,
     color: active ? 'var(--crm-title)' : 'var(--crm-text)',
     background: active ? 'var(--accent-muted)' : 'transparent' }),
-  content: { flex: 1, minWidth: 0 },
+  content: { flex: 1, minWidth: 0, width: '100%' },
   bar: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginTop: 8 },
   widget: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--crm-card)',
     border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '14px 16px' },
@@ -2054,6 +2074,7 @@ export default function CRMPage() {
   const [alerts, setAlerts] = useState([]);
   const [activeSection, setActiveSection] = useState('clients');
   const [cardTab, setCardTab] = useState('chart');
+  const isMobile = useIsMobile(900);
 
   const displayedClients = filteredClients ?? clients;
 
@@ -2153,15 +2174,17 @@ export default function CRMPage() {
   return (
     <div className="crm-scope" style={S.page}>
       <style>{CRM_THEME_CSS}</style>
-      <div style={SL.shell}>
-        <aside style={SL.sidebar}>
+      <div style={SL.shell(isMobile)}>
+        <aside style={SL.sidebar(isMobile)}>
           <div style={SL.brand}><span>Рабочий кабинет<br/>Astrea</span></div>
           <AvatarProfile user={user} />
-          {NAV_ITEMS.map(n => (
-            <button key={n.id} onClick={() => goSection(n.id)} style={SL.navBtn(activeSection === n.id)}>
-              {n.title}
-            </button>
-          ))}
+          <div style={SL.navWrap(isMobile)}>
+            {NAV_ITEMS.map(n => (
+              <button key={n.id} onClick={() => goSection(n.id)} style={SL.navBtn(activeSection === n.id, isMobile)}>
+                {n.title}
+              </button>
+            ))}
+          </div>
         </aside>
 
         <main style={SL.content}>
