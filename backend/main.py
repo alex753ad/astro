@@ -92,6 +92,7 @@ from backend.auth.rate_limits import tier_limiter, get_tier_limits
 from sqlalchemy import func as sa_func
 from backend.models import User
 
+logging.basicConfig(level=logging.INFO)  # без этого logger.info(...) нигде в бэкенде не долетал до stdout — только WARNING+
 logger = logging.getLogger("astro")
 settings = get_settings()
 
