@@ -133,13 +133,13 @@ export default function SharePage() {
         {/* Кнопки */}
         <div style={s.actions}>
           <button onClick={() => navigate('/')} style={s.btnPrimary}>
-            ✦ Построить мою карту
+            Построить мою карту
           </button>
           <button onClick={handleCopyLink} style={s.btnSecondary}>
-            {copied ? '✓ Скопировано' : '🔗 Копировать ссылку'}
+            {copied ? '✓ Скопировано' : 'Копировать ссылку'}
           </button>
           <button onClick={handleDownloadCard} style={s.btnSecondary}>
-            🖼 Скачать карточку
+            Скачать карточку
           </button>
         </div>
 

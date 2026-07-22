@@ -264,14 +264,14 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       {/* Шапка */}
       <div style={s.header}>
         <span style={s.headerTitle}>Чат с AI-астрологом</span>
-        <span style={s.headerSub}>Задайте вопрос о своей натальной карте</span>
+        <span style={s.headerSub}>Помнит вашу карту и все ваши разговоры</span>
       </div>
 
       {/* Сообщения */}
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>AI знает вашу карту. Спросите что угодно.</p>
+            <p style={s.emptyText}>Astrea знает вашу карту и помнит все ваши разговоры. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>

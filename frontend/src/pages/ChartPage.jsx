@@ -168,7 +168,7 @@ function ReportModal({ chartId, onClose, setForExport }) {
             onClick={handleDownloadFree}
             disabled={!!loading}
           >
-            {loading === 'free' ? '…' : '⬇ Скачать'}
+            {loading === 'free' ? '…' : 'Скачать'}
           </MotionButton>
         </div>
 
@@ -217,14 +217,14 @@ const TOP_TABS = [];
 
 // Left sidebar vertical buttons (only for 'chart' top tab)
 const LEFT_BTNS = [
-  { key: 'build',          label: 'Построить карту',       icon: '✦' },
+  { key: 'build',          label: 'Построить карту',       icon: '' },
   { key: 'transits',       label: 'Транзиты',              icon: '↻' },
   { key: 'planets',        label: 'Таблица планет/домов',  icon: '☉' },
   { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
 ];
 const LEFT_BTNS_BOTTOM = [
-  { key: 'interpretation', label: 'AI-интерпретация',   icon: '✦' },
-  { key: 'chat',           label: 'AI Астролог Астрея', icon: '✦', minTier: 'pro' },
+  { key: 'interpretation', label: 'AI-интерпретация',   icon: '' },
+  { key: 'chat',           label: 'AI Астролог Астрея', icon: '', minTier: 'pro' },
 ];
 
 
@@ -694,7 +694,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           {currentUser && (
             <MotionButton level="secondary" onClick={handleDownloadCard} style={s.plannerLinkBtn} title="Скачать карточку для Stories">
-              🖼 Карточка
+              Карточка
             </MotionButton>
           )}
           {tierAllowed('pro') ? (
@@ -708,7 +708,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               style={{ ...s.plannerLinkBtn, opacity: 0.75 }}
               title="Скачивание PDF откроется после подписки. Открыть @astreyatimelinebot"
             >
-              🔒 PDF-отчёт
+              PDF-отчёт
             </MotionButton>
           )}
         </div>
@@ -787,7 +787,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                         <Interpretation chartId={chartId} userTier="free" onUpgrade={() => {}} />
                       </div>
                       <div style={s.overlayLogin}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>✦ Войдите, чтобы прочитать интерпретацию</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>Войдите, чтобы прочитать интерпретацию</div>
                         <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
                       </div>
                     </div>
@@ -822,7 +822,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                   style={{ ...s.leftBtn, display: 'inline-flex', width: 'auto', padding: '8px 20px' }}
                   title="Скопировать ссылку"
                 >
-                  <span style={s.leftBtnIcon}>🔗</span>
                   <span>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
                 </MotionButton>
               </div>
@@ -835,7 +834,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             {/* Построить карту */}
             {leftPanel === 'build' && (
               <div style={s.panelCard}>
-                <div style={s.panelTitle}>✦ Построить карту</div>
+                <div style={s.panelTitle}>Построить карту</div>
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '8px 0 0' }}>
                   Перейдите на главную страницу, чтобы рассчитать новую карту.
                 </p>

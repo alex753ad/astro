@@ -331,7 +331,7 @@ export default function BirthForm({ onSubmit, loading }) {
           onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-muted)'}
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          ✦ Войти в демо-режим
+          Войти в демо-режим
         </MotionButton>
       </div>
 

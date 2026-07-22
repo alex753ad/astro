@@ -480,7 +480,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
               fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            🔒 Разбор на Pro
+            Разбор на Pro
           </button>
         </div>
       ) : (
@@ -501,7 +501,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
               transition: "all 0.2s ease",
             }}
           >
-            ✦ Интерпретация
+            Интерпретация
           </MotionButton>
         </div>
       )}

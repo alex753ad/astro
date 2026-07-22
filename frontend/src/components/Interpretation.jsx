@@ -267,7 +267,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             transition: 'all 0.2s',
           }}
         >
-          <span>✦</span> Создать интерпретацию
+          Создать интерпретацию
         </button>
       </div>
     );
@@ -414,7 +414,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
                 boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
               }}
             >
-              ✦ Читать расширенную интерпретацию
+              Читать расширенную интерпретацию
             </button>
           </div>
         </div>
@@ -433,7 +433,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           cursor: 'pointer',
         }} onClick={onUpgrade}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>✦ Получить расширенную интерпретацию</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Получить расширенную интерпретацию</span>
           </div>
           <button
             onClick={onUpgrade}

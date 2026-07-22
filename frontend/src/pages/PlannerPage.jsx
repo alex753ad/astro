@@ -923,9 +923,9 @@ export default function PlannerPage() {
   }
 
   const tabs = [
-    { key: "month",    label: "📅 Месяц"       },
-    { key: "week",     label: "🌙 Неделя"      },
-    { key: "longterm", label: "🪐 Долгосрочно" },
+    { key: "month",    label: "Месяц"       },
+    { key: "week",     label: "Неделя"      },
+    { key: "longterm", label: "Долгосрочно" },
   ];
 
   const monthLabel = (() => {
@@ -1063,7 +1063,7 @@ export default function PlannerPage() {
                   onClick={() => { if (!isFree) exportEvents(buildExportEvents()); }}
                   title={isFree ? "Экспорт в Google Calendar доступен на Lite и выше" : undefined}
                 >
-                  {isFree ? "🔒 Экспорт в Google Calendar — на Lite и выше" : gcalLabel}
+                  {isFree ? "Экспорт в Google Calendar — на Lite и выше" : gcalLabel}
                 </MotionButton>
               </div>
             </>

@@ -463,6 +463,8 @@ function TabHistory({ history, loading }) {
   const ENGINE_LABEL = { gpt4o: 'GPT-4o', deepseek: 'DeepSeek', anthropic: 'Claude', template: 'Шаблон' };
   const ENGINE_COLOR = { gpt4o: 'var(--color-success)', deepseek: 'var(--color-air)', anthropic: 'var(--accent-glow)', template: 'var(--text-secondary)' };
 
+  const cleanPreview = (text) => (text || '').replace(/<\/?section[^>]*>/gi, '').trim();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {history.map(item => (
@@ -470,7 +472,7 @@ function TabHistory({ history, loading }) {
           <div style={S.row}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, color: 'var(--prof-sub)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {item.preview || '—'}
+                {cleanPreview(item.preview) || '—'}
               </div>
               <div style={S.muted}>
                 {item.created_at ? new Date(item.created_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
@@ -1013,12 +1015,12 @@ export default function ProfilePage() {
   const { charts, setCharts, primaryChartId, setPrimaryChartId, history, subscription, loading } = useProfileData(authFetch);
 
   const tabs = [
-    { key: 'charts',        label: '✦ Карты'         },
-    { key: 'history',       label: '✦ История'       },
-    { key: 'subscription',  label: '✦ Подписка'      },
-    { key: 'referral',      label: '✦ Друзья'        },
-    { key: 'notifications', label: '✦ Уведомления'   },
-    ...(user?.tier === 'premium' ? [{ key: 'crm', label: '✦ Клиенты' }] : []),
+    { key: 'charts',        label: 'Карты'         },
+    { key: 'history',       label: 'История'       },
+    { key: 'subscription',  label: 'Подписка'      },
+    { key: 'referral',      label: 'Друзья'        },
+    { key: 'notifications', label: 'Уведомления'   },
+    ...(user?.tier === 'premium' ? [{ key: 'crm', label: 'Клиенты' }] : []),
   ];
 
   return (
