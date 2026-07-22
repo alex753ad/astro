@@ -415,6 +415,7 @@ class Feedback(Base):
     screen = Column(String(120), nullable=True)
     url = Column(String(500), nullable=True)
     message = Column(Text, nullable=True)
+    user_agent = Column(String(300), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 

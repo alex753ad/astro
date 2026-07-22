@@ -4,6 +4,7 @@ import MotionButton from "../components/MotionButton";
 import { authFetch } from "../api/client";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
+import PaywallModal, { getPaywallContext } from "../components/PaywallModal";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
@@ -715,7 +716,7 @@ function SectionHeader({ planet, emoji, title, subtitle }) {
 }
 
 // #1 — сворачиваемая секция месяца (клик по заголовку раскрывает/скрывает карточки)
-function CollapsibleMonthSection({ section }) {
+function CollapsibleMonthSection({ section, onUpgrade }) {
   const [open, setOpen] = useState(section.planet === 'sun');
   return (
     <div id={`plan-sec-${section.planet}`} style={{ marginBottom: 28, scrollMarginTop: 80 }}>
@@ -746,8 +747,8 @@ function CollapsibleMonthSection({ section }) {
           return (
             <Fragment key={pi}>
               {showBanner && (
-                <LockedGroupHint>
-                  Дальше по месяцу — периоды Марса, Венеры, Сатурна и других планет с их компенсациями. Открой их на тарифе {TIER_NAMES.lite}, чтобы увидеть даты и что делать в каждом окне.
+                <LockedGroupHint onUpgrade={onUpgrade}>
+                  Дальше по месяцу — периоды Марса, Венеры, Сатурна с датами и разбором. Открывается на тарифе {TIER_NAMES.lite}.
                 </LockedGroupHint>
               )}
               <PeriodBlock planet={section.planet}
@@ -776,10 +777,19 @@ function LockedTeaser({ trigger }) {
 }
 
 // Общая плашка над группой заблокированных периодов раздела (вместо повтора фразы в каждой карточке)
-function LockedGroupHint({ children }) {
+function LockedGroupHint({ children, onUpgrade }) {
   return (
     <div className="free-hint" style={{ position: "relative" }}>
-      {children}
+      <div>{children}</div>
+      {onUpgrade && (
+        <MotionButton
+          level="secondary"
+          onClick={onUpgrade}
+          style={{ marginTop: 10, padding: "6px 16px", fontSize: 12.5, borderRadius: 8 }}
+        >
+          Открыть доступ
+        </MotionButton>
+      )}
       <span style={{ position: "absolute", top: 8, right: 10, fontSize: 12, opacity: 0.5 }}>🔒</span>
     </div>
   );
@@ -854,6 +864,13 @@ export default function PlannerPage() {
   const [planData, setPlanData]     = useState(null);
   const [phases, setPhases]         = useState([]);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [showPaywall, setShowPaywall]     = useState(false);
+  const [paywallContext, setPaywallContext] = useState("free_to_lite");
+
+  function openPaywall(required) {
+    setPaywallContext(getPaywallContext({ error: "tier_required", current: userTier, required }) || "free_to_lite");
+    setShowPaywall(true);
+  }
 
   const { exportEvents, status: gcalStatus } = useGcalExport();
 
@@ -997,7 +1014,7 @@ export default function PlannerPage() {
               <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
               {tab === "month" && (planData?.month_sections || []).map((section, si) => (
-                <CollapsibleMonthSection key={si} section={section} />
+                <CollapsibleMonthSection key={si} section={section} onUpgrade={() => openPaywall("lite")} />
               ))}
 
               {tab === "week" && (
@@ -1012,8 +1029,8 @@ export default function PlannerPage() {
                       return (
                         <Fragment key={i}>
                           {showBanner && (
-                            <LockedGroupHint>
-                              Дальше по неделе — Луна проходит по вашим домам и открывает короткие окна под конкретные дела: разговоры, покупки, отдых. Открой на тарифе {TIER_NAMES.lite}, чтобы увидеть точные дни.
+                            <LockedGroupHint onUpgrade={() => openPaywall("lite")}>
+                              Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям. Открывается на тарифе {TIER_NAMES.lite}.
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
@@ -1040,8 +1057,8 @@ export default function PlannerPage() {
                       return (
                         <Fragment key={i}>
                           {showBanner && (
-                            <LockedGroupHint>
-                              Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на тарифе {TIER_NAMES.pro}.
+                            <LockedGroupHint onUpgrade={() => openPaywall("pro")}>
+                              Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Открывается на тарифе {TIER_NAMES.pro}.
                             </LockedGroupHint>
                           )}
                           <div style={{ marginBottom: 20 }}>
@@ -1077,6 +1094,10 @@ export default function PlannerPage() {
 
         </div>
       </div>
+
+      {showPaywall && (
+        <PaywallModal context={paywallContext} chartId={id} onClose={() => setShowPaywall(false)} />
+      )}
     </>
   );
 }

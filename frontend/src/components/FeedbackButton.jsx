@@ -16,31 +16,63 @@ function screenFromPath(path) {
   return path.split("/")[1] || "unknown";
 }
 
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
 export default function FeedbackButton() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [screenshot, setScreenshot] = useState(null); // File
+  const [screenshotPreview, setScreenshotPreview] = useState(null); // object URL
+  const [fileError, setFileError] = useState("");
   const [state, setState] = useState("idle"); // idle | sending | done | error
+  const [doneMessage, setDoneMessage] = useState("Спасибо — записали. Это помогает нам чинить.");
+
+  function pickFile(file) {
+    setFileError("");
+    if (!file) return;
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setFileError("Нужен файл PNG, JPEG или WEBP");
+      return;
+    }
+    if (file.size > MAX_SCREENSHOT_BYTES) {
+      setFileError("Файл больше 5 МБ — приложите поменьше");
+      return;
+    }
+    setScreenshot(file);
+    setScreenshotPreview(URL.createObjectURL(file));
+  }
+
+  function clearFile() {
+    if (screenshotPreview) URL.revokeObjectURL(screenshotPreview);
+    setScreenshot(null);
+    setScreenshotPreview(null);
+    setFileError("");
+  }
 
   async function submit() {
     setState("sending");
     try {
       const token = localStorage.getItem("astro_access_token");
+      const form = new FormData();
+      form.append("screen", screenFromPath(window.location.pathname));
+      form.append("url", window.location.href);
+      if (message.trim()) form.append("message", message.trim());
+      form.append("user_agent", navigator.userAgent);
+      if (screenshot) form.append("screenshot", screenshot);
+
       const res = await fetch(`${API_BASE}/api/v1/feedback`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          screen: screenFromPath(window.location.pathname),
-          url: window.location.href,
-          message: message.trim() || null,
-        }),
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      setDoneMessage(data.message || "Спасибо — записали. Это помогает нам чинить.");
       setState("done");
       setMessage("");
-      setTimeout(() => { setOpen(false); setState("idle"); }, 1600);
+      clearFile();
+      setTimeout(() => { setOpen(false); setState("idle"); }, 2200);
     } catch {
       setState("error");
     }
@@ -60,7 +92,7 @@ export default function FeedbackButton() {
       {open && (
         <div className="fb-panel">
           {state === "done" ? (
-            <div className="fb-done">Спасибо — записали. Это помогает нам чинить.</div>
+            <div className="fb-done">{doneMessage}</div>
           ) : (
             <>
               <div className="fb-title">Что не так на этом экране?</div>
@@ -71,6 +103,25 @@ export default function FeedbackButton() {
                 onChange={(e) => setMessage(e.target.value)}
                 rows={3}
               />
+
+              {screenshotPreview ? (
+                <div className="fb-preview">
+                  <img src={screenshotPreview} alt="Скриншот" />
+                  <button className="fb-preview-remove" onClick={clearFile}>Убрать</button>
+                </div>
+              ) : (
+                <label className="fb-file-label">
+                  Приложить скриншот (необязательно)
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="fb-file-input"
+                    onChange={(e) => pickFile(e.target.files?.[0])}
+                  />
+                </label>
+              )}
+              {fileError && <div className="fb-err">{fileError}</div>}
+
               {state === "error" && (
                 <div className="fb-err">Не отправилось. Попробуйте ещё раз.</div>
               )}
@@ -121,4 +172,18 @@ const fbStyles = `
 .fb-send:disabled{ opacity:.6; cursor:default; }
 .fb-err{ color:var(--color-danger); font-size:12px; margin-top:8px; }
 .fb-done{ color:var(--text-primary); font-size:13px; line-height:1.5; padding:4px 0; }
+.fb-file-label{
+  display:block; margin-top:10px; font-size:12px; color:var(--text-secondary);
+  cursor:pointer;
+}
+.fb-file-input{ display:block; margin-top:6px; font-size:12px; color:var(--text-secondary); width:100%; }
+.fb-preview{ margin-top:10px; position:relative; }
+.fb-preview img{
+  width:100%; max-height:120px; object-fit:cover; border-radius:8px;
+  border:1px solid var(--bg-deeper);
+}
+.fb-preview-remove{
+  position:absolute; top:6px; right:6px; background:rgba(20,16,32,.75); color:#fff;
+  border:none; border-radius:8px; padding:4px 10px; font-size:11px; cursor:pointer;
+}
 `;

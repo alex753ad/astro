@@ -18,6 +18,7 @@ import ExpertModeToggle from '../components/ExpertModeToggle';
 import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
+import useIsMobile from '../hooks/useIsMobile';
 import { TIER_NAMES } from '../constants';
 import { enablePush, pushSupported } from '../push';
 import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
@@ -403,6 +404,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
   const { streak, isNew } = useStreak();
+  const isMobile = useIsMobile(900);
 
   // D5: запросить разрешение на уведомления, подписаться на push и напомнить
   useEffect(() => {
@@ -642,6 +644,10 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       handleTopTabChange('transits');
       return;
     }
+    if (key === 'build') {
+      navigate('/home');
+      return;
+    }
     setLeftPanel(prev => prev === key ? null : key);
   }
 
@@ -676,6 +682,79 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   if (!chart)  return null;
 
   const isAnon = !currentUser;
+
+  // Содержимое правой панели — общее для десктопа (rightCol) и мобильного
+  // (рендерится сразу под сеткой кнопок, чтобы не уезжать в конец страницы).
+  const panelContent = (
+    <>
+      {/* Таблица планет/домов */}
+      {leftPanel === 'planets' && (
+        <div style={s.panelCard}>
+          <div style={s.panelTitle}>☉ Позиции планет</div>
+          <PlanetTable
+            planets={chart.planets}
+            ascendant={chart.ascendant}
+            midheaven={chart.midheaven}
+            onHoverPlanet={setHoverPlanet}
+            collapsed
+          />
+          {chart.houses?.length > 0 && (
+            <>
+              <div style={s.panelDivider}>Дома</div>
+              <HouseTable houses={chart.houses} collapsed />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Таблица аспектов */}
+      {leftPanel === 'aspects' && (
+        <div style={s.panelCard}>
+          <div style={s.panelTitle}>△ Аспекты</div>
+          <AspectLegend />
+          <div style={{ marginTop: 12 }}>
+            <AspectGrid aspects={chart.aspects} planets={chart.planets} />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <AspectTable aspects={chart.aspects} planets={chart.planets} onHoverAspect={setHoverAspect} />
+          </div>
+        </div>
+      )}
+
+      {/* AI Чат */}
+      {leftPanel === 'chat' && (
+        <div style={{ ...s.panelCard, padding: 0, minHeight: 480 }}>
+          {tierAllowed('pro') ? (
+            <RagChat
+              chartId={chartId}
+              onPaywall={(ctx) => openPaywall(ctx || _upsellCtx('pro'))}
+            />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 40 }}>🔒</span>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
+              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Astrea помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
+              <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx('pro'), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                Открыть доступ
+              </MotionButton>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Мини-таблица планет (дефолтная правая панель когда ничего не выбрано) */}
+      {!leftPanel && (
+        <div style={s.miniTableCard}>
+          <PlanetTable
+            planets={chart.planets}
+            ascendant={chart.ascendant}
+            midheaven={chart.midheaven}
+            onHoverPlanet={setHoverPlanet}
+          />
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div style={{
@@ -731,42 +810,64 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         <div style={s.threeCol}>
 
           {/* ── Левая колонка: вертикальные кнопки ── */}
-          <div style={s.leftCol}>
+          <div style={s.leftCol(isMobile)}>
             {isAnon && (
-              <div style={{ marginBottom: 8 }}>
+              <div style={{ marginBottom: 8, ...(isMobile ? { gridColumn: '1 / -1' } : {}) }}>
                 <SaveChartBanner onLogin={handleShowAuth} />
               </div>
             )}
-            <OnboardingTooltips />
-            {LEFT_BTNS.map(({ key, label, icon }) => (
-              <button
-                key={key}
-                onClick={() => handleLeftBtn(key)}
-                style={{ ...s.leftBtn, ...(leftPanel === key ? s.leftBtnActive : {}) }}
-              >
-                <span style={s.leftBtnIcon}>{icon}</span>
-                <span style={{ flex: 1 }}>{label}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.6 }}>
-                  {leftPanel === key ? '‹' : '›'}
-                </span>
-              </button>
-            ))}
-
-            {/* AI-кнопки прижаты к низу */}
-            <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {LEFT_BTNS_BOTTOM.map(({ key, label, icon }) => (
-                <MotionButton
-                  level="ghost"
+            <div style={isMobile ? { gridColumn: '1 / -1' } : {}}>
+              <OnboardingTooltips />
+            </div>
+            {isMobile ? (
+              [...LEFT_BTNS, ...LEFT_BTNS_BOTTOM].map(({ key, label, icon }) => (
+                <button
                   key={key}
                   onClick={() => handleLeftBtn(key)}
-                  style={{ ...s.leftBtn, background: 'var(--accent)', borderColor: 'transparent', color: '#fff' }}
+                  style={{ ...s.leftBtn, height: '100%', ...(leftPanel === key ? s.leftBtnActive : {}) }}
                 >
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
+                  <span style={s.leftBtnIcon}>{icon}</span>
                   <span style={{ flex: 1 }}>{label}</span>
-                </MotionButton>
-              ))}
-            </div>
+                </button>
+              ))
+            ) : (
+              <>
+                {LEFT_BTNS.map(({ key, label, icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => handleLeftBtn(key)}
+                    style={{ ...s.leftBtn, ...(leftPanel === key ? s.leftBtnActive : {}) }}
+                  >
+                    <span style={s.leftBtnIcon}>{icon}</span>
+                    <span style={{ flex: 1 }}>{label}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.6 }}>
+                      {leftPanel === key ? '‹' : '›'}
+                    </span>
+                  </button>
+                ))}
+
+                {/* AI-кнопки прижаты к низу */}
+                <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {LEFT_BTNS_BOTTOM.map(({ key, label, icon }) => (
+                    <MotionButton
+                      level="ghost"
+                      key={key}
+                      onClick={() => handleLeftBtn(key)}
+                      style={{ ...s.leftBtn, background: 'var(--accent)', borderColor: 'transparent', color: '#fff' }}
+                    >
+                      <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
+                      <span style={{ flex: 1 }}>{label}</span>
+                    </MotionButton>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
+
+          {/* ── Мобильная панель: сразу под сеткой кнопок, не в конце страницы ── */}
+          {isMobile && (
+            <div style={{ flex: '1 1 100%', width: '100%' }}>{panelContent}</div>
+          )}
 
           {/* ── Центр: колесо карты ── */}
           <div style={s.centerCol}>
@@ -822,93 +923,10 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             </div>
           </div>
 
-          {/* ── Правая колонка: панели ── */}
-          <div style={s.rightCol}>
-
-            {/* Построить карту */}
-            {leftPanel === 'build' && (
-              <div style={s.panelCard}>
-                <div style={s.panelTitle}>Построить карту</div>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '8px 0 0' }}>
-                  Перейдите на главную страницу, чтобы рассчитать новую карту.
-                </p>
-                <MotionButton
-                  level="primary"
-                  onClick={() => navigate('/home')}
-                  style={{ marginTop: 12, padding: '8px 16px', borderRadius: 8, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}
-                >
-                  На главную
-                </MotionButton>
-              </div>
-            )}
-
-            {/* Таблица планет/домов */}
-            {leftPanel === 'planets' && (
-              <div style={s.panelCard}>
-                <div style={s.panelTitle}>☉ Позиции планет</div>
-                <PlanetTable
-                  planets={chart.planets}
-                  ascendant={chart.ascendant}
-                  midheaven={chart.midheaven}
-                  onHoverPlanet={setHoverPlanet}
-                  collapsed
-                />
-                {chart.houses?.length > 0 && (
-                  <>
-                    <div style={s.panelDivider}>Дома</div>
-                    <HouseTable houses={chart.houses} collapsed />
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Таблица аспектов */}
-            {leftPanel === 'aspects' && (
-              <div style={s.panelCard}>
-                <div style={s.panelTitle}>△ Аспекты</div>
-                <AspectLegend />
-                <div style={{ marginTop: 12 }}>
-                  <AspectGrid aspects={chart.aspects} planets={chart.planets} />
-                </div>
-                <div style={{ marginTop: 12 }}>
-                  <AspectTable aspects={chart.aspects} planets={chart.planets} onHoverAspect={setHoverAspect} />
-                </div>
-              </div>
-            )}
-
-            {/* AI Чат */}
-            {leftPanel === 'chat' && (
-              <div style={{ ...s.panelCard, padding: 0, minHeight: 480 }}>
-                {tierAllowed('pro') ? (
-                  <RagChat
-                    chartId={chartId}
-                    onPaywall={(ctx) => openPaywall(ctx || _upsellCtx('pro'))}
-                  />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
-                    <span style={{ fontSize: 40 }}>🔒</span>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
-                    <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Astrea помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
-                    <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx('pro'), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                      Открыть доступ
-                    </MotionButton>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Мини-таблица планет (дефолтная правая панель когда ничего не выбрано) */}
-            {!leftPanel && (
-              <div style={s.miniTableCard}>
-                <PlanetTable
-                  planets={chart.planets}
-                  ascendant={chart.ascendant}
-                  midheaven={chart.midheaven}
-                  onHoverPlanet={setHoverPlanet}
-                />
-              </div>
-            )}
-          </div>
+          {/* ── Правая колонка: панели (десктоп) ── */}
+          {!isMobile && (
+            <div style={s.rightCol}>{panelContent}</div>
+          )}
 
         </div>
       )}
@@ -1305,7 +1323,12 @@ const s = {
     margin: '0 auto',
     flexWrap: 'wrap',
   },
-  leftCol: {
+  leftCol: (isMobile) => isMobile ? {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+    flex: '1 1 100%', width: '100%',
+    paddingRight: 0,
+    alignItems: 'stretch',
+  } : {
     display: 'flex', flexDirection: 'column', gap: 6,
     flex: '0 0 200px', minWidth: 180,
     paddingRight: 12,

@@ -15,6 +15,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 import { TIER_NAMES } from '../constants';
+import useIsMobile from '../hooks/useIsMobile';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -1950,20 +1951,6 @@ const NAV_ITEMS = [
   { id: 'forecast',  title: 'Прогноз по группе' },
   { id: 'analytics', title: 'Аналитика' },
 ];
-
-function useIsMobile(maxWidth = 900) {
-  const query = `(max-width: ${maxWidth}px)`;
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
-  );
-  useEffect(() => {
-    const mql = window.matchMedia(query);
-    const onChange = (e) => setIsMobile(e.matches);
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, [query]);
-  return isMobile;
-}
 
 const SL = {
   shell: (isMobile) => ({ maxWidth: 1200, margin: '0 auto', display: 'flex',

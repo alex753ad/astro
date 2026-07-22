@@ -412,20 +412,43 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// GATE MODAL — «Интерпретация» на закрытом транзите
+// ═══════════════════════════════════════════════════════════
+
+function TransitGateModal({ onClose, onUpgrade }) {
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(20,16,32,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: "var(--bg-card)", border: "1px solid var(--tt-border2)", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", textAlign: "center" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 14, color: "var(--tt-text)", lineHeight: 1.6, marginBottom: 18 }}>
+          Astrea разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
+        </div>
+        <button
+          onClick={onUpgrade}
+          style={{ padding: "10px 24px", borderRadius: 50, border: "none", background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          Открыть доступ
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // EVENT CARD
 // ═══════════════════════════════════════════════════════════
 
-function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
+function EventCard({ event, index, isSelected, onClick }) {
   const [hovered, setHovered] = useState(false);
   const aspectColor  = ASPECT_COLORS[event.aspect_type] || "var(--accent)";
   const aspectBg     = ASPECT_BG[event.aspect_type]    || "rgba(112,64,168,0.06)";
   const planetAccent = PLANET_ACCENT[event.transit_planet] || "var(--accent-glow)";
   const displayDate  = event.peak_date || event.exact_date || event.date || "";
-
-  // Формируем текст для hover-попапа
-  const hoverText = blurred
-    ? `${PLANET_GLYPHS[event.transit_planet] || "★"} ${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type]?.toLowerCase() || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet} (${displayDate ? formatDate(displayDate) : ""}) — ${isHarmonic(event.aspect_type) ? "один из лучших периодов месяца" : "важный транзит для вашего развития"}. На ${TIER_NAMES.pro} — разбор, что это значит для вас и что сделать.`
-    : "";
 
   return (
     <div
@@ -437,10 +460,11 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         borderBottom: "1px solid rgba(139,92,246,0.1)",
         background: isSelected
           ? "rgba(139,92,246,0.08)"
-          : (hovered && !blurred ? "rgba(139,92,246,0.06)" : "transparent"),
+          : (hovered ? "rgba(139,92,246,0.06)" : "transparent"),
         transition: "background 0.2s ease",
         animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
-        // E2: список транзитов всегда виден; блокируется только AI-разбор (кнопка)
+        // Список транзитов всегда виден и выглядит одинаково на всех тарифах;
+        // кнопка «Интерпретация» одна для всех — доступ решается в handleEventClick.
         pointerEvents: "auto",
         position: "relative",
       }}
@@ -470,45 +494,26 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
       {(event.transit_sign || event.natal_sign) && (
         <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{event.transit_degree != null ? `${event.transit_degree.toFixed(1)}° ` : ""}{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
-      {blurred ? (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
-          <div style={{ fontSize: 12, color: "var(--tt-text2)", lineHeight: 1.5, maxWidth: 420 }}>
-            Astrea разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpgrade && onUpgrade(); }}
-            style={{
-              padding: "7px 18px", borderRadius: 10,
-              border: "none",
-              background: "var(--accent)", color: "#fff",
-              fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            Открыть доступ
-          </button>
-        </div>
-      ) : (
-        <div style={{ marginTop: 10 }}>
-          <MotionButton
-            level="secondary"
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            style={{
-              padding: "5px 14px",
-              borderRadius: 10,
-              border: `1.5px solid ${isSelected ? aspectColor : "var(--tt-border2)"}`,
-              background: isSelected ? aspectColor : "transparent",
-              color: isSelected ? "#fff" : aspectColor,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "all 0.2s ease",
-            }}
-          >
-            Интерпретация
-          </MotionButton>
-        </div>
-      )}
+      <div style={{ marginTop: 10 }}>
+        <MotionButton
+          level="secondary"
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          style={{
+            padding: "5px 14px",
+            borderRadius: 10,
+            border: `1.5px solid ${isSelected ? aspectColor : "var(--tt-border2)"}`,
+            background: isSelected ? aspectColor : "transparent",
+            color: isSelected ? "#fff" : aspectColor,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "all 0.2s ease",
+          }}
+        >
+          Интерпретация
+        </MotionButton>
+      </div>
     </div>
   );
 }
@@ -619,6 +624,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [loadedUntil,   setLoadedUntil]   = useState(null);   // to_date последнего загруженного месяца
   const [reachedEnd,    setReachedEnd]    = useState(false);  // догрузили до горизонта тарифа
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [gateModalOpen, setGateModalOpen] = useState(false);
   const [planetFilter,  setPlanetFilter]  = useState([]);
   const [aspectFilter,  setAspectFilter]  = useState([]);
   const [orbFilter,     setOrbFilter]     = useState(2.0);
@@ -776,16 +782,21 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [events]);
 
   const handleUpgrade = useCallback(() => {
+    setGateModalOpen(false);
     if (onUpgrade) onUpgrade('lite_to_pro');
   }, [onUpgrade]);
 
+  // Free (кроме free_unlocked-транзитов) и Lite не видят реальный разбор —
+  // сначала модалка с ценностью, апгрейд только по клику на «Открыть доступ».
+  // isEventVisible сама по себе не отличает Lite от Pro/Premium (обе — true),
+  // поэтому Lite гейтится отдельной проверкой, как и раньше.
   const handleEventClick = useCallback((event) => {
-    if (isLite) {
-      handleUpgrade();
+    if (isLite || !isEventVisible(event)) {
+      setGateModalOpen(true);
       return;
     }
     setSelectedEvent(prev => prev === event ? null : event);
-  }, [isLite, handleUpgrade]);
+  }, [isLite, isEventVisible]);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
@@ -877,16 +888,12 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
             </div>
           ) : (
             filteredEvents.map((event, idx) => {
-              const globalIdx = events.indexOf(event);
-              const visible = isEventVisible(event, globalIdx);
               return (
                 <EventCard
                   key={eventKey(event)}
                   event={event} index={idx}
                   isSelected={selectedEvent === event}
                   onClick={() => handleEventClick(event)}
-                  blurred={!visible}
-                  onUpgrade={handleUpgrade}
                 />
               );
             })
@@ -919,6 +926,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°<br />
           Нажмите на транзит для AI-интерпретации
         </div>
+      )}
+
+      {gateModalOpen && (
+        <TransitGateModal onClose={() => setGateModalOpen(false)} onUpgrade={handleUpgrade} />
       )}
     </div>
   );

@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
       psycopg2-binary httpx pydantic pydantic-settings slowapi \
       "python-jose[cryptography]" "passlib[bcrypt]" "bcrypt>=3.2.0,<4.0.0" \
       timezonefinder pytz geopy redis ) && \
-    pip install --no-cache-dir "reportlab>=4.0.0" && \
+    pip install --no-cache-dir "reportlab>=4.0.0" "python-multipart>=0.0.9" && \
     apt-get purge -y --auto-remove gcc build-essential && \
     rm -rf /var/lib/apt/lists/*
 
