@@ -406,6 +406,7 @@ def _process_user(db: Session, user: User) -> int:
     if user.primary_chart_id:
         chart = db.query(NatalChart).filter(NatalChart.id == user.primary_chart_id).first()
     if not chart:
+        logger.info("push skip user=%s: no primary chart", user.id)
         return 0  # без главной карты уведомлять не по чему
 
     tzname = getattr(chart, "timezone", None) or DEFAULT_TZ
@@ -424,6 +425,7 @@ def _process_user(db: Session, user: User) -> int:
         th, tm = 8, 0
     # Утреннее окно: работаем только когда локальное время уже наступило.
     if (now_local.hour, now_local.minute) < (th, tm):
+        logger.info("push skip user=%s: before daily time %s", user.id, target)
         return 0
 
     # Сбор + отсев уже отправленного
@@ -432,6 +434,7 @@ def _process_user(db: Session, user: User) -> int:
         if not _already_sent(db, user.id, c["kind"], c["ref"])
     ]
     if not cands:
+        logger.info("push skip user=%s: no candidates", user.id)
         return 0
 
     significant = [c for c in cands if c["priority"] != "soft"]
@@ -443,6 +446,7 @@ def _process_user(db: Session, user: User) -> int:
         to_send = significant + soft
     else:
         if _soft_capped(db, user.id, datetime.utcnow()):
+            logger.info("push skip user=%s: soft capped", user.id)
             return 0
         to_send = soft
 
@@ -463,7 +467,9 @@ def _process_user(db: Session, user: User) -> int:
     if n:
         for c in to_send:
             _mark_sent(db, user.id, c["kind"], c["ref"])
+        logger.info("push send user=%s kinds=%s n=%d", user.id, [c["kind"] for c in to_send], n)
         return n
+    logger.info("push skip user=%s: send_to_user delivered 0 (no active subscriptions or all sends failed)", user.id)
     return 0
 
 
