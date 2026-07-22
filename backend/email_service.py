@@ -553,22 +553,14 @@ async def send_weekly_digest(user, db) -> bool:
     import random
     from datetime import timedelta, date as date_type
     from backend.transit.engine import calculate_transits
-    from backend.models import NatalChart
 
     now = date_type.today()
     week_end = now + timedelta(days=7)
 
     # Транзиты недели
     try:
-        chart = None
-        if user.primary_chart_id:
-            chart = db.query(NatalChart).filter(
-                NatalChart.id == user.primary_chart_id,
-                NatalChart.user_id == user.id,
-            ).first()
-        if not chart:
-            chart = db.query(NatalChart).filter(NatalChart.user_id == user.id)\
-                .order_by(NatalChart.created_at.desc()).first()
+        from backend.chart_utils import get_primary_chart
+        chart = get_primary_chart(db, user)
         if not chart:
             return False
         events = calculate_transits(natal_planets=chart.planets, from_date=now, to_date=week_end)

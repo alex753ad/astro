@@ -14,6 +14,7 @@ from datetime import date as date_type
 from backend.celery_app import celery_app
 from backend.database import SessionLocal
 from backend.models import NatalChart
+from backend.chart_utils import get_primary_chart as _get_primary_chart  # noqa: F401 — реэкспорт для backend.pilot.cron и др.
 
 logger = logging.getLogger("astro.tasks")
 
@@ -27,33 +28,6 @@ def _get_chart(db, chart_id: str) -> NatalChart:
     if not chart:
         raise ValueError(f"Chart not found: {chart_id}")
     return chart
-
-
-def _get_primary_chart(db, user) -> NatalChart | None:
-    """Return user's primary chart.
-
-    Priority:
-      1. user.primary_chart_id — явно выбранная главная карта
-      2. последняя сохранённая карта (fallback для пользователей без pin)
-    """
-    if user.primary_chart_id:
-        chart = (
-            db.query(NatalChart)
-            .filter(
-                NatalChart.id == user.primary_chart_id,
-                NatalChart.user_id == user.id,
-            )
-            .first()
-        )
-        if chart:
-            return chart
-    # fallback
-    return (
-        db.query(NatalChart)
-        .filter(NatalChart.user_id == user.id)
-        .order_by(NatalChart.created_at.desc())
-        .first()
-    )
 
 
 # ═══════════════════════════════════════════════════════════

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import User, NatalChart, PushSubscription, PushSentLog
 from backend.push.sender import send_to_user
+from backend.chart_utils import get_primary_chart
 
 logger = logging.getLogger("astro.push.cron")
 
@@ -402,9 +403,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
 
 # ── Основная логика по одному пользователю ──
 def _process_user(db: Session, user: User) -> int:
-    chart = None
-    if user.primary_chart_id:
-        chart = db.query(NatalChart).filter(NatalChart.id == user.primary_chart_id).first()
+    chart = get_primary_chart(db, user)
     if not chart:
         logger.info("push skip user=%s: no primary chart", user.id)
         return 0  # без главной карты уведомлять не по чему
