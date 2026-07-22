@@ -747,7 +747,7 @@ function CollapsibleMonthSection({ section }) {
             <Fragment key={pi}>
               {showBanner && (
                 <LockedGroupHint>
-                  🔒 Дальше по месяцу — периоды Марса, Венеры, Сатурна и других планет с их компенсациями. Открой их на {TIER_NAMES.lite}, чтобы увидеть даты и что делать в каждом окне.
+                  🔒 Дальше по месяцу — периоды Марса, Венеры, Сатурна и других планет с их компенсациями. Открой их на тарифе {TIER_NAMES.lite}, чтобы увидеть даты и что делать в каждом окне.
                 </LockedGroupHint>
               )}
               <PeriodBlock planet={section.planet}
@@ -967,7 +967,7 @@ export default function PlannerPage() {
 
           {isFree && (
             <div className="free-hint">
-              ✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на {TIER_NAMES.lite}.
+              ✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.
             </div>
           )}
 
@@ -1008,7 +1008,7 @@ export default function PlannerPage() {
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint>
-                              🔒 Дальше по неделе — Луна проходит по вашим домам и открывает короткие окна под конкретные дела: разговоры, покупки, отдых. Открой на {TIER_NAMES.lite}, чтобы увидеть точные дни.
+                              🔒 Дальше по неделе — Луна проходит по вашим домам и открывает короткие окна под конкретные дела: разговоры, покупки, отдых. Открой на тарифе {TIER_NAMES.lite}, чтобы увидеть точные дни.
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
@@ -1036,7 +1036,7 @@ export default function PlannerPage() {
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint>
-                              🔒 Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на {TIER_NAMES.pro}.
+                              🔒 Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на тарифе {TIER_NAMES.pro}.
                             </LockedGroupHint>
                           )}
                           <div style={{ marginBottom: 20 }}>
@@ -1062,9 +1062,9 @@ export default function PlannerPage() {
                   className={`gcal-btn${!isFree && gcalStatus === "success" ? " success" : ""}${!isFree && gcalStatus === "error" ? " error" : ""}`}
                   disabled={isFree || gcalStatus === "loading"}
                   onClick={() => { if (!isFree) exportEvents(buildExportEvents()); }}
-                  title={isFree ? `Экспорт в Google Calendar доступен на ${TIER_NAMES.lite} и выше` : undefined}
+                  title={isFree ? `Экспорт в Google Calendar доступен на тарифе ${TIER_NAMES.lite} и выше` : undefined}
                 >
-                  {isFree ? `Экспорт в Google Calendar — на ${TIER_NAMES.lite} и выше` : gcalLabel}
+                  {isFree ? `Экспорт в Google Calendar — на тарифе ${TIER_NAMES.lite} и выше` : gcalLabel}
                 </MotionButton>
               </div>
             </>

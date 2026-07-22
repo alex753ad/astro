@@ -20,7 +20,7 @@ import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import { TIER_NAMES } from '../constants';
 import { enablePush, pushSupported } from '../push';
-import PaywallModal from '../components/PaywallModal';
+import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
 import OnboardingTooltips from '../components/OnboardingTooltips';
 import StreakBadge from '../components/StreakBadge';
@@ -383,7 +383,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     setShowPaywall(false);
     markPaywallDismissed();
   }
-  const _upsellCtx = () => (currentUser?.tier === 'lite' ? 'lite_to_pro' : 'free_to_lite');
+  // required — тариф, который реально нужен фиче (не «следующая ступень» от
+  // текущего тарифа): чат и разбор транзитов требуют pro независимо от того,
+  // free пользователь или lite — иначе купив lite, доступа он не получит.
+  const _upsellCtx = (required = 'lite') =>
+    getPaywallContext({ error: 'tier_required', current: currentUser?.tier || 'free', required }) || 'free_to_lite';
   const [pdfLoading, setPdfLoading]   = useState(false);
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
@@ -643,7 +647,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   function handleTabChange(key, minTier) {
     if (!tierAllowed(minTier)) {
-      openPaywall(_upsellCtx());
+      openPaywall(_upsellCtx(minTier));
       return;
     }
     handleTopTabChange(key);
@@ -698,20 +702,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               Карточка
             </MotionButton>
           )}
-          {tierAllowed('pro') ? (
-            <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
-              {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
-            </MotionButton>
-          ) : (
-            <MotionButton
-              level="secondary"
-              onClick={() => window.open('https://t.me/astreyatimelinebot', '_blank', 'noopener,noreferrer')}
-              style={{ ...s.plannerLinkBtn, opacity: 0.75 }}
-              title="Скачивание PDF откроется после подписки. Открыть @astreyatimelinebot"
-            >
-              PDF-отчёт
-            </MotionButton>
-          )}
+          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
+            {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
+          </MotionButton>
         </div>
       </header>
 
@@ -889,14 +882,14 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 {tierAllowed('pro') ? (
                   <RagChat
                     chartId={chartId}
-                    onPaywall={() => openPaywall(_upsellCtx())}
+                    onPaywall={(ctx) => openPaywall(ctx || _upsellCtx('pro'))}
                   />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
                     <span style={{ fontSize: 40 }}>🔒</span>
                     <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
-                    <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Astrea помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на {TIER_NAMES.pro}.</div>
-                    <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx(), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                    <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Astrea помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
+                    <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx('pro'), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       Открыть доступ
                     </MotionButton>
                   </div>
@@ -947,7 +940,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx())} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx('pro'))} />
               </section>
             </main>
           </div>

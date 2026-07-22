@@ -1819,17 +1819,6 @@ async def start_pdf_generation(
     from backend.authz import assert_chart_access
     assert_chart_access(chart, user)
 
-    # Paywall: PDF-экспорт — платная фича (pdf_export в TIER_FLAGS)
-    from backend.auth.rate_limits import get_feature_flags
-    if not get_feature_flags(user).get("pdf_reports"):
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "tier_required", "required": "pro", "feature": "pdf_export",
-                "message": "Доступно после подписки — откройте @astreyatimelinebot",
-            },
-        )
-
     # Load interpretation from DB
     from backend.models import Interpretation
     interp_row = (

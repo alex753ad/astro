@@ -262,7 +262,7 @@ function TabProfile({ user, logout, authFetch }) {
                   opacity: switching && switching !== t ? 0.5 : 1,
                 }}
               >
-                {switching === t ? '...' : t}
+                {switching === t ? '...' : TIER_NAMES[t]}
               </MotionButton>
             ))}
           </div>

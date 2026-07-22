@@ -368,7 +368,7 @@ function StatsSummary({ events }) {
 
 function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
   let headline = `✨ Открыт разбор 2 самых значимых транзитов`;
-  let sub = `Ещё ${lockedCount} транзитов с AI-разбором — на ${TIER_NAMES.pro}`;
+  let sub = `Ещё ${lockedCount} транзитов с AI-разбором — на тарифе ${TIER_NAMES.pro}`;
 
   if (featuredTransit) {
     const tp = `${PLANET_GLYPHS[featuredTransit.transit_planet] || "★"} ${PLANET_LABELS_RU[featuredTransit.transit_planet] || featuredTransit.transit_planet}`;
@@ -378,7 +378,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
       ? "один из лучших периодов месяца"
       : "важный период — Astrea подскажет, как пройти его мягче";
     headline = `${tp} ${asp} ваш ${np} — ${tail}`;
-    sub = `Разбор этого и ещё ${lockedCount} периодов — на ${TIER_NAMES.pro}`;
+    sub = `Разбор этого и ещё ${lockedCount} периодов — на тарифе ${TIER_NAMES.pro}`;
   }
 
   return (
@@ -481,7 +481,7 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
               fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            Разбор на {TIER_NAMES.pro}
+            Разбор на тарифе {TIER_NAMES.pro}
           </button>
         </div>
       ) : (

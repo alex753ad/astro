@@ -32,7 +32,7 @@ const PAYWALL_CONTENT = {
       { icon: '🗺️', text: 'Карты партнёра, детей, родителей — до 5 в месяц' },
       { icon: '✨', text: 'Виральная карточка вашей карты для Stories' },
     ],
-    cta: `Перейти на ${TIER_NAMES.lite} — 790 ₽/мес`,
+    cta: `Перейти на тариф ${TIER_NAMES.lite} — 790 ₽/мес`,
     price: 'Отмена в любой момент · Без обязательств',
     tier: 'lite',
     monthly: '790 ₽ / мес',
@@ -52,7 +52,7 @@ const PAYWALL_CONTENT = {
       { icon: '📄', text: 'PDF-экспорт — 5 отчётов в месяц' },
       { icon: '🗺️', text: 'До 20 карт в месяц — для всей семьи и окружения' },
     ],
-    cta: `Перейти на ${TIER_NAMES.pro} — 1 990 ₽/мес`,
+    cta: `Перейти на тариф ${TIER_NAMES.pro} — 1 990 ₽/мес`,
     price: 'Отмена в любой момент · Без обязательств',
     tier: 'pro',
     monthly: '1 990 ₽ / мес',
@@ -72,7 +72,7 @@ const PAYWALL_CONTENT = {
       { icon: '📊', text: '100 AI-интерпретаций в месяц — около 3–4 полных разборов в день' },
       { icon: '🗺️', text: 'Безлимитные карты и клиентские профили' },
     ],
-    cta: `Перейти на ${TIER_NAMES.premium} — 7 990 ₽/мес`,
+    cta: `Перейти на тариф ${TIER_NAMES.premium} — 7 990 ₽/мес`,
     price: 'При 3 клиентах по 4 000 ₽ — окупается с первой консультации',
     tier: 'premium',
     monthly: '7 990 ₽ / мес',
@@ -88,10 +88,14 @@ const PAYWALL_CONTENT = {
  */
 export function getPaywallContext(errorDetail) {
   if (!errorDetail || errorDetail.error !== 'tier_required') return null;
-  const { current, required } = errorDetail;
-  if (current === 'free' && ['lite', 'pro', 'premium'].includes(required)) return 'free_to_lite';
-  if (current === 'lite' && ['pro', 'premium'].includes(required)) return 'lite_to_pro';
-  if (current === 'pro' && required === 'premium') return 'pro_to_premium';
+  const { required } = errorDetail;
+  // Контент модалки всегда описывает конкретный требуемый тариф — показываем
+  // именно его, а не «следующую ступень» от текущего тарифа пользователя.
+  // Иначе free-пользователь, которому нужен pro, увидит и купит lite и всё
+  // равно не получит доступ к фиче.
+  if (required === 'lite') return 'free_to_lite';
+  if (required === 'pro') return 'lite_to_pro';
+  if (required === 'premium') return 'pro_to_premium';
   return 'free_to_lite'; // fallback
 }
 
@@ -286,7 +290,7 @@ const s = {
     margin: '0 0 8px',
     fontSize: '20px',
     fontWeight: '600',
-    color: '#fff',
+    color: 'var(--text-primary)',
     lineHeight: 1.3,
   },
   subtitle: {
@@ -312,7 +316,7 @@ const s = {
   },
   benefitText: {
     fontSize: '14px',
-    color: '#fff',
+    color: 'var(--text-primary)',
     lineHeight: 1.4,
   },
   billingToggle: {
@@ -339,7 +343,7 @@ const s = {
   },
   toggleActive: {
     background: 'var(--bg-card)',
-    color: '#fff',
+    color: 'var(--text-primary)',
     borderColor: 'var(--bg-card)',
   },
   saveBadge: {
@@ -408,7 +412,7 @@ const s = {
     borderRadius: '8px',
     fontSize: '13px',
     fontFamily: 'inherit',
-    color: '#fff',
+    color: 'var(--text-primary)',
     background: 'var(--border)',
     outline: 'none',
     letterSpacing: '0.04em',
@@ -422,7 +426,7 @@ const s = {
   promoBtn: {
     padding: '9px 14px',
     background: 'var(--bg-card)',
-    color: '#fff',
+    color: 'var(--text-primary)',
     border: 'none',
     borderRadius: '8px',
     fontSize: '12px',
