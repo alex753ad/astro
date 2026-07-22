@@ -471,17 +471,20 @@ function EventCard({ event, index, isSelected, onClick, blurred, onUpgrade }) {
         <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{event.transit_degree != null ? `${event.transit_degree.toFixed(1)}° ` : ""}{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
       {blurred ? (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
+          <div style={{ fontSize: 12, color: "var(--tt-text2)", lineHeight: 1.5, maxWidth: 420 }}>
+            Astrea разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); onUpgrade && onUpgrade(); }}
             style={{
-              padding: "5px 14px", borderRadius: 10,
-              border: "1.5px solid var(--tt-border2)",
-              background: "transparent", color: "var(--tt-text2)",
-              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              padding: "7px 18px", borderRadius: 10,
+              border: "none",
+              background: "var(--accent)", color: "#fff",
+              fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            Разбор на тарифе {TIER_NAMES.pro}
+            Открыть доступ
           </button>
         </div>
       ) : (

@@ -149,8 +149,8 @@ export default function AnalyticsPage() {
       <div className="an-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{AN_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Аналитика доступна на тарифе {TIER_NAMES.premium}</div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Здесь видно, как растёт ваша практика</div>
+          <div style={{ ...S.muted, marginBottom: 16 }}>Доход, консультации и клиентская база — в одном месте. Открывается на тарифе {TIER_NAMES.premium}.</div>
           <Link to="/upgrade" style={{ color: 'var(--accent)' }}>Перейти на тариф {TIER_NAMES.premium} →</Link>
         </div>
       </div>

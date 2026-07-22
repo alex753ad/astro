@@ -355,7 +355,7 @@ const styles = `
   .free-hint {
     background: var(--accent-muted);
     border: 1px solid var(--border);
-    border-radius: 12px; padding: 10px 14px;
+    border-radius: 12px; padding: 10px 32px 10px 14px;
     font-size: 12.5px; color: var(--accent); margin-bottom: 16px; line-height: 1.5;
   }
   .locked-teaser { position: relative; margin-top: 4px; }
@@ -747,7 +747,7 @@ function CollapsibleMonthSection({ section }) {
             <Fragment key={pi}>
               {showBanner && (
                 <LockedGroupHint>
-                  🔒 Дальше по месяцу — периоды Марса, Венеры, Сатурна и других планет с их компенсациями. Открой их на тарифе {TIER_NAMES.lite}, чтобы увидеть даты и что делать в каждом окне.
+                  Дальше по месяцу — периоды Марса, Венеры, Сатурна и других планет с их компенсациями. Открой их на тарифе {TIER_NAMES.lite}, чтобы увидеть даты и что делать в каждом окне.
                 </LockedGroupHint>
               )}
               <PeriodBlock planet={section.planet}
@@ -777,7 +777,12 @@ function LockedTeaser({ trigger }) {
 
 // Общая плашка над группой заблокированных периодов раздела (вместо повтора фразы в каждой карточке)
 function LockedGroupHint({ children }) {
-  return <div className="free-hint">{children}</div>;
+  return (
+    <div className="free-hint" style={{ position: "relative" }}>
+      {children}
+      <span style={{ position: "absolute", top: 8, right: 10, fontSize: 12, opacity: 0.5 }}>🔒</span>
+    </div>
+  );
 }
 
 // Единая карточка периода — используется в разделах "Месяц", "Неделя" и "Долгосрочно",
@@ -1008,7 +1013,7 @@ export default function PlannerPage() {
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint>
-                              🔒 Дальше по неделе — Луна проходит по вашим домам и открывает короткие окна под конкретные дела: разговоры, покупки, отдых. Открой на тарифе {TIER_NAMES.lite}, чтобы увидеть точные дни.
+                              Дальше по неделе — Луна проходит по вашим домам и открывает короткие окна под конкретные дела: разговоры, покупки, отдых. Открой на тарифе {TIER_NAMES.lite}, чтобы увидеть точные дни.
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
@@ -1036,7 +1041,7 @@ export default function PlannerPage() {
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint>
-                              🔒 Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на тарифе {TIER_NAMES.pro}.
+                              Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Разбор — на тарифе {TIER_NAMES.pro}.
                             </LockedGroupHint>
                           )}
                           <div style={{ marginBottom: 20 }}>

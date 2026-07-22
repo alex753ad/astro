@@ -2108,8 +2108,8 @@ export default function CRMPage() {
       <div className="crm-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{CRM_THEME_CSS}</style>
         <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM доступен на тарифе {TIER_NAMES.premium}</div>
-          <div style={{ ...S.muted, marginBottom: 16 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты.</div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты</div>
+          <div style={{ ...S.muted, marginBottom: 16 }}>Всё в одном месте. Открывается на тарифе {TIER_NAMES.premium}.</div>
           <Link to="/upgrade" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}>
             Перейти на тариф {TIER_NAMES.premium}
           </Link>

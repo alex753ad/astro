@@ -12,6 +12,7 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { streamInterpretation } from '../api/client';
 import { useToast } from './Toast';
+import { TIER_NAMES } from '../constants';
 
 // ── Этапы прогресса ────────────────────────────────────────
 
@@ -403,6 +404,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             <p style={{ fontSize: 13, color: 'var(--text-secondary, var(--text-secondary))', margin: 0, lineHeight: 1.6 }}>
               Это только начало. Расширенная интерпретация раскрывает<br />
               <strong style={{ color: 'var(--text-primary, var(--border))' }}>Луну, Венеру, 7-й дом и отношения</strong>.
+              Открывается на тарифе {TIER_NAMES.lite}.
             </p>
             <button
               onClick={onUpgrade}
@@ -432,8 +434,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           whiteSpace: 'nowrap',
           cursor: 'pointer',
         }} onClick={onUpgrade}>
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, gap: 2 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Получить расширенную интерпретацию</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Открывается на тарифе {TIER_NAMES.pro}</span>
           </div>
           <button
             onClick={onUpgrade}

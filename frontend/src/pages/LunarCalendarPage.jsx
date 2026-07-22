@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
 import { API_BASE } from '../config';
+import { TIER_NAMES } from '../constants';
 
 import ariesIcon       from '../assets/zodiac/aries.png';
 import taurusIcon      from '../assets/zodiac/taurus.png';
@@ -256,9 +257,23 @@ export default function LunarCalendarPage() {
 
           {/* ── Навигация ─────────────────────────────── */}
           <div style={pg.nav}>
-            {!isFree && <button onClick={prev} style={pg.navBtn} disabled={minDate && new Date(year, month-2, 1) < minDate}>‹</button>}
+            {!isFree && (
+              <button
+                onClick={prev}
+                style={pg.navBtn}
+                disabled={minDate && new Date(year, month-2, 1) < minDate}
+                title={minDate && new Date(year, month-2, 1) < minDate ? `Более ранние месяцы открываются на тарифе ${TIER_NAMES.premium}` : undefined}
+              >‹</button>
+            )}
             <span style={pg.navMonth}>{MONTHS_RU[month-1]} {year}</span>
-            {!isFree && <button onClick={next} style={pg.navBtn} disabled={maxDate && new Date(year, month, 1) > maxDate}>›</button>}
+            {!isFree && (
+              <button
+                onClick={next}
+                style={pg.navBtn}
+                disabled={maxDate && new Date(year, month, 1) > maxDate}
+                title={maxDate && new Date(year, month, 1) > maxDate ? `Более поздние месяцы открываются на тарифе ${TIER_NAMES.premium}` : undefined}
+              >›</button>
+            )}
           </div>
 
           {/* ── Сетка календаря ───────────────────────── */}

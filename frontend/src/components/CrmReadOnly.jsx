@@ -68,37 +68,37 @@ function lockText(feature, name) {
         title: "Написать клиенту",
         body:
           `У ${who} сейчас идёт активный период — хороший момент напомнить о себе. ` +
-          `Но кнопка здесь закрыта. На ${TIER_NAMES.premium} вы бы уже написали ему — и, скорее ` +
-          `всего, получили бы сессию.`,
+          `На тарифе ${TIER_NAMES.premium} вы сможете написать ему прямо отсюда — и, скорее ` +
+          `всего, получить сессию.`,
       };
     case "consultations":
     case "brief":
       return {
         title: "Консультации и бриф",
         body:
-          `История с ${who} — в ваших заметках где-то. Жаль, что не здесь: бриф ` +
-          `и записи сессий на тарифе ${TIER_NAMES.premium} собраны в одном месте, и перед следующей ` +
-          `встречей вам не нужно было бы ничего искать.`,
+          `История с ${who} — в ваших заметках где-то. Бриф и записи сессий ` +
+          `на тарифе ${TIER_NAMES.premium} собираются в одном месте — перед следующей ` +
+          `встречей не придётся ничего искать.`,
       };
     case "portal":
       return {
         title: "Портал клиента",
         body:
           `Клиентский портал для ${who} на тарифе ${TIER_NAMES.premium}: карта и домашние задания ` +
-          `под вашим брендом, доступные по ссылке. Сейчас создание закрыто.`,
+          `под вашим брендом, доступные по ссылке.`,
       };
     case "report":
       return {
         title: "PDF-отчёт",
         body:
-          `Брендированный PDF-отчёт для ${who} доступен на тарифе ${TIER_NAMES.premium}. ` +
-          `Данные карты сохранены — вернуть генерацию можно в любой момент.`,
+          `Брендированный PDF-отчёт для ${who} — на тарифе ${TIER_NAMES.premium}. ` +
+          `Данные карты сохранены, отчёт можно сгенерировать в любой момент.`,
       };
     default:
       return {
-        title: "Действие закрыто",
+        title: `Открывается на тарифе ${TIER_NAMES.premium}`,
         body:
-          `Это действие доступно на тарифе ${TIER_NAMES.premium}. Ваши данные и карты клиентов ` +
+          `Это действие — на тарифе ${TIER_NAMES.premium}. Ваши данные и карты клиентов ` +
           `сохранены — ничего не потеряно.`,
       };
   }
@@ -112,9 +112,9 @@ export function CrmLock({ feature, clientName, onClose, onUpgrade }) {
       <style>{roStyles}</style>
       <div className="ro-overlay" onClick={onClose}>
         <div className="ro-card" onClick={(e) => e.stopPropagation()}>
-          <div className="ro-lock">🔒</div>
           <div className="ro-title">{t.title}</div>
           <div className="ro-body">{t.body}</div>
+          <div className="ro-lock">🔒</div>
           <div className="ro-actions">
             <button className="ro-later" onClick={onClose}>Позже</button>
             <button
@@ -146,9 +146,9 @@ const roStyles = `
   width:100%; max-width:380px; background:var(--bg-card); border:1px solid var(--bg-deeper);
   border-radius:16px; padding:24px; box-shadow:0 12px 40px rgba(0,0,0,.5); text-align:center;
 }
-.ro-lock{ font-size:26px; margin-bottom:8px; }
+.ro-lock{ font-size:16px; opacity:0.6; margin:2px 0 14px; }
 .ro-title{ color:var(--accent-muted); font-size:17px; font-weight:700; margin-bottom:10px; }
-.ro-body{ color:var(--accent-glow); font-size:14px; line-height:1.6; margin-bottom:18px; }
+.ro-body{ color:var(--accent-glow); font-size:14px; line-height:1.6; margin-bottom:10px; }
 .ro-actions{ display:flex; gap:10px; justify-content:center; }
 .ro-later{ background:transparent; color:var(--text-secondary); border:none; padding:9px 14px;
   font-size:13px; cursor:pointer; }
