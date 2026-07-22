@@ -29,6 +29,7 @@ from backend.ephemeris.calculator import (
     _datetime_to_jd,
     _longitude_to_sign,
     _calc_planet_position,
+    _find_house,
 )
 from backend.ephemeris.aspects import ASPECTS, _angular_distance
 
@@ -366,6 +367,102 @@ def _find_exact_aspect(
         return datetime(year, month, day, h, m)
     except Exception:
         return None
+
+
+def compute_exact_facts(
+    transit_planet: str,
+    natal_planet: str,
+    aspect_type: str,
+    peak_date: date,
+    natal_profile: dict,
+) -> dict:
+    """Пересчитать на бэкенде все факты одного транзитного события для промпта.
+
+    LLM не вычисляет астрономию — эта функция считает всё через Swiss Ephemeris,
+    клиентские значения (transit_sign/orb/exact_date из тела запроса) сюда не
+    попадают вообще, используются только как идентификатор события.
+
+    Возвращает dict: transit_sign, transit_degree, transit_house,
+    transit_retrograde, natal_sign, natal_degree, natal_house, exact_orb,
+    exact_date (ISO date | None), period_start, period_end (ISO date | None).
+    """
+    from backend.transit.house_passages import _extract_cusps
+
+    planet_id = PLANETS.get(transit_planet)
+    target_angle = ASPECTS.get(aspect_type)
+    cusps = _extract_cusps(natal_profile)
+
+    natal_entry = next(
+        (p for p in natal_profile.get("planets", []) if p.get("name") == natal_planet),
+        None,
+    )
+    natal_lon = natal_entry.get("longitude") if natal_entry else None
+
+    facts = {
+        "transit_sign": None, "transit_degree": None, "transit_house": None,
+        "transit_retrograde": False,
+        "natal_sign": natal_entry.get("sign") if natal_entry else None,
+        "natal_degree": round(natal_entry.get("degree_in_sign", 0), 2) if natal_entry else None,
+        "natal_house": natal_entry.get("house") if natal_entry else None,
+        "exact_orb": None, "exact_date": None,
+        "period_start": None, "period_end": None,
+    }
+
+    if planet_id is None or natal_lon is None or target_angle is None:
+        return facts
+
+    def _lon_at(d: date) -> float:
+        dt = datetime(d.year, d.month, d.day, 12, 0, 0)
+        jd = _datetime_to_jd(dt)
+        lon, _, _, _ = _calc_planet_position(planet_id, round(jd, 6))
+        return lon
+
+    dt_noon = datetime(peak_date.year, peak_date.month, peak_date.day, 12, 0, 0)
+
+    # Ищем точный момент аспекта СНАЧАЛА: для быстрых планет (~1°/сутки) пик
+    # может случиться в любой час дня, а не ровно в полдень — если брать факты
+    # (знак/градус/орб) на полдень вместо истинного момента, орб может
+    # разойтись на ~1° с тем, что реально показывает таймлайн.
+    exact_dt = _find_exact_aspect(planet_id, natal_lon, target_angle, dt_noon, window_hours=120)
+    fact_dt = exact_dt or dt_noon
+    if exact_dt:
+        facts["exact_date"] = exact_dt.date().isoformat()
+
+    jd_fact = _datetime_to_jd(fact_dt)
+    transit_lon, _, _, speed = _calc_planet_position(planet_id, round(jd_fact, 6))
+    sign, deg = _longitude_to_sign(transit_lon)
+
+    facts["transit_sign"] = sign
+    facts["transit_degree"] = round(deg, 2)
+    facts["transit_retrograde"] = speed < 0
+    facts["transit_house"] = _find_house(transit_lon, cusps)
+    facts["exact_orb"] = round(abs(_angular_distance(transit_lon, natal_lon) - target_angle), 2)
+
+    # Окно действия орба для ИМЕННО этой пары планета/аспект — дешёвое
+    # посуточное сканирование в обе стороны, не полный calculate_transits().
+    orb_limit = TRANSIT_ORBS.get(aspect_type, 2.0)
+
+    def _orb_at(d: date) -> float:
+        return abs(_angular_distance(_lon_at(d), natal_lon) - target_angle)
+
+    MAX_SCAN_DAYS = 400
+    d = peak_date
+    for _ in range(MAX_SCAN_DAYS):
+        prev = d - timedelta(days=1)
+        if _orb_at(prev) > orb_limit:
+            break
+        d = prev
+    facts["period_start"] = d.isoformat()
+
+    d = peak_date
+    for _ in range(MAX_SCAN_DAYS):
+        nxt = d + timedelta(days=1)
+        if _orb_at(nxt) > orb_limit:
+            break
+        d = nxt
+    facts["period_end"] = d.isoformat()
+
+    return facts
 
 
 def get_transit_summary(events: list[TransitEvent]) -> dict:

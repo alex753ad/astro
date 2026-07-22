@@ -257,16 +257,28 @@ class TestTransitTemplates:
 class TestTransitPromptBuilder:
     def test_event_prompt_contains_transit(self):
         event = {
-            "date": "2026-04-15",
             "transit_planet": "Saturn",
             "natal_planet": "Sun",
             "aspect_type": "conjunction",
-            "orb": 0.5,
+            "transit_sign": "Capricorn",
+            "transit_degree": 12.3,
+            "transit_house": 4,
+            "transit_retrograde": False,
+            "natal_sign": "Capricorn",
+            "natal_degree": 10.5,
+            "natal_house": 4,
+            "exact_orb": 0.5,
+            "exact_date": "2026-04-15",
+            "period_start": "2026-04-01",
+            "period_end": "2026-04-30",
         }
         profile = {"planets": SAMPLE_NATAL_PLANETS, "houses": [], "aspects": []}
         prompt = build_transit_event_prompt(event, profile)
-        assert "Saturn" in prompt
-        assert "conjunction" in prompt
+        # Факты переводятся на русский (ИИ не видит сырых английских значений
+        # от клиента) — проверяем переведённые планету и аспект.
+        assert "Сатурн" in prompt
+        assert "соединение" in prompt
+        assert "Не вычисляй" in prompt
 
     def test_period_prompt_limits_events(self):
         """Period prompt should limit to top 20 events."""

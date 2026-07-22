@@ -1200,8 +1200,10 @@ async def interpret_transit_event(
 ):
     """Stream AI interpretation of a single transit event.
 
-    Request body: transit event data (from /transits response).
-    Used when user clicks on a specific event in the timeline.
+    Request body: transit event identifier (from /transits response) —
+    used only to look up WHICH transit this is; знак/градус/дом/орб/даты
+    пересчитываются на бэкенде (compute_exact_facts), клиентским значениям
+    не доверяем.
     """
     _tier = user.tier if user else "free"
     if _tier != "free":
@@ -1212,10 +1214,13 @@ async def interpret_transit_event(
     )
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
+    from backend.transit.engine import compute_exact_facts
+    from backend.cache import transit_interp_cache
+    from datetime import date as _date
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
-    # Parse transit event from request body
+    # Parse transit event identifier from request body
     body = await request.json()
     transit_planet = body.get("transit_planet", "")
     natal_planet = body.get("natal_planet", "")
@@ -1226,6 +1231,10 @@ async def interpret_transit_event(
             status_code=422,
             detail="Required fields: transit_planet, natal_planet, aspect_type",
         )
+
+    _ref_date_str = (body.get("peak_date") or body.get("date") or "")[:10]
+    if not _ref_date_str:
+        raise HTTPException(status_code=422, detail="Required field: peak_date (or date)")
 
     # E2: Free получает AI-разбор только по значимым транзитам (медленная→личная).
     # Топ-2 из них surface на клиенте; сервер допускает любой значимый.
@@ -1250,31 +1259,50 @@ async def interpret_transit_event(
         "time_unknown": chart.time_unknown,
     }
 
+    # Ключ однозначно определяет событие: одна и та же пара планета/аспект
+    # повторяется из года в год (Марс к Солнцу — раз в ~2 года), поэтому
+    # peak_date в ключе обязателен — иначе разборы разных лет склеятся.
+    cache_key = f"transit_interp:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}"
+
+    async def _yield_chunked(text: str):
+        """Отдаём готовый текст тем же SSE-форматом, что и живой стрим —
+        фронт не отличает кэш-хит от генерации."""
+        words = text.split(" ")
+        step = 8
+        for i in range(0, len(words), step):
+            piece = " ".join(words[i:i + step])
+            if i + step < len(words):
+                piece += " "
+            yield f"data: {json.dumps({'text': piece}, ensure_ascii=False)}\n\n"
+            await asyncio.sleep(0.02)
+        yield "data: [DONE]\n\n"
+
+    cached = transit_interp_cache.get(cache_key)
+    if cached:
+        logger.info("Transit interp cache HIT key=%s engine=%s", cache_key, cached.get("engine"))
+
+        async def event_stream_cached():
+            async for chunk in _yield_chunked(cached["content"]):
+                yield chunk
+            tier_limiter.commit_transit_ai(user, db)
+
+        return StreamingResponse(
+            event_stream_cached(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+
+    logger.info("Transit interp cache MISS key=%s", cache_key)
+
+    facts = compute_exact_facts(
+        transit_planet, natal_planet, aspect_type, _date.fromisoformat(_ref_date_str), profile,
+    )
     transit_event_dict = {
         "transit_planet": transit_planet,
         "natal_planet": natal_planet,
         "aspect_type": aspect_type,
-        "date": body.get("date"),
-        "orb": body.get("orb"),
-        "exact_date": body.get("exact_date"),
-        "transit_sign": body.get("transit_sign"),  # будет перезаписан ниже
-        "natal_sign": body.get("natal_sign"),
+        **facts,
     }
-
-    # Пересчитываем актуальный знак транзитной планеты по peak_date/date,
-    # чтобы не использовать устаревшее значение из кэша транзитов.
-    _ref_date_str = body.get("peak_date") or body.get("date")
-    if _ref_date_str:
-        try:
-            from datetime import date as _date
-            from backend.transit.engine import get_planet_positions_for_date
-            _ref_date = _date.fromisoformat(_ref_date_str[:10])
-            _positions = get_planet_positions_for_date(_ref_date)
-            _match = next((p for p in _positions if p["name"] == transit_planet), None)
-            if _match:
-                transit_event_dict["transit_sign"] = _match["sign"]
-        except Exception as _e:
-            logger.warning("Could not recalculate transit_sign: %s", _e)
 
     event_prompt = build_transit_event_prompt(
         transit_event=transit_event_dict,
@@ -1285,6 +1313,7 @@ async def interpret_transit_event(
     router = get_router()
 
     async def event_stream():
+        collected: list[str] = []
         try:
             interp_request = InterpretationRequest(
                 natal_profile=profile,
@@ -1301,17 +1330,23 @@ async def interpret_transit_event(
                 try:
                     streamed = False
                     async for chunk in eng.stream(interp_request):
+                        collected.append(chunk)
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
                     if streamed:
                         yield "data: [DONE]\n\n"
+                        transit_interp_cache.set(
+                            cache_key,
+                            {"content": "".join(collected), "engine": eng.name},
+                        )
                         tier_limiter.commit_transit_ai(user, db)
                         return
                 except Exception as e:
                     logger.error("Transit event stream from %s failed: %s", eng.name, e)
+                    collected.clear()
                     continue
 
-            # Template fallback
+            # Template fallback — не кэшируем (не AI-разбор конкретным движком)
             text = get_template_transit_text(transit_planet, natal_planet, aspect_type)
             yield f"data: {json.dumps({'text': text}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"

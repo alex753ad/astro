@@ -180,7 +180,7 @@ def build_chart_summary(chart: dict) -> str:
             name = _PLANET_RU.get(p.get("name", ""), p.get("name", ""))
             sign = _SIGN_RU.get(p.get("sign", ""), p.get("sign", ""))
             house = p.get("house", "")
-            deg   = p.get("degree", "")
+            deg   = round(p.get("degree_in_sign", 0), 1)
             retro = " ℞" if p.get("retrograde") else ""
             lines.append(f"  {name}: {sign} {deg}°{retro}, {house} дом")
 
@@ -220,5 +220,58 @@ def build_chart_summary(chart: dict) -> str:
             asp = _ASP_RU.get(asp_key, asp_key)
             orb = a.get("orb", "")
             lines.append(f"  {p1} {asp} {p2} (орб {orb}°)")
+
+    return "\n".join(lines)
+
+
+def build_transits_block(chart: dict, max_transits: int = 5) -> str:
+    """Блок текущих транзитов для system prompt чата — 3–5 самых значимых
+    на сегодня, тем же фактологическим форматом, что и разбор одного
+    транзита (см. backend/transit/prompts.py). Считается через Swiss
+    Ephemeris, ИИ ничего не вычисляет и не видит дат за пределами списка."""
+    from datetime import date as _date
+    from backend.transit.engine import calculate_transits, is_significant_pair, compute_exact_facts
+    from backend.transit.prompts import _build_facts_block
+
+    today = _date.today()
+    planets = chart.get("planets") or []
+    if not planets:
+        return "## Текущие транзиты\nНет данных натальной карты для расчёта транзитов.\n"
+
+    try:
+        events = calculate_transits(natal_planets=planets, from_date=today, to_date=today)
+    except Exception as e:
+        logger.warning("chat transits calc failed: %s", e)
+        return "## Текущие транзиты\nНе удалось рассчитать (попробуйте позже).\n"
+
+    significant = [e for e in events if is_significant_pair(e.transit_planet, e.natal_planet)]
+    significant.sort(key=lambda e: e.peak_orb)
+    top = significant[:max_transits]
+
+    if not top:
+        return (
+            "## Текущие транзиты\n"
+            "Сейчас нет значимых активных транзитов (медленная планета к личной "
+            "натальной). Не выдумывай транзиты — если пользователь спрашивает "
+            "«что происходит сейчас», честно скажи, что заметных активаций сейчас нет.\n"
+        )
+
+    lines = ["## Текущие транзиты (на сегодня, посчитаны точно)\n"]
+    for e in top:
+        try:
+            facts = compute_exact_facts(
+                e.transit_planet, e.natal_planet, e.aspect_type,
+                _date.fromisoformat(e.peak_date), chart,
+            )
+            event_dict = {
+                "transit_planet": e.transit_planet,
+                "natal_planet": e.natal_planet,
+                "aspect_type": e.aspect_type,
+                **facts,
+            }
+            lines.append(_build_facts_block(event_dict))
+            lines.append("")
+        except Exception as ex:
+            logger.warning("chat transit fact build failed for %s: %s", e.transit_planet, ex)
 
     return "\n".join(lines)

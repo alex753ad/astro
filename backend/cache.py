@@ -92,6 +92,18 @@ class RedisCache:
 # ── Singleton instances (импортируются из main.py) ──
 interpretation_cache = RedisCache("interp", TTL_INTERPRETATION)
 transit_cache        = RedisCache("transit", TTL_TRANSIT)
+# Отдельный кэш для AI-разборов ОДНОГО транзитного события (не путать с
+# transit_cache выше — тот хранит сырые списки рассчитанных транзитов на
+# период, TTL 7 дней ради свежести пересчёта; здесь — готовый текст
+# интерпретации на конкретный peak_date. TTL 30 дней, как у interpretation_cache:
+# тот же класс контента (текст, который не устаревает сам по себе, только
+# от будущих улучшений промпта), и повторные просмотры одного и того же
+# транзита за пределами недели — обычное дело.
+transit_interp_cache = RedisCache("transit_interp", TTL_INTERPRETATION)
+# Транзиты для системного промпта RAG-чата — считаются раз в сутки на чарт,
+# а не на каждое сообщение. TTL передаётся явно при set() (до конца текущих
+# суток), default_ttl здесь просто разумный fallback.
+chat_transits_cache = RedisCache("chat_transits", 24 * 3600)
 
 
 def make_profile_hash(profile: dict) -> str:

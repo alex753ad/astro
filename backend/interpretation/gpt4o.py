@@ -65,7 +65,7 @@ class GPT4oEngine(InterpretationEngine):
             "model": self._model,
             "messages": messages,
             "max_tokens": _calc_max_tokens(request),
-            "temperature": 0.7,
+            "temperature": 0.2,
             "stream": stream,
         }
         if stream:

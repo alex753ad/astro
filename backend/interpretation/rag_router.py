@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from backend.auth.dependencies import get_current_user, require_tier
 from backend.database import get_db, SessionLocal
 from backend.models import NatalChart, User, AstreaMemory
-from backend.interpretation.rag import retrieve, build_chart_summary
+from backend.interpretation.rag import retrieve, build_chart_summary, build_transits_block
 from backend.config import get_settings
 
 logger = logging.getLogger("astro.rag_router")
@@ -44,7 +44,12 @@ class RagChatRequest(BaseModel):
     history: list[dict] = []  # [{role: "user"|"assistant", content: "..."}]
 
 
-def _system_prompt(chart_summary: str, context_chunks: list[str], memory_summary: str = "") -> str:
+def _system_prompt(
+    chart_summary: str,
+    context_chunks: list[str],
+    memory_summary: str = "",
+    transits_block: str = "",
+) -> str:
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
     today = date.today().strftime("%d.%m.%Y")
     memory_block = ""
@@ -64,9 +69,16 @@ def _system_prompt(chart_summary: str, context_chunks: list[str], memory_summary
 
 {chart_summary}
 
+{transits_block}
 ## Знания из базы под этот вопрос:
 {kb_text}
 {memory_block}
+## Ты видишь и натальную карту, и текущие транзиты пользователя.
+Отвечая на вопросы о настоящем моменте — опирайся на транзиты выше.
+Отвечая на вопросы о характере и предрасположенностях — на натальную карту.
+Не вычисляй астрономические данные сам, используй только переданные.
+Если нужного транзита нет в списке выше — скажи, что сейчас его не видишь, не выдумывай.
+
 ## Границы:
 1. Говори только по этой карте — конкретные планеты, знаки, дома. Никаких общих советов «для всех Тельцов».
 2. Без страшилок и фатальных предсказаний. Напряжённое — зона работы, а не приговор.
@@ -74,6 +86,29 @@ def _system_prompt(chart_summary: str, context_chunks: list[str], memory_summary
 4. Русский язык, 3–6 абзацев.
 """
 
+
+
+def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
+    """Слой 3: транзиты на сегодня для этого чарта — раз в сутки, не на
+    каждое сообщение чата (иначе каждая реплика пересчитывала бы эфемериды)."""
+    from datetime import datetime, timedelta
+    from backend.cache import chat_transits_cache
+
+    today_str = date.today().isoformat()
+    cache_key = f"chat_transits:{chart_id}:{today_str}"
+
+    cached = chat_transits_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    from backend.interpretation.rag import build_transits_block
+    block = build_transits_block(chart_data)
+
+    now = datetime.now()
+    midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
+    ttl = max(60, int((midnight - now).total_seconds()))
+    chat_transits_cache.set(cache_key, block, ttl=ttl)
+    return block
 
 
 def _load_memory(db: Session, user_id: str) -> str:
@@ -229,10 +264,12 @@ async def rag_chat(
     # RAG: получаем релевантные фрагменты
     context_chunks = retrieve(question, chart_data, top_k=6)
 
-    # Собираем system prompt (+ память Астреи о пользователе, слой 2)
+    # Собираем system prompt (+ память Астреи о пользователе, слой 2,
+    # + текущие транзиты, слой 3 — считаются раз в сутки на чарт, не на реплику)
     chart_summary = build_chart_summary(chart_data)
     memory_summary = _load_memory(db, user.id)
-    system = _system_prompt(chart_summary, context_chunks, memory_summary)
+    transits_block = _get_transits_block_cached(chart_id, chart_data)
+    system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block)
 
     # История + новый вопрос
     history = body.history[-MAX_HISTORY:]

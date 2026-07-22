@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import sys
@@ -108,10 +109,17 @@ class InterpretationRouter:
         start_time = time.time()
 
         # Cache key includes word_limit so requests with different limits
-        # never share the same cached result.
+        # never share the same cached result. Callers that pass custom_prompt
+        # (broadcasts, briefs — same natal profile, different content each
+        # time: transits differ month to month) also fold a hash of the
+        # prompt in, otherwise they'd all collide on profile_hash alone and
+        # a later call would silently get an earlier month's stale text.
         profile_hash = make_profile_hash(request.natal_profile)
         wl_key = str(request.word_limit) if request.word_limit else f"tier_{request.tier}"
         cache_key = f"interp:{profile_hash}:{wl_key}"
+        if request.custom_prompt:
+            prompt_hash = hashlib.sha256(request.custom_prompt.encode()).hexdigest()[:12]
+            cache_key = f"{cache_key}:{prompt_hash}"
 
         cached = interpretation_cache.get(cache_key)
         if cached:
