@@ -181,7 +181,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           }}>
             <img
               src={chartPreview}
-              alt="Натальная карта в Astrea"
+              alt="Натальная карта в Астрея"
               loading="lazy"
               style={{
                 width: '100%',
@@ -273,7 +273,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           color: '#1a1230',
         }}
       >
-        Что делает Astrea
+        Что делает Астрея
       </motion.h2>
       <motion.div
         variants={gridContainer}
@@ -378,11 +378,11 @@ export default function LandingPage({ onShowAuth, currentUser }) {
 
       {/* Ссылка на B2B-пространство */}
       <div style={{ textAlign: 'center', padding: '0 24px 8px' }}>
-        <Link to="/orion" style={{ fontSize: 13, color: '#9B97B0', textDecoration: 'none' }}
+        <Link to="/orion" style={{ fontSize: 16, color: '#9B97B0', textDecoration: 'none' }}
           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
         >
-          Ты астролог и ведёшь клиентов? → Astrea для практики
+          Ты астролог и ведёшь клиентов? → Астрея для практики
         </Link>
       </div>
 

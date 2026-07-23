@@ -56,7 +56,7 @@ export default function OrionPage({ currentUser }) {
           color: '#8B5CF6',
           textTransform: 'uppercase',
         }}>
-          Astrea для практики
+          Астрея для практики
         </div>
       </div>
 
@@ -84,7 +84,7 @@ export default function OrionPage({ currentUser }) {
             margin: '0 0 14px',
             color: '#1a1230',
           }}>
-            Astrea станет вашим рабочим местом
+            Астрея станет вашим рабочим местом
           </h2>
           <p style={{ fontSize: 15, color: '#6B6885', lineHeight: 1.7, margin: 0 }}>
             Ваша практика переезжает из заметок телефона в одно живое пространство —
@@ -108,7 +108,7 @@ export default function OrionPage({ currentUser }) {
         >
           <img
             src={crmPreview}
-            alt="Кабинет астролога в Astrea"
+            alt="Кабинет астролога в Астрея"
             loading="lazy"
             style={{
               width: '100%',

@@ -790,7 +790,6 @@ function LockedGroupHint({ children, onUpgrade }) {
           Открыть доступ
         </MotionButton>
       )}
-      <span style={{ position: "absolute", top: 8, right: 10, fontSize: 12, opacity: 0.5 }}>🔒</span>
     </div>
   );
 }

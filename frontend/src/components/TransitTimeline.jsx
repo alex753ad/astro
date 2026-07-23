@@ -412,19 +412,18 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// GATE MODAL — «Интерпретация» на закрытом транзите
+// GATE PANEL — «Интерпретация» на закрытом транзите (инлайн, как InterpretationPanel)
 // ═══════════════════════════════════════════════════════════
 
-function TransitGateModal({ onClose, onUpgrade }) {
+function TransitGatePanel({ event, onClose, onUpgrade }) {
+  const key = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(20,16,32,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-      onClick={onClose}
-    >
-      <div
-        style={{ background: "var(--bg-card)", border: "1px solid var(--tt-border2)", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%", textAlign: "center" }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div style={{ background: "var(--tt-card)", borderRadius: 18, border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
+      </div>
+      <div style={{ padding: 16, textAlign: "center" }}>
         <div style={{ fontSize: 14, color: "var(--tt-text)", lineHeight: 1.6, marginBottom: 18 }}>
           Астрея разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
         </div>
@@ -624,7 +623,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [loadedUntil,   setLoadedUntil]   = useState(null);   // to_date последнего загруженного месяца
   const [reachedEnd,    setReachedEnd]    = useState(false);  // догрузили до горизонта тарифа
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [gateModalOpen, setGateModalOpen] = useState(false);
   const [planetFilter,  setPlanetFilter]  = useState([]);
   const [aspectFilter,  setAspectFilter]  = useState([]);
   const [orbFilter,     setOrbFilter]     = useState(2.0);
@@ -782,21 +780,15 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [events]);
 
   const handleUpgrade = useCallback(() => {
-    setGateModalOpen(false);
     if (onUpgrade) onUpgrade('lite_to_pro');
   }, [onUpgrade]);
 
   // Free (кроме free_unlocked-транзитов) и Lite не видят реальный разбор —
-  // сначала модалка с ценностью, апгрейд только по клику на «Открыть доступ».
-  // isEventVisible сама по себе не отличает Lite от Pro/Premium (обе — true),
-  // поэтому Lite гейтится отдельной проверкой, как и раньше.
+  // клик по любому транзиту открывает панель, а какую именно (интерпретацию
+  // или гейт) решает рендер по isLite/isEventVisible.
   const handleEventClick = useCallback((event) => {
-    if (isLite || !isEventVisible(event)) {
-      setGateModalOpen(true);
-      return;
-    }
     setSelectedEvent(prev => prev === event ? null : event);
-  }, [isLite, isEventVisible]);
+  }, []);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
@@ -908,7 +900,11 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </div>
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>
-            <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
+            {(isLite || !isEventVisible(selectedEvent)) ? (
+              <TransitGatePanel event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpgrade={handleUpgrade} />
+            ) : (
+              <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
+            )}
           </div>
         )}
       </div>
@@ -926,10 +922,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°<br />
           Нажмите на транзит для AI-интерпретации
         </div>
-      )}
-
-      {gateModalOpen && (
-        <TransitGateModal onClose={() => setGateModalOpen(false)} onUpgrade={handleUpgrade} />
       )}
     </div>
   );
