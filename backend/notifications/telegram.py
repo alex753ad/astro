@@ -50,6 +50,8 @@ async def send_support_message(text: str, photo_path: str | None = None) -> bool
                     f"{_API_BASE}/bot{token}/sendMessage",
                     data={"chat_id": chat_id, "text": text[:4096]},
                 )
+            if resp.status_code >= 400:
+                logger.warning("Telegram API response: %s", resp.text)
             resp.raise_for_status()
             return True
     except Exception as e:
