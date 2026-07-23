@@ -5,6 +5,7 @@ import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
+import OrionPage from './pages/OrionPage';
 import ChartPage from './pages/ChartPage';
 import PlannerPage from './pages/PlannerPage';
 import SolarReturnPage from './pages/SolarReturnPage';
@@ -343,6 +344,7 @@ function AppRoutes() {
             >
               <Routes location={location}>
                 <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+                <Route path="/orion"          element={<OrionPage currentUser={user} />} />
                 <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
                 <Route path="/chart/share/:token" element={<SharePage />} />
                 <Route path="/intake/:token" element={<IntakePage />} />

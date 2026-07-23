@@ -733,7 +733,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
               <span style={{ fontSize: 40 }}>🔒</span>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
-              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Astrea помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
+              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Астрея помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
               <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx('pro'), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Открыть доступ
               </MotionButton>

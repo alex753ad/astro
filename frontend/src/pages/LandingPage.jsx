@@ -4,8 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import chartPreview from '../assets/chart-preview.png';
-import crmPreview from '../assets/crm-preview.png';
-import { TIER_NAMES } from '../constants';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
@@ -72,7 +70,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           textTransform: 'uppercase',
           marginBottom: 20,
         }}>
-          Интеллектуальный планер
+          Астрология, которая ведёт
         </motion.div>
 
         <motion.h1 variants={heroItem} style={{
@@ -82,7 +80,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           margin: '0 0 20px',
           color: '#1a1230',
         }}>
-          Лучшая ветка вашего времени —<br />
+          Лучшее время для возможностей —<br />
           <motion.span
             style={{
               background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
@@ -95,7 +93,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             animate={prefersReduced ? undefined : { backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
             transition={prefersReduced ? undefined : { duration: 7, ease: 'easeInOut', repeat: Infinity }}
           >
-            в вашем Планере
+            в твоём планере
           </motion.span>
         </motion.h1>
 
@@ -106,9 +104,9 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           maxWidth: 540,
           margin: '0 auto 36px',
         }}>
-          Astrea превращает вашу натальную карту в живого навигатора по каждому дню. Она показывает,
-          когда именно ваши цели — карьера, отношения, ресурс — звучат сильнее всего, и что сделать прямо сейчас,
-          чтобы усилить результат.
+          Астрея мягко ведёт тебя по твоим жизненным циклам — показывает, какой
+          период сейчас наступает, о чём он для тебя и как прожить его в своём
+          ритме, опираясь на твою натальную карту.
         </motion.p>
 
         <motion.div variants={heroItem}>
@@ -141,7 +139,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
             }}
           >
-            Собрать мой Timeline за минуту
+            Собрать мой Timeline
           </MotionButton>
         </motion.div>
       </motion.div>
@@ -220,13 +218,13 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               color="#EAB308"
               planet="Солнце"
               period="Период 01.07 — 20.07"
-              desc="Говорите о карьере, статусе и росте, просите о повышении — сейчас ваше имя звучит громче, и вас слышат яснее."
+              desc="Говори о карьере, статусе и росте, проси о повышении — сейчас твоё имя звучит громче, и тебя слышат яснее."
             />
             <PlanetItem
               color="#EC4899"
               planet="Венера"
               period="Период 01.07 — 28.07"
-              desc="Обновите гардероб, выберите парфюм, украшения или аксессуары — в эти дни ваша харизма работает сильнее, и люди тянутся к вам охотнее."
+              desc="Обнови гардероб, выбери парфюм, украшения или аксессуары — в эти дни твоя харизма работает сильнее, и люди тянутся к тебе охотнее."
             />
 
             {/* AI Sintez badge */}
@@ -253,7 +251,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               color: '#8B5CF6',
               lineHeight: 1.6,
             }}>
-              И это лишь два окна вашего месяца — Astrea ведёт вас по всем планетам и покажет,
+              И это лишь два окна твоего месяца — Астрея ведёт тебя по всем планетам и покажет,
               где действие сработает в 2–3 раза сильнее.
             </div>
           </div>
@@ -261,44 +259,52 @@ export default function LandingPage({ onShowAuth, currentUser }) {
       </div>
 
       {/* Features */}
+      <motion.h2
+        variants={sectionReveal}
+        initial="hidden"
+        whileInView="visible"
+        viewport={VIEWPORT_ONCE}
+        style={{
+          fontSize: 'clamp(26px, 3.5vw, 36px)',
+          fontWeight: 700,
+          lineHeight: 1.2,
+          textAlign: 'center',
+          margin: '48px 0 24px',
+          color: '#1a1230',
+        }}
+      >
+        Что делает Astrea
+      </motion.h2>
       <motion.div
         variants={gridContainer}
         initial="hidden"
         whileInView="visible"
         viewport={VIEWPORT_ONCE}
         style={{
-          // 5 карточек: flex-wrap + center даёт ряд 3 + центрированный ряд 2,
-          // без «висящих» влево карточек неполного ряда.
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'center',
           gap: 16,
           maxWidth: 820,
-          margin: '32px auto 0',
+          margin: '0 auto',
           padding: '0 24px',
         }}
       >
         {[
           {
-            title: 'Окна возможностей',
-            desc: 'Быть в нужном месте в нужное время — навык, который можно освоить. Astrea заранее показывает ваши личные окна, чтобы каждый важный шаг попадал в самый сильный момент.',
+            title: 'Транзитный Timeline',
+            desc: 'Линия времени, где отображается движение транзитных планет по твоей натальной карте. Начало каждого важного периода у тебя перед глазами.',
+            descShort: 'Начало каждого важного периода — перед глазами.',
           },
           {
-            title: 'Синергия действий',
-            desc: 'Свой путь вы выбираете сами. Astrea подсказывает, где космические волны совпадают с вашими планами и усиливают каждый шаг попутным ветром.',
+            title: 'Timeline Планер',
+            desc: 'Поможет сориентироваться по каждому твоему периоду и применить компенсаторику транзитов, встроив нужные действия в своё ежедневное расписание. Планируй заранее отпуск, финансы и важные решения в самое правильное время.',
+            descShort: 'Встрой нужные действия в своё расписание — заранее и вовремя.',
           },
           {
-            title: 'Экология ресурса',
-            desc: 'Истинный баланс — это энергия, бережно направленная в нужное русло. Astrea помогает вкладывать силы туда, где они дают максимальную отдачу, и сохранять их для главного.',
-          },
-          {
-            title: 'Живой разговор с Astrea',
-            desc: 'Задайте любой вопрос о себе — и Astrea ответит по вашей карте и текущим транзитам сразу. Она соединяет вашу натальную основу с событиями момента и подсказывает лучший ход именно для вас, здесь и сейчас.',
-            highlight: true,
-          },
-          {
-            title: 'Глубина вашей карты — понятным языком',
-            desc: 'Astrea читает вашу натальную карту и транзиты как единую историю и переводит её в тёплый, ясный разбор. Вы узнаёте свои сильные стороны и лучшие моменты для действий так, будто рядом мудрый близкий человек.',
+            title: 'AI-астролог Астрея',
+            desc: 'В чате с Астреей можно задать любой вопрос о себе — и она ответит по твоей карте и текущим транзитам сразу. Соединив твою натальную основу с событиями момента, она даст подсказку именно для тебя, здесь и сейчас.',
+            descShort: 'Спроси о себе — ответит по твоей карте и транзитам сейчас.',
           },
         ].map((f) => (
           <motion.div
@@ -307,12 +313,10 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             whileHover={cardHover}
             style={{
               flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
-              background: f.highlight
-                ? 'rgba(139,92,246,0.08)'
-                : 'rgba(255,255,255,0.6)',
+              background: 'rgba(255,255,255,0.6)',
               backdropFilter: 'blur(8px)',
               borderRadius: 16,
-              border: `1px solid ${f.highlight ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.1)'}`,
+              border: '1px solid rgba(139,92,246,0.1)',
               padding: '24px 20px',
             }}
           >
@@ -326,7 +330,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               fontSize: 13,
               color: '#6B6885',
               lineHeight: 1.6,
-            }}>{f.desc}</div>
+            }}>{isMobile ? f.descShort : f.desc}</div>
           </motion.div>
         ))}
       </motion.div>
@@ -368,164 +372,18 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
           }}
         >
-          Открыть таймлайн
+          Собрать мой Timeline
         </MotionButton>
       </motion.div>
 
-      {/* Astrologer block */}
-      <div style={{
-        maxWidth: 820,
-        margin: '0 auto 48px',
-        padding: '0 24px',
-      }}>
-        <motion.div
-          variants={sectionReveal}
-          initial="hidden"
-          whileInView="visible"
-          viewport={VIEWPORT_ONCE}
-          style={{
-            textAlign: 'center',
-            maxWidth: 620,
-            margin: '0 auto 28px',
-          }}
+      {/* Ссылка на B2B-пространство */}
+      <div style={{ textAlign: 'center', padding: '0 24px 8px' }}>
+        <Link to="/orion" style={{ fontSize: 13, color: '#9B97B0', textDecoration: 'none' }}
+          onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+          onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
         >
-          <h2 style={{
-            fontSize: 'clamp(26px, 3.5vw, 36px)',
-            fontWeight: 700,
-            lineHeight: 1.2,
-            margin: '0 0 14px',
-            color: '#1a1230',
-          }}>
-            Astrea станет вашим рабочим местом
-          </h2>
-          <p style={{ fontSize: 15, color: '#6B6885', lineHeight: 1.7, margin: 0 }}>
-            Ваша практика переезжает из заметок телефона в одно живое пространство —
-            и каждый повод написать превращается в новую консультацию.
-          </p>
-        </motion.div>
-
-        {/* Cabinet screenshot */}
-        <motion.div
-          variants={sectionReveal}
-          initial="hidden"
-          whileInView="visible"
-          viewport={VIEWPORT_ONCE}
-          style={{
-            borderRadius: 20,
-            border: '1px solid rgba(139,92,246,0.15)',
-            boxShadow: '0 12px 40px rgba(0,0,0,0.10)',
-            overflow: 'hidden',
-            marginBottom: 20,
-          }}
-        >
-          <img
-            src={crmPreview}
-            alt="Кабинет астролога в Astrea"
-            loading="lazy"
-            style={{
-              width: '100%',
-              height: 'auto',
-              objectFit: 'contain',
-              display: 'block',
-            }}
-          />
-        </motion.div>
-
-        <motion.div
-          variants={gridContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={VIEWPORT_ONCE}
-          style={{
-            // Тот же приём, что и в первой сетке: ряд 3 + центрированный ряд 2.
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: 16,
-            marginBottom: 28,
-          }}
-        >
-          {[
-            {
-              title: 'Вся база в одном месте',
-              desc: 'Карты, заметки и история каждого клиента живут рядом и всегда под рукой. Ваша практика становится единым, спокойным пространством, где легко ориентироваться.',
-            },
-            {
-              title: 'Astrea сама подсказывает момент',
-              desc: 'Она следит за периодами всех ваших клиентов и подсказывает, у кого прямо сейчас открывается важное окно. Каждый такой сигнал — тёплый повод написать и провести консультацию вовремя.',
-              highlight: true,
-            },
-            {
-              title: 'Готовы к встрече за 20 минут',
-              desc: 'Astrea собирает бриф по клиенту заранее: карта, актуальные транзиты, главные темы периода. Вы приходите на консультацию собранным и глубоким, а время до неё остаётся вашим.',
-            },
-            {
-              title: 'История, которая работает на вас',
-              desc: 'Все сессии, брифы и заметки по клиенту хранятся вместе и складываются в живую летопись отношений. Вы возвращаетесь к прошлым разговорам легко и ведёте каждого клиента как своего.',
-            },
-            {
-              title: 'Практика в цифрах',
-              desc: `Ваши консультации и доход видны наглядно — вы видите, как растёт практика, и чувствуете отдачу от каждого шага. Одна консультация окупает месяц ${TIER_NAMES.premium}, дальше — только ваш рост.`,
-            },
-          ].map((f) => (
-            <motion.div
-              key={f.title}
-              variants={sectionReveal}
-              whileHover={cardHover}
-              style={{
-                flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
-                background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: 16,
-                border: `1px solid ${f.highlight ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.1)'}`,
-                padding: '24px 20px',
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1230', marginBottom: 8 }}>{f.title}</div>
-              <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.6 }}>{f.desc}</div>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        <motion.div
-          variants={sectionReveal}
-          initial="hidden"
-          whileInView="visible"
-          viewport={VIEWPORT_ONCE}
-          style={{ textAlign: 'center' }}
-        >
-          <MotionButton
-            level="secondary"
-            onClick={handleActivate}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '16px 36px',
-              borderRadius: 14,
-              border: 'none',
-              background: '#1a1230',
-              color: '#fff',
-              fontSize: 16,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              letterSpacing: '0.01em',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
-            }}
-          >
-            Открыть пространство Astrea
-          </MotionButton>
-        </motion.div>
+          Ты астролог и ведёшь клиентов? → Astrea для практики
+        </Link>
       </div>
 
       {/* Footer links */}

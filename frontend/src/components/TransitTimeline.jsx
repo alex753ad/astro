@@ -376,7 +376,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
     const np = PLANET_LABELS_RU[featuredTransit.natal_planet] || featuredTransit.natal_planet;
     const tail = isHarmonic(featuredTransit.aspect_type)
       ? "один из лучших периодов месяца"
-      : "важный период — Astrea подскажет, как пройти его мягче";
+      : "важный период — Астрея подскажет, как пройти его мягче";
     headline = `${tp} ${asp} ваш ${np} — ${tail}`;
     sub = `Разбор этого и ещё ${lockedCount} периодов — на тарифе ${TIER_NAMES.pro}`;
   }
@@ -426,7 +426,7 @@ function TransitGateModal({ onClose, onUpgrade }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ fontSize: 14, color: "var(--tt-text)", lineHeight: 1.6, marginBottom: 18 }}>
-          Astrea разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
+          Астрея разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
         </div>
         <button
           onClick={onUpgrade}

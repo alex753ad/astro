@@ -271,7 +271,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>Astrea знает вашу карту и помнит все ваши разговоры. Спросите что угодно.</p>
+            <p style={s.emptyText}>Астрея знает вашу карту и помнит все ваши разговоры. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>
