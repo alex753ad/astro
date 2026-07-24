@@ -309,10 +309,16 @@ def compute_planner_periods(
         lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 40))
         all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt + lookahead)
         # Оставляем только периоды, пересекающиеся с отображаемым месяцем:
-        # заканчиваются не раньше начала месяца И начинаются не позже конца месяца
+        # заканчиваются не раньше начала месяца И начинаются не позже конца месяца.
+        # Если смотрим текущий/будущий месяц (period_end_dt >= today) — дополнительно
+        # прячем период, который уже полностью завершился к сегодняшнему дню (иначе
+        # карточка показывает истёкшую дату вместо актуального дома). При просмотре
+        # прошлого месяца (Pro-навигация назад) это ограничение не действует.
+        hide_fully_past = period_end_dt >= today_dt
         passages = [
             p for p in all_passages
             if p["end_dt"] >= period_start_dt and p["start_dt"] <= period_end_dt
+            and (not hide_fully_past or p["end_dt"] >= today_dt)
         ]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         fast_result.append({
@@ -377,8 +383,8 @@ def compute_planner_periods(
         moon_week.append({
             # date = момент входа Луны в дом (для совместимости с planner_engine)
             "date":  start_label,
-            # time = метка "до <дата выхода>" — используется в planner_engine как подзаголовок
-            "time":  f"до {end_label}",
+            # time = метка даты выхода — фронт склеивает "date – time" через тире
+            "time":  end_label,
             "house": p["house"],
             # Сохраняем полные datetime для возможной дальнейшей обработки
             "start_dt": start_local.isoformat(),
@@ -400,11 +406,18 @@ def compute_planner_periods(
             if p["end_dt"] >= period_start_dt and p["start_dt"] <= period_end_dt
         ]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
-        main = max(
-            passages,
-            key=lambda p: (p["end_dt"] - p["start_dt"]).total_seconds(),
-            default=None,
-        )
+        # Берём период, который реально содержит "сегодня" — раньше здесь ошибочно
+        # выбирался самый длинный по продолжительности из пересекающихся с месяцем,
+        # из-за чего при переходе в более короткий (по времени пребывания) дом
+        # оставался старый, уже завершившийся период (баг с истёкшими датами).
+        main = next((p for p in passages if p["start_dt"] <= today_dt <= p["end_dt"]), None)
+        if main is None:
+            # today вне пересекающихся периодов (например, просмотр прошлого месяца) —
+            # берём последний начавшийся к этому моменту, иначе ближайший будущий.
+            started = [p for p in passages if p["start_dt"] <= today_dt]
+            main = max(started, key=lambda p: p["start_dt"], default=None)
+            if main is None and passages:
+                main = min(passages, key=lambda p: p["start_dt"])
         if main is None:
             continue
         slow_result.append({

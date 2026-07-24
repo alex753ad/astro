@@ -728,30 +728,17 @@ function SectionHeader({ planet, emoji, title, subtitle }) {
   );
 }
 
-// #1 — сворачиваемая секция месяца (клик по заголовку раскрывает/скрывает карточки)
-function CollapsibleMonthSection({ section, onUpgrade }) {
-  const [open, setOpen] = useState(section.planet === 'sun');
+// #1 — секция месяца, всегда развёрнута (единообразно с "Неделя"/"Долгосрочно")
+function MonthSection({ section, onUpgrade }) {
   return (
     <div id={`plan-sec-${section.planet}`} style={{ marginBottom: 28, scrollMarginTop: 80 }}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(o => !o)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(o => !o); } }}
-        style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
-        aria-expanded={open}
-      >
-        <span style={{ fontSize: 12, color: "var(--text-secondary)", transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "none", flexShrink: 0 }}>▶</span>
-        <div style={{ flex: 1 }}>
-          <SectionHeader
-            planet={section.planet}
-            emoji={section.emoji}
-            title={section.planet_name}
-            subtitle={section.planet_subtitle}
-          />
-        </div>
-      </div>
-      {open && (() => {
+      <SectionHeader
+        planet={section.planet}
+        emoji={section.emoji}
+        title={section.planet_name}
+        subtitle={section.planet_subtitle}
+      />
+      {(() => {
         const periods = section.periods || [];
         let bannerShown = false;
         return periods.map((p, pi) => {
@@ -1045,7 +1032,7 @@ export default function PlannerPage() {
               <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
               {tab === "month" && (planData?.month_sections || []).map((section, si) => (
-                <CollapsibleMonthSection key={si} section={section} onUpgrade={() => openPaywall("lite")} />
+                <MonthSection key={si} section={section} onUpgrade={() => openPaywall("lite")} />
               ))}
 
               {tab === "week" && (
@@ -1065,7 +1052,7 @@ export default function PlannerPage() {
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
-                            badgeText={day.time ? `${day.date} · ${day.time}` : day.date}
+                            badgeText={day.time ? `${day.date} – ${day.time}` : day.date}
                             theme={`Луна в ${day.house} доме`}
                             groups={day.groups || []}
                             locked={day.locked} />

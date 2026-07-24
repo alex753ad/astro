@@ -371,7 +371,7 @@ function AppRoutes() {
         </main>
 
         <footer className="border-t border-brand-border py-5 text-center text-brand-muted text-xs bg-brand-card/50">
-          Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris · AI: GPT-4o / DeepSeek
+          Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris
           <span className="mx-2">·</span>
           <Link to="/privacy" className="hover:text-slate-600 transition-colors">Политика конфиденциальности</Link>
           <span className="mx-2">·</span>
