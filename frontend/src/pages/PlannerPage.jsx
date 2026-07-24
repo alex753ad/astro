@@ -312,6 +312,7 @@ const styles = `
   .section-header-text p { margin: 0; font-size: 12px; color: var(--text-secondary); }
 
   .period-card {
+    position: relative;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
@@ -320,8 +321,12 @@ const styles = `
   }
   .period-card-header {
     display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+    padding-right: 90px; /* место под period-badge в углу */
   }
-  .period-badge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+  .period-badge {
+    position: absolute; top: 14px; right: 16px;
+    font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+  }
   .period-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
 
   .period-items { margin: 0; padding: 0; list-style: none; }
@@ -752,7 +757,7 @@ function CollapsibleMonthSection({ section, onUpgrade }) {
                 </LockedGroupHint>
               )}
               <PeriodBlock planet={section.planet}
-                badgeText={`Период ${p.period}`} items={p.items || []}
+                badgeText={`Период ${p.period}`} subtitle={p.theme} items={p.items || []}
                 locked={p.locked} />
             </Fragment>
           );
@@ -1066,6 +1071,7 @@ export default function PlannerPage() {
                               subtitle={lt.planet_subtitle} />
                             <PeriodBlock planet={lt.planet}
                               badgeText={lt.period}
+                              subtitle={lt.theme}
                               warning={lt.warning}
                               items={lt.items || []}
                               locked={lt.locked} />

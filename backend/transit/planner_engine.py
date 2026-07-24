@@ -7,37 +7,44 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 from typing import Optional
 
-from backend.transit.forecast_prompt import MOON_HOUSE_ACTIONS, PLANET_HOUSE_MEANINGS
 from backend.transit.house_passages import (
     compute_planner_periods,
-    PLANET_SUBTITLES,
     PLANET_NAMES_RU,
 )
 
-# Сколько пунктов показывать для каждой сферы
-ITEMS_PER_HOUSE = 3
+# Методичка «планета × дом» — единственный источник текстов планера.
+# Грузится один раз при импорте модуля (модульный кэш), диск больше не трогаем.
+_METHODOLOGY_PATH = Path(__file__).parent / "methodology.json"
+with open(_METHODOLOGY_PATH, encoding="utf-8") as _f:
+    METHODOLOGY: dict = json.load(_f)
 
-# Маппинг строки действий → список пунктов (разбиваем по запятой)
-def _split_actions(text: str, limit: int = ITEMS_PER_HOUSE) -> list[str]:
-    items = [s.strip().capitalize() for s in text.split(",") if s.strip()]
-    return items[:limit]
+
+def _house_entry(planet_eng: str, house: int) -> dict:
+    return METHODOLOGY.get(planet_eng, {}).get("houses", {}).get(str(int(house)), {})
+
+
+def _planet_lead(planet_eng: str) -> str:
+    return METHODOLOGY.get(planet_eng, {}).get("meta", {}).get("lead", "")
 
 
 def _moon_items(house: int) -> list[str]:
-    text = MOON_HOUSE_ACTIONS.get(int(house), "")
-    return _split_actions(text)
+    return list(_house_entry("Moon", house).get("items", []))
 
 
-def _planet_items(planet_key: str, house: int) -> list[str]:
-    # planet_key здесь английское название (Sun, Mercury, ...)
-    text = PLANET_HOUSE_MEANINGS.get(planet_key, {}).get(int(house), "")
-    return _split_actions(text)
+def _planet_items(planet_eng: str, house: int) -> list[str]:
+    return list(_house_entry(planet_eng, house).get("items", []))
 
 
-# Маппинг planet_key (lowercase) → английское название для словарей
+def _planet_theme(planet_eng: str, house: int) -> str:
+    return _house_entry(planet_eng, house).get("theme", "")
+
+
+# Маппинг planet_key (lowercase) → английское название (ключи methodology.json)
 _KEY_TO_ENG = {
     "sun":     "Sun",
     "mercury": "Mercury",
@@ -49,19 +56,6 @@ _KEY_TO_ENG = {
     "neptune": "Neptune",
     "pluto":   "Pluto",
 }
-
-# Маппинг английского → ключ для PLANET_SUBTITLES
-_ENG_TO_PLANET_KEY = {v: k for k, v in {
-    "Sun":     "Sun",
-    "Mercury": "Mercury",
-    "Venus":   "Venus",
-    "Mars":    "Mars",
-    "Jupiter": "Jupiter",
-    "Saturn":  "Saturn",
-    "Uranus":  "Uranus",
-    "Neptune": "Neptune",
-    "Pluto":   "Pluto",
-}.items()}
 
 
 def build_planner(
@@ -119,6 +113,7 @@ def build_planner(
             sections_periods.append({
                 "period": period["period"],
                 "house":  house,
+                "theme":  "" if locked else _planet_theme(eng, house),
                 "items":  [] if locked else _planet_items(eng, house),
                 "locked": locked,
             })
@@ -126,7 +121,7 @@ def build_planner(
             "planet":          p["planet_key"],
             "planet_name":     p["planet_name"],
             "emoji":           p["emoji"],
-            "planet_subtitle": p.get("planet_subtitle", ""),
+            "planet_subtitle": _planet_lead(eng),
             "periods":         sections_periods,
         })
 
@@ -156,9 +151,10 @@ def build_planner(
             "planet":          p["planet_key"],
             "planet_name":     p["planet_name"],
             "emoji":           p["emoji"],
-            "planet_subtitle": p.get("planet_subtitle", ""),
+            "planet_subtitle": _planet_lead(eng),
             "house":           house,
             "period":          p.get("period_label", ""),
+            "theme":           "" if locked else _planet_theme(eng, house),
             "items":           [] if locked else _planet_items(eng, house),
             "locked":          locked,
         })
