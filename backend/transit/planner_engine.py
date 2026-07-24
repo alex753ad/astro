@@ -32,16 +32,30 @@ def _planet_lead(planet_eng: str) -> str:
     return METHODOLOGY.get(planet_eng, {}).get("meta", {}).get("lead", "")
 
 
-def _moon_items(house: int) -> list[str]:
-    return list(_house_entry("Moon", house).get("items", []))
+def _locked_payload() -> dict:
+    """Заблокированный период — на клиент не уходит ни одной строки методички."""
+    return {"theme": "", "groups": []}
 
 
-def _planet_items(planet_eng: str, house: int) -> list[str]:
-    return list(_house_entry(planet_eng, house).get("items", []))
+def _unlocked_payload(planet_eng: str, house: int) -> dict:
+    """Полный набор текстов дома дословно из methodology.json.
 
-
-def _planet_theme(planet_eng: str, house: int) -> str:
-    return _house_entry(planet_eng, house).get("theme", "")
+    theme/groups — всегда. subtitle/notes — только если есть в файле
+    (Уран/Нептун/Плутон), для остальных планет ключи не добавляются.
+    """
+    entry = _house_entry(planet_eng, house)
+    payload = {
+        "theme": entry.get("theme", ""),
+        "groups": [
+            {"heading": g.get("heading", ""), "items": list(g.get("items", []))}
+            for g in entry.get("groups", [])
+        ],
+    }
+    if "subtitle" in entry:
+        payload["subtitle"] = entry["subtitle"]
+    if "notes" in entry:
+        payload["notes"] = list(entry["notes"])
+    return payload
 
 
 # Маппинг planet_key (lowercase) → английское название (ключи methodology.json)
@@ -113,9 +127,8 @@ def build_planner(
             sections_periods.append({
                 "period": period["period"],
                 "house":  house,
-                "theme":  "" if locked else _planet_theme(eng, house),
-                "items":  [] if locked else _planet_items(eng, house),
                 "locked": locked,
+                **(_locked_payload() if locked else _unlocked_payload(eng, house)),
             })
         month_sections.append({
             "planet":          p["planet_key"],
@@ -137,8 +150,8 @@ def build_planner(
             "date":  passage["date"],
             "time":  passage.get("time", ""),
             "house": house,
-            "items": [] if free else (_moon_items(house) if house else []),
             "locked": free,
+            **(_locked_payload() if (free or not house) else _unlocked_payload("Moon", house)),
         })
 
     # ── longterm: медленные планеты — открыто только с Pro (сетка тарифов) ────
@@ -154,9 +167,8 @@ def build_planner(
             "planet_subtitle": _planet_lead(eng),
             "house":           house,
             "period":          p.get("period_label", ""),
-            "theme":           "" if locked else _planet_theme(eng, house),
-            "items":           [] if locked else _planet_items(eng, house),
             "locked":          locked,
+            **(_locked_payload() if locked else _unlocked_payload(eng, house)),
         })
 
     return {

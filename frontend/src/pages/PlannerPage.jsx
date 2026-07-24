@@ -328,6 +328,14 @@ const styles = `
     font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
   }
   .period-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+  .period-planet-subtitle { font-size: 12.5px; font-weight: 600; line-height: 1.5; margin-bottom: 10px; }
+
+  .period-notes { margin: 0 0 10px; padding: 0; list-style: none; }
+  .period-notes li { font-size: 11.5px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 2px; }
+
+  .period-group { margin-bottom: 10px; }
+  .period-group:last-child { margin-bottom: 0; }
+  .period-group-heading { font-size: 12.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
 
   .period-items { margin: 0; padding: 0; list-style: none; }
   .period-items li {
@@ -757,7 +765,8 @@ function CollapsibleMonthSection({ section, onUpgrade }) {
                 </LockedGroupHint>
               )}
               <PeriodBlock planet={section.planet}
-                badgeText={`Период ${p.period}`} subtitle={p.theme} items={p.items || []}
+                badgeText={`Период ${p.period}`}
+                theme={p.theme} subtitle={p.subtitle} notes={p.notes} groups={p.groups || []}
                 locked={p.locked} />
             </Fragment>
           );
@@ -800,8 +809,8 @@ function LockedGroupHint({ children, onUpgrade }) {
 }
 
 // Единая карточка периода — используется в разделах "Месяц", "Неделя" и "Долгосрочно",
-// чтобы визуально не отличались (заголовок-бейдж + список пунктов).
-function PeriodBlock({ planet, badgeText, subtitle, warning, items, locked }) {
+// чтобы визуально не отличались (заголовок-бейдж + theme → subtitle → notes → группы).
+function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warning, locked }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
@@ -812,18 +821,31 @@ function PeriodBlock({ planet, badgeText, subtitle, warning, items, locked }) {
           {badgeText}
         </span>
       </div>
-      {subtitle && <div className="period-subtitle">{subtitle}</div>}
+      {theme && <div className="period-subtitle">{theme}</div>}
+      {subtitle && <div className="period-planet-subtitle" style={{ color }}>{subtitle}</div>}
       {locked ? (
         <LockedTeaser />
       ) : (
-        <ul className="period-items">
-          {items.map((item, i) => (
-            <li key={i}>
-              <span className="dot" style={{ background: color }} />
-              {item}
-            </li>
+        <>
+          {notes && notes.length > 0 && (
+            <ul className="period-notes">
+              {notes.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          )}
+          {(groups || []).map((g, gi) => (
+            <div className="period-group" key={gi}>
+              {g.heading && <div className="period-group-heading">{g.heading}</div>}
+              <ul className="period-items">
+                {g.items.map((item, i) => (
+                  <li key={i}>
+                    <span className="dot" style={{ background: color }} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </>
       )}
     </div>
   );
@@ -913,6 +935,11 @@ export default function PlannerPage() {
     finally { setLoading(false); }
   }
 
+  // groups[] → плоский список пунктов (для описания события в календаре)
+  function flattenGroupItems(groups) {
+    return (groups || []).flatMap(g => g.items || []);
+  }
+
   // Собираем события из planData для экспорта
   function buildExportEvents() {
     if (!planData) return [];
@@ -926,7 +953,7 @@ export default function PlannerPage() {
         if (match) {
           result.push({
             summary:     `${section.emoji} ${section.planet_name}: ${p.period}`,
-            description: (p.items || []).join("\n"),
+            description: flattenGroupItems(p.groups).join("\n"),
             date:        `${yr}-${match[2]}-${match[1]}`,
             colorId:     "1",
           });
@@ -939,7 +966,7 @@ export default function PlannerPage() {
       if (match) {
         result.push({
           summary:     `🌙 Луна в ${day.house} доме`,
-          description: (day.items || []).join("\n"),
+          description: flattenGroupItems(day.groups).join("\n"),
           date:        `${yr}-${match[2]}-${match[1]}`,
           colorId:     "5",
         });
@@ -1039,8 +1066,8 @@ export default function PlannerPage() {
                           )}
                           <PeriodBlock planet="moon"
                             badgeText={day.time ? `${day.date} · ${day.time}` : day.date}
-                            subtitle={`Луна в ${day.house} доме`}
-                            items={day.items || []}
+                            theme={`Луна в ${day.house} доме`}
+                            groups={day.groups || []}
                             locked={day.locked} />
                         </Fragment>
                       );
@@ -1071,9 +1098,8 @@ export default function PlannerPage() {
                               subtitle={lt.planet_subtitle} />
                             <PeriodBlock planet={lt.planet}
                               badgeText={lt.period}
-                              subtitle={lt.theme}
+                              theme={lt.theme} subtitle={lt.subtitle} notes={lt.notes} groups={lt.groups || []}
                               warning={lt.warning}
-                              items={lt.items || []}
                               locked={lt.locked} />
                           </div>
                         </Fragment>
