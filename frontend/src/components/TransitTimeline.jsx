@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
+import { createCheckoutSession } from "../api/client";
+import LyraPaywallModal from "./LyraPaywallModal";
+import PlanComparisonModal from "./PlanComparisonModal";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -412,33 +415,6 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// GATE PANEL — «Интерпретация» на закрытом транзите (инлайн, как InterpretationPanel)
-// ═══════════════════════════════════════════════════════════
-
-function TransitGatePanel({ event, onClose, onUpgrade }) {
-  const key = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
-  return (
-    <div style={{ background: "var(--tt-card)", borderRadius: 18, border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
-      </div>
-      <div style={{ padding: 16, textAlign: "center" }}>
-        <div style={{ fontSize: 14, color: "var(--tt-text)", lineHeight: 1.6, marginBottom: 18 }}>
-          Астрея разберёт этот период по вашей карте — что он значит именно для вас и что в нём сделать. Открывается на тарифе {TIER_NAMES.pro}.
-        </div>
-        <button
-          onClick={onUpgrade}
-          style={{ padding: "10px 24px", borderRadius: 50, border: "none", background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          Открыть доступ
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
 // EVENT CARD
 // ═══════════════════════════════════════════════════════════
 
@@ -623,6 +599,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [loadedUntil,   setLoadedUntil]   = useState(null);   // to_date последнего загруженного месяца
   const [reachedEnd,    setReachedEnd]    = useState(false);  // догрузили до горизонта тарифа
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [paywallEvent,  setPaywallEvent]  = useState(null);  // клик «Интерпретация» на закрытом транзите — апселл с контекстом аспекта
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [planetFilter,  setPlanetFilter]  = useState([]);
   const [aspectFilter,  setAspectFilter]  = useState([]);
   const [orbFilter,     setOrbFilter]     = useState(2.0);
@@ -783,12 +761,35 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     if (onUpgrade) onUpgrade('lite_to_pro');
   }, [onUpgrade]);
 
+  // Апселл конкретного транзита: тариф-цель не зависит от того, что именно
+  // закрыто — какую модалку показать решает ТЕКУЩИЙ тариф юзера (см. рендер ниже).
+  async function handleCheckout(tier, promoCode = null) {
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    try {
+      const { url } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
+      window.location.href = url;
+    } catch (e) {
+      alert("Не удалось открыть страницу оплаты. Попробуйте позже.");
+      setCheckoutLoading(false);
+    }
+  }
+
+  function handleEnterPromo() {
+    const code = window.prompt("Введите промокод:");
+    if (code && code.trim()) handleCheckout("pro", code.trim());
+  }
+
   // Free (кроме free_unlocked-транзитов) и Lite не видят реальный разбор —
-  // клик по любому транзиту открывает панель, а какую именно (интерпретацию
-  // или гейт) решает рендер по isLite/isEventVisible.
+  // клик по закрытому транзиту сразу открывает апселл-модалку (с контекстом
+  // аспекта), клик по открытому — инлайн-панель интерпретации.
   const handleEventClick = useCallback((event) => {
+    if (isLite || !isEventVisible(event)) {
+      setPaywallEvent(event);
+      return;
+    }
     setSelectedEvent(prev => prev === event ? null : event);
-  }, []);
+  }, [isLite, isEventVisible]);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
@@ -900,11 +901,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </div>
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>
-            {(isLite || !isEventVisible(selectedEvent)) ? (
-              <TransitGatePanel event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpgrade={handleUpgrade} />
-            ) : (
-              <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
-            )}
+            <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
           </div>
         )}
       </div>
@@ -923,6 +920,29 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           Нажмите на транзит для AI-интерпретации
         </div>
       )}
+
+      {paywallEvent && (() => {
+        const contextLabel = `${PLANET_LABELS_RU[paywallEvent.transit_planet] || paywallEvent.transit_planet} ${ASPECT_LABELS_RU[paywallEvent.aspect_type] || paywallEvent.aspect_type} ${PLANET_LABELS_RU[paywallEvent.natal_planet] || paywallEvent.natal_planet}`;
+        return isFree ? (
+          <PlanComparisonModal
+            open
+            onClose={() => setPaywallEvent(null)}
+            onChooseVega={() => handleCheckout("lite")}
+            onChooseLyra={() => handleCheckout("pro")}
+            onContinueFree={() => setPaywallEvent(null)}
+            contextLabel={contextLabel}
+          />
+        ) : (
+          <LyraPaywallModal
+            open
+            onClose={() => setPaywallEvent(null)}
+            onSubscribe={() => handleCheckout("pro")}
+            onEnterPromo={handleEnterPromo}
+            onContinueFree={() => setPaywallEvent(null)}
+            contextLabel={contextLabel}
+          />
+        );
+      })()}
     </div>
   );
 }

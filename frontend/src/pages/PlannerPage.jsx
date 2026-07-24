@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
-import { authFetch } from "../api/client";
+import { authFetch, createCheckoutSession } from "../api/client";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
-import PaywallModal, { getPaywallContext } from "../components/PaywallModal";
+import LyraPaywallModal from "../components/LyraPaywallModal";
+import PlanComparisonModal from "../components/PlanComparisonModal";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
@@ -877,12 +878,31 @@ export default function PlannerPage() {
   const [planData, setPlanData]     = useState(null);
   const [phases, setPhases]         = useState([]);
   const [monthOffset, setMonthOffset] = useState(0);
-  const [showPaywall, setShowPaywall]     = useState(false);
-  const [paywallContext, setPaywallContext] = useState("free_to_lite");
+  const [showPaywall, setShowPaywall]         = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
-  function openPaywall(required) {
-    setPaywallContext(getPaywallContext({ error: "tier_required", current: userTier, required }) || "free_to_lite");
+  function openPaywall() {
     setShowPaywall(true);
+  }
+
+  // Апселл на тариф — цель (Вега/Лира) не зависит от того, какой конкретно
+  // гейт вызвал модалку: какую модалку показать решает ТЕКУЩИЙ тариф юзера
+  // (Free → сравнение Вега/Лира, Вега → апселл на Лиру), см. рендер модалок ниже.
+  async function handleCheckout(tier, promoCode = null) {
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    try {
+      const { url } = await createCheckoutSession(tier, "monthly", id, promoCode);
+      window.location.href = url;
+    } catch (e) {
+      alert("Не удалось открыть страницу оплаты. Попробуйте позже.");
+      setCheckoutLoading(false);
+    }
+  }
+
+  function handleEnterPromo() {
+    const code = window.prompt("Введите промокод:");
+    if (code && code.trim()) handleCheckout("pro", code.trim());
   }
 
   const { exportEvents, status: gcalStatus } = useGcalExport();
@@ -1005,10 +1025,12 @@ export default function PlannerPage() {
             <div className="planner-subtitle">Персональный астрологический план</div>
           </div>
 
-          {isFree && (
-            <div className="free-hint">
-              ✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.
-            </div>
+          {(isFree || userTier === "lite") && (
+            <LockedGroupHint onUpgrade={openPaywall}>
+              {isFree
+                ? <>✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.</>
+                : <>✦ Месяц и неделя открыты полностью. Долгосрочные периоды — тренды на месяцы и годы вперёд — открываются на тарифе {TIER_NAMES.pro}.</>}
+            </LockedGroupHint>
           )}
 
           {(loading ? (
@@ -1032,7 +1054,7 @@ export default function PlannerPage() {
               <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
               {tab === "month" && (planData?.month_sections || []).map((section, si) => (
-                <MonthSection key={si} section={section} onUpgrade={() => openPaywall("lite")} />
+                <MonthSection key={si} section={section} onUpgrade={openPaywall} />
               ))}
 
               {tab === "week" && (
@@ -1047,7 +1069,7 @@ export default function PlannerPage() {
                       return (
                         <Fragment key={i}>
                           {showBanner && (
-                            <LockedGroupHint onUpgrade={() => openPaywall("lite")}>
+                            <LockedGroupHint onUpgrade={openPaywall}>
                               Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям. Открывается на тарифе {TIER_NAMES.lite}.
                             </LockedGroupHint>
                           )}
@@ -1075,7 +1097,7 @@ export default function PlannerPage() {
                       return (
                         <Fragment key={i}>
                           {showBanner && (
-                            <LockedGroupHint onUpgrade={() => openPaywall("pro")}>
+                            <LockedGroupHint onUpgrade={openPaywall}>
                               Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Открывается на тарифе {TIER_NAMES.pro}.
                             </LockedGroupHint>
                           )}
@@ -1113,8 +1135,23 @@ export default function PlannerPage() {
         </div>
       </div>
 
-      {showPaywall && (
-        <PaywallModal context={paywallContext} chartId={id} onClose={() => setShowPaywall(false)} />
+      {isFree && (
+        <PlanComparisonModal
+          open={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onChooseVega={() => handleCheckout("lite")}
+          onChooseLyra={() => handleCheckout("pro")}
+          onContinueFree={() => setShowPaywall(false)}
+        />
+      )}
+      {userTier === "lite" && (
+        <LyraPaywallModal
+          open={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onSubscribe={() => handleCheckout("pro")}
+          onEnterPromo={handleEnterPromo}
+          onContinueFree={() => setShowPaywall(false)}
+        />
       )}
     </>
   );

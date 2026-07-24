@@ -493,9 +493,36 @@ function TabHistory({ history, loading }) {
 
 // ─── Вкладка: Подписка ────────────────────────────────────────────────────────
 const TIERS = [
-  { id: 'lite',    label: TIER_NAMES.lite,    price: '790 ₽/мес',   desc: 'Все планеты, транзиты, Google Calendar, лунный календарь' },
-  { id: 'pro',     label: TIER_NAMES.pro,     price: '1 990 ₽/мес', desc: 'AI-транзиты ∞, до 5 карт, RAG-чат Astrea, долгосрочный прогноз, PDF' },
-  { id: 'premium', label: TIER_NAMES.premium, price: '7 990 ₽/мес', desc: `Всё из ${TIER_NAMES.pro} + CRM астролога, безлимит карт, горизонт 24 мес` },
+  {
+    id: 'lite', label: TIER_NAMES.lite, price: '790 ₽/мес',
+    features: [
+      'Планер: все планеты, индивидуальные рекомендации на месяц + луна на неделю',
+      'Транзиты: все события + AI-разбор (3 в месяц)',
+      'Лунный календарь',
+      'Google Calendar (1 карта)',
+      '1 карта (профиль)',
+    ],
+  },
+  {
+    id: 'pro', label: TIER_NAMES.pro, price: '1 990 ₽/мес', recommended: true,
+    upsellFrom: `Всё из ${TIER_NAMES.lite}, плюс:`,
+    features: [
+      'Планер: + долгосрочные периоды',
+      'Транзиты: AI-разбор без лимита',
+      'Чат с Астреей',
+      'PDF-экспорт',
+      'До 5 карт (семья, партнёр, дети)',
+    ],
+  },
+  {
+    id: 'premium', label: TIER_NAMES.premium, price: '7 990 ₽/мес',
+    upsellFrom: `Всё из ${TIER_NAMES.pro}, плюс:`,
+    features: [
+      'Транзиты: горизонт 24 месяца',
+      'Рабочий кабинет астролога',
+      'Безлимит карт',
+    ],
+  },
 ];
 
 const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
@@ -724,17 +751,38 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {availableTiers.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 8, border: `1px solid ${TIER_COLORS[t.id]}30`, background: `${TIER_COLORS[t.id]}08` }}>
-                <div>
-                  <span style={{ ...S.badge(t.id), marginRight: 8 }}>{t.label}</span>
-                  <span style={{ fontSize: 13, color: 'var(--prof-muted)' }}>{t.price}</span>
-                  <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginTop: 3 }}>{t.desc}</div>
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+                padding: '14px 16px', borderRadius: 8,
+                border: `1px solid ${TIER_COLORS[t.id]}${t.recommended ? '60' : '30'}`,
+                background: `${TIER_COLORS[t.id]}08`,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                    <span style={S.badge(t.id)}>{t.label}</span>
+                    <span style={{ fontSize: 13, color: 'var(--prof-muted)' }}>{t.price}</span>
+                    {t.recommended && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: TIER_COLORS[t.id], letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                        Рекомендуем
+                      </span>
+                    )}
+                  </div>
+                  {t.upsellFrom && (
+                    <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginBottom: 4 }}>{t.upsellFrom}</div>
+                  )}
+                  <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {t.features.map((f, i) => (
+                      <li key={i} style={{ display: 'flex', gap: 6, fontSize: 11.5, lineHeight: 1.4, color: 'var(--prof-muted)' }}>
+                        <span style={{ color: TIER_COLORS[t.id], flexShrink: 0 }}>·</span>{f}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <MotionButton
                   level="primary"
                   onClick={() => handleCheckout(t.id)}
                   disabled={!!checkoutLoading}
-                  style={{ ...S.btn('primary'), whiteSpace: 'nowrap', opacity: checkoutLoading && checkoutLoading !== t.id ? 0.5 : 1 }}
+                  style={{ ...S.btn('primary'), whiteSpace: 'nowrap', flexShrink: 0, opacity: checkoutLoading && checkoutLoading !== t.id ? 0.5 : 1 }}
                 >
                   {checkoutLoading === t.id ? 'Открываю…' : `Перейти →`}
                 </MotionButton>
