@@ -40,10 +40,6 @@ PLANET_RU = {
     "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон",
     "North Node": "Сев. узел", "Ascendant": "Асцендент", "Midheaven": "MC",
 }
-ASPECT_RU = {
-    "conjunction": "соединение", "sextile": "секстиль",
-    "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
-}
 FAST_PLANETS = ("Sun", "Mercury", "Venus", "Mars")
 SLOW_PLANETS = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
 MEDIUM_PLANETS = ("Mercury", "Venus", "Mars")
@@ -137,14 +133,13 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                 orb_t = abs(_angular_distance(lt_t, nlon) - exact)
                 orb_y = abs(_angular_distance(lt_y, nlon) - exact)
                 if orb_t <= APPLYING_ORB < orb_y:  # пересёк 4° на сближении
-                    ar = ASPECT_RU.get(aspect, aspect)
                     out.append({
                         "kind": "transit_approach",
                         "ref": f"4deg:{tp}:{npl}:{aspect}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
                         "frag": f"{pr} подходит к {nr}",
-                        "title": "✦ Транзит на подходе",
-                        "body": f"{pr} {ar} к вашему {nr} — транзит на подходе (~4°). Готовьтесь.",
+                        "title": "✦ Кое-что приближается",
+                        "body": f"{pr} подходит к вашему {nr} — на горизонте важное движение. Понаблюдайте, что откликается.",
                         "url": _with_topic(planner_url, _topic_key("approach", planet=tp, aspect=aspect, natal=npl)),
                     })
 
@@ -159,9 +154,9 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "kind": "cusp_approach",
                         "ref": f"4deg_cusp:{tp}:{house}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
-                        "frag": f"{pr} входит в дом {house}",
+                        "frag": f"{pr} готовит перемены",
                         "title": "✦ Смена сферы",
-                        "body": f"{pr} приближается к дому {house} — скоро новая сфера жизни (~4°).",
+                        "body": f"{pr} приближается к важному порогу — скоро откроется новая сфера жизни.",
                         "url": _with_topic(planner_url, _topic_key("cusp_approach", planet=tp, house=house)),
                     })
     return out
@@ -172,9 +167,9 @@ EXACT_TOUCH_ORB = 0.3     # порог «точного» касания в гр
 TRIPLE_SCAN_DAYS = 300    # окно назад для подсчёта номера захода
 
 _TRIPLE_MSG = {
-    1: ("✦ Тема открывается", "тема открывается — первый заход"),
-    2: ("✦ Возврат темы", "тема возвращается для пересмотра (ретроград)"),
-    3: ("✦ Тема закрывается", "третий заход — тема закрывается и закрепляется"),
+    1: ("✦ Тема открывается", "открывается тема, которая ещё вернётся к вам"),
+    2: ("✦ Возврат темы", "тема возвращается — время пересмотреть то, что начали"),
+    3: ("✦ Тема закрывается", "тема закрывается и закрепляется — время подвести итог"),
 }
 
 
@@ -228,14 +223,13 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
                 if orb_t <= EXACT_TOUCH_ORB and orb_t <= orb_y and orb_t <= orb_m:
                     phase = _count_touches_until(tp, nlon, exact, today)
                     title, tail = _TRIPLE_MSG.get(phase, _TRIPLE_MSG[1])
-                    ar = ASPECT_RU.get(aspect, aspect)
                     out.append({
                         "kind": "triple",
                         "ref": f"triple:{tp}:{npl}:{aspect}:{today.isoformat()}",
                         "priority": "significant", "weight": 98,
-                        "frag": f"{pr} {ar} к {nr}: {tail}",
+                        "frag": f"{pr} и {nr}: {tail}",
                         "title": title,
-                        "body": f"{pr} {ar} к вашему {nr} — {tail}.",
+                        "body": f"{pr} и ваш {nr} — {tail}.",
                         "url": _with_topic(planner_url, _topic_key(f"triple{phase}", planet=tp, aspect=aspect, natal=npl)),
                     })
     return out
@@ -243,7 +237,7 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
 
 # ── Тексты ──
 def _daily_body(chart: NatalChart, today: date_type) -> str:
-    """Короткий тизер прогноза на день из активных транзитов (без AI)."""
+    """Короткий тизер прогноза на день из активных транзитов (без AI, без жаргона)."""
     try:
         from backend.transit.engine import calculate_transits
         events = calculate_transits(
@@ -256,10 +250,9 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
                 break
         best = best or (events[0] if events else None)
         if best:
-            p = PLANET_RU.get(best.transit_planet, best.transit_planet)
-            n = PLANET_RU.get(best.natal_planet, best.natal_planet)
-            a = ASPECT_RU.get(best.aspect_type, best.aspect_type)
-            return f"Сегодня {p} {a} к вашему {n}. Загляните в прогноз на день."
+            if best.aspect_type in ("trine", "sextile", "conjunction"):
+                return "Сегодня один из тех дней, когда многое складывается чуть легче обычного. Загляните в прогноз."
+            return "Сегодня — активный день, который стоит прожить осознанно. Загляните в прогноз."
     except Exception as e:
         logger.warning("daily body build failed: %s", e)
     return "Ваш персональный прогноз на сегодня готов."
@@ -313,8 +306,9 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         pr = PLANET_RU.get(planet, planet)
                         cands.append({
                             "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
-                            "priority": "significant", "weight": 60, "frag": f"период {pr}",
-                            "title": "✦ Планер", "body": f"{pr}: начался новый период (дом {house}).",
+                            "priority": "significant", "weight": 60, "frag": f"новый период {pr}",
+                            "title": "✦ Новый период",
+                            "body": f"{pr} открывает новый период в вашем плане — загляните, что это значит.",
                             "url": _with_topic(planner_url, _topic_key("planner_start", planet=planet, house=house)),
                         })
                 # 3) за неделю — средние планеты (Венера/Марс/Меркурий)
@@ -324,8 +318,9 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         pr = PLANET_RU.get(planet, planet)
                         cands.append({
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
-                            "priority": "significant", "weight": 70, "frag": f"через неделю период {pr}",
-                            "title": "✦ Скоро период", "body": f"{pr}: через неделю начнётся период (дом {house}). Подготовьтесь.",
+                            "priority": "significant", "weight": 70, "frag": f"скоро период {pr}",
+                            "title": "✦ Скоро перемены",
+                            "body": f"Через неделю начнётся заметный период — {pr} задаёт тон. Загляните в планер заранее.",
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
                 # 4) за месяц — медленные планеты (большой период)
@@ -335,9 +330,9 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         pr = PLANET_RU.get(planet, planet)
                         cands.append({
                             "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
-                            "priority": "significant", "weight": 100, "frag": f"скоро большой период: {pr}",
+                            "priority": "significant", "weight": 100, "frag": f"скоро большой период {pr}",
                             "title": "✦ Большой период впереди",
-                            "body": f"{pr}: через месяц начнётся новый большой период (дом {house}). Готовьтесь заранее.",
+                            "body": f"Через месяц открывается долгий период под влиянием {pr} — стоит спланировать заранее.",
                             "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
                         })
         except Exception as e:
@@ -354,14 +349,12 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 if e.start_date != today.isoformat():
                     continue
                 pr = PLANET_RU.get(e.transit_planet, e.transit_planet)
-                nr = PLANET_RU.get(e.natal_planet, e.natal_planet)
-                ar = ASPECT_RU.get(e.aspect_type, e.aspect_type)
                 cands.append({
                     "kind": "transit",
                     "ref": f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}",
-                    "priority": "significant", "weight": 90, "frag": f"{pr} {ar} к {nr}",
-                    "title": "✦ Важный транзит",
-                    "body": f"{pr} {ar} к вашему {nr} — начинается значимый транзит.",
+                    "priority": "significant", "weight": 90, "frag": f"{pr} — редкое окно",
+                    "title": "✦ Редкое окно",
+                    "body": "Сегодня открывается окно, которое бывает нечасто. Загляните — это про вас.",
                     "url": _with_topic(planner_url, _topic_key("transit", planet=e.transit_planet, aspect=e.aspect_type, natal=e.natal_planet)),
                 })
         except Exception as e:
@@ -390,9 +383,9 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
                 cands.append({
                     "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
-                    "priority": "soft", "weight": 30, "frag": label,
-                    "title": f"✦ {label} завтра",
-                    "body": f"{label} в {phase.sign} — завтра. Подготовьтесь заранее.",
+                    "priority": "soft", "weight": 30, "frag": f"{label} завтра",
+                    "title": f"{label} уже завтра",
+                    "body": "Хорошее время заметить, что вы на самом деле чувствуете. Загляните в лунный календарь.",
                     "url": _with_topic("/lunar", _topic_key("moon", planet=phase.type)),
                 })
         except Exception as e:
