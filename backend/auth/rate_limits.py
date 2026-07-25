@@ -46,7 +46,8 @@ TIER_FLAGS: dict[str, dict] = {
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
         "synastry": False,
-        "pdf_export": False,
+        "pdf_export": True,
+        "pdf_per_month": None,
         "ai_engine": "template",
     },
     "lite": {
@@ -61,7 +62,8 @@ TIER_FLAGS: dict[str, dict] = {
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
         "synastry": False,
-        "pdf_export": False,
+        "pdf_export": True,
+        "pdf_per_month": None,
         "ai_engine": "deepseek",
     },
     "pro": {

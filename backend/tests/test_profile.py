@@ -223,7 +223,7 @@ class TestSubscriptionInfo:
         assert data["tier"] == "free"
         assert data["features"]["transits"] is False
         assert data["features"]["unlimited_interpretations"] is False
-        assert data["features"]["pdf_reports"] is False
+        assert data["features"]["pdf_reports"] is True
 
     def test_pro_user_has_transits_enabled(self, client: TestClient, db: Session):
         user = make_user(db, "pro_sub@example.com", tier="pro")
