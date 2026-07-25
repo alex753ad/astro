@@ -24,11 +24,11 @@ const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
 const BODY = "'Inter', system-ui, sans-serif";
 
 const DEFAULT_FEATURES = [
-  { icon: "telescope", text: "Безлимитный AI-разбор транзитов — без месячных ограничений" },
+  { icon: "telescope", text: "Безлимитный AI-разбор транзитов" },
   { icon: "chat", text: "Чат с AI-астрологом Астрея, который уже знает вашу карту" },
   { icon: "doc", text: "Глубокий разбор — от 1500 слов" },
-  { icon: "calendar", text: "Планер Timeline: текущий месяц и вперёд, неделя и долгосрочные периоды" },
-  { icon: "users", text: "До 5 карт в месяц — для семьи и близких" },
+  { icon: "calendar", text: "Планер Timeline: текущий месяц + вперёд + неделя + долгосрочно" },
+  { icon: "users", text: "До 5 карт для семьи" },
 ];
 
 function Icon({ name, size = 20 }) {
