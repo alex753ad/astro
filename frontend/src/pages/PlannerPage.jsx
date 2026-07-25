@@ -942,12 +942,8 @@ export default function PlannerPage() {
     finally { setLoading(false); }
   }
 
-  // groups[] → плоский список пунктов (для описания события в календаре)
-  function flattenGroupItems(groups) {
-    return (groups || []).flatMap(g => g.items || []);
-  }
-
-  // Собираем события из planData для экспорта
+  // Собираем события из planData для экспорта — короткие: планета + тема + период,
+  // без вывала всего списка пунктов в описание.
   function buildExportEvents() {
     if (!planData) return [];
     const result = [];
@@ -958,9 +954,10 @@ export default function PlannerPage() {
       (section.periods || []).forEach(p => {
         const match = p.period?.match(/(\d{2})\.(\d{2})/);
         if (match) {
+          const title = p.theme ? `${section.planet_name} — ${p.theme}` : section.planet_name;
           result.push({
-            summary:     `${section.emoji} ${section.planet_name}: ${p.period}`,
-            description: flattenGroupItems(p.groups).join("\n"),
+            summary:     `${section.emoji} ${title} (${p.period})`,
+            description: "",
             date:        `${yr}-${match[2]}-${match[1]}`,
             colorId:     "1",
           });
@@ -973,7 +970,7 @@ export default function PlannerPage() {
       if (match) {
         result.push({
           summary:     `🌙 Луна в ${day.house} доме`,
-          description: flattenGroupItems(day.groups).join("\n"),
+          description: "",
           date:        `${yr}-${match[2]}-${match[1]}`,
           colorId:     "5",
         });
