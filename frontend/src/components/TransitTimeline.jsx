@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
-import { createCheckoutSession } from "../api/client";
+import { createCheckoutSession, getSubscription } from "../api/client";
 import LyraPaywallModal from "./LyraPaywallModal";
 import PlanComparisonModal from "./PlanComparisonModal";
 
@@ -615,7 +615,7 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
   const key = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
 
   const intro = reason === "lite-limit"
-    ? `Разборы транзитов на этот месяц закончились${remaining ? ` (${remaining.limit} из ${remaining.limit})` : ""}. Лимит обновится 1-го числа.`
+    ? `Разборы транзитов на этот месяц закончились${remaining ? ` (${remaining.used} из ${remaining.limit})` : ""}. Лимит обновится 1-го числа.`
     : "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.";
 
   const outro = reason === "lite-limit"
@@ -666,6 +666,21 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const isLite = userTier === "lite";
   const isPremium = userTier === "premium";
   const hasFullAccess = userTier === "pro" || userTier === "premium";
+
+  // Вега: месячная квота AI-разбора транзитов (used/limit — из /profile/subscription).
+  const [transitAiUsage, setTransitAiUsage] = useState(null);
+  useEffect(() => {
+    if (!isLite) { setTransitAiUsage(null); return; }
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('astro_access_token') : null;
+    getSubscription(token)
+      .then(data => {
+        const limit = data?.limits?.transits_ai_per_month ?? 0;
+        const used  = data?.usage?.transit_ai_this_month ?? 0;
+        setTransitAiUsage({ used, limit });
+      })
+      .catch(() => {});
+  }, [isLite]);
+  const liteTransitAiRemaining = transitAiUsage ? transitAiUsage.limit - transitAiUsage.used : null;
 
   // Горизонт догрузки: Free нужен на 12 мес вперёд для блюр-тизера,
   // Premium — 24 мес, остальные платные — 2 мес (как раньше).
@@ -836,17 +851,27 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     if (code && code.trim()) handleCheckout("pro", code.trim());
   }
 
-  // Lite пока не видит реальный разбор — клик сразу открывает апселл-модалку
-  // (задача 2 заменит это на расход месячной квоты). Free по закрытому
-  // транзиту открывает не модалку, а инлайн-тизер (LockedTransitPanel) —
-  // модалка открывается только по кнопке «Открыть доступ» внутри тизера.
+  // Free по закрытому транзиту и Lite по истечении месячной квоты не видят
+  // реальный разбор — вместо модалки открывается инлайн-тизер
+  // (LockedTransitPanel), модалка — только по кнопке «Открыть доступ» внутри.
+  // Lite в пределах квоты открывает настоящий InterpretationPanel — сам расход
+  // квоты списывается на бэке при генерации, здесь только локально уменьшаем
+  // счётчик, чтобы не пускать лишний клик до следующего запроса /subscription.
   const handleEventClick = useCallback((event) => {
     if (isLite) {
-      setPaywallEvent(event);
+      const opening = selectedEvent !== event;
+      if (opening && liteTransitAiRemaining !== null && liteTransitAiRemaining <= 0) {
+        setSelectedEvent(event);
+        return;
+      }
+      if (opening && transitAiUsage) {
+        setTransitAiUsage(prev => prev && { ...prev, used: prev.used + 1 });
+      }
+      setSelectedEvent(prev => prev === event ? null : event);
       return;
     }
     setSelectedEvent(prev => prev === event ? null : event);
-  }, [isLite]);
+  }, [isLite, selectedEvent, transitAiUsage, liteTransitAiRemaining]);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
@@ -958,7 +983,19 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </div>
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>
-            {isEventVisible(selectedEvent) ? (
+            {isLite ? (
+              liteTransitAiRemaining !== null && liteTransitAiRemaining <= 0 ? (
+                <LockedTransitPanel
+                  event={selectedEvent}
+                  reason="lite-limit"
+                  remaining={transitAiUsage}
+                  onClose={() => setSelectedEvent(null)}
+                  onOpenAccess={() => setPaywallEvent(selectedEvent)}
+                />
+              ) : (
+                <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
+              )
+            ) : isEventVisible(selectedEvent) ? (
               <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
             ) : (
               <LockedTransitPanel
