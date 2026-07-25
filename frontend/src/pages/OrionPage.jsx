@@ -180,6 +180,38 @@ export default function OrionPage({ currentUser }) {
           initial="hidden"
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
+          style={{
+            textAlign: 'center',
+            maxWidth: 620,
+            margin: '0 auto 28px',
+          }}
+        >
+          <h3 style={{
+            fontSize: 22,
+            fontWeight: 700,
+            lineHeight: 1.3,
+            margin: '0 0 14px',
+            color: '#1a1230',
+          }}>
+            Вы делаете астрологию. Орион берёт на себя всё остальное.
+          </h3>
+          <p style={{ fontSize: 15, color: '#6B6885', lineHeight: 1.7, margin: 0 }}>
+            AI готовит разбор клиента заранее, все карты, заметки и история разговоров
+            хранятся в одном месте, а Астрея сама подсказывает, кому написать сегодня.
+            Вы приходите на консультацию за 20 минут подготовки вместо двух часов —
+            собранными, с PDF-отчётом под вашим именем.
+          </p>
+          <p style={{ fontWeight: 700, fontSize: 15, color: '#1a1230', marginTop: 16, marginBottom: 0 }}>
+            7 990 ₽ в месяц. При 3 клиентах по 4 000 ₽ Орион окупается
+            с первой встречи — дальше только ваш рост.
+          </p>
+        </motion.div>
+
+        <motion.div
+          variants={sectionReveal}
+          initial="hidden"
+          whileInView="visible"
+          viewport={VIEWPORT_ONCE}
           style={{ textAlign: 'center' }}
         >
           <MotionButton
@@ -213,6 +245,9 @@ export default function OrionPage({ currentUser }) {
           >
             Открыть пространство Астреи
           </MotionButton>
+          <p style={{ fontSize: 13, color: '#6B6885', marginTop: 12 }}>
+            Каждый клиент, потерянный в заметках телефона, — несостоявшаяся консультация.
+          </p>
         </motion.div>
       </div>
     </div>
