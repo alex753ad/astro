@@ -1,18 +1,153 @@
 /* zodiac data-color, intentional — OrionPage mirrors LandingPage's fixed light-theme design */
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import crmPreview from '../assets/crm-preview.png';
 import { TIER_NAMES } from '../constants';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
+// Модалка-оффер перед редиректом — стиль как LyraPaywallModal, без эмодзи/иконок.
+function OrionOfferModal({ onClose, onActivate }) {
+  const reduce = useReducedMotion();
+
+  return (
+    <motion.div
+      onClick={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        background: 'rgba(15,10,26,0.7)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Тариф Орион"
+        onClick={e => e.stopPropagation()}
+        initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+        animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 420,
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 20,
+          padding: 32,
+          boxShadow: '0 24px 60px rgba(0,0,0,0.40)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Закрыть"
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            fontSize: 16,
+            cursor: 'pointer',
+            padding: 4,
+            lineHeight: 1,
+          }}
+        >✕</button>
+
+        <div style={{
+          display: 'inline-block',
+          background: 'var(--accent)',
+          color: '#fff',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          padding: '3px 10px',
+          borderRadius: 20,
+          marginBottom: 12,
+          textTransform: 'uppercase',
+        }}>
+          {TIER_NAMES.premium}
+        </div>
+
+        <h2 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 700, lineHeight: 1.3 }}>
+          Вы делаете астрологию. Орион берёт на себя всё остальное.
+        </h2>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+          AI готовит разбор клиента заранее, все карты, заметки и история разговоров
+          хранятся в одном месте, а Астрея сама подсказывает, кому написать сегодня.
+          Вы приходите на консультацию за 20 минут подготовки вместо двух часов —
+          собранными, с PDF-отчётом под вашим именем.
+        </p>
+
+        <p style={{ margin: '20px 0 4px', fontSize: 20, fontWeight: 700 }}>7 990 ₽ / мес</p>
+        <p style={{ margin: '0 0 24px', fontSize: 13, color: 'var(--text-secondary)' }}>
+          При 3 клиентах по 4 000 ₽ — окупается с первой встречи
+        </p>
+
+        <MotionButton
+          level="primary"
+          onClick={() => { onClose(); onActivate(); }}
+          style={{
+            width: '100%',
+            padding: 14,
+            border: 'none',
+            borderRadius: 12,
+            background: 'var(--accent)',
+            color: '#fff',
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            marginBottom: 12,
+          }}
+        >
+          Открыть пространство Астреи
+        </MotionButton>
+
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            display: 'block',
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            fontSize: 13,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textAlign: 'center',
+          }}
+        >
+          Отмена в любой момент · Без обязательств
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function OrionPage({ currentUser }) {
   const navigate = useNavigate();
   const prefersReduced = useReducedMotion();
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [showOfferModal, setShowOfferModal] = useState(false);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handler);
@@ -216,7 +351,7 @@ export default function OrionPage({ currentUser }) {
         >
           <MotionButton
             level="secondary"
-            onClick={handleActivate}
+            onClick={() => setShowOfferModal(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -250,6 +385,12 @@ export default function OrionPage({ currentUser }) {
           </p>
         </motion.div>
       </div>
+
+      <AnimatePresence>
+        {showOfferModal && (
+          <OrionOfferModal onClose={() => setShowOfferModal(false)} onActivate={handleActivate} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
