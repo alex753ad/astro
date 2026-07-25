@@ -8,6 +8,67 @@ import { TIER_NAMES } from '../constants';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
+const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
+const BODY = "'Inter', system-ui, sans-serif";
+
+const PRACTICE_FEATURES = [
+  'Кабинет астролога: все клиенты, их карты, заметки и история разговоров — в одном месте',
+  'AI готовит разбор карты клиента заранее — вы приходите подготовленными',
+  'Клиент сам заполняет анкету по ссылке — данные и карта сразу в вашем кабинете',
+  'Ваши авторские трактовки: Астрея разбирает карты вашим голосом, а не общими словами',
+  'Аналитика практики: доход, средний чек и темы консультаций — наглядно, помесячно',
+  'PDF-отчёты с вашим брендингом — клиент уходит с документом',
+  'Астрея сама замечает, у кого открывается важное окно, и подсказывает написать — и сама отправит',
+  'Безлимит карт и клиентских профилей',
+];
+
+const PERSONAL_FEATURES = [
+  'Чат с Астреей — персональный разбор в любой момент',
+  'AI-разбор каждого транзита без лимита',
+  'Глубокий разбор натальной карты — от 1500 слов',
+  'Планер Timeline: все планеты, астро-рекомендации на неделю и месяц, долгосрочные периоды',
+  'Горизонт транзитов на 24 месяца вперёд',
+  'Лунный календарь и Google Календарь',
+  'PDF-экспорт',
+];
+
+function CheckIcon() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function FeatureGroup({ title, items }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{
+        fontFamily: DISPLAY,
+        fontWeight: 700,
+        fontSize: 13,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        color: 'var(--text-primary)',
+        marginBottom: 10,
+      }}>
+        {title}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {items.map((text, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }}>
+              <CheckIcon />
+            </span>
+            <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text-primary)' }}>{text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Модалка-оффер перед редиректом — стиль как LyraPaywallModal, без эмодзи/иконок.
 function OrionOfferModal({ onClose, onActivate }) {
   const reduce = useReducedMotion();
@@ -43,12 +104,15 @@ function OrionOfferModal({ onClose, onActivate }) {
         style={{
           position: 'relative',
           width: '100%',
-          maxWidth: 420,
+          maxWidth: 460,
+          maxHeight: '90vh',
+          overflowY: 'auto',
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 20,
           padding: 32,
           boxShadow: '0 24px 60px rgba(0,0,0,0.40)',
+          fontFamily: BODY,
           color: 'var(--text-primary)',
         }}
       >
@@ -81,24 +145,35 @@ function OrionOfferModal({ onClose, onActivate }) {
           borderRadius: 20,
           marginBottom: 12,
           textTransform: 'uppercase',
+          fontFamily: DISPLAY,
         }}>
           {TIER_NAMES.premium}
         </div>
 
-        <h2 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 700, lineHeight: 1.3 }}>
+        <h2 style={{ margin: '0 0 12px', fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, lineHeight: 1.3 }}>
           Вы делаете астрологию. Орион берёт на себя всё остальное.
         </h2>
-        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-          AI готовит разбор клиента заранее, все карты, заметки и история разговоров
-          хранятся в одном месте, а Астрея сама подсказывает, кому написать сегодня.
-          Вы приходите на консультацию за 20 минут подготовки вместо двух часов —
-          собранными, с PDF-отчётом под вашим именем.
+        <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          Astrea готовит разбор клиента заранее, помнит каждого и сама подсказывает,
+          кому написать сегодня. Вы приходите на консультацию собранными — за 20 минут
+          вместо двух часов, с PDF-отчётом под вашим именем.
         </p>
 
-        <p style={{ margin: '20px 0 4px', fontSize: 20, fontWeight: 700 }}>7 990 ₽ / мес</p>
-        <p style={{ margin: '0 0 24px', fontSize: 13, color: 'var(--text-secondary)' }}>
-          При 3 клиентах по 4 000 ₽ — окупается с первой встречи
-        </p>
+        <FeatureGroup title="Для практики" items={PRACTICE_FEATURES} />
+        <FeatureGroup title="И всё для себя" items={PERSONAL_FEATURES} />
+
+        <div style={{
+          paddingTop: 16,
+          borderTop: '1px solid var(--border)',
+          marginBottom: 20,
+        }}>
+          <p style={{ margin: '0 0 4px', fontFamily: DISPLAY, fontSize: 20, fontWeight: 700 }}>
+            7 990 ₽ в месяц
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+            При 3 клиентах по 4 000 ₽ Орион окупается с первой встречи — дальше только ваш рост.
+          </p>
+        </div>
 
         <MotionButton
           level="primary"
@@ -113,7 +188,7 @@ function OrionOfferModal({ onClose, onActivate }) {
             fontSize: 15,
             fontWeight: 700,
             cursor: 'pointer',
-            fontFamily: 'inherit',
+            fontFamily: DISPLAY,
             marginBottom: 12,
           }}
         >
@@ -308,38 +383,6 @@ export default function OrionPage({ currentUser }) {
               <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.6 }}>{f.desc}</div>
             </motion.div>
           ))}
-        </motion.div>
-
-        <motion.div
-          variants={sectionReveal}
-          initial="hidden"
-          whileInView="visible"
-          viewport={VIEWPORT_ONCE}
-          style={{
-            textAlign: 'center',
-            maxWidth: 620,
-            margin: '0 auto 28px',
-          }}
-        >
-          <h3 style={{
-            fontSize: 22,
-            fontWeight: 700,
-            lineHeight: 1.3,
-            margin: '0 0 14px',
-            color: '#1a1230',
-          }}>
-            Вы делаете астрологию. Орион берёт на себя всё остальное.
-          </h3>
-          <p style={{ fontSize: 15, color: '#6B6885', lineHeight: 1.7, margin: 0 }}>
-            AI готовит разбор клиента заранее, все карты, заметки и история разговоров
-            хранятся в одном месте, а Астрея сама подсказывает, кому написать сегодня.
-            Вы приходите на консультацию за 20 минут подготовки вместо двух часов —
-            собранными, с PDF-отчётом под вашим именем.
-          </p>
-          <p style={{ fontWeight: 700, fontSize: 15, color: '#1a1230', marginTop: 16, marginBottom: 0 }}>
-            7 990 ₽ в месяц. При 3 клиентах по 4 000 ₽ Орион окупается
-            с первой встречи — дальше только ваш рост.
-          </p>
         </motion.div>
 
         <motion.div
