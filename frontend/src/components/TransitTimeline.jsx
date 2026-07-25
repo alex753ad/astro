@@ -586,6 +586,62 @@ function InterpretationPanel({ event, chartId, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// LOCKED TRANSIT PANEL (inline тизер вместо разбора)
+// ═══════════════════════════════════════════════════════════
+
+// Транзит-контекстные тарифы для PlanComparisonModal — акцент на AI-разборе
+// транзитов, а не на планерных фичах (см. DEFAULT_VEGA/DEFAULT_LYRA в модалке).
+const TRANSIT_VEGA_PLAN = {
+  name: "Вега",
+  price: "790 ₽",
+  features: [
+    "AI-разбор транзитов — 3 в месяц",
+    "Транзиты видны на 12 месяцев вперёд",
+  ],
+};
+
+const TRANSIT_LYRA_PLAN = {
+  name: "Лира",
+  price: "1 990 ₽",
+  recommended: true,
+  features: [
+    "Безлимитный AI-разбор всех транзитов",
+    "Глубокий разбор — от 1500 слов",
+    "И ещё: чат с Астреей, карты для близких",
+  ],
+};
+
+function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpenAccess }) {
+  const key = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
+
+  const intro = reason === "lite-limit"
+    ? `Разборы транзитов на этот месяц закончились${remaining ? ` (${remaining.limit} из ${remaining.limit})` : ""}. Лимит обновится 1-го числа.`
+    : "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.";
+
+  const outro = reason === "lite-limit"
+    ? "А разбор этого периода уже ждёт вас на Лире."
+    : "Полный разбор этого транзита — на Веге и Лире.";
+
+  return (
+    <div style={{ background: "var(--tt-card)", borderRadius: 18, border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
+      </div>
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tt-text2)", margin: 0 }}>{intro}</p>
+        <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tt-text2)", margin: 0 }}>{outro}</p>
+        <MotionButton level="primary" onClick={onOpenAccess} style={{
+          alignSelf: "flex-start", padding: "9px 20px", borderRadius: 12, border: "none",
+          background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
+        }}>Открыть доступ</MotionButton>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
@@ -780,16 +836,17 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     if (code && code.trim()) handleCheckout("pro", code.trim());
   }
 
-  // Free (кроме free_unlocked-транзитов) и Lite не видят реальный разбор —
-  // клик по закрытому транзиту сразу открывает апселл-модалку (с контекстом
-  // аспекта), клик по открытому — инлайн-панель интерпретации.
+  // Lite пока не видит реальный разбор — клик сразу открывает апселл-модалку
+  // (задача 2 заменит это на расход месячной квоты). Free по закрытому
+  // транзиту открывает не модалку, а инлайн-тизер (LockedTransitPanel) —
+  // модалка открывается только по кнопке «Открыть доступ» внутри тизера.
   const handleEventClick = useCallback((event) => {
-    if (isLite || !isEventVisible(event)) {
+    if (isLite) {
       setPaywallEvent(event);
       return;
     }
     setSelectedEvent(prev => prev === event ? null : event);
-  }, [isLite, isEventVisible]);
+  }, [isLite]);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
@@ -901,7 +958,16 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </div>
         {selectedEvent && (
           <div style={{ position: "sticky", top: 24 }}>
-            <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
+            {isEventVisible(selectedEvent) ? (
+              <InterpretationPanel event={selectedEvent} chartId={chartId} onClose={() => setSelectedEvent(null)} />
+            ) : (
+              <LockedTransitPanel
+                event={selectedEvent}
+                reason="free"
+                onClose={() => setSelectedEvent(null)}
+                onOpenAccess={() => setPaywallEvent(selectedEvent)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -931,6 +997,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
             onChooseLyra={() => handleCheckout("pro")}
             onContinueFree={() => setPaywallEvent(null)}
             contextLabel={contextLabel}
+            vega={TRANSIT_VEGA_PLAN}
+            lyra={TRANSIT_LYRA_PLAN}
           />
         ) : (
           <LyraPaywallModal
