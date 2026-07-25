@@ -42,29 +42,6 @@ const REPORT_OPTIONS = [
   { type: 'synastry', label: 'Отчёт о совместимости',          price: '$9', desc: 'Синастрия двух карт + межаспектная сетка' },
 ];
 
-// Замок чата: чат с Астреей есть только на Лире — Вега получает свои фичи,
-// без обещания чата (продуктовое ограничение).
-const CHAT_VEGA_PLAN = {
-  name: 'Вега',
-  price: '790 ₽',
-  features: [
-    'AI-разбор транзитов — 3 в месяц',
-    'Индивидуальные рекомендации на месяц',
-    'Лунный календарь на год',
-  ],
-};
-
-const CHAT_LYRA_PLAN = {
-  name: 'Лира',
-  price: '1 990 ₽',
-  recommended: true,
-  features: [
-    'Чат с Астреей — она уже знает вашу карту и отвечает на любой вопрос',
-    'Глубокий разбор — от 1500 слов',
-    'Всё из Веги + PDF и до 5 карт для семьи',
-  ],
-};
-
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
 // документа, var(--...) не резолвится и атрибут откатывается к initial — для fill
@@ -1031,8 +1008,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         onChooseLyra={() => handleChatPlanCheckout('pro')}
         onContinueFree={() => setShowChatPlans(false)}
         contextLabel="Чат с AI-астрологом Астрея"
-        vega={CHAT_VEGA_PLAN}
-        lyra={CHAT_LYRA_PLAN}
       />
 
     </div>
