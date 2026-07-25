@@ -25,60 +25,50 @@ const PAYWALL_CONTENT = {
     title: 'Какой планетарный период сейчас влияет на вашу жизнь',
     subtitle: 'И что это значит для вас — по вашей карте, а не в общем',
     benefits: [
-      { icon: '🔮', text: 'Полный разбор натальной карты — все планеты, дома и их влияние' },
-      { icon: '🪐', text: 'Все активные транзиты месяца — что происходит с тобой сейчас' },
-      { icon: '🌙', text: 'Лунный календарь месяца — лучшие дни для решений' },
-      { icon: '📆', text: 'Планер Timeline на 3 месяца вперёд' },
-      { icon: '🗺️', text: 'Карты партнёра, детей, родителей — до 5 в месяц' },
-      { icon: '✨', text: 'Виральная карточка вашей карты для Stories' },
+      { text: 'Полный разбор натальной карты — все планеты, дома и их влияние' },
+      { text: 'Все активные транзиты месяца — что происходит с тобой сейчас' },
+      { text: 'Лунный календарь месяца — лучшие дни для решений' },
+      { text: 'Планер Timeline на 3 месяца вперёд' },
+      { text: 'Карты партнёра, детей, родителей — до 5 в месяц' },
+      { text: 'Виральная карточка вашей карты для Stories' },
     ],
     cta: `Перейти на тариф ${TIER_NAMES.lite} — 790 ₽/мес`,
     price: 'Отмена в любой момент · Без обязательств',
     tier: 'lite',
     monthly: '790 ₽ / мес',
-    annual: '7 490 ₽ / год',
-    annualNote: '624 ₽/мес при оплате за год',
-    annualSave: '−21%',
   },
   lite_to_pro: {
     badge: TIER_NAMES.pro,
     title: 'Вы видите транзит — Астрея говорит, что в нём делать',
     subtitle: 'Компенсации под вашу карту и AI-астролог, который помнит всё, что вы ему рассказали',
     benefits: [
-      { icon: '💬', text: 'Чат с AI-астрологом: помнит вашу карту и прошлые разговоры — как личный консультант, который вас уже знает' },
-      { icon: '🪐', text: 'Разбор каждого транзита: что Сатурн в вашем 7-м доме значит и как его мягче прожить' },
-      { icon: '🔮', text: 'Глубокий разбор — 2500 слов, 15 карт в месяц' },
-      { icon: '📆', text: 'Планер Timeline на месяц вперёд' },
-      { icon: '📄', text: 'PDF-экспорт — 5 отчётов в месяц' },
-      { icon: '🗺️', text: 'До 20 карт в месяц — для всей семьи и окружения' },
+      { text: 'Чат с AI-астрологом: помнит вашу карту и прошлые разговоры — как личный консультант, который вас уже знает' },
+      { text: 'Разбор каждого транзита: что Сатурн в вашем 7-м доме значит и как его мягче прожить' },
+      { text: 'Глубокий разбор натальной карты — от 1500 слов' },
+      { text: 'Планер Timeline: все планеты, индивидуальные астро-рекомендации на неделю и месяц, долгосрочно, Google Календарь' },
+      { text: 'До 5 карт для семьи' },
     ],
     cta: `Перейти на тариф ${TIER_NAMES.pro} — 1 990 ₽/мес`,
     price: 'Отмена в любой момент · Без обязательств',
     tier: 'pro',
     monthly: '1 990 ₽ / мес',
-    annual: '18 990 ₽ / год',
-    annualNote: '1 582 ₽/мес при оплате за год',
-    annualSave: '−20%',
   },
   pro_to_premium: {
     badge: TIER_NAMES.premium,
     title: 'Подготовка к консультации — 20 минут вместо 2 часов',
     subtitle: 'При 3 клиентах по 4 000 ₽ подписка окупается с первой консультации',
     benefits: [
-      { icon: '🔭', text: 'Синастрия: AI-разбор совместимости клиента с партнёром, ребёнком, коллегой' },
-      { icon: '⏱️', text: 'AI готовит разбор карты клиента — вы приходите подготовленными' },
-      { icon: '👥', text: 'CRM: все клиенты, карты, заметки и история в одном месте' },
-      { icon: '📄', text: 'PDF-отчёты с вашим брендингом — клиент уходит с документом' },
-      { icon: '📊', text: '100 AI-интерпретаций в месяц — около 3–4 полных разборов в день' },
-      { icon: '🗺️', text: 'Безлимитные карты и клиентские профили' },
+      { text: 'Синастрия: AI-разбор совместимости клиента с партнёром, ребёнком, коллегой' },
+      { text: 'AI готовит разбор карты клиента — вы приходите подготовленными' },
+      { text: 'CRM: все клиенты, карты, заметки и история в одном месте' },
+      { text: 'PDF-отчёты с вашим брендингом — клиент уходит с документом' },
+      { text: '100 AI-интерпретаций в месяц — около 3–4 полных разборов в день' },
+      { text: 'Безлимитные карты и клиентские профили' },
     ],
     cta: `Перейти на тариф ${TIER_NAMES.premium} — 7 990 ₽/мес`,
     price: 'При 3 клиентах по 4 000 ₽ — окупается с первой консультации',
     tier: 'premium',
     monthly: '7 990 ₽ / мес',
-    annual: '75 990 ₽ / год',
-    annualNote: '6 332 ₽/мес при оплате за год',
-    annualSave: '−21%',
   },
 };
 
@@ -113,7 +103,6 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: 'easeOut' } },
         exit:    { opacity: 0, scale: 0.96, transition: { duration: 0.15, ease: 'easeOut' } },
       };
-  const [billing, setBilling]         = useState('monthly');
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState(null);
   const [promoInput, setPromoInput]   = useState('');
@@ -142,7 +131,7 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
     setLoading(true);
     setError(null);
     try {
-      const { url } = await createCheckoutSession(content.tier, billing, chartId, promoApplied || null);
+      const { url } = await createCheckoutSession(content.tier, 'monthly', chartId, promoApplied || null);
       window.location.href = url;
     } catch (e) {
       if (e.detail?.error === 'invalid_promo_code') {
@@ -176,34 +165,12 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         <div style={s.benefits}>
           {content.benefits.map(b => (
             <div key={b.text} style={s.benefit}>
-              <span style={s.benefitIcon}>{b.icon}</span>
               <div style={s.benefitText}>{b.text}</div>
             </div>
           ))}
         </div>
 
-        {/* Billing toggle */}
-        <div style={s.billingToggle}>
-          <MotionButton
-            level="secondary"
-            style={{ ...s.toggleBtn, ...(billing === 'monthly' ? s.toggleActive : {}) }}
-            onClick={() => setBilling('monthly')}
-          >
-            {content.monthly}
-          </MotionButton>
-          <MotionButton
-            level="secondary"
-            style={{ ...s.toggleBtn, ...(billing === 'annual' ? s.toggleActive : {}) }}
-            onClick={() => setBilling('annual')}
-          >
-            {content.annual}
-            <span style={s.saveBadge}>{content.annualSave}</span>
-          </MotionButton>
-        </div>
-
-        {billing === 'annual' && (
-          <p style={s.annualNote}>{content.annualNote}</p>
-        )}
+        <p style={s.monthlyPrice}>{content.monthly}</p>
 
         {/* Промокод */}
         <div style={s.promoRow}>
@@ -309,55 +276,16 @@ const s = {
     alignItems: 'center',
     gap: '12px',
   },
-  benefitIcon: {
-    fontSize: '20px',
-    lineHeight: 1,
-    flexShrink: 0,
-  },
   benefitText: {
     fontSize: '14px',
     color: 'var(--text-primary)',
     lineHeight: 1.4,
   },
-  billingToggle: {
-    display: 'flex',
-    gap: '8px',
-    marginBottom: '8px',
-  },
-  toggleBtn: {
-    flex: 1,
-    padding: '10px 12px',
-    border: '1.5px solid var(--border)',
-    borderRadius: '10px',
-    background: 'var(--border)',
-    color: 'var(--text-secondary)',
-    fontSize: '13px',
-    fontWeight: '500',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    transition: 'all 0.15s',
-  },
-  toggleActive: {
-    background: 'var(--bg-card)',
-    color: 'var(--text-primary)',
-    borderColor: 'var(--bg-card)',
-  },
-  saveBadge: {
-    background: 'var(--color-success)',
-    color: '#fff',
-    fontSize: '10px',
-    fontWeight: '700',
-    padding: '1px 5px',
-    borderRadius: '4px',
-  },
-  annualNote: {
+  monthlyPrice: {
     margin: '0 0 16px',
-    fontSize: '12px',
-    color: 'var(--text-secondary)',
+    fontSize: '20px',
+    fontWeight: '700',
+    color: 'var(--text-primary)',
     textAlign: 'center',
   },
   cta: {
