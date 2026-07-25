@@ -29,16 +29,41 @@ import useStreak, { schedulePushReminder } from '../hooks/useStreak';
 import RagChat from '../components/RagChat';
 import {
   createReportCheckoutSession,
+  createCheckoutSession,
   startPdfGeneration,
   startTransitsAsync,
   pollTask,
 } from '../api/client';
+import PlanComparisonModal from '../components/PlanComparisonModal';
 
 const REPORT_OPTIONS = [
   { type: 'basic',    label: 'Базовый натальный отчёт',        price: '$5', desc: 'Карта + интерпретация + главные аспекты' },
   { type: 'extended', label: 'Расширенный отчёт с транзитами', price: '$9', desc: 'Карта + детальный анализ + транзиты на 6 мес' },
   { type: 'synastry', label: 'Отчёт о совместимости',          price: '$9', desc: 'Синастрия двух карт + межаспектная сетка' },
 ];
+
+// Замок чата: чат с Астреей есть только на Лире — Вега получает свои фичи,
+// без обещания чата (продуктовое ограничение).
+const CHAT_VEGA_PLAN = {
+  name: 'Вега',
+  price: '790 ₽',
+  features: [
+    'AI-разбор транзитов — 3 в месяц',
+    'Индивидуальные рекомендации на месяц',
+    'Лунный календарь на год',
+  ],
+};
+
+const CHAT_LYRA_PLAN = {
+  name: 'Лира',
+  price: '1 990 ₽',
+  recommended: true,
+  features: [
+    'Чат с Астреей — она уже знает вашу карту и отвечает на любой вопрос',
+    'Глубокий разбор — от 1500 слов',
+    'Всё из Веги + PDF и до 5 карт для семьи',
+  ],
+};
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -371,6 +396,20 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [error, setError]             = useState(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallContext, setPaywallContext] = useState('free_to_lite');
+  const [showChatPlans, setShowChatPlans] = useState(false); // чат: двухтарифная Вега/Лира вместо PaywallModal
+  const [chatCheckoutLoading, setChatCheckoutLoading] = useState(false);
+
+  async function handleChatPlanCheckout(tier) {
+    if (chatCheckoutLoading) return;
+    setChatCheckoutLoading(true);
+    try {
+      const { url } = await createCheckoutSession(tier, 'monthly', chartId, null);
+      window.location.href = url;
+    } catch (e) {
+      alert('Не удалось открыть страницу оплаты. Попробуйте позже.');
+      setChatCheckoutLoading(false);
+    }
+  }
 
   // E4: показ активной модалки с ограничением частоты.
   // forced=true — явное намерение (кнопка «Перейти на Pro»), лимит не применяется.
@@ -731,10 +770,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
-              <span style={{ fontSize: 40 }}>🔒</span>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>AI Астролог Астрея</div>
               <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Астрея помнит вашу карту и отвечает на любой вопрос о ней — как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
-              <MotionButton level="primary" onClick={() => openPaywall(_upsellCtx('pro'), true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              <MotionButton level="primary" onClick={() => setShowChatPlans(true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Открыть доступ
               </MotionButton>
             </div>
@@ -985,6 +1023,17 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           <PaywallModal context={paywallContext} chartId={chartId} onClose={closePaywall} />
         )}
       </AnimatePresence>
+
+      <PlanComparisonModal
+        open={showChatPlans}
+        onClose={() => setShowChatPlans(false)}
+        onChooseVega={() => handleChatPlanCheckout('lite')}
+        onChooseLyra={() => handleChatPlanCheckout('pro')}
+        onContinueFree={() => setShowChatPlans(false)}
+        contextLabel="Чат с AI-астрологом Астрея"
+        vega={CHAT_VEGA_PLAN}
+        lyra={CHAT_LYRA_PLAN}
+      />
 
     </div>
   );
