@@ -28,6 +28,7 @@ dependencies = [
     "reportlab>=4.0.0",
     "pywebpush>=1.14.0",
     "python-multipart>=0.0.9",
+    "aiogram>=3.4",
 ]
 
 [project.optional-dependencies]
