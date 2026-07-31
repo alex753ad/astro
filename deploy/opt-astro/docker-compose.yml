@@ -1,0 +1,97 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app-build: &app-build
+  context: ./app
+  dockerfile: Dockerfile
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    networks:
+      - astro_net
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    networks:
+      - astro_net
+
+  api:
+    image: astro-app:latest
+    build: *app-build
+    restart: always
+    env_file:
+      - .env
+    environment:
+      PORT: "8000"
+      EPHE_PATH: /app/data/ephe
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging: *default-logging
+    networks:
+      - astro_net
+
+  bot:
+    image: astro-app:latest
+    build: *app-build
+    restart: always
+    env_file:
+      - .env
+    environment:
+      SERVICE_ROLE: bot
+      EPHE_PATH: /app/data/ephe
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - astro_net
+
+volumes:
+  pgdata:
+  redis_data:
+
+networks:
+  astro_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
