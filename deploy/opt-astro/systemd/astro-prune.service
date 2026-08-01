@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly astro Docker image prune + disk space check
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/astro
+ExecStart=/opt/astro/prune-and-diskcheck.sh
