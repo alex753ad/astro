@@ -67,16 +67,113 @@ API): скопировать `frontend.env.example` в `frontend.env` (рядо�
 выпущен), `curl` на `/health` и `/health/db`. Значения переменных из `.env`
 нигде не печатаются, только имена.
 
+## CI/CD (GitHub Actions -> VPS по SSH)
+
+Пуш в `main` → тесты (backend + frontend) → если оба джоба зелёные, джоб
+`deploy` подключается по SSH и на самом сервере выполняет
+`./05-update.sh --backend-only`: дамп БД → сборка образа → пересоздание
+`api`/`bot` → `alembic upgrade head` → ожидание healthy → проверка
+`/health` и `/health/db`. Если что-то из этого не прошло — скрипт сам
+откатывает `api`/`bot` на предыдущий образ и завершается с ошибкой, джоб
+`deploy` красный. Откатывается только образ контейнера, не применённые
+миграции (down-миграции на проде с живыми данными — ручной шаг, не
+автоматика).
+
+Публикация фронтенда в CI не участвует — как и раньше, вручную через
+`./04-frontend-deploy.sh`.
+
+**Секреты репозитория** (Settings → Secrets and variables → Actions →
+New repository secret):
+
+| Секрет | Значение |
+|---|---|
+| `SSH_HOST` | `72.56.234.138` (или домен сервера) |
+| `SSH_USER` | `deploy` |
+| `SSH_PRIVATE_KEY` | приватный ключ пользователя `deploy` (тот, что использовался при SSH-hardening), содержимое файла целиком, включая `-----BEGIN...-----`/`-----END...-----` |
+
+Ключ должен быть уже добавлен в `~deploy/.ssh/authorized_keys` на сервере —
+это делалось при hardening'е, отдельно заводить ничего не нужно.
+
+## Sentry (опционально)
+
+Без `SENTRY_DSN`/`VITE_SENTRY_DSN` ничего не включается, поведение как
+раньше. Чтобы включить:
+
+1. На sentry.io создать организацию (если ещё нет) → New Project → платформа
+   Python/FastAPI для бэкенда и отдельно (или тот же проект) React для
+   фронтенда.
+2. Скопировать DSN проекта (Settings проекта → Client Keys (DSN)).
+3. Backend: вписать в `.env` → `SENTRY_DSN=...`, пересобрать (`./05-update.sh
+   --backend-only`).
+4. Frontend: вписать в `frontend.env` → `VITE_SENTRY_DSN=...`, пересобрать
+   (`./04-frontend-deploy.sh`).
+
+`send_default_pii=False`, `traces_sample_rate=0.1`, `environment=production`
+на обеих сторонах. На бэкенде тело запроса перед отправкой в Sentry
+дополнительно чистится от полей с `password`/`token`/`secret`/`key`/
+`authorization` в названии — тем же фильтром, что и в логах 422-ошибок.
+
+## Мониторинг (Uptime Kuma)
+
+`./08-setup-automation.sh` поднимает `uptime-kuma` (только на
+`127.0.0.1:3001`, лимит памяти 256 МБ) и настраивает доступ к нему на
+`status.astreatime.ru` за basic-auth (nginx). Официально Uptime Kuma не
+поддерживает работу из-под подпути на основном домене (ломаются ассеты и
+WebSocket), поэтому — отдельный поддомен, а не `/status/`.
+
+Перед запуском `08-setup-automation.sh` (или после — просто доступ не
+заработает до этого): добавить DNS A-запись `status.astreatime.ru` → IP
+сервера.
+
+При первом запуске скрипт сам генерирует логин/пароль для basic-auth и
+печатает пароль в терминал один раз — сохраните его сразу, повторно нигде
+не выводится (хранится только bcrypt-хэш).
+
+После установки:
+
+1. Открыть `http://status.astreatime.ru`, ввести basic-auth логин/пароль,
+   пройти мастер первого запуска Uptime Kuma (создать админ-аккаунт — это
+   отдельная сущность от basic-auth, второй слой).
+2. Add New Monitor → HTTP(s) → URL `https://www.astreatime.ru/health` →
+   Friendly Name `astro api` → интервал проверки на вкус (60s достаточно).
+3. Settings → Notifications → Add New Notification Type → Telegram → вписать
+   тот же `TELEGRAM_BOT_TOKEN`, что и в `.env`, и `TELEGRAM_SUPPORT_CHAT_ID`
+   (или отдельный чат/канал, если не хотите мешать с прочими алертами) →
+   привязать это уведомление к монитору `astro api`.
+
+## Автоматические бэкапы и чистка образов
+
+`08-setup-automation.sh` также ставит два systemd-таймера (юниты — в
+`systemd/`, устанавливаются в `/etc/systemd/system/`):
+
+- `astro-backup.timer` → `07-backup-cron.sh` ежедневно в 03:30 (+ случайная
+  задержка до 15 мин): `pg_dump` → `gzip` → проверка (`gzip -t` +
+  `pg_restore -l`, архив не восстанавливается, только читается оглавление)
+  → ротация: дампы старше 14 дней удаляются. При любой ошибке — сообщение в
+  Telegram через `TELEGRAM_BOT_TOKEN`/`TELEGRAM_SUPPORT_CHAT_ID` из `.env`.
+- `astro-prune.timer` → `prune-and-diskcheck.sh` еженедельно:
+  `docker image prune -af --filter until=168h` (не трогает образы младше
+  недели и образы, на которые ссылается хоть один контейнер) + если
+  свободного места на диске меньше 20% — сообщение в Telegram.
+
+Проверить статус: `systemctl list-timers 'astro-*'`,
+`journalctl -u astro-backup.service`, `journalctl -u astro-prune.service`.
+
 ## Файлы
 
-- `docker-compose.yml` — прод-стек: postgres, redis, api, bot
+- `docker-compose.yml` — прод-стек: postgres, redis, api, bot, uptime-kuma
 - `.env.example` — скопировать в `.env`, заполнить реальными значениями
 - `frontend.env.example` — скопировать в `frontend.env`, build-time секреты фронта
 - `app/` — сюда клонируется репозиторий (build context для api/bot, источник для сборки фронта)
 - `frontend/` — сюда кладётся собранный `dist/` для nginx на хосте
-- `nginx/astreatime.conf` — конфиг сайта для nginx на хосте
+- `nginx/astreatime.conf` — конфиг основного сайта для nginx на хосте
+- `nginx/status.astreatime.conf` — конфиг Uptime Kuma (basic-auth) для nginx на хосте
+- `systemd/` — юниты таймеров бэкапа и чистки образов
 - `backups/` — дампы БД и диагностические отчёты
 - `03-db-restore.sh` — перенос БД с Railway
 - `04-frontend-deploy.sh` — сборка и публикация фронтенда + nginx
-- `05-update.sh` — повседневное обновление одной командой
+- `05-update.sh` — повседневное обновление одной командой (используется и вручную, и из CI)
 - `06-diag.sh` — диагностический снимок состояния
+- `07-backup-cron.sh` — ежедневный бэкап БД (запускается через `astro-backup.timer`)
+- `08-setup-automation.sh` — установщик Uptime Kuma + systemd-таймеров
+- `prune-and-diskcheck.sh` — еженедельная чистка образов + проверка места (через `astro-prune.timer`)
