@@ -85,9 +85,22 @@ services:
     networks:
       - astro_net
 
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: always
+    mem_limit: 256m
+    volumes:
+      - uptime_kuma_data:/app/data
+    ports:
+      - "127.0.0.1:3001:3001"
+    logging: *default-logging
+    networks:
+      - astro_net
+
 volumes:
   pgdata:
   redis_data:
+  uptime_kuma_data:
 
 networks:
   astro_net:
