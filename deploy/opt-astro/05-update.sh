@@ -113,11 +113,66 @@ if $DO_BACKEND; then
   [[ -s "$dump_file" ]] || die "pg_dump создал пустой файл — пересборку не продолжаю"
   echo "  дамп: $dump_file ($(du -h "$dump_file" | cut -f1))"
 
+  # Текущий образ помечаем как rollback-кандидат ДО пересборки — "docker compose
+  # build" перезапишет тег astro-app:latest, другого способа вернуться к
+  # работавшей версии контейнера потом не будет.
+  have_rollback_image=false
+  if docker image inspect astro-app:latest >/dev/null 2>&1; then
+    docker tag astro-app:latest astro-app:rollback
+    have_rollback_image=true
+  fi
+
   log "Бэкенд: собираю образ (api, bot)"
   run_with_registry_retry docker compose build api bot
 
   log "Бэкенд: пересоздаю api и bot из новой сборки (работавшие контейнеры не трогались до этого момента)"
   docker compose up -d --no-deps api bot
+
+  # rollback: возвращает тег astro-app:latest на образ, работавший до этого
+  # деплоя, и пересоздаёт api/bot из него. Откатывает только контейнеры —
+  # применённые alembic-миграции вперёд не отменяются (down-миграции на
+  # проде с живыми данными — отдельный, осознанный ручной шаг, не то, что
+  # должно происходить автоматически).
+  rollback() {
+    if ! $have_rollback_image; then
+      echo "  нет предыдущего образа для отката (это был первый деплой) — откатывать нечего" >&2
+      return
+    fi
+    echo "  откатываю astro-app:latest на предыдущий образ и пересоздаю api/bot" >&2
+    docker tag astro-app:rollback astro-app:latest
+    docker compose up -d --no-deps api bot
+  }
+
+  log "Бэкенд: применяю миграции (alembic upgrade head)"
+  if ! docker compose exec -T api alembic upgrade head; then
+    rollback
+    die "alembic upgrade head упал — выполнен откат на предыдущий образ."
+  fi
+
+  log "Бэкенд: жду healthy"
+  healthy=false
+  # api healthcheck: interval 30s, retries 5, start_period 15s — до 180с в худшем
+  # случае, поэтому ждём с запасом дольше, чем интервал самого healthcheck.
+  for _ in $(seq 1 40); do
+    api_cid="$(docker compose ps -q api)"
+    status="$(docker inspect --format='{{.State.Health.Status}}' "$api_cid" 2>/dev/null || echo "unknown")"
+    if [[ "$status" == "healthy" ]]; then
+      healthy=true
+      break
+    fi
+    sleep 5
+  done
+  if ! $healthy; then
+    rollback
+    die "api не стал healthy за 200с — выполнен откат на предыдущий образ."
+  fi
+
+  log "Бэкенд: проверяю /health и /health/db"
+  if ! curl -sS -m 5 -f http://127.0.0.1:8000/health >/dev/null || \
+     ! curl -sS -m 5 -f http://127.0.0.1:8000/health/db >/dev/null; then
+    rollback
+    die "/health или /health/db не отвечают после деплоя — выполнен откат на предыдущий образ."
+  fi
   echo "  готово"
 fi
 
