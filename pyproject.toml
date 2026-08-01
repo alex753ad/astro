@@ -29,6 +29,7 @@ dependencies = [
     "pywebpush>=1.14.0",
     "python-multipart>=0.0.9",
     "aiogram>=3.4",
+    "sentry-sdk[fastapi]>=2.0.0",
 ]
 
 [project.optional-dependencies]

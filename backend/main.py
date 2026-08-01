@@ -27,6 +27,8 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, FastAPI, Depends, HTTPException, Request
 from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler as _default_validation_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 from slowapi import _rate_limit_exceeded_handler
@@ -176,6 +178,61 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── 422 логирование ──
+# Ответ клиенту не меняется (делегируем в дефолтный обработчик FastAPI) —
+# это только чтобы в логах было видно, какое поле и почему не прошло, вместо
+# голого "422 Unprocessable Entity" без единой зацепки.
+_SENSITIVE_BODY_KEYS = ("password", "token", "secret", "key", "authorization")
+
+
+def _sanitize_body_for_log(value):
+    if isinstance(value, dict):
+        return {
+            k: ("***" if any(s in k.lower() for s in _SENSITIVE_BODY_KEYS) else _sanitize_body_for_log(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_body_for_log(v) for v in value]
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def _log_validation_errors(request: Request, exc: RequestValidationError):
+    body = exc.body
+    if isinstance(body, (bytes, bytearray)):
+        try:
+            body = json.loads(body)
+        except Exception:
+            body = "<unparseable body>"
+    logger.warning(
+        "422 validation error: %s %s errors=%s body=%s",
+        request.method,
+        request.url.path,
+        exc.errors(),
+        _sanitize_body_for_log(body),
+    )
+    return await _default_validation_handler(request, exc)
+
+
+# ── Sentry ──
+# Без SENTRY_DSN ничего не инициализируется — приложение работает как раньше.
+if settings.sentry_dsn:
+    import sentry_sdk
+
+    def _sentry_before_send(event, hint):
+        request_data = event.get("request", {})
+        if "data" in request_data:
+            request_data["data"] = _sanitize_body_for_log(request_data["data"])
+        return event
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment="production",
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        before_send=_sentry_before_send,
+    )
 
 # ── TierMiddleware — пишет user_tier в request.state до декораторов лимитера ──
 @app.middleware("http")

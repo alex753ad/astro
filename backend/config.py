@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
     testing: bool = False
+
+    # ── Sentry ── пусто = SDK не инициализируется, поведение как раньше.
+    sentry_dsn: str = ""
     # Прод-безопасный дефолт. Для локальной разработки добавьте localhost.
     # Читается из CORS_ORIGINS или ALLOWED_ORIGINS (второе имя раньше было
     # только в комментарии и по факту игнорировалось).
