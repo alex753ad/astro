@@ -1,0 +1,10 @@
+[Unit]
+Description=Astro daily DB backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/astro
+ExecStart=/opt/astro/07-backup-cron.sh
