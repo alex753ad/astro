@@ -58,6 +58,12 @@ const MONTHS_RU = [
 
 const DOW_RU = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
+const ECLIPSE_LABELS = {
+  solar: { title: 'Солнечное затмение', emoji: '☉' },
+  lunar: { title: 'Лунное затмение',    emoji: '☾' },
+};
+const ECLIPSE_KIND_RU = { total: 'полное', partial: 'частичное', annular: 'кольцеобразное', penumbral: 'полутеневое' };
+
 // Приближённый знак Луны (меняется каждые ~2.46 дня)
 // Якорь: 1 мая 2026 → Стрелец (индекс 8)
 const ANCHOR_MS   = new Date('2026-05-01').getTime();
@@ -133,6 +139,7 @@ export default function LunarCalendarPage() {
   const [error,   setError]   = useState(null);
   const [dailyMap,    setDailyMap]    = useState({});
   const [lunarPhases, setLunarPhases] = useState([]);
+  const [eclipses,    setEclipses]    = useState([]);
 
   useEffect(() => { load(); }, [year, month]);
 
@@ -157,8 +164,9 @@ export default function LunarCalendarPage() {
           (j2.daily_signs || []).forEach(d => { if (d.date && d.sign) map[d.date] = SIGN_RU_TO_KEY[d.sign] || d.sign; });
           setDailyMap(map);
           setLunarPhases(j2.phases || []);
-        } else { setDailyMap({}); setLunarPhases([]); }
-      } catch { setDailyMap({}); }
+          setEclipses(j2.eclipses || []);
+        } else { setDailyMap({}); setLunarPhases([]); setEclipses([]); }
+      } catch { setDailyMap({}); setEclipses([]); }
 
     } catch(e) {
       setError(e.message);
@@ -291,6 +299,7 @@ export default function LunarCalendarPage() {
               const isFullMoon = fullMoons.some(e => sameDay(e.date, dateStr));
               const signKey    = dailyMap[dateStr] || approxMoonSign(dateStr);
               const signData   = SIGNS_RU[signKey] || SIGNS_RU.Leo;
+              const eclipse    = eclipses.find(e => sameDay(e.date, dateStr)) || null;
 
               return (
                 <DayCell
@@ -300,6 +309,7 @@ export default function LunarCalendarPage() {
                   isNewMoon={isNewMoon}
                   isFullMoon={isFullMoon}
                   signData={signData}
+                  eclipse={eclipse}
                 />
               );
             })}
@@ -310,6 +320,10 @@ export default function LunarCalendarPage() {
             <LegendDot fill="#C3CFFC" border="#8898D8" label="Сегодня" />
             <LegendDot fill="#2A2A3A" border="none"    label="Новолуние" />
             <LegendDot fill="#F5C842" border="#C0980A" label="Полнолуние" />
+            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <span style={{ fontSize: 12 }}>☉☾</span>
+              <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>Затмение</span>
+            </div>
           </div>
 
         </div>
@@ -431,7 +445,7 @@ function SkeletonRow() {
 
 // ── Ячейка дня ────────────────────────────────────────────
 
-function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData }) {
+function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) {
   const numBg    = isToday    ? '#C3CFFC'
                  : isNewMoon  ? '#2A2A3A'
                  : isFullMoon ? '#F5C842'
@@ -449,15 +463,28 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData }) {
 
   return (
     <div style={dc.root}>
-      <div style={{ ...dc.num, background: numBg, color: numColor,
+      <div style={{ ...dc.num, background: numBg, color: numColor, position: 'relative',
                     fontWeight: (isToday||isNewMoon||isFullMoon) ? 600 : 400 }}>
         {dayNum}
+        {eclipse && (
+          <span
+            title={`${ECLIPSE_LABELS[eclipse.type]?.title || 'Затмение'} · ${ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind}`}
+            style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, lineHeight: 1 }}
+          >
+            {ECLIPSE_LABELS[eclipse.type]?.emoji || '✦'}
+          </span>
+        )}
       </div>
       <div style={{ ...dc.icon, background: 'transparent' }}>
         <img src={signData.icon} alt={signData.name}
              style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
       </div>
       <div style={dc.name}>{signData.name}</div>
+      {eclipse && (
+        <div style={{ fontSize: 6.5, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
+          {ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind}
+        </div>
+      )}
     </div>
   );
 }

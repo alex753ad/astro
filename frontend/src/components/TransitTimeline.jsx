@@ -139,6 +139,11 @@ function addMonthISO(dateStr) {
   return new Date(d.getFullYear(), d.getMonth() + 1, d.getDate()).toISOString().slice(0, 10);
 }
 
+function subMonthISO(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return new Date(d.getFullYear(), d.getMonth() - 1, d.getDate()).toISOString().slice(0, 10);
+}
+
 function eventKey(e) {
   return `${e.peak_date || e.start_date || e.date}-${e.transit_planet}-${e.natal_planet}-${e.aspect_type}`;
 }
@@ -150,6 +155,13 @@ function mergeEvents(prev, incoming) {
     const k = eventKey(e);
     if (!seen.has(k)) { seen.add(k); merged.push(e); }
   }
+  // Подгрузка прошлого добавляет события "в хвост" массива — пересортировываем
+  // по дате, чтобы список остался хронологическим.
+  merged.sort((a, b) => {
+    const da = a.peak_date || a.start_date || a.date || "";
+    const db = b.peak_date || b.start_date || b.date || "";
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
   return merged;
 }
 
@@ -655,7 +667,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [events,        setEvents]        = useState([]);
   const [loading,       setLoading]       = useState(true);   // первый запрос
   const [loadingMore,   setLoadingMore]   = useState(false);  // догрузка следующего месяца
+  const [loadingPrev,   setLoadingPrev]   = useState(false);  // догрузка предыдущего месяца
   const [loadedUntil,   setLoadedUntil]   = useState(null);   // to_date последнего загруженного месяца
+  const [loadedFrom,    setLoadedFrom]    = useState(null);   // from_date самого раннего загруженного месяца
   const [reachedEnd,    setReachedEnd]    = useState(false);  // догрузили до горизонта тарифа
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [paywallEvent,  setPaywallEvent]  = useState(null);  // клик «Интерпретация» на закрытом транзите — апселл с контекстом аспекта
@@ -697,6 +711,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   useEffect(() => {
     setEvents([]);
     setLoadedUntil(null);
+    setLoadedFrom(null);
     setReachedEnd(false);
 
     if (!chartId || mockMode || chartId === 'anonymous') {
@@ -707,15 +722,18 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     }
 
     setLoading(true);
-    const today = new Date().toISOString().slice(0, 10);
-    const to    = addMonthISO(today) > horizonEnd ? horizonEnd : addMonthISO(today);
-    fetch(TRANSITS_URL(chartId, today, to), {
-      headers: chartAuthHeaders(),
-    })
-      .then(r => r.json())
-      .then(data => {
-        setEvents(data.events || []);
+    const today    = new Date().toISOString().slice(0, 10);
+    const to       = addMonthISO(today) > horizonEnd ? horizonEnd : addMonthISO(today);
+    const fromPast = subMonthISO(today);
+
+    Promise.all([
+      fetch(TRANSITS_URL(chartId, today, to),        { headers: chartAuthHeaders() }).then(r => r.json()),
+      fetch(TRANSITS_URL(chartId, fromPast, today),  { headers: chartAuthHeaders() }).then(r => r.json()),
+    ])
+      .then(([forwardData, pastData]) => {
+        setEvents(mergeEvents(pastData.events || [], forwardData.events || []));
         setLoadedUntil(to);
+        setLoadedFrom(fromPast);
         if (to >= horizonEnd) setReachedEnd(true);
         setLoading(false);
       })
@@ -743,6 +761,26 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       .catch(() => {}) // оставляем loadedUntil как есть — следующий триггер повторит тот же диапазон
       .finally(() => setLoadingMore(false));
   }, [loadingMore, reachedEnd, loading, chartId, mockMode, loadedUntil, horizonEnd]);
+
+  // ── Подгрузка предыдущего месяца (по кнопке) ──
+  const loadPrevious = useCallback(() => {
+    if (loadingPrev || loading || !chartId || mockMode || chartId === 'anonymous' || loadedFrom == null) return;
+
+    setLoadingPrev(true);
+    const to   = addDaysISO(loadedFrom, -1);
+    const from = subMonthISO(loadedFrom);
+
+    fetch(TRANSITS_URL(chartId, from, to), {
+      headers: chartAuthHeaders(),
+    })
+      .then(r => r.json())
+      .then(data => {
+        setEvents(prev => mergeEvents(prev, data.events || []));
+        setLoadedFrom(from);
+      })
+      .catch(() => {}) // оставляем loadedFrom как есть — следующий клик повторит тот же диапазон
+      .finally(() => setLoadingPrev(false));
+  }, [loadingPrev, loading, chartId, mockMode, loadedFrom]);
 
   // ── Free: догружаем до горизонта в фоне, не дожидаясь скролла —
   //    иначе счётчик FreePlanBanner/блюр-тизер занижен, пока пользователь не долистал ──
@@ -957,6 +995,18 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {!loading && loadedFrom && chartId && chartId !== 'anonymous' && !mockMode && (
+            <div style={{ textAlign: "center", margin: "0 0 12px" }}>
+              <button onClick={loadPrevious} disabled={loadingPrev} style={{
+                background: "none", border: "1px solid var(--tt-border2)", color: "var(--tt-text2)",
+                borderRadius: 10, padding: "6px 16px", fontSize: 12,
+                cursor: loadingPrev ? "default" : "pointer", fontFamily: "inherit",
+                opacity: loadingPrev ? 0.6 : 1,
+              }}>
+                {loadingPrev ? "Загрузка…" : "↑ Загрузить предыдущий месяц"}
+              </button>
+            </div>
+          )}
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : filteredEvents.length === 0 ? (

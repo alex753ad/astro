@@ -119,7 +119,7 @@ def _upcoming_windows(db: Session, user: User) -> list[str]:
         start = _fmt_day(str(getattr(e, "start_date", "") or ""))
         end = _fmt_day(str(getattr(e, "end_date", "") or ""))
         rng = f"{start}–{end}" if start and end and start != end else (start or end)
-        out.append(f"{pr} {rng} — активное окно по вашей карте")
+        out.append(f"{pr} {rng} — влияет на вашу карту, посмотрите что делать")
     return out
 
 

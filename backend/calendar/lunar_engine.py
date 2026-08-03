@@ -231,6 +231,72 @@ def get_slow_aspects(year: int, month: int) -> list[CalendarEvent]:
     return sorted(events, key=lambda e: e.date)
 
 
+# ── Eclipses ──────────────────────────────────────────────────────────────────
+
+_SOLAR_KIND_FLAGS = [
+    (swe.ECL_TOTAL, "total"),
+    (swe.ECL_ANNULAR_TOTAL, "annular"),
+    (swe.ECL_ANNULAR, "annular"),
+    (swe.ECL_PARTIAL, "partial"),
+]
+_LUNAR_KIND_FLAGS = [
+    (swe.ECL_TOTAL, "total"),
+    (swe.ECL_PARTIAL, "partial"),
+    (swe.ECL_PENUMBRAL, "penumbral"),
+]
+
+
+def _eclipse_kind(retflag: int, flags: list[tuple[int, str]]) -> str:
+    for flag, kind in flags:
+        if retflag & flag:
+            return kind
+    return "partial"
+
+
+@dataclass
+class EclipseEvent:
+    date: str
+    time: str
+    type: str  # solar | lunar
+    kind: str  # total | partial | annular | penumbral
+
+    def to_dict(self) -> dict:
+        return {"date": self.date, "time": self.time, "type": self.type, "kind": self.kind}
+
+
+def _scan_eclipses(jd_start: float, jd_end: float, finder, flags, etype: str) -> list[EclipseEvent]:
+    events: list[EclipseEvent] = []
+    jd = jd_start
+    for _ in range(50):  # предохранитель от зацикливания
+        if jd >= jd_end:
+            break
+        try:
+            retflag, tret = finder(jd, swe.FLG_SWIEPH, 0, False)
+        except Exception:
+            break
+        if retflag < 0 or tret[0] <= 0:
+            break
+        if tret[0] > jd_end:
+            break
+        dt, tm = _jd_to_dt(tret[0])
+        events.append(EclipseEvent(date=dt, time=f"{tm} UTC", type=etype,
+                                    kind=_eclipse_kind(retflag, flags)))
+        jd = tret[0] + 1
+    return events
+
+
+def get_eclipses(start: date, end: date) -> list[dict]:
+    """Солнечные и лунные затмения в диапазоне [start, end] (включительно)."""
+    jd_start = _jd(start, 0)
+    jd_end = _jd(end, 24)
+    events = (
+        _scan_eclipses(jd_start, jd_end, swe.sol_eclipse_when_glob, _SOLAR_KIND_FLAGS, "solar")
+        + _scan_eclipses(jd_start, jd_end, swe.lun_eclipse_when, _LUNAR_KIND_FLAGS, "lunar")
+    )
+    events.sort(key=lambda e: (e.date, e.time))
+    return [e.to_dict() for e in events]
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def get_monthly_calendar(year: int, month: int) -> list[dict]:

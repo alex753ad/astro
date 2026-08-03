@@ -352,9 +352,9 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 cands.append({
                     "kind": "transit",
                     "ref": f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}",
-                    "priority": "significant", "weight": 90, "frag": f"{pr} — редкое окно",
-                    "title": "✦ Редкое окно",
-                    "body": "Сегодня открывается окно, которое бывает нечасто. Загляните — это про вас.",
+                    "priority": "significant", "weight": 90, "frag": f"{pr} — активен в вашей карте",
+                    "title": "Астрея — что важного сегодня",
+                    "body": f"{pr} сегодня активен в вашей карте — загляните, это про вас.",
                     "url": _with_topic(planner_url, _topic_key("transit", planet=e.transit_planet, aspect=e.aspect_type, natal=e.natal_planet)),
                 })
         except Exception as e:
@@ -450,8 +450,8 @@ def _process_user(db: Session, user: User) -> int:
         payload = {"title": to_send[0]["title"], "body": to_send[0]["body"], "url": to_send[0]["url"]}
     else:
         payload = {
-            "title": "✦ Ваш Timeline на сегодня",
-            "body": "Сегодня: " + " + ".join(c["frag"] for c in to_send),
+            "title": "Астрея — что важного сегодня",
+            "body": " · ".join(c["frag"] for c in to_send),
             "url": to_send[0]["url"],
         }
 

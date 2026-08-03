@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
-import chartPreview from '../assets/chart-preview.png';
+import chartPreview from '../assets/на_лендинг.png';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
@@ -192,13 +192,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
                 display: 'block',
               }}
             />
-            <span style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              color: '#9B97B0',
-              textTransform: 'uppercase',
-            }}>Swiss Ephemeris Core &amp; AI</span>
           </div>
 
           {/* Right — timeline */}
@@ -227,23 +220,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               desc="Обнови гардероб, выбери парфюм, украшения или аксессуары — в эти дни твоя харизма работает сильнее, и люди тянутся к тебе охотнее."
             />
 
-            {/* AI Sintez badge */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 16,
-              padding: '6px 14px',
-              borderRadius: 20,
-              background: '#1a1230',
-              color: '#fff',
-              fontSize: 12,
-              fontWeight: 600,
-            }}>
-              <span style={{ fontSize: 10 }}>✦</span>
-              AI Синтез
-            </div>
-
             <div style={{
               marginTop: 16,
               fontSize: 13,
@@ -251,8 +227,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               color: '#8B5CF6',
               lineHeight: 1.6,
             }}>
-              И это лишь два окна твоего месяца — Астрея ведёт тебя по всем планетам и покажет,
-              где действие сработает в 2–3 раза сильнее.
+              И это лишь одно окно твоего месяца — Астрея ведёт тебя по всем планетам и покажет,
+              где действие сработает значительнее.
             </div>
           </div>
         </motion.div>

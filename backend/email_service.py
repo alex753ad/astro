@@ -724,9 +724,9 @@ async def send_weekly_digest(user, db) -> bool:
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
     if variant == "A" and highlights:
         h0 = highlights[0]
-        subject = f"{h0['planet']} активен в вашей карте на этой неделе · Astrea"
+        subject = f"{h0['planet']} сейчас влияет на вашу карту — посмотрите, что делать · Astrea"
     else:
-        subject = f"🔭 Астро-дайджест на {week_label} · Astrea Timeline"
+        subject = f"Ваша неделя {week_label} — что важно знать · Astrea"
 
     return await _send(
         user.email,

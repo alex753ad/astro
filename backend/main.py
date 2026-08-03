@@ -2134,7 +2134,7 @@ async def get_lunar_calendar(
     month: int = None,
 ):
     from datetime import date as date_type, datetime as dt_type
-    from backend.calendar.lunar_engine import get_moon_phases, ZODIAC_SIGNS
+    from backend.calendar.lunar_engine import get_moon_phases, get_eclipses, ZODIAC_SIGNS
     import swisseph as swe
     import calendar as cal_mod
 
@@ -2213,6 +2213,7 @@ async def get_lunar_calendar(
     phases.sort(key=lambda x: x["date"])
   
     _, days_in_month = cal_mod.monthrange(year, month)
+    eclipses = get_eclipses(date_type(year, month, 1), date_type(year, month, days_in_month))
     daily_signs = []
     for day in range(1, days_in_month + 1):
         d = date_type(year, month, day)
@@ -2240,6 +2241,7 @@ async def get_lunar_calendar(
         },
         "phases":      phases,
         "daily_signs": daily_signs,
+        "eclipses":    eclipses,
     }
 
 
