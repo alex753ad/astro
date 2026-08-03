@@ -179,10 +179,11 @@ export default function LandingPage({ onShowAuth, currentUser }) {
 
           {/* Caption — under the image, aligned with the right panel */}
           <div style={{
-            marginLeft: isMobile ? 0 : '70%',
-            maxWidth: isMobile ? '100%' : '28%',
-            padding: isMobile ? '4px 20px 20px' : '0 24px 22px',
+            marginLeft: 0,
+            maxWidth: '100%',
+            padding: isMobile ? '4px 20px 20px' : '4px 28px 24px',
             fontSize: isMobile ? 12 : 13,
+            textAlign: 'center',
             fontStyle: 'italic',
             fontWeight: 500,
             color: '#8B5CF6',
