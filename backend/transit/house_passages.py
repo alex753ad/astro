@@ -105,12 +105,55 @@ def _bisect_house_change(
     return hi  # первый момент в новом доме
 
 
+def _find_real_entry(
+    planet_id: int,
+    cusps: list[float],
+    boundary_dt: datetime,
+    boundary_house: int,
+    step_td: timedelta,
+    max_steps: int = 4000,
+) -> datetime:
+    """Реальный момент входа в `boundary_house`, отсканировав НАЗАД от `boundary_dt`
+    (который уже находится в этом доме) до смены дома, с уточнением бисекцией.
+    """
+    anchor = boundary_dt
+    for _ in range(max_steps):
+        probe = anchor - step_td
+        h = _planet_house_at(planet_id, probe, cusps)
+        if h != boundary_house:
+            return _bisect_house_change(planet_id, cusps, probe, anchor, h)
+        anchor = probe
+    return boundary_dt  # не нашли смену дома в пределах max_steps — оставляем как есть
+
+
+def _find_real_exit(
+    planet_id: int,
+    cusps: list[float],
+    boundary_dt: datetime,
+    boundary_house: int,
+    step_td: timedelta,
+    max_steps: int = 4000,
+) -> datetime:
+    """Реальный момент выхода из `boundary_house`, отсканировав ВПЕРЁД от `boundary_dt`
+    (который ещё в этом доме) до смены дома, с уточнением бисекцией.
+    """
+    anchor = boundary_dt
+    for _ in range(max_steps):
+        probe = anchor + step_td
+        h = _planet_house_at(planet_id, probe, cusps)
+        if h != boundary_house:
+            return _bisect_house_change(planet_id, cusps, anchor, probe, boundary_house)
+        anchor = probe
+    return boundary_dt  # не нашли смену дома в пределах max_steps — оставляем как есть
+
+
 def calculate_house_passages(
     planet_name: str,
     cusps: list[float],
     from_dt: datetime,
     to_dt: datetime,
     step_hours: Optional[int] = None,
+    refine_edges: bool = False,
 ) -> list[dict]:
     """Список периодов нахождения транзитной планеты в каждом доме.
 
@@ -122,6 +165,12 @@ def calculate_house_passages(
         }
 
     Если планета не меняла дом за период — вернётся один элемент.
+
+    `refine_edges=True` — первый и последний период получают РЕАЛЬНЫЙ момент
+    входа/выхода (сканированием за пределы [from_dt, to_dt]), а не край окна
+    сканирования. По умолчанию выключено: у существующих вызовов (fast/slow
+    планеты) уже есть большой запас lookback/lookahead, и лишнее сканирование
+    вовне только тратит время впустую.
     """
     if planet_name not in PLANETS:
         return []
@@ -160,6 +209,14 @@ def calculate_house_passages(
         "start_dt": period_start,
         "end_dt":   to_dt,
     })
+
+    if refine_edges:
+        first = periods[0]
+        first["start_dt"] = _find_real_entry(planet_id, cusps, first["start_dt"], first["house"], step_td)
+
+        last = periods[-1]
+        exit_dt = _find_real_exit(planet_id, cusps, last["end_dt"], last["house"], step_td)
+        last["end_dt"] = exit_dt - timedelta(minutes=1)
 
     return periods
 
@@ -336,7 +393,7 @@ def compute_planner_periods(
             ],
         })
 
-    # ── Луна на 14 дней от today (периоды нахождения по домам) ──
+    # ── Луна на текущую календарную неделю (периоды нахождения по домам) ──
     import logging as _logging
     _logging.getLogger('astro.house_passages').info('CUSPS: %s', cusps)
     # Сканирование в UTC; сдвиг для отображения применяется к каждому периоду
@@ -352,20 +409,33 @@ def compute_planner_periods(
         except Exception:
             tz_offset = timedelta(0)
 
-    # today в локальном времени пользователя — переводим начало дня в UTC для сканирования
+    # today в локальном времени пользователя
     local_day_start = datetime(today.year, today.month, today.day, 0, 0)
-    # Начинаем на 3 дня раньше today — чтобы захватить текущий период Луны
-    # (Луна меняет дом каждые ~2.5 дня, период мог начаться до сегодня)
-    week_dt_start_utc = local_day_start - tz_offset - timedelta(days=3)
-    week_dt_end_utc = week_dt_start_utc + timedelta(days=17) - timedelta(minutes=1)
-    moon_passages_raw = calculate_house_passages("Moon", cusps, week_dt_start_utc, week_dt_end_utc)
+    # Текущая календарная неделя (Пн 00:00 — Вс 23:59) в локальном времени пользователя
+    week_start_local = local_day_start - timedelta(days=local_day_start.weekday())
+    week_end_local   = week_start_local + timedelta(days=7) - timedelta(minutes=1)
+
+    # Окно сканирования шире недели (Луна меняет дом раз в ~2.5 дня) — так
+    # calculate_house_passages(refine_edges=True) сможет найти реальные
+    # момент входа/выхода для периодов, пересекающих границы недели, а не
+    # обрежет их по краю окна.
+    week_dt_start_utc = week_start_local - tz_offset - timedelta(days=5)
+    week_dt_end_utc   = week_end_local   - tz_offset + timedelta(days=5)
+    moon_passages_raw = calculate_house_passages(
+        "Moon", cusps, week_dt_start_utc, week_dt_end_utc, refine_edges=True,
+    )
 
     # FIX: возвращаем периоды нахождения Луны по домам (не группируем по дням).
     # Каждый элемент — один непрерывный период в одном доме со временем входа и выхода.
+    # Оставляем только периоды, ПЕРЕСЕКАЮЩИЕСЯ с текущей неделей (а не только те,
+    # что начались внутри неё) — иначе период, начавшийся до понедельника или
+    # заканчивающийся после воскресенья, будет потерян или обрезан.
     moon_week = []
     for p in moon_passages_raw:
         start_local = p["start_dt"] + tz_offset
         end_local   = p["end_dt"]   + tz_offset
+        if end_local < week_start_local or start_local > week_end_local:
+            continue
 
         # Метка входа: "21.05 Чт 03:22"
         start_label = (

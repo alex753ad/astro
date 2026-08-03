@@ -27,7 +27,7 @@ _FALLBACK_PASSAGE = [{"house": 1, "start_dt": datetime(2020, 1, 1), "end_dt": da
 
 
 def _passages_for(overrides: dict):
-    def _fake(planet_name, cusps, from_dt, to_dt, step_hours=None):
+    def _fake(planet_name, cusps, from_dt, to_dt, step_hours=None, refine_edges=False):
         return overrides.get(planet_name, _FALLBACK_PASSAGE)
     return _fake
 
