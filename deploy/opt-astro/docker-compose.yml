@@ -87,6 +87,11 @@ services:
 
   uptime-kuma:
     image: louislam/uptime-kuma:1
+    environment:
+      NODE_OPTIONS: "--dns-result-order=ipv6first"
+    extra_hosts:
+      - "api.telegram.org:2001:67c:4e8:f004::9"
+      - "www.astreatime.ru:2a03:6f00:a::3:f6b"
     restart: always
     mem_limit: 256m
     volumes:
@@ -109,4 +114,4 @@ networks:
     ipam:
       config:
         - subnet: 172.28.0.0/16
-        - subnet: fd00:dead:beef:1::/64
+        - subnet: fd00:cafe:1::/64
