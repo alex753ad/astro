@@ -663,7 +663,7 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
 const TRANSITS_URL = (chartId, from, to) =>
   `${API_BASE}/chart/${chartId}/transits?from_date=${from}&to_date=${to}`;
 
-export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade }) {
+export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade, focusEventKey }) {
   const [events,        setEvents]        = useState([]);
   const [loading,       setLoading]       = useState(true);   // первый запрос
   const [loadingMore,   setLoadingMore]   = useState(false);  // догрузка следующего месяца
@@ -913,6 +913,19 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     }
     setSelectedEvent(prev => prev === event ? null : event);
   }, [isLite, selectedEvent, transitAiUsage, liteTransitAiRemaining]);
+
+  // Ссылка из письма-алерта: открыть конкретный транзит по event-ключу
+  // (совпадает по формату с eventKey(), см. check_and_send_transit_alerts
+  // в backend/transit/engine.py), а не просто список.
+  const focusedOnceRef = useRef(false);
+  useEffect(() => {
+    if (!focusEventKey || focusedOnceRef.current || events.length === 0) return;
+    const match = events.find(e => eventKey(e) === focusEventKey);
+    if (match) {
+      focusedOnceRef.current = true;
+      handleEventClick(match);
+    }
+  }, [focusEventKey, events, handleEventClick]);
 
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;

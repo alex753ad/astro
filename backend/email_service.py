@@ -525,6 +525,7 @@ async def send_transit_alert_email(
     natal_planet: str,
     date_str: str,
     description: str,
+    link: str,
     is_peak: bool = True,
 ) -> bool:
     """Transit Alert — точечное уведомление об важном транзите (пик или начало)."""
@@ -545,7 +546,7 @@ async def send_transit_alert_email(
           f'  <div style="color:#5a4a7a;font-size:14px;line-height:1.7;">{description}</div>'
           f'</div>'
         + _p("Откройте приложение, чтобы получить полную AI-интерпретацию этого транзита.")
-        + _btn("Читать интерпретацию →", APP_URL)
+        + _btn("Читать интерпретацию →", link)
     )
     return await _send(
         to,

@@ -163,21 +163,19 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             border: '1px solid rgba(139,92,246,0.15)',
             overflow: 'hidden',
             display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1.4fr',
+            gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr',
             minHeight: 220,
           }}
         >
           {/* Left — natal chart preview */}
           <div style={{
             display: 'flex',
-            flexDirection: isMobile ? 'row' : 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: isMobile ? '20px 24px' : '32px 24px',
+            padding: isMobile ? 4 : 0,
             borderRight: isMobile ? 'none' : '1px solid rgba(139,92,246,0.1)',
             borderBottom: isMobile ? '1px solid rgba(139,92,246,0.1)' : 'none',
             background: 'rgba(248,244,255,0.6)',
-            gap: 16,
           }}>
             <img
               src={chartPreview}
@@ -185,7 +183,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               loading="lazy"
               style={{
                 width: '100%',
-                maxWidth: 200,
                 height: 'auto',
                 objectFit: 'contain',
                 borderRadius: 16,
@@ -195,33 +192,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           </div>
 
           {/* Right — timeline */}
-          <div style={{ padding: '28px 28px' }}>
+          <div style={{ padding: '28px 28px', display: 'flex', alignItems: 'flex-end' }}>
             <div style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              color: '#8B5CF6',
-              textTransform: 'uppercase',
-              marginBottom: 18,
-            }}>
-              Твой таймлайн на месяц
-            </div>
-
-            <PlanetItem
-              color="#EAB308"
-              planet="Солнце"
-              period="Период 01.07 — 20.07"
-              desc="Говори о карьере, статусе и росте, проси о повышении — сейчас твоё имя звучит громче, и тебя слышат яснее."
-            />
-            <PlanetItem
-              color="#EC4899"
-              planet="Венера"
-              period="Период 01.07 — 28.07"
-              desc="Обнови гардероб, выбери парфюм, украшения или аксессуары — в эти дни твоя харизма работает сильнее, и люди тянутся к тебе охотнее."
-            />
-
-            <div style={{
-              marginTop: 16,
               fontSize: 13,
               fontStyle: 'italic',
               color: '#8B5CF6',
@@ -378,52 +350,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
         >Правила использования</Link>
-      </div>
-    </div>
-  );
-}
-
-function PlanetItem({ color, planet, period, desc }) {
-  return (
-    <div style={{ display: 'flex', gap: 0, marginBottom: 16 }}>
-      {/* Левая скобка */}
-      <div style={{
-        width: 3,
-        borderRadius: 2,
-        background: color,
-        marginRight: 12,
-        flexShrink: 0,
-      }} />
-      <div style={{ flex: 1 }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 4,
-          flexWrap: 'wrap',
-          gap: 4,
-        }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color }}>
-            <span style={{
-              display: 'inline-block',
-              width: 8, height: 8,
-              borderRadius: '50%',
-              background: color,
-              marginRight: 8,
-              verticalAlign: 'middle',
-            }} />
-            {planet}
-          </span>
-          <span style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color,
-            background: color === '#EAB308' ? 'rgba(234,179,8,0.1)' : 'rgba(236,72,153,0.1)',
-            padding: '2px 8px',
-            borderRadius: 10,
-          }}>{period}</span>
-        </div>
-        <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.5 }}>{desc}</div>
       </div>
     </div>
   );

@@ -321,8 +321,12 @@ export default function LunarCalendarPage() {
             <LegendDot fill="#2A2A3A" border="none"    label="Новолуние" />
             <LegendDot fill="#F5C842" border="#C0980A" label="Полнолуние" />
             <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ fontSize: 12 }}>☉☾</span>
-              <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>Затмение</span>
+              <span style={{ fontSize: 12 }}>☉</span>
+              <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>Солнечное затмение</span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <span style={{ fontSize: 12 }}>☾</span>
+              <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>Лунное затмение</span>
             </div>
           </div>
 
@@ -486,7 +490,7 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) 
       <div style={dc.name}>{signData.name}</div>
       {eclipse && (
         <div style={{ fontSize: 8, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
-          {ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind}
+          {ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind} затмение
         </div>
       )}
     </div>

@@ -492,7 +492,69 @@ def get_transit_summary(events: list[TransitEvent]) -> dict:
 # ═══════════════════════════════════════════════════════════
 
 ALERT_PLANETS  = {"Jupiter", "Saturn", "Uranus", "Neptune"}
-POSITIVE_ALERT = {"Jupiter", "Venus"}
+
+# Тон описания задаёт категория аспекта, а не сам транзитный планет.
+ASPECT_TONE = {
+    "trine": "harmonious", "sextile": "harmonious",
+    "square": "tense", "opposition": "tense",
+    "conjunction": "new_cycle",
+}
+
+# Конкретная сфера жизни для пары (транзитная планета, натальная точка) —
+# используется вместе с ASPECT_TONE, чтобы описание было предметным, а не
+# общей фразой про "рост и новые возможности".
+NATAL_SPHERE = {
+    ("Jupiter", "Sun"):        "как вас видят и слышат — уверенность, право занимать больше места",
+    ("Jupiter", "Moon"):       "дом, семья и то, что даёт вам ощущение опоры",
+    ("Jupiter", "Venus"):      "отношения, деньги и всё, что приносит удовольствие",
+    ("Jupiter", "Mars"):       "энергия и готовность действовать первой",
+    ("Jupiter", "Mercury"):    "разговоры, договорённости и то, чему вы сейчас учитесь",
+    ("Jupiter", "Ascendant"):  "то, как вы подаёте себя миру",
+    ("Jupiter", "Midheaven"):  "карьера и публичная репутация",
+
+    ("Saturn", "Sun"):         "ваши границы и то, за что вы готовы отвечать",
+    ("Saturn", "Moon"):        "дом и эмоциональная опора — насколько она устойчива на самом деле",
+    ("Saturn", "Venus"):       "отношения и финансы — их сейчас проверяют на прочность",
+    ("Saturn", "Mars"):        "выносливость и дисциплина в действиях",
+    ("Saturn", "Mercury"):     "важные документы, договоры и решения",
+    ("Saturn", "Ascendant"):   "образ себя и груз ответственности, который вы на себя взяли",
+    ("Saturn", "Midheaven"):   "карьера и долгосрочные цели",
+
+    ("Uranus", "Sun"):         "потребность в свободе и обновлении себя",
+    ("Uranus", "Moon"):        "быт и эмоциональные привычки — возможны внезапные перемены дома",
+    ("Uranus", "Venus"):       "отношения и финансы — вероятны неожиданные повороты",
+    ("Uranus", "Mars"):        "импульсивные решения и резкие вспышки энергии",
+    ("Uranus", "Mercury"):     "мышление — неожиданные идеи и новости",
+    ("Uranus", "Ascendant"):   "желание радикально изменить свой образ",
+    ("Uranus", "Midheaven"):   "карьера — вероятен резкий поворот курса",
+
+    ("Neptune", "Sun"):        "самоощущение и источник вдохновения",
+    ("Neptune", "Moon"):       "эмоции и интуиция — чувствительность обострена",
+    ("Neptune", "Venus"):      "отношения — риск идеализации и разочарований",
+    ("Neptune", "Mars"):       "чёткость целей — важно не распыляться",
+    ("Neptune", "Mercury"):    "мышление — интуиция сильнее логики, факты стоит перепроверять",
+    ("Neptune", "Ascendant"):  "образ себя — становится мягче и не таким чётким",
+    ("Neptune", "Midheaven"):  "карьера — вдохновение важнее рутины, легко потерять ориентиры",
+}
+
+DESCRIPTION_TEMPLATES = {
+    "harmonious": "{planet} сейчас поддерживает тему: {sphere}. Хорошее время сделать конкретный шаг именно здесь — момент работает на вас.",
+    "tense":      "{planet} создаёт напряжение в теме: {sphere}. Это ощущается, но это не катастрофа — вложите усилие именно сюда, и точка напряжения станет опорой.",
+    "new_cycle":  "{planet} запускает новый цикл в теме: {sphere}. То, что вы начнёте сейчас, будет определять эту сферу на годы вперёд.",
+}
+
+FALLBACK_DESCRIPTIONS = {
+    "harmonious": "Один из благоприятных периодов — {planet} активирует вашу карту. Хороший момент сделать конкретный шаг в важной для вас сфере.",
+    "tense":      "{planet} требует осознанности и терпения. Не время торопиться — лучше укрепить то, что для вас важно, чем начинать новое.",
+    "new_cycle":  "{planet} запускает новый цикл в вашей карте. Обратите внимание, что начинается сейчас — это задаст тон на годы вперёд.",
+}
+
+
+def _build_transit_alert_description(transit_planet: str, natal_planet: str, aspect_type: str, planet_ru: str) -> str:
+    tone   = ASPECT_TONE.get(aspect_type, "tense")
+    sphere = NATAL_SPHERE.get((transit_planet, natal_planet))
+    template = DESCRIPTION_TEMPLATES[tone] if sphere else FALLBACK_DESCRIPTIONS[tone]
+    return template.format(planet=planet_ru, sphere=sphere)
 
 
 def _alert_already_sent(user_id: str, transit_key: str) -> bool:
@@ -513,9 +575,9 @@ def _alert_already_sent(user_id: str, transit_key: str) -> bool:
         return False
 
 
-async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) -> None:
+async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], chart_id: str | None = None) -> None:
     """Отправляет email-алерт когда медленная планета начинает новый проход."""
-    from backend.email_service import send_transit_alert_email
+    from backend.email_service import send_transit_alert_email, APP_URL
 
     PLANET_RU = {"Jupiter": "Юпитер", "Saturn": "Сатурн",
                  "Uranus": "Уран", "Neptune": "Нептун"}
@@ -523,10 +585,22 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) 
               "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
     NATAL_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий",
                 "Venus": "Венера", "Mars": "Марс", "Jupiter": "Юпитер",
-                "Saturn": "Сатурн", "Ascendant": "Асцендент", "Midheaven": "MC"}
+                "Saturn": "Сатурн", "Uranus": "Уран", "Neptune": "Нептун",
+                "Pluto": "Плутон", "North Node": "Сев. Узел", "South Node": "Юж. Узел",
+                "Ascendant": "Асцендент", "Midheaven": "MC",
+                "Descendant": "Десцендент", "IC": "IC"}
+
+    today = date.today()
 
     for t in new_transits:
         if t.transit_planet not in ALERT_PLANETS:
+            continue
+
+        # Письмо только про событие, чей пик приходится на сегодня/завтра —
+        # иначе алерт уходит в момент запроса транзитов, а не в дату события
+        # (запрос транзитов на месяц/годы вперёд не должен слать письма заранее).
+        peak = date.fromisoformat(t.peak_date)
+        if not (today <= peak <= today + timedelta(days=1)):
             continue
 
         # Дедупликация — не спамить при каждом запросе транзитов
@@ -534,15 +608,17 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) 
         if _alert_already_sent(str(user.id), transit_key):
             continue
 
-        is_positive = t.transit_planet in POSITIVE_ALERT
         planet_ru = PLANET_RU.get(t.transit_planet, t.transit_planet)
         natal_ru  = NATAL_RU.get(t.natal_planet, t.natal_planet)
         asp_ru    = ASP_RU.get(t.aspect_type, t.aspect_type)
+        desc      = _build_transit_alert_description(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
 
-        if is_positive:
-            desc = f"Один из благоприятных периодов года — {planet_ru} активирует вашу карту. Используйте это время для роста и новых возможностей."
-        else:
-            desc = f"{planet_ru} требует осознанности и терпения. Этот период — время структурировать и укрепить важные сферы жизни."
+        # Ссылка ведёт прямо на этот транзит во вкладке "Транзиты" карты —
+        # event_key совпадает по формату с eventKey() во фронтенде
+        # (frontend/src/components/TransitTimeline.jsx), чтобы страница сама
+        # нашла и открыла именно это событие, а не просто список.
+        event_key = f"{t.peak_date}-{t.transit_planet}-{t.natal_planet}-{t.aspect_type}"
+        link = f"{APP_URL}/chart/{chart_id}?tab=transits&event={event_key}" if chart_id else APP_URL
 
         try:
             await send_transit_alert_email(
@@ -552,6 +628,7 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent]) 
                 natal_planet=natal_ru,
                 date_str=t.peak_date,
                 description=desc,
+                link=link,
                 is_peak=False,
             )
         except Exception as e:

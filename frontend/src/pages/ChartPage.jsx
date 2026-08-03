@@ -973,7 +973,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx('pro'))} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx('pro'))} focusEventKey={searchParams.get('event')} />
               </section>
             </main>
           </div>
