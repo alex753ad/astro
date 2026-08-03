@@ -163,13 +163,14 @@ GPT-4o → DeepSeek V3 → Template engine
 ```
 push → main
   ├── GitHub Actions: pytest (backend) + vite build (frontend)
-  └── deploy job (SSH на VPS) → ./05-update.sh --backend-only
+  └── deploy job (SSH на VPS) → ./05-update.sh
         git pull → dump БД → docker compose up -d --no-deps api bot
         → alembic upgrade head → /health check → rollback при ошибке
+        → фронтенд пересобирается тем же скриптом, если менялся frontend/
 ```
 
 - **Backend**: Docker Compose (`api`, `bot`, `postgres`, `redis`, `uptime-kuma`), Nginx проксирует `/api/` и `/health` на `127.0.0.1:8000`. Один образ, `SERVICE_ROLE=bot` переключает контейнер на Telegram-бота.
-- **Frontend**: деплоится вручную скриптом `./04-frontend-deploy.sh` (npm run build → копирование `dist/` → reload nginx). В CI не участвует.
+- **Frontend**: деплой автоматический через CI (`04-frontend-deploy.sh`: npm run build → копирование `dist/` → reload nginx), запускается из `05-update.sh` только если менялся `frontend/`. Ручной запуск `./04-frontend-deploy.sh` на сервере остаётся доступен.
 - **Бэкапы**: systemd-таймер, `pg_dump` ежедневно в 03:30, ротация 14 дней.
 
 ---

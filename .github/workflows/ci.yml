@@ -150,10 +150,11 @@ jobs:
   # 4. Deploy на VPS по SSH (только main, только после зелёных тестов)
   # ─────────────────────────────────────────────
   # Никакого прямого доступа CI к прод-БД: миграции, дамп и health-check
-  # выполняются на самом сервере через 05-update.sh --backend-only,
+  # выполняются на самом сервере через 05-update.sh (без флагов — "оба"),
   # который сам делает дамп перед пересборкой, docker compose build/up,
   # alembic upgrade head, ждёт healthy и автоматически откатывает api/bot
-  # на предыдущий образ, если health-check после деплоя не прошёл.
+  # на предыдущий образ, если health-check после деплоя не прошёл; фронтенд
+  # пересобирается тем же скриптом, но только если менялся app/frontend/.
   deploy:
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend]
@@ -170,4 +171,4 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/astro
-            ./05-update.sh --backend-only
+            ./05-update.sh
