@@ -59,8 +59,8 @@ const MONTHS_RU = [
 const DOW_RU = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
 const ECLIPSE_LABELS = {
-  solar: { title: 'Солнечное затмение', emoji: '☉' },
-  lunar: { title: 'Лунное затмение',    emoji: '☾' },
+  solar: { title: 'Солнечное затмение', emoji: '☉', color: '#FFE000' },
+  lunar: { title: 'Лунное затмение',    emoji: '☾', color: '#E0E0E8' },
 };
 const ECLIPSE_KIND_RU = { total: 'полное', partial: 'частичное', annular: 'кольцеобразное', penumbral: 'полутеневое' };
 
@@ -469,7 +469,11 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) 
         {eclipse && (
           <span
             title={`${ECLIPSE_LABELS[eclipse.type]?.title || 'Затмение'} · ${ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind}`}
-            style={{ position: 'absolute', top: -6, right: -7, fontSize: 10, lineHeight: 1 }}
+            style={{
+              position: 'absolute', top: -5, right: -6, fontSize: 13, lineHeight: 1,
+              color: ECLIPSE_LABELS[eclipse.type]?.color || '#FFE000',
+              textShadow: '0 0 2px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.65)',
+            }}
           >
             {ECLIPSE_LABELS[eclipse.type]?.emoji || '✦'}
           </span>
@@ -481,7 +485,7 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) 
       </div>
       <div style={dc.name}>{signData.name}</div>
       {eclipse && (
-        <div style={{ fontSize: 6.5, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
+        <div style={{ fontSize: 8, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
           {ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind}
         </div>
       )}
