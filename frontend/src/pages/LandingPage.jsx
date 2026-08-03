@@ -162,46 +162,37 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             borderRadius: 20,
             border: '1px solid rgba(139,92,246,0.15)',
             overflow: 'hidden',
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr',
-            minHeight: 220,
+            position: 'relative',
           }}
         >
-          {/* Left — natal chart preview */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: isMobile ? 4 : 0,
-            borderRight: isMobile ? 'none' : '1px solid rgba(139,92,246,0.1)',
-            borderBottom: isMobile ? '1px solid rgba(139,92,246,0.1)' : 'none',
-            background: 'rgba(248,244,255,0.6)',
-          }}>
-            <img
-              src={chartPreview}
-              alt="Натальная карта в Астрея"
-              loading="lazy"
-              style={{
-                width: '100%',
-                height: 'auto',
-                objectFit: 'contain',
-                borderRadius: 16,
-                display: 'block',
-              }}
-            />
-          </div>
+          {/* Full-width preview image */}
+          <img
+            src={chartPreview}
+            alt="Твой таймлайн на месяц в Астрея"
+            loading="lazy"
+            style={{
+              width: '100%',
+              height: 'auto',
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
 
-          {/* Right — timeline */}
-          <div style={{ padding: '28px 28px', display: 'flex', alignItems: 'flex-end' }}>
-            <div style={{
-              fontSize: 13,
-              fontStyle: 'italic',
-              color: '#8B5CF6',
-              lineHeight: 1.6,
-            }}>
-              И это лишь одно окно твоего месяца — Астрея ведёт тебя по всем планетам и покажет,
-              где действие сработает значительнее.
-            </div>
+          {/* Caption overlay */}
+          <div style={{
+            position: isMobile ? 'static' : 'absolute',
+            left: isMobile ? undefined : '26%',
+            bottom: isMobile ? undefined : '14%',
+            maxWidth: isMobile ? '100%' : '30%',
+            padding: isMobile ? '16px 20px 20px' : 0,
+            fontSize: isMobile ? 12 : 13,
+            fontStyle: 'italic',
+            fontWeight: 500,
+            color: '#8B5CF6',
+            lineHeight: 1.6,
+          }}>
+            И это лишь одно окно твоего месяца — Астрея ведёт тебя по всем планетам и покажет,
+            где действие сработает значительнее.
           </div>
         </motion.div>
       </div>
