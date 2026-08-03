@@ -12,8 +12,8 @@
 
 ## Проект
 
-**Astrea Timeline** — веб-приложение: натальные карты, транзиты, лунный календарь, AI-интерпретации.
-**Версия архитектуры:** 3.1 | Июль 2026
+**Astrea Timeline** — веб-приложение: натальные карты, транзиты, лунный календарь, AI-интерпретации. Домен: astreatime.ru.
+**Версия архитектуры:** 4.0 | Август 2026
 
 ---
 
@@ -21,18 +21,18 @@
 
 | Слой | Технология |
 |---|---|
-| Frontend | React 18.3, React Router 6, Vite 5, Tailwind 3.4 |
+| Frontend | React 18.3, React Router 6, Vite 5, Tailwind 3.4, D3.js |
 | Backend | Python 3.12, FastAPI, Uvicorn |
-| БД / ORM | PostgreSQL 16, SQLAlchemy 2.0, Alembic |
+| БД / ORM | PostgreSQL 18, SQLAlchemy 2.0, Alembic |
 | Кэш / очереди | Redis 7, Celery |
 | Астрология | pyswisseph (Swiss Ephemeris) |
-| AI | OpenAI GPT-4o → DeepSeek V3 → шаблоны |
+| AI | OpenAI GPT-4o → DeepSeek V3 → шаблоны; прогнозы — Anthropic Claude Sonnet → GPT-4o |
 | Аутентификация | JWT, Google OAuth 2.0, bcrypt |
-| Платежи | Stripe |
+| Платежи | Robokassa (основной, RU), Stripe (legacy) |
 | Email | Resend API |
 | Геокодинг | Nominatim |
-| Deploy | Railway (backend + worker + cron), Vercel (frontend) |
-| CI/CD | GitHub Actions |
+| Хостинг | Timeweb VPS: Nginx + Docker Compose (api, bot, postgres, redis, uptime-kuma) |
+| CI/CD | GitHub Actions → SSH-деплой на VPS (backend), фронтенд — вручную скриптом |
 | PDF | ReportLab |
 
 **UI-инструменты (активные):**
@@ -55,14 +55,23 @@ frontend/src/
 │   ├── ChartPage.jsx
 │   ├── ProfilePage.jsx
 │   ├── CRMPage.jsx
+│   ├── AdminPage.jsx
 │   ├── PlannerPage.jsx
 │   ├── LunarCalendarPage.jsx
+│   ├── SolarReturnPage.jsx    # in progress
+│   ├── SynastryPage.jsx       # in progress
+│   ├── RelocationPage.jsx     # in progress
+│   ├── PortalPage.jsx         # клиентский портал
+│   ├── IntakePage.jsx         # анкета клиента
+│   ├── OrionPage.jsx          # тарифы
 │   ├── ZodiacPage.jsx
 │   ├── SharePage.jsx
 │   └── GiftPage.jsx
 ├── components/
-│   ├── NatalChart.jsx     # SVG колесо натальной карты
+│   ├── NatalChart.jsx      # SVG колесо натальной карты (D3)
+│   ├── TransitTimeline.jsx # временная шкала транзитов
 │   ├── AuthModal.jsx
+│   ├── RagChat.jsx         # чат Астреи (RAG)
 │   ├── Toast.jsx
 │   └── ThemeToggle.jsx
 └── hooks/
@@ -81,15 +90,28 @@ backend/
 ├── config.py
 ├── database.py
 ├── cache.py
+├── celery_app.py
 ├── tasks.py
+├── limiter.py
+├── authz.py
+├── metrics.py
+├── email_service.py
+├── natal_pdf.py
+├── health.py
 ├── auth/
 ├── calendar/
 ├── crm/
 ├── ephemeris/
 ├── interpretation/
-├── payments/
-├── profile/
-└── transit/
+├── transit/
+├── payments/          # robokassa_service.py (основной), stripe_service.py (legacy)
+├── admin/
+├── push/              # web push (pywebpush + VAPID)
+├── notifications/     # telegram
+├── pilot/             # пилотная Telegram-программа
+├── feedback/
+├── exit_survey/
+└── profile/
 ```
 
 ---
@@ -98,12 +120,14 @@ backend/
 
 | | Free | Lite | Pro | Premium |
 |---|---|---|---|---|
-| Цена | 0 | 790₽/мес | 1990₽/мес | 7990₽/мес |
-| Карты/день | 1 | 5 | ∞ | ∞ |
-| AI-интерпретации | — | 3 | 15 | 100 |
-| PDF-отчёты | — | — | 5 | ∞ |
-| RAG-чат | — | — | ✓ | ✓ |
-| CRM | — | — | — | ✓ |
+| Цена (мес/год) | 0 | 790₽ / 7490₽ | 1990₽ / 19900₽ | 7990₽ / 79900₽ |
+| Карты | 4/мес | 4/мес | ∞ | ∞ |
+| AI-интерпретации | 1 бесплатная навсегда, дальше шаблон | 5/мес | 15/мес (GPT-4o) | 100/мес (GPT-4o) |
+| AI-транзиты | 2 (значимые) | 3/мес | полные + AI | полные + AI |
+| Планер | — | — | ✓ | ✓ |
+| CRM / PDF-брендинг / авторские тексты | — | — | — | ✓ |
+
+Лимиты применяются через `TierLimiter` (`auth/rate_limits.py`), расход считается в `UsageCounter`.
 
 ---
 
@@ -134,12 +158,19 @@ GPT-4o → DeepSeek V3 → Template engine
 
 ## Деплой
 
+Всё на одном сервере: **Timeweb VPS**.
+
 ```
 push → main
-  ├── GitHub Actions (pytest)
-  ├── Railway → FastAPI + Celery + Cron
-  └── Vercel → Frontend
+  ├── GitHub Actions: pytest (backend) + vite build (frontend)
+  └── deploy job (SSH на VPS) → ./05-update.sh --backend-only
+        git pull → dump БД → docker compose up -d --no-deps api bot
+        → alembic upgrade head → /health check → rollback при ошибке
 ```
+
+- **Backend**: Docker Compose (`api`, `bot`, `postgres`, `redis`, `uptime-kuma`), Nginx проксирует `/api/` и `/health` на `127.0.0.1:8000`. Один образ, `SERVICE_ROLE=bot` переключает контейнер на Telegram-бота.
+- **Frontend**: деплоится вручную скриптом `./04-frontend-deploy.sh` (npm run build → копирование `dist/` → reload nginx). В CI не участвует.
+- **Бэкапы**: systemd-таймер, `pg_dump` ежедневно в 03:30, ротация 14 дней.
 
 ---
 
