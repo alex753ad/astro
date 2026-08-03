@@ -162,7 +162,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             borderRadius: 20,
             border: '1px solid rgba(139,92,246,0.15)',
             overflow: 'hidden',
-            position: 'relative',
           }}
         >
           {/* Full-width preview image */}
@@ -178,13 +177,11 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             }}
           />
 
-          {/* Caption overlay */}
+          {/* Caption — under the image, aligned with the right panel */}
           <div style={{
-            position: isMobile ? 'static' : 'absolute',
-            left: isMobile ? undefined : '26%',
-            bottom: isMobile ? undefined : '14%',
-            maxWidth: isMobile ? '100%' : '30%',
-            padding: isMobile ? '16px 20px 20px' : 0,
+            marginLeft: isMobile ? 0 : '70%',
+            maxWidth: isMobile ? '100%' : '28%',
+            padding: isMobile ? '4px 20px 20px' : '0 24px 22px',
             fontSize: isMobile ? 12 : 13,
             fontStyle: 'italic',
             fontWeight: 500,
