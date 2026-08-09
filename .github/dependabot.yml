@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  # Actions запинены на SHA — руками их не обновить, не сходив за новым хешем.
+  # Dependabot поднимает SHA и подписывает его комментарием с версией.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+
+  # Python: следит за pyproject.toml. Лок пересобирается вручную (`make lock`) —
+  # Dependabot не умеет uv-локи, поэтому его задача здесь — сообщить о выходе
+  # версии с исправлением уязвимости, а не молча поменять лок.
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(front)"
+    # Мажорные обновления React/Vite ломают сборку и требуют ручной проверки —
+    # пусть приходят отдельно и не смешиваются с патчами безопасности.
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]

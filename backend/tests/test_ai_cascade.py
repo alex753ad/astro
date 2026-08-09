@@ -68,7 +68,11 @@ def _router_with_mocks(ds_result=None, ds_error=None, tmpl_result=None):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    # asyncio.run, а не get_event_loop().run_until_complete(): начиная с
+    # Python 3.12 get_event_loop() в потоке без текущего цикла ругается
+    # DeprecationWarning, а с 3.14 просто бросает RuntimeError — на новом
+    # интерпретаторе весь этот файл падал ещё до первой проверки.
+    return asyncio.run(coro)
 
 
 # ── Фикстуры ─────────────────────────────────────────────────────────────────

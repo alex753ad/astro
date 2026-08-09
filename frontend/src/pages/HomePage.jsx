@@ -62,7 +62,10 @@ export default function HomePage({ currentUser, onShowAuth }) {
     }}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
+        // < вместо '<': JSON.stringify не экранирует '</script>' внутри
+        // строковых значений — без этого поле в schemaOrg с таким текстом
+        // закрыло бы тег раньше времени и остаток пошёл бы в HTML как разметка.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg).replace(/</g, '\\u003c') }}
       />
       {/* Back link */}
       <div style={{ maxWidth: 500, margin: '0 auto 24px' }}>

@@ -1,10 +1,13 @@
 # backend/admin/promo_router.py
 #
-# Подключить в main.py:
-#   from admin.promo_router import router as promo_router
-#   app.include_router(promo_router)
+# Подключён в main.py: app.include_router(promo_router).
 #
-# Миграция — добавить в Alembic (015_promo_codes):
+# Схема — alembic/versions/043_promo_codes.py. Черновик ниже раньше был
+# TODO ("Миграция — добавить в Alembic"), который так и не довели до
+# реальной миграции: promo_codes/promo_usages не существовали в БД вовсе, и
+# каждый вызов /api/v1/admin/coupons* и /api/v1/admin/export падал с
+# "no such table". В миграции 043 одно отличие от черновика: user_id в
+# promo_usages — String(36) (UUID), а не Integer.
 #
 #   op.create_table("promo_codes",
 #     sa.Column("id",               sa.Integer, primary_key=True),
@@ -18,23 +21,24 @@
 #     sa.Column("times_redeemed",   sa.Integer, default=0),
 #     sa.Column("active",           sa.Boolean, default=True),
 #     sa.Column("expires_at",       sa.DateTime, nullable=True),
-#     sa.Column("created_at",       sa.DateTime, default=datetime.utcnow),
+#     sa.Column("created_at",       sa.DateTime, default=utcnow),  # backend.time_utils.utcnow
 #   )
 #   op.create_table("promo_usages",
 #     sa.Column("id",           sa.Integer, primary_key=True),
 #     sa.Column("promo_code",   sa.String(32), nullable=False),
 #     sa.Column("user_id",      sa.Integer, sa.ForeignKey("users.id"), nullable=False),
 #     sa.Column("plan",         sa.String(20), nullable=False),
-#     sa.Column("used_at",      sa.DateTime, default=datetime.utcnow),
+#     sa.Column("used_at",      sa.DateTime, default=utcnow),  # backend.time_utils.utcnow
 #   )
 
-import random
+import secrets
 import string
 from datetime import datetime
+from backend.time_utils import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import func, text
+from sqlalchemy import DateTime, func, text
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -61,7 +65,9 @@ class CreatePromoRequest(BaseModel):
 # ── Утилиты ────────────────────────────────────────────────────────────────────
 
 def _gen_code(length=8) -> str:
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
+    # secrets, а не random: код промокода даёт денежную скидку, предсказуемый
+    # ГПСЧ позволил бы угадать выданные автоматически коды.
+    return "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
 
 # ── Создать промокод ────────────────────────────────────────────────────────────
@@ -101,13 +107,17 @@ def create_promo(req: CreatePromoRequest, db: Session = Depends(get_db), _: User
 
 @router.get("/coupons")
 def list_promos(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    # .columns(...) типизирует datetime-поля явно: psycopg2 сам приводит
+    # TIMESTAMP к datetime для raw text()-запросов, но это специфика драйвера
+    # Postgres — без явной типизации .isoformat() ниже падает на любом другом
+    # backend (в частности на SQLite, которым гоняются тесты).
     rows = db.execute(text("""
         SELECT code, discount_type, discount_value, duration, duration_months,
                applies_to_plans, max_redemptions, times_redeemed, active,
                expires_at, created_at
         FROM promo_codes
         ORDER BY created_at DESC
-    """)).fetchall()
+    """).columns(expires_at=DateTime(), created_at=DateTime())).fetchall()
 
     return [
         {
@@ -171,7 +181,7 @@ def apply_promo(
         raise HTTPException(400, "Промокод не найден")
     if not row.active:
         raise HTTPException(400, "Промокод неактивен")
-    if row.expires_at and row.expires_at < datetime.utcnow():
+    if row.expires_at and row.expires_at < utcnow():
         raise HTTPException(400, "Промокод истёк")
     if row.max_redemptions and row.times_redeemed >= row.max_redemptions:
         raise HTTPException(400, "Промокод исчерпан")
@@ -256,13 +266,24 @@ def coupon_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)
 
 @router.get("/export")
 def export_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)):
-    from admin.admin_router import get_admin_stats
-
+    # Раньше здесь стоял `from admin.admin_router import get_admin_stats` — модуля
+    # `admin` (без `backend.`) не существует, а сам `get_admin_stats` нигде в
+    # проекте не определён. Импорт никогда не выполнялся, потому что был
+    # мёртвым: значение не использовалось ниже по функции. Убран.
+    #
+    # `subscription_tier` был опечаткой: колонка в таблице users называется
+    # `tier` (см. backend/models.py:User.tier). Запрос падал на каждый вызов
+    # `GET /api/v1/admin/export` — единственной ручки экспорта, которая
+    # реально выполнялась (роутер регистрируется в main.py раньше одноимённой
+    # /export из stats_router.py, и та вторая была полностью недостижима).
+    # .columns(...) — та же причина, что и в list_promos: без явной типизации
+    # .isoformat() ниже зависит от того, что психоpg2 сам приводит TIMESTAMP к
+    # datetime, а это специфика драйвера Postgres, а не гарантия SQLAlchemy.
     users_rows = db.execute(text("""
-        SELECT id, email, subscription_tier, created_at,
+        SELECT id, email, tier, created_at,
                stripe_customer_id, google_sub
         FROM users ORDER BY created_at DESC
-    """)).fetchall()
+    """).columns(created_at=DateTime())).fetchall()
 
     gift_rows = db.query(GiftCode).all()
 
@@ -274,19 +295,19 @@ def export_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)
         LEFT JOIN promo_usages u ON u.promo_code = p.code
         GROUP BY p.id
         ORDER BY p.created_at DESC
-    """)).fetchall()
+    """).columns(expires_at=DateTime(), created_at=DateTime())).fetchall()
 
     promo_usage_by_plan = db.execute(text("""
         SELECT promo_code, plan, COUNT(*) FROM promo_usages GROUP BY promo_code, plan
     """)).fetchall()
 
     payload = {
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": utcnow().isoformat(),
         "users": [
             {
                 "id":           r.id,
                 "email":        r.email,
-                "plan":         r.subscription_tier,
+                "plan":         r.tier,
                 "created_at":   r.created_at.isoformat(),
                 "google_auth":  bool(r.google_sub),
             }
@@ -321,6 +342,6 @@ def export_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)
     return JSONResponse(
         content=payload,
         headers={
-            "Content-Disposition": f'attachment; filename="astrea_stats_{datetime.utcnow().strftime("%Y%m%d")}.json"'
+            "Content-Disposition": f'attachment; filename="astrea_stats_{utcnow().strftime("%Y%m%d")}.json"'
         },
     )

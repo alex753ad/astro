@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily astro onboarding retention emails
+
+[Timer]
+# 06:15 UTC = 09:15 МСК — после лунных возвращений и дайджеста в Celery Beat
+# (06:00/06:05), чтобы не толкаться за одну и ту же БД в одну минуту.
+OnCalendar=*-*-* 06:15:00
+RandomizedDelaySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -7,9 +7,19 @@ APP_DIR="app"
 FRONTEND_SRC_DIR="${APP_DIR}/frontend"
 DIST_TARGET="frontend/dist"
 BUILD_ENV_FILE="frontend.env"
-NGINX_SITE_SRC="${APP_DIR}/deploy/opt-astro/nginx/astreatime.conf"
+NGINX_DIR_SRC="${APP_DIR}/deploy/opt-astro/nginx"
+NGINX_SITE_SRC="${NGINX_DIR_SRC}/astreatime.conf"
 NGINX_SITE_DST="/etc/nginx/sites-available/astreatime.conf"
 NGINX_SITE_LINK="/etc/nginx/sites-enabled/astreatime.conf"
+# Защитные заголовки и CSP лежат отдельными файлами: add_header не наследуется
+# в location, где есть свой add_header, поэтому их приходится include-ить в
+# каждый блок, а не писать один раз в server.
+NGINX_SNIPPETS_SRC="${NGINX_DIR_SRC}/snippets"
+NGINX_SNIPPETS_DST="/etc/nginx/snippets"
+# Директивы уровня http (server_tokens, TLS-политика, зоны limit_req) — внутрь
+# server{} их положить нельзя, отсюда отдельный файл в conf.d.
+NGINX_CONFD_SRC="${NGINX_DIR_SRC}/conf.d/00-astro-hardening.conf"
+NGINX_CONFD_DST="/etc/nginx/conf.d/00-astro-hardening.conf"
 NODE_MIN_MAJOR=20
 
 log() { echo -e "\n\033[1;32m==>\033[0m $*"; }
@@ -17,6 +27,8 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 
 [[ -d "$APP_DIR" ]] || die "каталог '$APP_DIR' не найден. Запускайте из /opt/astro."
 [[ -f "$NGINX_SITE_SRC" ]] || die "'$NGINX_SITE_SRC' не найден рядом со скриптом."
+[[ -d "$NGINX_SNIPPETS_SRC" ]] || die "'$NGINX_SNIPPETS_SRC' не найден — конфиг сайта его include-ит."
+[[ -f "$NGINX_CONFD_SRC" ]] || die "'$NGINX_CONFD_SRC' не найден — в нём зоны limit_req и TLS-политика."
 
 # ---------------------------------------------------------------------------
 # Node.js LTS из NodeSource — идемпотентно
@@ -99,6 +111,10 @@ echo "  готово: $DIST_TARGET"
 # nginx: установить конфиг, отключить дефолтный сайт, проверить, перечитать
 # ---------------------------------------------------------------------------
 log "Обновляю конфиг nginx"
+# Сначала сниппеты и http-уровень: сайт их include-ит, и без них nginx -t упадёт.
+sudo mkdir -p "$NGINX_SNIPPETS_DST"
+sudo cp "$NGINX_SNIPPETS_SRC"/*.conf "$NGINX_SNIPPETS_DST/"
+sudo cp "$NGINX_CONFD_SRC" "$NGINX_CONFD_DST"
 sudo cp "$NGINX_SITE_SRC" "$NGINX_SITE_DST"
 sudo ln -sf "$NGINX_SITE_DST" "$NGINX_SITE_LINK"
 

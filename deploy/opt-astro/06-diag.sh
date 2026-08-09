@@ -41,7 +41,7 @@ section "Контейнеры (docker compose ps -a)"
 run_or_na docker compose ps -a
 
 # ---------------------------------------------------------------------------
-services="$(docker compose config --services 2>/dev/null || echo "postgres redis api bot")"
+services="$(docker compose config --services 2>/dev/null || echo "postgres redis api bot worker beat")"
 for svc in $services; do
   section "Логи: $svc (последние 100 строк)"
   run_or_na docker compose logs --tail=100 --no-log-prefix "$svc"

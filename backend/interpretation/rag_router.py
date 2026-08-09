@@ -15,16 +15,20 @@ import os
 from datetime import date
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import get_current_user, require_tier
+from backend.auth.rate_limits import increment_monthly_usage, rag_chat_key
+from backend.cache import budget_tracker
 from backend.database import get_db, SessionLocal
+from backend.limiter import limiter
 from backend.models import NatalChart, User, AstreaMemory
 from backend.interpretation.rag import retrieve, build_chart_summary, build_transits_block
+from backend.redis_client import get_redis
 from backend.config import get_settings
 
 logger = logging.getLogger("astro.rag_router")
@@ -37,11 +41,54 @@ _DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
 MAX_HISTORY = 10   # максимум сообщений истории
 MAX_QUESTION_LEN = 1000
+HISTORY_TTL = 6 * 3600  # диалог живёт 6 часов бездействия
 
 
 class RagChatRequest(BaseModel):
     question: str
-    history: list[dict] = []  # [{role: "user"|"assistant", content: "..."}]
+    # Поле оставлено ради совместимости со старым фронтом, но НЕ используется:
+    # история берётся с сервера. Раньше клиент подавал сюда произвольные реплики
+    # с role="assistant" и тем самым переписывал поведение модели — извлекал
+    # системный промпт, содержимое базы знаний и авторские тексты Premium.
+    history: list[dict] = []
+
+
+def _history_key(user_id: str, chart_id: str) -> str:
+    return f"rag:hist:{user_id}:{chart_id}"
+
+
+async def _load_history(user_id: str, chart_id: str) -> list[dict]:
+    """История диалога с сервера. При недоступном Redis — пустая (не ошибка)."""
+    try:
+        raw = await get_redis().get(_history_key(user_id, chart_id))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("rag history load failed: %s", exc)
+        return []
+    if not raw:
+        return []
+    try:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        items = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return []
+    # Роли валидируем и на чтении: содержимое Redis может пережить смену формата.
+    return [
+        {"role": m["role"], "content": m["content"]}
+        for m in items
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")
+    ][-MAX_HISTORY:]
+
+
+async def _save_history(user_id: str, chart_id: str, history: list[dict]) -> None:
+    try:
+        await get_redis().set(
+            _history_key(user_id, chart_id),
+            json.dumps(history[-MAX_HISTORY:], ensure_ascii=False),
+            ex=HISTORY_TTL,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("rag history save failed: %s", exc)
 
 
 def _system_prompt(
@@ -185,8 +232,33 @@ async def _update_memory(user_id: str, question: str, history: list[dict]) -> No
         logger.warning("astrea memory update failed: %s", e)
 
 
-async def _sse_generator(messages: list[dict], tier: str):
-    """Стримит ответ от DeepSeek как SSE."""
+async def _persist_turn(
+    user_id: str,
+    chart_id: str,
+    question: str,
+    answer: str,
+    history: list[dict] | None,
+) -> None:
+    """Дописывает пару «вопрос-ответ» в серверную историю диалога."""
+    if not (user_id and chart_id and question and answer):
+        return
+    updated = list(history or [])
+    updated.append({"role": "user", "content": question})
+    updated.append({"role": "assistant", "content": answer})
+    await _save_history(user_id, chart_id, updated)
+
+
+async def _sse_generator(
+    messages: list[dict],
+    tier: str,
+    *,
+    user_id: str = "",
+    chart_id: str = "",
+    question: str = "",
+    history: list[dict] | None = None,
+):
+    """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю."""
+    collected: list[str] = []
     payload = {
         "model": "deepseek-chat",
         "messages": messages,
@@ -210,6 +282,7 @@ async def _sse_generator(messages: list[dict], tier: str):
                         continue
                     data_str = line[6:]
                     if data_str.strip() == "[DONE]":
+                        await _persist_turn(user_id, chart_id, question, "".join(collected), history)
                         yield "data: [DONE]\n\n"
                         return
                     try:
@@ -217,9 +290,13 @@ async def _sse_generator(messages: list[dict], tier: str):
                         delta = chunk.get("choices", [{}])[0].get("delta", {})
                         text = delta.get("content", "")
                         if text:
+                            collected.append(text)
                             yield f"data: {json.dumps({'text': text}, ensure_ascii=False)}\n\n"
                     except (json.JSONDecodeError, KeyError, IndexError):
                         continue
+
+            # Поток закончился без явного [DONE] — сохраняем то, что успело прийти.
+            await _persist_turn(user_id, chart_id, question, "".join(collected), history)
 
     except httpx.HTTPStatusError as e:
         logger.error("AI API error %s: %s", e.response.status_code, e.response.text[:200])
@@ -232,18 +309,39 @@ async def _sse_generator(messages: list[dict], tier: str):
 
 
 @router.post("/api/v1/chart/{chart_id}/rag-chat")
+@limiter.limit("20/hour", key_func=rag_chat_key)
 async def rag_chat(
+    request: Request,
     chart_id: str,
     body: RagChatRequest,
     user: User = Depends(require_tier("pro")),
     db: Session = Depends(get_db),
 ):
-    """RAG-чат по натальной карте. Доступен для Pro и Premium."""
+    """RAG-чат по натальной карте. Доступен для Pro и Premium.
+
+    Лимит 20/час на аккаунт: эндпоинт вызывает LLM на каждую реплику и не
+    списывался ни в UsageCounter, ни в дневной бюджет — один Pro-аккаунт мог
+    выбрать весь дневной лимит расходов.
+    """
 
     # Валидация
     question = body.question.strip()[:MAX_QUESTION_LEN]
     if not question:
         raise HTTPException(status_code=400, detail="Question is required")
+
+    # Дневной бюджет AI — общий с остальными интерпретациями.
+    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "deepseek"):
+        raise HTTPException(
+            status_code=503,
+            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+        )
+
+    # Месячный счётчик. Отдельный kind: чат — не интерпретация карты, смешивать
+    # их в одном счётчике значит либо съедать оплаченные интерпретации репликами
+    # в чате, либо наоборот. Считаем ДО стрима: ответ уезжает потоком, и после
+    # его начала записать расход уже некуда — соединение может оборваться, а
+    # токены у провайдера всё равно потрачены.
+    increment_monthly_usage(db, user.id, "rag_chat")
 
     # Загрузка карты
     chart = db.query(NatalChart).filter(
@@ -271,17 +369,24 @@ async def rag_chat(
     transits_block = _get_transits_block_cached(chart_id, chart_data)
     system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block)
 
-    # История + новый вопрос
-    history = body.history[-MAX_HISTORY:]
+    # История берётся с сервера, а не из тела запроса: клиентская история
+    # позволяла подделывать реплики ассистента и переопределять поведение модели.
+    history = await _load_history(user.id, chart_id)
     messages = (
         [{"role": "system", "content": system}]
-        + [{"role": m["role"], "content": m["content"]} for m in history
-           if m.get("role") in ("user", "assistant") and m.get("content")]
+        + history
         + [{"role": "user", "content": question}]
     )
 
     return StreamingResponse(
-        _sse_generator(messages, user.tier),
+        _sse_generator(
+            messages,
+            user.tier,
+            user_id=user.id,
+            chart_id=chart_id,
+            question=question,
+            history=history,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

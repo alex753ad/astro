@@ -2,11 +2,15 @@
  * useAuth — central authentication hook.
  *
  * Manages:
- * - JWT access + refresh tokens (localStorage)
- * - Current user state (email, tier, id)
+ * - Access-токен (localStorage, 15 минут) + текущий пользователь
  * - Login / register / OAuth / logout
  * - Automatic token refresh before expiry
  * - Tier-based feature flags
+ *
+ * Refresh-токен здесь не хранится и не виден вовсе: сервер кладёт его в
+ * HttpOnly-куку astro_refresh (Path=/api/v1/auth, SameSite=Strict). Раньше он
+ * лежал в localStorage и жил 7 дней — то есть один XSS или одна испорченная
+ * npm-зависимость давали неделю доступа к чужому аккаунту.
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
@@ -17,8 +21,10 @@ const API_BASE = `${CONFIG_API_BASE}/auth`;
 
 // ── Storage keys ──────────────────────────────────────────
 const ACCESS_TOKEN_KEY  = 'astro_access_token';
-const REFRESH_TOKEN_KEY = 'astro_refresh_token';
 const USER_KEY          = 'astro_user';
+// Ключ прошлой схемы. Читать его больше нельзя (сервер такой токен всё равно
+// отзовёт при первой ротации), но подчистить у вернувшихся пользователей стоит.
+const LEGACY_REFRESH_KEY = 'astro_refresh_token';
 
 // Refresh 2 minutes before access token expires (token lifetime = 15 min)
 const REFRESH_BUFFER_MS = 2 * 60 * 1000;
@@ -43,30 +49,32 @@ function tokenExpiresAt(token) {
 
 function loadStored() {
   try {
-    const accessToken  = localStorage.getItem(ACCESS_TOKEN_KEY);
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    const user         = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
-    return { accessToken, refreshToken, user };
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const user        = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
+    return { accessToken, user };
   } catch {
-    return { accessToken: null, refreshToken: null, user: null };
+    return { accessToken: null, user: null };
   }
 }
 
-function saveTokens({ accessToken, refreshToken, user }) {
+function saveTokens({ accessToken, user }) {
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.removeItem(LEGACY_REFRESH_KEY);
 }
 
 function clearStorage() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(LEGACY_REFRESH_KEY);
 }
 
 async function apiFetch(path, options = {}) {
   const resp = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
+    // Кука с refresh нужна на /refresh и /logout; по умолчанию fetch её не шлёт,
+    // если API живёт на другом origin (dev-сервер, отдельный поддомен).
+    credentials: 'include',
     ...options,
   });
   const body = await resp.json().catch(() => ({ detail: resp.statusText }));
@@ -110,7 +118,6 @@ function useAuthInternal() {
   const stored = loadStored();
 
   const [accessToken,  setAccessToken]  = useState(stored.accessToken);
-  const [refreshToken, setRefreshToken] = useState(stored.refreshToken);
   const [user,         setUser]         = useState(stored.user);
   const [features,     setFeatures]     = useState(stored.user ? DEFAULT_FEATURES : DEFAULT_FEATURES);
   const [loading,      setLoading]      = useState(false);
@@ -131,10 +138,10 @@ function useAuthInternal() {
 
   // ── Persist to localStorage on every change ──
   useEffect(() => {
-    if (accessToken && refreshToken && user) {
-      saveTokens({ accessToken, refreshToken, user });
+    if (accessToken && user) {
+      saveTokens({ accessToken, user });
     }
-  }, [accessToken, refreshToken, user]);
+  }, [accessToken, user]);
 
   // ── Apply token data from API response ──────────────────
   const applyTokenResponse = useCallback(async (data) => {
@@ -146,11 +153,10 @@ function useAuthInternal() {
       is_admin: data.is_admin ?? false,
     };
     setAccessToken(data.access_token);
-    setRefreshToken(data.refresh_token);
     setUser(newUser);
     // Сохраняем сразу — не ждём useEffect
-    saveTokens({ accessToken: data.access_token, refreshToken: data.refresh_token, user: newUser });
-    scheduleRefresh(data.access_token, data.refresh_token);
+    saveTokens({ accessToken: data.access_token, user: newUser });
+    scheduleRefresh(data.access_token);
     loadFeatures(data.access_token);
 
     // Bind anonymous chart after login/registration.
@@ -176,11 +182,13 @@ function useAuthInternal() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Automatic token refresh ─────────────────────────────
-  const doRefresh = useCallback(async (currentRefreshToken) => {
+  // Токен не передаём: сервер берёт его из HttpOnly-куки, которую браузер
+  // приложит сам (credentials: 'include' в apiFetch).
+  const doRefresh = useCallback(async () => {
     try {
       const data = await apiFetch('/refresh', {
         method: 'POST',
-        body: JSON.stringify({ refresh_token: currentRefreshToken }),
+        body: JSON.stringify({}),
       });
       applyTokenResponse(data);
     } catch {
@@ -189,28 +197,25 @@ function useAuthInternal() {
     }
   }, [applyTokenResponse]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const scheduleRefresh = useCallback((token, currentRefreshToken) => {
+  const scheduleRefresh = useCallback((token) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
     const expiresAt = tokenExpiresAt(token);
     const delay     = expiresAt - Date.now() - REFRESH_BUFFER_MS;
 
     if (delay > 0) {
-      refreshTimerRef.current = setTimeout(
-        () => doRefresh(currentRefreshToken),
-        delay,
-      );
+      refreshTimerRef.current = setTimeout(doRefresh, delay);
     }
   }, [doRefresh]);
 
   // Schedule refresh on mount if token already in storage
   useEffect(() => {
-    if (accessToken && refreshToken) {
+    if (accessToken) {
       const expiresAt = tokenExpiresAt(accessToken);
       if (Date.now() >= expiresAt) {
-        doRefresh(refreshToken);
+        doRefresh();
       } else {
-        scheduleRefresh(accessToken, refreshToken);
+        scheduleRefresh(accessToken);
         loadFeatures(accessToken);
       }
     }
@@ -277,7 +282,6 @@ function useAuthInternal() {
     // Отзываем токены на сервере (fire-and-forget, сессию чистим в любом случае).
     try {
       const at = localStorage.getItem(ACCESS_TOKEN_KEY);
-      const rt = localStorage.getItem(REFRESH_TOKEN_KEY);
       if (at) {
         fetch(`${API_BASE}/logout`, {
           method: 'POST',
@@ -285,13 +289,15 @@ function useAuthInternal() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${at}`,
           },
-          body: JSON.stringify({ refresh_token: rt || '' }),
+          // Refresh сервер возьмёт из куки и там же её погасит — телу передавать
+          // нечего. credentials обязателен, иначе кука не уедет.
+          credentials: 'include',
+          body: JSON.stringify({}),
           keepalive: true,
         }).catch(() => {});
       }
     } catch { /* noop */ }
     setAccessToken(null);
-    setRefreshToken(null);
     setUser(null);
     clearStorage();
   }, []);

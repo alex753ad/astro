@@ -59,10 +59,10 @@ class RedisCache:
             self._local[self._key(key)] = value
             return
         try:
-            self._redis.setex(
+            self._redis.set(
                 self._key(key),
-                ttl or self._default_ttl,
                 json.dumps(value, ensure_ascii=False),
+                ex=ttl or self._default_ttl,
             )
         except Exception as e:
             logger.warning("Cache SET error: %s", e)
@@ -245,6 +245,6 @@ def set_cached_section(key: str, text: str, ttl: int = TTL_SECTION) -> None:
     if interpretation_cache._redis is None:
         return
     try:
-        interpretation_cache._redis.setex(key, ttl, text)
+        interpretation_cache._redis.set(key, text, ex=ttl)
     except Exception as e:
         logger.warning("Section cache SET error: %s", e)

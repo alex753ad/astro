@@ -13,15 +13,17 @@ import logging
 import os
 import secrets
 import textwrap
-import time
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
+from backend.time_utils import utcnow
 from html import escape
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 
+from backend.auth.rate_limits import share_card_key
 from backend.database import get_db
+from backend.limiter import limiter
 from backend.models import NatalChart
 from backend.auth.dependencies import get_current_user
 from backend.redis_client import get_redis
@@ -33,29 +35,21 @@ router = APIRouter(tags=["share"])
 APP_URL = os.getenv("APP_URL", "https://astreatime.ru")
 
 # ── TTL публичных токенов шаринга ─────────────────────────────────────────────
-# Срок хранится в Redis (без миграции БД). Токены, созданные до включения TTL,
-# не имеют ключа и считаются бессрочными (legacy) — чтобы не ломать старые ссылки.
+# Срок живёт в natal_charts.public_token_expires_at. Раньше он хранился только в
+# Redis, и проверка при недоступном кэше пропускала запрос (fail-open).
+# NULL в колонке = бессрочная legacy-ссылка, выданная до миграции 041.
 SHARE_TTL_SECONDS = 90 * 24 * 3600
 
 
-async def _register_share_token(token: str) -> None:
-    try:
-        expiry = int(time.time()) + SHARE_TTL_SECONDS
-        # ключ живёт дольше логического срока, чтобы отличать «истёк» от «legacy»
-        await get_redis().setex(f"share:exp:{token}", SHARE_TTL_SECONDS + 30 * 24 * 3600, str(expiry))
-    except Exception as exc:  # noqa: BLE001
-        logger.error("share token TTL register failed: %s", exc)
+def _ensure_chart_not_expired(chart: NatalChart) -> None:
+    """Срок ссылки из БД. NULL = legacy-ссылка без срока (не ломаем старые).
 
-
-async def _ensure_not_expired(token: str) -> None:
-    try:
-        raw = await get_redis().get(f"share:exp:{token}")
-    except Exception as exc:  # noqa: BLE001
-        logger.error("share token TTL check failed (fail-open): %s", exc)
-        return
-    if raw is None:
-        return  # legacy-токен без срока
-    if int(raw) < int(time.time()):
+    Проверка именно в БД, а не только в Redis: прежняя реализация при недоступном
+    кэше молча пропускала запрос (fail-open), то есть истёкшие ссылки снова
+    открывались вместе с падением Redis.
+    """
+    expires_at = getattr(chart, "public_token_expires_at", None)
+    if expires_at is not None and expires_at < utcnow():
         raise HTTPException(status_code=404, detail="Share link expired")
 
 # ── знаки ────────────────────────────────────────────────────────────────────
@@ -148,7 +142,7 @@ async def _get_share_quote(
         quote = f"С {combo} скучно точно не бывает — я это гарантирую. Астрология предупреждала, но кто её слушает!"
 
     try:
-        await redis.setex(cache_key, _QUOTE_TTL, quote)
+        await redis.set(cache_key, quote, ex=_QUOTE_TTL)
     except Exception as exc:
         logger.warning("share quote cache set failed: %s", exc)
 
@@ -189,12 +183,15 @@ async def create_share_link(
     if not chart.public_token:
         chart.public_token = secrets.token_urlsafe(32)
 
+    # Срок продлевается при каждом обращении к ручке — повторный «Поделиться»
+    # оживляет ссылку, как и раньше при перезаписи ключа в Redis.
+    chart.public_token_expires_at = utcnow() + timedelta(seconds=SHARE_TTL_SECONDS)
+
     if share_name:
         chart.share_name = share_name[:100]
 
     db.commit()
     db.refresh(chart)
-    await _register_share_token(chart.public_token)
 
     return {
         "share_url": f"{APP_URL}/chart/share/{chart.public_token}",
@@ -208,10 +205,10 @@ async def create_share_link(
 @router.get("/api/v1/share/{token}/data")
 async def share_data(token: str, db: Session = Depends(get_db)):
     """JSON-данные карты для SPA SharePage."""
-    await _ensure_not_expired(token)
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
+    _ensure_chart_not_expired(chart)
     return {
         "share_name":  chart.share_name,
         "birth_date":  chart.birth_date,
@@ -232,10 +229,10 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     Мессенджеры читают OG-теги и показывают красивое превью.
     После этого JS редиректит пользователя на SPA.
     """
-    await _ensure_not_expired(token)
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
+    _ensure_chart_not_expired(chart)
 
     planets = chart.planets or []
     name = chart.share_name or "Натальная карта"
@@ -350,12 +347,17 @@ async def share_page(token: str, db: Session = Depends(get_db)):
 # ── PNG карточка 1080×1920 (формат Stories) ───────────────────────────────────
 
 @router.get("/share/{token}/card.png")
-async def share_card_png(token: str, db: Session = Depends(get_db)):
-    """Генерирует вертикальную PNG-карточку 1080×1920 для Stories / мессенджеров."""
-    await _ensure_not_expired(token)
+@limiter.limit("30/minute", key_func=share_card_key)
+async def share_card_png(request: Request, token: str, db: Session = Depends(get_db)):
+    """Генерирует вертикальную PNG-карточку 1080×1920 для Stories / мессенджеров.
+
+    Лимит по IP: ручка публичная, рендерит изображение и на первый запрос по
+    каждому токену дополнительно ходит в LLM за подписью.
+    """
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
+    _ensure_chart_not_expired(chart)
 
     try:
         from PIL import Image, ImageDraw, ImageFont

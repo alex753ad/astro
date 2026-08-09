@@ -16,12 +16,14 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
+from backend.time_utils import utcnow
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend.authz import require_internal_secret
 from backend.database import get_db
 from backend.config import get_settings
 from backend.models import User, PilotToken
@@ -54,16 +56,13 @@ def _tg_already_piloted(db: Session, tg_user_id: str) -> bool:
     return False
 
 
-@router.post("/internal/pilot-token")
+# Роутер общий (/api/v1) и содержит публичный /pilot/claim, поэтому секрет
+# вешается точечно на этот маршрут, а не на весь роутер.
+@router.post("/internal/pilot-token", dependencies=[Depends(require_internal_secret)])
 async def issue_pilot_token(
     payload: TokenIssueIn,
-    x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
     tg_id = (payload.tg_user_id or "").strip()
     if not tg_id:
         raise HTTPException(status_code=400, detail="tg_user_id required")
@@ -72,7 +71,7 @@ async def issue_pilot_token(
         raise HTTPException(status_code=409, detail="already_claimed")
 
     token = secrets.token_urlsafe(24)
-    expires = datetime.utcnow() + timedelta(minutes=TOKEN_TTL_MIN)
+    expires = utcnow() + timedelta(minutes=TOKEN_TTL_MIN)
     db.add(PilotToken(token=token, tg_user_id=tg_id, expires_at=expires))
     db.commit()
 
@@ -100,7 +99,7 @@ async def claim_pilot(
         raise HTTPException(status_code=404, detail="invalid_token")
     if row.used:
         raise HTTPException(status_code=409, detail="token_used")
-    if row.expires_at < datetime.utcnow():
+    if row.expires_at < utcnow():
         raise HTTPException(status_code=410, detail="token_expired")
 
     # веб-аккаунт уже был в пилоте?
@@ -116,7 +115,7 @@ async def claim_pilot(
     if other:
         raise HTTPException(status_code=409, detail="tg_already_used")
 
-    now = datetime.utcnow()
+    now = utcnow()
     user.pilot_started_at = now
     user.tier = "premium"
     user.tg_user_id = row.tg_user_id

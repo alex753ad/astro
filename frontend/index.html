@@ -29,15 +29,9 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Инлайновых <script> здесь быть не должно: CSP отдаётся с
+         script-src 'self' без 'unsafe-inline', и любой инлайн просто не
+         выполнится. Регистрация service worker переехала в main.jsx. -->
     <script type="module" src="/src/main.jsx"></script>
-
-    <!-- Service Worker -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(console.error);
-        });
-      }
-    </script>
   </body>
 </html>

@@ -76,4 +76,24 @@ def client_ip(request: Request) -> str:
 limiter = Limiter(
     key_func=client_ip,
     storage_uri=settings.rate_limit_storage_uri or settings.redis_url,
+    # Применяется ко всем маршрутам через SlowAPIMiddleware (подключается в
+    # main.py). Раньше лимит стоял только на 22 из ~141 маршрута: роутеры crm,
+    # payments, share, portal, rag, pilot, push, admin не были прикрыты вообще.
+    default_limits=[settings.rate_limit_default] if settings.rate_limit_default else [],
+    # Отвал Redis не должен ронять сайт.
+    #
+    # Без этого флага ошибка хранилища всплывает из проверки лимита, slowapi
+    # передаёт её в обработчик RateLimitExceeded, тот дёргает exc.detail —
+    # у ConnectionError такого атрибута нет, и каждый запрос заканчивается
+    # AttributeError → 500. Пока лимит висел на 22 ручках, падали только они;
+    # с глобальным middleware упал бы весь API целиком.
+    #
+    # Fail-open здесь оправдан: rate limiting — не контроль доступа, а защита
+    # от перебора и наплыва, и жёсткий рубеж для неё стоит в nginx
+    # (limit_req zone=api/auth/share, conf.d/00-astro-hardening.conf).
+    # Он работает независимо от Redis и продолжит отбивать всплески.
+    swallow_errors=True,
+    # Локальный запасной счётчик на время недоступности Redis: лимиты
+    # переживают отвал кэша, просто перестают быть общими между воркерами.
+    in_memory_fallback_enabled=True,
 )

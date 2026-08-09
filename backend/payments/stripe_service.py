@@ -456,7 +456,7 @@ def handle_payment_failed(event: dict, db: Session) -> None:
     import asyncio
     from backend.email_service import send_payment_failed_email
     try:
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_payment_failed_email(to=user.email, portal_url=portal_url)
         )
     except Exception as e:
@@ -469,8 +469,9 @@ def handle_payment_failed(event: dict, db: Session) -> None:
 
 def create_day14_coupon(user: User, db: Session) -> Optional[str]:
     """Генерирует 30% купон на годовой план. Один на пользователя."""
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     from backend.models import CouponSent
+    from backend.time_utils import utcnow
 
     already_sent = db.query(CouponSent).filter(CouponSent.user_id == user.id).first()
     if already_sent:
@@ -480,11 +481,11 @@ def create_day14_coupon(user: User, db: Session) -> Optional[str]:
     coupon = stripe.Coupon.create(
         percent_off=30,
         duration="once",
-        redeem_by=int((datetime.utcnow() + timedelta(hours=24)).timestamp()),
+        redeem_by=int((utcnow() + timedelta(hours=24)).timestamp()),
         max_redemptions=1,
         metadata={"user_id": str(user.id)},
     )
-    db.add(CouponSent(user_id=user.id, coupon_id=coupon.id, created_at=datetime.utcnow()))
+    db.add(CouponSent(user_id=user.id, coupon_id=coupon.id, created_at=utcnow()))
     db.commit()
     return coupon.id
 
@@ -495,7 +496,7 @@ def send_payment_failed_notification(user_email: str, portal_url: str = "") -> N
     import asyncio
     from backend.email_service import send_payment_failed_email
     try:
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_payment_failed_email(to=user_email, portal_url=portal_url)
         )
     except Exception as e:
@@ -565,7 +566,7 @@ def _issue_report_token(chart_id: str, user_id: str) -> str:
     token = secrets.token_urlsafe(32)
     redis = interpretation_cache._redis
     if redis:
-        redis.setex(f"report_token:{token}", 86400, chart_id)
+        redis.set(f"report_token:{token}", chart_id, ex=86400)
     # Запускаем генерацию PDF
     try:
         from backend.tasks import task_generate_pdf
@@ -686,7 +687,7 @@ def handle_gift_checkout_completed(session: dict, db: Session) -> None:
             import asyncio
             try:
                 from backend.email_service import send_gift_code_email
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     send_gift_code_email(buyer.email, code, tier, duration_months)
                 )
             except Exception as e:
@@ -698,7 +699,7 @@ def handle_gift_checkout_completed(session: dict, db: Session) -> None:
 def redeem_gift_code(code: str, user: User, db: Session) -> dict:
     """Activate gift subscription for user. Returns tier and duration."""
     from backend.models import GiftCode
-    from datetime import datetime
+    from backend.time_utils import utcnow
 
     gift = db.query(GiftCode).filter(GiftCode.code == code).first()
     if not gift:
@@ -707,7 +708,7 @@ def redeem_gift_code(code: str, user: User, db: Session) -> dict:
         raise ValueError("gift_already_redeemed")
 
     gift.redeemed_by = user.id
-    gift.redeemed_at = datetime.utcnow()
+    gift.redeemed_at = utcnow()
 
     # Активируем подписку через Stripe Coupon или напрямую обновляем tier
     _init_stripe()

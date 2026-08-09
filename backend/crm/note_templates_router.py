@@ -10,9 +10,10 @@ Endpoints:
 from __future__ import annotations
 
 from datetime import datetime
+from backend.time_utils import utcnow
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -39,8 +40,7 @@ class NoteTemplateOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get("", response_model=list[NoteTemplateOut])
@@ -80,7 +80,7 @@ def update_template(
         template.title = body.title
     if body.content is not None:
         template.content = body.content
-    template.updated_at = datetime.utcnow()
+    template.updated_at = utcnow()
     db.commit()
     db.refresh(template)
     return template

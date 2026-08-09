@@ -1,7 +1,7 @@
 # backend/admin/stats_router.py
-from datetime import datetime, timedelta
+from datetime import timedelta
+from backend.time_utils import utcnow
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
-    now = datetime.utcnow()
+    now = utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
 
@@ -51,22 +51,39 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     gift_activated = db.query(func.count(GiftCode.id)).filter(GiftCode.redeemed_by.isnot(None)).scalar() or 0
     gift_pct       = round(gift_activated / gift_total * 100) if gift_total else 0
 
-    # Recent users
+    # Recent users. Раньше на каждого из 10 юзеров уходило по два отдельных
+    # запроса (карты + интерпретации) — 20 лишних SELECT на один рендер admin
+    # dashboard. Считаем агрегатами по всем юзерам сразу и подставляем нулями
+    # там, где счётчика нет.
     recent = db.query(User).order_by(User.created_at.desc()).limit(10).all()
-    recent_users = []
-    for u in recent:
-        chart_count = db.query(func.count(NatalChart.id)).filter(NatalChart.user_id == u.id).scalar() or 0
-        interp_count = db.query(func.count(Interpretation.id)).join(
-            NatalChart, Interpretation.chart_id == NatalChart.id
-        ).filter(NatalChart.user_id == u.id).scalar() or 0
-        recent_users.append({
+    recent_ids = [u.id for u in recent]
+
+    charts_by_user = dict(
+        db.query(NatalChart.user_id, func.count(NatalChart.id))
+        .filter(NatalChart.user_id.in_(recent_ids))
+        .group_by(NatalChart.user_id)
+        .all()
+    ) if recent_ids else {}
+
+    interps_by_user = dict(
+        db.query(NatalChart.user_id, func.count(Interpretation.id))
+        .join(Interpretation, Interpretation.chart_id == NatalChart.id)
+        .filter(NatalChart.user_id.in_(recent_ids))
+        .group_by(NatalChart.user_id)
+        .all()
+    ) if recent_ids else {}
+
+    recent_users = [
+        {
             "id": u.id,
             "email": u.email,
             "plan": u.tier,
-            "charts": chart_count,
-            "interpretations": interp_count,
+            "charts": charts_by_user.get(u.id, 0),
+            "interpretations": interps_by_user.get(u.id, 0),
             "created_at": u.created_at.isoformat() if u.created_at else None,
-        })
+        }
+        for u in recent
+    ]
 
     retention = compute_retention(db)
     funnel_v2 = compute_funnel(db)
@@ -121,7 +138,8 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     }
 
 
-@router.get("/export")
-def export_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
-    data = get_stats(db=db, _=_)
-    return JSONResponse(content=data)
+# GET /api/v1/admin/export НЕ определён здесь: он уже есть в
+# backend/admin/promo_router.py, который в main.py регистрируется раньше этого
+# роутера. Одноимённый маршрут здесь раньше существовал, но был на практике
+# недостижим (FastAPI матчит по порядку регистрации) — при этом OpenAPI
+# ругался на Duplicate Operation ID, а сама функция ни разу не выполнялась.

@@ -5,18 +5,27 @@ Protected by X-Internal-Secret header.
 from __future__ import annotations
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
+from backend.time_utils import utcnow
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.authz import require_internal_secret
 from backend.database import get_db
 from backend.models import User, NatalChart
 from backend.email_service import send_retention_day2, send_retention_day7
 
 logger = logging.getLogger("astro.onboarding")
 
-router = APIRouter(prefix="/api/v1/internal", tags=["internal"])
+# Секрет проверяется на уровне роутера: все маршруты здесь служебные (cron), и
+# при добавлении нового он не окажется случайно открытым.
+router = APIRouter(
+    prefix="/api/v1/internal",
+    tags=["internal"],
+    dependencies=[Depends(require_internal_secret)],
+)
 
 PLANET_LABELS_RU = {
     "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий",
@@ -66,16 +75,40 @@ def _build_transit_text(event) -> str:
     return f"{base}<br><br>{template}" if template else base
 
 
+def _latest_charts_by_user(db: Session, user_ids: list[str]) -> dict[str, NatalChart]:
+    """Последняя карта каждого пользователя — одним запросом, а не в цикле.
+
+    Раньше цикл по когорте дня 2/7 делал отдельный SELECT на каждого юзера
+    (`db.query(NatalChart).filter(user_id == user.id)...first()`): на когорте в
+    тысячу регистраций — тысяча запросов к БД на один прогон крона.
+    """
+    if not user_ids:
+        return {}
+    latest = (
+        db.query(NatalChart.user_id, func.max(NatalChart.created_at).label("max_created"))
+        .filter(NatalChart.user_id.in_(user_ids))
+        .group_by(NatalChart.user_id)
+        .subquery()
+    )
+    charts = (
+        db.query(NatalChart)
+        .join(
+            latest,
+            (NatalChart.user_id == latest.c.user_id)
+            & (NatalChart.created_at == latest.c.max_created),
+        )
+        .all()
+    )
+    # При двух картах с одинаковым created_at (микросекундная коллизия) join
+    # вернёт обе — берём любую детерминированно последней записью в словаре.
+    return {c.user_id: c for c in charts}
+
+
 @router.post("/onboarding-emails")
 async def send_onboarding_emails(
-    x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    now = datetime.utcnow()
+    now = utcnow()
     day2_start = now - timedelta(days=2, hours=1)
     day2_end   = now - timedelta(days=1, hours=23)
     day7_start = now - timedelta(days=7, hours=1)
@@ -84,8 +117,10 @@ async def send_onboarding_emails(
     sent_day2 = sent_day7 = 0
 
     # ── Day 2: retention email with active transit ──
-    for user in db.query(User).filter(User.created_at >= day2_start, User.created_at <= day2_end).all():
-        chart = db.query(NatalChart).filter(NatalChart.user_id == user.id).order_by(NatalChart.created_at.desc()).first()
+    day2_users = db.query(User).filter(User.created_at >= day2_start, User.created_at <= day2_end).all()
+    day2_charts = _latest_charts_by_user(db, [u.id for u in day2_users])
+    for user in day2_users:
+        chart = day2_charts.get(user.id)
         if not chart:
             continue
         try:
@@ -102,8 +137,12 @@ async def send_onboarding_emails(
             logger.warning("Day2 email failed for %s: %s", user.email, e)
 
     # ── Day 7: upgrade nudge for free users ──
-    for user in db.query(User).filter(User.created_at >= day7_start, User.created_at <= day7_end, User.tier == "free").all():
-        chart = db.query(NatalChart).filter(NatalChart.user_id == user.id).order_by(NatalChart.created_at.desc()).first()
+    day7_users = db.query(User).filter(
+        User.created_at >= day7_start, User.created_at <= day7_end, User.tier == "free"
+    ).all()
+    day7_charts = _latest_charts_by_user(db, [u.id for u in day7_users])
+    for user in day7_users:
+        chart = day7_charts.get(user.id)
         if not chart:
             continue
         try:
@@ -148,28 +187,19 @@ async def run_weekly_digest(db: Session) -> dict:
 
 @router.post("/weekly-digest")
 async def send_weekly_digests(
-    x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
     """Railway Cron: ежедневно 09:00 МСК."""
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
     return await run_weekly_digest(db)
 
 
 @router.post("/lunar-returns")
 async def trigger_lunar_returns(
-    x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
     """Railway Cron: ежедневно 09:00 МСК.
     Запускает Celery-задачу проверки лунных возвращений.
     """
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
     try:
         from backend.tasks import check_lunar_returns
         task = check_lunar_returns.delay()

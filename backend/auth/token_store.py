@@ -25,7 +25,7 @@ async def deny(jti: str, ttl_seconds: int) -> None:
     if not jti:
         return
     ttl = max(int(ttl_seconds), 1)
-    await get_redis().setex(f"{_PREFIX}{jti}", ttl, "1")
+    await get_redis().set(f"{_PREFIX}{jti}", "1", ex=ttl)
 
 
 async def is_denied(jti: str) -> bool:

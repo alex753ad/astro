@@ -178,8 +178,13 @@ def remaining_ttl(exp: int) -> int:
 
 # ── Email confirmation token ───────────────────────────────
 
-def create_email_confirmation_token(user_id: str, email: str) -> str:
-    """Create a token for email verification (valid 24 hours)."""
+def create_email_confirmation_token(user_id: str, email: str, token_version: int = 0) -> str:
+    """Create a token for email verification (valid 24 hours).
+
+    `tv` вшивается, чтобы logout-all и смена пароля гасили и эту ссылку тоже:
+    без него письмо суточной давности продолжало работать после того, как
+    пользователь отозвал все сессии.
+    """
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
@@ -187,15 +192,18 @@ def create_email_confirmation_token(user_id: str, email: str) -> str:
         "type": "email_confirm",
         "iat": now,
         "exp": now + timedelta(hours=24),
+        "tv": token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_password_reset_token(user_id: str, email: str) -> str:
+def create_password_reset_token(user_id: str, email: str, token_version: int = 0) -> str:
     """Create a password reset token (valid 1 hour).
 
     jti нужен, чтобы погасить ссылку после использования: без него одна и та же
     ссылка из письма работала бы весь час сколько угодно раз.
+
+    tv — чтобы logout-all обесценивал и невостребованные ссылки сброса.
     """
     now = datetime.now(timezone.utc)
     payload = {
@@ -205,6 +213,7 @@ def create_password_reset_token(user_id: str, email: str) -> str:
         "iat": now,
         "exp": now + timedelta(hours=1),
         "jti": uuid.uuid4().hex,
+        "tv": token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
@@ -221,6 +230,7 @@ def decode_password_reset_token(token: str) -> TokenData:
         jti=payload.get("jti", ""),
         exp=int(payload.get("exp", 0)),
         iat=int(payload.get("iat", 0)),
+        token_version=int(payload.get("tv", 0)),
     )
 
 
@@ -238,4 +248,5 @@ def decode_email_confirmation_token(token: str) -> TokenData:
         user_id=payload["sub"],
         email=payload["email"],
         token_type="email_confirm",
+        token_version=int(payload.get("tv", 0)),
     )

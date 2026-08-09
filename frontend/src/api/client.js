@@ -18,7 +18,12 @@ class ApiError extends Error {
 }
 
 const ACCESS_TOKEN_KEY  = 'astro_access_token';
-const REFRESH_TOKEN_KEY = 'astro_refresh_token';
+// Refresh-токена здесь больше нет: он живёт в HttpOnly-куке astro_refresh,
+// которую JS не читает и не пишет. Раньше он лежал в localStorage и жил 7 дней —
+// то есть любой XSS (или скомпрометированная зависимость в бандле) уносил
+// недельный доступ к аккаунту. Access-токен остаётся в localStorage: он живёт
+// 15 минут и нужен как заголовок в каждом запросе.
+const LEGACY_REFRESH_KEY = 'astro_refresh_token';
 
 // Параллельные 401 не должны обновлять токен наперегонки: ротация делает
 // использованный refresh недействительным, и второй запрос разлогинил бы юзера.
@@ -27,25 +32,27 @@ let refreshInFlight = null;
 async function refreshAccessToken() {
   if (refreshInFlight) return refreshInFlight;
 
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-  if (!refreshToken) return null;
-
   refreshInFlight = (async () => {
     try {
       const resp = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        // credentials: кука astro_refresh едет только явно — по умолчанию
+        // fetch её не отправляет, если API на другом origin.
+        credentials: 'include',
+        body: JSON.stringify({}),
       });
       if (!resp.ok) {
         // Refresh мёртв (истёк, отозван, сменён пароль) — сессии больше нет.
         localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
+        localStorage.removeItem(LEGACY_REFRESH_KEY);
         return null;
       }
       const data = await resp.json();
       localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
-      if (data.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+      // Подчищаем хвост от прошлой схемы: у вернувшихся пользователей старый
+      // refresh может лежать в localStorage ещё неделю.
+      localStorage.removeItem(LEGACY_REFRESH_KEY);
       return data.access_token;
     } catch {
       return null;

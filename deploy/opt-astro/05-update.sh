@@ -44,6 +44,23 @@ done
 [[ -f docker-compose.yml ]] || die "docker-compose.yml не найден в текущем каталоге. Запускайте из /opt/astro."
 [[ -f .env ]] || die ".env не найден в текущем каталоге."
 
+# ---------------------------------------------------------------------------
+# Preflight: переменные, без которых контейнеры не поднимутся вовсе.
+# Лучше отказаться сразу и внятно, чем на середине деплоя получить
+# "REDIS_PASSWORD не задан" из подстановки в compose или падение api на старте
+# из-за прод-guard'ов в main.py.
+# ---------------------------------------------------------------------------
+_env_has() { grep -qE "^${1}=.+" .env; }
+for _required in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL \
+                 REDIS_PASSWORD REDIS_URL JWT_SECRET INTERNAL_SECRET \
+                 ROBOKASSA_MERCHANT_LOGIN; do
+  _env_has "$_required" || die "в .env не задан ${_required} — деплой остановлен."
+done
+grep -qE '^ROBOKASSA_IS_TEST=(false|0)$' .env \
+  || die "ROBOKASSA_IS_TEST должен быть false в проде — иначе подписки выдаются без оплаты."
+grep -qE '^REDIS_URL=redis://:[^@]+@' .env \
+  || die "REDIS_URL без пароля — Redis теперь запускается с requirepass, приложение не подключится."
+
 # Ретраи на 429 от Docker Hub при пуллинге базового образа во время сборки.
 # Стримит вывод живьём (tee) и одновременно проверяет его на признаки rate-limit.
 run_with_registry_retry() {
@@ -122,11 +139,11 @@ if $DO_BACKEND; then
     have_rollback_image=true
   fi
 
-  log "Бэкенд: собираю образ (api, bot)"
-  run_with_registry_retry docker compose build api bot
+  log "Бэкенд: собираю образ (api, bot, worker, beat)"
+  run_with_registry_retry docker compose build api bot worker beat
 
-  log "Бэкенд: пересоздаю api и bot из новой сборки (работавшие контейнеры не трогались до этого момента)"
-  docker compose up -d --no-deps api bot
+  log "Бэкенд: пересоздаю api, bot, worker, beat из новой сборки (работавшие контейнеры не трогались до этого момента)"
+  docker compose up -d --no-deps api bot worker beat
 
   # rollback: возвращает тег astro-app:latest на образ, работавший до этого
   # деплоя, и пересоздаёт api/bot из него. Откатывает только контейнеры —
@@ -138,9 +155,9 @@ if $DO_BACKEND; then
       echo "  нет предыдущего образа для отката (это был первый деплой) — откатывать нечего" >&2
       return
     fi
-    echo "  откатываю astro-app:latest на предыдущий образ и пересоздаю api/bot" >&2
+    echo "  откатываю astro-app:latest на предыдущий образ и пересоздаю api/bot/worker/beat" >&2
     docker tag astro-app:rollback astro-app:latest
-    docker compose up -d --no-deps api bot
+    docker compose up -d --no-deps api bot worker beat
   }
 
   log "Бэкенд: применяю миграции (alembic upgrade head)"

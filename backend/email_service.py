@@ -14,6 +14,8 @@ import logging
 import os
 import httpx
 
+from backend.log_utils import mask_email
+
 logger = logging.getLogger("astro.email")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
@@ -127,7 +129,7 @@ def _p(text: str) -> str:
 
 async def _send(to: str, subject: str, html: str) -> bool:
     if not RESEND_API_KEY:
-        logger.warning("RESEND_API_KEY not set — skipping email to %s", to)
+        logger.warning("RESEND_API_KEY not set — skipping email to %s", mask_email(to))
         return False
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -205,7 +207,7 @@ def _base_branded(brand_name: str, title: str, preview: str, body: str, unsubscr
 async def _send_as(from_name: str, to: str, subject: str, html: str) -> bool:
     """Как _send, но с именем отправителя = бренд астролога (адрес остаётся FROM_EMAIL)."""
     if not RESEND_API_KEY:
-        logger.warning("RESEND_API_KEY not set — skipping email to %s", to)
+        logger.warning("RESEND_API_KEY not set — skipping email to %s", mask_email(to))
         return False
     safe_from = (from_name or "Astrea Timeline").replace('"', "").replace("<", "").replace(">", "").strip() or "Astrea Timeline"
     try:
@@ -718,7 +720,7 @@ async def send_weekly_digest(user, db) -> bool:
                 variant = stored
             else:
                 variant = random.choice(["A", "B"])
-                redis.setex(ab_key, 8 * 24 * 3600, variant)
+                redis.set(ab_key, variant, ex=8 * 24 * 3600)
     except Exception:
         variant = random.choice(["A", "B"])
 

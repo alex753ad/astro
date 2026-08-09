@@ -8,12 +8,22 @@ set -euo pipefail
 
 HTPASSWD_FILE="/etc/nginx/.htpasswd-status"
 HTPASSWD_USER="admin"
+STATUS_DOMAIN="status.astreatime.ru"
 NGINX_SITE_SRC="nginx/status.astreatime.conf"
 NGINX_SITE_DST="/etc/nginx/sites-available/status.astreatime.conf"
 NGINX_SITE_LINK="/etc/nginx/sites-enabled/status.astreatime.conf"
+NGINX_SNIPPETS_SRC="nginx/snippets"
+NGINX_SNIPPETS_DST="/etc/nginx/snippets"
+CERT_DIR="/etc/letsencrypt/live/${STATUS_DOMAIN}"
+ACME_WEBROOT="/var/www/html"
 SYSTEMD_SRC_DIR="systemd"
 SYSTEMD_DST_DIR="/etc/systemd/system"
-UNITS=(astro-backup.service astro-backup.timer astro-prune.service astro-prune.timer)
+UNITS=(
+  astro-backup.service astro-backup.timer
+  astro-prune.service astro-prune.timer
+  astro-onboarding-emails.service astro-onboarding-emails.timer
+  astro-pilot-tick.service astro-pilot-tick.timer
+)
 
 log() { echo -e "\n\033[1;32m==>\033[0m $*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -37,14 +47,22 @@ fi
 # Basic-auth для status.astreatime.ru — генерируем один раз, если файла ещё нет
 # ---------------------------------------------------------------------------
 log "Проверяю $HTPASSWD_FILE"
-if [[ -f "$HTPASSWD_FILE" ]]; then
-  echo "  уже существует — не трогаю (пароль не перегенерирую, чтобы не сломать уже сохранённый доступ)"
+# Пароли, созданные до перевода поддомена на TLS, ходили по открытому HTTP и
+# считаются скомпрометированными. Маркер нужен, чтобы ротация случилась ровно
+# один раз, а не на каждом прогоне идемпотентного скрипта.
+ROTATE_MARKER="/etc/nginx/.htpasswd-status.rotated-for-tls"
+
+if [[ -f "$HTPASSWD_FILE" && -f "$ROTATE_MARKER" ]]; then
+  echo "  уже существует и ротирован после перехода на TLS — не трогаю"
 else
+  action="Создан"
+  [[ -f "$HTPASSWD_FILE" ]] && action="Заменён (прежний ходил по открытому HTTP)"
   generated_password="$(openssl rand -base64 18)"
   sudo htpasswd -bc "$HTPASSWD_FILE" "$HTPASSWD_USER" "$generated_password"
+  sudo touch "$ROTATE_MARKER"
   cat <<EOF
 
-  Создан доступ к status.astreatime.ru:
+  ${action} доступ к ${STATUS_DOMAIN}:
     логин:  $HTPASSWD_USER
     пароль: $generated_password
 
@@ -61,23 +79,82 @@ docker compose up -d --no-deps uptime-kuma
 
 # ---------------------------------------------------------------------------
 # nginx: status.astreatime.ru
+#
+# Панель обязана жить за TLS: basic-auth передаёт логин и пароль в заголовке
+# base64 при КАЖДОМ запросе, и по открытому HTTP их читает любой на пути.
+# Поэтому порядок такой: сертификат -> конфиг с 443. Если сертификата нет и
+# получить не вышло — панель наружу не публикуется вовсе (только ACME-челлендж),
+# а не откатывается на HTTP.
 # ---------------------------------------------------------------------------
-log "Устанавливаю nginx-конфиг для status.astreatime.ru"
-sudo cp "$NGINX_SITE_SRC" "$NGINX_SITE_DST"
-sudo ln -sf "$NGINX_SITE_DST" "$NGINX_SITE_LINK"
-sudo nginx -t
-sudo systemctl reload nginx
+log "Проверяю TLS-сертификат для ${STATUS_DOMAIN}"
+
+install_acme_only_vhost() {
+  sudo tee "$NGINX_SITE_DST" >/dev/null <<EOF
+# Временный конфиг: сертификата ещё нет. Наружу отдаём только ACME-челлендж,
+# панель не публикуем — по HTTP это означало бы пароль открытым текстом.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${STATUS_DOMAIN};
+
+    location /.well-known/acme-challenge/ { root ${ACME_WEBROOT}; }
+    location / { return 403; }
+}
+EOF
+  sudo ln -sf "$NGINX_SITE_DST" "$NGINX_SITE_LINK"
+  sudo nginx -t && sudo systemctl reload nginx
+}
+
+if [[ ! -f "${CERT_DIR}/fullchain.pem" ]]; then
+  echo "  сертификата нет — выпускаю через certbot (webroot)"
+  if ! command -v certbot >/dev/null 2>&1; then
+    sudo apt-get update -qq && sudo apt-get install -y certbot
+  fi
+  sudo mkdir -p "$ACME_WEBROOT"
+  install_acme_only_vhost
+  sudo certbot certonly --webroot -w "$ACME_WEBROOT" -d "$STATUS_DOMAIN" \
+       --non-interactive --agree-tos --register-unsafely-without-email \
+    || echo "  !! certbot не справился (нет A-записи ${STATUS_DOMAIN}?)"
+else
+  echo "  сертификат на месте"
+fi
+
+log "Устанавливаю nginx-конфиг для ${STATUS_DOMAIN}"
+if [[ -f "${CERT_DIR}/fullchain.pem" ]]; then
+  # Сниппет с защитными заголовками — конфиг его include-ит, без него nginx -t упадёт.
+  sudo mkdir -p "$NGINX_SNIPPETS_DST"
+  sudo cp "$NGINX_SNIPPETS_SRC"/*.conf "$NGINX_SNIPPETS_DST/"
+  sudo cp "$NGINX_SITE_SRC" "$NGINX_SITE_DST"
+  sudo ln -sf "$NGINX_SITE_DST" "$NGINX_SITE_LINK"
+  sudo nginx -t
+  sudo systemctl reload nginx
+else
+  cat <<EOF
+
+  !! ${STATUS_DOMAIN} остался закрытым (403): без сертификата публиковать
+     панель по HTTP нельзя — basic-auth уехал бы открытым текстом.
+     Заведите A-запись ${STATUS_DOMAIN} -> IP сервера и запустите скрипт снова.
+     Пока панель доступна туннелем:
+       ssh -L 3001:127.0.0.1:3001 <user>@<server>   ->  http://localhost:3001
+
+EOF
+fi
 
 # ---------------------------------------------------------------------------
-# systemd: таймеры бэкапа и чистки образов
+# systemd: таймеры бэкапа, чистки образов и служебных /internal/* эндпоинтов
+# (onboarding-emails, pilot-tick — единственные внутренние ручки, которые не
+# покрыты Celery Beat, потому что это обычный HTTP за X-Internal-Secret, а не
+# Celery-задача; lunar-returns и weekly-digest уже в beat_schedule).
 # ---------------------------------------------------------------------------
 log "Устанавливаю systemd-юниты: ${UNITS[*]}"
-chmod +x 07-backup-cron.sh prune-and-diskcheck.sh
+chmod +x 07-backup-cron.sh prune-and-diskcheck.sh 09-internal-cron.sh
 for unit in "${UNITS[@]}"; do
   sudo cp "${SYSTEMD_SRC_DIR}/${unit}" "${SYSTEMD_DST_DIR}/${unit}"
 done
 sudo systemctl daemon-reload
-sudo systemctl enable --now astro-backup.timer astro-prune.timer
+sudo systemctl enable --now \
+  astro-backup.timer astro-prune.timer \
+  astro-onboarding-emails.timer astro-pilot-tick.timer
 
 log "Готово"
 cat <<EOF

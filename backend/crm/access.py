@@ -18,7 +18,8 @@ CRM (403). Но экс-пилот (был premium в пилоте) должен 
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
+from backend.time_utils import utcnow
 
 from fastapi import Depends, HTTPException, status
 
@@ -32,7 +33,7 @@ def _is_ex_pilot(user: User) -> bool:
     if not getattr(user, "pilot_started_at", None):
         return False
     end = user.pilot_started_at + timedelta(days=PILOT_DAYS)
-    return datetime.utcnow() >= end
+    return utcnow() >= end
 
 
 def _is_active_premium(user: User) -> bool:

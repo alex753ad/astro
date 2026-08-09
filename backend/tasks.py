@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import logging
 from datetime import date as date_type
+from backend.time_utils import utcnow
 
 from backend.celery_app import celery_app
 from backend.database import SessionLocal
@@ -66,7 +67,7 @@ def send_retention_day2_task(user_id: int) -> None:
                 f"{ASP_RU.get(at, at)} с вашим натальным <strong>{PLANET_RU.get(np_, np_)}</strong>.")
         import asyncio
         from backend.email_service import send_retention_day2
-        asyncio.get_event_loop().run_until_complete(send_retention_day2(user.email, text))
+        asyncio.run(send_retention_day2(user.email, text))
     except Exception as e:
         logger.warning("send_retention_day2_task failed user=%s: %s", user_id, e)
     finally:
@@ -90,7 +91,7 @@ def send_retention_day7_task(user_id: int) -> None:
         events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30))
         import asyncio
         from backend.email_service import send_retention_day7
-        asyncio.get_event_loop().run_until_complete(send_retention_day7(user.email, max(0, len(events) - 1)))
+        asyncio.run(send_retention_day7(user.email, max(0, len(events) - 1)))
     except Exception as e:
         logger.warning("send_retention_day7_task failed user=%s: %s", user_id, e)
     finally:
@@ -119,7 +120,7 @@ def send_retention_day14_task(user_id: int) -> None:
         )
         import asyncio
         from backend.email_service import send_retention_day14
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_retention_day14(user.email, checkout_url)
         )
     except Exception as e:
@@ -142,7 +143,7 @@ def send_lite_welcome_task(user_id: int) -> None:
             return
         import asyncio
         from backend.email_service import send_lite_welcome
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_lite_welcome(user.email, name=user.name)
         )
     except Exception as e:
@@ -161,7 +162,7 @@ def send_lite_day14_task(user_id: int) -> None:
             return
         import asyncio
         from backend.email_service import send_lite_day14
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_lite_day14(user.email, name=user.name)
         )
     except Exception as e:
@@ -191,7 +192,7 @@ def send_pro_welcome_task(user_id: int) -> None:
             return
         import asyncio
         from backend.email_service import send_pro_welcome
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_pro_welcome(user.email, name=user.name)
         )
     except Exception as e:
@@ -210,7 +211,7 @@ def send_pro_day30_task(user_id: int) -> None:
             return
         import asyncio
         from backend.email_service import send_pro_day30
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_pro_day30(user.email, name=user.name)
         )
     except Exception as e:
@@ -240,7 +241,7 @@ def send_premium_welcome_task(user_id: int) -> None:
             return
         import asyncio
         from backend.email_service import send_premium_welcome
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             send_premium_welcome(user.email, name=user.name)
         )
     except Exception as e:
@@ -621,7 +622,7 @@ def check_lunar_returns() -> dict:
                 natal_data = {"planets": chart.planets}
                 lunar_date = get_next_lunar_return(natal_data, today)
                 if lunar_date == today:
-                    asyncio.get_event_loop().run_until_complete(
+                    asyncio.run(
                         send_lunar_return_email(user, today)
                     )
                     sent += 1
@@ -654,7 +655,7 @@ def send_weekly_digest_task() -> dict:
         ).all()
         for user in users:
             try:
-                ok = asyncio.get_event_loop().run_until_complete(
+                ok = asyncio.run(
                     send_weekly_digest(user, db)
                 )
                 if ok:
@@ -713,7 +714,7 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
     Пропускает отписавшихся и уже отправленных в этом period_ym.
     """
     import asyncio
-    from datetime import date, datetime, timedelta
+    from datetime import date, timedelta
 
     from backend.models import AstrologerProfile, ClientProfile, ClientBroadcastLog, User
     from backend.transit.engine import calculate_transits
@@ -747,16 +748,24 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
             q = q.filter(ClientProfile.id.in_(client_ids))
         rows = q.all()
 
+        # Логи прошлой отправки за период — одним запросом на всю рассылку,
+        # а не по одному SELECT на клиента: на базе в сотни клиентов цикл ниже
+        # раньше давал сотни лишних обращений к БД на каждый прогон рассылки.
+        logs_by_client = {
+            log.client_id: log
+            for log in db.query(ClientBroadcastLog).filter(
+                ClientBroadcastLog.astrologer_id == astrologer_id,
+                ClientBroadcastLog.period_ym == ym,
+                ClientBroadcastLog.client_id.in_([c.id for c, _ in rows]),
+            )
+        } if rows else {}
+
         for client, chart in rows:
             email = (client.email or "").strip()
             if not email:
                 continue
 
-            log = db.query(ClientBroadcastLog).filter(
-                ClientBroadcastLog.astrologer_id == astrologer_id,
-                ClientBroadcastLog.client_id == client.id,
-                ClientBroadcastLog.period_ym == ym,
-            ).first()
+            log = logs_by_client.get(client.id)
             if log and log.status == "success":
                 continue
 
@@ -785,11 +794,11 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
 
                 ai_text = None
                 if mode == "ai":
-                    ai_text = asyncio.get_event_loop().run_until_complete(
+                    ai_text = asyncio.run(
                         _gen_broadcast_ai(profile, tier, period_label, transits)
                     )
 
-                ok = asyncio.get_event_loop().run_until_complete(
+                ok = asyncio.run(
                     send_client_broadcast(
                         email, brand, period_label, transits,
                         unsubscribe_url=_unsub_url(token), ai_text=ai_text,
@@ -802,14 +811,14 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
 
             if log:
                 log.status = "success" if ok else "error"
-                log.sent_at = datetime.utcnow() if ok else None
+                log.sent_at = utcnow() if ok else None
             else:
                 db.add(ClientBroadcastLog(
                     astrologer_id=astrologer_id,
                     client_id=client.id,
                     period_ym=ym,
                     status="success" if ok else "error",
-                    sent_at=datetime.utcnow() if ok else None,
+                    sent_at=utcnow() if ok else None,
                 ))
             db.commit()
             sent += 1 if ok else 0

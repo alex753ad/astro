@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily astro pilot program tick
+
+[Timer]
+OnCalendar=*-*-* 06:20:00
+RandomizedDelaySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

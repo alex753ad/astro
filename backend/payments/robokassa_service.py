@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
-import random
+import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import timedelta
+from backend.time_utils import utcnow
 from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
@@ -68,7 +70,10 @@ def create_payment_url(user: User, tier: str, billing_period: str) -> str:
     if not price:
         raise ValueError(f"Unknown tier/period: {tier}/{billing_period}")
 
-    inv_id = random.randint(1, 2_000_000_000)
+    # secrets, а не random: номер счёта участвует в подписи и в ключе
+    # идемпотентности, предсказуемый ГПСЧ здесь не нужен. Диапазон — ограничение
+    # Robokassa на InvId (32-битное знаковое).
+    inv_id = secrets.randbelow(2_000_000_000) + 1
     out_sum = f"{price:.2f}"
 
     shp = {
@@ -109,8 +114,10 @@ def verify_payment(form_data: dict) -> tuple[bool, str, str, str]:
     shp = {k: v for k, v in form_data.items() if k.startswith("Shp_")}
     sig_exp = _sign_verify(out_sum, inv_id, shp)
 
-    if sig_got != sig_exp:
-        logger.warning("Robokassa sig mismatch: got=%s exp=%s", sig_got, sig_exp)
+    # compare_digest, а не !=: обычное сравнение строк выходит на первом
+    # несовпавшем байте и по времени ответа позволяет подбирать подпись побайтно.
+    if not hmac.compare_digest(sig_got, sig_exp):
+        logger.warning("Robokassa sig mismatch for InvId=%s", inv_id)
         return False, "", "", ""
 
     return (
@@ -130,7 +137,7 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
         return
 
     days = PERIOD_DAYS.get(period, 30)
-    period_end = datetime.utcnow() + timedelta(days=days)
+    period_end = utcnow() + timedelta(days=days)
 
     user.tier = tier
 
@@ -159,7 +166,7 @@ def _generate_referral_code(db) -> str:
     from backend.models import User as _User
     chars = string.ascii_uppercase + string.digits
     for _ in range(10):
-        code = "".join(random.choices(chars, k=8))
+        code = "".join(secrets.choice(chars) for _ in range(8))
         if not db.query(_User).filter(_User.referral_code == code).first():
             return code
     raise RuntimeError("Failed to generate unique referral code")

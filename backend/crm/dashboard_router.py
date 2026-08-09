@@ -300,7 +300,7 @@ async def broadcast_history(
 
 import os as _os
 import secrets as _secrets
-from datetime import datetime as _datetime
+from backend.time_utils import utcnow as _utcnow
 
 _INTAKE_APP_URL = _os.getenv("APP_URL", "https://astreatime.ru")
 
@@ -428,7 +428,7 @@ async def intake_public_submit(token: str, payload: IntakeSubmitIn, db: Session 
         "email": (payload.email or None),
         "question": (payload.question or None),
     }
-    intake.submitted_at = _datetime.utcnow()
+    intake.submitted_at = _utcnow()
     db.commit()
     return {"ok": True}
 

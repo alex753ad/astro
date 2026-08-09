@@ -19,6 +19,8 @@ import sys
 
 import pytest
 
+from backend.tests.prod_env import PROD_STARTUP_ENV
+
 
 DEBUG_PATHS = [
     "/api/v1/debug/moon",
@@ -48,6 +50,8 @@ def _probe(**overrides):
         "TRUSTED_PROXY_IPS": "",
         "PATH": os.environ.get("PATH", ""),
         "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        # Прод-guard'ы main.py: без них проба падает на старте.
+        **PROD_STARTUP_ENV,
         # DEBUG и TESTING задаются вызывающим всегда: переменные окружения
         # имеют приоритет над .env, где локально стоит DEBUG=true.
         **overrides,

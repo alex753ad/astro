@@ -8,16 +8,21 @@ RUN apt-get update && \
     fonts-liberation fonts-dejavu-core fonts-noto fonts-noto-extra && \
     rm -rf /var/lib/apt/lists/*
 
-# Python deps
-COPY pyproject.toml .
-RUN pip install --no-cache-dir "bcrypt>=3.2.0,<4.0.0" && \
-    ( pip install --no-cache-dir -e "." 2>/dev/null || \
-      pip install --no-cache-dir \
-      fastapi "uvicorn[standard]" pyswisseph sqlalchemy alembic \
-      psycopg2-binary httpx pydantic pydantic-settings slowapi \
-      "python-jose[cryptography]" "passlib[bcrypt]" "bcrypt>=3.2.0,<4.0.0" \
-      timezonefinder pytz geopy redis ) && \
-    pip install --no-cache-dir "reportlab>=4.0.0" "python-multipart>=0.0.9" && \
+# Python deps.
+#
+# Ставим строго из requirements.lock — там точные версии со всей транзитивной
+# цепочкой. Раньше здесь было `pip install -e "."` с диапазонами `>=` и, если
+# он падал, молчаливый откат на `pip install fastapi uvicorn …` вообще без
+# версий: каждая пересборка давала другой набор пакетов, упавший прод-образ
+# невозможно было воспроизвести, а `|| ...` прятал причину сбоя.
+#
+# Лок обновляется командой `make lock` (см. Makefile) и коммитится в репозиторий.
+# Сам пакет ставить не нужно: код лежит в /app, запуск идёт оттуда же
+# (`uvicorn backend.main:app`), и `backend` импортируется как обычный каталог.
+# Прежний `pip install -e "."` выполнялся, когда backend/ ещё не скопирован, —
+# то есть работал ровно тот молчаливый fallback, который стоял следом.
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock && \
     apt-get purge -y --auto-remove gcc build-essential && \
     rm -rf /var/lib/apt/lists/*
 

@@ -163,6 +163,23 @@ def interpret_premium_key(request: Request) -> str:
     return f"interp:premium:{_base_id(request)}"
 
 
+# /rag-chat — счёт по владельцу токена, а не по IP: эндпоинт платный (Pro+),
+# и лимит должен ограничивать аккаунт, а не офис за общим NAT.
+def rag_chat_key(request: Request) -> str:
+    return f"rag:{_base_id(request)}"
+
+
+# Регистрация: троттлинг по email закрывает повторную отправку на один адрес, но
+# не мешает гнать письма на тысячи разных. Ключ по IP закрывает именно это.
+def register_send_key(request: Request) -> str:
+    return f"reg:ip:{client_ip(request)}"
+
+
+# Публичные share-картинки: рендер PNG + генерация подписи через LLM.
+def share_card_key(request: Request) -> str:
+    return f"share:ip:{client_ip(request)}"
+
+
 
 
 # ═══════════════════════════════════════════════════════════

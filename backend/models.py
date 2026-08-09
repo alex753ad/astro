@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models."""
 
 import uuid
-from datetime import datetime
+from backend.time_utils import utcnow
 
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer,
@@ -29,8 +29,8 @@ class User(Base):
     google_sub = Column(String(255), nullable=True, unique=True)
     stripe_customer_id = Column(String(255), nullable=True, unique=True)
     stripe_subscription_id = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
 
     # Админ-доступ (038) — роль в БД, а не список email из окружения:
@@ -105,6 +105,10 @@ class NatalChart(Base):
     midheaven = Column(JSON, nullable=True)
     house_system = Column(String(20), default="placidus")
     public_token = Column(String(64), nullable=True, unique=True, index=True)
+    # Срок жизни ссылки шаринга. Раньше хранился только в Redis, и проверка
+    # _ensure_not_expired при недоступном Redis пропускала запрос (fail-open).
+    # NULL = бессрочная legacy-ссылка, выданная до появления поля.
+    public_token_expires_at = Column(DateTime, nullable=True)
     share_name   = Column(String(100), nullable=True)  # имя для публичной страницы
 
     # Capability-токен анонимной карты (user_id IS NULL): доступ к своей карте
@@ -113,7 +117,7 @@ class NatalChart(Base):
     access_token = Column(String(64), nullable=True, unique=True, index=True)
     expires_at   = Column(DateTime, nullable=True, index=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship("User", back_populates="charts", foreign_keys=[user_id])
     interpretations = relationship(
@@ -130,7 +134,7 @@ class Interpretation(Base):
     engine = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
     sections = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     chart = relationship("NatalChart", back_populates="interpretations")
 
@@ -146,10 +150,53 @@ class Subscription(Base):
     status = Column(String(50), nullable=False, default="active")
     tier = Column(String(20), nullable=False, default="free")
     current_period_end = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship("User", back_populates="subscriptions")
+
+
+class PaymentEvent(Base):
+    """Обработанные платёжные вебхуки — источник истины и защита от повтора.
+
+    Раньше идемпотентность держалась только на ключе в Redis, и при недоступном
+    Redis код шёл по ветке fail-open: тот же вебхук с валидной подписью продлевал
+    подписку сколько угодно раз. Уникальный inv_id в БД делает повтор невозможным
+    независимо от состояния кэша, а заодно даёт аудит платежей, которого не было.
+    """
+    __tablename__ = "payment_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider = Column(String(20), nullable=False, default="robokassa")
+    inv_id = Column(String(64), nullable=False, unique=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    tier = Column(String(20), nullable=True)
+    period = Column(String(20), nullable=True)
+    amount = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
+class AdminAuditLog(Base):
+    """Кто из админов что сделал с чужим аккаунтом.
+
+    Двух ручек достаточно, чтобы это стало обязательным: set-tier выдаёт любой
+    тариф на 10 лет, delete_user удаляет аккаунт вместе с картами и платежами.
+    До появления таблицы обе не оставляли следа нигде, кроме docker-логов,
+    которые ротируются по 10 МБ.
+    """
+    __tablename__ = "admin_audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    admin_id = Column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    admin_email = Column(String(255), nullable=True)  # копией: юзера могут удалить
+    action = Column(String(50), nullable=False, index=True)  # "set_tier" | "delete_user"
+    target_user_id = Column(String(36), nullable=True, index=True)
+    # Что именно поменялось: {"tier": "premium", "was": "free", "months": 120}.
+    details = Column(JSON, nullable=True)
+    ip = Column(String(45), nullable=True)  # хватает на IPv6
+    created_at = Column(DateTime, default=utcnow, index=True)
 
 
 class CouponSent(Base):
@@ -158,7 +205,7 @@ class CouponSent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     coupon_id = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── CRM (013) ──
@@ -192,7 +239,7 @@ class ClientProfile(Base):
     broadcast_opt_out = Column(Boolean, default=False, nullable=False, server_default="false")  # (022)
     summary = Column(Text, nullable=True)          # AI-портрет клиента, кэш (024)
     summary_key = Column(String(64), nullable=True)  # хэш заметок+консультаций+карты
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     natal_chart_id = Column(String(36), ForeignKey("natal_charts.id", ondelete="SET NULL"), nullable=True)
 
     astrologer = relationship("AstrologerProfile", back_populates="clients")
@@ -213,7 +260,7 @@ class Consultation(Base):
     client_id = Column(
         Integer, ForeignKey("client_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    date = Column(DateTime, nullable=False, default=utcnow)
     topic = Column(String(50), nullable=True)     # натал / соляр / хорар / синастрия / транзиты / другое
     notes = Column(Text, nullable=True)
     assignment = Column(Text, nullable=True)       # домашнее задание клиенту (026, для портала)
@@ -223,7 +270,7 @@ class Consultation(Base):
     question_moment = Column(DateTime, nullable=True)   # хорар: момент вопроса (027)
     question_place = Column(String(200), nullable=True)  # хорар: место вопроса (027)
     horary_chart_id = Column(String(36), ForeignKey("natal_charts.id", ondelete="SET NULL"), nullable=True)  # (027)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     client = relationship("ClientProfile", back_populates="consultations")
 
@@ -246,7 +293,7 @@ class ClientBroadcastLog(Base):
     period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
     status = Column(String(10), nullable=False)     # "success" | "error"
     sent_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── Client intake forms (023 / roadmap idea 6) ──
@@ -263,7 +310,7 @@ class ClientIntake(Base):
     submitted_data = Column(JSON, nullable=True)   # {name, birth_date, birth_time, birth_place, email, question}
     submitted_at = Column(DateTime, nullable=True)
     client_id = Column(Integer, ForeignKey("client_profiles.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── Client portal (026 / roadmap idea 10) ──
@@ -277,7 +324,10 @@ class ClientPortalAccess(Base):
     )
     token = Column(String(64), nullable=False, unique=True, index=True)
     enabled = Column(Boolean, default=True, nullable=False, server_default="true")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # Срок в БД, а не только в Redis: проверка в SQL не может «открыться» при
+    # недоступном кэше. NULL = бессрочный (ссылки, выданные до появления поля).
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── Author interpretations library (028 / roadmap idea 13) ──
@@ -294,8 +344,8 @@ class AstrologerInterpretation(Base):
     )
     key = Column(String(100), nullable=False)     # напр. "saturn_house_7", "sun_taurus", "asc_leo"
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 # ── Note templates (016) ──
@@ -307,8 +357,8 @@ class NoteTemplate(Base):
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(200), nullable=False)
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 # ── Calendar export log (017) ──
@@ -323,7 +373,7 @@ class CalendarExportLog(Base):
     event_types= Column(JSON, nullable=False, default=list) # ["new_moon", "aspect", ...]
     status     = Column(String(10), nullable=False)         # "success" | "error"
     error_msg  = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── Gift codes (014) ──
@@ -338,7 +388,7 @@ class GiftCode(Base):
     purchased_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     redeemed_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     redeemed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── Usage counters (3.3 / 3.4a) ──
@@ -362,7 +412,7 @@ class UsageCounter(Base):
     kind = Column(String(32), nullable=False)       # "interpretation" | "transit_ai"
     period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
     count = Column(Integer, nullable=False, default=0, server_default="0")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 # ── Push notifications (031) ──
@@ -377,7 +427,7 @@ class PushSubscription(Base):
     endpoint = Column(Text, nullable=False, unique=True)  # URL push-сервиса (уникален)
     p256dh   = Column(Text, nullable=False)               # публичный ключ клиента
     auth     = Column(Text, nullable=False)               # auth-секрет клиента
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # Журнал отправленных пушей — дедупликация (один пуш на событие).
@@ -395,7 +445,7 @@ class PushSentLog(Base):
     )
     kind    = Column(String(16), nullable=False)
     ref_key = Column(String(128), nullable=False)
-    sent_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, default=utcnow)
 
 
 # ── Пилот / метрики / обратная связь / exit-survey / TG-токены ──
@@ -404,7 +454,7 @@ class Event(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(64), nullable=False, index=True)
-    ts = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    ts = Column(DateTime, default=utcnow, nullable=False, index=True)
     meta = Column(JSON, nullable=True)
 
 
@@ -416,7 +466,7 @@ class Feedback(Base):
     url = Column(String(500), nullable=True)
     message = Column(Text, nullable=True)
     user_agent = Column(String(300), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
 
 class ExitReason(Base):
@@ -426,7 +476,7 @@ class ExitReason(Base):
     moment = Column(String(20), nullable=False, index=True)
     reason_code = Column(String(40), nullable=True)
     reason_text = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
 
 
 class PilotToken(Base):
@@ -437,7 +487,7 @@ class PilotToken(Base):
     used = Column(Boolean, default=False, nullable=False)
     used_by_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 # ── Слой 2: память Астреи о пользователе между сессиями ──
@@ -454,4 +504,4 @@ class AstreaMemory(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     summary = Column(Text, nullable=False, default="", server_default="")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)

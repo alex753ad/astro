@@ -13,10 +13,14 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Form
 from fastapi.responses import PlainTextResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.admin.admin_router import require_admin
 from backend.database import get_db
-from backend.models import User, Subscription
+from backend.limiter import client_ip
+from backend.models import AdminAuditLog, User, Subscription, PaymentEvent
+from backend.notifications.telegram import send_support_message
 from backend.schemas import CheckoutRequest, CheckoutResponse, SubscriptionResponse
 from backend.auth.dependencies import get_current_user
 from backend.payments.robokassa_service import (
@@ -25,11 +29,26 @@ from backend.payments.robokassa_service import (
     activate_subscription,
     TIER_PRICES,
 )
-from backend.redis_client import get_redis
 
 logger = logging.getLogger("astro.payments")
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
+
+
+async def _alert_payment_failure(inv_id: str, user_id: str, tier: str, period: str, *, stage: str) -> None:
+    """Живой человек должен узнать о зависшем платеже в течение часа, не из
+    жалобы пользователя. Тот же канал, что уже используется для отзывов
+    (см. backend/notifications/telegram.py) — недоступность Telegram здесь не
+    страшна, send_support_message сама глотает исключение и просто пишет в лог.
+    """
+    text = (
+        "🔴 Robokassa: платёж принят, но не превратился в подписку.\n"
+        f"Стадия сбоя: {stage}\n"
+        f"InvId={inv_id} user_id={user_id} tier={tier} period={period}\n"
+        "Деньги списаны (подпись и сумма проверены). Проверить вручную "
+        "и при необходимости выдать тариф через /admin/set-tier."
+    )
+    await send_support_message(text)
 
 
 # ── Checkout ───────────────────────────────────────────────
@@ -96,20 +115,51 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
         )
         return PlainTextResponse("amount mismatch", status_code=400)
 
-    # Идемпотентность / anti-replay: обрабатываем каждый InvId только один раз.
+    # Идемпотентность / anti-replay в БД: уникальный inv_id. Раньше ключ жил
+    # только в Redis, и при его недоступности код шёл дальше (fail-open) — тот же
+    # вебхук с валидной подписью продлевал подписку сколько угодно раз.
+    #
+    # Запись о платеже и сама активация обязаны быть ОДНОЙ транзакцией.
+    # Если закоммитить payment_events отдельно и упасть на активации, то повтор
+    # вебхука увидит существующий inv_id, отчитается "OK" и уйдёт — деньги
+    # списаны, подписки нет, и починить это уже нечем: ретраи исчерпаны.
+    # Поэтому здесь flush (проверка уникальности без фиксации), затем активация,
+    # и только потом общий commit.
     try:
-        first_time = await get_redis().set(f"robokassa:inv:{inv_id}", "1", nx=True, ex=90 * 24 * 3600)
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Robokassa idempotency store failed, proceeding: %s", exc)
-        first_time = True
-    if not first_time:
+        db.add(PaymentEvent(
+            provider="robokassa",
+            inv_id=str(inv_id),
+            user_id=user_id,
+            tier=tier,
+            period=period,
+            amount=paid,
+        ))
+        db.flush()
+    except IntegrityError:
+        db.rollback()
         logger.info("Robokassa: duplicate InvId=%s ignored", inv_id)
         return PlainTextResponse(f"OK{inv_id}")
+    except Exception:
+        db.rollback()
+        logger.exception("Robokassa: payment_events insert failed, InvId=%s", inv_id)
+        # Валидный платёж (подпись и сумма уже проверены) не превратился в
+        # запись — если ретраи Robokassa (у неё их конечное число) исчерпаются
+        # раньше, чем БД оживёт, деньги списаны, а подписки не будет, и никакого
+        # следа об этом нигде не останется. Алерт должен прийти живому человеку
+        # в течение часа, а не всплыть через жалобу пользователя.
+        await _alert_payment_failure(inv_id, user_id, tier, period, stage="payment_events insert")
+        # 500 без активации: Robokassa повторит вызов, и повтор пройдёт штатно —
+        # записи в payment_events не осталось, так что дублем он не считается.
+        return PlainTextResponse("internal error", status_code=500)
 
     try:
         activate_subscription(user_id=user_id, tier=tier, period=period, db=db)
-    except Exception as e:
+    except Exception:
+        # Откатывает и активацию, и запись о платеже — ретрай Robokassa начнёт
+        # с чистого листа, а не упрётся в «уже обработано».
+        db.rollback()
         logger.exception("Robokassa: activate_subscription failed")
+        await _alert_payment_failure(inv_id, user_id, tier, period, stage="activate_subscription")
         return PlainTextResponse("internal error", status_code=500)
 
     logger.info("Robokassa: payment OK, InvId=%s user=%s tier=%s", inv_id, user_id, tier)
@@ -121,16 +171,17 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
 @router.post("/admin/set-tier")
 async def admin_set_tier(
     request: Request,
-    admin: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Принудительно сменить тариф без оплаты. Только для ADMIN_EMAIL."""
-    import os
-    from datetime import datetime, timedelta
+    """Принудительно сменить тариф без оплаты. Только для админов (users.is_admin).
 
-    admin_emails = [e.strip().lower() for e in os.getenv("ADMIN_EMAIL", "").split(",") if e.strip()]
-    if not admin_emails or admin.email.lower() not in admin_emails:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    Раньше здесь был отдельный список из ADMIN_EMAIL — второй источник истины о
+    правах помимо users.is_admin. Отзыв прав через is_admin=false не закрывал
+    доступ владельцу почты из env, а сам эндпоинт выдаёт любой тариф на 10 лет.
+    """
+    from datetime import timedelta
+    from backend.time_utils import utcnow
 
     body = await request.json()
     tier = body.get("tier", "")
@@ -146,6 +197,7 @@ async def admin_set_tier(
     else:
         target = admin
 
+    previous_tier = target.tier
     target.tier = tier
     sub = db.query(Subscription).filter(Subscription.user_id == target.id).first()
 
@@ -154,7 +206,7 @@ async def admin_set_tier(
             sub.status = "canceled"
             sub.tier = "free"
     else:
-        period_end = datetime.utcnow() + timedelta(days=3650)
+        period_end = utcnow() + timedelta(days=3650)
         if sub:
             sub.tier = tier
             sub.status = "active"
@@ -168,8 +220,18 @@ async def admin_set_tier(
                 current_period_end=period_end,
             ))
 
+    # Аудит в БД, а не только в лог: docker-логи ротируются по 10 МБ, а выдача
+    # премиума на 10 лет должна оставлять след, который переживёт ротацию.
+    db.add(AdminAuditLog(
+        admin_id=admin.id,
+        admin_email=admin.email,
+        action="set_tier",
+        target_user_id=target.id,
+        details={"tier": tier, "was": previous_tier},
+        ip=client_ip(request),
+    ))
     db.commit()
-    logger.info("Admin set tier: admin=%s target=%s tier=%s", admin.email, target.email, tier)
+    logger.info("Admin set tier: admin=%s target=%s tier=%s", admin.id, target.id, tier)
     return {"ok": True, "tier": tier}
 
 

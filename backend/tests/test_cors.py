@@ -6,6 +6,7 @@ import sys
 import pytest
 
 from backend.config import get_settings
+from backend.tests.prod_env import PROD_STARTUP_ENV
 
 
 ALLOWED_ORIGIN = get_settings().cors_origins_list[0]
@@ -86,6 +87,9 @@ class TestWildcardOriginRefusedAtStartup:
             "JWT_SECRET": "test-secret-not-the-default-placeholder",
             "PATH": os.environ.get("PATH", ""),
             "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+            # Иначе процесс упал бы на другом прод-guard'е раньше, чем дошёл до
+            # проверки CORS, и тест «зеленел» бы по неверной причине.
+            **PROD_STARTUP_ENV,
         }
         proc = subprocess.run(
             [sys.executable, "-c", "import backend.main"],

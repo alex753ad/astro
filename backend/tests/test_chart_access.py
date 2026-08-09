@@ -8,7 +8,9 @@
 """
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+from backend.time_utils import utcnow
 
 import pytest
 
@@ -101,7 +103,7 @@ class TestAnonymousChartAccess:
     def test_expired_token_gets_404(self, client, db):
         token = secrets.token_urlsafe(32)
         chart = _make_chart(
-            db, access_token=token, expires_at=datetime.utcnow() - timedelta(days=1)
+            db, access_token=token, expires_at=utcnow() - timedelta(days=1)
         )
         resp = client.get(f"/api/v1/chart/{chart.id}", headers={"X-Chart-Token": token})
         assert resp.status_code == 404
@@ -109,7 +111,7 @@ class TestAnonymousChartAccess:
     def test_unexpired_token_gets_200(self, client, db):
         token = secrets.token_urlsafe(32)
         chart = _make_chart(
-            db, access_token=token, expires_at=datetime.utcnow() + timedelta(days=1)
+            db, access_token=token, expires_at=utcnow() + timedelta(days=1)
         )
         resp = client.get(f"/api/v1/chart/{chart.id}", headers={"X-Chart-Token": token})
         assert resp.status_code == 200

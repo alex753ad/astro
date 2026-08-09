@@ -185,7 +185,9 @@ class LoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Необязателен: основной источник — HttpOnly-кука astro_refresh. Тело
+    # запроса читается только ради старых сборок фронта.
+    refresh_token: Optional[str] = None
 
 
 class GoogleOAuthRequest(BaseModel):
@@ -195,7 +197,11 @@ class GoogleOAuthRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
+    # Пусто в норме: refresh уезжает клиенту HttpOnly-кукой astro_refresh, куда
+    # не дотянется ни XSS, ни скомпрометированная npm-зависимость. Поле оставлено
+    # непустым только для старых сборок фронта, которые прислали refresh в теле
+    # запроса (см. _build_token_response) — иначе они разлогинились бы разом.
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int
     user_id: str

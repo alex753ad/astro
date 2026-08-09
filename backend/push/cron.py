@@ -17,12 +17,14 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, date as date_type, timedelta
+from backend.time_utils import utcnow
 
 import pytz
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.authz import require_internal_secret
 from backend.database import get_db
 from backend.models import User, NatalChart, PushSubscription, PushSentLog
 from backend.push.sender import send_to_user
@@ -30,7 +32,12 @@ from backend.chart_utils import get_primary_chart
 
 logger = logging.getLogger("astro.push.cron")
 
-router = APIRouter(prefix="/api/v1/internal", tags=["internal"])
+# Секрет проверяется на уровне роутера — см. backend/authz.require_internal_secret.
+router = APIRouter(
+    prefix="/api/v1/internal",
+    tags=["internal"],
+    dependencies=[Depends(require_internal_secret)],
+)
 
 DEFAULT_TZ = "Europe/Moscow"
 
@@ -437,7 +444,7 @@ def _process_user(db: Session, user: User) -> int:
     if significant:
         to_send = significant + soft
     else:
-        if _soft_capped(db, user.id, datetime.utcnow()):
+        if _soft_capped(db, user.id, utcnow()):
             logger.info("push skip user=%s: soft capped", user.id)
             return 0
         to_send = soft
@@ -488,10 +495,6 @@ async def run_push_tick(db: Session) -> dict:
 
 @router.post("/push-tick")
 async def push_tick(
-    x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
     return await run_push_tick(db)

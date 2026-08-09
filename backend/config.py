@@ -37,6 +37,12 @@ class Settings(BaseSettings):
 
     rate_limit_anon: str = "30/minute"
     rate_limit_auth: str = "100/minute"
+    # Страховочный потолок на ВСЕ маршруты (SlowAPIMiddleware). Намеренно
+    # высокий: SPA делает по десятку запросов на экран, и низкий глобальный
+    # лимит выбил бы обычных пользователей. Точечные лимиты на дорогих
+    # эндпоинтах живут отдельными декораторами и срабатывают раньше.
+    # Пусто — middleware не подключается (поведение как раньше).
+    rate_limit_default: str = "300/minute"
     rate_limit_free_charts_per_day: int = 5
     rate_limit_free_interpretations_per_day: int = 2
 
@@ -62,7 +68,10 @@ class Settings(BaseSettings):
     robokassa_merchant_login: str = ""
     robokassa_password1: str = ""
     robokassa_password2: str = ""
-    robokassa_is_test: bool = True  # False на проде
+    # Дефолт False: в тестовом режиме Robokassa не списывает деньги, но вебхук
+    # приходит настоящий и подписка активируется — то есть тариф выдаётся даром.
+    # Небезопасный режим должен включаться явно, а не действовать по умолчанию.
+    robokassa_is_test: bool = False
 
     # ── Google OAuth ──
     google_client_id: str = ""
@@ -77,6 +86,17 @@ class Settings(BaseSettings):
     frontend_url: str = "https://www.astreatime.ru"
     debug: bool = False
     testing: bool = False
+
+    # ── Служебные (cron) эндпоинты ──
+    # Пусто вне DEBUG/TESTING — приложение не стартует: /api/v1/internal/* иначе
+    # остались бы открытыми. Проверка — backend/authz.require_internal_secret.
+    internal_secret: str = ""
+
+    # ── Host header ──
+    # Разрешённые значения заголовка Host. Пусто = "*" (не проверять). Nginx уже
+    # ограничивает server_name, это второй рубеж на случай прямого обращения к
+    # 127.0.0.1:8000 в обход прокси.
+    allowed_hosts: str = ""
 
     # ── Sentry ── пусто = SDK не инициализируется, поведение как раньше.
     sentry_dsn: str = ""
@@ -118,6 +138,12 @@ class Settings(BaseSettings):
                 pass  # не JSON — разбираем как обычный список
 
         return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        """Список Host для TrustedHostMiddleware. Пусто → ['*'] (без проверки)."""
+        hosts = [h.strip() for h in (self.allowed_hosts or "").split(",") if h.strip()]
+        return hosts or ["*"]
 
 
 @lru_cache

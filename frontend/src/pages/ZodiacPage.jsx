@@ -105,7 +105,10 @@ export default function ZodiacPage() {
     <div style={{ minHeight: '100vh', background: 'var(--accent-muted)', padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg) }}
+        // < вместо '<': JSON.stringify не экранирует '</script>' внутри
+        // строковых значений — без этого поле в schemaOrg с таким текстом
+        // закрыло бы тег раньше времени и остаток пошёл бы в HTML как разметка.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrg).replace(/</g, '\\u003c') }}
       />
 
       <div style={{ maxWidth: 720, margin: '0 auto' }}>

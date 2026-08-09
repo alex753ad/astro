@@ -28,7 +28,7 @@ async def issue(user_id: str) -> str:
     """Выдать одноразовый тикет для пользователя."""
     ticket = secrets.token_urlsafe(32)
     ttl = max(int(get_settings().sse_ticket_ttl_seconds), 1)
-    await get_redis().setex(f"{_PREFIX}{ticket}", ttl, user_id)
+    await get_redis().set(f"{_PREFIX}{ticket}", user_id, ex=ttl)
     return ticket
 
 

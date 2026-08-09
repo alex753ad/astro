@@ -217,8 +217,8 @@ async def get_subscription(
     db: Session = Depends(get_db),
 ):
     """Return the current subscription tier, limits, and monthly usage."""
-    from datetime import datetime
     from sqlalchemy import func
+    from backend.time_utils import utcnow
 
     tier = user.tier or "free"
     sub = (
@@ -227,7 +227,7 @@ async def get_subscription(
         .first()
     )
 
-    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     ai_used = 0
     transit_ai_used = 0
     charts_used = 0

@@ -62,7 +62,9 @@ def fake_redis():
         "backend.auth.sse_tickets.get_redis",
         "backend.auth.login_guard.get_redis",
         "backend.share_router.get_redis",
-        "backend.payments.payments_router.get_redis",
+        # payments_router больше не ходит в Redis: идемпотентность вебхука
+        # переехала в таблицу payment_events (миграция 041).
+        "backend.interpretation.rag_router.get_redis",
     ]
     with contextlib.ExitStack() as stack:
         for target in targets:

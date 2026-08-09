@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import urllib.parse
+from backend.time_utils import utcnow
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -26,6 +27,10 @@ router = APIRouter(tags=["portal"])
 def _resolve(token: str, db: Session):
     portal = db.query(ClientPortalAccess).filter(ClientPortalAccess.token == token).first()
     if not portal or not portal.enabled:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    # Портал отдаёт ПДн клиента (дата и место рождения) без авторизации, поэтому
+    # у ссылки должен быть срок. NULL = выдана до миграции 041, остаётся бессрочной.
+    if portal.expires_at is not None and portal.expires_at < utcnow():
         raise HTTPException(status_code=404, detail="Portal not found")
     client = db.query(ClientProfile).filter(ClientProfile.id == portal.client_id).first()
     if not client:

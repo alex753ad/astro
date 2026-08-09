@@ -569,7 +569,7 @@ def _alert_already_sent(user_id: str, transit_key: str) -> bool:
         key = f"alert:{user_id}:{transit_key}"
         if redis.get(key):
             return True
-        redis.setex(key, 60 * 24 * 3600, "1")
+        redis.set(key, "1", ex=60 * 24 * 3600)
         return False
     except Exception:
         return False

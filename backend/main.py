@@ -24,6 +24,7 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from backend.time_utils import utcnow
 
 from fastapi import APIRouter, FastAPI, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -38,6 +39,7 @@ from sqlalchemy import text
 
 from backend.config import get_settings
 from backend.limiter import limiter
+from backend.log_utils import mask_emails_in_text
 from backend.database import get_db, engine, Base
 from backend.schemas import (
     BirthDataInput,
@@ -61,7 +63,7 @@ from backend.ephemeris.geo import (
     GeocodingError,
     AmbiguousTimeError,
 )
-from backend.cache import interpretation_cache, transit_cache, make_profile_hash
+from backend.cache import interpretation_cache, transit_cache, make_profile_hash, budget_tracker
 from backend.calendar.lunar_engine import get_monthly_calendar
 from backend.auth.router import router as auth_router
 from backend.profile.router import router as profile_router
@@ -112,13 +114,24 @@ _scheduler_task: asyncio.Task | None = None
 
 
 async def _scheduler_loop():
+    """In-process планировщик — только push-тик (каждые 15 минут).
+
+    Еженедельный дайджест сюда раньше был продублирован (см. git-историю):
+    эта функция слала его по понедельникам в 06:00 UTC, а Celery Beat
+    (backend/celery_app.py, задача tasks.send_weekly_digest_task) — каждый
+    день в 06:05 UTC, сама фильтруя по User.digest_day_of_week. У версии
+    из этого файла было два независимых дефекта: она проверяла только
+    `weekday() == 0`, то есть пользователи с дайджестом не по понедельникам
+    не получали его вообще, а для пользователей С понедельником запуск обеих
+    версий разом (после того как Beat наконец подняли) отправлял письмо
+    дважды. Beat — единственный корректный и полный источник: он не привязан
+    к тому же процессу, что держит HTTP-сервер, и переживает его рестарт.
+    """
     from backend.push.cron import run_push_tick
-    from backend.onboarding_router import run_weekly_digest
 
     await asyncio.sleep(60)  # дать приложению подняться
     logger.info("Push scheduler started, interval 15m")
 
-    last_weekly_digest = None
     while True:
         db = SessionLocal()
         try:
@@ -129,27 +142,19 @@ async def _scheduler_loop():
         finally:
             db.close()
 
-        now = datetime.utcnow()
-        if now.weekday() == 0 and now.hour == 6 and last_weekly_digest != now.date():
-            db = SessionLocal()
-            try:
-                result = await run_weekly_digest(db)
-                logger.info("Weekly digest: sent=%s", result.get("sent"))
-                last_weekly_digest = now.date()
-            except Exception:
-                logger.exception("Weekly digest failed")
-            finally:
-                db.close()
-
         await asyncio.sleep(15 * 60)
 
 
 # ── Lifespan ──
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables if they don't exist (dev convenience)
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables ensured.")
+    # Схему на проде создаёт только `alembic upgrade head` (вызывается в
+    # 05-update.sh). create_all строит таблицы напрямую из текущих ORM-моделей в
+    # обход миграций: alembic_version остаётся пустой, и история миграций
+    # расходится со схемой — см. предупреждение в deploy/opt-astro/README.md.
+    if settings.testing or settings.debug:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables ensured (DEBUG/TESTING).")
 
     global _scheduler_task
     if os.getenv("SERVICE_ROLE") == "bot" or os.getenv("PUSH_SCHEDULER") == "off":
@@ -178,6 +183,15 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Глобальный потолок на все маршруты. Без этого middleware default_limits в
+# Limiter не действуют, и лимит есть только там, где явно висит декоратор.
+# /health и /metrics освобождены ниже через @limiter.exempt: healthcheck Docker,
+# Uptime Kuma и Prometheus опрашивают их постоянно и не должны упираться в лимит.
+if settings.rate_limit_default and not settings.testing:
+    from slowapi.middleware import SlowAPIMiddleware
+
+    app.add_middleware(SlowAPIMiddleware)
 
 # ── 422 логирование ──
 # Ответ клиенту не меняется (делегируем в дефолтный обработчик FastAPI) —
@@ -224,6 +238,33 @@ if settings.sentry_dsn:
         request_data = event.get("request", {})
         if "data" in request_data:
             request_data["data"] = _sanitize_body_for_log(request_data["data"])
+
+        # send_default_pii=False убирает только то, что SDK собирает сам
+        # (заголовки, cookies, IP). Адрес, попавший в текст исключения, в
+        # extra или в breadcrumb, он не трогает — а туда он попадает регулярно:
+        # "Email send failed for user@example.com".
+        for key in ("message", "logentry"):
+            value = event.get(key)
+            if isinstance(value, str):
+                event[key] = mask_emails_in_text(value)
+            elif isinstance(value, dict) and isinstance(value.get("message"), str):
+                value["message"] = mask_emails_in_text(value["message"])
+
+        for entry in event.get("breadcrumbs", {}).get("values", []) or []:
+            if isinstance(entry.get("message"), str):
+                entry["message"] = mask_emails_in_text(entry["message"])
+
+        extra = event.get("extra")
+        if isinstance(extra, dict):
+            event["extra"] = {
+                k: (mask_emails_in_text(v) if isinstance(v, str) else v)
+                for k, v in extra.items()
+            }
+
+        for exc in event.get("exception", {}).get("values", []) or []:
+            if isinstance(exc.get("value"), str):
+                exc["value"] = mask_emails_in_text(exc["value"])
+
         return event
 
     sentry_sdk.init(
@@ -266,6 +307,28 @@ if not (settings.debug or settings.testing):
             f"JWT_SECRET короче {MIN_JWT_SECRET_LENGTH} символов "
             f"({len(settings.jwt_secret)}) — подберётся перебором."
         )
+
+    # ── Служебные эндпоинты ──
+    # Без секрета require_internal_secret отдаёт 503, то есть выдача pilot-токенов
+    # и массовые рассылки просто перестанут работать. Падать на старте честнее,
+    # чем обнаружить это по молчащему крону.
+    if not os.getenv("INTERNAL_SECRET"):
+        raise RuntimeError(
+            "INTERNAL_SECRET не задан — служебные эндпоинты /api/v1/internal/* "
+            "не смогут работать. Сгенерируйте: "
+            "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
+
+    # ── Robokassa ──
+    # IsTest=1 проводит оплату без реального списания, но вебхук приходит
+    # настоящий и activate_subscription выдаёт полноценный тариф.
+    if settings.robokassa_is_test:
+        raise RuntimeError(
+            "ROBOKASSA_IS_TEST=true вне DEBUG — подписки выдавались бы без оплаты. "
+            "Поставьте ROBOKASSA_IS_TEST=false."
+        )
+    if not settings.robokassa_merchant_login:
+        raise RuntimeError("ROBOKASSA_MERCHANT_LOGIN не задан — оплата не заработает.")
 
 # ── Доверенные прокси ──
 # Без этого request.client.host остаётся адресом прокси. Список строгий:
@@ -310,6 +373,15 @@ app.add_middleware(
     allow_headers=CORS_ALLOW_HEADERS,
 )
 
+# ── Host header ──
+# Наверх Nginx передаёт Host как есть (proxy_set_header Host $host), поэтому
+# подделанный Host долетает до приложения и попадает в ссылки писем и в кэш.
+# По умолчанию ALLOWED_HOSTS пуст → ["*"], поведение прежнее.
+if settings.allowed_hosts_list != ["*"]:
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
+
 # ── Routers ──
 app.include_router(auth_router)
 app.include_router(profile_router)
@@ -341,6 +413,7 @@ app.include_router(crm_access_router)
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/metrics", tags=["monitoring"], summary="Prometheus metrics endpoint")
+@limiter.exempt
 def metrics():
     """Expose Prometheus metrics."""
     from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
@@ -353,17 +426,23 @@ def metrics():
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
+@limiter.exempt
 async def health():
     return HealthResponse(status="ok", version="0.1.0", database="not_checked")
 
 
 @app.get("/health/db", response_model=HealthResponse, tags=["health"])
+@limiter.exempt
 def health_db(db: Session = Depends(get_db)):
+    # Текст исключения наружу не отдаём: ошибки SQLAlchemy/psycopg2 содержат хост,
+    # порт, имя БД и пользователя, а /health проксируется в интернет. Подробности —
+    # в лог.
     try:
         db.execute(text("SELECT 1"))
         db_status = "connected"
-    except Exception as e:
-        db_status = f"error: {e}"
+    except Exception:
+        logger.exception("health/db check failed")
+        db_status = "error"
     return HealthResponse(status="ok", version="0.1.0", database=db_status)
 
 
@@ -383,7 +462,7 @@ def new_anon_chart_credentials() -> tuple[str, datetime]:
     """Токен доступа и срок жизни для новой анонимной карты."""
     return (
         secrets.token_urlsafe(32),
-        datetime.utcnow() + timedelta(days=settings.anon_chart_ttl_days),
+        utcnow() + timedelta(days=settings.anon_chart_ttl_days),
     )
 
 
@@ -415,7 +494,7 @@ def resolve_chart_access(
         token
         and chart.access_token
         and secrets.compare_digest(token, chart.access_token)
-        and not (chart.expires_at and chart.expires_at < datetime.utcnow())
+        and not (chart.expires_at and chart.expires_at < utcnow())
     ):
         return chart
 
@@ -566,7 +645,7 @@ async def calculate_chart(
         monthly_limit = limits.get("charts_per_month")
         daily_limit = limits.get("charts_per_day")
 
-        now = datetime.utcnow()
+        now = utcnow()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         if monthly_limit is not None:
@@ -601,7 +680,7 @@ async def calculate_chart(
         # чтобы у карты был реальный id и доступ к планеру/транзитам до
         # регистрации. При регистрации карта привязывается к пользователю.
         chart_record.access_token = secrets.token_urlsafe(32)
-        chart_record.expires_at = datetime.utcnow() + timedelta(days=7)
+        chart_record.expires_at = utcnow() + timedelta(days=7)
         db.add(chart_record)
         db.commit()
         db.refresh(chart_record)
@@ -999,7 +1078,14 @@ async def get_transits(
     planet_filter = [planet] if planet else None
 
     try:
-        events = calculate_transits(
+        # to_thread: расчёт транзитов на год — CPU-bound синхронный код на
+        # 1–4 секунды (замерено: 3 мес ≈ 1 с, 12 мес ≈ 4 с). Без него один
+        # такой запрос блокирует единственный event loop процесса целиком —
+        # встают чужие SSE-стримы и даже /health. to_thread отпускает GIL на
+        # время вызова расширения pyswisseph, так что параллелизм настоящий,
+        # а не мнимый.
+        events = await asyncio.to_thread(
+            calculate_transits,
             natal_planets=chart.planets,
             from_date=from_dt,
             to_date=to_dt,
@@ -1129,7 +1215,8 @@ async def interpret_transits(
         raise HTTPException(status_code=422, detail="Invalid date format.")
 
     # Calculate transits
-    events = calculate_transits(
+    events = await asyncio.to_thread(
+        calculate_transits,
         natal_planets=chart.planets,
         from_date=from_dt,
         to_date=to_dt,
@@ -1444,13 +1531,24 @@ async def get_weekly_forecast(
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
+    # См. комментарий в get_daily_forecast: та же тарифная категория (AI-транзиты)
+    # и общий дневной бюджет AI — раньше не проверялись здесь вовсе.
+    tier_limiter.check_transit_ai_limit(user, db)
+    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "claude"):
+        raise HTTPException(
+            status_code=503,
+            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+        )
+
     try:
         from_dt = date_type.fromisoformat(week_start)
         to_dt   = date_type.fromisoformat(week_end)
     except ValueError:
         raise HTTPException(status_code=422, detail="Формат даты: YYYY-MM-DD")
 
-    events = calculate_transits(natal_planets=chart.planets, from_date=from_dt, to_date=to_dt)
+    events = await asyncio.to_thread(
+        calculate_transits, natal_planets=chart.planets, from_date=from_dt, to_date=to_dt
+    )
     events_dicts = [
         {
             "transit_planet": e.transit_planet,
@@ -1530,6 +1628,7 @@ async def get_weekly_forecast(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Parse error: {e}")
 
+    tier_limiter.commit_transit_ai(user, db)
     return {"week_start": week_start, "week_end": week_end, "forecast": forecast}
 
 
@@ -1557,6 +1656,17 @@ async def get_daily_forecast(
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
+    # Прогноз — та же категория, что и AI-расшифровка транзитов (Free: недоступно,
+    # Lite: квота в месяц, Pro/Premium: безлимит), и вызывает те же дорогие модели
+    # (Claude/GPT-4o), но раньше не проверял ни тариф, ни дневной бюджет — только
+    # общий IP-лимит 30/минуту. Переиспользуем существующий гейт вместо нового.
+    tier_limiter.check_transit_ai_limit(user, db)
+    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "claude"):
+        raise HTTPException(
+            status_code=503,
+            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+        )
+
     try:
         query_date = date_type.fromisoformat(on_date)
     except ValueError:
@@ -1564,7 +1674,9 @@ async def get_daily_forecast(
 
     from_dt = query_date - timedelta(days=1)
     to_dt   = query_date + timedelta(days=1)
-    events  = calculate_transits(natal_planets=chart.planets, from_date=from_dt, to_date=to_dt)
+    events  = await asyncio.to_thread(
+        calculate_transits, natal_planets=chart.planets, from_date=from_dt, to_date=to_dt
+    )
     active  = get_active_transits(events, query_date)
 
     events_dicts = [
@@ -1644,6 +1756,7 @@ async def get_daily_forecast(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse forecast: {e}")
 
+    tier_limiter.commit_transit_ai(user, db)
     return {"date": on_date, "forecast": forecast}
 
 
@@ -1672,13 +1785,24 @@ async def get_monthly_forecast(
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
+    # См. комментарий в get_daily_forecast: та же тарифная категория (AI-транзиты)
+    # и общий дневной бюджет AI — раньше не проверялись здесь вовсе.
+    tier_limiter.check_transit_ai_limit(user, db)
+    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "claude"):
+        raise HTTPException(
+            status_code=503,
+            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+        )
+
     try:
         from_dt = date_type.fromisoformat(from_date)
         to_dt   = date_type.fromisoformat(to_date)
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid date format.")
 
-    events = calculate_transits(natal_planets=chart.planets, from_date=from_dt, to_date=to_dt)
+    events = await asyncio.to_thread(
+        calculate_transits, natal_planets=chart.planets, from_date=from_dt, to_date=to_dt
+    )
     events_dicts = [
         {
             "transit_planet": e.transit_planet,
@@ -1756,6 +1880,7 @@ async def get_monthly_forecast(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse forecast: {e}")
 
+    tier_limiter.commit_transit_ai(user, db)
     return {"from_date": from_date, "to_date": to_date, "forecast": forecast}
 
 
@@ -2133,7 +2258,7 @@ async def get_lunar_calendar(
     year: int = None,
     month: int = None,
 ):
-    from datetime import date as date_type, datetime as dt_type
+    from datetime import date as date_type
     from backend.calendar.lunar_engine import get_moon_phases, get_eclipses, ZODIAC_SIGNS
     import swisseph as swe
     import calendar as cal_mod
@@ -2226,7 +2351,7 @@ async def get_lunar_calendar(
             "longitude": round(lon[0], 2),
         })
 
-    now = dt_type.utcnow()
+    now = utcnow()
     jd_now = swe.julday(now.year, now.month, now.day, now.hour + now.minute / 60)
     lon_now, _ = swe.calc_ut(jd_now, swe.MOON, swe.FLG_SWIEPH)
     current_sign   = ZODIAC_SIGNS[int(lon_now[0] // 30) % 12]

@@ -17,7 +17,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -54,8 +54,7 @@ class PushSettings(BaseModel):
     key_transits: bool
     moon_phases: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PushSettingsPatch(BaseModel):
@@ -144,7 +143,7 @@ async def update_settings(
         user.push_daily_forecast = payload.daily_forecast
     if payload.daily_time is not None:
         if not _TIME_RE.match(payload.daily_time):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 detail="daily_time must be HH:MM (24h)")
         user.push_daily_time = payload.daily_time
     if payload.planner is not None:

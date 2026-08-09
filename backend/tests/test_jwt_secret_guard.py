@@ -10,6 +10,8 @@ import sys
 
 import pytest
 
+from backend.tests.prod_env import PROD_STARTUP_ENV
+
 
 GOOD_SECRET = "x7Kp2mQvR9dLwF4tYbN6hJ3sZ8cV5gA1nE0uT" + "qWmXyPoI"
 
@@ -21,6 +23,10 @@ def _run(secret, debug="false", testing="false"):
         "TESTING": testing,
         "PATH": os.environ.get("PATH", ""),
         "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        # Прочие прод-guard'ы в main.py тоже валят старт, если не заданы. Здесь
+        # проверяется только JWT_SECRET, поэтому остальное закрываем валидными
+        # значениями — иначе тест падал бы по чужой причине.
+        **PROD_STARTUP_ENV,
     }
     return subprocess.run(
         [sys.executable, "-c", "import backend.main"],

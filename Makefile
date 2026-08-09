@@ -1,4 +1,4 @@
-.PHONY: dev test lint migrate up down clean
+.PHONY: dev test lint migrate up down clean lock audit
 
 # Start development server (without Docker)
 dev:
@@ -20,6 +20,20 @@ test:
 lint:
 	ruff check backend/
 	mypy backend/ --ignore-missing-imports
+
+# Пересобрать лок-файлы зависимостей. Цель — python 3.12/linux, как в
+# контейнере, а не интерпретатор разработчика. Запускать после любой правки
+# зависимостей в pyproject.toml и коммитить оба файла.
+lock:
+	uv pip compile pyproject.toml --python-version 3.12 --python-platform linux \
+		--generate-hashes --no-header -o requirements.lock
+	uv pip compile pyproject.toml --extra dev --python-version 3.12 --python-platform linux \
+		--generate-hashes --no-header -o requirements-dev.lock
+
+# Проверка зависимостей на известные уязвимости — то же, что гоняет CI.
+audit:
+	pip-audit -r requirements.lock --strict
+	cd frontend && npm audit --audit-level=high
 
 # Alembic migration
 migrate:

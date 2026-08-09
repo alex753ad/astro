@@ -1,0 +1,18 @@
+"""Минимальное окружение, с которым `import backend.main` проходит как в проде.
+
+Часть тестов поднимает приложение отдельным процессом с DEBUG=false и
+TESTING=false, чтобы проверить ровно один прод-guard в main.py. Guard'ов там
+несколько, и каждый валит старт: без этого набора тест падал бы не по своей
+причине, а по соседней проверке.
+
+Держать список в одном месте важно: добавили guard в main.py — дописали сюда
+одну строку, и все subprocess-тесты продолжают проверять то, что проверяли.
+"""
+
+PROD_STARTUP_ENV = {
+    # C-2: без секрета служебные /api/v1/internal/* не работают — main.py падает.
+    "INTERNAL_SECRET": "test-internal-secret-not-used-anywhere",
+    # H-4: тестовый режим Robokassa в проде выдавал бы подписки без оплаты.
+    "ROBOKASSA_IS_TEST": "false",
+    "ROBOKASSA_MERCHANT_LOGIN": "test-merchant",
+}

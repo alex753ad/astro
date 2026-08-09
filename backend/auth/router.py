@@ -18,11 +18,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-import random
+import secrets
 import string
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -38,6 +38,7 @@ from backend.auth.jwt import (
     remaining_ttl,
 )
 from backend.auth import login_guard
+from backend.auth.rate_limits import register_send_key
 from backend.auth.sse_tickets import issue as issue_sse_ticket
 from backend.auth.token_store import deny, is_denied
 from backend.limiter import limiter
@@ -45,6 +46,7 @@ from backend.auth.oauth import OAuthError, exchange_google_code
 from backend.auth.passwords import hash_password, validate_password, verify_password
 from backend.config import get_settings
 from backend.database import get_db
+from backend.log_utils import mask_email
 from backend.models import User
 from backend.schemas import (
     GoogleOAuthRequest,
@@ -83,7 +85,10 @@ async def _get_redis() -> aioredis.Redis:
 
 
 def _gen_otp() -> str:
-    return "".join(random.choices(string.digits, k=6))
+    # secrets, а не random: random.choices — детерминированный Mersenne Twister,
+    # его состояние восстанавливается по нескольким наблюдённым выдачам, и коды
+    # подтверждения становятся предсказуемыми.
+    return "".join(secrets.choice(string.digits) for _ in range(6))
 
 
 def _otp_key(identifier: str) -> str:
@@ -103,8 +108,8 @@ async def _store_otp(
     name: str = "",
 ) -> None:
     payload = json.dumps({"code": code, "pw": hashed_pw, "ref": ref_code, "name": name, "attempts": 0})
-    await r.setex(_otp_key(identifier), OTP_TTL, payload)
-    await r.setex(_resend_key(identifier), OTP_RESEND_TTL, "1")
+    await r.set(_otp_key(identifier), payload, ex=OTP_TTL)
+    await r.set(_resend_key(identifier), "1", ex=OTP_RESEND_TTL)
 
 
 async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
@@ -126,7 +131,7 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
         data["attempts"] += 1
         remaining = MAX_OTP_ATTEMPTS - data["attempts"]
         ttl = max(await r.ttl(_otp_key(identifier)), 1)
-        await r.setex(_otp_key(identifier), ttl, json.dumps(data))
+        await r.set(_otp_key(identifier), json.dumps(data), ex=ttl)
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             f"Неверный код. Осталось попыток: {remaining}.",
@@ -136,11 +141,63 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
     return data
 
 
-def _build_token_response(user: User, email: str) -> TokenResponse:
+# ═══════════════════════════════════════════════════════════
+# Refresh-токен: HttpOnly-кука
+# ═══════════════════════════════════════════════════════════
+#
+# Раньше refresh лежал в localStorage и жил 7 дней. localStorage доступен
+# любому JS в источнике — то есть и XSS, и скомпрометированной npm-зависимости,
+# попавшей в бандл на сборке. Кража refresh давала неделю полного доступа к
+# аккаунту, а HttpOnly для него был недостижим в принципе: он ездил в теле.
+#
+# Path сужен до /api/v1/auth: кука нужна ровно двум ручкам (/refresh и /logout)
+# и не должна прикладываться к каждому запросу к API.
+# SameSite=Strict: обе ручки вызываются XHR-ом с нашей же страницы, поэтому
+# Strict ничего не ломает — включая возврат с Google OAuth и Robokassa, где
+# кросс-сайтовым является только сам переход, а не последующий fetch.
+REFRESH_COOKIE_NAME = "astro_refresh"
+REFRESH_COOKIE_PATH = "/api/v1/auth"
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=token,
+        max_age=settings.jwt_refresh_token_expire_days * 24 * 3600,
+        httponly=True,
+        # В локальной разработке фронт ходит по http://localhost — Secure-кука
+        # туда просто не доедет, и залогиниться станет невозможно.
+        secure=not (settings.debug or settings.testing),
+        samesite="strict",
+        path=REFRESH_COOKIE_PATH,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    # Атрибуты обязаны совпадать с теми, что при установке, иначе браузер
+    # удалит не ту куку (а точнее — не удалит никакую).
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+
+
+def _build_token_response(
+    user: User,
+    email: str,
+    response: Response,
+    *,
+    echo_refresh_in_body: bool = False,
+) -> TokenResponse:
+    """Выдаёт пару токенов: access — в теле, refresh — HttpOnly-кукой.
+
+    echo_refresh_in_body=True нужен ровно в одном случае: старая сборка фронта
+    прислала refresh в теле запроса. Не ответить ей тем же — значит разлогинить
+    всех, у кого в момент деплоя открыта вкладка со старым бандлом.
+    """
     tokens = create_token_pair(user.id, email, user.tier, user.token_version or 0)
+    _set_refresh_cookie(response, tokens.refresh_token)
     return TokenResponse(
         access_token=tokens.access_token,
-        refresh_token=tokens.refresh_token,
+        refresh_token=tokens.refresh_token if echo_refresh_in_body else None,
         token_type=tokens.token_type,
         expires_in=tokens.expires_in,
         user_id=user.id,
@@ -197,11 +254,18 @@ def _create_user(
     response_model=MessageResponse,
     summary="Регистрация — отправить OTP на email",
 )
+@limiter.limit("5/hour", key_func=register_send_key)
 async def register_email_send(
+    request: Request,
     data: SendEmailOTPRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     """Отправляет OTP на email.
+
+    Лимит по IP (5/час) — против рассылки писем на чужие адреса: троттлинг
+    _resend_key закрывает только повторную отправку на ОДИН адрес, а перебор
+    разных адресов в цикле генерировал тысячи писем через Resend (счёт плюс
+    попадание домена в спам-листы).
 
     Ответ одинаков независимо от того, занят адрес или нет: раньше занятый
     отдавал 409, и форма регистрации работала как оракул существования
@@ -226,7 +290,7 @@ async def register_email_send(
     code = _gen_otp()
 
     if existing:
-        await r.setex(_resend_key(data.email), OTP_RESEND_TTL, "1")
+        await r.set(_resend_key(data.email), "1", ex=OTP_RESEND_TTL)
         try:
             from backend.email_service import _send, _base, _h2, _p, _btn
             body = (
@@ -242,13 +306,13 @@ async def register_email_send(
                 _base("Аккаунт уже существует", "Вход в аккаунт", body),
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("Existing-account notice failed for %s: %s", data.email, exc)
-        logger.info("Registration attempt on existing account: %s", data.email)
+            logger.error("Existing-account notice failed for %s: %s", mask_email(data.email), exc)
+        logger.info("Registration attempt on existing account: %s", mask_email(data.email))
     else:
         await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "")
         from backend.email_service import send_otp_email
         await send_otp_email(data.email, code)
-        logger.info("Email OTP sent → %s", data.email)
+        logger.info("Email OTP sent → %s", mask_email(data.email))
 
     return MessageResponse(message="Код подтверждения отправлен на почту.")
 
@@ -260,6 +324,7 @@ async def register_email_send(
     summary="Регистрация — подтвердить OTP",
 )
 async def register_email_verify(
+    response: Response,
     data: VerifyEmailOTPRequest,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
@@ -276,8 +341,8 @@ async def register_email_verify(
         ref_code=otp_data.get("ref", ""),
         name=otp_data.get("name", ""),
     )
-    logger.info("New user via email OTP: %s (%s)", data.email, user.id)
-    return _build_token_response(user, data.email)
+    logger.info("New user via email OTP: %s (%s)", mask_email(data.email), user.id)
+    return _build_token_response(user, data.email, response)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -291,6 +356,7 @@ async def register_email_verify(
     summary="Регистрация (legacy, без OTP)",
 )
 async def register_legacy(
+    response: Response,
     data: RegisterRequest,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
@@ -311,8 +377,8 @@ async def register_legacy(
     db.add(user)
     db.commit()
     db.refresh(user)
-    logger.info("New user via legacy register: %s (%s)", data.email, user.id)
-    return _build_token_response(user, data.email)
+    logger.info("New user via legacy register: %s (%s)", mask_email(data.email), user.id)
+    return _build_token_response(user, data.email, response)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -321,7 +387,12 @@ async def register_legacy(
 
 @router.post("/login", response_model=TokenResponse, summary="Вход по email + пароль")
 @limiter.limit("10/minute")
-async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+async def login(
+    request: Request,
+    response: Response,
+    data: LoginRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
     # Лимит по IP не мешает перебору одного аккаунта с ботнета — считаем
     # неудачи ещё и по email.
     if await login_guard.is_locked(data.email):
@@ -341,7 +412,7 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
 
     await login_guard.reset(data.email)
-    return _build_token_response(user, user.email)
+    return _build_token_response(user, user.email, response)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -350,10 +421,26 @@ async def login(request: Request, data: LoginRequest, db: Session = Depends(get_
 
 @router.post("/refresh", response_model=TokenResponse, summary="Обновить access token")
 @limiter.limit("30/minute")
-async def refresh_token(request: Request, data: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
+async def refresh_token(
+    request: Request,
+    response: Response,
+    data: RefreshRequest | None = None,
+    astro_refresh: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    # Источник токена — HttpOnly-кука. Тело запроса читается только как запасной
+    # путь для старых сборок фронта; когда они уйдут из кэшей браузеров, ветку с
+    # body можно удалить вместе с полем refresh_token в RefreshRequest.
+    from_body = bool(data and data.refresh_token)
+    raw_refresh = astro_refresh or (data.refresh_token if data else None)
+    if not raw_refresh:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Refresh token отсутствует.")
+
     try:
-        token_data = decode_token(data.refresh_token)
+        token_data = decode_token(raw_refresh)
     except JWTError:
+        # Кука мёртвая — снимаем её, иначе браузер будет слать мусор ещё неделю.
+        _clear_refresh_cookie(response)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Недействительный refresh token.")
 
     if token_data.token_type != "refresh":
@@ -379,7 +466,9 @@ async def refresh_token(request: Request, data: RefreshRequest, db: Session = De
     except Exception as exc:  # noqa: BLE001
         logger.error("refresh rotation deny failed: %s", exc)
 
-    return _build_token_response(user, user.email or token_data.email)
+    return _build_token_response(
+        user, user.email or token_data.email, response, echo_refresh_in_body=from_body
+    )
 
 
 _logout_bearer = HTTPBearer(auto_error=True)
@@ -387,7 +476,9 @@ _logout_bearer = HTTPBearer(auto_error=True)
 
 @router.post("/logout", response_model=MessageResponse, summary="Выход — отзыв токенов")
 async def logout(
+    response: Response,
     data: RefreshRequest | None = None,
+    astro_refresh: str | None = Cookie(default=None),
     credentials: HTTPAuthorizationCredentials = Depends(_logout_bearer),
 ) -> MessageResponse:
     """Отзывает текущий access-токен и (если передан) refresh-токен.
@@ -401,14 +492,18 @@ async def logout(
         pass  # некорректный access — отзывать нечего
     except Exception as exc:  # noqa: BLE001
         logger.error("logout deny(access) failed: %s", exc)
-    if data and data.refresh_token:
+    raw_refresh = astro_refresh or (data.refresh_token if data else None)
+    if raw_refresh:
         try:
-            refresh = decode_token(data.refresh_token)
+            refresh = decode_token(raw_refresh)
             await deny(refresh.jti, remaining_ttl(refresh.exp))
         except JWTError:
             pass
         except Exception as exc:  # noqa: BLE001
             logger.error("logout deny(refresh) failed: %s", exc)
+    # Куку снимаем всегда: даже если токен в ней уже протух, оставлять её в
+    # браузере после явного выхода незачем.
+    _clear_refresh_cookie(response)
     return MessageResponse(message="Вы вышли из аккаунта.")
 
 
@@ -417,7 +512,11 @@ async def logout(
 # ═══════════════════════════════════════════════════════════
 
 @router.post("/google", response_model=TokenResponse, summary="Вход через Google")
-async def google_oauth(data: GoogleOAuthRequest, db: Session = Depends(get_db)) -> TokenResponse:
+async def google_oauth(
+    response: Response,
+    data: GoogleOAuthRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
     try:
         google_user = await exchange_google_code(code=data.code, redirect_uri=data.redirect_uri)
     except OAuthError as exc:
@@ -444,12 +543,12 @@ async def google_oauth(data: GoogleOAuthRequest, db: Session = Depends(get_db)) 
         db.add(user)
         db.commit()
         db.refresh(user)
-        logger.info("New OAuth user: %s", google_user.email)
+        logger.info("New OAuth user: %s (%s)", mask_email(google_user.email), user.id)
     elif user.google_sub is None:
         user.google_sub = google_user.sub
         db.commit()
 
-    return _build_token_response(user, user.email)
+    return _build_token_response(user, user.email, response)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -469,6 +568,10 @@ async def confirm_email(
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Пользователь не найден.")
+
+    # Ссылка суточной давности не должна переживать logout-all / смену пароля.
+    if is_session_revoked(user, token_data):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Недействительная или истёкшая ссылка.")
 
     user.is_email_confirmed = True
     db.commit()
@@ -495,12 +598,16 @@ async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
 
 @router.delete("/me", response_model=MessageResponse, summary="Удалить аккаунт")
 async def delete_account(
+    response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     db.delete(user)
     db.commit()
-    logger.info("User deleted: %s (%s)", user.email, user.id)
+    logger.info("User deleted: %s (%s)", mask_email(user.email), user.id)
+    # Аккаунта больше нет — кука с refresh только мешала бы: следующий /refresh
+    # получил бы 401 и лишний раз напугал пользователя.
+    _clear_refresh_cookie(response)
     return MessageResponse(message="Account deleted. Аккаунт удалён.")
 
 
@@ -545,7 +652,7 @@ async def forgot_password(
 ) -> MessageResponse:
     user = db.query(User).filter(User.email == data.email).first()
     if user and user.hashed_password:
-        token = create_password_reset_token(user.id, user.email)
+        token = create_password_reset_token(user.id, user.email, user.token_version or 0)
         reset_url = f"{get_settings().frontend_url}/reset-password?token={token}"
         try:
             from backend.email_service import _send, _base, _h2, _p, _btn
@@ -561,8 +668,8 @@ async def forgot_password(
                 _base("Сброс пароля", "Ссылка для сброса", body),
             )
         except Exception as exc:
-            logger.error("Password reset email failed for %s: %s", data.email, exc)
-        logger.info("Password reset requested: %s", data.email)
+            logger.error("Password reset email failed for %s: %s", mask_email(data.email), exc)
+        logger.info("Password reset requested: %s", mask_email(data.email))
     return MessageResponse(message="Если аккаунт существует, письмо отправлено.")
 
 
@@ -592,6 +699,11 @@ async def reset_password(
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Пользователь не найден.")
 
+    # Ссылка, выписанная до logout-all или до предыдущей смены пароля, больше не
+    # действует: иначе старое письмо оставалось рабочим ключом к аккаунту.
+    if is_session_revoked(user, token_data):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ссылка недействительна или истёкла.")
+
     user.hashed_password = hash_password(data.new_password)
     # Смена пароля отзывает все ранее выданные access/refresh токены: иначе
     # угнавший сессию сохранял бы доступ и после того, как владелец сменил пароль.
@@ -601,12 +713,13 @@ async def reset_password(
     # Гасим ссылку только после успешной смены пароля.
     await deny(token_data.jti, remaining_ttl(token_data.exp))
 
-    logger.info("Password reset completed: %s", user.email)
+    logger.info("Password reset completed: %s (%s)", mask_email(user.email), user.id)
     return MessageResponse(message="Пароль успешно изменён.")
 
 
 @router.post("/logout-all", response_model=MessageResponse, summary="Выйти на всех устройствах")
 async def logout_all(
+    response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MessageResponse:
@@ -616,5 +729,8 @@ async def logout_all(
     """
     user.token_version = (user.token_version or 0) + 1
     db.commit()
-    logger.info("All sessions revoked: %s", user.email)
+    # Кука на этом устройстве тоже уже недействительна (token_version вырос) —
+    # снимаем, чтобы не гонять заведомо мёртвый токен на /refresh неделю.
+    _clear_refresh_cookie(response)
+    logger.info("All sessions revoked: %s (%s)", mask_email(user.email), user.id)
     return MessageResponse(message="Вы вышли на всех устройствах.")

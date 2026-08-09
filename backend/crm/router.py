@@ -18,7 +18,8 @@ import hashlib
 import logging
 import secrets
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from backend.time_utils import utcnow
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -31,6 +32,10 @@ from backend.models import AstrologerProfile, ClientPortalAccess, ClientProfile,
 from backend.auth.dependencies import get_current_user, require_tier
 
 logger = logging.getLogger("astro.crm")
+
+# Срок жизни ссылки на клиентский портал: она публичная и отдаёт ПДн клиента
+# (дата и место рождения), поэтому бессрочной быть не должна.
+PORTAL_TTL_DAYS = int(os.getenv("PORTAL_TTL_DAYS", "180"))
 
 router = APIRouter(prefix="/api/v1/clients", tags=["crm"])
 
@@ -562,7 +567,7 @@ async def create_consultation(
     client = _get_client_or_404(client_id, astrologer, db)
     consultation = Consultation(
         client_id=client.id,
-        date=payload.date or datetime.utcnow(),
+        date=payload.date or utcnow(),
         topic=payload.topic,
         notes=payload.notes,
         assignment=payload.assignment,
@@ -862,7 +867,13 @@ async def set_portal(
     client = _get_client_or_404(client_id, astrologer, db)
     portal = db.query(ClientPortalAccess).filter(ClientPortalAccess.client_id == client.id).first()
     if not portal:
-        portal = ClientPortalAccess(client_id=client.id, token=secrets.token_urlsafe(24), enabled=payload.enabled)
+        portal = ClientPortalAccess(
+            client_id=client.id,
+            token=secrets.token_urlsafe(24),
+            enabled=payload.enabled,
+            # Ссылка на портал открывает ПДн клиента без авторизации — даём ей срок.
+            expires_at=utcnow() + timedelta(days=PORTAL_TTL_DAYS),
+        )
         db.add(portal)
     else:
         portal.enabled = payload.enabled

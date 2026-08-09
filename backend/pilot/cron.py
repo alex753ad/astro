@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, date as date_type
+from datetime import timedelta, date as date_type
+from backend.time_utils import utcnow
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from backend.authz import require_internal_secret
 from backend.database import get_db
 from backend.models import User, NatalChart, PushSentLog
 from backend.push.sender import send_to_user
@@ -30,7 +32,12 @@ from backend.email_service import TIER_NAMES
 
 logger = logging.getLogger("astro.pilot.cron")
 
-router = APIRouter(prefix="/api/v1/internal", tags=["internal"])
+# Секрет проверяется на уровне роутера — см. backend/authz.require_internal_secret.
+router = APIRouter(
+    prefix="/api/v1/internal",
+    tags=["internal"],
+    dependencies=[Depends(require_internal_secret)],
+)
 
 PILOT_DAYS = int(os.getenv("PILOT_DAYS", "30"))
 FAREWELL_LEAD_DAYS = 3
@@ -123,8 +130,8 @@ def _upcoming_windows(db: Session, user: User) -> list[str]:
     return out
 
 
-def _process(db: Session, user: User) -> dict:
-    now = datetime.utcnow()
+async def _process(db: Session, user: User) -> dict:
+    now = utcnow()
     start = user.pilot_started_at
     if not start:
         return {}
@@ -138,21 +145,22 @@ def _process(db: Session, user: User) -> dict:
             days_left = max(1, (end.date() - now.date()).days)
             windows = _upcoming_windows(db, user)
 
-            # письмо
+            # письмо. Раньше здесь стоял asyncio.get_event_loop().run_until_complete()
+            # внутри уже запущенного event loop (pilot_tick — async) — гарантированный
+            # RuntimeError на каждый вызов, письмо молча не уходило, а _mark ниже
+            # писал "отправлено" и хоронил попытку навсегда.
+            email_ok = False
             try:
-                import asyncio
                 from backend.email_service import send_pilot_farewell
                 checkout_url = None
                 if PROMO_CODE:
                     from backend.config import get_settings
                     checkout_url = f"{get_settings().frontend_url}/profile?upgrade=pro"
-                asyncio.get_event_loop().run_until_complete(
-                    send_pilot_farewell(
-                        user.email, windows,
-                        promo_code=PROMO_CODE, offer_text=PROMO_OFFER,
-                        checkout_url=checkout_url,
-                        deadline=PROMO_DEADLINE, days_left=days_left,
-                    )
+                email_ok = await send_pilot_farewell(
+                    user.email, windows,
+                    promo_code=PROMO_CODE, offer_text=PROMO_OFFER,
+                    checkout_url=checkout_url,
+                    deadline=PROMO_DEADLINE, days_left=days_left,
                 )
             except Exception as e:
                 logger.warning("farewell email failed user=%s: %s", user.id, e)
@@ -168,8 +176,12 @@ def _process(db: Session, user: User) -> dict:
             except Exception as e:
                 logger.warning("farewell push failed user=%s: %s", user.id, e)
 
-            _mark(db, user.id, "farewell", ref)
-            result["farewell"] = True
+            # Отмечаем только при успешной отправке письма — иначе транзиентный
+            # сбой (сеть, Resend недоступен) хоронит уведомление до конца пилота:
+            # следующий тик видит тот же ref и молча пропускает шаг.
+            if email_ok:
+                _mark(db, user.id, "farewell", ref)
+                result["farewell"] = True
 
     # 2) Спящий 5/10/14 — только пока пилот активен (юзер платно не пользуется)
     if now < end:
@@ -187,16 +199,14 @@ def _process(db: Session, user: User) -> dict:
                 near = windows[0] if windows else None
                 survey_url = _survey_url(user, "dormant") if step in (10, 14) else None
 
+                email_ok = False
                 try:
-                    import asyncio
                     from backend.email_service import send_dormant
-                    asyncio.get_event_loop().run_until_complete(
-                        send_dormant(
-                            user.email, step,
-                            window=near,
-                            missed_count=(len(windows) or None),
-                            survey_url=survey_url,
-                        )
+                    email_ok = await send_dormant(
+                        user.email, step,
+                        window=near,
+                        missed_count=(len(windows) or None),
+                        survey_url=survey_url,
                     )
                 except Exception as e:
                     logger.warning("dormant%s email failed user=%s: %s", step, user.id, e)
@@ -213,9 +223,10 @@ def _process(db: Session, user: User) -> dict:
                 except Exception as e:
                     logger.warning("dormant%s push failed user=%s: %s", step, user.id, e)
 
-                _mark(db, user.id, f"dormant{step}", cohort)
-                result["dormant"] = step
-                break  # один шаг за прогон
+                if email_ok:
+                    _mark(db, user.id, f"dormant{step}", cohort)
+                    result["dormant"] = step
+                break  # один шаг за прогон (даже если письмо не ушло — не залипаем на нём весь тик)
 
     # 3) Даунгрейд после конца
     if now >= end and user.tier != "free":
@@ -233,34 +244,30 @@ def _process(db: Session, user: User) -> dict:
     if now >= end and (user.tier or "free") == "free":
         ref = f"eom:{end.date().isoformat()}"
         if not _already(db, user.id, "exit_eom", ref):
+            email_ok = False
             try:
-                import asyncio
                 from backend.email_service import send_end_of_month_survey
-                asyncio.get_event_loop().run_until_complete(
-                    send_end_of_month_survey(user.email, _survey_url(user, "end_of_month"))
+                email_ok = await send_end_of_month_survey(
+                    user.email, _survey_url(user, "end_of_month")
                 )
             except Exception as e:
                 logger.warning("eom survey email failed user=%s: %s", user.id, e)
-            _mark(db, user.id, "exit_eom", ref)
-            result["eom_survey"] = True
+            if email_ok:
+                _mark(db, user.id, "exit_eom", ref)
+                result["eom_survey"] = True
 
     return result
 
 
 @router.post("/pilot-tick")
 async def pilot_tick(
-    x_internal_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    secret = os.getenv("INTERNAL_SECRET", "")
-    if secret and x_internal_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
     users = db.query(User).filter(User.pilot_started_at.isnot(None)).all()
     farewell = downgraded = dormant = eom = 0
     for user in users:
         try:
-            r = _process(db, user)
+            r = await _process(db, user)
             farewell += 1 if r.get("farewell") else 0
             downgraded += 1 if r.get("downgraded") else 0
             dormant += 1 if r.get("dormant") else 0

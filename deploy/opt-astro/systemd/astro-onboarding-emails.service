@@ -1,0 +1,10 @@
+[Unit]
+Description=Astro onboarding retention emails (day 2 / day 7)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/opt/astro
+ExecStart=/opt/astro/09-internal-cron.sh /api/v1/internal/onboarding-emails

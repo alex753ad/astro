@@ -6,6 +6,25 @@ on:
   pull_request:
     branches: [main]
 
+# По умолчанию GITHUB_TOKEN получает права из настроек репозитория — вплоть до
+# write-all. Здесь он нужен только на чтение кода; джобы, которым нужно больше,
+# расширяют права у себя (см. security → gitleaks).
+permissions:
+  contents: read
+
+# Новый push в ту же ветку отменяет предыдущий прогон. Деплой не отменяем:
+# оборванный на середине деплой хуже лишней минуты ожидания.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Все actions запинены на SHA коммита, а не на плавающий тег.
+# Тег вида @v1 владелец репозитория (или тот, кто угонит к нему доступ) может
+# передвинуть на произвольный код — а этот код выполнится с приватным
+# SSH-ключом от прод-сервера в secrets.SSH_PRIVATE_KEY. SHA передвинуть нельзя.
+# Обновления доверены Dependabot (.github/dependabot.yml), он поднимает SHA
+# отдельным PR и пишет новую версию в комментарий.
+
 jobs:
   # ─────────────────────────────────────────────
   # 1. Backend tests
@@ -49,21 +68,100 @@ jobs:
       STRIPE_WEBHOOK_SECRET: ""
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
 
+      # Из лока, а не из диапазонов pyproject: тесты обязаны гонять ровно те
+      # версии, которые поедут в прод-образ.
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install --no-cache-dir -r requirements-dev.lock
+          pip install --no-cache-dir --no-deps -e .
 
       - name: Run unit tests
         run: pytest backend/tests/ -v -m "not integration and not load" --tb=short --ignore=backend/tests/test_payments.py --ignore=backend/tests/test_validation.py
 
   # ─────────────────────────────────────────────
-  # 2. Alembic autogenerate (только PR)
+  # 2. Статический анализ и уязвимости
+  # ─────────────────────────────────────────────
+  # Отдельная джоба, а не шаги внутри тестов: она не зависит от сервисов и
+  # отрабатывает за минуту, давая быструю обратную связь на PR.
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # gitleaks сравнивает диапазон коммитов — с shallow-клоном ему нечего
+          # смотреть, кроме последнего.
+          fetch-depth: 0
+
+      # ── Секреты в истории ──────────────────────────────────────────────────
+      # Блокирующий шаг. Именно этого шага не хватало, чтобы заметить рабочий
+      # OPENAI_API_KEY и JWT_SECRET, закоммиченные в .env.example.
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Отдельная дешёвая проверка ровно того случая, который уже случился:
+      # в .env.example должны быть имена переменных и плейсхолдеры, а не значения.
+      - name: .env.example не содержит значений
+        run: |
+          # Смотрим только на ключи, которые по имени обязаны быть секретом, и
+          # только на длинные значения. DATABASE_URL и ALLOWED_ORIGINS тоже
+          # длинные, но это не секреты, а образцы формата.
+          # Плейсхолдеры вида sk-..., <generate-me>, re_... — допустимы.
+          bad=$(grep -rnE '^[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY)[A-Z0-9_]*=[^[:space:]]{25,}' \
+                  --include='*.env.example' --include='.env.example' \
+                  --exclude-dir=.claude --exclude-dir=node_modules . 2>/dev/null \
+                | grep -vE '=(<[^>]+>|CHANGE_ME[A-Z_]*|[A-Za-z_]*\.\.\.)$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Похоже на настоящий секрет в *.env.example — там должны быть только имена и плейсхолдеры:"
+            echo "$bad"
+            exit 1
+          fi
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install audit tooling
+        run: pip install --no-cache-dir pip-audit bandit ruff
+
+      # ── Уязвимые зависимости ───────────────────────────────────────────────
+      # Проверяем именно лок: он описывает то, что реально поедет в образ.
+      - name: pip-audit
+        run: pip-audit -r requirements.lock --strict
+
+      # ── SAST ───────────────────────────────────────────────────────────────
+      # -ll: только MEDIUM и выше. LOW у bandit — это в основном assert в тестах
+      # и «подозрительный» random, шум ради шума.
+      - name: bandit
+        run: bandit -r backend/ -ll --exclude backend/tests
+
+      - name: ruff
+        run: ruff check backend/
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  # ─────────────────────────────────────────────
+  # 3. Alembic autogenerate (только PR)
   # ─────────────────────────────────────────────
   check-migrations:
     runs-on: ubuntu-latest
@@ -95,15 +193,17 @@ jobs:
       STRIPE_WEBHOOK_SECRET: ""
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: |
+          pip install --no-cache-dir -r requirements-dev.lock
+          pip install --no-cache-dir --no-deps -e .
 
       - name: Apply existing migrations
         run: alembic upgrade head
@@ -124,15 +224,15 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────
-  # 3. Frontend lint + build
+  # 4. Frontend lint + build
   # ─────────────────────────────────────────────
   test-frontend:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "20"
           cache: npm
@@ -147,7 +247,7 @@ jobs:
         run: npm run build
 
   # ─────────────────────────────────────────────
-  # 4. Deploy на VPS по SSH (только main, только после зелёных тестов)
+  # 5. Deploy на VPS по SSH (только main, только после зелёных тестов)
   # ─────────────────────────────────────────────
   # Никакого прямого доступа CI к прод-БД: миграции, дамп и health-check
   # выполняются на самом сервере через 05-update.sh (без флагов — "оба"),
@@ -157,12 +257,17 @@ jobs:
   # пересобирается тем же скриптом, но только если менялся app/frontend/.
   deploy:
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend]
+    needs: [test-backend, test-frontend, security]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    # Environment с required reviewers: без него любой push в main уезжал на
+    # прод немедленно. Настраивается в Settings → Environments → production
+    # (Required reviewers + Deployment branches: main).
+    environment: production
 
     steps:
       - name: Deploy on VPS
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2  # v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}

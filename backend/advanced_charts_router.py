@@ -251,7 +251,7 @@ async def _build_solar_return(chart: NatalChart, year: int, location: str | None
     )
     if natal_sun is None or chart.utc_datetime is None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "В карте нет данных о Солнце или времени рождения — соляр не рассчитать.",
         )
 
@@ -476,7 +476,7 @@ async def interpret_synastry(
 async def _build_relocation(chart: NatalChart, location: str) -> dict:
     if chart.utc_datetime is None:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "В карте нет момента рождения в UTC — релокацию не рассчитать.",
         )
 

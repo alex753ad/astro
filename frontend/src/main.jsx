@@ -15,6 +15,15 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
+// Регистрация service worker. Раньше это был инлайновый <script> в index.html —
+// он не переживает CSP с script-src 'self' (без 'unsafe-inline'), поэтому код
+// переехал в бандл.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(console.error);
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
