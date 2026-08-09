@@ -321,14 +321,21 @@ if not (settings.debug or settings.testing):
 
     # ── Robokassa ──
     # IsTest=1 проводит оплату без реального списания, но вебхук приходит
-    # настоящий и activate_subscription выдаёт полноценный тариф.
+    # настоящий и activate_subscription выдаёт полноценный тариф — это
+    # единственная реальная уязвимость здесь, поэтому единственное, что валит
+    # старт. Пустой MERCHANT_LOGIN просто значит «оплата ещё не подключена»
+    # (нормально до запуска платежей) — раньше это тоже валило старт целиком,
+    # хотя ничем не грозит: чекаут для такого продукта и так пока не нужен.
     if settings.robokassa_is_test:
         raise RuntimeError(
             "ROBOKASSA_IS_TEST=true вне DEBUG — подписки выдавались бы без оплаты. "
             "Поставьте ROBOKASSA_IS_TEST=false."
         )
     if not settings.robokassa_merchant_login:
-        raise RuntimeError("ROBOKASSA_MERCHANT_LOGIN не задан — оплата не заработает.")
+        logger.warning(
+            "ROBOKASSA_MERCHANT_LOGIN не задан — оплата не настроена, "
+            "checkout не будет работать до заполнения."
+        )
 
 # ── Доверенные прокси ──
 # Без этого request.client.host остаётся адресом прокси. Список строгий:

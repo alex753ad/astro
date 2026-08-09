@@ -52,12 +52,18 @@ done
 # ---------------------------------------------------------------------------
 _env_has() { grep -qE "^${1}=.+" .env; }
 for _required in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL \
-                 REDIS_PASSWORD REDIS_URL JWT_SECRET INTERNAL_SECRET \
-                 ROBOKASSA_MERCHANT_LOGIN; do
+                 REDIS_PASSWORD REDIS_URL JWT_SECRET INTERNAL_SECRET; do
   _env_has "$_required" || die "в .env не задан ${_required} — деплой остановлен."
 done
-grep -qE '^ROBOKASSA_IS_TEST=(false|0)$' .env \
-  || die "ROBOKASSA_IS_TEST должен быть false в проде — иначе подписки выдаются без оплаты."
+# ROBOKASSA_MERCHANT_LOGIN намеренно не в списке выше: пустой — это «оплата
+# ещё не подключена», не ошибка конфигурации (backend/main.py логирует
+# предупреждение, но не падает). А вот IS_TEST=true — реальный риск (подписки
+# без оплаты), поэтому единственная жёсткая проверка ниже: падаем, только если
+# кто-то явно включил тестовый режим. Отсутствие строки = дефолт false в
+# config.py, это нормально.
+if grep -qE '^ROBOKASSA_IS_TEST=(true|1)$' .env; then
+  die "ROBOKASSA_IS_TEST=true в проде — подписки выдавались бы без оплаты."
+fi
 grep -qE '^REDIS_URL=redis://:[^@]+@' .env \
   || die "REDIS_URL без пароля — Redis теперь запускается с requirepass, приложение не подключится."
 
@@ -142,14 +148,19 @@ if $DO_BACKEND; then
   log "Бэкенд: собираю образ (api, bot, worker, beat)"
   run_with_registry_retry docker compose build api bot worker beat
 
-  log "Бэкенд: пересоздаю api, bot, worker, beat из новой сборки (работавшие контейнеры не трогались до этого момента)"
-  docker compose up -d --no-deps api bot worker beat
-
   # rollback: возвращает тег astro-app:latest на образ, работавший до этого
-  # деплоя, и пересоздаёт api/bot из него. Откатывает только контейнеры —
-  # применённые alembic-миграции вперёд не отменяются (down-миграции на
-  # проде с живыми данными — отдельный, осознанный ручной шаг, не то, что
-  # должно происходить автоматически).
+  # деплоя, и пересоздаёт api/bot/worker/beat из него. Откатывает только
+  # контейнеры — применённые alembic-миграции вперёд не отменяются
+  # (down-миграции на проде с живыми данными — отдельный, осознанный ручной
+  # шаг, не то, что должно происходить автоматически).
+  #
+  # Определена ДО первого docker compose up: у bot есть
+  # `depends_on: api: condition: service_healthy`, и compose ждёт healthy api
+  # ВНУТРИ ОДНОГО ВЫЗОВА up (--no-deps только про соседние сервисы вне
+  # списка, не про порядок между перечисленными). Если api не поднимется,
+  # сам `up` вернёт ненулевой код — с `set -e` это раньше убивало скрипт
+  # прежде, чем он успевал дойти до отката: новый (нездоровый) контейнер уже
+  # заменил собой старый рабочий, а откатиться было нечем.
   rollback() {
     if ! $have_rollback_image; then
       echo "  нет предыдущего образа для отката (это был первый деплой) — откатывать нечего" >&2
@@ -159,6 +170,12 @@ if $DO_BACKEND; then
     docker tag astro-app:rollback astro-app:latest
     docker compose up -d --no-deps api bot worker beat
   }
+
+  log "Бэкенд: пересоздаю api, bot, worker, beat из новой сборки (работавшие контейнеры не трогались до этого момента)"
+  if ! docker compose up -d --no-deps api bot worker beat; then
+    rollback
+    die "api/bot/worker/beat не поднялись новой сборкой (не прошёл healthcheck) — выполнен откат на предыдущий образ."
+  fi
 
   log "Бэкенд: применяю миграции (alembic upgrade head)"
   if ! docker compose exec -T api alembic upgrade head; then
