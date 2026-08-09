@@ -26,7 +26,7 @@ INTERNAL_ENDPOINTS = [
     "/api/v1/internal/pilot-tick",
 ]
 
-SECRET = "internal-secret-for-tests-0123456789"
+SECRET = "internal-secret-for-tests-0123456789"  # gitleaks:allow — тестовая фикстура, не реальный секрет
 
 
 @pytest.fixture

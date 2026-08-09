@@ -13,7 +13,7 @@ import pytest
 from backend.tests.prod_env import PROD_STARTUP_ENV
 
 
-GOOD_SECRET = "x7Kp2mQvR9dLwF4tYbN6hJ3sZ8cV5gA1nE0uT" + "qWmXyPoI"
+GOOD_SECRET = "x7Kp2mQvR9dLwF4tYbN6hJ3sZ8cV5gA1nE0uT" + "qWmXyPoI"  # gitleaks:allow — тестовая фикстура, не реальный секрет
 
 
 def _run(secret, debug="false", testing="false"):

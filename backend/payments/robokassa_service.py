@@ -37,7 +37,13 @@ PERIOD_DAYS = {"monthly": 30, "annual": 365}
 # ── Подпись ────────────────────────────────────────────────
 
 def _md5(s: str) -> str:
-    return hashlib.md5(s.encode("utf-8")).hexdigest().upper()
+    # MD5 не выбор, а требование протокола Robokassa: подпись платёжного
+    # шлюза считается им и только им, другой алгоритм не даст совпадения при
+    # верификации на их стороне. usedforsecurity=False — эта MD5 не участвует
+    # ни в чём криптографически значимом со стороны приложения (не хеш пароля,
+    # не проверка целостности данных, которым мы доверяем) и на некоторых
+    # сборках OpenSSL требуется, чтобы вызов не падал в FIPS-режиме.
+    return hashlib.md5(s.encode("utf-8"), usedforsecurity=False).hexdigest().upper()  # nosec B324
 
 
 def _shp_string(shp: dict) -> str:
