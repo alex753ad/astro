@@ -174,7 +174,7 @@ const STATUS_OPTIONS = Object.entries(STATUS_META).map(([v, m]) => [v, m[0]]);
 
 function StatusBadge({ status }) {
   const m = STATUS_META[status];
-  if (!m) return null;
+  if (!m || status === 'lead') return null;
   return (
     <span style={{ fontSize: 11, fontWeight: 600, color: m[1], background: m[1] + '22', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
       {m[0]}
