@@ -873,16 +873,21 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [hasFullAccess, isLite]);
 
   const filteredEvents = useMemo(() => {
-    return events.filter(e => {
+    const filtered = events.filter(e => {
       if (planetFilter.length > 0 && !planetFilter.includes(e.transit_planet)) return false;
       if (aspectFilter.length > 0 && !aspectFilter.includes(e.aspect_type))    return false;
       if ((e.peak_orb ?? e.orb) > orbFilter) return false;
-      if (activeDate) {
-        const s  = e.start_date || e.date;
-        const en = e.end_date   || e.date;
-        if (activeDate < s || activeDate > en) return false;
-      }
+      if (activeDate && !isActiveOnDate(e, activeDate)) return false;
       return true;
+    });
+    if (!activeDate) return filtered;
+    // Выбран день — ближайший к нему пик сверху, при равенстве меньший орб выше.
+    const activeMs = new Date(activeDate + "T00:00:00").getTime();
+    return [...filtered].sort((a, b) => {
+      const da = Math.abs(new Date((a.peak_date || a.date) + "T00:00:00") - activeMs);
+      const db = Math.abs(new Date((b.peak_date || b.date) + "T00:00:00") - activeMs);
+      if (da !== db) return da - db;
+      return (a.peak_orb ?? a.orb ?? 0) - (b.peak_orb ?? b.orb ?? 0);
     });
   }, [events, planetFilter, aspectFilter, orbFilter, activeDate]);
 
