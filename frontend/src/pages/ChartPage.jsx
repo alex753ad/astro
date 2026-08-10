@@ -664,7 +664,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   function handleTopTabChange(key) {
     setTopTab(key);
     setActiveTab(key); // keep transit/planner logic
-    setSearchParams({ tab: key });
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', key);
+      return next;
+    });
   }
 
   function handleLeftBtn(key) {
