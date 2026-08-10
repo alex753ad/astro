@@ -20,6 +20,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date
 from typing import Optional
+from urllib.parse import quote
 
 import swisseph as swe
 
@@ -601,17 +602,7 @@ def _alert_already_sent(user_id: str, transit_key: str) -> bool:
 async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], chart_id: str | None = None) -> None:
     """Отправляет email-алерт когда медленная планета начинает новый проход."""
     from backend.email_service import send_transit_alert_email, APP_URL
-
-    PLANET_RU = {"Jupiter": "Юпитер", "Saturn": "Сатурн",
-                 "Uranus": "Уран", "Neptune": "Нептун"}
-    ASP_RU = {"conjunction": "соединение", "sextile": "секстиль",
-              "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
-    NATAL_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий",
-                "Venus": "Венера", "Mars": "Марс", "Jupiter": "Юпитер",
-                "Saturn": "Сатурн", "Uranus": "Уран", "Neptune": "Нептун",
-                "Pluto": "Плутон", "North Node": "Сев. Узел", "South Node": "Юж. Узел",
-                "Ascendant": "Асцендент", "Midheaven": "MC",
-                "Descendant": "Десцендент", "IC": "IC"}
+    from backend.ephemeris.ru_names import PLANET_RU, ASPECT_RU as ASP_RU
 
     today = date.today()
 
@@ -632,7 +623,7 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
             continue
 
         planet_ru = PLANET_RU.get(t.transit_planet, t.transit_planet)
-        natal_ru  = NATAL_RU.get(t.natal_planet, t.natal_planet)
+        natal_ru  = PLANET_RU.get(t.natal_planet, t.natal_planet)
         asp_ru    = ASP_RU.get(t.aspect_type, t.aspect_type)
         desc      = _build_transit_alert_description(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
         subject   = _build_transit_alert_subject(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
@@ -640,9 +631,11 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
         # Ссылка ведёт прямо на этот транзит во вкладке "Транзиты" карты —
         # event_key совпадает по формату с eventKey() во фронтенде
         # (frontend/src/components/TransitTimeline.jsx), чтобы страница сама
-        # нашла и открыла именно это событие, а не просто список.
+        # нашла и открыла именно это событие, а не просто список. quote() —
+        # natal_planet вида "North Node" содержит пробел, без кодирования
+        # ссылка невалидна и её может обрезать почтовый клиент/click-tracking.
         event_key = f"{t.peak_date}-{t.transit_planet}-{t.natal_planet}-{t.aspect_type}"
-        link = f"{APP_URL}/chart/{chart_id}?tab=transits&event={event_key}" if chart_id else APP_URL
+        link = f"{APP_URL}/chart/{chart_id}?tab=transits&event={quote(event_key)}" if chart_id else APP_URL
 
         try:
             await send_transit_alert_email(

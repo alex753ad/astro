@@ -29,6 +29,7 @@ from backend.database import get_db
 from backend.models import User, NatalChart, PushSentLog
 from backend.push.sender import send_to_user
 from backend.email_service import TIER_NAMES
+from backend.ephemeris.ru_names import PLANET_RU
 
 logger = logging.getLogger("astro.pilot.cron")
 
@@ -46,11 +47,6 @@ PROMO_CODE = os.getenv("CONTINUE_PRO_CODE", "astropro90")
 PROMO_OFFER = os.getenv("CONTINUE_PRO_OFFER", f"{TIER_NAMES['pro']} — 690 ₽ в месяц на 3 месяца")
 PROMO_DEADLINE = os.getenv("CONTINUE_DEADLINE")     # задаёт админ в панели (см. E8_wiring)
 
-PLANET_RU = {
-    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
-    "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн",
-    "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон",
-}
 _MONTHS = ["", "января", "февраля", "марта", "апреля", "мая", "июня",
            "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 

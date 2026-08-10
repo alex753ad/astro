@@ -29,6 +29,7 @@ from backend.database import get_db
 from backend.models import User, NatalChart, PushSubscription, PushSentLog
 from backend.push.sender import send_to_user
 from backend.chart_utils import get_primary_chart
+from backend.ephemeris.ru_names import PLANET_RU
 
 logger = logging.getLogger("astro.push.cron")
 
@@ -41,12 +42,6 @@ router = APIRouter(
 
 DEFAULT_TZ = "Europe/Moscow"
 
-PLANET_RU = {
-    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
-    "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн",
-    "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон",
-    "North Node": "Сев. узел", "Ascendant": "Асцендент", "Midheaven": "MC",
-}
 FAST_PLANETS = ("Sun", "Mercury", "Venus", "Mars")
 SLOW_PLANETS = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
 MEDIUM_PLANETS = ("Mercury", "Venus", "Mars")

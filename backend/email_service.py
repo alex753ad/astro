@@ -15,6 +15,7 @@ import os
 import httpx
 
 from backend.log_utils import mask_email
+from backend.ephemeris.ru_names import PLANET_RU as _PLANET_RU, ASPECT_RU as _ASP_RU
 
 logger = logging.getLogger("astro.email")
 
@@ -148,12 +149,6 @@ async def _send(to: str, subject: str, html: str) -> bool:
 
 
 # ─────────────────────── branded client broadcast (021) ──────────────────────
-
-_PLANET_RU: dict[str, str] = {
-    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
-    "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн", "Uranus": "Уран",
-    "Neptune": "Нептун", "Pluto": "Плутон",
-}
 
 _MONTHS_RU = [
     "", "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -582,11 +577,8 @@ async def send_weekly_digest(user, db) -> bool:
         logger.warning("Weekly digest transit fetch failed: %s", e)
         return False
 
-    PLANET_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
-                 "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн",
-                 "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон"}
-    ASP_RU = {"conjunction": "соединение", "sextile": "секстиль",
-              "square": "квадрат", "trine": "трин", "opposition": "оппозиция"}
+    PLANET_RU = _PLANET_RU
+    ASP_RU = _ASP_RU
     SPHERE_RU = {"Venus": "отношений и творчества", "Jupiter": "роста и новых возможностей",
                  "Sun": "самовыражения и карьеры", "Mars": "действий и инициатив",
                  "Mercury": "коммуникации и планирования"}

@@ -17,6 +17,8 @@ import os
 import re
 from pathlib import Path
 
+from backend.ephemeris.ru_names import PLANET_RU as _PLANET_RU, ASPECT_RU as _ASP_RU
+
 logger = logging.getLogger("astro.rag")
 
 # ── загрузка базы знаний ──────────────────────────────────────────────────────
@@ -148,16 +150,6 @@ _SIGN_RU = {
     "Cancer": "Рак", "Leo": "Лев", "Virgo": "Дева",
     "Libra": "Весы", "Scorpio": "Скорпион", "Sagittarius": "Стрелец",
     "Capricorn": "Козерог", "Aquarius": "Водолей", "Pisces": "Рыбы",
-}
-_PLANET_RU = {
-    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий",
-    "Venus": "Венера", "Mars": "Марс", "Jupiter": "Юпитер",
-    "Saturn": "Сатурн", "Uranus": "Уран", "Neptune": "Нептун",
-    "Pluto": "Плутон",
-}
-_ASP_RU = {
-    "conjunction": "соединение", "sextile": "секстиль",
-    "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
 }
 # Традиционные управители знаков (по одному управителю на знак)
 _SIGN_RULER = {

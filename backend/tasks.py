@@ -56,10 +56,7 @@ def send_retention_day2_task(user_id: int) -> None:
         POSITIVE = {"Venus", "Jupiter", "Sun"}
         POSITIVE_ASP = {"trine", "sextile", "conjunction"}
         event = next((e for e in events if getattr(e, "transit_planet", "") in POSITIVE and getattr(e, "aspect_type", "") in POSITIVE_ASP), events[0])
-        PLANET_RU = {"Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
-                     "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн"}
-        ASP_RU = {"conjunction": "соединение", "sextile": "секстиль", "square": "квадрат",
-                  "trine": "трин", "opposition": "оппозиция"}
+        from backend.ephemeris.ru_names import PLANET_RU, ASPECT_RU as ASP_RU
         tp = getattr(event, "transit_planet", "")
         np_ = getattr(event, "natal_planet", "")
         at = getattr(event, "aspect_type", "")
