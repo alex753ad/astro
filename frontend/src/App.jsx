@@ -133,21 +133,21 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
   return (
     <header className="sticky top-0 z-50 bg-brand-card/80 backdrop-blur-md border-b border-brand-border">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 py-3">
 
-        {/* Логотип */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <img src="/logo_120x120.png" alt="Astrea Timeline" className="w-8 h-8 rounded-full" />
-          <span className="font-display text-lg font-bold text-brand-text group-hover:text-brand-accent transition-colors duration-200">
+        {/* Логотип + слоган — верхняя строка фиксированной высоты, без переноса */}
+        <Link to="/" className="flex items-center gap-2 group h-8 overflow-hidden">
+          <img src="/logo_120x120.png" alt="Astrea Timeline" className="w-8 h-8 rounded-full shrink-0" />
+          <span className="font-display text-lg font-bold text-brand-text group-hover:text-brand-accent transition-colors duration-200 whitespace-nowrap">
             Astrea Timeline
           </span>
-          <span className="hidden sm:block text-sm text-brand-muted border-l border-brand-border pl-3 ml-1">
+          <span className="hidden sm:block text-sm text-brand-muted border-l border-brand-border pl-3 ml-1 min-w-0 truncate">
             — плавное выравнивание жизни по ритму космических циклов
           </span>
         </Link>
 
-        {/* Навигация */}
-        <nav className="flex items-center gap-1 text-sm">
+        {/* Навигация — отдельная строка под логотипом */}
+        <nav className="flex items-center gap-1 text-sm mt-2">
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-1">
