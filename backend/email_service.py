@@ -255,7 +255,7 @@ def build_client_broadcast(
     ai_text задан → тело из AI-текста (гибрид); иначе шаблонный список транзитов.
     custom_text (необязательно) → авторский текст астролога, ставится в начале письма.
     """
-    subject = f"Ваш астропрогноз на {period_label}"
+    subject = f"Ваш период {period_label} — что важно и что делать"
     intro = _paragraphs(custom_text) if custom_text else ""
     if ai_text:
         body = _h2(f"Ваш прогноз на {period_label}") + intro + _paragraphs(ai_text)
@@ -385,7 +385,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
             f'  <div style="color:#2D2540;font-size:15px;line-height:1.7;">{insight}</div>'
             f'</div>'
         )
-        subject_line = f"☀ Ваша натальная карта готова — Солнце в {sun_sign_ru}"
+        subject_line = f"☀ Ваша карта готова — Солнце в {sun_sign_ru}, и вот что это говорит о вас"
         preview = f"Солнце в {sun_sign_ru}: {insight[:60]}..."
     else:
         sun_block = ""
@@ -507,7 +507,7 @@ async def send_weekly_digest_email(
         </tr>"""
 
     body = (
-        _h2(f"🔭 Ваш дайджест на {week_label}")
+        _h2(f"🔭 Ваша неделя {week_label}")
         + _p("Главные астрологические события предстоящей недели по вашей карте:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
           f' style="margin:0 0 20px;">{items_html}</table>'
@@ -515,7 +515,7 @@ async def send_weekly_digest_email(
     )
     return await _send(
         to,
-        f"🔭 Астро-дайджест на {week_label} · Astrea Timeline",
+        f"🔭 Ваша неделя {week_label} — окна периода и что в них делать · Astrea",
         _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
     )
 
@@ -527,17 +527,22 @@ async def send_transit_alert_email(
     natal_planet: str,
     date_str: str,
     description: str,
+    subject: str,
     link: str,
     is_peak: bool = True,
 ) -> bool:
-    """Transit Alert — точечное уведомление об важном транзите (пик или начало)."""
+    """Transit Alert — точечное уведомление об важном транзите (пик или начало).
+
+    subject собирается в backend/transit/engine.py (_build_transit_alert_subject) —
+    там же, где считаются тон аспекта и сфера жизни для description.
+    """
     badge = (
         '<span style="background:#9060C8;color:#fff;font-size:11px;font-weight:700;'
         'padding:2px 8px;border-radius:4px;margin-left:8px;">ПИК</span>'
         if is_peak else ""
     )
     body = (
-        _h2(f"🌟 Важный транзит{' — сегодня пик' if is_peak else ''}")
+        _h2(f"🌟 Ваше окно{' — сегодня пик' if is_peak else ''}")
         + f'<div style="background:#f0ebff;border-radius:12px;padding:20px 24px;margin:0 0 20px;">'
           f'  <div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:8px;">'
           f'    {date_str}{badge}'
@@ -552,7 +557,7 @@ async def send_transit_alert_email(
     )
     return await _send(
         to,
-        f"🌟 {planet} {aspect} {natal_planet} — {date_str} · Astrea Timeline",
+        subject,
         _base("Важный транзит", f"{planet} {aspect} {natal_planet} — {date_str}", body),
     )
 
@@ -727,9 +732,9 @@ async def send_weekly_digest(user, db) -> bool:
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
     if variant == "A" and highlights:
         h0 = highlights[0]
-        subject = f"{h0['planet']} сейчас влияет на вашу карту — посмотрите, что делать · Astrea"
+        subject = f"✦ {h0['planet']} открывает окно в вашей карте — что сделать · Astrea"
     else:
-        subject = f"Ваша неделя {week_label} — что важно знать · Astrea"
+        subject = f"✦ Ваша неделя {week_label} — что важно и что делать · Astrea"
 
     return await _send(
         user.email,

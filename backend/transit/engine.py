@@ -557,6 +557,29 @@ def _build_transit_alert_description(transit_planet: str, natal_planet: str, asp
     return template.format(planet=planet_ru, sphere=sphere)
 
 
+# Тема письма — состояние/тема сначала, потом ход (см. документация/astrea_план_продаж.md,
+# раздел 2 «Голос Astrea»). {sphere} обрезаем до первой смысловой части — в теме нет места
+# на полную формулировку из NATAL_SPHERE.
+SUBJECT_TEMPLATES = {
+    "harmonious": ("🌟 Окно открылось: {sphere} — что сделать · Astrea Timeline",
+                   "🌟 {planet} открывает благоприятный период — что сделать · Astrea Timeline"),
+    "tense":      ("🌟 {planet}: {sphere} — как использовать напряжение · Astrea Timeline",
+                   "🌟 {planet} проверяет на прочность — что делать · Astrea Timeline"),
+    "new_cycle":  ("🌟 {planet} запускает новый цикл: {sphere} · Astrea Timeline",
+                   "🌟 {planet} запускает новый цикл в вашей карте · Astrea Timeline"),
+}
+
+
+def _build_transit_alert_subject(transit_planet: str, natal_planet: str, aspect_type: str, planet_ru: str) -> str:
+    tone   = ASPECT_TONE.get(aspect_type, "tense")
+    sphere = NATAL_SPHERE.get((transit_planet, natal_planet))
+    with_sphere, without_sphere = SUBJECT_TEMPLATES[tone]
+    if sphere:
+        sphere_short = sphere.split(" — ")[0].split(",")[0]
+        return with_sphere.format(planet=planet_ru, sphere=sphere_short)
+    return without_sphere.format(planet=planet_ru)
+
+
 def _alert_already_sent(user_id: str, transit_key: str) -> bool:
     """Проверяет Redis: отправляли ли уже алерт для этого транзита.
     Ключ: alert:<user_id>:<transit_key>, TTL 60 дней.
@@ -612,6 +635,7 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
         natal_ru  = NATAL_RU.get(t.natal_planet, t.natal_planet)
         asp_ru    = ASP_RU.get(t.aspect_type, t.aspect_type)
         desc      = _build_transit_alert_description(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
+        subject   = _build_transit_alert_subject(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
 
         # Ссылка ведёт прямо на этот транзит во вкладке "Транзиты" карты —
         # event_key совпадает по формату с eventKey() во фронтенде
@@ -628,6 +652,7 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
                 natal_planet=natal_ru,
                 date_str=t.peak_date,
                 description=desc,
+                subject=subject,
                 link=link,
                 is_peak=False,
             )

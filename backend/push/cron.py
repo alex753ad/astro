@@ -145,7 +145,7 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "ref": f"4deg:{tp}:{npl}:{aspect}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
                         "frag": f"{pr} подходит к {nr}",
-                        "title": "✦ Кое-что приближается",
+                        "title": "✦ Открывается окно",
                         "body": f"{pr} подходит к вашему {nr} — на горизонте важное движение. Понаблюдайте, что откликается.",
                         "url": _with_topic(planner_url, _topic_key("approach", planet=tp, aspect=aspect, natal=npl)),
                     })
@@ -162,7 +162,7 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "ref": f"4deg_cusp:{tp}:{house}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
                         "frag": f"{pr} готовит перемены",
-                        "title": "✦ Смена сферы",
+                        "title": "✦ Новая сфера открывается",
                         "body": f"{pr} приближается к важному порогу — скоро откроется новая сфера жизни.",
                         "url": _with_topic(planner_url, _topic_key("cusp_approach", planet=tp, house=house)),
                     })
@@ -174,8 +174,8 @@ EXACT_TOUCH_ORB = 0.3     # порог «точного» касания в гр
 TRIPLE_SCAN_DAYS = 300    # окно назад для подсчёта номера захода
 
 _TRIPLE_MSG = {
-    1: ("✦ Тема открывается", "открывается тема, которая ещё вернётся к вам"),
-    2: ("✦ Возврат темы", "тема возвращается — время пересмотреть то, что начали"),
+    1: ("✦ Ваша тема открывается", "открывается тема, которая ещё вернётся к вам"),
+    2: ("✦ Тема возвращается", "тема возвращается — время пересмотреть то, что начали"),
     3: ("✦ Тема закрывается", "тема закрывается и закрепляется — время подвести итог"),
 }
 
@@ -297,7 +297,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
         cands.append({
             "kind": "daily", "ref": today.isoformat(),
             "priority": "soft", "weight": 10, "frag": "прогноз на день",
-            "title": "✦ Прогноз на сегодня", "body": _daily_body(chart, today),
+            "title": "✦ Ваш день сегодня", "body": _daily_body(chart, today),
             "url": _with_topic(f"/chart/{chart.id}", _topic_key("daily")),
         })
 
@@ -314,7 +314,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
                             "priority": "significant", "weight": 60, "frag": f"новый период {pr}",
-                            "title": "✦ Новый период",
+                            "title": "✦ Начался ваш период",
                             "body": f"{pr} открывает новый период в вашем плане — загляните, что это значит.",
                             "url": _with_topic(planner_url, _topic_key("planner_start", planet=planet, house=house)),
                         })
@@ -326,7 +326,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
                             "priority": "significant", "weight": 70, "frag": f"скоро период {pr}",
-                            "title": "✦ Скоро перемены",
+                            "title": "✦ Через неделю — новое окно",
                             "body": f"Через неделю начнётся заметный период — {pr} задаёт тон. Загляните в планер заранее.",
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
@@ -338,7 +338,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
                             "priority": "significant", "weight": 100, "frag": f"скоро большой период {pr}",
-                            "title": "✦ Большой период впереди",
+                            "title": "✦ Через месяц — важный период",
                             "body": f"Через месяц открывается долгий период под влиянием {pr} — стоит спланировать заранее.",
                             "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
                         })
@@ -360,7 +360,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                     "kind": "transit",
                     "ref": f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}",
                     "priority": "significant", "weight": 90, "frag": f"{pr} — активен в вашей карте",
-                    "title": "Астрея — что важного сегодня",
+                    "title": "✦ Ваше окно сегодня",
                     "body": f"{pr} сегодня активен в вашей карте — загляните, это про вас.",
                     "url": _with_topic(planner_url, _topic_key("transit", planet=e.transit_planet, aspect=e.aspect_type, natal=e.natal_planet)),
                 })
@@ -391,7 +391,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 cands.append({
                     "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
                     "priority": "soft", "weight": 30, "frag": f"{label} завтра",
-                    "title": f"{label} уже завтра",
+                    "title": f"{label} завтра",
                     "body": "Хорошее время заметить, что вы на самом деле чувствуете. Загляните в лунный календарь.",
                     "url": _with_topic("/lunar", _topic_key("moon", planet=phase.type)),
                 })
@@ -457,7 +457,7 @@ def _process_user(db: Session, user: User) -> int:
         payload = {"title": to_send[0]["title"], "body": to_send[0]["body"], "url": to_send[0]["url"]}
     else:
         payload = {
-            "title": "Астрея — что важного сегодня",
+            "title": "✦ Ваше окно сегодня",
             "body": " · ".join(c["frag"] for c in to_send),
             "url": to_send[0]["url"],
         }
