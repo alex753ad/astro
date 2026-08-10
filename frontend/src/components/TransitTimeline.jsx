@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
-import { createCheckoutSession, getSubscription } from "../api/client";
+import { createCheckoutSession, getSubscription, authFetch } from "../api/client";
 import LyraPaywallModal from "./LyraPaywallModal";
 import PlanComparisonModal from "./PlanComparisonModal";
 
@@ -663,8 +663,20 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
 const TRANSITS_URL = (chartId, from, to) =>
   `${API_BASE}/chart/${chartId}/transits?from_date=${from}&to_date=${to}`;
 
+// authFetch обновляет протухший (15 мин) access-токен и повторяет запрос на
+// 401 — обычный fetch() этого не делал, а без проверки r.ok HTTP-ошибка любого
+// рода (401/404/5xx) тихо парсилась как {events: undefined} → [] и выглядела
+// как "у вас нет транзитов", неотличимо от настоящего пустого списка.
+function fetchTransits(url) {
+  return authFetch(url, { headers: chartAuthHeaders() }).then(r => {
+    if (!r.ok) throw new Error(`transits fetch failed: ${r.status}`);
+    return r.json();
+  });
+}
+
 export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade, focusEventKey }) {
   const [events,        setEvents]        = useState([]);
+  const [loadError,     setLoadError]     = useState(false);  // явная ошибка загрузки — не путать с "0 транзитов"
   const [loading,       setLoading]       = useState(true);   // первый запрос
   const [loadingMore,   setLoadingMore]   = useState(false);  // догрузка следующего месяца
   const [loadingPrev,   setLoadingPrev]   = useState(false);  // догрузка предыдущего месяца
@@ -710,6 +722,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   // ── Первый запрос: ближайший месяц — список появляется быстро ──
   useEffect(() => {
     setEvents([]);
+    setLoadError(false);
     setLoadedUntil(null);
     setLoadedFrom(null);
     setReachedEnd(false);
@@ -727,8 +740,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     const fromPast = subMonthISO(today);
 
     Promise.all([
-      fetch(TRANSITS_URL(chartId, today, to),        { headers: chartAuthHeaders() }).then(r => r.json()),
-      fetch(TRANSITS_URL(chartId, fromPast, today),  { headers: chartAuthHeaders() }).then(r => r.json()),
+      fetchTransits(TRANSITS_URL(chartId, today, to)),
+      fetchTransits(TRANSITS_URL(chartId, fromPast, today)),
     ])
       .then(([forwardData, pastData]) => {
         setEvents(mergeEvents(pastData.events || [], forwardData.events || []));
@@ -737,7 +750,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         if (to >= horizonEnd) setReachedEnd(true);
         setLoading(false);
       })
-      .catch(() => { setEvents(MOCK_EVENTS); setLoading(false); setReachedEnd(true); });
+      // Настоящая ошибка (401/404/5xx и т.п.) — явное состояние, а не тихая
+      // подмена на MOCK_EVENTS: иначе в проде "не удалось загрузить" и
+      // "у вас правда нет транзитов" неотличимы друг от друга.
+      .catch(() => { setEvents([]); setLoadError(true); setLoading(false); setReachedEnd(true); });
   }, [chartId, mockMode, horizonEnd]);
 
   // ── Догрузка следующего месяца (по прокрутке — см. sentinel ниже) ──
@@ -749,10 +765,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     const from = addDaysISO(loadedUntil, 1);
     const to   = addMonthISO(from) > horizonEnd ? horizonEnd : addMonthISO(from);
 
-    fetch(TRANSITS_URL(chartId, from, to), {
-      headers: chartAuthHeaders(),
-    })
-      .then(r => r.json())
+    fetchTransits(TRANSITS_URL(chartId, from, to))
       .then(data => {
         setEvents(prev => mergeEvents(prev, data.events || []));
         setLoadedUntil(to);
@@ -770,10 +783,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     const to   = addDaysISO(loadedFrom, -1);
     const from = subMonthISO(loadedFrom);
 
-    fetch(TRANSITS_URL(chartId, from, to), {
-      headers: chartAuthHeaders(),
-    })
-      .then(r => r.json())
+    fetchTransits(TRANSITS_URL(chartId, from, to))
       .then(data => {
         setEvents(prev => mergeEvents(prev, data.events || []));
         setLoadedFrom(from);
@@ -1022,6 +1032,11 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           )}
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
+          ) : loadError ? (
+            <div style={{ padding: 40, textAlign: "center", color: "var(--color-danger)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
+              Не удалось загрузить транзиты.<br />
+              <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте обновить страницу.</span>
+            </div>
           ) : filteredEvents.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
               Нет транзитов с текущими фильтрами.<br />
