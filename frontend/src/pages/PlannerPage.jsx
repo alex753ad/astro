@@ -969,7 +969,7 @@ export default function PlannerPage() {
       const match = day.date?.match(/(\d{2})\.(\d{2})/);
       if (match) {
         result.push({
-          summary:     `🌙 Луна в ${day.house} доме`,
+          summary:     `🌙 ${day.theme || `Луна в ${day.house} доме`}`,
           description: "",
           date:        `${yr}-${match[2]}-${match[1]}`,
           colorId:     "5",
@@ -1072,7 +1072,7 @@ export default function PlannerPage() {
                           )}
                           <PeriodBlock planet="moon"
                             badgeText={day.time ? `${day.date} – ${day.time}` : day.date}
-                            theme={`Луна в ${day.house} доме`}
+                            theme={day.theme || `Луна в ${day.house} доме`}
                             groups={day.groups || []}
                             locked={day.locked} />
                         </Fragment>
