@@ -3,6 +3,7 @@ import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import { createCheckoutSession, getSubscription, authFetch } from "../api/client";
+import { addDaysISO, addMonthISO, subMonthISO } from "../utils/dateISO";
 import LyraPaywallModal from "./LyraPaywallModal";
 import PlanComparisonModal from "./PlanComparisonModal";
 
@@ -127,37 +128,19 @@ function chartAuthHeaders(extra = {}) {
 }
 
 // ── Помесячная догрузка транзитов ──────────────────────────
+// addDaysISO/addMonthISO/subMonthISO вынесены в ../utils/dateISO.js (UTC-
+// арифметика, покрыта тестами под TZ=UTC и TZ=Europe/Moscow).
 
-// "YYYY-MM-DDT00:00:00" без явного 'Z' парсится как ЛОКАЛЬНОЕ время, а
-// .toISOString() потом конвертирует в UTC — для часовых поясов восточнее UTC
-// (Europe/Moscow, UTC+3) локальная полночь уходит на предыдущие сутки UTC, и
-// addDaysISO(d, 1) становится неподвижной точкой (d не меняется вообще).
-// В цикле по датам это самый настоящий бесконечный цикл, не просто "медленно".
-// Дата строится и меняется целиком в UTC — локальная таймзона не участвует.
-function addDaysISO(dateStr, days) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return dt.toISOString().slice(0, 10);
-}
-
-// Сегодня в календаре пользователя (локальные компоненты), а не
-// new Date().toISOString() — тот способ отдаёт дату по UTC и может съехать
-// на сутки в ранние часы по Москве. Используется только для выбора месяца
-// ленты дат, не уходит в API-запросы.
-function todayISO() {
-  const d = new Date();
+// Локальные компоненты Date, а не new Date().toISOString() — тот способ
+// отдаёт дату по UTC и в часовых поясах восточнее UTC (Europe/Moscow) съезжает
+// на сутки назад в интервале 00:00-02:59 по местному времени (пока в UTC ещё
+// вчера). "Сегодня" должно быть тем днём, что видит пользователь на часах.
+function localISO(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function addMonthISO(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  return new Date(d.getFullYear(), d.getMonth() + 1, d.getDate()).toISOString().slice(0, 10);
-}
-
-function subMonthISO(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  return new Date(d.getFullYear(), d.getMonth() - 1, d.getDate()).toISOString().slice(0, 10);
+function todayISO() {
+  return localISO(new Date());
 }
 
 const MONTHS_RU_FULL = ["январь", "февраль", "март", "апрель", "май", "июнь",
@@ -782,7 +765,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     }
 
     setLoading(true);
-    const today    = new Date().toISOString().slice(0, 10);
+    const today    = todayISO();
     const to       = addMonthISO(today) > horizonEnd ? horizonEnd : addMonthISO(today);
     const fromPast = subMonthISO(today);
 
@@ -867,7 +850,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const twoWeeksFromNow = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
+    return localISO(d);
   }, []);
 
   const featuredTransitIndex = useMemo(() => {
@@ -953,7 +936,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     const from = loadedFrom  || dates[0];
     const to   = loadedUntil || dates[dates.length - 1];
     if (from && to) return { from, to };
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     return { from: today, to: today };
   }, [loadedFrom, loadedUntil, dates]);
 
