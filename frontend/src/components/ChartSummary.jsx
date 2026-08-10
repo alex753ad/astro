@@ -36,7 +36,7 @@ function signFromDeg(absoluteDeg) {
 function theme(dark) {
   return {
     bg:      dark ? 'rgba(26,18,48,0.55)' : 'var(--bg-card)',
-    fg:      dark ? 'var(--text-primary)'             : 'var(--bg-card)',
+    fg:      'var(--text-primary)',
     accent:  dark ? 'var(--accent-glow)'             : 'var(--accent)',
     muted:   dark ? 'var(--text-secondary)'             : 'var(--text-secondary)',
     border:  dark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.1)',
