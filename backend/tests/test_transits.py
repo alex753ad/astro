@@ -293,3 +293,57 @@ class TestTransitPromptBuilder:
         )
         # Should contain transit data but not all 29 events
         assert "Moon" in prompt
+
+
+class TestTransitsEndpoint:
+    """Регрессия: GET /chart/{id}/transits падал 500 (UnboundLocalError на
+    asyncio — лишний локальный `import asyncio` внутри get_transits делал имя
+    локальным для всей функции и ломал более раннее await asyncio.to_thread).
+    Раньше эндпоинт проверялся только на access-control (404/401), но не на
+    успешный путь — поэтому баг доехал до прода."""
+
+    @staticmethod
+    def _make_chart(db, user_id):
+        from backend.models import NatalChart
+        chart = NatalChart(
+            user_id=user_id,
+            birth_date="1990-06-15",
+            birth_time="10:30",
+            birth_place="Moscow, Russia",
+            latitude=55.75,
+            longitude=37.62,
+            timezone="Europe/Moscow",
+            time_unknown=False,
+            house_system="placidus",
+            planets=SAMPLE_NATAL_PLANETS,
+            houses=[{"number": i + 1, "sign": "Aries", "degree": float(i * 30)} for i in range(12)],
+            aspects=[],
+            ascendant={"sign": "Leo", "degree": 5.0, "longitude": 125.0},
+            midheaven={"sign": "Taurus", "degree": 10.0, "longitude": 40.0},
+        )
+        db.add(chart)
+        db.commit()
+        db.refresh(chart)
+        return chart
+
+    def test_returns_200_with_events_list(self, client, db, user_free, auth_headers_free):
+        chart = self._make_chart(db, user_free.id)
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/transits"
+            "?from_date=2026-01-01&to_date=2026-02-01",
+            headers=auth_headers_free,
+        )
+        assert resp.status_code == 200
+        assert isinstance(resp.json()["events"], list)
+
+    def test_pro_tier_primary_chart_returns_200(self, client, db, user_pro, auth_headers_pro):
+        """Именно эта ветка (tier in pro/premium + своя главная карта)
+        запускала transit-alert check, где стоял битый локальный import."""
+        chart = self._make_chart(db, user_pro.id)
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/transits"
+            "?from_date=2026-01-01&to_date=2026-02-01",
+            headers=auth_headers_pro,
+        )
+        assert resp.status_code == 200
+        assert isinstance(resp.json()["events"], list)

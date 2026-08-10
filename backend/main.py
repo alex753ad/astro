@@ -1113,7 +1113,6 @@ async def get_transits(
     if user and getattr(user, "tier", "free") in ("pro", "premium") and is_primary:
         try:
             from backend.transit.engine import check_and_send_transit_alerts
-            import asyncio
             asyncio.ensure_future(check_and_send_transit_alerts(user, events, chart_id=str(chart_id)))
         except Exception as e:
             logger.warning("Transit alert check failed: %s", e)
