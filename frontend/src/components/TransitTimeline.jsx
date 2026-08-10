@@ -128,10 +128,26 @@ function chartAuthHeaders(extra = {}) {
 
 // ── Помесячная догрузка транзитов ──────────────────────────
 
+// "YYYY-MM-DDT00:00:00" без явного 'Z' парсится как ЛОКАЛЬНОЕ время, а
+// .toISOString() потом конвертирует в UTC — для часовых поясов восточнее UTC
+// (Europe/Moscow, UTC+3) локальная полночь уходит на предыдущие сутки UTC, и
+// addDaysISO(d, 1) становится неподвижной точкой (d не меняется вообще).
+// В цикле по датам это самый настоящий бесконечный цикл, не просто "медленно".
+// Дата строится и меняется целиком в UTC — локальная таймзона не участвует.
 function addDaysISO(dateStr, days) {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Сегодня в календаре пользователя (локальные компоненты), а не
+// new Date().toISOString() — тот способ отдаёт дату по UTC и может съехать
+// на сутки в ранние часы по Москве. Используется только для выбора месяца
+// ленты дат, не уходит в API-запросы.
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function addMonthISO(dateStr) {
@@ -896,19 +912,31 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
   }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
-  // Сплошной календарный ряд по загруженному диапазону — не только дни с
-  // пиками, чтобы соседние даты в ленте не "перескакивали" (напр. 11 → 13).
-  // Маркер (eventCountByDate) остаётся только там, где реально есть событие.
-  // Для mock/анонимного режима, где loadedFrom/loadedUntil не выставляются, —
-  // прежнее поведение (только даты загруженных mock-событий).
+  // Сплошной календарный ряд — но только на месяц вокруг того, что сейчас в
+  // фокусе (activeDate, иначе "сегодня"), а не на весь загруженный горизонт
+  // (Free — 12 мес, Premium — 24 мес = сотни DOM-узлов и, до фикса
+  // addDaysISO, бесконечный цикл в часовых поясах восточнее UTC — регрессия
+  // 78da87f). Цель бага 4 сохранена: дни без пиков внутри месяца больше не
+  // пропускаются, маркер (eventCountByDate) остаётся только там, где есть
+  // событие. out.length < 400 — предохранитель, не единственная защита от
+  // зацикливания (та — в самом addDaysISO), а страховка на случай, если
+  // формат данных когда-нибудь снова окажется не тем, что ожидается.
   const dates = useMemo(() => {
-    if (loadedFrom && loadedUntil) {
-      const out = [];
-      for (let d = loadedFrom; d <= loadedUntil; d = addDaysISO(d, 1)) out.push(d);
-      return out;
+    if (!loadedFrom || !loadedUntil) {
+      // mock/анонимный режим — loadedFrom/loadedUntil не выставляются
+      return [...new Set(events.map(e => e.peak_date || e.date))].sort();
     }
-    return [...new Set(events.map(e => e.peak_date || e.date))].sort();
-  }, [loadedFrom, loadedUntil, events]);
+    const today  = todayISO();
+    const anchor = activeDate || (today >= loadedFrom && today <= loadedUntil ? today : loadedFrom);
+    const [ay, am] = anchor.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(ay, am - 1, 1)).toISOString().slice(0, 10);
+    const monthEnd    = new Date(Date.UTC(ay, am, 0)).toISOString().slice(0, 10);
+    const from = monthStart < loadedFrom  ? loadedFrom  : monthStart;
+    const to   = monthEnd   > loadedUntil ? loadedUntil : monthEnd;
+    const out = [];
+    for (let d = from; d <= to && out.length < 400; d = addDaysISO(d, 1)) out.push(d);
+    return out;
+  }, [loadedFrom, loadedUntil, activeDate, events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
     events.forEach(e => { counts[e.peak_date || e.date] = (counts[e.peak_date || e.date] || 0) + 1; });
