@@ -237,6 +237,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             title: 'Timeline Планер',
             desc: 'Поможет сориентироваться по каждому твоему периоду и применить компенсаторику транзитов, встроив нужные действия в своё ежедневное расписание. Планируй заранее отпуск, финансы и важные решения в самое правильное время.',
             descShort: 'Встрой нужные действия в своё расписание — заранее и вовремя.',
+            highlight: true,
           },
           {
             title: 'AI-астролог Астрея',
@@ -250,10 +251,10 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             whileHover={cardHover}
             style={{
               flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
-              background: 'rgba(255,255,255,0.6)',
+              background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
               backdropFilter: 'blur(8px)',
               borderRadius: 16,
-              border: '1px solid rgba(139,92,246,0.1)',
+              border: `1px solid ${f.highlight ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.1)'}`,
               padding: '24px 20px',
             }}
           >
