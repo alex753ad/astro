@@ -541,7 +541,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
     }
 
     const ctrl  = new AbortController();
-    fetch(`${API_BASE}/chart/${chartId}/transits/event/interpret`, {
+    authFetch(`${API_BASE}/chart/${chartId}/transits/event/interpret`, {
       method: "POST",
       headers: chartAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ transit_planet: event.transit_planet, natal_planet: event.natal_planet, aspect_type: event.aspect_type, peak_date: event.peak_date || event.date }),
