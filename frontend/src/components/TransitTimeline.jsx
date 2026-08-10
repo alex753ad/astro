@@ -144,6 +144,28 @@ function subMonthISO(dateStr) {
   return new Date(d.getFullYear(), d.getMonth() - 1, d.getDate()).toISOString().slice(0, 10);
 }
 
+const MONTHS_RU_FULL = ["январь", "февраль", "март", "апрель", "май", "июнь",
+  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+
+function monthYearLabel(dateStr) {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+}
+
+// Заголовок отражает реально просматриваемый диапазон, а не сегодняшний день:
+// один месяц — просто "август 2026"; несколько загруженных месяцев —
+// "июль — сентябрь 2026" (год не дублируем, если оба месяца из одного года).
+function monthRangeLabel(fromStr, toStr) {
+  const from = new Date(fromStr + "T00:00:00");
+  const to   = new Date(toStr   + "T00:00:00");
+  if (from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth()) {
+    return monthYearLabel(fromStr);
+  }
+  const fromLabel = from.getFullYear() === to.getFullYear()
+    ? MONTHS_RU_FULL[from.getMonth()]
+    : monthYearLabel(fromStr);
+  return `${fromLabel} — ${monthYearLabel(toStr)}`;
+}
+
 function eventKey(e) {
   return `${e.peak_date || e.start_date || e.date}-${e.transit_planet}-${e.natal_planet}-${e.aspect_type}`;
 }
@@ -879,6 +901,22 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return counts;
   }, [events]);
 
+  // Диапазон "в фокусе" — реально загруженное/просматриваемое окно, а не
+  // сегодняшний день. Ленты без отдельного переключателя месяца нет, поэтому
+  // берём границы того, что фактически подгружено (loadedFrom/loadedUntil);
+  // для mock/анонимного режима, где эти границы не выставляются, — границы
+  // самих загруженных событий (dates). new Date() — только последний фолбэк,
+  // пока не определено вообще ничего (до первой загрузки).
+  const focusRange = useMemo(() => {
+    const from = loadedFrom  || dates[0];
+    const to   = loadedUntil || dates[dates.length - 1];
+    if (from && to) return { from, to };
+    const today = new Date().toISOString().slice(0, 10);
+    return { from: today, to: today };
+  }, [loadedFrom, loadedUntil, dates]);
+
+  const focusLabel = activeDate ? monthYearLabel(activeDate) : monthRangeLabel(focusRange.from, focusRange.to);
+
   const handleUpgrade = useCallback(() => {
     if (onUpgrade) onUpgrade('lite_to_pro');
   }, [onUpgrade]);
@@ -1000,7 +1038,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           Транзиты
         </h1>
         <p style={{ fontSize: 14, color: "var(--tt-text2)", margin: "6px 0 0" }}>
-          {new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
+          {focusLabel}
         </p>
       </div>
 
