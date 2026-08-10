@@ -24,7 +24,7 @@ const overlayVariants = {
   exit:    { opacity: 0, transition: { duration: 0.15, ease: 'easeOut' } },
 };
 
-export default function AuthModal({ onClose }) {
+export default function AuthModal({ onClose, returnTo }) {
   const { login, applyTokenResponse, loading, error, clearError } = useAuth();
   const navigate = useNavigate();
   const prefersReduced = useReducedMotion();
@@ -89,6 +89,11 @@ export default function AuthModal({ onClose }) {
     try {
       const u = await login(email, password);
       onClose();
+      // Пришли по ссылке на конкретную страницу (напр. из email) — возвращаем туда.
+      if (returnTo) {
+        navigate(returnTo);
+        return;
+      }
       // Только что привязанная анонимная карта — ведём сразу в её планер.
       if (u?.boundChartId) {
         navigate(`/planner/${u.boundChartId}`);
@@ -148,7 +153,7 @@ export default function AuthModal({ onClose }) {
       const u = await applyTokenResponse(data);
 
       onClose();
-      navigate(u?.boundChartId ? `/planner/${u.boundChartId}` : '/home');
+      navigate(returnTo || (u?.boundChartId ? `/planner/${u.boundChartId}` : '/home'));
     } catch (e) {
       setLocalErr(e.message);
     } finally {

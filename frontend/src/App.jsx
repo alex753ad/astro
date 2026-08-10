@@ -233,7 +233,7 @@ function Header({ onShowAuth, dark, toggleDark }) {
             </>
           ) : (
             <button
-              onClick={onShowAuth}
+              onClick={() => onShowAuth()}
               className="btn-primary !h-auto px-5 py-1.5 text-sm"
             >
               Войти
@@ -318,11 +318,19 @@ function Header({ onShowAuth, dark, toggleDark }) {
 function AppRoutes() {
   const { user } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  const [authReturnTo, setAuthReturnTo] = useState(null);
   const [dark, toggleDark] = useDarkMode();
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
 
   useOGMeta();
+
+  // Общий обработчик открытия модалки входа: если передан returnTo (напр. со
+  // страницы карты по ссылке из письма), после логина вернёт именно туда.
+  const openAuth = (returnTo) => {
+    setAuthReturnTo(returnTo || null);
+    setShowAuth(true);
+  };
 
   return (
     <div className="relative min-h-screen overflow-x-hidden" style={{ background: dark ? 'transparent' : 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)', color: 'var(--text-primary)' }}>
@@ -331,7 +339,7 @@ function AppRoutes() {
       {dark && <NebulaBackground element={null} />}
 
       <div className="relative z-10 flex flex-col min-h-screen">
-        <Header onShowAuth={() => setShowAuth(true)} dark={dark} toggleDark={toggleDark} />
+        <Header onShowAuth={openAuth} dark={dark} toggleDark={toggleDark} />
 
         <main className="flex-1">
           <AnimatePresence mode="wait">
@@ -343,13 +351,13 @@ function AppRoutes() {
               transition={{ duration: 0.18, ease: 'easeOut' }}
             >
               <Routes location={location}>
-                <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+                <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={openAuth} />} />
                 <Route path="/orion"          element={<OrionPage currentUser={user} />} />
-                <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={() => setShowAuth(true)} />} />
+                <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={openAuth} />} />
                 <Route path="/chart/share/:token" element={<SharePage />} />
                 <Route path="/intake/:token" element={<IntakePage />} />
                 <Route path="/portal/:token" element={<PortalPage />} />
-                <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={() => setShowAuth(true)} dark={dark} />} />
+                <Route path="/chart/:chartId" element={<ChartPage currentUser={user} onShowAuth={openAuth} dark={dark} />} />
                 <Route path="/planner/:id"    element={<PlannerPage dark={dark} />} />
                 <Route path="/solar-return/:chartId" element={<SolarReturnPage />} />
                 <Route path="/synastry/:chartId"     element={<SynastryPage />} />
@@ -380,7 +388,7 @@ function AppRoutes() {
       </div>
 
       <AnimatePresence>
-        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+        {showAuth && <AuthModal onClose={() => { setShowAuth(false); setAuthReturnTo(null); }} returnTo={authReturnTo} />}
       </AnimatePresence>
       <FeedbackButton />
     </div>

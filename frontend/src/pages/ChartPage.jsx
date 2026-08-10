@@ -371,6 +371,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [activeTab, setActiveTab]   = useState('chart'); // kept for transit/planner compat
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
+  const [authRequired, setAuthRequired] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallContext, setPaywallContext] = useState('free_to_lite');
   const [showChatPlans, setShowChatPlans] = useState(false); // чат: двухтарифная Вега/Лира вместо PaywallModal
@@ -581,6 +582,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       return;
     }
 
+    setAuthRequired(false);
     const _tok = localStorage.getItem('astro_access_token');
     const _chartTok = sessionStorage.getItem('chart_token');
     fetch(`${API_BASE}/chart/${chartId}`, {
@@ -589,15 +591,25 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         ...(_chartTok ? { 'X-Chart-Token': _chartTok } : {}),
       },
     })
-      .then(r => { if (!r.ok) throw new Error('Карта не найдена'); return r.json(); })
+      .then(r => {
+        if (!r.ok) {
+          // resolve_chart_access всегда отвечает 404 (даже для чужой карты —
+          // чтобы не палить её существование), поэтому не различаем причину
+          // на бэкенде. На фронте для незалогиненного показываем вход вместо
+          // тупикового текста ошибки — сценарий перехода по ссылке из письма.
+          if (!currentUser) { const e = new Error('auth_required'); e.authRequired = true; throw e; }
+          throw new Error('Карта не найдена');
+        }
+        return r.json();
+      })
       .then(data => {
         setChart(data);
         localStorage.setItem('astro_last_chart_id', chartId);
         if (data.name) localStorage.setItem('astro_last_chart_name', data.name);
       })
-      .catch(e => setError(e.message))
+      .catch(e => { if (e.authRequired) setAuthRequired(true); else setError(e.message); })
       .finally(() => setLoading(false));
-  }, [chartId]);
+  }, [chartId, currentUser]);
 
   // Период Солнца из планера для блока-пика (5.2). Работает и для анонимной
   // карты — шлём X-Chart-Token. Фолбэк на натальную фразу — внутри SunPeakBanner.
@@ -690,10 +702,19 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   }
 
   function handleShowAuth() {
-    onShowAuth?.();
+    const qs = searchParams.toString();
+    onShowAuth?.(`/chart/${chartId}${qs ? `?${qs}` : ''}`);
   }
 
   if (loading) return <Centered text="Загружаем карту…" />;
+  if (authRequired) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: 16 }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Войдите, чтобы открыть карту</p>
+        <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
+      </div>
+    );
+  }
   if (error)   return <Centered text={error} danger />;
   if (!chart)  return null;
 
