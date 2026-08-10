@@ -170,6 +170,15 @@ function eventKey(e) {
   return `${e.peak_date || e.start_date || e.date}-${e.transit_planet}-${e.natal_planet}-${e.aspect_type}`;
 }
 
+// "Активен в этот день" — окно start_date…end_date включает dateStr. slice(0,10)
+// на случай, если где-то в данных дата придёт с временем (ISO datetime), а не
+// голым YYYY-MM-DD — иначе строковое сравнение ломается.
+function isActiveOnDate(e, dateStr) {
+  const s  = (e.start_date || e.date || "").slice(0, 10);
+  const en = (e.end_date   || e.date || "").slice(0, 10);
+  return dateStr >= s && dateStr <= en;
+}
+
 function mergeEvents(prev, incoming) {
   const seen = new Set(prev.map(eventKey));
   const merged = prev.slice();
@@ -882,18 +891,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
   }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
-  // Счётчики StatsSummary — статистика текущего календарного месяца (тот же
-  // месяц, что в заголовке «Транзиты — <месяц год>»), не всего загруженного диапазона.
-  const currentMonthEvents = useMemo(() => {
-    const now = new Date();
-    return events.filter(e => {
-      const dateStr = e.peak_date || e.start_date || e.date;
-      if (!dateStr) return false;
-      const d = new Date(dateStr + "T00:00:00");
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    });
-  }, [events]);
-
   const dates            = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
@@ -916,6 +913,18 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [loadedFrom, loadedUntil, dates]);
 
   const focusLabel = activeDate ? monthYearLabel(activeDate) : monthRangeLabel(focusRange.from, focusRange.to);
+
+  // Счётчики StatsSummary — тот же охват, что и заголовок/список: выбран
+  // день — считаем по нему (тем же критерием "активен в этот день", что и
+  // filteredEvents ниже); иначе — по загруженному окну focusRange, а не по
+  // сегодняшнему дню.
+  const currentMonthEvents = useMemo(() => {
+    if (activeDate) return events.filter(e => isActiveOnDate(e, activeDate));
+    return events.filter(e => {
+      const dateStr = (e.peak_date || e.start_date || e.date || "").slice(0, 10);
+      return dateStr && dateStr >= focusRange.from && dateStr <= focusRange.to;
+    });
+  }, [events, activeDate, focusRange]);
 
   const handleUpgrade = useCallback(() => {
     if (onUpgrade) onUpgrade('lite_to_pro');
