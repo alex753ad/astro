@@ -50,6 +50,17 @@ class TestExpiredTokenGives401:
         )
         assert resp.status_code == 401
 
+    def test_transits(self, client, user_free, owned_chart):
+        """Тот самый эндпоинт из инцидента "транзиты показывают 0": протухший
+        токен должен дать 401, а не тихо посчитаться анонимным запросом,
+        из-за которого frontend раньше рендерил пустой список без ошибки."""
+        resp = client.get(
+            f"/api/v1/chart/{owned_chart.id}/transits"
+            "?from_date=2026-01-01&to_date=2026-02-01",
+            headers={"Authorization": f"Bearer {_expired_token(user_free)}"},
+        )
+        assert resp.status_code == 401
+
 
 class TestOtherRejectedCredentialsGive401:
 
@@ -88,6 +99,15 @@ class TestAnonymousStillWorks:
     def test_no_credentials_is_404_not_401(self, client, owned_chart):
         """Без заголовка — по-прежнему 404: существование карты не раскрываем."""
         resp = client.get(f"/api/v1/chart/{owned_chart.id}")
+        assert resp.status_code == 404
+
+    def test_transits_no_credentials_is_404_not_401(self, client, owned_chart):
+        """Тот же security-дизайн должен сохраняться и на /transits — иначе
+        будущая правка легко перепутает "анонимный" с "токен есть, но плохой"."""
+        resp = client.get(
+            f"/api/v1/chart/{owned_chart.id}/transits"
+            "?from_date=2026-01-01&to_date=2026-02-01",
+        )
         assert resp.status_code == 404
 
     def test_public_endpoint_works_anonymously(self, client):
