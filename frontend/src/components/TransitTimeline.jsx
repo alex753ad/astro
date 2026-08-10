@@ -896,7 +896,19 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
   }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
-  const dates            = useMemo(() => [...new Set(events.map(e => e.peak_date || e.date))].sort(), [events]);
+  // Сплошной календарный ряд по загруженному диапазону — не только дни с
+  // пиками, чтобы соседние даты в ленте не "перескакивали" (напр. 11 → 13).
+  // Маркер (eventCountByDate) остаётся только там, где реально есть событие.
+  // Для mock/анонимного режима, где loadedFrom/loadedUntil не выставляются, —
+  // прежнее поведение (только даты загруженных mock-событий).
+  const dates = useMemo(() => {
+    if (loadedFrom && loadedUntil) {
+      const out = [];
+      for (let d = loadedFrom; d <= loadedUntil; d = addDaysISO(d, 1)) out.push(d);
+      return out;
+    }
+    return [...new Set(events.map(e => e.peak_date || e.date))].sort();
+  }, [loadedFrom, loadedUntil, events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
     events.forEach(e => { counts[e.peak_date || e.date] = (counts[e.peak_date || e.date] || 0) + 1; });
