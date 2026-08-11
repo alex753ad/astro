@@ -43,10 +43,13 @@ dp = Dispatcher()
 
 async def _is_member(user_id: int, channel_id: str) -> bool:
     try:
-        member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
+        member = await asyncio.wait_for(
+            bot.get_chat_member(chat_id=channel_id, user_id=user_id), timeout=5
+        )
         return member.status in _OK_STATUSES
     except Exception as e:
-        # частая причина: бот не админ в канале, либо неверный id
+        # частая причина: бот не админ в канале, либо неверный id; также ловит
+        # asyncio.TimeoutError — без него сетевая заминка вешала /start на ~60с
         logger.warning("getChatMember failed channel=%s: %s", channel_id, e)
         return False
 
