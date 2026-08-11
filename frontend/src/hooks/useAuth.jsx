@@ -67,6 +67,11 @@ function clearStorage() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(LEGACY_REFRESH_KEY);
+  // Кэш последней открытой карты (App.jsx Header) — без этого следующий
+  // пользователь, вошедший на том же устройстве, на миг увидел бы чужой
+  // chartId в навигации до того, как отработает серверная проверка.
+  localStorage.removeItem('astro_last_chart_id');
+  localStorage.removeItem('astro_last_chart_name');
 }
 
 async function apiFetch(path, options = {}) {

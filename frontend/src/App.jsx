@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
+import { API_BASE } from './config';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import OrionPage from './pages/OrionPage';
@@ -106,14 +107,66 @@ function useDarkMode() {
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 function Header({ onShowAuth, dark, toggleDark }) {
-  const { user, logout } = useAuth();
+  const { user, logout, authFetch } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const calcRef = useRef(null);
   const location = useLocation();
-  const lastChartId = localStorage.getItem('astro_last_chart_id');
-  const lastChartName = localStorage.getItem('astro_last_chart_name');
+
+  // Мгновенный первый рендер на уже знакомом устройстве — снимок один раз
+  // при монтировании, не источник правды (см. useEffect ниже). Раньше это
+  // localStorage.getItem был ЕДИНСТВЕННЫМ источником навигации: на новом
+  // устройстве/браузере, где карту ещё не открывали, шапка оставалась
+  // пустой, хотя карты у пользователя есть на сервере.
+  const [cachedChartId]   = useState(() => localStorage.getItem('astro_last_chart_id'));
+  const [cachedChartName] = useState(() => localStorage.getItem('astro_last_chart_name'));
+
+  const [serverChartId,   setServerChartId]   = useState(null);
+  const [serverChartName, setServerChartName] = useState(null);
+  const [chartsChecked,   setChartsChecked]   = useState(false); // серверный запрос завершился
+  const [hasAnyChart,     setHasAnyChart]     = useState(true);  // оптимистично до проверки — не мигать CTA раньше времени
+
+  // Список карт — с сервера аккаунта, а не только из кэша этого устройства.
+  // Сбрасывается и перезапрашивается при каждой смене пользователя (логаут →
+  // логин другим аккаунтом на этом же устройстве не должен унаследовать
+  // чужой результат проверки).
+  useEffect(() => {
+    setChartsChecked(false);
+    setServerChartId(null);
+    setServerChartName(null);
+    setHasAnyChart(true);
+    if (!user) return;
+    let cancelled = false;
+    authFetch(`${API_BASE}/profile/charts`)
+      .then(d => {
+        if (cancelled) return;
+        const charts = d.charts || [];
+        const chosen = charts.find(c => c.id === d.primary_chart_id) || charts[0] || null;
+        if (chosen) {
+          setServerChartId(chosen.id);
+          if (chosen.birth_place) setServerChartName(chosen.birth_place);
+        } else {
+          setHasAnyChart(false);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setChartsChecked(true); });
+    return () => { cancelled = true; };
+  }, [user?.id, authFetch]);
+
+  // Карта, которую пользователь смотрит прямо сейчас — самый свежий сигнал:
+  // после создания новой карты ChartPage грузится по её id раньше, чем успел
+  // бы перезапроситься список выше, поэтому навигация обновляется без
+  // перезагрузки страницы.
+  const urlChartMatch = location.pathname.match(/^\/chart\/([^/]+)$/);
+  const urlChartId = urlChartMatch && urlChartMatch[1] !== 'anonymous' ? urlChartMatch[1] : null;
+
+  const lastChartId = urlChartId || serverChartId || (!chartsChecked ? cachedChartId : null);
+  const lastChartName = serverChartName || (!chartsChecked ? cachedChartName : null);
   const navChartLabel = lastChartName || (user?.email?.split('@')[0]) || 'Карта';
+  // Залогинен, сервер подтвердил отсутствие карт вообще — не пустая шапка,
+  // а понятный путь дальше, а не три вкладки в никуда.
+  const showCreateChartCta = Boolean(user) && chartsChecked && !hasAnyChart && !lastChartId;
 
   // Дропдаун «Расчёты» закрывается по клику вне него.
   useEffect(() => {
@@ -212,6 +265,15 @@ function Header({ onShowAuth, dark, toggleDark }) {
               </Link>
             )}
           </div>
+
+          {/* Залогинен, но карт вообще нет (подтверждено сервером) — понятный
+              вход вместо пустой шапки. Видно на всех размерах экрана, не
+              только на десктопе — на мобильном хамбургер и так скрыт без карты. */}
+          {showCreateChartCta && (
+            <Link to="/home" className={navLink('/home')}>
+              Создать карту
+            </Link>
+          )}
 
           {/* Profile / Auth — всегда видно */}
           {user ? (
