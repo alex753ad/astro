@@ -720,6 +720,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [aspectFilter,  setAspectFilter]  = useState([]);
   const [orbFilter,     setOrbFilter]     = useState(2.0);
   const [activeDate,    setActiveDate]    = useState(null);
+  // Просматриваемый месяц ленты дат — независим от activeDate (можно листать
+  // месяцы, не выбирая день) и от "сегодня" (иначе догрузка предыдущего
+  // месяца грузит данные, но лента остаётся на месте — см. loadPrevious).
+  const [viewMonth,     setViewMonth]     = useState(() => todayISO().slice(0, 7));
 
   const isFree = !userTier || userTier === "free";
   const isLite = userTier === "lite";
@@ -756,6 +760,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     setLoadedUntil(null);
     setLoadedFrom(null);
     setReachedEnd(false);
+    setViewMonth(todayISO().slice(0, 7));
 
     if (!chartId || mockMode || chartId === 'anonymous') {
       setEvents(MOCK_EVENTS);
@@ -817,6 +822,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       .then(data => {
         setEvents(prev => mergeEvents(prev, data.events || []));
         setLoadedFrom(from);
+        // Лента сразу уходит на подгруженный месяц — иначе догрузка видна
+        // только в счётчиках, а сама лента остаётся на месте.
+        setViewMonth(prev => subMonthISO(`${prev}-01`).slice(0, 7));
       })
       .catch(() => {}) // оставляем loadedFrom как есть — следующий клик повторит тот же диапазон
       .finally(() => setLoadingPrev(false));
@@ -895,50 +903,49 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
   }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
-  // Сплошной календарный ряд — но только на месяц вокруг того, что сейчас в
-  // фокусе (activeDate, иначе "сегодня"), а не на весь загруженный горизонт
-  // (Free — 12 мес, Premium — 24 мес = сотни DOM-узлов и, до фикса
-  // addDaysISO, бесконечный цикл в часовых поясах восточнее UTC — регрессия
-  // 78da87f). Цель бага 4 сохранена: дни без пиков внутри месяца больше не
-  // пропускаются, маркер (eventCountByDate) остаётся только там, где есть
-  // событие. out.length < 400 — предохранитель, не единственная защита от
-  // зацикливания (та — в самом addDaysISO), а страховка на случай, если
-  // формат данных когда-нибудь снова окажется не тем, что ожидается.
+  // Сплошной календарный ряд — но только на месяц, который сейчас
+  // просматривается (viewMonth), а не на весь загруженный горизонт (Free —
+  // 12 мес, Premium — 24 мес = сотни DOM-узлов и, до фикса addDaysISO,
+  // бесконечный цикл в часовых поясах восточнее UTC — регрессия 78da87f).
+  // viewMonth, а не activeDate/"сегодня" — иначе догрузка предыдущего месяца
+  // (loadPrevious) грузит данные, но лента остаётся на месте. Цель бага 4
+  // сохранена: дни без пиков внутри месяца больше не пропускаются, маркер
+  // (eventCountByDate) остаётся только там, где есть событие. out.length <
+  // 400 — предохранитель, не единственная защита от зацикливания (та — в
+  // самом addDaysISO), а страховка на случай, если формат данных когда-нибудь
+  // снова окажется не тем, что ожидается.
   const dates = useMemo(() => {
     if (!loadedFrom || !loadedUntil) {
       // mock/анонимный режим — loadedFrom/loadedUntil не выставляются
       return [...new Set(events.map(e => e.peak_date || e.date))].sort();
     }
-    const today  = todayISO();
-    const anchor = activeDate || (today >= loadedFrom && today <= loadedUntil ? today : loadedFrom);
-    const [ay, am] = anchor.split("-").map(Number);
-    const monthStart = new Date(Date.UTC(ay, am - 1, 1)).toISOString().slice(0, 10);
-    const monthEnd    = new Date(Date.UTC(ay, am, 0)).toISOString().slice(0, 10);
+    const [vy, vm] = viewMonth.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(vy, vm - 1, 1)).toISOString().slice(0, 10);
+    const monthEnd    = new Date(Date.UTC(vy, vm, 0)).toISOString().slice(0, 10);
     const from = monthStart < loadedFrom  ? loadedFrom  : monthStart;
     const to   = monthEnd   > loadedUntil ? loadedUntil : monthEnd;
     const out = [];
     for (let d = from; d <= to && out.length < 400; d = addDaysISO(d, 1)) out.push(d);
     return out;
-  }, [loadedFrom, loadedUntil, activeDate, events]);
+  }, [loadedFrom, loadedUntil, viewMonth, events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
     events.forEach(e => { counts[e.peak_date || e.date] = (counts[e.peak_date || e.date] || 0) + 1; });
     return counts;
   }, [events]);
 
-  // Диапазон "в фокусе" — реально загруженное/просматриваемое окно, а не
-  // сегодняшний день. Ленты без отдельного переключателя месяца нет, поэтому
-  // берём границы того, что фактически подгружено (loadedFrom/loadedUntil);
-  // для mock/анонимного режима, где эти границы не выставляются, — границы
-  // самих загруженных событий (dates). new Date() — только последний фолбэк,
-  // пока не определено вообще ничего (до первой загрузки).
+  // Диапазон "в фокусе" — граница уже посчитанной ленты (dates), которая
+  // сама привязана к viewMonth и обрезана по loadedFrom/loadedUntil. Общий
+  // источник правды с лентой: заголовок/счётчики не могут разъехаться с тем,
+  // что реально показано. new Date() — только последний фолбэк, пока не
+  // определено вообще ничего (до первой загрузки).
   const focusRange = useMemo(() => {
-    const from = loadedFrom  || dates[0];
-    const to   = loadedUntil || dates[dates.length - 1];
+    const from = dates[0];
+    const to   = dates[dates.length - 1];
     if (from && to) return { from, to };
     const today = todayISO();
     return { from: today, to: today };
-  }, [loadedFrom, loadedUntil, dates]);
+  }, [dates]);
 
   const focusLabel = activeDate ? monthYearLabel(activeDate) : monthRangeLabel(focusRange.from, focusRange.to);
 
@@ -1015,6 +1022,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const handleDateClick = useCallback(async (d) => {
     const next = activeDate === d ? null : d;
     setActiveDate(next);
+    if (next) setViewMonth(next.slice(0, 7));
     if (!onDateSelect) return;
     if (!next) { onDateSelect(null, [], []); return; }
 
