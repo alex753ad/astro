@@ -14,6 +14,9 @@ ENV:
   BACKEND_URL          — базовый URL бэкенда (Railway), напр. https://astro-production-abcc.up.railway.app
   INTERNAL_SECRET      — общий секрет для /api/v1/internal/*
   CHANNEL_LINKS        — (опц.) ссылки-приглашения через запятую для кнопок
+  CHANNEL_NAMES        — (опц.) названия каналов через запятую, в том же
+                          порядке что CHANNEL_LINKS; без неё кнопки подписаны
+                          "Канал N"
 """
 from __future__ import annotations
 
@@ -34,6 +37,7 @@ CHANNEL_IDS = [c.strip() for c in os.getenv("PILOT_CHANNEL_IDS", "").split(",") 
 BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
 INTERNAL_SECRET = os.getenv("INTERNAL_SECRET", "")
 CHANNEL_LINKS = [c.strip() for c in os.getenv("CHANNEL_LINKS", "").split(",") if c.strip()]
+CHANNEL_NAMES = [c.strip() for c in os.getenv("CHANNEL_NAMES", "").split(",") if c.strip()]
 
 _OK_STATUSES = {"member", "administrator", "creator"}
 
@@ -70,8 +74,13 @@ async def _request_link(tg_user_id: int) -> tuple[int, dict]:
 def _subscribe_keyboard() -> InlineKeyboardMarkup | None:
     if not CHANNEL_LINKS:
         return None
-    rows = [[InlineKeyboardButton(text=f"Канал {i+1}", url=link)]
-            for i, link in enumerate(CHANNEL_LINKS)]
+    rows = [
+        [InlineKeyboardButton(
+            text=CHANNEL_NAMES[i] if i < len(CHANNEL_NAMES) else f"Канал {i+1}",
+            url=link,
+        )]
+        for i, link in enumerate(CHANNEL_LINKS)
+    ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
