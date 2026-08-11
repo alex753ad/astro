@@ -15,7 +15,6 @@ import AspectTable from '../components/AspectTable';
 import Interpretation from '../components/Interpretation';
 import TransitTimeline from '../components/TransitTimeline';
 import ExpertModeToggle from '../components/ExpertModeToggle';
-import ForecastScale from '../components/ForecastScale';
 import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import useIsMobile from '../hooks/useIsMobile';
@@ -215,9 +214,6 @@ const sr = {
   error: { margin: '12px 0 0', fontSize: 12, color: 'var(--color-danger)', textAlign: 'center' },
   legal: { margin: '14px 0 0', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' },
 };
-
-// Horizontal top tabs (above the 3-column layout)
-const TOP_TABS = [];
 
 // Left sidebar vertical buttons (only for 'chart' top tab)
 const LEFT_BTNS = [
@@ -827,24 +823,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
       </header>
 
-      {/* ── Горизонтальная группа вкладок ── */}
-      <div style={s.topTabBar}>
-        {TOP_TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => {
-              if (key === 'lunar') { navigate(`/lunar?chartId=${chartId}`); return; }
-              if (key === 'planner') { navigate(`/planner/${chartId}`); return; }
-              handleTopTabChange(key);
-            }}
-            style={{ ...s.topTabBtn, ...(topTab === key ? s.topTabActive : {}) }}
-          >
-            {label}
-            {topTab === key && <span style={s.topTabUnderline} />}
-          </button>
-        ))}
-      </div>
-
       {/* ── Натальная карта: 3 колонки ── */}
       {topTab === 'chart' && (
         <div style={s.threeCol}>
@@ -1003,21 +981,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             </main>
           </div>
         </div>
-      )}
-
-      {/* ── Планировщик ── */}
-      {topTab === 'planner' && (
-        <main style={s.main}>
-          <section style={s.card}>
-            <div style={s.plannerHead}>
-              <span style={s.plannerTitle}>Планировщик</span>
-              <span style={s.plannerSub}>
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-            </div>
-            <ForecastScale chartId={chartId} selectedDate={selectedDate} />
-          </section>
-        </main>
       )}
 
       <AnimatePresence>
@@ -1336,32 +1299,6 @@ const s = {
   title:    { margin: 0, fontSize: '18px', fontWeight: '500', color: 'var(--text-primary)' },
   subtitle: { margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' },
 
-  // ── Горизонтальная группа вкладок ──
-  topTabBar: {
-    display: 'flex',
-    background: 'var(--bg-card)',
-    borderBottom: '0.5px solid var(--border)',
-    padding: '0 24px',
-    gap: 0,
-  },
-  topTabBtn: {
-    position: 'relative',
-    padding: '12px 20px',
-    background: 'none', border: 'none',
-    color: 'var(--text-secondary)',
-    fontSize: '14px', fontWeight: '400',
-    cursor: 'pointer', fontFamily: 'inherit',
-    transition: 'color 0.15s',
-    whiteSpace: 'nowrap',
-  },
-  topTabActive: { color: 'var(--text-primary)', fontWeight: '600' },
-  topTabUnderline: {
-    position: 'absolute', bottom: -1, left: '20px', right: '20px', height: 2,
-    background: 'var(--accent)',
-    borderRadius: '2px 2px 0 0',
-    display: 'block',
-  },
-
   // ── 3-колоночный layout ──
   threeCol: {
     display: 'flex',
@@ -1471,9 +1408,6 @@ const s = {
   transitDateLabel: { fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '14px' },
   transitBackBtn: { display: 'flex', alignItems: 'center', gap: 4, fontSize: '13px', fontWeight: '500', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit', whiteSpace: 'nowrap' },
   card: { background: 'var(--bg-card)', borderRadius: '16px', border: '0.5px solid var(--border)', padding: '20px' },
-  plannerHead: { marginBottom: '14px' },
-  plannerTitle: { fontSize: '15px', fontWeight: '500', color: 'var(--text-primary)', display: 'block' },
-  plannerSub:   { fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginTop: '2px' },
   plannerLinkBtn: {
     padding: '8px 14px',
     fontSize: '13px',
