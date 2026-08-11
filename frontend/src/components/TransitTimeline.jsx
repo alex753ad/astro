@@ -146,6 +146,16 @@ function todayISO() {
 const MONTHS_RU_FULL = ["январь", "февраль", "март", "апрель", "май", "июнь",
   "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
+// Границы календарного месяца "YYYY-MM" — Date.UTC от готовых year/month,
+// без парсинга локальной строки, поэтому часовой пояс тут ни при чём.
+function monthBoundsISO(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return {
+    start: new Date(Date.UTC(y, m - 1, 1)).toISOString().slice(0, 10),
+    end:   new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10),
+  };
+}
+
 function monthYearLabel(dateStr) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
 }
@@ -333,7 +343,7 @@ const filterLabelStyle = {
 // DATE NAV
 // ═══════════════════════════════════════════════════════════
 
-function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
+function DateNav({ dates, activeDate, onDateClick, eventCountByDate, viewMonth, monthAnchorTick, onVisibleMonthChange }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -342,6 +352,17 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
       if (idx >= 0) scrollRef.current.children[idx]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     }
   }, [activeDate, dates]);
+
+  // Скролл к началу viewMonth — только по явному сигналу (monthAnchorTick:
+  // кнопка ‹/›, догрузка), НЕ на каждую смену viewMonth — иначе органическое
+  // обновление viewMonth из onVisibleMonthChange (см. ниже) дёргало бы ленту
+  // обратно поверх собственной прокрутки пользователя.
+  useEffect(() => {
+    if (!scrollRef.current || monthAnchorTick === 0) return;
+    const idx = dates.findIndex(d => d.slice(0, 7) === viewMonth);
+    if (idx >= 0) scrollRef.current.children[idx]?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- намеренно только monthAnchorTick, см. комментарий выше
+  }, [monthAnchorTick]);
 
   // Мышиное колесо крутит вертикаль — переводим его в горизонтальную прокрутку полосы.
   // React onWheel не всегда даёт preventDefault сработать (пассивные листенеры),
@@ -357,6 +378,41 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate }) {
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
   }, []);
+
+  // Заголовок/счётчики следуют за прокруткой: месяц, чьи дни занимают
+  // больше всего видимой ширины ленты, становится viewMonth. rAF-throttling —
+  // пересчёт максимум раз за кадр, а не на каждое событие scroll.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !onVisibleMonthChange) return;
+    let raf = null;
+    const handleScroll = () => {
+      if (raf != null) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const visStart = el.scrollLeft;
+        const visEnd   = visStart + el.clientWidth;
+        const widthByMonth = {};
+        for (let i = 0; i < dates.length; i++) {
+          const child = el.children[i];
+          if (!child) continue;
+          const left  = child.offsetLeft;
+          const right = left + child.offsetWidth;
+          const overlap = Math.min(right, visEnd) - Math.max(left, visStart);
+          if (overlap <= 0) continue;
+          const ym = dates[i].slice(0, 7);
+          widthByMonth[ym] = (widthByMonth[ym] || 0) + overlap;
+        }
+        let bestYm = null, bestWidth = 0;
+        for (const ym in widthByMonth) {
+          if (widthByMonth[ym] > bestWidth) { bestWidth = widthByMonth[ym]; bestYm = ym; }
+        }
+        if (bestYm) onVisibleMonthChange(bestYm);
+      });
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => { el.removeEventListener("scroll", handleScroll); if (raf != null) cancelAnimationFrame(raf); };
+  }, [dates, onVisibleMonthChange]);
 
   return (
     <div ref={scrollRef} style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", msOverflowStyle: "none" }}>
@@ -724,6 +780,11 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   // месяцы, не выбирая день) и от "сегодня" (иначе догрузка предыдущего
   // месяца грузит данные, но лента остаётся на месте — см. loadPrevious).
   const [viewMonth,     setViewMonth]     = useState(() => todayISO().slice(0, 7));
+  // Растёт только когда viewMonth меняется намеренно (кнопка ‹/›, догрузка) —
+  // сигнал для DateNav "прокрути к началу этого месяца". Органическая смена
+  // viewMonth от собственной прокрутки ленты тик не трогает, иначе лента
+  // дёргалась бы обратно поверх движения пользователя.
+  const [monthAnchorTick, setMonthAnchorTick] = useState(0);
 
   const isFree = !userTier || userTier === "free";
   const isLite = userTier === "lite";
@@ -761,6 +822,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     setLoadedFrom(null);
     setReachedEnd(false);
     setViewMonth(todayISO().slice(0, 7));
+    setMonthAnchorTick(t => t + 1);
 
     if (!chartId || mockMode || chartId === 'anonymous') {
       setEvents(MOCK_EVENTS);
@@ -791,8 +853,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       .catch(() => { setEvents([]); setLoadError(true); setLoading(false); setReachedEnd(true); });
   }, [chartId, mockMode, horizonEnd]);
 
-  // ── Догрузка следующего месяца (по прокрутке — см. sentinel ниже) ──
-  const loadMore = useCallback(() => {
+  // ── Догрузка следующего месяца (по прокрутке — см. sentinel ниже; вызов с
+  //    advanceView=true — из кнопки "›", когда следующий месяц ещё не загружен) ──
+  const loadMore = useCallback((advanceView = false) => {
     if (loadingMore || reachedEnd || loading || !chartId || mockMode || chartId === 'anonymous' || loadedUntil == null) return;
     if (loadedUntil >= horizonEnd) { setReachedEnd(true); return; }
 
@@ -805,6 +868,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         setEvents(prev => mergeEvents(prev, data.events || []));
         setLoadedUntil(to);
         if (to >= horizonEnd) setReachedEnd(true);
+        if (advanceView) {
+          setViewMonth(prev => addMonthISO(`${prev}-01`).slice(0, 7));
+          setMonthAnchorTick(t => t + 1);
+        }
       })
       .catch(() => {}) // оставляем loadedUntil как есть — следующий триггер повторит тот же диапазон
       .finally(() => setLoadingMore(false));
@@ -825,10 +892,43 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         // Лента сразу уходит на подгруженный месяц — иначе догрузка видна
         // только в счётчиках, а сама лента остаётся на месте.
         setViewMonth(prev => subMonthISO(`${prev}-01`).slice(0, 7));
+        setMonthAnchorTick(t => t + 1);
       })
       .catch(() => {}) // оставляем loadedFrom как есть — следующий клик повторит тот же диапазон
       .finally(() => setLoadingPrev(false));
   }, [loadingPrev, loading, chartId, mockMode, loadedFrom]);
+
+  // ── Навигация «‹ / ›» рядом с заголовком: месяц уже загружен — просто
+  //    переключаем viewMonth без сети; иначе догружаем (loadPrevious/loadMore)
+  //    и переключаем месяц уже после успешной загрузки (см. их колбэки) ──
+  const goPrevMonth = useCallback(() => {
+    const target = subMonthISO(`${viewMonth}-01`).slice(0, 7);
+    if (loadedFrom && monthBoundsISO(target).start >= loadedFrom) {
+      setViewMonth(target);
+      setMonthAnchorTick(t => t + 1);
+    } else {
+      loadPrevious();
+    }
+  }, [viewMonth, loadedFrom, loadPrevious]);
+
+  const goNextMonth = useCallback(() => {
+    const target = addMonthISO(`${viewMonth}-01`).slice(0, 7);
+    if (loadedUntil && monthBoundsISO(target).end <= loadedUntil) {
+      setViewMonth(target);
+      setMonthAnchorTick(t => t + 1);
+    } else {
+      loadMore(true);
+    }
+  }, [viewMonth, loadedUntil, loadMore]);
+
+  // Навигация вообще доступна только там, где есть реальное окно
+  // loadedFrom…loadedUntil (не mock/анонимный режим). "›" дополнительно
+  // блокируется, когда следующий месяц не загружен и грузить больше нечего
+  // (reachedEnd) — иначе loadMore(true) молча no-op'нется и кнопка "зависнет".
+  const canPage = !!(loadedFrom && chartId && chartId !== 'anonymous' && !mockMode);
+  const canGoNext = canPage && (
+    monthBoundsISO(addMonthISO(`${viewMonth}-01`).slice(0, 7)).start <= loadedUntil || !reachedEnd
+  );
 
   // ── Free: догружаем до горизонта в фоне, не дожидаясь скролла —
   //    иначе счётчик FreePlanBanner/блюр-тизер занижен, пока пользователь не долистал ──
@@ -903,27 +1003,27 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return filteredEvents.filter((e, idx) => !isEventVisible(e, events.indexOf(e))).length;
   }, [filteredEvents, events, hasFullAccess, isLite, isEventVisible]);
 
-  // Сплошной календарный ряд — но только на месяц, который сейчас
-  // просматривается (viewMonth), а не на весь загруженный горизонт (Free —
-  // 12 мес, Premium — 24 мес = сотни DOM-узлов и, до фикса addDaysISO,
-  // бесконечный цикл в часовых поясах восточнее UTC — регрессия 78da87f).
-  // viewMonth, а не activeDate/"сегодня" — иначе догрузка предыдущего месяца
-  // (loadPrevious) грузит данные, но лента остаётся на месте. Цель бага 4
-  // сохранена: дни без пиков внутри месяца больше не пропускаются, маркер
-  // (eventCountByDate) остаётся только там, где есть событие. out.length <
-  // 400 — предохранитель, не единственная защита от зацикливания (та — в
-  // самом addDaysISO), а страховка на случай, если формат данных когда-нибудь
-  // снова окажется не тем, что ожидается.
+  // Сплошной календарный ряд на три месяца вокруг viewMonth (предыдущий +
+  // текущий + следующий, обрезанные по loadedFrom…loadedUntil) — не весь
+  // загруженный горизонт (Free — 12 мес, Premium — 24 мес = сотни DOM-узлов
+  // и, до фикса addDaysISO, бесконечный цикл в часовых поясах восточнее UTC —
+  // регрессия 78da87f), но и не один месяц: прокрутка внутри одного месяца
+  // упиралась в его границы (регрессия после первого фикса viewMonth), три
+  // месяца дают запас для непрерывной прокрутки в обе стороны. ~90 узлов —
+  // для DOM безопасно. out.length < 400 — предохранитель, не единственная
+  // защита от зацикливания (та — в самом addDaysISO), а страховка на случай,
+  // если формат данных когда-нибудь снова окажется не тем, что ожидается.
   const dates = useMemo(() => {
     if (!loadedFrom || !loadedUntil) {
       // mock/анонимный режим — loadedFrom/loadedUntil не выставляются
       return [...new Set(events.map(e => e.peak_date || e.date))].sort();
     }
-    const [vy, vm] = viewMonth.split("-").map(Number);
-    const monthStart = new Date(Date.UTC(vy, vm - 1, 1)).toISOString().slice(0, 10);
-    const monthEnd    = new Date(Date.UTC(vy, vm, 0)).toISOString().slice(0, 10);
-    const from = monthStart < loadedFrom  ? loadedFrom  : monthStart;
-    const to   = monthEnd   > loadedUntil ? loadedUntil : monthEnd;
+    const prevYm = subMonthISO(`${viewMonth}-01`).slice(0, 7);
+    const nextYm = addMonthISO(`${viewMonth}-01`).slice(0, 7);
+    const windowStart = monthBoundsISO(prevYm).start;
+    const windowEnd   = monthBoundsISO(nextYm).end;
+    const from = windowStart < loadedFrom  ? loadedFrom  : windowStart;
+    const to   = windowEnd   > loadedUntil ? loadedUntil : windowEnd;
     const out = [];
     for (let d = from; d <= to && out.length < 400; d = addDaysISO(d, 1)) out.push(d);
     return out;
@@ -934,18 +1034,24 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     return counts;
   }, [events]);
 
-  // Диапазон "в фокусе" — граница уже посчитанной ленты (dates), которая
-  // сама привязана к viewMonth и обрезана по loadedFrom/loadedUntil. Общий
-  // источник правды с лентой: заголовок/счётчики не могут разъехаться с тем,
-  // что реально показано. new Date() — только последний фолбэк, пока не
-  // определено вообще ничего (до первой загрузки).
+  // Диапазон "в фокусе" — именно viewMonth (а не всё окно ленты dates, которое
+  // теперь шире, на три месяца), обрезанный по loadedFrom…loadedUntil.
+  // Заголовок/счётчики показывают ровно тот месяц, что сейчас "активен",
+  // независимо от того, сколько соседних месяцев уже подгружено в ленту.
   const focusRange = useMemo(() => {
-    const from = dates[0];
-    const to   = dates[dates.length - 1];
-    if (from && to) return { from, to };
-    const today = todayISO();
-    return { from: today, to: today };
-  }, [dates]);
+    if (!loadedFrom || !loadedUntil) {
+      // mock/анонимный режим — граница по факту загруженных событий (dates)
+      const from = dates[0];
+      const to   = dates[dates.length - 1];
+      if (from && to) return { from, to };
+      const today = todayISO();
+      return { from: today, to: today };
+    }
+    const { start, end } = monthBoundsISO(viewMonth);
+    const from = start < loadedFrom  ? loadedFrom  : start;
+    const to   = end   > loadedUntil ? loadedUntil : end;
+    return { from, to };
+  }, [loadedFrom, loadedUntil, viewMonth, dates]);
 
   const focusLabel = activeDate ? monthYearLabel(activeDate) : monthRangeLabel(focusRange.from, focusRange.to);
 
@@ -1082,8 +1188,20 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: "var(--accent)", letterSpacing: "-0.02em" }}>
           Транзиты
         </h1>
-        <p style={{ fontSize: 14, color: "var(--tt-text2)", margin: "6px 0 0" }}>
-          {focusLabel}
+        <p style={{ fontSize: 14, color: "var(--tt-text2)", margin: "6px 0 0", display: "flex", alignItems: "center", gap: 8 }}>
+          {canPage && (
+            <button onClick={goPrevMonth} disabled={loadingPrev} aria-label="Предыдущий месяц" style={{
+              background: "none", border: "none", color: "var(--tt-text2)", fontSize: 16, lineHeight: 1,
+              cursor: loadingPrev ? "default" : "pointer", padding: "0 2px", opacity: loadingPrev ? 0.5 : 1,
+            }}>‹</button>
+          )}
+          <span>{loadingPrev || loadingMore ? "Загрузка…" : focusLabel}</span>
+          {canPage && (
+            <button onClick={goNextMonth} disabled={!canGoNext || loadingMore} aria-label="Следующий месяц" style={{
+              background: "none", border: "none", color: "var(--tt-text2)", fontSize: 16, lineHeight: 1,
+              cursor: (!canGoNext || loadingMore) ? "default" : "pointer", padding: "0 2px", opacity: (!canGoNext || loadingMore) ? 0.35 : 1,
+            }}>›</button>
+          )}
         </p>
       </div>
 
@@ -1091,7 +1209,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
       {!loading && dates.length > 0 && (
         <div style={{ margin: "16px 0" }}>
-          <DateNav dates={dates} activeDate={activeDate} onDateClick={d => handleDateClick(d)} eventCountByDate={eventCountByDate} />
+          <DateNav
+            dates={dates} activeDate={activeDate} onDateClick={d => handleDateClick(d)} eventCountByDate={eventCountByDate}
+            viewMonth={viewMonth} monthAnchorTick={monthAnchorTick} onVisibleMonthChange={setViewMonth}
+          />
         </div>
       )}
 
@@ -1101,18 +1222,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start", transition: "grid-template-columns 0.3s ease" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {!loading && loadedFrom && chartId && chartId !== 'anonymous' && !mockMode && (
-            <div style={{ textAlign: "center", margin: "0 0 12px" }}>
-              <button onClick={loadPrevious} disabled={loadingPrev} style={{
-                background: "none", border: "1px solid var(--tt-border2)", color: "var(--tt-text2)",
-                borderRadius: 10, padding: "6px 16px", fontSize: 12,
-                cursor: loadingPrev ? "default" : "pointer", fontFamily: "inherit",
-                opacity: loadingPrev ? 0.6 : 1,
-              }}>
-                {loadingPrev ? "Загрузка…" : "↑ Загрузить предыдущий месяц"}
-              </button>
-            </div>
-          )}
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : loadError ? (
