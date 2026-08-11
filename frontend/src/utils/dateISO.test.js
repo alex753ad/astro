@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "./dateISO";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { addDaysISO, addMonthISO, subMonthISO, monthEndISO, todayLocalISO } from "./dateISO";
 
 // Обязательно прогонять под TZ=UTC И TZ=Europe/Moscow (см. package.json
 // "test") — под UTC регрессия неподвижной точки не воспроизводится вообще,
@@ -79,5 +79,25 @@ describe("monthEndISO", () => {
 
   it("lands on a leap February", () => {
     expect(monthEndISO("2028-01-15", 1)).toBe("2028-02-29");
+  });
+});
+
+describe("todayLocalISO", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("matches local wall-clock date at a safe hour", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 11, 14, 0, 0)); // локальные компоненты, месяц 0-indexed
+    expect(todayLocalISO()).toBe("2026-08-11");
+  });
+
+  it("stays on the local day during the UTC roll-over window (регресс 00:00-03:00 MSK)", () => {
+    // 01:30 по местному времени — под TZ=Europe/Moscow это 2026-08-10T22:30Z,
+    // .toISOString().slice(0,10) отдал бы вчера. todayLocalISO не должна.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 11, 1, 30, 0));
+    expect(todayLocalISO()).toBe("2026-08-11");
   });
 });

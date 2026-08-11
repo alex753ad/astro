@@ -8,6 +8,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useAuth from '../hooks/useAuth';
 import { API_BASE } from '../config';
 import { TIER_NAMES } from '../constants';
+import { todayLocalISO } from '../utils/dateISO';
 
 import ariesIcon       from '../assets/zodiac/aries.png';
 import taurusIcon      from '../assets/zodiac/taurus.png';
@@ -123,7 +124,7 @@ export default function LunarCalendarPage() {
   const { user } = useAuth();
   const isFree = !user?.tier || user?.tier === 'free';
   const now      = new Date();
-  const todayStr = now.toISOString().slice(0,10);
+  const todayStr = todayLocalISO();
   const isPremium = user?.tier === 'premium';
   const lunarMonths = isPremium ? null
                     : user?.tier === 'pro' ? 12

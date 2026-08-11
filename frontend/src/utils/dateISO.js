@@ -7,8 +7,12 @@
  * предыдущие сутки UTC. В цикле по датам (addDaysISO(d, 1) повторно) это была
  * неподвижная точка — d не менялся вообще, натуральный бесконечный цикл, не
  * просто "медленно" (регрессия перфоманса вкладки "Транзиты", коммит 78da87f).
- * Все функции здесь строят и меняют дату целиком в UTC — локальная таймзона
- * не участвует нигде.
+ * Все функции здесь оперируют уже готовыми ISO-датами и строят/меняют их
+ * целиком в UTC — локальная таймзона не участвует. Исключение — todayLocalISO:
+ * "сегодня" обязана знать локальное время пользователя (иначе new Date().
+ * toISOString() покажет вчера с полуночи до 3 утра по МСК), поэтому она
+ * единственная читает локальные компоненты Date. Дальше в цепочку (например
+ * addDaysISO(todayLocalISO(), 365)) уходит уже чистая ISO-строка.
  */
 
 export function addDaysISO(dateStr, days) {
@@ -51,4 +55,11 @@ export function subMonthISO(dateStr) {
 export function monthEndISO(dateStr, monthsOffset = 0) {
   const [y, m] = dateStr.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1 + monthsOffset + 1, 0)).toISOString().slice(0, 10);
+}
+
+// "Сегодня" по локальным часам пользователя. См. пояснение в шапке файла —
+// единственная функция модуля, которая намеренно читает локальное время.
+export function todayLocalISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

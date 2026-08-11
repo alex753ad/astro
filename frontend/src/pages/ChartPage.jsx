@@ -20,6 +20,7 @@ import { useExpertMode } from '../hooks/useExpertMode.js';
 import useIsMobile from '../hooks/useIsMobile';
 import { TIER_NAMES } from '../constants';
 import { enablePush, pushSupported } from '../push';
+import { todayLocalISO, addDaysISO } from '../utils/dateISO';
 import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
 import OnboardingTooltips from '../components/OnboardingTooltips';
@@ -359,9 +360,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [chart, setChart]                   = useState(null);
   const [transitPlanets, setTransitPlanets] = useState([]);
   const [sunPeriod, setSunPeriod] = useState(null);
-  const [selectedDate, setSelectedDate]     = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [selectedDate, setSelectedDate]     = useState(todayLocalISO());
   const [topTab, setTopTab]         = useState(searchParams.get('tab') || 'chart');
   const [leftPanel, setLeftPanel]   = useState(null); // 'build'|'planets'|'aspects'|'interpretation'|'chat'|null
   const [activeTab, setActiveTab]   = useState('chart'); // kept for transit/planner compat
@@ -439,8 +438,8 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   // Запустить расчёт транзитов за 12 месяцев через Celery
   async function loadTransitsAsync() {
-    const from = new Date().toISOString().slice(0, 10);
-    const to   = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const from = todayLocalISO();
+    const to   = addDaysISO(from, 365);
     setAsyncTransitLoading(true);
     setAsyncTransitStep('Отправляем запрос…');
     setAsyncTransits(null);

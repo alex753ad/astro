@@ -4,8 +4,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import MotionButton from './MotionButton';
+import { todayLocalISO } from '../utils/dateISO';
 
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = todayLocalISO();
 const MIN_DATE = '1900-01-01';
 
 const DEFAULT_FORM = {

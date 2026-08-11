@@ -16,6 +16,7 @@ import MotionButton from '../components/MotionButton';
 import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 import { TIER_NAMES } from '../constants';
 import useIsMobile from '../hooks/useIsMobile';
+import { todayLocalISO } from '../utils/dateISO';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -1600,7 +1601,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
   const load = async () => {
     const now = new Date();
     const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const to = now.toISOString().slice(0, 10);
+    const to = todayLocalISO();
     try {
       const [s, i, r, h, a] = await Promise.all([
         authFetch(`${API}/crm/stats?from=${from}&to=${to}`),
