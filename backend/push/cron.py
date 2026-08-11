@@ -111,7 +111,8 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
     """Медленная планета подходит на 4° (applying) к аспекту с личной планетой
     ИЛИ к куспиду дома. Срабатывает один раз — в день пересечения порога 4°.
     """
-    from backend.transit.engine import ASPECTS, _angular_distance
+    from backend.transit.engine import ASPECTS, _angular_distance, NATAL_SPHERE
+    from backend.transit.forecast_prompt import HOUSE_SPHERE_MAP
     from backend.transit.house_passages import _extract_cusps
 
     yday = today - timedelta(days=1)
@@ -135,13 +136,20 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                 orb_t = abs(_angular_distance(lt_t, nlon) - exact)
                 orb_y = abs(_angular_distance(lt_y, nlon) - exact)
                 if orb_t <= APPLYING_ORB < orb_y:  # пересёк 4° на сближении
+                    sphere = _sphere_short(NATAL_SPHERE.get((tp, npl)))
+                    if sphere:
+                        frag = f"{pr} → {sphere}"
+                        body = f"{pr} подходит к теме «{sphere}» — на горизонте важное движение. Понаблюдайте, что откликается."
+                    else:
+                        frag = f"{pr} подходит к {nr}"
+                        body = f"{pr} подходит к вашему {nr} — на горизонте важное движение. Понаблюдайте, что откликается."
                     out.append({
                         "kind": "transit_approach",
                         "ref": f"4deg:{tp}:{npl}:{aspect}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
-                        "frag": f"{pr} подходит к {nr}",
+                        "frag": frag,
                         "title": "✦ Открывается окно",
-                        "body": f"{pr} подходит к вашему {nr} — на горизонте важное движение. Понаблюдайте, что откликается.",
+                        "body": body,
                         "url": _with_topic(planner_url, _topic_key("approach", planet=tp, aspect=aspect, natal=npl)),
                     })
 
@@ -152,13 +160,20 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                 d_t = _angular_distance(lt_t, cusp)
                 d_y = _angular_distance(lt_y, cusp)
                 if d_t <= APPLYING_ORB < d_y:
+                    sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
+                    if sphere_name:
+                        frag = f"{pr} → {sphere_name}"
+                        body = f"{pr} приближается к дому «{sphere_name}» — скоро откроется эта сфера жизни. Стоит присмотреться заранее."
+                    else:
+                        frag = f"{pr} готовит перемены"
+                        body = f"{pr} приближается к важному порогу — скоро откроется новая сфера жизни."
                     out.append({
                         "kind": "cusp_approach",
                         "ref": f"4deg_cusp:{tp}:{house}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
-                        "frag": f"{pr} готовит перемены",
+                        "frag": frag,
                         "title": "✦ Новая сфера открывается",
-                        "body": f"{pr} приближается к важному порогу — скоро откроется новая сфера жизни.",
+                        "body": body,
                         "url": _with_topic(planner_url, _topic_key("cusp_approach", planet=tp, house=house)),
                     })
     return out
@@ -168,10 +183,18 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
 EXACT_TOUCH_ORB = 0.3     # порог «точного» касания в градусах
 TRIPLE_SCAN_DAYS = 300    # окно назад для подсчёта номера захода
 
+# {sphere} подставляется из NATAL_SPHERE (engine.py), если пара
+# (transit_planet, natal_planet) там есть — иначе берётся _TRIPLE_MSG_FALLBACK
+# с тем же смыслом, но без названия сферы.
 _TRIPLE_MSG = {
-    1: ("✦ Ваша тема открывается", "открывается тема, которая ещё вернётся к вам"),
-    2: ("✦ Тема возвращается", "тема возвращается — время пересмотреть то, что начали"),
-    3: ("✦ Тема закрывается", "тема закрывается и закрепляется — время подвести итог"),
+    1: ("✦ Ваша тема открывается", "открывается {sphere} — эта тема ещё вернётся к вам"),
+    2: ("✦ Тема возвращается", "{sphere} возвращается — время пересмотреть то, что начали"),
+    3: ("✦ Тема закрывается", "{sphere} закрывается и закрепляется — время подвести итог"),
+}
+_TRIPLE_MSG_FALLBACK = {
+    1: "открывается тема, которая ещё вернётся к вам",
+    2: "тема возвращается — время пересмотреть то, что начали",
+    3: "тема закрывается и закрепляется — время подвести итог",
 }
 
 
@@ -200,7 +223,7 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
     """Точное касание медленной планетой аспекта к личной планете сегодня —
     с номером захода (1/2/3) для сценария директ→ретро→директ.
     """
-    from backend.transit.engine import ASPECTS, _angular_distance
+    from backend.transit.engine import ASPECTS, _angular_distance, NATAL_SPHERE
 
     yday = today - timedelta(days=1)
     tmrw = today + timedelta(days=1)
@@ -224,7 +247,9 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
                 # точное касание сегодня = локальный минимум ниже порога
                 if orb_t <= EXACT_TOUCH_ORB and orb_t <= orb_y and orb_t <= orb_m:
                     phase = _count_touches_until(tp, nlon, exact, today)
-                    title, tail = _TRIPLE_MSG.get(phase, _TRIPLE_MSG[1])
+                    title, tail_template = _TRIPLE_MSG.get(phase, _TRIPLE_MSG[1])
+                    sphere = _sphere_short(NATAL_SPHERE.get((tp, npl)))
+                    tail = tail_template.format(sphere=sphere) if sphere else _TRIPLE_MSG_FALLBACK.get(phase, _TRIPLE_MSG_FALLBACK[1])
                     out.append({
                         "kind": "triple",
                         "ref": f"triple:{tp}:{npl}:{aspect}:{today.isoformat()}",
@@ -258,6 +283,35 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
     except Exception as e:
         logger.warning("daily body build failed: %s", e)
     return "Ваш персональный прогноз на сегодня готов."
+
+
+def _sphere_short(sphere: str | None) -> str | None:
+    """Первая смысловая часть значения NATAL_SPHERE (engine.py) — коротко для
+    пуша, та же обрезка, что в engine._build_transit_alert_subject."""
+    if not sphere:
+        return None
+    return sphere.split(" — ")[0].split(",")[0]
+
+
+# Текст «важного транзита» по тону аспекта (ASPECT_TONE в engine.py) — со
+# сферой, если пара (transit_planet, natal_planet) есть в NATAL_SPHERE, иначе
+# фолбэк без названия сферы. Короче email-версии (DESCRIPTION_TEMPLATES) —
+# те же данные (сфера/тон), не те же предложения, пуш не должен быть длиннее.
+_TRANSIT_TONE_TITLE = {
+    "harmonious": "✦ Окно открылось",
+    "tense":      "✦ Проверка на прочность",
+    "new_cycle":  "✦ Новый цикл",
+}
+_TRANSIT_TONE_BODY = {
+    "harmonious": "{planet} поддерживает тему «{sphere}» — хороший момент сделать конкретный шаг именно здесь.",
+    "tense":      "{planet} создаёт напряжение в теме «{sphere}» — не время торопиться, но стоит обратить внимание.",
+    "new_cycle":  "{planet} запускает новый цикл в теме «{sphere}» — то, что начнёте сейчас, определит эту сферу надолго.",
+}
+_TRANSIT_TONE_FALLBACK = {
+    "harmonious": "{planet} активирует один из благоприятных периодов в вашей карте — момент сделать шаг в важной для вас сфере.",
+    "tense":      "{planet} требует осознанности и терпения — не время торопиться, лучше укрепить то, что важно.",
+    "new_cycle":  "{planet} запускает новый цикл в вашей карте — обратите внимание, что начинается сейчас.",
+}
 
 
 # ── Слой 3: тема для проактивного чата ──
@@ -299,6 +353,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     # Планер (significant): старт сегодня + упреждение неделя/месяц
     if getattr(user, "push_planner", True):
         try:
+            from backend.transit.forecast_prompt import HOUSE_SPHERE_MAP
             from backend.transit.house_passages import _extract_cusps
             cusps = _extract_cusps({"houses": chart.houses})
             if not all(c == 0.0 for c in cusps):
@@ -306,11 +361,18 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 for planet in FAST_PLANETS:
                     for house in _period_starts_on(planet, cusps, today):
                         pr = PLANET_RU.get(planet, planet)
+                        sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
+                        if sphere_name:
+                            frag = f"{pr}: {sphere_name}"
+                            body = f"{pr} открывает новый период — в фокусе {sphere_name.lower()}. Загляните в планер, чтобы понять, что делать дальше."
+                        else:
+                            frag = f"новый период {pr}"
+                            body = f"{pr} открывает новый период в вашем плане — загляните, что это значит."
                         cands.append({
                             "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
-                            "priority": "significant", "weight": 60, "frag": f"новый период {pr}",
+                            "priority": "significant", "weight": 60, "frag": frag,
                             "title": "✦ Начался ваш период",
-                            "body": f"{pr} открывает новый период в вашем плане — загляните, что это значит.",
+                            "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_start", planet=planet, house=house)),
                         })
                 # 3) за неделю — средние планеты (Венера/Марс/Меркурий)
@@ -318,11 +380,18 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 for planet in MEDIUM_PLANETS:
                     for house in _period_starts_on(planet, cusps, wk):
                         pr = PLANET_RU.get(planet, planet)
+                        sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
+                        if sphere_name:
+                            frag = f"через неделю: {sphere_name}"
+                            body = f"Через неделю открывается период в сфере «{sphere_name}» — {pr} задаёт тон. Есть время подготовиться заранее."
+                        else:
+                            frag = f"скоро период {pr}"
+                            body = f"Через неделю начнётся заметный период — {pr} задаёт тон. Загляните в планер заранее."
                         cands.append({
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
-                            "priority": "significant", "weight": 70, "frag": f"скоро период {pr}",
+                            "priority": "significant", "weight": 70, "frag": frag,
                             "title": "✦ Через неделю — новое окно",
-                            "body": f"Через неделю начнётся заметный период — {pr} задаёт тон. Загляните в планер заранее.",
+                            "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
                 # 4) за месяц — медленные планеты (большой период)
@@ -330,11 +399,18 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 for planet in SLOW_PLANETS:
                     for house in _period_starts_on(planet, cusps, mo):
                         pr = PLANET_RU.get(planet, planet)
+                        sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
+                        if sphere_name:
+                            frag = f"через месяц: {sphere_name}"
+                            body = f"Через месяц открывается долгий период в сфере «{sphere_name}» — {pr} задаёт тон на годы вперёд. Стоит спланировать заранее."
+                        else:
+                            frag = f"скоро большой период {pr}"
+                            body = f"Через месяц открывается долгий период под влиянием {pr} — стоит спланировать заранее."
                         cands.append({
                             "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
-                            "priority": "significant", "weight": 100, "frag": f"скоро большой период {pr}",
+                            "priority": "significant", "weight": 100, "frag": frag,
                             "title": "✦ Через месяц — важный период",
-                            "body": f"Через месяц открывается долгий период под влиянием {pr} — стоит спланировать заранее.",
+                            "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
                         })
         except Exception as e:
@@ -343,20 +419,37 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     # 5) Важные транзиты — старт значимого транзита сегодня (significant)
     if getattr(user, "push_key_transits", True):
         try:
-            from backend.transit.engine import calculate_transits, ALERT_PLANETS
+            from backend.transit.engine import calculate_transits, ALERT_PLANETS, ASPECT_TONE, NATAL_SPHERE
             events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today)
-            for e in events:
-                if e.transit_planet not in ALERT_PLANETS:
-                    continue
-                if e.start_date != today.isoformat():
-                    continue
+            todays = [
+                e for e in events
+                if e.transit_planet in ALERT_PLANETS and e.start_date == today.isoformat()
+            ]
+            # Не больше одного кандидата на транзитную планету в день — иначе
+            # несколько аспектов одной планеты дают несколько одинаковых
+            # фрагментов в склейке («Юпитер · Юпитер · Юпитер»). Из группы
+            # берём самый точный орб — самое значимое событие.
+            best_by_planet: dict[str, object] = {}
+            for e in todays:
+                cur = best_by_planet.get(e.transit_planet)
+                if cur is None or e.peak_orb < cur.peak_orb:
+                    best_by_planet[e.transit_planet] = e
+            for e in best_by_planet.values():
                 pr = PLANET_RU.get(e.transit_planet, e.transit_planet)
+                tone = ASPECT_TONE.get(e.aspect_type, "tense")
+                sphere = _sphere_short(NATAL_SPHERE.get((e.transit_planet, e.natal_planet)))
+                if sphere:
+                    frag = f"{pr}: {sphere}"
+                    body = _TRANSIT_TONE_BODY[tone].format(planet=pr, sphere=sphere)
+                else:
+                    frag = f"{pr} активен в карте"
+                    body = _TRANSIT_TONE_FALLBACK[tone].format(planet=pr)
                 cands.append({
                     "kind": "transit",
                     "ref": f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}",
-                    "priority": "significant", "weight": 90, "frag": f"{pr} — активен в вашей карте",
-                    "title": "✦ Ваше окно сегодня",
-                    "body": f"{pr} сегодня активен в вашей карте — загляните, это про вас.",
+                    "priority": "significant", "weight": 90, "frag": frag,
+                    "title": _TRANSIT_TONE_TITLE[tone],
+                    "body": body,
                     "url": _with_topic(planner_url, _topic_key("transit", planet=e.transit_planet, aspect=e.aspect_type, natal=e.natal_planet)),
                 })
         except Exception as e:
@@ -451,9 +544,18 @@ def _process_user(db: Session, user: User) -> int:
     if len(to_send) == 1:
         payload = {"title": to_send[0]["title"], "body": to_send[0]["body"], "url": to_send[0]["url"]}
     else:
+        # Страховка: дедуп по планете в блоке 5 убирает основной источник
+        # повторов, но если где-то ещё совпадёт текст фрагмента — не
+        # показываем дубли в склейке.
+        seen_frags: set[str] = set()
+        frags = []
+        for c in to_send:
+            if c["frag"] not in seen_frags:
+                seen_frags.add(c["frag"])
+                frags.append(c["frag"])
         payload = {
             "title": "✦ Ваше окно сегодня",
-            "body": " · ".join(c["frag"] for c in to_send),
+            "body": " · ".join(frags),
             "url": to_send[0]["url"],
         }
 
