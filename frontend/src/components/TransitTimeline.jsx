@@ -3,7 +3,7 @@ import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import { createCheckoutSession, getSubscription, authFetch } from "../api/client";
-import { addDaysISO, addMonthISO, subMonthISO } from "../utils/dateISO";
+import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
 import LyraPaywallModal from "./LyraPaywallModal";
 import PlanComparisonModal from "./PlanComparisonModal";
 
@@ -809,10 +809,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   // Горизонт догрузки: Free нужен на 12 мес вперёд для блюр-тизера,
   // Premium — 24 мес, остальные платные — 2 мес (как раньше).
   const maxMonths = isFree ? 12 : (isPremium ? 24 : 2);
-  const horizonEnd = useMemo(() => {
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth() + maxMonths, 0).toISOString().slice(0, 10);
-  }, [maxMonths]);
+  const horizonEnd = useMemo(() => monthEndISO(todayISO(), maxMonths), [maxMonths]);
 
   // ── Первый запрос: ближайший месяц — список появляется быстро ──
   useEffect(() => {

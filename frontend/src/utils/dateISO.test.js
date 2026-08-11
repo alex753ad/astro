@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addDaysISO, addMonthISO, subMonthISO } from "./dateISO";
+import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "./dateISO";
 
 // Обязательно прогонять под TZ=UTC И TZ=Europe/Moscow (см. package.json
 // "test") — под UTC регрессия неподвижной точки не воспроизводится вообще,
@@ -57,5 +57,27 @@ describe("addMonthISO / subMonthISO", () => {
   it("2028-02-29 (leap day) shifts correctly in both directions", () => {
     expect(addMonthISO("2028-02-29")).toBe("2028-03-29");
     expect(subMonthISO("2028-02-29")).toBe("2028-01-29");
+  });
+});
+
+describe("monthEndISO", () => {
+  it("offset 0 — last day of the same month", () => {
+    expect(monthEndISO("2026-08-11", 0)).toBe("2026-08-31");
+  });
+
+  it("offset 2 — last day two months ahead (Pro/Lite horizon)", () => {
+    expect(monthEndISO("2026-08-11", 2)).toBe("2026-10-31");
+  });
+
+  it("offset 12 crosses the year boundary (Free horizon)", () => {
+    expect(monthEndISO("2026-08-11", 12)).toBe("2027-08-31");
+  });
+
+  it("offset 24 crosses multiple years (Premium horizon)", () => {
+    expect(monthEndISO("2026-08-11", 24)).toBe("2028-08-31");
+  });
+
+  it("lands on a leap February", () => {
+    expect(monthEndISO("2028-01-15", 1)).toBe("2028-02-29");
   });
 });

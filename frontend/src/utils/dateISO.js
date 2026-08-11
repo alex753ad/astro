@@ -39,3 +39,16 @@ export function addMonthISO(dateStr) {
 export function subMonthISO(dateStr) {
   return shiftMonthISO(dateStr, -1);
 }
+
+// Последний день месяца, отстоящего на monthsOffset месяцев от dateStr (0 —
+// последний день месяца самого dateStr). День dateStr не участвует — важны
+// только год/месяц. Заменяет new Date(y, m + n, 0).toISOString() (TransitTimeline
+// horizonEnd) — тот способ строит локальную полночь и всегда съезжает на
+// день назад под TZ восточнее UTC (Europe/Moscow), не только в узком окне
+// 00:00-03:00, как "сегодня"-баги: день здесь не 1, а 0 (последний день
+// предыдущего месяца), и локальная полночь ЛЮБОГО дня месяца съезжает
+// одинаково при конвертации в UTC.
+export function monthEndISO(dateStr, monthsOffset = 0) {
+  const [y, m] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + monthsOffset + 1, 0)).toISOString().slice(0, 10);
+}
