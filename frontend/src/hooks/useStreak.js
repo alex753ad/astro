@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { todayLocalISO, addDaysISO } from '../utils/dateISO';
+import { todayLocalISO } from '../utils/dateISO';
 
 const KEY_DATES = 'astrea_streak_dates';
 const KEY_COUNT = 'astrea_streak_count';
@@ -17,10 +17,6 @@ const KEY_LAST  = 'astrea_streak_last';
 
 function today() {
   return todayLocalISO();
-}
-
-function yesterday() {
-  return addDaysISO(todayLocalISO(), -1);
 }
 
 function calcStreak(dates) {

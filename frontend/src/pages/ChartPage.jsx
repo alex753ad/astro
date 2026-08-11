@@ -678,14 +678,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     setLeftPanel(prev => prev === key ? null : key);
   }
 
-  function handleTabChange(key, minTier) {
-    if (!tierAllowed(minTier)) {
-      openPaywall(_upsellCtx(minTier));
-      return;
-    }
-    handleTopTabChange(key);
-  }
-
   function handleDateSelect(date, dayEvents, positions) {
     // Выбрана дата с позициями — показываем их.
     if (positions?.length) {
