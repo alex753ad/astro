@@ -1,18 +1,27 @@
 import { useEffect, useState } from "react";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
+import useAuth from "../hooks/useAuth.jsx";
 
 // Страница /pilot/claim?t=<token> — активация пилота по одноразовой ссылке из бота.
 //
 // Поток:
 //   1) читаем ?t=<token>;
-//   2) если не залогинен — сохраняем токен и ведём на вход по почте (/login);
-//      после входа возвращаемся сюда (см. LoginPage-заметку в wiring);
-//   3) если залогинен — POST /pilot/claim {token}, показываем результат.
+//   2) если не залогинен — сохраняем токен и открываем модалку входа
+//      (App.jsx: onShowAuth) поверх этой же страницы;
+//   3) как только accessToken из useAuth() появится — эффект перезапускается
+//      сам (без навигации) и продолжает POST /pilot/claim.
+//
+// Раньше редиректило на "/login?next=..." — такого маршрута в App.jsx нет
+// (вход — модалка, не страница), пользователь просто зависал на пустой
+// странице, активация не происходила вовсе. Модалка открывается поверх
+// /pilot/claim (тот же путь), поэтому AuthModal.navigate(returnTo) сюда же
+// не перемонтирует компонент — реагируем на сам accessToken, а не на роут.
 
 const LS_KEY = "pilot_claim_token";
 
-export default function PilotClaim() {
+export default function PilotClaim({ onShowAuth }) {
+  const { accessToken, authFetch, updateUser } = useAuth();
   const [state, setState] = useState("init"); // init | claiming | ok | error
   const [error, setError] = useState("");
 
@@ -25,47 +34,30 @@ export default function PilotClaim() {
       return;
     }
 
-    const access = localStorage.getItem("astro_access_token");
-    if (!access) {
-      // не залогинен — сохраняем токен и идём на вход
+    if (!accessToken) {
+      // не залогинен — сохраняем токен и открываем модалку входа
       localStorage.setItem(LS_KEY, token);
-      const next = encodeURIComponent("/pilot/claim");
-      window.location.href = `/login?next=${next}`;
+      onShowAuth?.("/pilot/claim");
       return;
     }
 
-    claim(token, access);
-  }, []);
+    claim(token);
+  }, [accessToken, onShowAuth]);
 
-  async function claim(token, access) {
+  async function claim(token) {
     setState("claiming");
     try {
-      const res = await fetch(`${API_BASE}/api/v1/pilot/claim`, {
+      await authFetch(`${API_BASE}/api/v1/pilot/claim`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${access}`,
-        },
         body: JSON.stringify({ token }),
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setState("error");
-        setError(errorText(body?.detail));
-        return;
-      }
       localStorage.removeItem(LS_KEY);
-      // обновим tier в локальном профиле
-      try {
-        const u = JSON.parse(localStorage.getItem("astro_user") || "{}");
-        u.tier = "premium";
-        localStorage.setItem("astro_user", JSON.stringify(u));
-      } catch { /* ignore */ }
+      updateUser({ tier: "premium" });
       setState("ok");
       setTimeout(() => { window.location.href = "/planner"; }, 1800);
-    } catch {
+    } catch (e) {
       setState("error");
-      setError("Не удалось связаться с сервером. Попробуйте ещё раз.");
+      setError(errorText(e?.message));
     }
   }
 

@@ -445,7 +445,7 @@ function AppRoutes() {
                 <Route path="/privacy"             element={<PrivacyPage />} />
                 <Route path="/terms"               element={<TermsPage />} />
                 <Route path="/reset-password"      element={<ResetPasswordPage />} />
-                <Route path="/pilot/claim"         element={<PilotClaim />} />
+                <Route path="/pilot/claim"         element={<PilotClaim onShowAuth={openAuth} />} />
                 <Route path="/exit-survey"         element={<ExitSurveyModal page />} />
               </Routes>
             </motion.div>
