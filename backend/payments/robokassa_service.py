@@ -167,6 +167,47 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
     logger.info("Activated: user=%s tier=%s period=%s until=%s", user_id, tier, period, period_end.date())
 
 
+REFERRAL_REWARD_DAYS = 14
+
+
+def apply_referral_reward(referrer_user_id: str, db: Session) -> None:
+    """«Пригласи друга — получи 2 недели Pro бесплатно»: продлить
+    current_period_end уже активной ПЛАТНОЙ подписки реферера.
+
+    Раньше это делалось через Stripe Coupon (backend/payments/stripe_service.py:
+    apply_referral_reward) — у Robokassa нет аналога купонов, награда теперь
+    напрямую в своей БД. Free-рефереры бонус не получают: продлевать нечего,
+    а выдавать pro без даты автоматического отзыва рискованно — у системы нет
+    общего джоба, понижающего tier по истечении current_period_end (кроме
+    отдельного cron для пилота, backend/pilot/cron.py), заводить такой ради
+    этого бонуса не стали.
+
+    Не для партнёров (Partner, backend/models.py) — та программа считает
+    комиссию деньгами, а не днями подписки; вызывающая сторона
+    (payments_router.robokassa_result) сама решает, что применить, эта
+    функция ничего не проверяет про партнёрство.
+
+    Ничего не коммитит — вызывается той же SAVEPOINT-веткой, что и
+    credit_commission (payments_router.py), коммит делает activate_subscription
+    в конце общей транзакции с платежом.
+    """
+    referrer = db.query(User).filter(User.id == referrer_user_id).first()
+    if not referrer:
+        return
+
+    sub = db.query(Subscription).filter(Subscription.user_id == referrer.id).first()
+    if not sub or sub.status != "active" or referrer.tier == "free":
+        logger.info("Referral reward skipped: referrer=%s has no active paid subscription", referrer_user_id)
+        return
+
+    base = sub.current_period_end if (sub.current_period_end and sub.current_period_end > utcnow()) else utcnow()
+    sub.current_period_end = base + timedelta(days=REFERRAL_REWARD_DAYS)
+    logger.info(
+        "Referral reward applied: referrer=%s +%sd -> %s",
+        referrer_user_id, REFERRAL_REWARD_DAYS, sub.current_period_end.date(),
+    )
+
+
 def _generate_referral_code(db) -> str:
     """Generate unique 8-char alphanumeric referral code."""
     from backend.models import User as _User

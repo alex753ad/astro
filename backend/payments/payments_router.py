@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from backend.admin.admin_router import require_admin
 from backend.database import get_db
 from backend.limiter import client_ip
-from backend.models import AdminAuditLog, User, Subscription, PaymentEvent
+from backend.models import AdminAuditLog, User, Subscription, PaymentEvent, Partner
 from backend.notifications.telegram import send_support_message
 from backend.schemas import CheckoutRequest, CheckoutResponse, SubscriptionResponse
 from backend.auth.dependencies import get_current_user
@@ -27,6 +27,7 @@ from backend.payments.robokassa_service import (
     create_payment_url,
     verify_payment,
     activate_subscription,
+    apply_referral_reward,
     TIER_PRICES,
 )
 from backend.partners.commission import credit_commission
@@ -154,15 +155,32 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
         # записи в payment_events не осталось, так что дублем он не считается.
         return PlainTextResponse("internal error", status_code=500)
 
-    # Партнёрская комиссия — best-effort, в той же транзакции (коммитит
-    # activate_subscription ниже), но сбой здесь не должен блокировать
-    # реальный платёж и активацию подписки.
+    # Партнёрская комиссия и обычная реферальная награда («2 недели Pro за
+    # друга») не должны иметь возможности сорвать реальный платёж. Голого
+    # try/except здесь недостаточно: если код внутри падал уже после
+    # db.add()/запроса, сессия SQLAlchemy оставалась в состоянии, требующем
+    # rollback, и следующий шаг (activate_subscription, тот же db.commit())
+    # валился следом за ней — платёж откатывался целиком, хотя try/except
+    # формально стоял на месте. begin_nested() — SAVEPOINT: при сбое
+    # откатывается только он, уже сфлашенный payment_event остаётся цел.
+    #
+    # Комиссия и обычная награда взаимоисключающие для одного реферера —
+    # партнёрская программа отдельная сущность, не смешивается с обычной
+    # реферальной механикой (Этап 2/3): если реферер — активный партнёр,
+    # он получает комиссию деньгами, а не 2 недели подписки в подарок.
     try:
-        buyer = db.query(User).filter(User.id == user_id).first()
-        if buyer:
-            credit_commission(db, payment_event, buyer)
+        with db.begin_nested():
+            buyer = db.query(User).filter(User.id == user_id).first()
+            if buyer and buyer.referred_by:
+                is_active_partner = db.query(Partner.id).filter(
+                    Partner.user_id == buyer.referred_by, Partner.status == "active",
+                ).first() is not None
+                if is_active_partner:
+                    credit_commission(db, payment_event, buyer)
+                else:
+                    apply_referral_reward(buyer.referred_by, db)
     except Exception:
-        logger.exception("Robokassa: credit_commission failed, InvId=%s", inv_id)
+        logger.exception("Robokassa: referral reward/commission failed, InvId=%s", inv_id)
 
     try:
         activate_subscription(user_id=user_id, tier=tier, period=period, db=db)
