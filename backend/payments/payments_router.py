@@ -29,6 +29,7 @@ from backend.payments.robokassa_service import (
     activate_subscription,
     TIER_PRICES,
 )
+from backend.partners.commission import credit_commission
 
 logger = logging.getLogger("astro.payments")
 
@@ -126,14 +127,15 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
     # Поэтому здесь flush (проверка уникальности без фиксации), затем активация,
     # и только потом общий commit.
     try:
-        db.add(PaymentEvent(
+        payment_event = PaymentEvent(
             provider="robokassa",
             inv_id=str(inv_id),
             user_id=user_id,
             tier=tier,
             period=period,
             amount=paid,
-        ))
+        )
+        db.add(payment_event)
         db.flush()
     except IntegrityError:
         db.rollback()
@@ -151,6 +153,16 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
         # 500 без активации: Robokassa повторит вызов, и повтор пройдёт штатно —
         # записи в payment_events не осталось, так что дублем он не считается.
         return PlainTextResponse("internal error", status_code=500)
+
+    # Партнёрская комиссия — best-effort, в той же транзакции (коммитит
+    # activate_subscription ниже), но сбой здесь не должен блокировать
+    # реальный платёж и активацию подписки.
+    try:
+        buyer = db.query(User).filter(User.id == user_id).first()
+        if buyer:
+            credit_commission(db, payment_event, buyer)
+    except Exception:
+        logger.exception("Robokassa: credit_commission failed, InvId=%s", inv_id)
 
     try:
         activate_subscription(user_id=user_id, tier=tier, period=period, db=db)

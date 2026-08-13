@@ -203,6 +203,70 @@ class AdminAuditLog(Base):
     created_at = Column(DateTime, default=utcnow, index=True)
 
 
+class Partner(Base):
+    """Партнёрская программа (044) — отдельная сущность, не обычная
+    реферальная механика (referred_by/referral_code на User, «2 недели Pro
+    за друга»). Партнёр — это User, дополнительно помеченный ставкой
+    комиссии; ссылка на пользователя обязательна и уникальна: один партнёрский
+    профиль на аккаунт.
+    """
+    __tablename__ = "partners"
+
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    rate = Column(Float, nullable=False, default=0.10, server_default="0.10")
+    started_at = Column(DateTime, nullable=False, default=utcnow)
+    # active — начисления идут; paused — партнёрство приостановлено без удаления.
+    status = Column(String(20), nullable=False, default="active", server_default="active")
+    payout_details = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    user = relationship("User")
+
+
+class Commission(Base):
+    """Начисление комиссии партнёру за один платёж (payment_events — источник
+    сумм, не MRR-прикидка из admin/stats_router.py).
+
+    amount может быть отрицательным: возврат платежа не удаляет и не правит
+    исходную запись (иначе история по месяцам задним числом переписывалась
+    бы), а добавляет отдельную компенсирующую запись kind=refund_adjustment,
+    датированную моментом возврата — так «минус» попадает в тот период
+    выплат, где возврат случился на самом деле, а не в период исходного
+    начисления.
+
+    partner_id/payment_event_id — ON DELETE SET NULL, не CASCADE: запись о
+    заработанной комиссии обязана пережить и партнёра, и (что важнее)
+    удаление аккаунта приглашённого — деньги получены, комиссия заработана
+    (тот же принцип, что уже применён к payment_events.user_id).
+    """
+    __tablename__ = "commissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    partner_id = Column(String(36), ForeignKey("partners.id", ondelete="SET NULL"), nullable=True, index=True)
+    payment_event_id = Column(Integer, ForeignKey("payment_events.id", ondelete="SET NULL"), nullable=True, index=True)
+    amount = Column(Float, nullable=False)
+    rate = Column(Float, nullable=True)  # ставка на момент начисления; пусто у refund_adjustment
+    kind = Column(String(20), nullable=False, default="earned", server_default="earned")  # earned | refund_adjustment
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+
+
+class PartnerPayout(Base):
+    """Отметка «выплатили партнёру» — ручное действие админа, не автоматика."""
+    __tablename__ = "partner_payouts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    partner_id = Column(String(36), ForeignKey("partners.id", ondelete="SET NULL"), nullable=True, index=True)
+    admin_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    amount = Column(Float, nullable=False)
+    paid_at = Column(DateTime, nullable=False, default=utcnow)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
 class CouponSent(Base):
     __tablename__ = "coupons_sent"
 

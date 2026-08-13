@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from backend.auth.dependencies import get_current_user
 from backend.database import get_db
 from backend.limiter import client_ip
-from backend.models import AdminAuditLog, User
+from backend.models import AdminAuditLog, User, PaymentEvent
+from backend.partners.commission import refund_commission
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -109,4 +110,61 @@ def update_revenue_excluded(
     db.commit()
     return UpdateRevenueExcludedResponse(
         user_id=user.id, email=user.email, revenue_excluded=user.revenue_excluded,
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# ВОЗВРАТ ПЛАТЕЖА — отменяет партнёрскую комиссию
+# ═══════════════════════════════════════════════════════════
+# Robokassa не шлёт вебхук на возврат — эндпоинт вызывается вручную, когда
+# возврат оформлен (в кабинете Robokassa или банком) и это нужно отразить
+# в начислениях партнёру.
+
+class RefundPaymentRequest(BaseModel):
+    note: str | None = None
+
+
+class RefundPaymentResponse(BaseModel):
+    payment_event_id: int
+    adjustment_created: bool
+    adjustment_amount: float | None = None
+
+
+@router.post(
+    "/payments/{payment_event_id}/refund",
+    response_model=RefundPaymentResponse,
+    summary="Отметить платёж возвращённым — отменяет комиссию партнёра",
+)
+def refund_payment(
+    payment_event_id: int,
+    body: RefundPaymentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> RefundPaymentResponse:
+    payment_event = db.query(PaymentEvent).filter(PaymentEvent.id == payment_event_id).first()
+    if not payment_event:
+        raise HTTPException(status_code=404, detail="Платёж не найден.")
+
+    adjustment = refund_commission(db, payment_event, note=body.note)
+
+    db.add(AdminAuditLog(
+        admin_id=admin.id,
+        admin_email=admin.email,
+        action="refund_payment_commission",
+        target_user_id=payment_event.user_id,
+        details={
+            "payment_event_id": payment_event_id,
+            "inv_id": payment_event.inv_id,
+            "adjustment_created": adjustment is not None,
+            "note": body.note,
+        },
+        ip=client_ip(request),
+    ))
+    db.commit()
+
+    return RefundPaymentResponse(
+        payment_event_id=payment_event_id,
+        adjustment_created=adjustment is not None,
+        adjustment_amount=(adjustment.amount if adjustment else None),
     )
