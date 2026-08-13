@@ -818,28 +818,20 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       {topTab === 'chart' && (
         <div style={s.threeCol}>
 
-          {/* ── Левая колонка: вертикальные кнопки ── */}
-          <div style={s.leftCol(isMobile)}>
-            {isAnon && (
-              <div style={{ marginBottom: 8, ...(isMobile ? { gridColumn: '1 / -1' } : {}) }}>
-                <SaveChartBanner onLogin={handleShowAuth} />
-              </div>
-            )}
-            <div style={isMobile ? { gridColumn: '1 / -1' } : {}}>
+          {/* ── Мобильный порядок: баннер+онбординг → Построить карту/Транзиты →
+              колесо+Поделиться → остальные кнопки → таблица. Управляется через
+              CSS order на прямых детях s.threeCol (flex-wrap), десктопная
+              вёрстка (leftCol/centerCol/rightCol) не меняется. ── */}
+
+          {/* ── Левая колонка: вертикальные кнопки (десктоп) ── */}
+          {!isMobile && (
+            <div style={s.leftCol(isMobile)}>
+              {isAnon && (
+                <div style={{ marginBottom: 8 }}>
+                  <SaveChartBanner onLogin={handleShowAuth} />
+                </div>
+              )}
               <OnboardingTooltips />
-            </div>
-            {isMobile ? (
-              [...LEFT_BTNS, ...LEFT_BTNS_BOTTOM].map(({ key, label, icon }) => (
-                <button
-                  key={key}
-                  onClick={() => handleLeftBtn(key)}
-                  style={{ ...s.leftBtn, height: '100%', ...(leftPanel === key ? s.leftBtnActive : {}) }}
-                >
-                  <span style={s.leftBtnIcon}>{icon}</span>
-                  <span style={{ flex: 1 }}>{label}</span>
-                </button>
-              ))
-            ) : (
               <>
                 {LEFT_BTNS.map(({ key, label, icon }) => (
                   <button
@@ -870,16 +862,35 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                   ))}
                 </div>
               </>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* ── Мобильная панель: сразу под сеткой кнопок, не в конце страницы ── */}
+          {/* ── Мобильный ряд 1: баннер, онбординг, «Построить карту»/«Транзиты» ── */}
           {isMobile && (
-            <div style={{ flex: '1 1 100%', width: '100%' }}>{panelContent}</div>
+            <div style={{ ...s.leftCol(isMobile), order: 1 }}>
+              {isAnon && (
+                <div style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
+                  <SaveChartBanner onLogin={handleShowAuth} />
+                </div>
+              )}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <OnboardingTooltips />
+              </div>
+              {LEFT_BTNS.filter(({ key }) => key === 'build' || key === 'transits').map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => handleLeftBtn(key)}
+                  style={{ ...s.leftBtn, height: '100%', ...(leftPanel === key ? s.leftBtnActive : {}) }}
+                >
+                  <span style={s.leftBtnIcon}>{icon}</span>
+                  <span style={{ flex: 1 }}>{label}</span>
+                </button>
+              ))}
+            </div>
           )}
 
           {/* ── Центр: колесо карты ── */}
-          <div style={s.centerCol}>
+          <div style={{ ...s.centerCol, ...(isMobile ? { order: 2 } : {}) }}>
             {isAnon && <SunPeakBanner chart={chart} sunPeriod={sunPeriod} />}
             <div style={s.wheelCard}>
               {/* Интерпретация — поверх карты */}
@@ -931,6 +942,27 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               </div>
             </div>
           </div>
+
+          {/* ── Мобильный ряд 2: оставшиеся кнопки (таблицы, AI) ── */}
+          {isMobile && (
+            <div style={{ ...s.leftCol(isMobile), order: 3 }}>
+              {[...LEFT_BTNS.filter(({ key }) => key === 'planets' || key === 'aspects'), ...LEFT_BTNS_BOTTOM].map(({ key, label, icon }) => (
+                <button
+                  key={key}
+                  onClick={() => handleLeftBtn(key)}
+                  style={{ ...s.leftBtn, height: '100%', ...(leftPanel === key ? s.leftBtnActive : {}) }}
+                >
+                  <span style={s.leftBtnIcon}>{icon}</span>
+                  <span style={{ flex: 1 }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Мобильная панель: таблица, в самом конце ── */}
+          {isMobile && (
+            <div style={{ flex: '1 1 100%', width: '100%', order: 4 }}>{panelContent}</div>
+          )}
 
           {/* ── Правая колонка: панели (десктоп) ── */}
           {!isMobile && (
