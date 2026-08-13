@@ -89,7 +89,13 @@ gzip -t "$DUMP_FILE" || fail "дамп не проходит проверку gz
 # pg_restore -l только читает оглавление архива (список таблиц/объектов),
 # ничего не восстанавливает — безопасная проверка, что это валидный
 # custom-format дамп pg_dump, а не просто непустой файл мусора.
-if ! gunzip -c "$DUMP_FILE" | docker compose exec -T postgres pg_restore -l - >/dev/null 2>&1; then
+#
+# custom-format (-Fc) требует seekable-файл — pg_restore -l не умеет читать
+# его из потока (`-` / stdin). Прежняя версия скармливала поток напрямую и
+# падала на ЛЮБОМ дампе, включая полностью корректный, — то есть проверка
+# была нерабочей с самого начала. Пишем во временный файл внутри контейнера.
+if ! gunzip -c "$DUMP_FILE" | docker compose exec -T postgres sh -c \
+    'cat > /tmp/_check.dump && pg_restore -l /tmp/_check.dump >/dev/null 2>&1; rc=$?; rm -f /tmp/_check.dump; exit $rc'; then
   fail "дамп не проходит проверку pg_restore -l (не читается как валидный дамп): $DUMP_FILE"
 fi
 
