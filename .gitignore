@@ -50,6 +50,10 @@ venv/
 node_modules/
 frontend/dist/
 .vercel
+# Перегенерируется на каждой сборке — generate-sitemap.js, вызывается из
+# npm run build (frontend/package.json). Без данных, зависящих от репозитория:
+# фиксированный список маршрутов + сегодняшняя дата.
+frontend/public/sitemap.xml
 
 # ── Логи и мусор ─────────────────────────────────────────────────────────────
 *.log
