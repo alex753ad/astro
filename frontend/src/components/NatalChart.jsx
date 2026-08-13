@@ -11,6 +11,10 @@
 
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+// ?inline — Vite всегда отдаёт готовую data: URI (base64), независимо от
+// размера файла. Единственный источник — src/assets/fonts/, см. README там.
+import astroSymbolsSrc  from '../assets/fonts/NotoSansSymbols-subset.woff2?inline';
+import astroSymbols2Src from '../assets/fonts/NotoSansSymbols2-subset.woff2?inline';
 
 // ── Astrology data ─────────────────────────────────────────
 
@@ -178,6 +182,9 @@ const introLateV = {
   visible: { opacity: 1, transition: { duration: 0.4, ease: 'easeOut' } },
 };
 
+// AstroSymbols подключается через @font-face с data: URI внутри собственного
+// <style> SVG (см. ниже) — на импорты astroSymbolsSrc/astroSymbols2Src сверху файла.
+
 // ═══════════════════════════════════════════════════════════
 // INNER CHART COMPONENT
 // ═══════════════════════════════════════════════════════════
@@ -275,9 +282,21 @@ function NatalChartInner({
       style={{ display: 'block', maxWidth: isCompact ? 320 : (VSIZE / SIZE) * 560, margin: '0 auto', background: 'transparent' }}
       aria-label="Натальная карта"
       role="img"
-      fontFamily="'Segoe UI', system-ui, sans-serif"
+      fontFamily="'AstroSymbols', 'Segoe UI', system-ui, sans-serif"
     >
       <style>{`
+        @font-face {
+          font-family: 'AstroSymbols';
+          src: url(${astroSymbolsSrc}) format('woff2');
+          unicode-range: U+2640, U+2642-2647, U+263D, U+263F, U+2648-2653, U+260A-260B;
+          font-weight: normal; font-style: normal; font-display: block;
+        }
+        @font-face {
+          font-family: 'AstroSymbols';
+          src: url(${astroSymbols2Src}) format('woff2');
+          unicode-range: U+2609;
+          font-weight: normal; font-style: normal; font-display: block;
+        }
         .aspect-flow { stroke-dasharray: 6 4; animation: aspectDash 0.6s linear infinite; }
         @keyframes aspectDash { to { stroke-dashoffset: -20; } }
         .transit-planet { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -510,7 +529,7 @@ function NatalChartInner({
 
             {planet.retrograde && (
               <text x={glyphPos.x + 9} y={glyphPos.y - 8}
-                fontSize={8} fill="#C04040" fontWeight="700">℞ {/* zodiac data-color, intentional */}</text>
+                fontSize={8} fill="#C04040" fontWeight="700" fontFamily="'Segoe UI', system-ui, sans-serif">R {/* ℞ отсутствует в Noto Sans Symbols/Symbols2 — обычная R, без курсива, тот же вес/цвет */}</text>
             )}
           </motion.g>
           </motion.g>
@@ -608,7 +627,7 @@ function NatalChartInner({
 
                     {tp.retrograde && (
                       <text x={10} y={-9}
-                        fontSize={8} fill="#C04040" fontWeight="700">℞ {/* zodiac data-color, intentional */}</text>
+                        fontSize={8} fill="#C04040" fontWeight="700" fontFamily="'Segoe UI', system-ui, sans-serif">R {/* ℞ отсутствует в Noto Sans Symbols/Symbols2 — обычная R, без курсива, тот же вес/цвет */}</text>
                     )}
                   </g>
                 </g>
