@@ -66,3 +66,47 @@ def delete_user(
     db.delete(user)
     db.commit()
     return DeleteUserResponse(message="Пользователь удалён.", user_id=user_id, email=email)
+
+
+# ═══════════════════════════════════════════════════════════
+# REVENUE-EXCLUDED FLAG
+# ═══════════════════════════════════════════════════════════
+
+class UpdateRevenueExcludedRequest(BaseModel):
+    revenue_excluded: bool
+
+
+class UpdateRevenueExcludedResponse(BaseModel):
+    user_id: str
+    email: str | None
+    revenue_excluded: bool
+
+
+@router.patch(
+    "/users/{user_id}/revenue-excluded",
+    response_model=UpdateRevenueExcludedResponse,
+    summary="Исключить/включить пользователя в расчёт MRR (друзья, тест, промо)",
+)
+def update_revenue_excluded(
+    user_id: str,
+    body: UpdateRevenueExcludedRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> UpdateRevenueExcludedResponse:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    user.revenue_excluded = body.revenue_excluded
+    db.add(AdminAuditLog(
+        admin_id=admin.id,
+        admin_email=admin.email,
+        action="set_revenue_excluded",
+        target_user_id=user_id,
+        details={"email": user.email, "revenue_excluded": body.revenue_excluded},
+        ip=client_ip(request),
+    ))
+    db.commit()
+    return UpdateRevenueExcludedResponse(
+        user_id=user.id, email=user.email, revenue_excluded=user.revenue_excluded,
+    )

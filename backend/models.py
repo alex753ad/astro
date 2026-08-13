@@ -52,6 +52,10 @@ class User(Base):
     # Referral (011)
     referral_code = Column(String(16), unique=True, nullable=True)
     pilot_started_at = Column(DateTime, nullable=True)
+    # Ручное исключение из MRR (044) — друзья/тестовые/промо-аккаунты, которых
+    # не отсекает pilot_started_at. Не влияет на сам tier, только на подсчёт
+    # дохода в backend/admin/stats_router.py.
+    revenue_excluded = Column(Boolean, default=False, nullable=False, server_default="false")
     tg_user_id = Column(String(32), nullable=True, unique=True, index=True)
     referred_by   = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
