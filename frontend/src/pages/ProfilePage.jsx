@@ -591,24 +591,8 @@ function UsageBar({ label, used, limit, tierColor = 'var(--accent)' }) {
 }
 
 function TabSubscription({ user, subscription, loading, authFetch }) {
-  const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(null);
   const [checkoutError, setCheckoutError] = useState(null);
-
-  const handlePortal = async () => {
-    setPortalLoading(true);
-    try {
-      const data = await authFetch(`${API_BASE}/payments/portal`, {
-        method: 'POST',
-        body: JSON.stringify({ return_url: window.location.href }),
-      });
-      window.location.href = data.url || data.portal_url;
-    } catch (e) {
-      alert('Ошибка: ' + e.message);
-    } finally {
-      setPortalLoading(false);
-    }
-  };
 
   const handleCheckout = async (tier) => {
     setCheckoutLoading(tier);
@@ -792,39 +776,6 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         </div>
       )}
 
-      {/* Управление подпиской через Stripe Portal */}
-      {user?.tier !== 'free' && (
-        <div style={S.card}>
-          <MotionButton level="ghost" onClick={handlePortal} disabled={portalLoading} style={S.btn('ghost')}>
-            {portalLoading ? 'Открываю…' : 'Управление подпиской (Stripe) →'}
-          </MotionButton>
-        </div>
-      )}
-
-      {/* CRM для premium */}
-      {user?.tier === 'premium' && (
-        <div style={{ ...S.card, border: '1px solid rgba(217,119,6,0.3)', background: 'rgba(217,119,6,0.05)' }}>
-          <p style={S.cardTitle}>👥 CRM — Управление клиентами</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 16 }}>
-            {[
-              { icon: '➕', label: 'Добавить клиента' },
-              { icon: '🪐', label: 'Натальная карта' },
-              { icon: '🔮', label: 'Транзиты клиента' },
-              { icon: '📄', label: 'PDF-отчёт' },
-              { icon: '📝', label: 'Заметки' },
-              { icon: '🔍', label: 'Поиск по базе' },
-            ].map(f => (
-              <div key={f.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', textAlign: 'center' }}>
-                <div style={{ fontSize: 18, marginBottom: 4 }}>{f.icon}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-warning)' }}>{f.label}</div>
-              </div>
-            ))}
-          </div>
-          <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'var(--color-warning)' }}>
-            Открыть CRM →
-          </Link>
-        </div>
-      )}
     </div>
   );
 }
