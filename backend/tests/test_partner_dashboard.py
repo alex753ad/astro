@@ -140,6 +140,25 @@ class TestTrackVisit:
         assert resp.status_code == 200
         assert db.query(PartnerVisit).count() == 0
 
+    def test_is_rate_limited(self, client):
+        """Публичный, без авторизации — без лимита кто угодно накрутил бы
+        партнёру счётчик переходов до бессмысленной цифры (conftest.py
+        глушит лимитер по умолчанию во всех тестах — здесь включаем обратно).
+        """
+        from backend.main import limiter
+
+        limiter.enabled = True
+        try:
+            responses = []
+            for _ in range(35):  # лимит rate_limit_anon = 30/minute
+                resp = client.post("/api/v1/partners/track-visit", json={"ref_code": "whatever"})
+                responses.append(resp.status_code)
+                if resp.status_code == 429:
+                    break
+            assert 429 in responses, f"лимит не сработал за 35 запросов: {responses}"
+        finally:
+            limiter.enabled = False
+
 
 class TestIsPartnerFlag:
     def test_me_reports_true_for_partner(self, client, referrer_headers, partner):

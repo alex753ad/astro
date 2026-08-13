@@ -18,12 +18,14 @@ from sqlalchemy.orm import Session
 
 from backend.admin.admin_router import require_admin
 from backend.auth.dependencies import get_current_user
+from backend.config import get_settings
 from backend.database import get_db
-from backend.limiter import client_ip
+from backend.limiter import client_ip, limiter
 from backend.models import User, Partner, Commission, PartnerPayout, PartnerVisit, PaymentEvent, AdminAuditLog
 from backend.time_utils import utcnow
 
 router = APIRouter(prefix="/api/v1/partners", tags=["partners"])
+settings = get_settings()
 
 
 # ── Публичный: счётчик переходов ──
@@ -33,9 +35,14 @@ class TrackVisitRequest(BaseModel):
 
 
 @router.post("/track-visit", include_in_schema=False)
-def track_visit(payload: TrackVisitRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.rate_limit_anon)
+def track_visit(request: Request, payload: TrackVisitRequest, db: Session = Depends(get_db)):
     """Всегда отвечает ok — не раскрывает, существует ли ref_code/партнёр
     (защита от перебора), и фронту не нужно обрабатывать ошибку отдельно.
+
+    Лимит по IP (rate_limit_anon, сейчас 30/минуту) — без него любой мог бы
+    накрутить партнёру счётчик переходов до бессмысленной цифры, а это
+    ровно те числа, по которым потом идёт разговор о деньгах.
     """
     ref_code = (payload.ref_code or "").strip()
     if ref_code:
