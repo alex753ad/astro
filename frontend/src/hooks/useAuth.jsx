@@ -189,18 +189,34 @@ function useAuthInternal() {
   // ── Automatic token refresh ─────────────────────────────
   // Токен не передаём: сервер берёт его из HttpOnly-куки, которую браузер
   // приложит сам (credentials: 'include' в apiFetch).
+  // Дедуп: несколько запросов, упавших в 401 одновременно (или таймер +
+  // ручной вызов), не должны бить /refresh параллельно — ротация делает
+  // использованный refresh недействительным, второй запрос разлогинил бы юзера.
+  const refreshInFlightRef = useRef(null);
+
+  const attemptRefresh = useCallback(() => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    refreshInFlightRef.current = (async () => {
+      try {
+        const data = await apiFetch('/refresh', {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        await applyTokenResponse(data);
+        return data.access_token;
+      } catch {
+        return null;
+      } finally {
+        refreshInFlightRef.current = null;
+      }
+    })();
+    return refreshInFlightRef.current;
+  }, [applyTokenResponse]);
+
   const doRefresh = useCallback(async () => {
-    try {
-      const data = await apiFetch('/refresh', {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      applyTokenResponse(data);
-    } catch {
-      // Refresh failed — clear session
-      logout();
-    }
-  }, [applyTokenResponse]); // eslint-disable-line react-hooks/exhaustive-deps
+    const token = await attemptRefresh();
+    if (!token) logout();
+  }, [attemptRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scheduleRefresh = useCallback((token) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -228,6 +244,29 @@ function useAuthInternal() {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Свёрнутая вкладка/приложение замораживает setTimeout — таймер из
+  // scheduleRefresh может не выстрелить вовремя. При возврате в видимое
+  // состояние проверяем срок токена по факту и обновляем, только если он
+  // истёк или почти истёк — не дёргаем refresh на каждый фокус.
+  useEffect(() => {
+    function checkOnReturn() {
+      if (document.visibilityState !== 'visible') return;
+      if (!accessToken) return;
+      const expiresAt = tokenExpiresAt(accessToken);
+      if (Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
+        doRefresh();
+      }
+    }
+    document.addEventListener('visibilitychange', checkOnReturn);
+    window.addEventListener('focus', checkOnReturn);
+    window.addEventListener('pageshow', checkOnReturn);
+    return () => {
+      document.removeEventListener('visibilitychange', checkOnReturn);
+      window.removeEventListener('focus', checkOnReturn);
+      window.removeEventListener('pageshow', checkOnReturn);
+    };
+  }, [accessToken, doRefresh]);
 
   // ── Auth actions ────────────────────────────────────────
 
@@ -313,22 +352,37 @@ function useAuthInternal() {
   // Use this in other API calls that need the Bearer token
   const authFetch = useCallback(async (url, options = {}) => {
     if (!accessToken) throw new Error('Not authenticated');
-    const resp = await fetch(url, {
+    const send = (token) => fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
         ...options.headers,
       },
     });
+
+    let resp = await send(accessToken);
     if (resp.status === 401) {
-      logout();
-      throw new ApiError('Session expired', 401, {});
+      // Access-токен истёк (напр. приложение долго было свёрнуто) — одна
+      // попытка обновиться и повторить запрос, прежде чем разлогинивать.
+      const fresh = await attemptRefresh();
+      if (!fresh) {
+        logout();
+        throw new ApiError('Session expired', 401, {});
+      }
+      resp = await send(fresh);
     }
     const body = await resp.json().catch(() => ({ detail: resp.statusText }));
     if (!resp.ok) throw new ApiError(body.detail || resp.statusText, resp.status, body);
     return body;
-  }, [accessToken, logout]);
+  }, [accessToken, attemptRefresh, logout]);
+
+  // Точечное обновление полей пользователя (напр. имени) без повторного
+  // логина — persist в localStorage делает уже существующий useEffect выше
+  // (он реагирует на любое изменение user).
+  const updateUser = useCallback((patch) => {
+    setUser(prev => (prev ? { ...prev, ...patch } : prev));
+  }, []);
 
   return {
     // State
@@ -346,6 +400,7 @@ function useAuthInternal() {
     applyTokenResponse,
     logout,
     clearError,
+    updateUser,
 
     // Utilities
     authFetch,

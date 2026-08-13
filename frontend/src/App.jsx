@@ -148,9 +148,13 @@ function Header({ onShowAuth, dark, toggleDark }) {
         } else {
           setHasAnyChart(false);
         }
+        // Ставим только при успешном ответе — иначе при сетевой ошибке
+        // (offline, таймаут) навигация ниже (lastChartId) откатывалась бы на
+        // null вместо кэша из localStorage, и меню/гамбургер пропадали бы
+        // при рабочей сессии.
+        setChartsChecked(true);
       })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setChartsChecked(true); });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [user?.id, authFetch]);
 
@@ -304,8 +308,11 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
           <ThemeToggle dark={dark} onToggle={toggleDark} />
 
-          {/* Hamburger — только мобильный, только для авторизованных с картой */}
-          {user && lastChartId && (
+          {/* Hamburger — только мобильный, для всех авторизованных (не зависит
+              от lastChartId: иначе временная ошибка /profile/charts или
+              отсутствие карт у нового пользователя гасили доступ к меню
+              совсем, включая профиль/выход). */}
+          {user && (
             <button
               onClick={() => setMenuOpen(m => !m)}
               className="md:hidden flex flex-col justify-center gap-1 p-2 rounded-lg text-brand-muted hover:bg-brand-accent/10 transition-colors"
@@ -319,16 +326,21 @@ function Header({ onShowAuth, dark, toggleDark }) {
         </nav>
       </div>
 
-      {/* Mobile dropdown */}
-      {menuOpen && user && lastChartId && (
+      {/* Mobile dropdown — открывается для любого авторизованного, не только
+          с известной картой (см. комментарий у гамбургера выше). */}
+      {menuOpen && user && (
         <div className="md:hidden border-t border-brand-border bg-brand-card/95 backdrop-blur-md">
           <div className="max-w-6xl mx-auto px-4 py-2 flex flex-col gap-1">
-            <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
-              Натальная карта
-            </Link>
-            <Link to={`/planner/${lastChartId}`} className={navLink(`/planner/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
-              Timeline Планер
-            </Link>
+            {lastChartId && (
+              <>
+                <Link to={`/chart/${lastChartId}`} className={navLink(`/chart/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                  Натальная карта
+                </Link>
+                <Link to={`/planner/${lastChartId}`} className={navLink(`/planner/${lastChartId}`)} onClick={() => setMenuOpen(false)}>
+                  Timeline Планер
+                </Link>
+              </>
+            )}
             <Link to="/lunar" className={navLink('/lunar')} onClick={() => setMenuOpen(false)}>
               Лунный календарь
             </Link>
