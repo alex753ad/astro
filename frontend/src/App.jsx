@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
 import { API_BASE } from './config';
+import { captureRefCode } from './utils/refCode';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import OrionPage from './pages/OrionPage';
@@ -398,6 +399,12 @@ function AppRoutes() {
   const prefersReducedMotion = useReducedMotion();
 
   useOGMeta();
+
+  // ?ref=<code> — на любой странице, переживает переходы внутри SPA (эффект
+  // реагирует на смену location.search, не только на первый рендер).
+  useEffect(() => {
+    captureRefCode(location.search);
+  }, [location.search]);
 
   // Общий обработчик открытия модалки входа: если передан returnTo (напр. со
   // страницы карты по ссылке из письма), после логина вернёт именно туда.

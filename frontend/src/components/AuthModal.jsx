@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import useAuth from '../hooks/useAuth.jsx';
 import MotionButton from './MotionButton';
 import { API_BASE } from '../config';
+import { getRefCode } from '../utils/refCode';
 
 async function getLastChart(accessToken) {
   try {
@@ -120,7 +121,10 @@ export default function AuthModal({ onClose, returnTo }) {
       const res = await fetch(`${API_BASE}/auth/register/email/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password, name: name.trim() || undefined }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(), password, name: name.trim() || undefined,
+          ref_code: getRefCode() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Ошибка отправки кода');

@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { ApiError, getSubscription, saveAnonymousChart } from '../api/client';
 import { API_BASE as CONFIG_API_BASE } from '../config';
+import { getRefCode } from '../utils/refCode';
 
 const API_BASE = `${CONFIG_API_BASE}/auth`;
 
@@ -310,7 +311,7 @@ function useAuthInternal() {
     try {
       const data = await apiFetch('/google', {
         method: 'POST',
-        body: JSON.stringify({ code, redirect_uri: redirectUri }),
+        body: JSON.stringify({ code, redirect_uri: redirectUri, ref_code: getRefCode() || undefined }),
       });
       return applyTokenResponse(data);
     } catch (err) {

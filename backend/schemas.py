@@ -193,6 +193,7 @@ class RefreshRequest(BaseModel):
 class GoogleOAuthRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=1024)
     redirect_uri: str = Field(..., max_length=2048)
+    ref_code: Optional[str] = Field(None, max_length=16)
 
 
 class TokenResponse(BaseModel):

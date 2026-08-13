@@ -208,6 +208,13 @@ def _build_token_response(
     )
 
 
+def _resolve_referrer_id(db: Session, ref_code: str | None) -> str | None:
+    if not ref_code:
+        return None
+    referrer = db.query(User).filter(User.referral_code == ref_code).first()
+    return referrer.id if referrer else None
+
+
 def _create_user(
     db: Session,
     *,
@@ -216,11 +223,7 @@ def _create_user(
     ref_code: str,
     name: str = "",
 ) -> User:
-    referred_by: str | None = None
-    if ref_code:
-        referrer = db.query(User).filter(User.referral_code == ref_code).first()
-        if referrer:
-            referred_by = referrer.id
+    referred_by = _resolve_referrer_id(db, ref_code)
 
     user = User(
         email=email,
@@ -539,6 +542,9 @@ async def google_oauth(
             is_email_confirmed=google_user.email_verified,
             google_sub=google_user.sub,
             tier="free",
+            # Как и в _create_user (email-регистрация): привязка только на
+            # создании аккаунта, задним числом её не восстановить.
+            referred_by=_resolve_referrer_id(db, data.ref_code),
         )
         db.add(user)
         db.commit()
