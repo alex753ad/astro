@@ -404,6 +404,17 @@ function AppRoutes() {
   // реагирует на смену location.search, не только на первый рендер).
   useEffect(() => {
     captureRefCode(location.search);
+    const ref = new URLSearchParams(location.search).get('ref');
+    if (ref) {
+      // Обезличенный счётчик переходов для кабинета партнёра — best-effort,
+      // не должен ничего ломать, если сеть недоступна. Сервер сам решает,
+      // относится ли ref к активному партнёру (backend/partners/router.py).
+      fetch(`${API_BASE}/partners/track-visit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref_code: ref }),
+      }).catch(() => {});
+    }
   }, [location.search]);
 
   // Общий обработчик открытия модалки входа: если передан returnTo (напр. со

@@ -47,7 +47,7 @@ from backend.auth.passwords import hash_password, validate_password, verify_pass
 from backend.config import get_settings
 from backend.database import get_db
 from backend.log_utils import mask_email
-from backend.models import User
+from backend.models import User, Partner
 from backend.schemas import (
     GoogleOAuthRequest,
     LoginRequest,
@@ -184,6 +184,7 @@ def _build_token_response(
     user: User,
     email: str,
     response: Response,
+    db: Session,
     *,
     echo_refresh_in_body: bool = False,
 ) -> TokenResponse:
@@ -195,6 +196,9 @@ def _build_token_response(
     """
     tokens = create_token_pair(user.id, email, user.tier, user.token_version or 0)
     _set_refresh_cookie(response, tokens.refresh_token)
+    is_partner = db.query(Partner.id).filter(
+        Partner.user_id == user.id, Partner.status == "active",
+    ).first() is not None
     return TokenResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token if echo_refresh_in_body else None,
@@ -205,6 +209,7 @@ def _build_token_response(
         name=user.name,
         tier=user.tier,
         is_admin=bool(user.is_admin),
+        is_partner=is_partner,
     )
 
 
@@ -345,7 +350,7 @@ async def register_email_verify(
         name=otp_data.get("name", ""),
     )
     logger.info("New user via email OTP: %s (%s)", mask_email(data.email), user.id)
-    return _build_token_response(user, data.email, response)
+    return _build_token_response(user, data.email, response, db)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -381,7 +386,7 @@ async def register_legacy(
     db.commit()
     db.refresh(user)
     logger.info("New user via legacy register: %s (%s)", mask_email(data.email), user.id)
-    return _build_token_response(user, data.email, response)
+    return _build_token_response(user, data.email, response, db)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -415,7 +420,7 @@ async def login(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
 
     await login_guard.reset(data.email)
-    return _build_token_response(user, user.email, response)
+    return _build_token_response(user, user.email, response, db)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -470,7 +475,7 @@ async def refresh_token(
         logger.error("refresh rotation deny failed: %s", exc)
 
     return _build_token_response(
-        user, user.email or token_data.email, response, echo_refresh_in_body=from_body
+        user, user.email or token_data.email, response, db, echo_refresh_in_body=from_body
     )
 
 
@@ -554,7 +559,7 @@ async def google_oauth(
         user.google_sub = google_user.sub
         db.commit()
 
-    return _build_token_response(user, user.email, response)
+    return _build_token_response(user, user.email, response, db)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -589,7 +594,13 @@ async def confirm_email(
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/me", response_model=UserProfileResponse, summary="Профиль текущего пользователя")
-async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
+async def get_me(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserProfileResponse:
+    is_partner = db.query(Partner.id).filter(
+        Partner.user_id == user.id, Partner.status == "active",
+    ).first() is not None
     return UserProfileResponse(
         id=user.id,
         email=user.email,
@@ -597,6 +608,7 @@ async def get_me(user: User = Depends(get_current_user)) -> UserProfileResponse:
         tier=user.tier,
         is_email_confirmed=user.is_email_confirmed,
         is_admin=bool(user.is_admin),
+        is_partner=is_partner,
         stripe_customer_id=user.stripe_customer_id,
         created_at=user.created_at.isoformat() if user.created_at else None,
     )

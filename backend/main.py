@@ -86,6 +86,7 @@ from backend.admin.stats_router import router as admin_stats_router
 from backend.feedback.router import router as feedback_router
 from backend.pilot.router import router as pilot_router
 from backend.pilot.cron import router as pilot_cron_router
+from backend.partners.router import router as partners_router
 from backend.exit_survey.router import router as exit_survey_router
 from backend.crm.access_router import router as crm_access_router
 from backend.metrics import log_event, maybe_mark_second_visit, EventName
@@ -411,6 +412,7 @@ app.include_router(admin_manage_router)
 app.include_router(feedback_router)
 app.include_router(pilot_router)
 app.include_router(pilot_cron_router)
+app.include_router(partners_router)
 app.include_router(exit_survey_router)
 app.include_router(crm_access_router)
 

@@ -838,6 +838,108 @@ function TabReferral({ authFetch }) {
   );
 }
 
+// ─── Вкладка: Кабинет партнёра ─────────────────────────────────────────────────
+// Заменяет «Друзья» у пользователей с is_partner=true (ProfilePage.tabs ниже) —
+// две программы одновременно одному человеку не показываются. Данные — только
+// агрегаты (backend/partners/router.py): ни email, ни имена, ни отдельные
+// даты регистрации приглашённых сюда не попадают.
+function TabPartner({ authFetch }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    authFetch(`${API_BASE}/partners/dashboard`)
+      .then(setData)
+      .catch(() => setError(true));
+  }, [authFetch]);
+
+  const money = (n) => Math.round(n || 0).toLocaleString('ru-RU') + ' ₽';
+
+  if (error) {
+    return <div style={S.card}><p style={S.muted}>Не удалось загрузить данные партнёрки. Попробуйте позже.</p></div>;
+  }
+  if (!data) {
+    return <div style={S.card}><div style={S.muted}>Загрузка…</div></div>;
+  }
+
+  const { totals, monthly } = data;
+  const stats = [
+    { label: 'Переходов по ссылке', value: totals.visits },
+    { label: 'Зарегистрировалось', value: totals.registered },
+    { label: 'Оплатило', value: totals.paid },
+    { label: 'Сумма их платежей', value: money(totals.revenue) },
+    { label: `Начислено (${Math.round(totals.rate * 100)}%)`, value: money(totals.commission_earned) },
+    { label: 'Выплачено', value: money(totals.paid_out) },
+  ];
+
+  return (
+    <div>
+      <div style={S.card}>
+        <p style={S.cardTitle}>Партнёрская программа</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+          {stats.map(s => (
+            <div key={s.label} style={{ background: 'var(--bg-deeper)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>{s.label}</div>
+            </div>
+          ))}
+          <div style={{ background: 'var(--accent-muted)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-glow)' }}>{money(totals.owed)}</div>
+            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>К выплате</div>
+          </div>
+        </div>
+
+        {Object.keys(totals.by_tier).length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginBottom: 6 }}>Оплатившие по тарифам</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {Object.entries(totals.by_tier).map(([tier, count]) => (
+                <span key={tier} style={{
+                  fontSize: 12, padding: '4px 10px', borderRadius: 999,
+                  background: 'var(--bg-deeper)', color: 'var(--text-primary)',
+                }}>
+                  {TIER_NAMES[tier] || tier}: {count}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={S.card}>
+        <p style={S.cardTitle}>По месяцам</p>
+        {monthly.length === 0 ? (
+          <p style={S.muted}>Пока нет данных.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {['Месяц', 'Переходов', 'Регистр.', 'Оплатило', 'Платежи', 'Комиссия'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--prof-muted)', fontWeight: 500 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {monthly.map(m => (
+                  <tr key={m.month} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '6px 8px' }}>{m.month}</td>
+                    <td style={{ padding: '6px 8px' }}>{m.visits}</td>
+                    <td style={{ padding: '6px 8px' }}>{m.registered}</td>
+                    <td style={{ padding: '6px 8px' }}>{m.paid}</td>
+                    <td style={{ padding: '6px 8px' }}>{money(m.revenue)}</td>
+                    <td style={{ padding: '6px 8px' }}>{money(m.commission)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Вкладка: Уведомления ────────────────────────────────────────────────────
 function TabNotifications({ authFetch }) {
   const [settings, setSettings] = useState(null);
@@ -1010,7 +1112,8 @@ export default function ProfilePage() {
     { key: 'charts',        label: 'Карты'         },
     { key: 'history',       label: 'История'       },
     { key: 'subscription',  label: 'Подписка'      },
-    { key: 'referral',      label: 'Друзья'        },
+    // Один слот на обе программы — партнёру вкладка «Друзья» не показывается.
+    { key: 'referral',      label: user?.is_partner ? 'Партнёрка' : 'Друзья' },
     { key: 'notifications', label: 'Уведомления'   },
     ...(user?.tier === 'premium' ? [{ key: 'crm', label: 'Клиенты' }] : []),
   ];
@@ -1036,7 +1139,9 @@ export default function ProfilePage() {
         {tab === 'charts'        && <TabCharts       charts={charts} setCharts={setCharts} primaryChartId={primaryChartId} setPrimaryChartId={setPrimaryChartId} loading={loading.charts} authFetch={authFetch} subscription={subscription} user={user} />}
         {tab === 'history'       && <TabHistory      history={history} loading={loading.history} />}
         {tab === 'subscription'  && <TabSubscription user={user} subscription={subscription} loading={loading.sub} authFetch={authFetch} />}
-        {tab === 'referral'      && <TabReferral     authFetch={authFetch} />}
+        {tab === 'referral'      && (user?.is_partner
+          ? <TabPartner  authFetch={authFetch} />
+          : <TabReferral authFetch={authFetch} />)}
         {tab === 'notifications' && <TabNotifications authFetch={authFetch} />}
         {tab === 'crm' && user?.tier === 'premium' && (
           <div style={{ ...S.card, textAlign: 'center' }}>

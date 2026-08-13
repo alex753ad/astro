@@ -267,6 +267,18 @@ class PartnerPayout(Base):
     created_at = Column(DateTime, default=utcnow)
 
 
+class PartnerVisit(Base):
+    """Переход по партнёрской ссылке (045→046) — обезличенно: ни IP, ни
+    user-agent, ни какой-либо другой привязки к конкретному посетителю, сам
+    факт клика с меткой времени, только для счётчика в кабинете партнёра.
+    """
+    __tablename__ = "partner_visits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    partner_id = Column(String(36), ForeignKey("partners.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
+
+
 class CouponSent(Base):
     __tablename__ = "coupons_sent"
 

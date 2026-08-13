@@ -210,6 +210,7 @@ class TokenResponse(BaseModel):
     name: Optional[str] = None
     tier: str = "free"
     is_admin: bool = False
+    is_partner: bool = False
 
 
 class UserProfileResponse(BaseModel):
@@ -219,6 +220,7 @@ class UserProfileResponse(BaseModel):
     tier: str
     is_email_confirmed: bool = False
     is_admin: bool = False
+    is_partner: bool = False
     stripe_customer_id: Optional[str] = None
     created_at: Optional[str] = None
 
