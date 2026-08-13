@@ -1976,8 +1976,9 @@ const SL = {
     border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '14px 16px' },
 };
 
-// Профиль астролога с загрузкой аватара (сохраняется в браузере)
-function AvatarProfile({ user }) {
+// Профиль астролога с загрузкой аватара (сохраняется в браузере) и
+// инлайн-редактированием имени (сохраняется на сервере).
+function AvatarProfile({ user, authFetch, updateUser }) {
   const storeKey = `astrea_avatar_${user?.id || user?.email || 'me'}`;
   const [src, setSrc] = useState(() => { try { return localStorage.getItem(storeKey) || ''; } catch { return ''; } });
   const inputRef = useRef();
@@ -1989,6 +1990,29 @@ function AvatarProfile({ user }) {
     reader.readAsDataURL(f);
   };
   const initial = (user?.name || user?.email || '?').slice(0, 1).toUpperCase();
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft]     = useState('');
+  const nameInputRef = useRef();
+
+  useEffect(() => { if (editingName) nameInputRef.current?.focus(); }, [editingName]);
+
+  function startEditName() {
+    setNameDraft(user?.name || '');
+    setEditingName(true);
+  }
+
+  async function saveName() {
+    if (!editingName) return; // onBlur после Escape/Enter не должен сохранять повторно
+    setEditingName(false);
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === user?.name) return;
+    try {
+      const updated = await authFetch(`${API}/profile/name`, { method: 'PATCH', body: JSON.stringify({ name: trimmed }) });
+      updateUser({ name: updated.name });
+    } catch { /* сеть/валидация — имя останется прежним */ }
+  }
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', marginBottom: 8, borderBottom: '1px solid rgba(139,92,246,0.15)' }}>
       <button
@@ -2001,7 +2025,29 @@ function AvatarProfile({ user }) {
         {src ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
       </button>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || user?.email}</div>
+        {editingName ? (
+          <input
+            ref={nameInputRef}
+            value={nameDraft}
+            maxLength={255}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={saveName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); nameInputRef.current?.blur(); }
+              else if (e.key === 'Escape') { e.preventDefault(); setEditingName(false); }
+            }}
+            style={{ fontWeight: 600, fontSize: 13, width: '100%', background: 'var(--crm-card)',
+              border: '1px solid var(--accent-muted)', borderRadius: 6, padding: '2px 6px', color: 'inherit' }}
+          />
+        ) : (
+          <div
+            onClick={startEditName}
+            title="Нажмите, чтобы изменить имя"
+            style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'text' }}
+          >
+            {user?.name || user?.email}
+          </div>
+        )}
         <div style={S.muted}>Астролог</div>
       </div>
       <input ref={inputRef} type="file" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
@@ -2054,7 +2100,7 @@ function WidgetBar({ authFetch }) {
 
 // ─── Главный компонент ────────────────────────────────────────────────────────
 export default function CRMPage() {
-  const { user, authFetch } = useAuth();
+  const { user, authFetch, updateUser } = useAuth();
   const [clients, setClients] = useState([]);
   const [filteredClients, setFilteredClients] = useState(null); // null = не фильтровано
   const [loading, setLoading] = useState(true);
@@ -2166,7 +2212,7 @@ export default function CRMPage() {
       <div style={SL.shell(isMobile)}>
         <aside style={SL.sidebar(isMobile)}>
           <div style={SL.brand}><span>Рабочий кабинет<br/>Astrea</span></div>
-          <AvatarProfile user={user} />
+          <AvatarProfile user={user} authFetch={authFetch} updateUser={updateUser} />
           <div style={SL.navWrap(isMobile)}>
             {NAV_ITEMS.map(n => (
               <button key={n.id} onClick={() => goSection(n.id)} style={SL.navBtn(activeSection === n.id, isMobile)}>

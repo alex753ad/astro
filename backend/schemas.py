@@ -226,6 +226,20 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class UpdateNameRequest(BaseModel):
+    name: str = Field(..., max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Имя не может быть пустым.")
+        if re.search(r"[<>{}\[\]\\]", v):
+            raise ValueError("Имя содержит недопустимые символы.")
+        return v
+
+
 # ═══════════════════════════════════════════════════════════
 # PAYMENTS SCHEMAS
 # ═══════════════════════════════════════════════════════════

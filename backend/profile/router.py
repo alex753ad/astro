@@ -3,6 +3,7 @@
 Endpoints:
   GET    /api/v1/profile/charts              — list saved charts
   PATCH  /api/v1/profile/primary-chart       — set primary chart (pin)
+  PATCH  /api/v1/profile/name                — rename current user
   DELETE /api/v1/profile/charts/{chart_id}   — delete a saved chart
   GET    /api/v1/profile/history             — interpretation history
   GET    /api/v1/profile/subscription        — current subscription info
@@ -21,7 +22,7 @@ from backend.database import get_db
 from backend.models import NatalChart, User, Subscription
 from backend.auth.dependencies import get_current_user
 from backend.auth.rate_limits import get_feature_flags
-from backend.schemas import MessageResponse
+from backend.schemas import MessageResponse, UpdateNameRequest, UserProfileResponse
 
 logger = logging.getLogger("astro.profile")
 
@@ -112,6 +113,38 @@ async def set_primary_chart(
     db.commit()
     logger.info("Primary chart set: user=%s chart=%s", user.id, chart.id)
     return MessageResponse(message="Primary chart updated.")
+
+
+# ═══════════════════════════════════════════════════════════
+# USER NAME
+# ═══════════════════════════════════════════════════════════
+
+@router.patch(
+    "/name",
+    response_model=UserProfileResponse,
+    summary="Update current user's display name",
+)
+async def update_name(
+    body: UpdateNameRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Rename the authenticated user. Validation (trim/length/charset) lives
+    in UpdateNameRequest — this just persists and returns the updated user."""
+    user.name = body.name
+    db.commit()
+    db.refresh(user)
+    logger.info("Name updated: user=%s", user.id)
+    return UserProfileResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        tier=user.tier,
+        is_email_confirmed=user.is_email_confirmed,
+        is_admin=user.is_admin,
+        stripe_customer_id=user.stripe_customer_id,
+        created_at=user.created_at.isoformat() if user.created_at else None,
+    )
 
 
 # ═══════════════════════════════════════════════════════════
