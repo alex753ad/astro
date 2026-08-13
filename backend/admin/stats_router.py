@@ -8,13 +8,14 @@ from sqlalchemy import func
 from backend.database import get_db
 from backend.models import User, NatalChart, Interpretation, Subscription, CouponSent, GiftCode
 from backend.admin.admin_router import require_admin
+from backend.admin.online import count_online
 from backend.metrics import (compute_retention, compute_funnel, compute_astrologer_metrics, compute_promo_activation)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
 @router.get("/stats")
-def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
+async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     now = utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
@@ -27,8 +28,17 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     google_pct  = round(google_users / total_users * 100) if total_users else 0
 
     by_plan = {}
+    paying_by_plan = {}
     for tier in ("free", "lite", "pro", "premium"):
         by_plan[tier] = db.query(func.count(User.id)).filter(User.tier == tier).scalar() or 0
+        paying_by_plan[tier] = db.query(func.count(User.id)).filter(
+            User.tier == tier,
+            User.pilot_started_at.is_(None),
+            User.revenue_excluded.is_(False),
+        ).scalar() or 0
+
+    pilot_count = db.query(func.count(User.id)).filter(User.pilot_started_at.isnot(None)).scalar() or 0
+    revenue_excluded_count = db.query(func.count(User.id)).filter(User.revenue_excluded.is_(True)).scalar() or 0
 
     # Activity (all time — charts & interpretations)
     charts_total        = db.query(func.count(NatalChart.id)).scalar() or 0
@@ -39,9 +49,11 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     charts_30d          = db.query(func.count(NatalChart.id)).filter(NatalChart.created_at >= day30).scalar() or 0
     interpretations_30d = db.query(func.count(Interpretation.id)).filter(Interpretation.created_at >= day30).scalar() or 0
 
-    # Revenue (simple MRR estimate)
+    # Revenue (simple MRR estimate). Пилотные участники (pilot_started_at) и
+    # вручную помеченные (revenue_excluded — друзья/тест/промо) считаются в
+    # by_plan (честная картина использования), но не в paying_by_plan/MRR.
     prices = {"lite": 790, "pro": 1990, "premium": 7990}
-    mrr = sum(by_plan.get(t, 0) * p for t, p in prices.items())
+    mrr = sum(paying_by_plan.get(t, 0) * p for t, p in prices.items())
 
     # Funnel
     made_chart = db.query(func.count(func.distinct(NatalChart.user_id))).filter(NatalChart.user_id.isnot(None)).scalar() or 0
@@ -81,6 +93,8 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "charts": charts_by_user.get(u.id, 0),
             "interpretations": interps_by_user.get(u.id, 0),
             "created_at": u.created_at.isoformat() if u.created_at else None,
+            "revenue_excluded": bool(u.revenue_excluded),
+            "is_pilot": u.pilot_started_at is not None,
         }
         for u in recent
     ]
@@ -89,14 +103,19 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     funnel_v2 = compute_funnel(db)
     astro = compute_astrologer_metrics(db)
     promo = compute_promo_activation(db)
+    online_count = await count_online()  # None, если Redis недоступен — фронт покажет "—"
 
     return {
+        "online_count": online_count,
         "users": {
             "total": total_users,
             "new_month": new_month,
             "new_week": new_week,
             "google_pct": google_pct,
             "by_plan": by_plan,
+            "paying_by_plan": paying_by_plan,
+            "pilot_count": pilot_count,
+            "revenue_excluded_count": revenue_excluded_count,
         },
         "activity_30d": {
             "charts": charts_30d,
@@ -111,7 +130,7 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "mrr": mrr,
             "mrr_growth_pct": 0,
             "arr": mrr * 12,
-            "arpu": round(mrr / max(sum(by_plan[t] for t in ("lite","pro","premium")), 1)),
+            "arpu": round(mrr / max(sum(paying_by_plan[t] for t in ("lite","pro","premium")), 1)),
         },
         "funnel": {
             "registered": total_users,

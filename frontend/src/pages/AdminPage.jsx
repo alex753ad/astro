@@ -20,7 +20,8 @@ const TABS = ["Обзор", "Пользователи", "Выручка", "AI & 
 
 // Мок-данные пока нет реального API
 const MOCK = {
-  users: { total: 2847, new_month: 143, new_week: 47, google_pct: 61, by_plan: { free: 1906, lite: 541, pro: 284, premium: 116 } },
+  online_count: null,
+  users: { total: 2847, new_month: 143, new_week: 47, google_pct: 61, by_plan: { free: 1906, lite: 541, pro: 284, premium: 116 }, paying_by_plan: { free: 1906, lite: 541, pro: 284, premium: 116 }, pilot_count: 0 },
   activity_30d: { charts: 1842, interpretations: 1203, pdf_reports: 187, rag_sessions: 432, crm_cards: 94, lunar_calendar_views: 3218, planner_views: 1547 },
   revenue: { mrr: 341000, mrr_growth_pct: 18, arr: 4092000, arpu: 365 },
   funnel: { registered: 2847, made_chart: 2220, lite: 541, pro: 284, premium: 116 },
@@ -123,8 +124,9 @@ function PlanBar({ plan, count, total, mrr }) {
 
 function TabOverview({ d }) {
   const plans = d.users.by_plan;
+  const paying = d.users.paying_by_plan ?? plans;
   const total = d.users.total;
-  const mrr_by_plan = { lite: plans.lite * 790, pro: plans.pro * 1990, premium: plans.premium * 7990 };
+  const mrr_by_plan = { lite: paying.lite * 790, pro: paying.pro * 1990, premium: paying.premium * 7990 };
   const funnel = d.funnel;
   const funnelSteps = [
     { label: "Регистрация", val: funnel.registered, pct: 100,  color: "var(--text-secondary)" },
@@ -151,6 +153,11 @@ function TabOverview({ d }) {
           {Object.entries(plans).map(([plan, count]) => (
             <PlanBar key={plan} plan={plan} count={count} total={total} mrr={mrr_by_plan[plan]} />
           ))}
+          {d.users.pilot_count > 0 && (
+            <div className="mt-2 text-[11px] text-gray-400">
+              Из них {d.users.pilot_count} — пилотные участники (тариф бесплатно): учтены в тарифах выше, но не в MRR/ARPU.
+            </div>
+          )}
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Воронка конверсии</div>
@@ -208,6 +215,7 @@ function TabUsers({ d, authFetch, onReload }) {
   const [search, setSearch] = useState("");
   const [changing, setChanging] = useState(null); // user id
   const [deleting, setDeleting] = useState(null); // user id
+  const [changingRevenue, setChangingRevenue] = useState(null); // user id
 
   async function setTier(userId, tier) {
     setChanging(userId);
@@ -221,6 +229,21 @@ function TabUsers({ d, authFetch, onReload }) {
       alert("Ошибка: " + (e.message || "неизвестная"));
     } finally {
       setChanging(null);
+    }
+  }
+
+  async function toggleRevenueExcluded(userId, next) {
+    setChangingRevenue(userId);
+    try {
+      await authFetch(`/api/v1/admin/users/${userId}/revenue-excluded`, {
+        method: "PATCH",
+        body: JSON.stringify({ revenue_excluded: next }),
+      });
+      onReload();
+    } catch (e) {
+      alert("Ошибка: " + (e.message || "неизвестная"));
+    } finally {
+      setChangingRevenue(null);
     }
   }
 
@@ -263,7 +286,7 @@ function TabUsers({ d, authFetch, onReload }) {
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-gray-100">
-                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация", "Сменить тариф", ""].map((h, i) => (
+                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация", "MRR", "Сменить тариф", ""].map((h, i) => (
                   <th key={i} className="text-left pb-2 pr-4 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
                 ))}
               </tr>
@@ -276,6 +299,25 @@ function TabUsers({ d, authFetch, onReload }) {
                   <td className="py-2 pr-4">{u.charts}</td>
                   <td className="py-2 pr-4">{u.interpretations}</td>
                   <td className="py-2 pr-4 text-gray-400">{fmtDate(u.created_at)}</td>
+                  <td className="py-2 pr-4">
+                    {u.is_pilot ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium border border-gray-200 text-gray-400" title="Пилотный участник — уже не учитывается в MRR автоматически">
+                        Пилот
+                      </span>
+                    ) : (
+                      <button
+                        disabled={changingRevenue === u.id}
+                        onClick={() => toggleRevenueExcluded(u.id, !u.revenue_excluded)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-40 ${
+                          u.revenue_excluded
+                            ? "border-gray-200 text-gray-400 hover:bg-gray-50"
+                            : "border-green-200 text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        {changingRevenue === u.id ? "…" : (u.revenue_excluded ? "Исключён" : "В MRR")}
+                      </button>
+                    )}
+                  </td>
                   <td className="py-2">
                     <div className="flex gap-1">
                       {["free","lite","pro","premium"].filter(t => t !== u.plan).map(t => (
@@ -326,7 +368,8 @@ function TabUsers({ d, authFetch, onReload }) {
 
 function TabRevenue({ d }) {
   const plans = d.users.by_plan;
-  const mrr_by_plan = { lite: plans.lite * 790, pro: plans.pro * 1990, premium: plans.premium * 7990 };
+  const paying = d.users.paying_by_plan ?? plans;
+  const mrr_by_plan = { lite: paying.lite * 790, pro: paying.pro * 1990, premium: paying.premium * 7990 };
   const total_mrr = Object.values(mrr_by_plan).reduce((a, b) => a + b, 0);
   return (
     <div>
@@ -345,7 +388,12 @@ function TabRevenue({ d }) {
           ))}
           <div className="my-2 border-t border-gray-100" />
           <Row left={<strong>Итого MRR</strong>} right={<strong>{fmtMoney(total_mrr)}</strong>} />
-          <div className="mt-2 text-[11px] text-gray-400">{plans.premium} {TIER_NAMES.premium}-клиентов генерируют {Math.round(mrr_by_plan.premium / total_mrr * 100)}% выручки</div>
+          <div className="mt-2 text-[11px] text-gray-400">{paying.premium} платящих {TIER_NAMES.premium}-клиентов генерируют {Math.round(mrr_by_plan.premium / total_mrr * 100)}% выручки</div>
+          {d.users.pilot_count > 0 && (
+            <div className="mt-1 text-[11px] text-gray-400">
+              Не считая {d.users.pilot_count} пилотных участников с бесплатным тарифом.
+            </div>
+          )}
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Подарочные коды</div>
@@ -786,7 +834,10 @@ export default function AdminPage() {
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
         <h1 className="text-[18px] font-medium text-gray-900">Кабинет управляющего · Astrea Timeline</h1>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] text-gray-500" title="Пользователи с активным запросом за последние 5 минут">
+            Онлайн сейчас: <strong className="text-gray-900">{data?.online_count ?? "—"}</strong>
+          </span>
           <button onClick={handleExport} disabled={exporting}
             className="text-[11px] px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50">
             {exporting ? "Экспорт..." : "↓ Экспорт JSON"}
