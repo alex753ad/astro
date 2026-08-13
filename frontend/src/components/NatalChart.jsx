@@ -202,7 +202,9 @@ function NatalChartInner({
   const cy      = SIZE / 2;
   // Транзитная вкладка резервирует паддинг сразу (до прихода transitPlanets),
   // чтобы viewBox/размер колеса не менялся рывком, когда данные подгрузятся.
-  const PADDING = (reserveTransitPadding || transitPlanets.length > 0) ? 38 : 4;
+  // 20, а не 4: подписи Asc/Dsc/MC/IC стоят на R_ZOD_OUT+14 (fontSize 9,
+  // dominantBaseline="central") — меньшего поля не хватает, их обрезает край viewBox.
+  const PADDING = (reserveTransitPadding || transitPlanets.length > 0) ? 38 : 20;
   const VSIZE   = SIZE + PADDING * 2;
 
   const R_OUT     = SIZE / 2 - 4;
@@ -279,7 +281,12 @@ function NatalChartInner({
       width="100%"
       height="100%"
       preserveAspectRatio="xMidYMid meet"
-      style={{ display: 'block', maxWidth: isCompact ? 320 : (VSIZE / SIZE) * 560, margin: '0 auto', background: 'transparent' }}
+      // maxWidth = VSIZE: (VSIZE/SIZE)*SIZE упрощается до VSIZE в обеих ветках
+      // (SIZE = 320 либо 560) — 1 svg-юнит = 1px на максимальной ширине, рост
+      // PADDING раздвигает поле вокруг колеса, а не сам круг. Раньше isCompact
+      // был захардкожен на 320 без поправки на PADDING — рост PADDING
+      // масштабировал бы и визуально уменьшал колесо.
+      style={{ display: 'block', maxWidth: VSIZE, margin: '0 auto', background: 'transparent' }}
       aria-label="Натальная карта"
       role="img"
       fontFamily="'AstroSymbols', 'Segoe UI', system-ui, sans-serif"
