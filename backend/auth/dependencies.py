@@ -28,6 +28,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from backend.admin.online import mark_online
 from backend.auth.jwt import decode_token, TokenData
 from backend.auth.sse_tickets import redeem as redeem_sse_ticket
 from backend.auth.token_store import is_denied
@@ -100,6 +101,7 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is deactivated",
         )
+    await mark_online(user.id)
     return user
 
 
