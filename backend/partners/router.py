@@ -12,13 +12,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend.admin.admin_router import require_admin
 from backend.auth.dependencies import get_current_user
 from backend.database import get_db
-from backend.models import User, Partner, Commission, PartnerPayout, PartnerVisit, PaymentEvent
+from backend.limiter import client_ip
+from backend.models import User, Partner, Commission, PartnerPayout, PartnerVisit, PaymentEvent, AdminAuditLog
+from backend.time_utils import utcnow
 
 router = APIRouter(prefix="/api/v1/partners", tags=["partners"])
 
@@ -79,17 +82,13 @@ class PartnerDashboardResponse(BaseModel):
     monthly: list[PartnerMonth]
 
 
-@router.get("/dashboard", response_model=PartnerDashboardResponse)
-def get_dashboard(
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> PartnerDashboardResponse:
-    partner = db.query(Partner).filter(Partner.user_id == user.id).first()
-    if not partner:
-        raise HTTPException(status_code=404, detail="not_a_partner")
-
+def compute_partner_dashboard(db: Session, partner: Partner) -> PartnerDashboardResponse:
+    """Общая агрегация для собственного кабинета партнёра (/dashboard) и
+    админского списка партнёров (backend/admin: та же арифметика — иначе
+    цифры у партнёра и у админа могли бы разойтись при разговоре с ним).
+    """
     visits = db.query(PartnerVisit).filter(PartnerVisit.partner_id == partner.id).all()
-    referred_users = db.query(User).filter(User.referred_by == user.id).all()
+    referred_users = db.query(User).filter(User.referred_by == partner.user_id).all()
 
     # Платежи и комиссии — только через commissions (earned), не все платежи
     # приглашённых: так "их платежи" и "начислено" всегда согласованы между
@@ -153,3 +152,223 @@ def get_dashboard(
         ),
         monthly=monthly_list,
     )
+
+
+@router.get("/dashboard", response_model=PartnerDashboardResponse)
+def get_dashboard(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PartnerDashboardResponse:
+    partner = db.query(Partner).filter(Partner.user_id == user.id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="not_a_partner")
+    return compute_partner_dashboard(db, partner)
+
+
+# ═══════════════════════════════════════════════════════════
+# АДМИН: список партнёров, создание, ставка/статус, выплаты
+# ═══════════════════════════════════════════════════════════
+# Отдельный роутер — другой префикс (/api/v1/admin/partners), тот же файл:
+# партнёрский домен держим вместе, а не размазываем по backend/admin/.
+# Цифры по каждому партнёру — та же compute_partner_dashboard(), что видит
+# сам партнёр в своём кабинете: не должны расходиться при разговоре с ним.
+
+admin_router = APIRouter(prefix="/api/v1/admin/partners", tags=["admin", "partners"])
+
+
+class AdminPartnerSummary(BaseModel):
+    id: str
+    user_id: str
+    email: str
+    rate: float
+    status: str
+    started_at: str
+    payout_details: str | None = None
+    note: str | None = None
+    totals: PartnerTotals
+
+
+class AdminPartnerListResponse(BaseModel):
+    partners: list[AdminPartnerSummary]
+
+
+def _to_admin_summary(db: Session, partner: Partner, user: User) -> AdminPartnerSummary:
+    dashboard = compute_partner_dashboard(db, partner)
+    return AdminPartnerSummary(
+        id=partner.id, user_id=partner.user_id, email=user.email,
+        rate=partner.rate, status=partner.status,
+        started_at=partner.started_at.isoformat() if partner.started_at else "",
+        payout_details=partner.payout_details, note=partner.note,
+        totals=dashboard.totals,
+    )
+
+
+@admin_router.get("", response_model=AdminPartnerListResponse)
+def list_partners(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+) -> AdminPartnerListResponse:
+    rows = (
+        db.query(Partner, User)
+        .join(User, Partner.user_id == User.id)
+        .order_by(Partner.created_at.desc())
+        .all()
+    )
+    return AdminPartnerListResponse(
+        partners=[_to_admin_summary(db, partner, user) for partner, user in rows]
+    )
+
+
+class CreatePartnerRequest(BaseModel):
+    email: str
+    rate: float = 0.10
+    payout_details: str | None = None
+    note: str | None = None
+
+
+@admin_router.post("", response_model=AdminPartnerSummary, status_code=201)
+def create_partner(
+    body: CreatePartnerRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> AdminPartnerSummary:
+    target = db.query(User).filter(User.email == body.email.strip().lower()).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Пользователь с таким email не найден.")
+
+    if db.query(Partner.id).filter(Partner.user_id == target.id).first():
+        raise HTTPException(status_code=409, detail="Этот пользователь уже партнёр.")
+
+    partner = Partner(
+        user_id=target.id, rate=body.rate, started_at=utcnow(), status="active",
+        payout_details=body.payout_details, note=body.note,
+    )
+    db.add(partner)
+    db.flush()
+
+    db.add(AdminAuditLog(
+        admin_id=admin.id, admin_email=admin.email, action="create_partner",
+        target_user_id=target.id,
+        details={"partner_id": partner.id, "email": target.email, "rate": body.rate},
+        ip=client_ip(request),
+    ))
+    db.commit()
+    db.refresh(partner)
+    return _to_admin_summary(db, partner, target)
+
+
+class UpdatePartnerRequest(BaseModel):
+    rate: float | None = None
+    status: str | None = None  # active | paused
+    payout_details: str | None = None
+    note: str | None = None
+
+
+@admin_router.patch("/{partner_id}", response_model=AdminPartnerSummary)
+def update_partner(
+    partner_id: str,
+    body: UpdatePartnerRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> AdminPartnerSummary:
+    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Партнёр не найден.")
+    if body.status is not None and body.status not in ("active", "paused"):
+        raise HTTPException(status_code=400, detail="status must be 'active' or 'paused'")
+
+    # Меняем ставку/статус только через это поле, а не текущую из профиля —
+    # commissions уже хранят снимок ставки на момент начисления, изменение
+    # здесь прошлые записи не трогает.
+    changes: dict = {}
+    if body.rate is not None and body.rate != partner.rate:
+        changes["rate"] = {"was": partner.rate, "now": body.rate}
+        partner.rate = body.rate
+    if body.status is not None and body.status != partner.status:
+        changes["status"] = {"was": partner.status, "now": body.status}
+        partner.status = body.status
+    if body.payout_details is not None:
+        partner.payout_details = body.payout_details
+    if body.note is not None:
+        partner.note = body.note
+
+    if changes:
+        db.add(AdminAuditLog(
+            admin_id=admin.id, admin_email=admin.email, action="update_partner",
+            target_user_id=partner.user_id,
+            details={"partner_id": partner.id, **changes},
+            ip=client_ip(request),
+        ))
+    db.commit()
+    db.refresh(partner)
+    user = db.query(User).filter(User.id == partner.user_id).first()
+    return _to_admin_summary(db, partner, user)
+
+
+class PartnerPayoutIn(BaseModel):
+    amount: float
+    note: str | None = None
+
+
+class PartnerPayoutOut(BaseModel):
+    id: int
+    amount: float
+    paid_at: str
+    note: str | None = None
+
+
+@admin_router.get("/{partner_id}/payouts", response_model=list[PartnerPayoutOut])
+def list_payouts(
+    partner_id: str,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+) -> list[PartnerPayoutOut]:
+    if not db.query(Partner.id).filter(Partner.id == partner_id).first():
+        raise HTTPException(status_code=404, detail="Партнёр не найден.")
+    payouts = (
+        db.query(PartnerPayout)
+        .filter(PartnerPayout.partner_id == partner_id)
+        .order_by(PartnerPayout.paid_at.desc())
+        .all()
+    )
+    return [
+        PartnerPayoutOut(id=p.id, amount=p.amount, paid_at=p.paid_at.isoformat(), note=p.note)
+        for p in payouts
+    ]
+
+
+@admin_router.post("/{partner_id}/payouts", response_model=PartnerPayoutOut, status_code=201)
+def mark_payout(
+    partner_id: str,
+    body: PartnerPayoutIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+) -> PartnerPayoutOut:
+    """Действие обратимое (выплату можно скорректировать следующей записью
+    или руками поправить в БД), подтверждения не требует — как и просили.
+    """
+    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="Партнёр не найден.")
+    if body.amount <= 0:
+        raise HTTPException(status_code=400, detail="Сумма выплаты должна быть положительной.")
+
+    payout = PartnerPayout(
+        partner_id=partner.id, admin_id=admin.id, amount=body.amount,
+        paid_at=utcnow(), note=body.note,
+    )
+    db.add(payout)
+    db.flush()
+
+    db.add(AdminAuditLog(
+        admin_id=admin.id, admin_email=admin.email, action="mark_partner_payout",
+        target_user_id=partner.user_id,
+        details={"partner_id": partner.id, "amount": body.amount, "note": body.note},
+        ip=client_ip(request),
+    ))
+    db.commit()
+    db.refresh(payout)
+    return PartnerPayoutOut(id=payout.id, amount=payout.amount, paid_at=payout.paid_at.isoformat(), note=payout.note)

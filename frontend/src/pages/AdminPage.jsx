@@ -16,7 +16,7 @@ const PLAN_COLORS = {
   premium: { bar: "var(--accent)", text: "var(--accent)", badge: "bg-[var(--accent-muted)] text-[var(--accent)]" },
 };
 const PLAN_PRICES = { lite: 790, pro: 1990, premium: 7990 };
-const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот"];
+const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры"];
 
 // Мок-данные пока нет реального API
 const MOCK = {
@@ -771,6 +771,243 @@ function TabPilot({ authFetch }) {
   );
 }
 
+// ─── Вкладка: Партнёры ──────────────────────────────────────────────────────────
+// Цифры по каждому партнёру — та же compute_partner_dashboard(), что видит
+// сам партнёр в своём кабинете (ProfilePage.jsx: TabPartner). История выплат
+// и «отметить выплату» — то, чего у партнёра в его кабинете нет.
+
+function PartnerCard({ p, authFetch, onReload }) {
+  const [expanded, setExpanded] = useState(false);
+  const [payouts, setPayouts] = useState(null);
+  const [rateInput, setRateInput] = useState(String(Math.round(p.rate * 100)));
+  const [savingRate, setSavingRate] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutNote, setPayoutNote] = useState('');
+  const [markingPayout, setMarkingPayout] = useState(false);
+
+  const loadPayouts = async () => {
+    try {
+      const data = await authFetch(`/api/v1/admin/partners/${p.id}/payouts`);
+      setPayouts(Array.isArray(data) ? data : []);
+    } catch {
+      setPayouts([]);
+    }
+  };
+
+  const toggleExpand = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && payouts === null) loadPayouts();
+  };
+
+  const saveRate = async () => {
+    const rate = parseFloat(rateInput) / 100;
+    if (!(rate > 0 && rate <= 1)) { alert('Ставка должна быть от 0 до 100%'); return; }
+    setSavingRate(true);
+    try {
+      await authFetch(`/api/v1/admin/partners/${p.id}`, { method: 'PATCH', body: JSON.stringify({ rate }) });
+      onReload();
+    } catch (e) {
+      alert('Ошибка: ' + (e.message || 'неизвестная'));
+    } finally {
+      setSavingRate(false);
+    }
+  };
+
+  const toggleStatus = async () => {
+    setTogglingStatus(true);
+    try {
+      await authFetch(`/api/v1/admin/partners/${p.id}`, {
+        method: 'PATCH', body: JSON.stringify({ status: p.status === 'active' ? 'paused' : 'active' }),
+      });
+      onReload();
+    } catch (e) {
+      alert('Ошибка: ' + (e.message || 'неизвестная'));
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
+
+  const markPayout = async () => {
+    const amount = parseFloat(payoutAmount);
+    if (!(amount > 0)) { alert('Сумма должна быть положительной'); return; }
+    setMarkingPayout(true);
+    try {
+      await authFetch(`/api/v1/admin/partners/${p.id}/payouts`, {
+        method: 'POST', body: JSON.stringify({ amount, note: payoutNote || undefined }),
+      });
+      setPayoutAmount(''); setPayoutNote('');
+      await loadPayouts();
+      onReload();
+    } catch (e) {
+      alert('Ошибка: ' + (e.message || 'неизвестная'));
+    } finally {
+      setMarkingPayout(false);
+    }
+  };
+
+  return (
+    <div className="border border-gray-100 rounded-xl p-4 mb-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-[14px] font-medium text-gray-900">{p.email}</div>
+          <div className="text-[11px] text-gray-400">
+            С {p.started_at ? p.started_at.slice(0, 10) : '—'}{p.note ? ` · ${p.note}` : ''}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-[11px] px-2 py-0.5 rounded-full ${p.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+            {p.status === 'active' ? 'активен' : 'на паузе'}
+          </span>
+          <button onClick={toggleStatus} disabled={togglingStatus}
+            className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+            {p.status === 'active' ? 'Приостановить' : 'Возобновить'}
+          </button>
+          <button onClick={toggleExpand}
+            className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors">
+            {expanded ? 'Свернуть' : 'Подробнее'}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-3">
+        <MetricCard label="Переходов" value={fmt(p.totals.visits)} />
+        <MetricCard label="Регистр." value={fmt(p.totals.registered)} />
+        <MetricCard label="Оплатило" value={fmt(p.totals.paid)} />
+        <MetricCard label="Начислено" value={fmtMoney(p.totals.commission_earned)} />
+        <MetricCard label="Выплачено" value={fmtMoney(p.totals.paid_out)} />
+        <MetricCard label="К выплате" value={fmtMoney(p.totals.owed)} />
+      </div>
+
+      {expanded && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-[12px] text-gray-500">Ставка:</span>
+            <input type="number" min="0" max="100" step="1" value={rateInput}
+              onChange={e => setRateInput(e.target.value)}
+              className="w-16 text-[12px] border border-gray-200 rounded px-2 py-1" />
+            <span className="text-[12px] text-gray-500">%</span>
+            <button onClick={saveRate} disabled={savingRate}
+              className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-colors">
+              {savingRate ? 'Сохраняю…' : 'Сохранить'}
+            </button>
+            <span className="text-[11px] text-gray-400">Прошлые начисления не пересчитываются.</span>
+          </div>
+
+          {Object.keys(p.totals.by_tier).length > 0 && (
+            <div className="mb-4 flex gap-2 flex-wrap">
+              {Object.entries(p.totals.by_tier).map(([tier, count]) => (
+                <span key={tier} className="text-[11px] px-2 py-1 bg-gray-50 rounded-full text-gray-600">
+                  {PLAN_LABELS[tier] || tier}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mb-4">
+            <div className="text-[12px] text-gray-500 mb-2">История выплат</div>
+            {payouts === null ? (
+              <div className="text-[12px] text-gray-400">Загрузка…</div>
+            ) : payouts.length === 0 ? (
+              <div className="text-[12px] text-gray-400">Выплат ещё не было.</div>
+            ) : (
+              payouts.map(pay => (
+                <Row key={pay.id} left={pay.paid_at?.slice(0, 10)} right={fmtMoney(pay.amount)} sub={pay.note} />
+              ))
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="number" min="0" step="1" placeholder="Сумма ₽" value={payoutAmount}
+              onChange={e => setPayoutAmount(e.target.value)}
+              className="w-28 text-[12px] border border-gray-200 rounded px-2 py-1" />
+            <input type="text" placeholder="Заметка (необязательно)" value={payoutNote}
+              onChange={e => setPayoutNote(e.target.value)}
+              className="flex-1 min-w-[140px] text-[12px] border border-gray-200 rounded px-2 py-1" />
+            <button onClick={markPayout} disabled={markingPayout}
+              className="text-[11px] px-3 py-1.5 bg-gray-900 text-white rounded-lg disabled:opacity-40">
+              {markingPayout ? 'Отмечаю…' : 'Отметить выплату'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabPartners({ authFetch }) {
+  const [partners, setPartners] = useState(null);
+  const [error, setError] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newRate, setNewRate] = useState('10');
+  const [newNote, setNewNote] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await authFetch('/api/v1/admin/partners');
+      setPartners(data.partners || []);
+    } catch {
+      setError(true);
+    }
+  }, [authFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const createPartner = async () => {
+    if (!newEmail.includes('@')) { alert('Введите корректный email'); return; }
+    const rate = parseFloat(newRate) / 100;
+    if (!(rate > 0 && rate <= 1)) { alert('Ставка должна быть от 0 до 100%'); return; }
+    setCreating(true);
+    try {
+      await authFetch('/api/v1/admin/partners', {
+        method: 'POST',
+        body: JSON.stringify({ email: newEmail.trim().toLowerCase(), rate, note: newNote || undefined }),
+      });
+      setNewEmail(''); setNewRate('10'); setNewNote('');
+      await load();
+    } catch (e) {
+      alert('Ошибка: ' + (e.message || 'неизвестная'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  if (error) return <div className="text-[13px] text-red-400 py-8">Не удалось загрузить партнёров.</div>;
+  if (partners === null) return <div className="text-[13px] text-gray-400 py-8">Загрузка…</div>;
+
+  return (
+    <div>
+      <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4">
+        <div className="text-[13px] font-medium text-gray-500 mb-3">Добавить партнёра</div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="email" placeholder="email пользователя" value={newEmail}
+            onChange={e => setNewEmail(e.target.value)}
+            className="flex-1 min-w-[200px] text-[12px] border border-gray-200 rounded-lg px-3 py-1.5" />
+          <input type="number" min="0" max="100" step="1" value={newRate}
+            onChange={e => setNewRate(e.target.value)}
+            className="w-20 text-[12px] border border-gray-200 rounded-lg px-3 py-1.5" />
+          <span className="text-[12px] text-gray-500">%</span>
+          <input type="text" placeholder="заметка" value={newNote}
+            onChange={e => setNewNote(e.target.value)}
+            className="flex-1 min-w-[140px] text-[12px] border border-gray-200 rounded-lg px-3 py-1.5" />
+          <button onClick={createPartner} disabled={creating}
+            className="text-[12px] px-3 py-1.5 bg-gray-900 text-white rounded-lg disabled:opacity-40">
+            {creating ? 'Добавляю…' : 'Добавить'}
+          </button>
+        </div>
+      </div>
+
+      {partners.length === 0 ? (
+        <div className="text-[13px] text-gray-400 py-8 text-center">Партнёров пока нет.</div>
+      ) : (
+        partners.map(p => <PartnerCard key={p.id} p={p} authFetch={authFetch} onReload={load} />)
+      )}
+    </div>
+  );
+}
+
 // ─── Основной компонент ────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -870,6 +1107,7 @@ export default function AdminPage() {
           {tab === 4 && <TabEmails d={data} />}
           {tab === 5 && <TabPromos d={data} authFetch={authFetch} onReload={load} />}
           {tab === 6 && <TabPilot authFetch={authFetch} />}
+          {tab === 7 && <TabPartners authFetch={authFetch} />}
         </>
       )}
     </div>
