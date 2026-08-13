@@ -321,6 +321,7 @@ def compute_planner_periods(
     to_date: date,
     today: Optional[date] = None,
     user_timezone: Optional[str] = None,
+    week_offset: Optional[int] = None,
 ) -> dict:
     """Готовая структура для промпта планера: уже посчитанные периоды по домам.
 
@@ -409,11 +410,33 @@ def compute_planner_periods(
         except Exception:
             tz_offset = timedelta(0)
 
-    # today в локальном времени пользователя
-    local_day_start = datetime(today.year, today.month, today.day, 0, 0)
-    # Текущая календарная неделя (Пн 00:00 — Вс 23:59) в локальном времени пользователя
-    week_start_local = local_day_start - timedelta(days=local_day_start.weekday())
-    week_end_local   = week_start_local + timedelta(days=7) - timedelta(minutes=1)
+    # Неделя считается от первой недели ОТОБРАЖАЕМОГО месяца (from_date..to_date),
+    # а не от "сегодня" — иначе прокрутка недель (week_offset) не имела бы смысла:
+    # чем бы её ни листали, всегда показывалась бы неделя с сегодняшним днём.
+    # week_offset=0 — неделя, содержащая первое число месяца (может начинаться
+    # в предыдущем месяце, если 1-е — не понедельник); последняя неделя месяца —
+    # аналогично может залезать в следующий. Обе показываются целиком.
+    month_first_monday = from_date - timedelta(days=from_date.weekday())
+    month_last_monday  = to_date - timedelta(days=to_date.weekday())
+    total_weeks = (month_last_monday - month_first_monday).days // 7 + 1
+
+    if week_offset is None:
+        # Явный сдвиг не задан (первая загрузка месяца) — показываем неделю,
+        # содержащую today, если today вообще попадает в этот месяц.
+        if from_date <= today <= to_date:
+            today_monday = today - timedelta(days=today.weekday())
+            resolved_week_offset = (today_monday - month_first_monday).days // 7
+        else:
+            resolved_week_offset = 0
+    else:
+        resolved_week_offset = week_offset
+    # Границы жёсткие — прокрутка не выходит за пределы месяца (см. ТЗ п.3).
+    resolved_week_offset = max(0, min(resolved_week_offset, total_weeks - 1))
+
+    week_start_local = datetime.combine(
+        month_first_monday + timedelta(weeks=resolved_week_offset), datetime.min.time(),
+    )
+    week_end_local = week_start_local + timedelta(days=7) - timedelta(minutes=1)
 
     # Окно сканирования шире недели (Луна меняет дом раз в ~2.5 дня) — так
     # calculate_house_passages(refine_edges=True) сможет найти реальные
@@ -504,4 +527,10 @@ def compute_planner_periods(
         "moon_week":    moon_week,
         "slow_planets": slow_result,
         "retrogrades":  compute_retrograde_stations(from_date, to_date),
+        "week_nav": {
+            "week_offset": resolved_week_offset,
+            "total_weeks": total_weeks,
+            "week_start":  week_start_local.date().isoformat(),
+            "week_end":    week_end_local.date().isoformat(),
+        },
     }

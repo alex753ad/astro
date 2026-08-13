@@ -1901,6 +1901,7 @@ async def get_monthly_planner(
     request: Request,
     chart_id: str,
     month_offset: int = 0,
+    week_offset: int | None = None,
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
@@ -1950,6 +1951,7 @@ async def get_monthly_planner(
         today=today,
         user_timezone=_tz,
         tier=(user.tier if user else "free"),
+        week_offset=week_offset,
     )
 
     return {"planner": planner}

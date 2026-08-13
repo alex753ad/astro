@@ -79,6 +79,7 @@ def build_planner(
     today: Optional[date] = None,
     user_timezone: Optional[str] = None,
     tier: Optional[str] = None,
+    week_offset: Optional[int] = None,
 ) -> dict:
     """Собрать планер полностью в Python без ИИ.
 
@@ -108,6 +109,7 @@ def build_planner(
         to_date=to_date,
         today=today,
         user_timezone=user_timezone,
+        week_offset=week_offset,
     )
 
     month_title = f"Планер на {_month_name(from_date)}"
@@ -176,6 +178,7 @@ def build_planner(
         "month_sections": month_sections,
         "week_title":     "Транзитная Луна по домам",
         "week_days":      week_days,
+        "week_nav":       periods.get("week_nav"),
         "longterm_title": "Долгосрочные транзиты",
         "longterm":       longterm,
         "retrogrades":    periods.get("retrogrades", []),

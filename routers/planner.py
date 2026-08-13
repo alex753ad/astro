@@ -28,6 +28,7 @@ async def get_monthly_planner(
     request: Request,
     chart_id: str,
     month_offset: int = 0,
+    week_offset: int | None = None,
     db: Session = Depends(get_db),
 ):
     from backend.transit.planner_engine import build_planner
@@ -71,6 +72,7 @@ async def get_monthly_planner(
         to_date=month_end,
         today=today,
         user_timezone=_tz,
+        week_offset=week_offset,
     )
     return {"planner": planner}
 

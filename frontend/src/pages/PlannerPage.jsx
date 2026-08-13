@@ -13,6 +13,17 @@ function getMonthName(date) {
   return date.toLocaleString("ru-RU", { month: "long", year: "numeric" });
 }
 
+// "11–17 августа" (или "29 июля – 4 августа", если неделя между месяцами)
+function formatWeekRange(startIso, endIso) {
+  if (!startIso || !endIso) return "";
+  const start = new Date(`${startIso}T00:00:00`);
+  const end   = new Date(`${endIso}T00:00:00`);
+  const monthName = (d) => d.toLocaleString("ru-RU", { month: "long" });
+  return start.getMonth() === end.getMonth()
+    ? `${start.getDate()}–${end.getDate()} ${monthName(end)}`
+    : `${start.getDate()} ${monthName(start)} – ${end.getDate()} ${monthName(end)}`;
+}
+
 /* zodiac data-color, intentional */
 // Плоские акцентные цвета планет — для бордеров/бейджей (не для кружков, см. PlanetDot ниже).
 const PLANET_COLORS = {
@@ -276,10 +287,15 @@ const styles = `
     transition: opacity 0.15s;
   }
   .month-nav-btn:hover { opacity: 0.85; }
+  .month-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .month-nav-label {
     font-size: 12px; color: var(--text-secondary); background: var(--bg-deeper);
     border: 1px solid var(--border); border-radius: 10px;
     padding: 6px 14px; font-weight: 600; min-width: 100px; text-align: center;
+  }
+  .week-header-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
   }
 
   .tab-bar {
@@ -878,11 +894,33 @@ export default function PlannerPage() {
   const [planData, setPlanData]     = useState(null);
   const [phases, setPhases]         = useState([]);
   const [monthOffset, setMonthOffset] = useState(0);
+  // null = «неделя с сегодняшним днём» — бэкенд сам её находит (только имеет
+  // смысл на текущем месяце). При явном клике по стрелке храним индекс недели
+  // от начала отображаемого месяца (см. week_nav в ответе бэкенда).
+  const [weekOffset, setWeekOffset]           = useState(null);
   const [showPaywall, setShowPaywall]         = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   function openPaywall() {
     setShowPaywall(true);
+  }
+
+  // Смена месяца — сбрасываем неделю в одном рендере, а не отдельным эффектом,
+  // иначе loadPlan успел бы дёрнуться дважды (сначала со старым weekOffset).
+  function changeMonth(newOffset) {
+    setMonthOffset(newOffset);
+    setWeekOffset(newOffset === 0 ? null : 0);
+  }
+
+  const weekNav = planData?.week_nav || null;
+  const currentWeekOffset = weekOffset ?? weekNav?.week_offset ?? 0;
+
+  function changeWeek(delta) {
+    if (isFree) { openPaywall(); return; }
+    if (!weekNav) return;
+    const next = currentWeekOffset + delta;
+    if (next < 0 || next > weekNav.total_weeks - 1) return;
+    setWeekOffset(next);
   }
 
   // Апселл на тариф — цель (Вега/Лира) не зависит от того, какой конкретно
@@ -908,7 +946,8 @@ export default function PlannerPage() {
   const { exportEvents, status: gcalStatus } = useGcalExport();
 
   // E1: Free тоже грузит план — витрина с блюром (текущий период Солнца открыт)
-  useEffect(() => { loadPlan(); loadPhases(); }, [id, monthOffset]);
+  useEffect(() => { loadPhases(); }, [id, monthOffset]);
+  useEffect(() => { loadPlan(); }, [id, monthOffset, weekOffset]);
 
   async function loadPhases() {
     try {
@@ -931,9 +970,11 @@ export default function PlannerPage() {
   async function loadPlan() {
     setLoading(true); setError(null); setPlanData(null);
     try {
-      const url = isPro && monthOffset !== 0
-        ? `${API_BASE}/api/v1/chart/${id}/planner/monthly?month_offset=${monthOffset}`
-        : `${API_BASE}/api/v1/chart/${id}/planner/monthly`;
+      const params = new URLSearchParams();
+      if (isPro && monthOffset !== 0) params.set('month_offset', monthOffset);
+      if (weekOffset !== null) params.set('week_offset', weekOffset);
+      const qs = params.toString();
+      const url = `${API_BASE}/api/v1/chart/${id}/planner/monthly${qs ? `?${qs}` : ''}`;
       const res = await authFetch(url);
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `Ошибка ${res.status}`); }
       const data = await res.json();
@@ -1011,10 +1052,10 @@ export default function PlannerPage() {
               </h1>
               {isPro && !isFree && (
                 <div className="month-nav">
-                  <MotionButton level="secondary" className="month-nav-btn" onClick={() => setMonthOffset(o => o - 1)}>‹</MotionButton>
+                  <MotionButton level="secondary" className="month-nav-btn" onClick={() => changeMonth(monthOffset - 1)}>‹</MotionButton>
                   <span className="month-nav-label">{monthLabel}</span>
                   {monthOffset < 11 && (
-                    <MotionButton level="secondary" className="month-nav-btn" onClick={() => setMonthOffset(o => o + 1)}>›</MotionButton>
+                    <MotionButton level="secondary" className="month-nav-btn" onClick={() => changeMonth(monthOffset + 1)}>›</MotionButton>
                   )}
                 </div>
               )}
@@ -1056,7 +1097,24 @@ export default function PlannerPage() {
 
               {tab === "week" && (
                 <div>
-                  <SectionHeader planet="moon" emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
+                  <div className="week-header-row">
+                    <SectionHeader planet="moon" emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
+                    {weekNav && (
+                      <div className="month-nav">
+                        <MotionButton
+                          level="secondary" className="month-nav-btn"
+                          disabled={!isFree && currentWeekOffset <= 0}
+                          onClick={() => changeWeek(-1)}
+                        >‹</MotionButton>
+                        <span className="month-nav-label">{formatWeekRange(weekNav.week_start, weekNav.week_end)}</span>
+                        <MotionButton
+                          level="secondary" className="month-nav-btn"
+                          disabled={!isFree && currentWeekOffset >= weekNav.total_weeks - 1}
+                          onClick={() => changeWeek(1)}
+                        >›</MotionButton>
+                      </div>
+                    )}
+                  </div>
                   {(() => {
                     const days = planData?.week_days || [];
                     let bannerShown = false;
