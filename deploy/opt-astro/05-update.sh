@@ -113,6 +113,13 @@ if [[ "$MODE" != "frontend" ]]; then
       echo "  затронут app/frontend/"
     fi
   fi
+
+  log "Синхронизирую копии деплой-скриптов из $APP_DIR/deploy/opt-astro/"
+  for f in 05-update.sh docker-compose.yml 07-backup-cron.sh; do
+    cp "$APP_DIR/deploy/opt-astro/$f" "./$f"
+  done
+  chmod +x 05-update.sh 07-backup-cron.sh
+  echo "  синхронизировано: 05-update.sh, docker-compose.yml, 07-backup-cron.sh"
 fi
 
 # ---------------------------------------------------------------------------
