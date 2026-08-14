@@ -157,6 +157,7 @@ function useAuthInternal() {
       name:     data.name ?? null,
       tier:     data.tier,
       is_admin: data.is_admin ?? false,
+      is_partner: data.is_partner ?? false,
     };
     setAccessToken(data.access_token);
     setUser(newUser);
