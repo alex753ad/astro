@@ -223,7 +223,7 @@ class TestSubscriptionInfo:
         assert data["tier"] == "free"
         assert data["features"]["transits"] is False
         assert data["features"]["unlimited_interpretations"] is False
-        assert data["features"]["pdf_reports"] is True
+        assert data["features"]["pdf_reports"] is False  # 19.08.2026: PDF теперь только с Веги
 
     def test_pro_user_has_transits_enabled(self, client: TestClient, db: Session):
         user = make_user(db, "pro_sub@example.com", tier="pro")
@@ -233,7 +233,7 @@ class TestSubscriptionInfo:
         assert data["tier"] == "pro"
         assert data["features"]["transits"] is True
         assert data["features"]["unlimited_interpretations"] is True
-        assert data["features"]["pdf_reports"] is True  # pro: 5 PDF/мес
+        assert data["features"]["pdf_reports"] is True  # pro: 15 PDF/мес
 
     def test_premium_user_has_all_features(self, client: TestClient, db: Session):
         user = make_user(db, "premium_sub@example.com", tier="premium")

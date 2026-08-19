@@ -631,7 +631,6 @@ async def calculate_chart(
     )
 
     if user:
-        # Check monthly chart limit for the user's tier
         tier = user.tier or "free"
         limits = get_tier_limits(tier)
         monthly_limit = limits.get("charts_per_month")
@@ -640,37 +639,16 @@ async def calculate_chart(
         now = utcnow()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        if monthly_limit is not None:
-            charts_this_month = (
-                db.query(sa_func.count(NatalChart.id))
-                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= month_start)
-                .scalar() or 0
-            )
-            if charts_this_month >= monthly_limit:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Достигнут лимит карт для тарифа {tier}: {monthly_limit} в месяц",
-                )
-        elif daily_limit is not None:
-            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            charts_today = (
-                db.query(sa_func.count(NatalChart.id))
-                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= day_start)
-                .scalar() or 0
-            )
-            if charts_today >= daily_limit:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Достигнут лимит карт для тарифа {tier}: {daily_limit} в день",
-                )
-
-        # Лимит карт на аккаунт (profiles_limit) — в отличие от charts_per_month
-        # это не месячная скорость, а сколько карт одновременно может быть
-        # сохранено (семья, партнёр, дети — см. /pricing). Раньше это число
-        # только отображалось в интерфейсе и нигде не проверялось: на витрине
-        # «до N карт», а технически можно было создать сколько угодно
-        # (19.08.2026, решение владельца — ввести проверку без исключений
-        # для уже существующих данных, на проде пользователей ещё нет).
+        # Лимит карт на аккаунт (profiles_limit) — слотовая модель: сколько
+        # карт одновременно может быть сохранено (семья, партнёр, дети —
+        # см. /pricing), не месячная квота. Удаление карты освобождает слот.
+        # Раньше число только отображалось в интерфейсе и нигде не
+        # проверялось: на витрине «до N карт», а технически можно было
+        # создать сколько угодно (19.08.2026, решение владельца — ввести
+        # проверку без исключений для уже существующих данных, на проде
+        # пользователей ещё нет). Проверяется ПЕРЕД месячной скоростью
+        # создания ниже: это тот лимит, что реально описан на /pricing, и
+        # единственный, где «удалите карту» — рабочий совет пользователю.
         profiles_limit = limits.get("profiles_limit")
         if profiles_limit is not None:
             total_charts = (
@@ -683,10 +661,45 @@ async def calculate_chart(
                 raise HTTPException(
                     status_code=403,
                     detail=(
-                        f"Достигнут лимит карт ({profiles_limit}) для тарифа "
-                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Оформите более высокий тариф "
-                        f"на странице /pricing, чтобы сохранять больше карт."
+                        f"Достигнут лимит сохранённых карт ({profiles_limit}) для тарифа "
+                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Удалите ненужную карту, чтобы "
+                        f"освободить место, или перейдите на старший тариф на странице /pricing."
                     ),
+                )
+
+        # Скорость создания карт в месяц — отдельная защита от злоупотребления
+        # (быстрое создание-удаление по кругу), не то, что продаётся на
+        # /pricing. Удаление карты НЕ освобождает эту квоту (charts_this_month
+        # считает события создания, а не текущие сохранённые карты) — поэтому
+        # совет здесь другой: подождать или перейти на тариф с более высоким
+        # лимитом, а не «удалите карту».
+        if monthly_limit is not None:
+            charts_this_month = (
+                db.query(sa_func.count(NatalChart.id))
+                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= month_start)
+                .scalar() or 0
+            )
+            if charts_this_month >= monthly_limit:
+                from backend.email_service import TIER_NAMES
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Достигнут лимит создания карт за этот месяц ({monthly_limit}) для тарифа "
+                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Попробуйте в следующем месяце "
+                        f"или перейдите на старший тариф на странице /pricing."
+                    ),
+                )
+        elif daily_limit is not None:
+            day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            charts_today = (
+                db.query(sa_func.count(NatalChart.id))
+                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= day_start)
+                .scalar() or 0
+            )
+            if charts_today >= daily_limit:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Достигнут лимит карт для тарифа {tier}: {daily_limit} в день",
                 )
 
         db.add(chart_record)

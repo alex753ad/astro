@@ -32,7 +32,7 @@ export const TIERS = [
   {
     id: 'free', label: TIER_NAMES.free, price: `${tierPriceLabel('free')}/мес`,
     features: [
-      '2 карты в месяц',
+      '2 сохранённые карты',
       '1 бесплатная интерпретация карты навсегда, дальше — по шаблону',
       'Лунный календарь текущего месяца',
     ],
@@ -41,7 +41,7 @@ export const TIERS = [
     id: 'lite', label: TIER_NAMES.lite, price: `${tierPriceLabel('lite')}/мес`,
     upsellFrom: `Всё из ${TIER_NAMES.free}, плюс:`,
     features: [
-      'До 5 карт',
+      'До 5 сохранённых карт одновременно',
       '5 AI-интерпретаций в месяц',
       'Планер: рекомендации на месяц',
       'Транзиты: горизонт 1 месяц + AI-разбор аспектов (3 в месяц)',
@@ -54,7 +54,7 @@ export const TIERS = [
     id: 'pro', label: TIER_NAMES.pro, price: `${tierPriceLabel('pro')}/мес`, recommended: true,
     upsellFrom: `Всё из ${TIER_NAMES.lite}, плюс:`,
     features: [
-      'До 15 карт',
+      'До 15 сохранённых карт одновременно',
       '15 AI-интерпретаций в месяц',
       'Планер: + долгосрочные периоды',
       'Транзиты: горизонт 3 месяца + AI-разбор без лимита',

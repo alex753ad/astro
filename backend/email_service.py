@@ -932,7 +932,7 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
           f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
           f'letter-spacing:1px;margin-bottom:6px;">👥 Для астрологов — {TIER_NAMES["premium"]}</div>'
           f'<div style="color:#2D2540;font-size:15px;line-height:1.7;">'
-          f'CRM клиентов, 100 AI-интерпретаций в месяц, брендированные PDF-отчёты. '
+          f'CRM клиентов, безлимитные AI-интерпретации, брендированные PDF-отчёты. '
           f'Один клиент окупает подписку.</div>'
           f'</div>'
         + _btn(f"Посмотреть {TIER_NAMES['premium']} →", f"{APP_URL}/pricing")
@@ -970,7 +970,7 @@ async def send_premium_welcome(to: str, name: str | None = None) -> bool:
           f'На обложке будет указано ваше имя как автора.</div></td></tr>'
           f'<tr><td style="padding:10px 0;vertical-align:top;">'
           f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 3 — AI без лимитов</div>'
-          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">100 AI-интерпретаций в месяц на GPT-4o — '
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Безлимитные AI-интерпретации — '
           f'хватит на всех активных клиентов.</div></td></tr>'
           f'</table>'
         + _btn("Открыть CRM клиентов →", f"{APP_URL}/dashboard/clients")

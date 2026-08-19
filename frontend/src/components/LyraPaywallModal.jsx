@@ -28,7 +28,7 @@ const DEFAULT_FEATURES = [
   { icon: "chat", text: "Чат с AI-астрологом Астрея, который уже знает вашу карту" },
   { icon: "doc", text: "Глубокий разбор — от 1500 слов" },
   { icon: "calendar", text: "Планер Timeline: текущий месяц + вперёд + неделя + долгосрочно" },
-  { icon: "users", text: "До 5 карт для семьи" },
+  { icon: "users", text: "До 15 сохранённых карт одновременно — для семьи" },
 ];
 
 function Icon({ name, size = 20 }) {

@@ -300,10 +300,14 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
     }
   };
 
-  // Счётчик карт для free
+  // Счётчик карт для free — слотовая модель (profiles_limit): сколько карт
+  // сохранено СЕЙЧАС, не сколько создано в этом месяце (charts_per_month —
+  // отдельный, не показываемый здесь, лимит скорости создания). Удаление
+  // карты освобождает слот, поэтому источник — charts.length, а не серверный
+  // месячный счётчик, который после удаления не уменьшается (19.08.2026).
   const isFree = !user?.tier || user?.tier === 'free';
-  const chartsLimit = subscription?.limits?.charts_per_month ?? null;
-  const chartsUsed = subscription?.usage?.charts_this_month ?? 0;
+  const chartsLimit = subscription?.limits?.profiles_limit ?? null;
+  const chartsUsed = charts.length;
   const chartsLeft = isFree && chartsLimit !== null ? Math.max(0, chartsLimit - chartsUsed) : null;
 
   const handleDelete = async (id) => {
@@ -342,8 +346,8 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
     }}>
       <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
       {chartsLeft === 0
-        ? 'Лимит карт на этот месяц исчерпан. Обновится 1-го числа.'
-        : `Осталось карт в этом месяце: ${chartsLeft} из ${chartsLimit}`}
+        ? 'Достигнут лимит сохранённых карт. Удалите ненужную карту, чтобы освободить место, или перейдите на старший тариф.'
+        : `Сохранено карт: ${chartsUsed} из ${chartsLimit}`}
     </div>
   ) : null;
 
