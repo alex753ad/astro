@@ -504,7 +504,10 @@ function buildFeatureRows(feat = {}, lim = {}) {
   const plannerMonths = lim.planner_months ?? feat.planner_months;
   const transitsMonths = lim.transits_months ?? feat.transits_months;
   const profilesLimit = lim.profiles_limit !== undefined ? lim.profiles_limit : feat.profiles_limit;
-  const lunarMonths = lim.lunar_months ?? feat.lunar_months ?? 0;
+  // null здесь означает «безлимит» (Орион) — не «нет данных», поэтому строгая
+  // проверка на undefined вместо `??`, который принял бы null за отсутствие
+  // значения и увёл бы к дефолту 0 (нашли на правке сетки 19.08.2026).
+  const lunarMonths = lim.lunar_months !== undefined ? lim.lunar_months : feat.lunar_months;
 
   return [
     {
@@ -519,7 +522,7 @@ function buildFeatureRows(feat = {}, lim = {}) {
         ? `${transitsMonths} мес${feat.transits_ai ? ' + AI' : ''}`
         : null,
     },
-    { label: 'Лунный календарь', ok: lunarMonths > 0 },
+    { label: 'Лунный календарь', ok: lunarMonths === null || lunarMonths === undefined || lunarMonths > 0 },
     { label: 'Google Calendar', ok: !!feat.google_calendar },
     {
       label: 'Карты',

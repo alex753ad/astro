@@ -121,15 +121,15 @@ function fmtPhaseTime(event) {
 // ══════════════════════════════════════════════════════════
 
 export default function LunarCalendarPage() {
-  const { user } = useAuth();
+  const { user, features } = useAuth();
   const isFree = !user?.tier || user?.tier === 'free';
   const now      = new Date();
   const todayStr = todayLocalISO();
-  const isPremium = user?.tier === 'premium';
-  const lunarMonths = isPremium ? null
-                    : user?.tier === 'pro' ? 12
-                    : user?.tier === 'lite' ? 12
-                    : isFree ? 1 : 1;
+  // Единый источник — TIER_FLAGS.lunar_months на бэкенде (через useAuth().features),
+  // а не своя копия чисел здесь: раньше эта страница держала собственную лесенку
+  // (free 1 / lite,pro 12 / premium null), которая расходилась с бэкендом при правке
+  // тарифной сетки. null = безлимит (см. auth/rate_limits.py).
+  const lunarMonths = features?.lunar_months ?? 1;
   const minDate = lunarMonths ? new Date(now.getFullYear(), now.getMonth() - (lunarMonths - 1), 1) : null;
   const maxDate = lunarMonths ? new Date(now.getFullYear(), now.getMonth() + (lunarMonths - 1), 1) : null;
 

@@ -664,6 +664,31 @@ async def calculate_chart(
                     detail=f"Достигнут лимит карт для тарифа {tier}: {daily_limit} в день",
                 )
 
+        # Лимит карт на аккаунт (profiles_limit) — в отличие от charts_per_month
+        # это не месячная скорость, а сколько карт одновременно может быть
+        # сохранено (семья, партнёр, дети — см. /pricing). Раньше это число
+        # только отображалось в интерфейсе и нигде не проверялось: на витрине
+        # «до N карт», а технически можно было создать сколько угодно
+        # (19.08.2026, решение владельца — ввести проверку без исключений
+        # для уже существующих данных, на проде пользователей ещё нет).
+        profiles_limit = limits.get("profiles_limit")
+        if profiles_limit is not None:
+            total_charts = (
+                db.query(sa_func.count(NatalChart.id))
+                .filter(NatalChart.user_id == user.id)
+                .scalar() or 0
+            )
+            if total_charts >= profiles_limit:
+                from backend.email_service import TIER_NAMES
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        f"Достигнут лимит карт ({profiles_limit}) для тарифа "
+                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Оформите более высокий тариф "
+                        f"на странице /pricing, чтобы сохранять больше карт."
+                    ),
+                )
+
         db.add(chart_record)
         db.commit()
         db.refresh(chart_record)

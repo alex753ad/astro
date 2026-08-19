@@ -37,65 +37,65 @@ TIER_FLAGS: dict[str, dict] = {
         "interpretation_word_limit": 500,
         "interpretations_per_month": 0,        # только превью (блюр)
         "first_interpretation_free": True,     # 3.3: одна полная интерпретация навсегда
-        "charts_per_month": 4,  # ~1 карта в неделю, обнуляется 1-го числа
+        "charts_per_month": 2,  # 19.08.2026: было 4 — новая тарифная сетка, решение владельца
         "charts_per_day": None,
         "transits_months": 0,
         "transits_ai": False,
         "transits_ai_per_month": 0,
-        "profiles_limit": 1,
+        "profiles_limit": 2,    # 19.08.2026: было 1 — синхронизировано с charts_per_month (единая цифра «Карты»)
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
         "synastry": False,
-        "pdf_export": True,
-        "pdf_per_month": None,
+        "pdf_export": False,   # 19.08.2026: было безлимитно — новая сетка PDF только с Веги
+        "pdf_per_month": 0,
         "ai_engine": settings.deepseek_model_pro,
     },
     "lite": {
         "interpretation_word_limit": 800,
-        "interpretations_per_month": 5,        # 3.4a: было 3
+        "interpretations_per_month": 5,        # 3.4a: было 3; = числу карт (19.08.2026)
         "charts_per_month": 5,
         "charts_per_day": None,
         "transits_months": 1,                  # 19.08.2026: было 12 — решение владельца
         "transits_ai": False,                  # полный AI-доступ — нет
         "transits_ai_per_month": 3,            # 3.4a: тизер Pro — 3 AI-транзита/мес
-        "profiles_limit": 1,                   # E3: сетка §4 — Lite 1 карта (было 5)
+        "profiles_limit": 5,    # 19.08.2026: было 1 — синхронизировано с charts_per_month (единая цифра «Карты»)
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
         "synastry": False,
         "pdf_export": True,
-        "pdf_per_month": None,
+        "pdf_per_month": 5,     # 19.08.2026: было безлимитно — новая сетка
         "ai_engine": settings.deepseek_model_pro,
     },
     "pro": {
         "interpretation_word_limit": 2500,
-        "interpretations_per_month": 15,
-        "charts_per_month": 20,
+        "interpretations_per_month": 15,       # = числу карт (19.08.2026)
+        "charts_per_month": 15,  # 19.08.2026: было 20 — синхронизировано с profiles_limit
         "charts_per_day": None,
         "transits_months": 3,                  # 19.08.2026: было 12 — решение владельца
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
-        "profiles_limit": 5,                    # E3: сетка §4 — Pro 5 карт (было 20)
+        "profiles_limit": 15,   # 19.08.2026: было 5 — синхронизировано с charts_per_month (единая цифра «Карты»)
         "lunar_months": 12,
         "planner_months": 12,
         "synastry": False,
         "pdf_export": True,
-        "pdf_per_month": 5,
+        "pdf_per_month": 15,    # 19.08.2026: было 5 — новая сетка
         "ai_engine": settings.deepseek_model_pro,
     },
     "premium": {
         "interpretation_word_limit": 5000,
-        "interpretations_per_month": 100,
+        "interpretations_per_month": None,  # 19.08.2026: было 100 — новая сетка, «безлимит»
         "charts_per_month": None,
         "charts_per_day": None,
         "transits_months": 24,                 # 3.2: было 12 — дифференциатор над Pro
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
         "profiles_limit": None,
-        "lunar_months": 12,
+        "lunar_months": None,   # 19.08.2026: было 12 — «безлимит» по новой сетке (12 = как у Pro, не дифференциатор)
         "planner_months": 12,
         "synastry": True,
         "pdf_export": True,
-        "pdf_per_month": 50,
+        "pdf_per_month": None,  # 19.08.2026: было 50 — новая сетка, «безлимит»
         "ai_engine": settings.deepseek_model_pro,
     },
 }

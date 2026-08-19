@@ -276,3 +276,157 @@ class TestAuthentication:
             "name": "Weak",
         })
         assert resp.status_code == 422
+
+
+# ── Монотонность тарифной сетки ───────────────────────────────────────────────
+
+class TestTierMonotonicity:
+    """Платный тариф не должен быть хуже более дешёвого ни по одному полю.
+
+    Уже случалось: комментарий "3.2: было 6 (Pro не мог быть хуже Lite)" в
+    rate_limits.py — сетку правили руками несколько раз, и без автоматической
+    проверки такое расхождение легко не заметить (19.08.2026: обнаружили ещё
+    одно — pdf_per_month у free/lite был безлимитным, у pro/premium конечным).
+
+    None означает «безлимит» — считается больше любого числа.
+    """
+
+    TIER_ORDER = ["free", "lite", "pro", "premium"]
+
+    # "Больше = лучше", None = безлимит. transits_ai_per_month включено, хотя
+    # у pro/premium его перекрывает transits_ai=True — как чистое число он
+    # всё равно не должен ни у кого убывать.
+    NUMERIC_FIELDS = [
+        "interpretation_word_limit",
+        "interpretations_per_month",
+        "charts_per_month",
+        "charts_per_day",
+        "transits_months",
+        "transits_ai_per_month",
+        "profiles_limit",
+        "lunar_months",
+        "planner_months",
+        "pdf_per_month",
+    ]
+
+    # first_interpretation_free сюда намеренно не входит: это одноразовая
+    # льгота только для free, не «уровень выгоды», сравнимый между тарифами.
+    BOOLEAN_FIELDS = ["transits_ai", "synastry", "pdf_export"]
+
+    @staticmethod
+    def _rank(value):
+        return (value is None, value if value is not None else 0)
+
+    def test_numeric_fields_non_decreasing_across_tiers(self):
+        from backend.auth.rate_limits import TIER_FLAGS
+
+        violations = []
+        for field in self.NUMERIC_FIELDS:
+            values = [TIER_FLAGS[t].get(field) for t in self.TIER_ORDER]
+            for i in range(len(values) - 1):
+                lo, hi = values[i], values[i + 1]
+                if self._rank(lo) > self._rank(hi):
+                    violations.append(
+                        f"{field}: {self.TIER_ORDER[i]}={lo!r} > {self.TIER_ORDER[i + 1]}={hi!r}"
+                    )
+        assert not violations, "Тариф дороже, а лимит хуже:\n" + "\n".join(violations)
+
+    def test_boolean_fields_non_decreasing_across_tiers(self):
+        from backend.auth.rate_limits import TIER_FLAGS
+
+        violations = []
+        for field in self.BOOLEAN_FIELDS:
+            values = [bool(TIER_FLAGS[t].get(field)) for t in self.TIER_ORDER]
+            for i in range(len(values) - 1):
+                if values[i] and not values[i + 1]:
+                    violations.append(
+                        f"{field}: {self.TIER_ORDER[i]}=True > {self.TIER_ORDER[i + 1]}=False"
+                    )
+        assert not violations, "Тариф дороже, а фича пропала:\n" + "\n".join(violations)
+
+    def test_derived_feature_flags_non_decreasing_across_tiers(self):
+        """google_calendar/rag_chat/crm/unlimited_charts не хранятся в
+        TIER_FLAGS напрямую — вычисляются в get_feature_flags() по строке
+        tier, проверяем их тем же правилом отдельно."""
+        from backend.auth.rate_limits import get_feature_flags
+
+        class _FakeUser:
+            def __init__(self, tier):
+                self.tier = tier
+                self.free_interpretation_used = False
+
+        derived_fields = ["google_calendar", "rag_chat", "crm", "unlimited_charts"]
+        violations = []
+        for field in derived_fields:
+            values = [bool(get_feature_flags(_FakeUser(t))[field]) for t in self.TIER_ORDER]
+            for i in range(len(values) - 1):
+                if values[i] and not values[i + 1]:
+                    violations.append(
+                        f"{field}: {self.TIER_ORDER[i]}=True > {self.TIER_ORDER[i + 1]}=False"
+                    )
+        assert not violations, "Тариф дороже, а фича пропала:\n" + "\n".join(violations)
+
+
+# ── profiles_limit: лимит карт на аккаунт ────────────────────────────────────
+
+class TestProfilesLimitEnforcement:
+    """До 19.08.2026 profiles_limit только отображался на /pricing и в
+    кабинете — реально создание карт им не ограничивалось. Теперь превышение
+    лимита должно давать понятную 403-ошибку со ссылкой на /pricing, а не
+    падать 500 и не притворяться, что лимита нет."""
+
+    def test_exceeding_profiles_limit_returns_403_not_500(
+        self, client, db, mock_calculator, mock_geo, auth_headers_free, user_free
+    ):
+        """profiles_limit — это лимит на аккаунт целиком, не на месяц (в
+        отличие от charts_per_month, который совпадает с ним по числу для
+        free). Бэкдейтим существующие карты в прошлый месяц, чтобы месячный
+        лимит не сработал раньше и не заслонил собой именно эту проверку."""
+        from datetime import timedelta
+
+        from backend.auth.rate_limits import TIER_FLAGS
+        from backend.models import NatalChart
+        from backend.time_utils import utcnow
+
+        limit = TIER_FLAGS["free"]["profiles_limit"]
+        past = utcnow() - timedelta(days=40)
+        for _ in range(limit):
+            db.add(NatalChart(
+                user_id=user_free.id,
+                birth_date="1990-01-10",
+                birth_place="Moscow",
+                latitude=55.75, longitude=37.62, timezone="Europe/Moscow",
+                planets=[], houses=[], aspects=[],
+                created_at=past,
+            ))
+        db.commit()
+
+        resp = client.post(
+            "/api/v1/chart/calculate",
+            json={
+                "birth_date": "1990-01-10",
+                "birth_time": "12:00",
+                "birth_place": "Moscow",
+                "house_system": "placidus",
+            },
+            headers=auth_headers_free,
+        )
+
+        assert resp.status_code == 403, resp.text
+        assert "/pricing" in resp.json()["detail"]
+
+    def test_under_profiles_limit_still_succeeds(
+        self, client, mock_calculator, mock_geo, auth_headers_free
+    ):
+        """Обычное создание первой карты не должно ловить новую проверку."""
+        resp = client.post(
+            "/api/v1/chart/calculate",
+            json={
+                "birth_date": "1990-01-10",
+                "birth_time": "12:00",
+                "birth_place": "Moscow",
+                "house_system": "placidus",
+            },
+            headers=auth_headers_free,
+        )
+        assert resp.status_code == 200, resp.text

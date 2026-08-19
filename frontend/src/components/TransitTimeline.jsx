@@ -796,15 +796,26 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [isLite]);
   const liteTransitAiRemaining = transitAiUsage ? transitAiUsage.limit - transitAiUsage.used : null;
 
+  // Реальный горизонт тарифа — из TIER_FLAGS.transits_months на бэкенде
+  // (через /profile/subscription), а не своя копия чисел здесь: раньше эта
+  // лесенка (1/3/24) дублировала бэкенд и однажды уже разошлась с ним при
+  // правке тарифной сетки (19.08.2026). Числа ниже — только fallback на
+  // время до ответа сервера, держать в синхроне с TIER_FLAGS вручную не
+  // нужно, но и не критично, если временно устареют.
+  const [tierTransitsMonths, setTierTransitsMonths] = useState(null);
+  useEffect(() => {
+    if (isFree) { setTierTransitsMonths(null); return; }
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('astro_access_token') : null;
+    getSubscription(token)
+      .then(data => setTierTransitsMonths(data?.limits?.transits_months ?? null))
+      .catch(() => {});
+  }, [isFree]);
+
   // Горизонт догрузки. Free нужен на 12 мес вперёд для блюр-тизера — это
   // отдельно от тарифного лимита транзитов: free до транзитов вообще не
   // допускается (check_transit_access в backend/auth/rate_limits.py), 12
-  // мес здесь — только чтобы было что показать под блюром. Premium/Lite/Pro
-  // — держать в синхроне с TIER_FLAGS.{premium,lite,pro}.transits_months
-  // там же (19.08.2026: Lite 12→1 мес, Pro 12→3 мес — решение владельца;
-  // раньше здесь был общий плоский "2" на оба тарифа, тоже не совпадавший
-  // с тогдашними 12 в TIER_FLAGS).
-  const maxMonths = isFree ? 12 : (isPremium ? 24 : (isLite ? 1 : 3));
+  // мес здесь — только чтобы было что показать под блюром.
+  const maxMonths = isFree ? 12 : (tierTransitsMonths ?? (isPremium ? 24 : (isLite ? 1 : 3)));
   const horizonEnd = useMemo(() => monthEndISO(todayISO(), maxMonths), [maxMonths]);
 
   // ── Первый запрос: ближайший месяц — список появляется быстро ──
