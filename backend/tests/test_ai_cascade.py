@@ -402,9 +402,10 @@ class TestStream:
         assert call_count["n"] == 1
         assert "Второй раз" in result
 
-    def test_stream_cache_key_varies_by_tier_model(self):
-        """Free/Lite (Flash) и Pro/Premium (Pro) — разные модели, разные тексты,
-        не должны делить один слот кэша."""
+    def test_stream_cache_key_varies_by_tier(self):
+        """Разные тарифы — разный целевой объём слов (word_limit в ключе) даже
+        если модель одна и та же (19.08.2026: DeepSeek для интерпретации —
+        всегда Pro, вне зависимости от тарифа) — не должны делить кэш."""
         router = InterpretationRouter()
         calls = {"n": 0}
 
@@ -421,8 +422,33 @@ class TestStream:
         lite_text = _run(_collect("lite"))
         pro_text = _run(_collect("pro"))
 
-        assert calls["n"] == 2, "разные тарифы/модели не должны делить кэш"
+        assert calls["n"] == 2, "разные тарифы не должны делить кэш"
         assert lite_text != pro_text
+
+    def test_stream_cache_persists_across_tier_switch_and_back(self):
+        """Апгрейд на тариф дороже — новый текст (другой ключ, задумано так).
+        Возврат на прежний тариф — старый закэшированный текст, а не новая
+        генерация."""
+        router = InterpretationRouter()
+        calls = {"n": 0}
+
+        async def _fake_stream(req):
+            calls["n"] += 1
+            yield f"Текст #{calls['n']} для {req.tier}"
+            router._engines[0]._last_finish_reason = "stop"
+
+        router._engines[0].stream = _fake_stream
+
+        async def _collect(tier):
+            return "".join([c async for c in router.stream(_request(tier=tier))])
+
+        pro_first = _run(_collect("pro"))        # генерация №1, кэш под pro
+        premium_text = _run(_collect("premium"))  # генерация №2, другой ключ
+        pro_second = _run(_collect("pro"))        # должен вернуть кэш №1
+
+        assert calls["n"] == 2, "возврат на прежний тариф не должен звать движок заново"
+        assert pro_second == pro_first
+        assert premium_text != pro_first
 
 
 # ═══════════════════════════════════════════════════════════

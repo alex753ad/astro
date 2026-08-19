@@ -48,14 +48,14 @@ TIER_FLAGS: dict[str, dict] = {
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": None,
-        "ai_engine": settings.deepseek_model_flash,
+        "ai_engine": settings.deepseek_model_pro,
     },
     "lite": {
         "interpretation_word_limit": 800,
         "interpretations_per_month": 5,        # 3.4a: было 3
         "charts_per_month": 5,
         "charts_per_day": None,
-        "transits_months": 12,
+        "transits_months": 1,                  # 19.08.2026: было 12 — решение владельца
         "transits_ai": False,                  # полный AI-доступ — нет
         "transits_ai_per_month": 3,            # 3.4a: тизер Pro — 3 AI-транзита/мес
         "profiles_limit": 1,                   # E3: сетка §4 — Lite 1 карта (было 5)
@@ -64,14 +64,14 @@ TIER_FLAGS: dict[str, dict] = {
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": None,
-        "ai_engine": settings.deepseek_model_flash,
+        "ai_engine": settings.deepseek_model_pro,
     },
     "pro": {
         "interpretation_word_limit": 2500,
         "interpretations_per_month": 15,
         "charts_per_month": 20,
         "charts_per_day": None,
-        "transits_months": 12,                 # 3.2: было 6 (Pro не мог быть хуже Lite)
+        "transits_months": 3,                  # 19.08.2026: было 12 — решение владельца
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
         "profiles_limit": 5,                    # E3: сетка §4 — Pro 5 карт (было 20)

@@ -207,7 +207,7 @@ async def _update_memory(user_id: str, question: str, history: list[dict]) -> No
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": "deepseek-chat",
+                        "model": settings.deepseek_model_flash,
                         "messages": [{"role": "user", "content": fold_prompt}],
                         "max_tokens": 220,
                         "temperature": 0.3,
@@ -260,7 +260,7 @@ async def _sse_generator(
     """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю."""
     collected: list[str] = []
     payload = {
-        "model": "deepseek-chat",
+        "model": settings.deepseek_model_flash,
         "messages": messages,
         "max_tokens": 800,
         "temperature": 0.7,

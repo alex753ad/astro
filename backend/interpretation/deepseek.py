@@ -33,9 +33,14 @@ class DeepSeekEngine(InterpretationEngine):
 
     @staticmethod
     def _model_for_tier(tier: str) -> str:
-        """deepseek-chat/deepseek-reasoner были отключены DeepSeek 2026-07-24 —
-        текущие модели различаются по тарифу (TIER_FLAGS.ai_engine, заведено
-        под config.deepseek_model_flash/_pro, а не зашито строкой здесь)."""
+        """deepseek-chat/deepseek-reasoner были отключены DeepSeek 2026-07-24.
+        Для интерпретации натальной карты — всегда deepseek-v4-pro (решение
+        владельца 19.08.2026, качество важнее на всех тарифах; глубина уже
+        различается лимитом слов — TIER_FLAGS.interpretation_word_limit, а не
+        моделью). deepseek-v4-flash используется в чате Астреи
+        (rag_router.py), не здесь. Значение читается из TIER_FLAGS.ai_engine
+        (заведено под config.deepseek_model_pro, а не зашито строкой здесь) —
+        если понадобится снова развести модели по тарифу, менять нужно там."""
         from backend.auth.rate_limits import TIER_FLAGS
         flags = TIER_FLAGS.get(tier, TIER_FLAGS["lite"])
         return flags["ai_engine"]
