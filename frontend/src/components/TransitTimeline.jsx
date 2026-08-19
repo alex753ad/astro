@@ -796,9 +796,15 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [isLite]);
   const liteTransitAiRemaining = transitAiUsage ? transitAiUsage.limit - transitAiUsage.used : null;
 
-  // Горизонт догрузки: Free нужен на 12 мес вперёд для блюр-тизера,
-  // Premium — 24 мес, остальные платные — 2 мес (как раньше).
-  const maxMonths = isFree ? 12 : (isPremium ? 24 : 2);
+  // Горизонт догрузки. Free нужен на 12 мес вперёд для блюр-тизера — это
+  // отдельно от тарифного лимита транзитов: free до транзитов вообще не
+  // допускается (check_transit_access в backend/auth/rate_limits.py), 12
+  // мес здесь — только чтобы было что показать под блюром. Premium/Lite/Pro
+  // — держать в синхроне с TIER_FLAGS.{premium,lite,pro}.transits_months
+  // там же (19.08.2026: Lite 12→1 мес, Pro 12→3 мес — решение владельца;
+  // раньше здесь был общий плоский "2" на оба тарифа, тоже не совпадавший
+  // с тогдашними 12 в TIER_FLAGS).
+  const maxMonths = isFree ? 12 : (isPremium ? 24 : (isLite ? 1 : 3));
   const horizonEnd = useMemo(() => monthEndISO(todayISO(), maxMonths), [maxMonths]);
 
   // ── Первый запрос: ближайший месяц — список появляется быстро ──
