@@ -78,7 +78,7 @@ class TestRegistrationEnforcesPolicy:
     def _send(self, client, password):
         return client.post(
             "/api/v1/auth/register/email/send-code",
-            json={"email": "newbie@yandex.ru", "password": password, "name": "T"},
+            json={"email": "newbie@yandex.ru", "password": password, "name": "T", "consent": True},
         )
 
     @pytest.mark.parametrize("password", ["short", "12345678", "password", "п" * 40])
