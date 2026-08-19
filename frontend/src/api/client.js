@@ -422,15 +422,6 @@ export async function validatePromoCode(code) {
   });
 }
 
-export async function createReportCheckoutSession(reportType, chartId) {
-  const token = localStorage.getItem('astro_access_token');
-  return request('/payments/checkout/report', {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: JSON.stringify({ report_type: reportType, chart_id: chartId }),
-  });
-}
-
 // ── Соляр / синастрия / релокация (только для админов) ──
 //
 // Расчёты — обычный request(). Стримы: соляр и релокация это GET, поэтому

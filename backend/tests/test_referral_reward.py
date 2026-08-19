@@ -1,9 +1,9 @@
-"""«Пригласи друга — 2 недели Pro за друга» под Robokassa.
+"""«Пригласи друга — 2 недели Pro за друга».
 
 Раньше награда шла только через Stripe Coupon (stripe_service.apply_referral_reward),
-который требует referrer.stripe_customer_id — у Robokassa-плательщиков его
+который требует referrer.stripe_customer_id — у не-Stripe плательщиков его
 никогда нет, награда молча не срабатывала. Теперь — прямое продление
-current_period_end (backend/payments/robokassa_service.apply_referral_reward),
+current_period_end (backend/payments/common.apply_referral_reward),
 только для рефереров с уже активной платной подпиской (решение владельца:
 free-рефереры бонус не получают, чтобы не заводить отдельный джоб отзыва
 временного pro — см. docstring функции).
@@ -12,11 +12,11 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-import pytest
 from sqlalchemy.orm import Session
 
 from backend.models import User, Subscription, Partner, Commission, PaymentEvent
-from backend.payments.robokassa_service import apply_referral_reward, REFERRAL_REWARD_DAYS, TIER_PRICES
+from backend.payments.common import apply_referral_reward, process_payment, REFERRAL_REWARD_DAYS
+from backend.payments.robokassa_service import TIER_PRICES
 from backend.time_utils import utcnow
 
 
@@ -109,43 +109,30 @@ class TestApplyReferralReward:
 
 class TestRewardVsCommissionMutualExclusivity:
     """Партнёрская программа и обычная реферальная награда не должны
-    срабатывать одновременно для одного реферера — payments_router.py.
+    срабатывать одновременно для одного реферера — backend/payments/common.py.
     """
 
-    PATH = "/api/v1/payments/robokassa/result"
-
     @staticmethod
-    def _form(user_id, inv_id, tier="pro", period="monthly"):
-        return {
-            "InvId": inv_id,
-            "OutSum": f"{TIER_PRICES[(tier, period)]:.2f}",
-            "SignatureValue": "ignored-verify-is-mocked",
-            "Shp_user": user_id,
-            "Shp_tier": tier,
-            "Shp_period": period,
-        }
-
-    @pytest.fixture(autouse=True)
-    def _valid_signature(self, monkeypatch):
-        monkeypatch.setattr(
-            "backend.payments.payments_router.verify_payment",
-            lambda form: (True, form.get("Shp_user", ""), form.get("Shp_tier", ""), form.get("Shp_period", "")),
+    def _pay(db, user_id, payment_id, tier="pro", period="monthly"):
+        return process_payment(
+            db, provider="robokassa", payment_id=payment_id,
+            user_id=user_id, tier=tier, period=period,
+            amount=TIER_PRICES[(tier, period)],
         )
 
-    def test_non_partner_referrer_gets_subscription_extended(self, client, db: Session):
+    def test_non_partner_referrer_gets_subscription_extended(self, db: Session):
         referrer = _user(db, "plain_ref@example.com", tier="pro")
         sub = _subscription(db, referrer, current_period_end=utcnow() + timedelta(days=5))
         buyer = _user(db, "buyer_plain_ref@example.com", tier="free", referred_by=referrer.id)
 
-        resp = client.post(self.PATH, data=self._form(buyer.id, "800001"))
-        assert resp.status_code == 200
+        self._pay(db, buyer.id, "800001")
 
         db.expire_all()
         assert db.query(Commission).count() == 0
         refreshed = db.query(Subscription).filter(Subscription.id == sub.id).first()
         assert refreshed.current_period_end > utcnow() + timedelta(days=REFERRAL_REWARD_DAYS - 1)
 
-    def test_partner_referrer_gets_commission_not_subscription_extension(self, db: Session, client):
+    def test_partner_referrer_gets_commission_not_subscription_extension(self, db: Session):
         referrer = _user(db, "partner_ref@example.com", tier="pro")
         sub = _subscription(db, referrer, current_period_end=utcnow() + timedelta(days=5))
         partner = Partner(user_id=referrer.id, rate=0.10, started_at=utcnow(), status="active")
@@ -154,8 +141,7 @@ class TestRewardVsCommissionMutualExclusivity:
         buyer = _user(db, "buyer_partner_ref@example.com", tier="free", referred_by=referrer.id)
 
         original_end = sub.current_period_end
-        resp = client.post(self.PATH, data=self._form(buyer.id, "800002"))
-        assert resp.status_code == 200
+        self._pay(db, buyer.id, "800002")
 
         db.expire_all()
         assert db.query(Commission).filter(Commission.partner_id == partner.id).count() == 1
@@ -163,9 +149,8 @@ class TestRewardVsCommissionMutualExclusivity:
         assert _close(refreshed.current_period_end, original_end), \
             "у партнёра не должна продлеваться подписка — он получает комиссию, не бонус-дни"
 
-    def test_no_referrer_neither_fires(self, db: Session, client):
+    def test_no_referrer_neither_fires(self, db: Session):
         buyer = _user(db, "no_referrer_buyer@example.com", tier="free")
-        resp = client.post(self.PATH, data=self._form(buyer.id, "800003"))
-        assert resp.status_code == 200
+        self._pay(db, buyer.id, "800003")
         db.expire_all()
         assert db.query(Commission).count() == 0

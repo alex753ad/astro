@@ -377,7 +377,7 @@ async def get_referral(
     settings = _get_settings()
 
     if not user.referral_code:
-        from backend.payments.robokassa_service import _generate_referral_code as generate_referral_code
+        from backend.referrals import generate_referral_code
         try:
             user.referral_code = generate_referral_code(db)
             db.commit()

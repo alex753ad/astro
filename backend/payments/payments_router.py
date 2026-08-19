@@ -13,24 +13,21 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Form
 from fastapi.responses import PlainTextResponse
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.admin.admin_router import require_admin
 from backend.database import get_db
 from backend.limiter import client_ip
-from backend.models import AdminAuditLog, User, Subscription, PaymentEvent, Partner
+from backend.models import AdminAuditLog, User, Subscription
 from backend.notifications.telegram import send_support_message
 from backend.schemas import CheckoutRequest, CheckoutResponse, SubscriptionResponse
 from backend.auth.dependencies import get_current_user
 from backend.payments.robokassa_service import (
     create_payment_url,
     verify_payment,
-    activate_subscription,
-    apply_referral_reward,
     TIER_PRICES,
 )
-from backend.partners.commission import credit_commission
+from backend.payments.common import process_payment, DuplicatePayment, PaymentProcessingError
 
 logger = logging.getLogger("astro.payments")
 
@@ -117,79 +114,27 @@ async def robokassa_result(request: Request, db: Session = Depends(get_db)):
         )
         return PlainTextResponse("amount mismatch", status_code=400)
 
-    # Идемпотентность / anti-replay в БД: уникальный inv_id. Раньше ключ жил
-    # только в Redis, и при его недоступности код шёл дальше (fail-open) — тот же
-    # вебхук с валидной подписью продлевал подписку сколько угодно раз.
-    #
-    # Запись о платеже и сама активация обязаны быть ОДНОЙ транзакцией.
-    # Если закоммитить payment_events отдельно и упасть на активации, то повтор
-    # вебхука увидит существующий inv_id, отчитается "OK" и уйдёт — деньги
-    # списаны, подписки нет, и починить это уже нечем: ретраи исчерпаны.
-    # Поэтому здесь flush (проверка уникальности без фиксации), затем активация,
-    # и только потом общий commit.
+    # Идемпотентность, начисление комиссии/реферальной награды и активация —
+    # общая, провайдер-независимая логика (backend/payments/common.py).
+    # Здесь остаётся только то, что специфично для Robokassa: подпись и
+    # сверка суммы выше.
     try:
-        payment_event = PaymentEvent(
-            provider="robokassa",
-            inv_id=str(inv_id),
-            user_id=user_id,
-            tier=tier,
-            period=period,
-            amount=paid,
+        process_payment(
+            db, provider="robokassa", payment_id=str(inv_id),
+            user_id=user_id, tier=tier, period=period, amount=paid,
         )
-        db.add(payment_event)
-        db.flush()
-    except IntegrityError:
-        db.rollback()
+    except DuplicatePayment:
         logger.info("Robokassa: duplicate InvId=%s ignored", inv_id)
         return PlainTextResponse(f"OK{inv_id}")
-    except Exception:
-        db.rollback()
-        logger.exception("Robokassa: payment_events insert failed, InvId=%s", inv_id)
+    except PaymentProcessingError as exc:
         # Валидный платёж (подпись и сумма уже проверены) не превратился в
-        # запись — если ретраи Robokassa (у неё их конечное число) исчерпаются
-        # раньше, чем БД оживёт, деньги списаны, а подписки не будет, и никакого
-        # следа об этом нигде не останется. Алерт должен прийти живому человеку
-        # в течение часа, а не всплыть через жалобу пользователя.
-        await _alert_payment_failure(inv_id, user_id, tier, period, stage="payment_events insert")
-        # 500 без активации: Robokassa повторит вызов, и повтор пройдёт штатно —
-        # записи в payment_events не осталось, так что дублем он не считается.
-        return PlainTextResponse("internal error", status_code=500)
-
-    # Партнёрская комиссия и обычная реферальная награда («2 недели Pro за
-    # друга») не должны иметь возможности сорвать реальный платёж. Голого
-    # try/except здесь недостаточно: если код внутри падал уже после
-    # db.add()/запроса, сессия SQLAlchemy оставалась в состоянии, требующем
-    # rollback, и следующий шаг (activate_subscription, тот же db.commit())
-    # валился следом за ней — платёж откатывался целиком, хотя try/except
-    # формально стоял на месте. begin_nested() — SAVEPOINT: при сбое
-    # откатывается только он, уже сфлашенный payment_event остаётся цел.
-    #
-    # Комиссия и обычная награда взаимоисключающие для одного реферера —
-    # партнёрская программа отдельная сущность, не смешивается с обычной
-    # реферальной механикой (Этап 2/3): если реферер — активный партнёр,
-    # он получает комиссию деньгами, а не 2 недели подписки в подарок.
-    try:
-        with db.begin_nested():
-            buyer = db.query(User).filter(User.id == user_id).first()
-            if buyer and buyer.referred_by:
-                is_active_partner = db.query(Partner.id).filter(
-                    Partner.user_id == buyer.referred_by, Partner.status == "active",
-                ).first() is not None
-                if is_active_partner:
-                    credit_commission(db, payment_event, buyer)
-                else:
-                    apply_referral_reward(buyer.referred_by, db)
-    except Exception:
-        logger.exception("Robokassa: referral reward/commission failed, InvId=%s", inv_id)
-
-    try:
-        activate_subscription(user_id=user_id, tier=tier, period=period, db=db)
-    except Exception:
-        # Откатывает и активацию, и запись о платеже — ретрай Robokassa начнёт
-        # с чистого листа, а не упрётся в «уже обработано».
-        db.rollback()
-        logger.exception("Robokassa: activate_subscription failed")
-        await _alert_payment_failure(inv_id, user_id, tier, period, stage="activate_subscription")
+        # активную подписку — если ретраи Robokassa (у неё их конечное число)
+        # исчерпаются раньше, чем причина сбоя устранена, деньги списаны, а
+        # подписки не будет, и никакого следа об этом нигде не останется.
+        # Алерт должен прийти живому человеку в течение часа, а не всплыть
+        # через жалобу пользователя. 500 без активации: Robokassa повторит
+        # вызов сама.
+        await _alert_payment_failure(inv_id, user_id, tier, period, stage=exc.stage)
         return PlainTextResponse("internal error", status_code=500)
 
     logger.info("Robokassa: payment OK, InvId=%s user=%s tier=%s", inv_id, user_id, tier)

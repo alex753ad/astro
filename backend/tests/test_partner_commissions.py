@@ -157,7 +157,7 @@ class TestCommissionFailureDoesNotBlockPayment:
     Postgres ошибка на уровне SQL переводит всю транзакцию в
     aborted-состояние, и следующий шаг (activate_subscription, тот же
     db.commit()) валится следом, откатывая payment_events целиком. Фикс —
-    begin_nested() (SAVEPOINT) в backend/payments/payments_router.py.
+    begin_nested() (SAVEPOINT) в backend/payments/common.py.
 
     ВАЖНО: этот тест НЕ различает старый и новый код — проверено вручную,
     проходит на обоих. Тестовая БД — SQLite (см. conftest.py), а у неё
@@ -165,25 +165,11 @@ class TestCommissionFailureDoesNotBlockPayment:
     рабочей и без rollback после упавшего запроса (эмпирически проверено
     отдельно). Правильность фикса — из семантики SAVEPOINT в SQLAlchemy,
     не из этого теста; тест остаётся как базовая проверка одного контракта
-    (сбой в комиссии не роняет вебхук 500-й), не как доказательство самого
+    (сбой в комиссии не роняет платёж), не как доказательство самого
     P0-сценария.
     """
 
-    PATH = "/api/v1/payments/robokassa/result"
-
-    @staticmethod
-    def _form(user_id, inv_id="900001", tier="pro", period="monthly"):
-        from backend.payments.robokassa_service import TIER_PRICES
-        return {
-            "InvId": inv_id,
-            "OutSum": f"{TIER_PRICES[(tier, period)]:.2f}",
-            "SignatureValue": "ignored-verify-is-mocked",
-            "Shp_user": user_id,
-            "Shp_tier": tier,
-            "Shp_period": period,
-        }
-
-    def test_broken_credit_commission_still_activates_subscription(self, client, db: Session, monkeypatch):
+    def test_broken_credit_commission_still_activates_subscription(self, db: Session, monkeypatch):
         # Просто lambda, кидающая исключение без обращения к БД, не
         # воспроизводит настоящий сбой: такая ошибка не пачкает сессию, и тест
         # проходит даже на старом коде без begin_nested(). Настоящий сбой —
@@ -191,21 +177,21 @@ class TestCommissionFailureDoesNotBlockPayment:
         # constraint) — именно она на Postgres переводит всю транзакцию в
         # aborted-состояние, пока не будет rollback.
         from sqlalchemy import text as sa_text
+        from backend.payments.common import process_payment
+        from backend.payments.robokassa_service import TIER_PRICES
 
         def _broken(db_, payment_event, buyer_):
             db_.execute(sa_text("SELECT * FROM this_table_does_not_exist_xyz"))
 
-        monkeypatch.setattr(
-            "backend.payments.payments_router.verify_payment",
-            lambda form: (True, form.get("Shp_user", ""), form.get("Shp_tier", ""), form.get("Shp_period", "")),
-        )
-        monkeypatch.setattr("backend.payments.payments_router.credit_commission", _broken)
+        monkeypatch.setattr("backend.payments.common.credit_commission", _broken)
 
         buyer = _make_user(db, "broken_commission@example.com")
 
-        resp = client.post(self.PATH, data=self._form(buyer.id))
-        assert resp.status_code == 200
-        assert resp.text == "OK900001"
+        process_payment(
+            db, provider="robokassa", payment_id="900001",
+            user_id=buyer.id, tier="pro", period="monthly",
+            amount=TIER_PRICES[("pro", "monthly")],
+        )
 
         db.expire_all()
         assert db.query(User).filter(User.id == buyer.id).first().tier == "pro"

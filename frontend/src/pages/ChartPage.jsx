@@ -28,19 +28,12 @@ import StreakBadge from '../components/StreakBadge';
 import useStreak, { schedulePushReminder } from '../hooks/useStreak';
 import RagChat from '../components/RagChat';
 import {
-  createReportCheckoutSession,
   createCheckoutSession,
   startPdfGeneration,
   startTransitsAsync,
   pollTask,
 } from '../api/client';
 import PlanComparisonModal from '../components/PlanComparisonModal';
-
-const REPORT_OPTIONS = [
-  { type: 'basic',    label: 'Базовый натальный отчёт',        price: '$5', desc: 'Карта + интерпретация + главные аспекты' },
-  { type: 'extended', label: 'Расширенный отчёт с транзитами', price: '$9', desc: 'Карта + детальный анализ + транзиты на 6 мес' },
-  { type: 'synastry', label: 'Отчёт о совместимости',          price: '$9', desc: 'Синастрия двух карт + межаспектная сетка' },
-];
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -139,25 +132,12 @@ function ReportModal({ chartId, onClose, setForExport }) {
     }
   }
 
-  // ── Купить расширенный PDF через Stripe ──
-  async function handleBuy(type) {
-    setLoading(type);
-    setError(null);
-    try {
-      const { checkout_url } = await createReportCheckoutSession(type, chartId);
-      window.location.href = checkout_url;
-    } catch {
-      setError('Не удалось открыть страницу оплаты. Попробуйте позже.');
-      setLoading(null);
-    }
-  }
-
   return (
     <div style={sr.overlay} onClick={onClose}>
       <div style={sr.modal} onClick={e => e.stopPropagation()}>
         <button style={sr.close} onClick={onClose}>✕</button>
         <h2 style={sr.title}>📄 PDF-отчёт</h2>
-        <p style={sr.sub}>Скачайте карту или купите расширенный отчёт</p>
+        <p style={sr.sub}>Скачайте карту в PDF</p>
 
         {/* ── Бесплатный PDF ── */}
         <div style={{ ...sr.item, marginBottom: 12, background: 'rgba(124,108,255,0.06)', border: '1px solid rgba(124,108,255,0.2)' }}>
@@ -176,26 +156,7 @@ function ReportModal({ chartId, onClose, setForExport }) {
           </MotionButton>
         </div>
 
-        <div style={sr.list}>
-          {REPORT_OPTIONS.map(opt => (
-            <div key={opt.type} style={sr.item}>
-              <div style={{ flex: 1 }}>
-                <div style={sr.itemTitle}>{opt.label}</div>
-                <div style={sr.itemDesc}>{opt.desc}</div>
-              </div>
-              <MotionButton
-                level="secondary"
-                style={{ ...sr.btn, opacity: loading && loading !== opt.type ? 0.5 : 1 }}
-                onClick={() => handleBuy(opt.type)}
-                disabled={!!loading}
-              >
-                {loading === opt.type ? '…' : opt.price}
-              </MotionButton>
-            </div>
-          ))}
-        </div>
         {error && <p style={sr.error}>{error}</p>}
-        <p style={sr.legal}>Платные отчёты — через Stripe. Безопасно.</p>
       </div>
     </div>
   );

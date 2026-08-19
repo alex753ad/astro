@@ -243,8 +243,8 @@ def _create_user(
     db.flush()
 
     try:
-        from backend.payments.robokassa_service import _generate_referral_code
-        user.referral_code = _generate_referral_code(db)
+        from backend.referrals import generate_referral_code
+        user.referral_code = generate_referral_code(db)
     except Exception as exc:
         logger.warning("referral_code generation failed: %s", exc)
 

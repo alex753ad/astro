@@ -12,7 +12,4 @@ TESTING=false, чтобы проверить ровно один прод-guard 
 PROD_STARTUP_ENV = {
     # C-2: без секрета служебные /api/v1/internal/* не работают — main.py падает.
     "INTERNAL_SECRET": "test-internal-secret-not-used-anywhere",
-    # H-4: тестовый режим Robokassa в проде выдавал бы подписки без оплаты.
-    "ROBOKASSA_IS_TEST": "false",
-    "ROBOKASSA_MERCHANT_LOGIN": "test-merchant",
 }

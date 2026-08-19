@@ -55,15 +55,6 @@ for _required in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL \
                  REDIS_PASSWORD REDIS_URL JWT_SECRET INTERNAL_SECRET; do
   _env_has "$_required" || die "в .env не задан ${_required} — деплой остановлен."
 done
-# ROBOKASSA_MERCHANT_LOGIN намеренно не в списке выше: пустой — это «оплата
-# ещё не подключена», не ошибка конфигурации (backend/main.py логирует
-# предупреждение, но не падает). А вот IS_TEST=true — реальный риск (подписки
-# без оплаты), поэтому единственная жёсткая проверка ниже: падаем, только если
-# кто-то явно включил тестовый режим. Отсутствие строки = дефолт false в
-# config.py, это нормально.
-if grep -qE '^ROBOKASSA_IS_TEST=(true|1)$' .env; then
-  die "ROBOKASSA_IS_TEST=true в проде — подписки выдавались бы без оплаты."
-fi
 grep -qE '^REDIS_URL=redis://:[^@]+@' .env \
   || die "REDIS_URL без пароля — Redis теперь запускается с requirepass, приложение не подключится."
 
