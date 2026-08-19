@@ -122,6 +122,24 @@ class TestPromptBuilder:
         assert "Общий портрет" in prompt
         assert "json" in prompt.lower()
 
+    def test_never_cut_off_instruction_present_for_every_tier(self):
+        """Раньше «не обрывай предложение» была только в word_limit-ветке —
+        в тарифных ветках (в т.ч. free) отсутствовала вовсе."""
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            prompt = build_system_prompt(req)
+            assert "не обрывай текст" in prompt, f"tier={tier}"
+
+    def test_word_target_matches_tier_flags(self):
+        """Промпт и TIER_FLAGS.interpretation_word_limit не должны расходиться
+        (были: free просил 800 слов в промпте при лимите 500 в TIER_FLAGS)."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            prompt = build_system_prompt(req)
+            expected = str(TIER_FLAGS[tier]["interpretation_word_limit"])
+            assert expected in prompt, f"tier={tier} expected {expected} words in prompt"
+
     def test_build_prompt_english(self):
         req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, language="en")
         prompt = build_system_prompt(req)
@@ -141,6 +159,32 @@ class TestPromptBuilder:
             # Degree should have at most 1 decimal place
             deg = p["degree"]
             assert deg == round(deg, 1)
+
+
+class TestMaxTokens:
+    """max_tokens выводится из TIER_FLAGS.interpretation_word_limit, а не
+    задаётся плоским числом на тир (было: free/lite получали одинаковые
+    2000 при разных целевых объёмах 500/800 слов)."""
+
+    def test_scales_with_tier_word_limit(self):
+        from backend.interpretation.gpt4o import _calc_max_tokens
+        from backend.auth.rate_limits import TIER_FLAGS
+
+        prev = 0
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            tokens = _calc_max_tokens(req)
+            words = TIER_FLAGS[tier]["interpretation_word_limit"]
+            # С запасом от 1 ток/слово (кириллица дороже) и больше words.
+            assert tokens > words, f"tier={tier}"
+            assert tokens > prev, f"tier={tier} должен получить больше токенов, чем предыдущий"
+            prev = tokens
+
+    def test_explicit_word_limit_overrides_tier(self):
+        from backend.interpretation.gpt4o import _calc_max_tokens
+        req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier="free", word_limit=3000)
+        tokens = _calc_max_tokens(req)
+        assert tokens > 3000 * 2  # заметно больше, чем free-тарифный лимит дал бы
 
 
 class TestInterpretationRouter:

@@ -11,6 +11,21 @@ from __future__ import annotations
 import json
 from backend.interpretation.base import InterpretationRequest
 
+
+def resolve_word_limit(request: InterpretationRequest) -> int:
+    """Единственный источник целевого объёма слов — для промпта (сколько слов
+    просить у модели) и для max_tokens (backend/interpretation/gpt4o.py). Явный
+    request.word_limit (если задан и в допустимом диапазоне — брифы/кастомные
+    запросы) имеет приоритет, иначе — TIER_FLAGS[tier].interpretation_word_limit.
+    """
+    word_limit = getattr(request, "word_limit", None)
+    if word_limit and isinstance(word_limit, int) and 1000 <= word_limit <= 5000:
+        return word_limit
+    from backend.auth.rate_limits import TIER_FLAGS
+    tier = getattr(request, "tier", "free")
+    return TIER_FLAGS.get(tier, TIER_FLAGS["free"])["interpretation_word_limit"]
+
+
 SYSTEM_PROMPT_TEMPLATE = """Тебя зовут Астрея. Ты — навигатор решений, а не предсказатель: разбираешь карту простым живым языком и показываешь, на что опереться.
 Тебе дан астрологический профиль человека в формате JSON.
 
@@ -102,25 +117,41 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     # Compact profile for prompt (remove excessive precision)
     compact = _compact_profile(request.natal_profile)
 
-    # Объём зависит от word_limit или тира
-    word_limit = getattr(request, "word_limit", None)
+    # Объём — из resolve_word_limit(): один источник и для промпта, и для
+    # max_tokens в gpt4o.py/deepseek.py (раньше free целился в 800 слов
+    # здесь, при лимите 500 в TIER_FLAGS — два независимых числа расходились).
+    explicit_word_limit = getattr(request, "word_limit", None)
     tier = getattr(request, "tier", "free")
-    if word_limit and isinstance(word_limit, int) and 1000 <= word_limit <= 5000:
+    word_limit = resolve_word_limit(request)
+
+    # "Не обрывай предложение" — раньше было только в word_limit-ветке,
+    # в тарифных ветках (в т.ч. free) отсутствовало вовсе.
+    no_cutoff = (
+        " ОБЯЗАТЕЛЬНО: каждая секция и весь текст должны заканчиваться полным "
+        "предложением — никогда не обрывай текст на полуслове или в середине мысли."
+    )
+
+    if explicit_word_limit and isinstance(explicit_word_limit, int) and 1000 <= explicit_word_limit <= 5000:
         word_count_instruction = (
             f"Напиши интерпретацию объёмом около {word_limit} слов суммарно по всем секциям. "
-            f"Распредели слова равномерно между секциями. "
-            f"ОБЯЗАТЕЛЬНО: каждая секция и весь текст должны заканчиваться полным предложением — "
-            f"никогда не обрывай текст на полуслове или в середине мысли."
+            f"Распредели слова равномерно между секциями." + no_cutoff
         )
         paragraphs_per_section = str(max(2, word_limit // 500))
     elif tier == "premium":
-        word_count_instruction = "Напиши ПОДРОБНУЮ интерпретацию объёмом НЕ МЕНЕЕ 5000 слов суммарно по всем секциям. Каждая секция должна быть развёрнутой и глубокой."
+        word_count_instruction = (
+            f"Напиши ПОДРОБНУЮ интерпретацию объёмом НЕ МЕНЕЕ {word_limit} слов суммарно по всем "
+            f"секциям. Каждая секция должна быть развёрнутой и глубокой." + no_cutoff
+        )
         paragraphs_per_section = "8–12"
     elif tier == "pro":
-        word_count_instruction = "Напиши интерпретацию объёмом около 2500 слов суммарно."
+        word_count_instruction = (
+            f"Напиши интерпретацию объёмом около {word_limit} слов суммарно." + no_cutoff
+        )
         paragraphs_per_section = "5–7"
     else:
-        word_count_instruction = "Напиши краткую интерпретацию объёмом около 800 слов суммарно."
+        word_count_instruction = (
+            f"Напиши краткую интерпретацию объёмом около {word_limit} слов суммарно." + no_cutoff
+        )
         paragraphs_per_section = "2–3"
 
     return SYSTEM_PROMPT_TEMPLATE.format(

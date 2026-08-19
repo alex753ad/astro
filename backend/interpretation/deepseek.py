@@ -72,6 +72,13 @@ class DeepSeekEngine(InterpretationEngine):
             "max_tokens": _calc_max_tokens(request),
             "temperature": 0.2,
             "stream": stream,
+            # DeepSeek V4 — reasoning-модель по умолчанию (thinking.reasoning_effort
+            # = "high", если не задано явно) и тратит max_tokens на reasoning_content
+            # ДО финального ответа. Проверено эмпирически: без этого короткие
+            # max_tokens дают finish_reason=length с ПУСТЫМ content, не просто
+            # обрезанным текстом. Reasoning нам не нужен — натальная интерпретация
+            # не логическая задача, а связный текст по уже посчитанным фактам.
+            "thinking": {"type": "disabled"},
         }
         if stream:
             payload["stream_options"] = {"include_usage": True}

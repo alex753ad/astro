@@ -17,18 +17,38 @@ from backend.interpretation.base import (
     InterpretationRequest,
     InterpretationResult,
 )
-from backend.interpretation.prompts import build_system_prompt
+from backend.interpretation.prompts import build_system_prompt, resolve_word_limit
 
 logger = logging.getLogger("astro.gpt4o")
 
+# Раньше здесь было ≈1 ток/слово плоским числом на тир — для кириллицы в
+# BPE-токенизации это в 2-3 раза ниже реальности, из-за чего free/lite
+# (плоские 2000 max_tokens) обрывались по длине раньше, чем добирали и
+# половину запрошенного объёма.
+#
+# Проверено реальными запросами к deepseek-v4-flash/-pro на боевом промпте
+# (thinking выключен), max_tokens намеренно завышен, чтобы поймать
+# естественную точку остановки (finish_reason=stop) для каждого тира:
+#   free    (цель  500 слов) → 1016 слов,  2125 токенов на выходе
+#   lite    (цель  800 слов) → 1153 слова,  2413 токенов
+#   pro     (цель 2500 слов) → 2511 слов,   5466 токенов
+#   premium (цель 5000 слов) → 3938 слов,   8330 токенов
+# ~2.1 ток/слово на выходе — близко к оценке, но короткие тиры модель
+# систематически ПЕРЕВЫПОЛНЯЕТ (free — почти вдвое): 6 секций всё равно
+# получают связные абзацы, даже если попросили меньше. Плоское
+# «слова × ток/слово» этого не покрывает — отсюда аддитивный запас ниже,
+# а не просто выросший коэффициент.
+_TOKENS_PER_WORD = 2.5
+_OVERSHOOT_AND_TAG_BUFFER = 1500
+
 
 def _calc_max_tokens(request) -> int:
-    """Вычислить max_tokens. Русский текст ≈1 токен/слово; +15% буфер на теги/структуру."""
-    word_limit = getattr(request, "word_limit", None)
-    if word_limit and isinstance(word_limit, int) and 1000 <= word_limit <= 5000:
-        return int(word_limit * 1.15)  # жёсткий потолок чуть выше цели
-    tier = getattr(request, "tier", "free")
-    return 12000 if tier == "premium" else (6000 if tier == "pro" else 2000)
+    """max_tokens — из целевого объёма слов (resolve_word_limit), не плоское
+    число на тир. Единственный источник цели — TIER_FLAGS.interpretation_word_limit
+    (через resolve_word_limit, см. prompts.py) — тот же, что и у инструкции
+    модели в промпте, поэтому prompt и лимит токенов больше не расходятся."""
+    words = resolve_word_limit(request)
+    return int(words * _TOKENS_PER_WORD) + _OVERSHOOT_AND_TAG_BUFFER
 
 class GPT4oEngine(InterpretationEngine):
     name = "gpt4o"

@@ -9,6 +9,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { streamInterpretation } from '../api/client';
 import { useToast } from './Toast';
@@ -420,6 +421,23 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Приписка для Free: полная интерпретация — на следующем тарифе.
+          Lite уже закрыт отдельным баннером ниже (isLite && done) — не дублируем. */}
+      {isFree && done && !isCut && (
+        <p style={{
+          marginTop: 20,
+          fontSize: 13,
+          color: 'var(--text-secondary, var(--text-secondary))',
+          textAlign: 'center',
+          lineHeight: 1.6,
+        }}>
+          Хотите разбор подробнее? На тарифе {TIER_NAMES.pro} интерпретация глубже и подробнее.{' '}
+          <Link to="/pricing" style={{ color: 'var(--accent, var(--accent))', fontWeight: 600, textDecoration: 'none' }}>
+            Тарифы →
+          </Link>
+        </p>
       )}
 
       {/* Inline-баннер для Lite → Pro (под интерпретацией) */}
