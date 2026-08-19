@@ -125,12 +125,28 @@ def _validate_password(v: str) -> str:
     return validate_password(v)
 
 
+_CONSENT_ERROR = (
+    "Необходимо подтвердить согласие на обработку персональных данных "
+    "и условия оферты."
+)
+
+
+def _validate_consent(v: bool) -> bool:
+    if not v:
+        raise ValueError(_CONSENT_ERROR)
+    return v
+
+
 # ── Старая схема — сохранена для тестов и обратной совместимости ──
 
 class RegisterRequest(BaseModel):
     email: str = Field(..., description="Email пользователя")
     password: str = Field(..., min_length=8, max_length=128)
     ref_code: Optional[str] = Field(None, max_length=16)
+    # По умолчанию True: эта схема — только тестовый/legacy-путь (закрыт в
+    # проде, см. register_legacy), без формы и чекбокса. Реальная
+    # OTP-регистрация требует consent явно — см. SendEmailOTPRequest.
+    consent: bool = True
 
     @field_validator("email")
     @classmethod
@@ -155,6 +171,10 @@ class SendEmailOTPRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
     name: Optional[str] = Field(None, max_length=100)
     ref_code: Optional[str] = Field(None, max_length=16)
+    # Чекбокс формы регистрации (152-ФЗ) — обязателен, хранится в OTP-payload
+    # в Redis и переносится на пользователя при верификации кода (см.
+    # register_email_verify / backend/auth/consent.py).
+    consent: bool = Field(...)
 
     @field_validator("email")
     @classmethod
@@ -165,6 +185,11 @@ class SendEmailOTPRequest(BaseModel):
     @classmethod
     def validate_password(cls, v: str) -> str:
         return _validate_password(v)
+
+    @field_validator("consent")
+    @classmethod
+    def validate_consent(cls, v: bool) -> bool:
+        return _validate_consent(v)
 
 
 class VerifyEmailOTPRequest(BaseModel):
@@ -194,6 +219,12 @@ class GoogleOAuthRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=1024)
     redirect_uri: str = Field(..., max_length=2048)
     ref_code: Optional[str] = Field(None, max_length=16)
+    # Нет фронтенда, вызывающего этот эндпоинт (Google сейчас используется
+    # только для Google Calendar в планере, не для входа/регистрации) —
+    # поле необязательно на уровне схемы. Обязательно оно только при
+    # создании НОВОГО пользователя (не при логине уже существующего),
+    # проверяется в самом обработчике google_oauth, не здесь.
+    consent: Optional[bool] = None
 
 
 class TokenResponse(BaseModel):

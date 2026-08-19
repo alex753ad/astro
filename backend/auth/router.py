@@ -72,6 +72,11 @@ OTP_TTL = 600        # 10 минут
 OTP_RESEND_TTL = 60  # 1 минута между отправками
 MAX_OTP_ATTEMPTS = 5
 
+_CONSENT_MISSING_ERROR = (
+    "Необходимо подтвердить согласие на обработку персональных данных "
+    "и условия оферты."
+)
+
 _redis_client: aioredis.Redis | None = None
 
 
@@ -106,8 +111,12 @@ async def _store_otp(
     hashed_pw: str,
     ref_code: str,
     name: str = "",
+    consent: bool = False,
 ) -> None:
-    payload = json.dumps({"code": code, "pw": hashed_pw, "ref": ref_code, "name": name, "attempts": 0})
+    payload = json.dumps({
+        "code": code, "pw": hashed_pw, "ref": ref_code, "name": name,
+        "consent": consent, "attempts": 0,
+    })
     await r.set(_otp_key(identifier), payload, ex=OTP_TTL)
     await r.set(_resend_key(identifier), "1", ex=OTP_RESEND_TTL)
 
@@ -230,6 +239,8 @@ def _create_user(
     name: str = "",
 ) -> User:
     referred_by = _resolve_referrer_id(db, ref_code)
+    from backend.auth.consent import CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION
+    from backend.time_utils import utcnow
 
     user = User(
         email=email,
@@ -239,6 +250,9 @@ def _create_user(
         is_email_confirmed=True,  # подтверждён через OTP
         tier="free",
         referred_by=referred_by,
+        consent_given_at=utcnow(),
+        consent_terms_version=CURRENT_TERMS_VERSION,
+        consent_privacy_version=CURRENT_PRIVACY_VERSION,
     )
     db.add(user)
     db.flush()
@@ -318,7 +332,7 @@ async def register_email_send(
             logger.error("Existing-account notice failed for %s: %s", mask_email(data.email), exc)
         logger.info("Registration attempt on existing account: %s", mask_email(data.email))
     else:
-        await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "")
+        await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "", data.consent)
         from backend.email_service import send_otp_email
         await send_otp_email(data.email, code)
         logger.info("Email OTP sent → %s", mask_email(data.email))
@@ -342,6 +356,11 @@ async def register_email_verify(
 
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Аккаунт с таким email уже существует.")
+
+    # Второй раз проверяем явно (первый раз — Pydantic-валидатор на шаге 1):
+    # защита от рассинхрона, если формат OTP-payload когда-нибудь изменится.
+    if not otp_data.get("consent"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _CONSENT_MISSING_ERROR)
 
     user = _create_user(
         db,
@@ -376,12 +395,21 @@ async def register_legacy(
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already exists. Аккаунт с таким email уже существует.")
 
+    from backend.auth.consent import CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION
+    from backend.time_utils import utcnow
+
+    if not data.consent:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _CONSENT_MISSING_ERROR)
+
     user = User(
         email=data.email,
         hashed_password=hash_password(data.password),
         is_active=True,
         is_email_confirmed=False,
         tier="free",
+        consent_given_at=utcnow(),
+        consent_terms_version=CURRENT_TERMS_VERSION,
+        consent_privacy_version=CURRENT_PRIVACY_VERSION,
     )
     db.add(user)
     db.commit()
@@ -541,6 +569,17 @@ async def google_oauth(
 
     user = db.query(User).filter(User.email == google_user.email).first()
     if user is None:
+        # consent обязателен только тут — при создании НОВОГО аккаунта, не
+        # при входе уже существующего. Сегодня этот путь не вызывается ни
+        # одной страницей сайта (Google используется только для Google
+        # Calendar в планере, не для входа), но раз колонки User.consent_*
+        # NOT NULL — эндпоинт обязан оставаться корректным сам по себе.
+        if not data.consent:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, _CONSENT_MISSING_ERROR)
+
+        from backend.auth.consent import CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION
+        from backend.time_utils import utcnow
+
         user = User(
             email=google_user.email,
             hashed_password=None,
@@ -551,6 +590,9 @@ async def google_oauth(
             # Как и в _create_user (email-регистрация): привязка только на
             # создании аккаунта, задним числом её не восстановить.
             referred_by=_resolve_referrer_id(db, data.ref_code),
+            consent_given_at=utcnow(),
+            consent_terms_version=CURRENT_TERMS_VERSION,
+            consent_privacy_version=CURRENT_PRIVACY_VERSION,
         )
         db.add(user)
         db.commit()

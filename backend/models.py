@@ -2,6 +2,10 @@
 
 import uuid
 from backend.time_utils import utcnow
+from backend.auth.consent import (
+    CURRENT_TERMS_VERSION as _CURRENT_TERMS_VERSION,
+    CURRENT_PRIVACY_VERSION as _CURRENT_PRIVACY_VERSION,
+)
 
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer,
@@ -75,6 +79,18 @@ class User(Base):
         ForeignKey("natal_charts.id", ondelete="SET NULL", use_alter=True, name="fk_user_primary_chart"),
         nullable=True,
     )
+
+    # Согласие на обработку ПДн + акцепт оферты/политики (152-ФЗ, 19.08.2026).
+    # Версии — дата «Последнее обновление» соответствующего документа на
+    # момент согласия (см. backend/auth/consent.py) — оферта и политика
+    # могут обновляться независимо, нужно доказуемо знать, с какой
+    # редакцией согласился конкретный пользователь. Реальные пути регистрации
+    # (backend/auth/router.py) всегда задают эти поля явно после проверки
+    # чекбокса; default здесь — только чтобы не городить фикстуры/скрипты,
+    # создающие User напрямую (тесты, админка) — это не настоящее согласие.
+    consent_given_at        = Column(DateTime, nullable=False, default=utcnow)
+    consent_terms_version   = Column(String(20), nullable=False, default=_CURRENT_TERMS_VERSION)
+    consent_privacy_version = Column(String(20), nullable=False, default=_CURRENT_PRIVACY_VERSION)
 
     charts = relationship(
         "NatalChart",

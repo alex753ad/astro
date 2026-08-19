@@ -51,6 +51,7 @@ export default function AuthModal({ onClose, returnTo }) {
   const [password2, setPassword2] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [showPass2, setShowPass2] = useState(false);
+  const [consent, setConsent] = useState(false);
 
   // OTP verify
   const [otpCode, setOtpCode] = useState('');
@@ -79,7 +80,7 @@ export default function AuthModal({ onClose, returnTo }) {
 
   const switchMode = (m) => {
     setLocalErr(''); setLocalOk(''); clearError();
-    setPassword(''); setPassword2(''); setOtpCode('');
+    setPassword(''); setPassword2(''); setOtpCode(''); setConsent(false);
     setMode(m);
   };
 
@@ -115,6 +116,7 @@ export default function AuthModal({ onClose, returnTo }) {
     if (password.length < 8) { setLocalErr('Пароль минимум 8 символов'); return; }
     if (/^\d+$/.test(password)) { setLocalErr('Пароль не может состоять только из цифр'); return; }
     if (password !== password2) { setLocalErr('Пароли не совпадают'); return; }
+    if (!consent) { setLocalErr('Нужно подтвердить согласие на обработку персональных данных'); return; }
 
     setOtpLoading(true);
     try {
@@ -123,7 +125,7 @@ export default function AuthModal({ onClose, returnTo }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim().toLowerCase(), password, name: name.trim() || undefined,
-          ref_code: getRefCode() || undefined,
+          ref_code: getRefCode() || undefined, consent,
         }),
       });
       const data = await res.json();
@@ -342,8 +344,18 @@ export default function AuthModal({ onClose, returnTo }) {
                 </button>
               </div>
             </div>
+            <label style={{ display:'flex', alignItems:'flex-start', gap:8, margin:'2px 0 12px', fontSize:12, lineHeight:1.5, color:'var(--text-secondary)', cursor:'pointer' }}>
+              <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}
+                style={{ marginTop:2, flexShrink:0 }} />
+              <span>
+                Мне есть 18 лет. Я даю согласие на обработку персональных данных и принимаю условия{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent-glow)' }}>Публичной оферты</a>{' '}
+                и{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent-glow)' }}>Политики конфиденциальности</a>.
+              </span>
+            </label>
             {displayError && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{displayError}</div>}
-            <MotionButton level="primary" onClick={handleSendCode} disabled={otpLoading} style={btn(otpLoading)}>
+            <MotionButton level="primary" onClick={handleSendCode} disabled={otpLoading || !consent} style={btn(otpLoading || !consent)}>
               {otpLoading ? 'Отправляю код…' : 'Получить код →'}
             </MotionButton>
             <p style={{ textAlign:'center', marginTop:16, fontSize:13, color:'var(--text-secondary)' }}>

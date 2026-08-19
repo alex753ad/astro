@@ -254,6 +254,7 @@ class TestGoogleOAuth:
             resp = client.post("/api/v1/auth/google", json={
                 "code": "mock_code",
                 "redirect_uri": "https://app.example.com/oauth/callback",
+                "consent": True,
             })
             assert resp.status_code == 200
             data = resp.json()
@@ -264,6 +265,22 @@ class TestGoogleOAuth:
         assert user is not None
         assert user.google_sub == "google_sub_12345"
         assert user.hashed_password is None
+        assert user.consent_given_at is not None
+
+    def test_oauth_new_user_without_consent_returns_400(self, client: TestClient, db: Session):
+        """Новый аккаунт через Google без consent — 400, не создаётся молча."""
+        with patch(
+            "backend.auth.router.exchange_google_code",
+            new_callable=AsyncMock,
+            return_value=self._mock_google_user("no_consent@gmail.com"),
+        ):
+            resp = client.post("/api/v1/auth/google", json={
+                "code": "mock_code",
+                "redirect_uri": "https://app.example.com/oauth/callback",
+            })
+            assert resp.status_code == 400
+
+        assert db.query(User).filter(User.email == "no_consent@gmail.com").first() is None
 
     def test_oauth_existing_user_gets_token(self, client: TestClient, registered_user: User):
         with patch(

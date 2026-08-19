@@ -10,7 +10,7 @@ NEW_EMAIL = "brand-new@yandex.ru"
 
 
 def _payload(email):
-    return {"email": email, "password": "Password123!", "name": "Test"}
+    return {"email": email, "password": "Password123!", "name": "Test", "consent": True}
 
 
 @pytest.fixture
@@ -111,3 +111,42 @@ class TestNoAccountCreatedForExisting:
             json={"email": existing_user.email, "code": "000000"},
         )
         assert resp.status_code == 400
+
+
+class TestConsentRequired:
+    """152-ФЗ: чекбокс согласия на регистрации обязателен (19.08.2026)."""
+
+    def test_send_code_rejects_missing_consent(self, client):
+        payload = {"email": NEW_EMAIL, "password": "Password123!", "name": "Test"}
+        resp = client.post(SEND_CODE, json=payload)
+        assert resp.status_code == 422
+
+    def test_send_code_rejects_false_consent(self, client):
+        payload = {"email": NEW_EMAIL, "password": "Password123!", "name": "Test", "consent": False}
+        resp = client.post(SEND_CODE, json=payload)
+        assert resp.status_code == 422
+
+    def test_send_code_accepts_true_consent(self, client):
+        resp = client.post(SEND_CODE, json=_payload(NEW_EMAIL))
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_verify_sets_consent_fields_on_user(self, client, db, fake_redis):
+        import json as _json
+        from backend.auth.router import _otp_key
+
+        client.post(SEND_CODE, json=_payload(NEW_EMAIL))
+        raw = await fake_redis.get(_otp_key(NEW_EMAIL))
+        code = _json.loads(raw)["code"]
+
+        resp = client.post(
+            "/api/v1/auth/register/email/verify",
+            json={"email": NEW_EMAIL, "code": code},
+        )
+        assert resp.status_code == 201
+
+        from backend.models import User
+        user = db.query(User).filter(User.email == NEW_EMAIL).first()
+        assert user.consent_given_at is not None
+        assert user.consent_terms_version
+        assert user.consent_privacy_version
