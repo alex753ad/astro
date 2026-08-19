@@ -153,8 +153,9 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
 # Path сужен до /api/v1/auth: кука нужна ровно двум ручкам (/refresh и /logout)
 # и не должна прикладываться к каждому запросу к API.
 # SameSite=Strict: обе ручки вызываются XHR-ом с нашей же страницы, поэтому
-# Strict ничего не ломает — включая возврат с Google OAuth и Robokassa, где
-# кросс-сайтовым является только сам переход, а не последующий fetch.
+# Strict ничего не ломает — включая возврат с Google OAuth и от платёжного
+# провайдера, где кросс-сайтовым является только сам переход, а не
+# последующий fetch.
 REFRESH_COOKIE_NAME = "astro_refresh"
 REFRESH_COOKIE_PATH = "/api/v1/auth"
 

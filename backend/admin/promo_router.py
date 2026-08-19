@@ -158,7 +158,7 @@ def apply_promo(
 ):
     """
     Возвращает итоговую цену после скидки.
-    Вызывать до создания заказа в Robokassa.
+    Вызывать до создания заказа на оплату.
 
     user_id берётся ИЗ ТОКЕНА (не из параметра) — иначе проверку «once per user»
     можно обойти подстановкой чужого id. Строка промокода блокируется
@@ -214,7 +214,7 @@ def apply_promo(
 
 
 def record_promo_usage(code: str, user_id: int, plan: str, db: Session):
-    """Вызвать после успешной оплаты Robokassa."""
+    """Вызвать после успешной оплаты."""
     db.execute(text("""
         INSERT INTO promo_usages (promo_code, user_id, plan, used_at)
         VALUES (:c, :u, :p, NOW())

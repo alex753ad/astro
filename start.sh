@@ -17,8 +17,9 @@ fi
 if [ "$SERVICE_ROLE" = "worker" ]; then
     echo "Starting Celery worker..."
     # -Ofair — задача не блокирует остальных на воркере, пока ждёт ответ AI
-    # или Robokassa; при prefetch по умолчанию (=1, уже задан в celery_app.py)
-    # это не критично, но защищает от голодания при будущих --concurrency>1.
+    # или платёжного провайдера; при prefetch по умолчанию (=1, уже задан
+    # в celery_app.py) это не критично, но защищает от голодания при
+    # будущих --concurrency>1.
     exec celery -A backend.celery_app worker --loglevel=info -O fair
 fi
 

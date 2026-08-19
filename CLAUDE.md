@@ -28,7 +28,7 @@
 | Астрология | pyswisseph (Swiss Ephemeris) |
 | AI | OpenAI GPT-4o → DeepSeek V3 → шаблоны; прогнозы — Anthropic Claude Sonnet → GPT-4o |
 | Аутентификация | JWT, Google OAuth 2.0, bcrypt |
-| Платежи | Robokassa (основной, RU), Stripe (legacy) |
+| Платежи | ЮKassa (в разработке) — Robokassa и Stripe удалены 19.08.2026 как мёртвый код |
 | Email | Resend API |
 | Геокодинг | Nominatim |
 | Хостинг | Timeweb VPS: Nginx + Docker Compose (api, bot, postgres, redis, uptime-kuma) |
@@ -104,7 +104,8 @@ backend/
 ├── ephemeris/
 ├── interpretation/
 ├── transit/
-├── payments/          # robokassa_service.py (основной), stripe_service.py (legacy)
+├── payments/          # common.py (провайдер-независимая логика) + payments_router.py;
+│                      # роутер ЮKassa появится здесь отдельной задачей
 ├── admin/
 ├── push/              # web push (pywebpush + VAPID)
 ├── notifications/     # telegram
@@ -141,8 +142,7 @@ GET  /api/v1/chart/{id}/forecast/daily|weekly|monthly
 POST /api/v1/auth/register
 POST /api/v1/auth/login
 GET  /api/v1/auth/google
-POST /api/v1/payments/checkout
-POST /api/v1/payments/webhook
+GET  /api/v1/payments/subscription       # текущая подписка
 POST /api/v1/clients                    # CRM (Premium)
 ```
 
@@ -298,7 +298,7 @@ Settings → Deploy keys репозитория (только чтение). Н�
 19.08.2026 из `backend/main.py` и `deploy/opt-astro/05-update.sh` убраны
 проверки `ROBOKASSA_IS_TEST`/`ROBOKASSA_MERCHANT_LOGIN` (падали старт/деплой,
 если в проде включён тестовый режим Robokassa — иначе подписки выдавались бы
-без реальной оплаты). Причина снятия — сам Robokassa удаляется как мёртвый
+без реальной оплаты). Причина снятия — сам Robokassa (вместе со Stripe) удалён как мёртвый
 код (аккаунта и ключей никогда не было, ни одного платежа не проходило).
 
 **Когда будет подключаться ЮKassa — обязательно вернуть аналогичные гварды**

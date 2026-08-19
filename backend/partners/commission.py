@@ -1,13 +1,13 @@
 """Начисление и отмена комиссии партнёру за реальный платёж.
 
-Источник сумм — payment_events (реальные суммы Robokassa), не MRR-прикидка
+Источник сумм — payment_events (реальные суммы платежей), не MRR-прикидка
 из backend/admin/stats_router.py. Партнёрская программа — отдельная сущность
 (Partner/Commission), не смешивается с обычной реферальной механикой
 (referred_by/referral_code на User, «2 недели Pro за друга»).
 
-Вызывается из payments_router.robokassa_result сразу после успешной записи
-PaymentEvent, в той же транзакции, что и активация подписки — сама функция
-ничего не коммитит.
+Вызывается из backend.payments.common.process_payment сразу после успешной
+записи PaymentEvent, в той же транзакции, что и активация подписки — сама
+функция ничего не коммитит.
 """
 from __future__ import annotations
 
