@@ -178,7 +178,6 @@ class TestCommissionFailureDoesNotBlockPayment:
         # aborted-состояние, пока не будет rollback.
         from sqlalchemy import text as sa_text
         from backend.payments.common import process_payment
-        from backend.payments.robokassa_service import TIER_PRICES
 
         def _broken(db_, payment_event, buyer_):
             db_.execute(sa_text("SELECT * FROM this_table_does_not_exist_xyz"))
@@ -190,7 +189,7 @@ class TestCommissionFailureDoesNotBlockPayment:
         process_payment(
             db, provider="robokassa", payment_id="900001",
             user_id=buyer.id, tier="pro", period="monthly",
-            amount=TIER_PRICES[("pro", "monthly")],
+            amount=2490.00,
         )
 
         db.expire_all()

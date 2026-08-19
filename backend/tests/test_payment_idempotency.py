@@ -9,49 +9,28 @@
 
 Идемпотентность/комиссия/реферальная награда/активация — провайдер-независимая
 логика (`backend.payments.common.process_payment`), тесты ниже бьют по ней
-напрямую, а не через HTTP-роут конкретного провайдера. Исключение —
-`TestRejectedWebhooksLeaveNoTrace`: она проверяет специфичные для Robokassa
-вещи (подпись, сверка суммы), которые нарочно остались в payments_router.py
-и process_payment не касаются.
+напрямую, а не через HTTP. Проверка подписи и сверка суммы — дело роутера
+конкретного провайдера (сейчас такого роутера нет: Robokassa/Stripe удалены
+как мёртвый код 19.08.2026, их место займёт ЮKassa отдельной задачей), тут не
+проверяются.
 """
 
 import pytest
 
 from backend.models import PaymentEvent, Subscription, User
 from backend.payments.common import DuplicatePayment, PaymentProcessingError, process_payment
-from backend.payments.robokassa_service import TIER_PRICES
 
-
-PATH = "/api/v1/payments/robokassa/result"
+# Суммы условные — process_payment не сверяет их ни с каким прайс-листом
+# (это дело роутера провайдера), важно только, что записывается то, что передали.
+_AMOUNTS = {"pro": 2490.00, "premium": 7990.00}
 
 
 def _pay(db, user_id, payment_id="777001", tier="pro", period="monthly"):
     return process_payment(
         db, provider="robokassa", payment_id=payment_id,
         user_id=user_id, tier=tier, period=period,
-        amount=TIER_PRICES[(tier, period)],
+        amount=_AMOUNTS[tier],
     )
-
-
-def _form(user_id, inv_id="777001", tier="pro", period="monthly"):
-    return {
-        "InvId": inv_id,
-        "OutSum": f"{TIER_PRICES[(tier, period)]:.2f}",
-        "SignatureValue": "ignored-verify-is-mocked",
-        "Shp_user": user_id,
-        "Shp_tier": tier,
-        "Shp_period": period,
-    }
-
-
-@pytest.fixture
-def valid_signature(monkeypatch):
-    """Подпись проверяется отдельно (см. M-2) — здесь нас интересует повтор."""
-    def _verify(form):
-        return True, form.get("Shp_user", ""), form.get("Shp_tier", ""), form.get("Shp_period", "")
-
-    monkeypatch.setattr("backend.payments.payments_router.verify_payment", _verify)
-    return _verify
 
 
 class TestDuplicateWebhook:
@@ -104,7 +83,7 @@ class TestAuditTrail:
         assert event.user_id == user_free.id
         assert event.tier == "premium"
         assert event.period == "monthly"
-        assert event.amount == pytest.approx(TIER_PRICES[("premium", "monthly")])
+        assert event.amount == pytest.approx(_AMOUNTS["premium"])
         assert event.created_at is not None
 
 
@@ -185,33 +164,3 @@ class TestActivationFailureIsRetryable:
         db.expire_all()
         assert db.query(User).filter(User.id == user_free.id).first().tier == "pro"
         assert db.query(PaymentEvent).filter(PaymentEvent.inv_id == "777001").count() == 1
-
-
-class TestRejectedWebhooksLeaveNoTrace:
-    """Специфичные для Robokassa проверки (подпись, сумма) — остаются в
-    payments_router.py, process_payment их не касается. Проверяются через
-    HTTP, а не process_payment.
-    """
-
-    def test_amount_mismatch_does_not_activate(self, client, db, user_free, valid_signature):
-        form = _form(user_free.id)
-        form["OutSum"] = "1.00"
-
-        resp = client.post(PATH, data=form)
-        assert resp.status_code == 400
-
-        db.expire_all()
-        assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
-        assert db.query(PaymentEvent).count() == 0
-
-    def test_bad_signature_does_not_activate(self, client, db, user_free, monkeypatch):
-        monkeypatch.setattr(
-            "backend.payments.payments_router.verify_payment",
-            lambda form: (False, "", "", ""),
-        )
-        resp = client.post(PATH, data=_form(user_free.id))
-        assert resp.status_code == 400
-
-        db.expire_all()
-        assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
-        assert db.query(PaymentEvent).count() == 0

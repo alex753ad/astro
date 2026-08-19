@@ -64,8 +64,6 @@ jobs:
       TESTING: "true"
       EPHE_PATH: data/ephe
       OPENAI_API_KEY: ""
-      STRIPE_SECRET_KEY: ""
-      STRIPE_WEBHOOK_SECRET: ""
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -149,9 +147,7 @@ jobs:
 
       # ── SAST ───────────────────────────────────────────────────────────────
       # -ll: только MEDIUM и выше. LOW у bandit — это в основном assert в тестах
-      # и «подозрительный» random, шум ради шума. Блокирующий: единственная
-      # находка (MD5 в подписи Robokassa — этого требует их протокол) уже
-      # закрыта явным usedforsecurity=False + # nosec с обоснованием.
+      # и «подозрительный» random, шум ради шума.
       - name: bandit
         run: bandit -r backend/ -ll --exclude backend/tests
 
@@ -208,8 +204,6 @@ jobs:
       TESTING: "true"
       EPHE_PATH: data/ephe
       OPENAI_API_KEY: ""
-      STRIPE_SECRET_KEY: ""
-      STRIPE_WEBHOOK_SECRET: ""
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4

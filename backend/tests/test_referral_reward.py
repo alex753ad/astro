@@ -16,8 +16,11 @@ from sqlalchemy.orm import Session
 
 from backend.models import User, Subscription, Partner, Commission, PaymentEvent
 from backend.payments.common import apply_referral_reward, process_payment, REFERRAL_REWARD_DAYS
-from backend.payments.robokassa_service import TIER_PRICES
 from backend.time_utils import utcnow
+
+# Сумма условная — process_payment не сверяет её ни с каким прайс-листом
+# (это дело роутера провайдера, которого сейчас нет).
+_AMOUNT = 2490.00
 
 
 def _user(db: Session, email: str, *, tier="free", referred_by=None) -> User:
@@ -117,7 +120,7 @@ class TestRewardVsCommissionMutualExclusivity:
         return process_payment(
             db, provider="robokassa", payment_id=payment_id,
             user_id=user_id, tier=tier, period=period,
-            amount=TIER_PRICES[(tier, period)],
+            amount=_AMOUNT,
         )
 
     def test_non_partner_referrer_gets_subscription_extended(self, db: Session):

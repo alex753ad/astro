@@ -31,7 +31,6 @@ dependencies = [
     "timezonefinder>=6.5.0",
     "pytz>=2024.1",
     "geopy>=2.4.1",
-    "stripe>=8.0.0",
     "redis>=5.0.0",
     # celery_app.py и tasks.py используют его целиком (worker + beat), но
     # пакет не был объявлен зависимостью вовсе — .delay()/.apply_async()

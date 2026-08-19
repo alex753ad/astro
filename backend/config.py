@@ -60,19 +60,6 @@ class Settings(BaseSettings):
     # ── Redis ──
     redis_url: str = "redis://localhost:6379/0"
 
-    # ── Stripe (legacy webhook support) ──
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-
-    # ── Robokassa ──
-    robokassa_merchant_login: str = ""
-    robokassa_password1: str = ""
-    robokassa_password2: str = ""
-    # Дефолт False: в тестовом режиме Robokassa не списывает деньги, но вебхук
-    # приходит настоящий и подписка активируется — то есть тариф выдаётся даром.
-    # Небезопасный режим должен включаться явно, а не действовать по умолчанию.
-    robokassa_is_test: bool = False
-
     # ── Google OAuth ──
     google_client_id: str = ""
     google_client_secret: str = ""

@@ -1,144 +1,34 @@
-"""Robokassa payments router.
+"""Общие эндпоинты подписки — не привязаны к платёжному провайдеру.
+
+Checkout и приём вебхука платежей удалены вместе с Robokassa/Stripe
+(19.08.2026 — мёртвый код: аккаунтов не было, ни одного платежа не прошло).
+Их место займёт роутер ЮKassa: провайдер-независимая часть (идемпотентность,
+партнёрская комиссия/реферальная награда, активация подписки) уже готова в
+backend/payments/common.process_payment — новому роутеру останется только
+сверить подпись и сумму и вызвать эту функцию.
 
 Endpoints:
-  POST /api/v1/payments/checkout          — создать ссылку на оплату
-  POST /api/v1/payments/robokassa/result  — вебхук от Robokassa
   GET  /api/v1/payments/subscription      — текущая подписка
-  POST /api/v1/payments/admin/set-tier    — принудительно сменить тариф (только для ADMIN_EMAIL)
+  POST /api/v1/payments/admin/set-tier    — принудительно сменить тариф (только для админов)
 """
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Form
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.admin.admin_router import require_admin
 from backend.database import get_db
 from backend.limiter import client_ip
 from backend.models import AdminAuditLog, User, Subscription
-from backend.notifications.telegram import send_support_message
-from backend.schemas import CheckoutRequest, CheckoutResponse, SubscriptionResponse
+from backend.schemas import SubscriptionResponse
 from backend.auth.dependencies import get_current_user
-from backend.payments.robokassa_service import (
-    create_payment_url,
-    verify_payment,
-    TIER_PRICES,
-)
-from backend.payments.common import process_payment, DuplicatePayment, PaymentProcessingError
 
 logger = logging.getLogger("astro.payments")
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
-
-
-async def _alert_payment_failure(inv_id: str, user_id: str, tier: str, period: str, *, stage: str) -> None:
-    """Живой человек должен узнать о зависшем платеже в течение часа, не из
-    жалобы пользователя. Тот же канал, что уже используется для отзывов
-    (см. backend/notifications/telegram.py) — недоступность Telegram здесь не
-    страшна, send_support_message сама глотает исключение и просто пишет в лог.
-    """
-    text = (
-        "🔴 Robokassa: платёж принят, но не превратился в подписку.\n"
-        f"Стадия сбоя: {stage}\n"
-        f"InvId={inv_id} user_id={user_id} tier={tier} period={period}\n"
-        "Деньги списаны (подпись и сумма проверены). Проверить вручную "
-        "и при необходимости выдать тариф через /admin/set-tier."
-    )
-    await send_support_message(text)
-
-
-# ── Checkout ───────────────────────────────────────────────
-
-@router.post("/checkout", response_model=CheckoutResponse)
-async def checkout(
-    data: CheckoutRequest,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    if data.tier not in ("lite", "pro", "premium"):
-        raise HTTPException(400, "Tier must be 'lite', 'pro' or 'premium'.")
-
-    if user.tier == data.tier:
-        raise HTTPException(400, f"Вы уже на тарифе {data.tier}.")
-
-    try:
-        url = create_payment_url(user=user, tier=data.tier, billing_period=data.billing_period)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-    return CheckoutResponse(checkout_url=url)
-
-
-# ── Stripe webhook (legacy — kept for tests) ──────────────
-
-# Legacy Stripe webhook удалён: провайдер — Robokassa. Маршрут закрыт, чтобы не
-# держать неиспользуемую платёжную поверхность. При необходимости вернуть —
-# восстановить из истории git вместе с backend/payments/stripe_service.py.
-
-
-# ── Robokassa webhook ──────────────────────────────────────
-
-@router.post("/robokassa/result", include_in_schema=False)
-async def robokassa_result(request: Request, db: Session = Depends(get_db)):
-    """
-    Robokassa вызывает этот URL после успешной оплаты.
-    Ответ должен быть строго: OK{InvId}
-    """
-    form = dict(await request.form())
-    inv_id = form.get("InvId", "")
-
-    valid, user_id, tier, period = verify_payment(form)
-
-    if not valid:
-        logger.warning("Robokassa: invalid signature, InvId=%s", inv_id)
-        return PlainTextResponse("bad signature", status_code=400)
-
-    if not user_id or not tier:
-        logger.warning("Robokassa: missing Shp params, InvId=%s", inv_id)
-        return PlainTextResponse("missing params", status_code=400)
-
-    # Сверка суммы: подпись Robokassa покрывает OutSum, но добавляем проверку
-    # соответствия ожидаемой цене тарифа как defense-in-depth.
-    expected = TIER_PRICES.get((tier, period))
-    try:
-        paid = float(form.get("OutSum", "0"))
-    except ValueError:
-        paid = -1.0
-    if expected is None or abs(paid - float(expected)) > 0.01:
-        logger.warning(
-            "Robokassa: amount mismatch InvId=%s tier=%s period=%s paid=%s expected=%s",
-            inv_id, tier, period, paid, expected,
-        )
-        return PlainTextResponse("amount mismatch", status_code=400)
-
-    # Идемпотентность, начисление комиссии/реферальной награды и активация —
-    # общая, провайдер-независимая логика (backend/payments/common.py).
-    # Здесь остаётся только то, что специфично для Robokassa: подпись и
-    # сверка суммы выше.
-    try:
-        process_payment(
-            db, provider="robokassa", payment_id=str(inv_id),
-            user_id=user_id, tier=tier, period=period, amount=paid,
-        )
-    except DuplicatePayment:
-        logger.info("Robokassa: duplicate InvId=%s ignored", inv_id)
-        return PlainTextResponse(f"OK{inv_id}")
-    except PaymentProcessingError as exc:
-        # Валидный платёж (подпись и сумма уже проверены) не превратился в
-        # активную подписку — если ретраи Robokassa (у неё их конечное число)
-        # исчерпаются раньше, чем причина сбоя устранена, деньги списаны, а
-        # подписки не будет, и никакого следа об этом нигде не останется.
-        # Алерт должен прийти живому человеку в течение часа, а не всплыть
-        # через жалобу пользователя. 500 без активации: Robokassa повторит
-        # вызов сама.
-        await _alert_payment_failure(inv_id, user_id, tier, period, stage=exc.stage)
-        return PlainTextResponse("internal error", status_code=500)
-
-    logger.info("Robokassa: payment OK, InvId=%s user=%s tier=%s", inv_id, user_id, tier)
-    return PlainTextResponse(f"OK{inv_id}")
 
 
 # ── Admin: set tier ───────────────────────────────────────
