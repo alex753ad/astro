@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     # ── AI providers ──
     openai_api_key: str = ""
     deepseek_api_key: str = ""
+    # DeepSeek discontinued deepseek-chat/deepseek-reasoner 2026-07-24 in favour
+    # of deepseek-v4-flash/deepseek-v4-pro (api-docs.deepseek.com/updates,
+    # announced 2026-04-24). Model IDs live here, not hardcoded in engine code,
+    # so a future rename is a one-line env change, not a code change.
+    deepseek_model_flash: str = "deepseek-v4-flash"
+    deepseek_model_pro: str = "deepseek-v4-pro"
     ai_daily_budget_usd: float = 10.0
     ai_max_retries: int = 3  # retry per engine; set to 1 in tests
 

@@ -48,7 +48,7 @@ TIER_FLAGS: dict[str, dict] = {
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": None,
-        "ai_engine": "template",
+        "ai_engine": settings.deepseek_model_flash,
     },
     "lite": {
         "interpretation_word_limit": 800,
@@ -64,7 +64,7 @@ TIER_FLAGS: dict[str, dict] = {
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": None,
-        "ai_engine": "deepseek",
+        "ai_engine": settings.deepseek_model_flash,
     },
     "pro": {
         "interpretation_word_limit": 2500,
@@ -80,7 +80,7 @@ TIER_FLAGS: dict[str, dict] = {
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": 5,
-        "ai_engine": "gpt4o",
+        "ai_engine": settings.deepseek_model_pro,
     },
     "premium": {
         "interpretation_word_limit": 5000,
@@ -96,7 +96,7 @@ TIER_FLAGS: dict[str, dict] = {
         "synastry": True,
         "pdf_export": True,
         "pdf_per_month": 50,
-        "ai_engine": "gpt4o_exclusive",
+        "ai_engine": settings.deepseek_model_pro,
     },
 }
 

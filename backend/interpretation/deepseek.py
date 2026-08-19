@@ -30,7 +30,15 @@ class DeepSeekEngine(InterpretationEngine):
     def __init__(self):
         self._settings = get_settings()
         self._base_url = "https://api.deepseek.com/v1"
-        self._model = "deepseek-chat"
+
+    @staticmethod
+    def _model_for_tier(tier: str) -> str:
+        """deepseek-chat/deepseek-reasoner были отключены DeepSeek 2026-07-24 —
+        текущие модели различаются по тарифу (TIER_FLAGS.ai_engine, заведено
+        под config.deepseek_model_flash/_pro, а не зашито строкой здесь)."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        flags = TIER_FLAGS.get(tier, TIER_FLAGS["lite"])
+        return flags["ai_engine"]
 
     @property
     def _headers(self) -> dict:
@@ -56,7 +64,7 @@ class DeepSeekEngine(InterpretationEngine):
                 {"role": "user", "content": user_msg},
             ]
         payload = {
-            "model": self._model,
+            "model": self._model_for_tier(request.tier),
             "messages": messages,
             "max_tokens": _calc_max_tokens(request),
             "temperature": 0.2,
