@@ -789,28 +789,29 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
 # RETENTION DAY 14 — шаблон (Free → Lite, купон 30%)
 # ═══════════════════════════════════════════════════════════
 
-async def send_retention_day14(to: str, checkout_url: str) -> bool:
-    """Retention Day 14 — купон 30% на годовой план Lite (24 часа)."""
+async def send_retention_day14(to: str) -> bool:
+    """Retention Day 14 — напоминание о тарифах, без скидки и без купона
+    (был Stripe-купон на годовой план — оба удалены как мёртвый код
+    19.08.2026, годовых планов в текущей модели тоже больше нет)."""
+    pricing_url = f"{APP_URL}/pricing"
     body = (
-        _h2("🎁 Специальное предложение — 30% скидка на годовой план")
+        _h2("Две недели с Astrea Timeline")
         + _p(
-            "Мы подготовили для вас персональное предложение: "
-            f"<strong>скидка 30%</strong> на годовой план {TIER_NAMES['lite']}."
+            "Вы уже две недели с нами на бесплатном тарифе. Если хочется больше — "
+            f"полные транзиты, AI-разбор карты, персональный планер ({TIER_NAMES['lite']} "
+            f"и выше) — посмотрите тарифы и выберите то, что подходит."
         )
-        + f'<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:10px;'
-          f'padding:14px 18px;margin:0 0 20px;color:#5d4000;font-size:14px;line-height:1.6;">'
-          f'⏰ Предложение действует <strong>24 часа</strong>. После — исчезнет навсегда.</div>'
-        + _btn("Получить скидку 30% →", checkout_url)
+        + _btn("Посмотреть тарифы →", pricing_url)
         + _p(
             '<span style="font-size:12px;color:#a090c0;">'
-            "Отмена в любой момент · Без обязательств"
+            "Оплата разовая, за один месяц. Без автопродления."
             "</span>"
         )
     )
     return await _send(
         to,
-        "🎁 Специальное предложение — 30% скидка на годовой план · Astrea",
-        _base("Скидка 30%", "Специальное предложение истекает через 24 часа", body),
+        "Ваши тарифы на Astrea Timeline",
+        _base("Тарифы Astrea Timeline", "Полные транзиты, AI-разбор карты и персональный планер", body),
     )
 
 

@@ -4,13 +4,13 @@
 import { Link } from 'react-router-dom';
 
 const s = {
-  page:    { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--border)', fontFamily: "'Inter', system-ui, sans-serif", padding: '48px 20px' },
+  page:    { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", padding: '48px 20px' },
   inner:   { maxWidth: 760, margin: '0 auto' },
   h1:      { fontSize: 32, fontWeight: 800, color: 'var(--accent-glow)', marginBottom: 8 },
   updated: { fontSize: 13, color: 'var(--text-secondary)', marginBottom: 40 },
   h2:      { fontSize: 18, fontWeight: 700, color: 'var(--accent-glow)', margin: '32px 0 12px' },
-  p:       { fontSize: 15, lineHeight: 1.8, color: 'var(--border)', margin: '0 0 12px' },
-  card:    { background: 'var(--bg-card)', border: '1px solid var(--text-primary)', borderRadius: 10, padding: '16px 20px', marginBottom: 10 },
+  p:       { fontSize: 15, lineHeight: 1.8, color: 'var(--text-primary)', margin: '0 0 12px' },
+  card:    { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 20px', marginBottom: 10 },
   label:   { fontSize: 12, fontWeight: 700, color: 'var(--accent-glow)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 },
   footer:  { marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--bg-card)', display: 'flex', gap: 20, fontSize: 13 },
   link:    { color: 'var(--accent-glow)', textDecoration: 'none' },

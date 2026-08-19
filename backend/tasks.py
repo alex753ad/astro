@@ -97,28 +97,18 @@ def send_retention_day7_task(user_id: int) -> None:
 
 @celery_app.task(name="tasks.send_retention_day14")
 def send_retention_day14_task(user_id: int) -> None:
+    """Напоминание о тарифах для free-пользователей на 14-й день — без
+    скидки и без купона (решение владельца, 19.08.2026)."""
     from backend.models import User
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user or user.tier != "free":
             return
-        from backend.payments.stripe_service import create_day14_coupon, create_checkout_session
-        from backend.config import get_settings
-        settings = get_settings()
-        coupon_id = create_day14_coupon(user, db)
-        if not coupon_id:
-            return
-        checkout_url = create_checkout_session(
-            user=user, tier="lite",
-            success_url=f"{settings.frontend_url}/profile?success=1",
-            cancel_url=f"{settings.frontend_url}/profile?canceled=1",
-            db=db, billing_period="annual",
-        )
         import asyncio
         from backend.email_service import send_retention_day14
         asyncio.run(
-            send_retention_day14(user.email, checkout_url)
+            send_retention_day14(user.email)
         )
     except Exception as e:
         logger.warning("send_retention_day14_task failed user=%s: %s", user_id, e)
