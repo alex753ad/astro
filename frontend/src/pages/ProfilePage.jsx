@@ -16,7 +16,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 import MotionButton from '../components/MotionButton';
-import { TIER_NAMES } from '../constants';
+import { TIER_NAMES, TIERS } from '../constants';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
@@ -492,38 +492,7 @@ function TabHistory({ history, loading }) {
 }
 
 // ─── Вкладка: Подписка ────────────────────────────────────────────────────────
-const TIERS = [
-  {
-    id: 'lite', label: TIER_NAMES.lite, price: '790 ₽/мес',
-    features: [
-      'Планер: все планеты, индивидуальные рекомендации на месяц + луна на неделю',
-      'Транзиты: все события + AI-разбор (3 в месяц)',
-      'Лунный календарь',
-      'Google Calendar (1 карта)',
-      '1 карта (профиль)',
-    ],
-  },
-  {
-    id: 'pro', label: TIER_NAMES.pro, price: '1 990 ₽/мес', recommended: true,
-    upsellFrom: `Всё из ${TIER_NAMES.lite}, плюс:`,
-    features: [
-      'Планер: + долгосрочные периоды',
-      'Транзиты: AI-разбор без лимита',
-      'Чат с Астреей',
-      'PDF-экспорт',
-      'До 5 карт (семья, партнёр, дети)',
-    ],
-  },
-  {
-    id: 'premium', label: TIER_NAMES.premium, price: '7 990 ₽/мес',
-    upsellFrom: `Всё из ${TIER_NAMES.pro}, плюс:`,
-    features: [
-      'Транзиты: горизонт 24 месяца',
-      'Рабочий кабинет астролога',
-      'Безлимит карт',
-    ],
-  },
-];
+// Состав и цены тарифов — из constants.js (единый источник с /pricing).
 
 const TIER_ORDER = ['free', 'lite', 'pro', 'premium'];
 
@@ -631,7 +600,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             <span style={S.badge(user?.tier)}>{TIER_LABELS[user?.tier] || user?.tier}</span>
             {subscription?.current_period_end && (
               <div style={{ ...S.muted, marginTop: 6 }}>
-                Следующее списание: {new Date(subscription.current_period_end).toLocaleDateString('ru-RU')}
+                Доступ до: {new Date(subscription.current_period_end).toLocaleDateString('ru-RU')}
               </div>
             )}
           </div>

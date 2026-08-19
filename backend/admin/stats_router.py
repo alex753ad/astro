@@ -52,7 +52,7 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     # Revenue (simple MRR estimate). Пилотные участники (pilot_started_at) и
     # вручную помеченные (revenue_excluded — друзья/тест/промо) считаются в
     # by_plan (честная картина использования), но не в paying_by_plan/MRR.
-    prices = {"lite": 790, "pro": 1990, "premium": 7990}
+    prices = {"lite": 790, "pro": 2490, "premium": 7990}
     mrr = sum(paying_by_plan.get(t, 0) * p for t, p in prices.items())
 
     # Funnel

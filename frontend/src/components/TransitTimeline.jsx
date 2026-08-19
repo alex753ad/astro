@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
-import { TIER_NAMES } from "../constants";
+import { TIER_NAMES, tierPriceLabel, tierFeatures } from "../constants";
 import { createCheckoutSession, getSubscription, authFetch } from "../api/client";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
 import LyraPaywallModal from "./LyraPaywallModal";
@@ -687,29 +687,19 @@ function InterpretationPanel({ event, chartId, onClose }) {
 // LOCKED TRANSIT PANEL (inline тизер вместо разбора)
 // ═══════════════════════════════════════════════════════════
 
-// Транзит-контекстные тарифы для PlanComparisonModal — акцент на AI-разборе
-// транзитов, а не на планерных фичах (см. DEFAULT_VEGA/DEFAULT_LYRA в модалке).
+// Транзит-контекстные тарифы для PlanComparisonModal — features берутся из
+// общего constants.js (см. DEFAULT_VEGA/DEFAULT_LYRA в модалке), не отдельным текстом.
 const TRANSIT_VEGA_PLAN = {
   name: "Вега",
-  price: "790 ₽",
-  features: [
-    "AI-разбор 3 транзитов в месяц",
-    "Планер: все планеты, индивидуальные астро-рекомендации на неделю и месяц",
-    "Google Календарь",
-    "Лунный календарь",
-  ],
+  price: tierPriceLabel("lite"),
+  features: tierFeatures("lite", 4),
 };
 
 const TRANSIT_LYRA_PLAN = {
   name: "Лира",
-  price: "1 990 ₽",
+  price: tierPriceLabel("pro"),
   recommended: true,
-  features: [
-    "Всё из Веги + AI-разбор транзитов безлимит",
-    "Планер: всё из Веги + долгосрочные периоды",
-    "Чат с Астреей — персональный разбор в любой момент",
-    "До 5 карт для семьи",
-  ],
+  features: tierFeatures("pro", 4),
 };
 
 function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpenAccess }) {

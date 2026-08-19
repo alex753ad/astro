@@ -107,7 +107,7 @@ export default function LyraPaywallModal({
   title = "Разбор этого транзита по вашей карте",
   subtitle = "AI-астролог Астрея помнит вашу карту и прошлые разговоры и объясняет, что каждый период значит именно для вас.",
   features = DEFAULT_FEATURES,
-  price = "1 990 ₽",
+  price = "2 490 ₽",
 }) {
   const reduce = useReducedMotion();
 
@@ -332,7 +332,7 @@ export default function LyraPaywallModal({
             </div>
 
             <p style={{ margin: 0, textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>
-              Отмена в любой момент · без обязательств
+              Доступ на 1 месяц · без автопродления
             </p>
           </motion.div>
         </motion.div>

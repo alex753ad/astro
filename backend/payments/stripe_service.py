@@ -35,23 +35,19 @@ def _get_price_tier_map() -> dict[str, str]:
     import os
     pairs = [
         (os.environ.get("STRIPE_PRICE_ID_LITE",           ""), "lite"),
-        (os.environ.get("STRIPE_PRICE_ID_LITE_ANNUAL",    ""), "lite"),
         (os.environ.get("STRIPE_PRICE_ID_PRO",            ""), "pro"),
-        (os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL",     ""), "pro"),
         (os.environ.get("STRIPE_PRICE_ID_PREMIUM",        ""), "premium"),
-        (os.environ.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL", ""), "premium"),
     ]
     return {price_id: tier for price_id, tier in pairs if price_id}
 
 
 import os as _os
+# Только месячная оплата — годовых периодов не предлагаем (разовый платёж,
+# без автопродления).
 TIER_PRICE_MAP: dict[tuple[str, str], str] = {
     ("lite",    "monthly"): _os.environ.get("STRIPE_PRICE_ID_LITE", ""),
-    ("lite",    "annual"):  _os.environ.get("STRIPE_PRICE_ID_LITE_ANNUAL", ""),
     ("pro",     "monthly"): _os.environ.get("STRIPE_PRICE_ID_PRO", ""),
-    ("pro",     "annual"):  _os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL", ""),
     ("premium", "monthly"): _os.environ.get("STRIPE_PRICE_ID_PREMIUM", ""),
-    ("premium", "annual"):  _os.environ.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL", ""),
 }
 PRICE_TIER_MAP: dict[str, str] = {v: k[0] for k, v in TIER_PRICE_MAP.items() if v}
 

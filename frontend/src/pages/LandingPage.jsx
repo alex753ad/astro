@@ -323,24 +323,6 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           Ты астролог и ведёшь клиентов? → Астрея для практики
         </Link>
       </div>
-
-      {/* Footer links */}
-      <div style={{
-        textAlign: 'center',
-        padding: '0 24px 48px',
-        fontSize: 13,
-        color: '#9B97B0',
-      }}>
-        <Link to="/privacy" style={{ color: '#8B5CF6', textDecoration: 'none' }}
-          onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-          onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
-        >Политика конфиденциальности</Link>
-        <span style={{ margin: '0 10px' }}>·</span>
-        <Link to="/terms" style={{ color: '#8B5CF6', textDecoration: 'none' }}
-          onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-          onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
-        >Правила использования</Link>
-      </div>
     </div>
   );
 }

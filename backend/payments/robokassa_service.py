@@ -21,13 +21,12 @@ settings = get_settings()
 logger = logging.getLogger("astro.robokassa")
 
 # ── Цены в рублях ──────────────────────────────────────────
+# Только разовая оплата за месяц — годовых периодов не предлагаем
+# (самозанятая, разовый платёж на 1 месяц без автопродления).
 TIER_PRICES: dict[tuple[str, str], float] = {
     ("lite",    "monthly"):   790.00,
-    ("lite",    "annual"):   7490.00,
-    ("pro",     "monthly"):  1990.00,
-    ("pro",     "annual"):  19900.00,
+    ("pro",     "monthly"):  2490.00,
     ("premium", "monthly"):  7990.00,
-    ("premium", "annual"):  79900.00,
 }
 
 TIER_LABELS = TIER_NAMES

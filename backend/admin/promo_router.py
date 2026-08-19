@@ -165,7 +165,7 @@ def apply_promo(
     (SELECT ... FOR UPDATE), чтобы исключить гонку при проверке лимита.
     """
     user_id = str(current_user.id)
-    PLAN_PRICES = {"lite": 790, "pro": 1990, "premium": 7990}
+    PLAN_PRICES = {"lite": 790, "pro": 2490, "premium": 7990}
     base_price = PLAN_PRICES.get(plan)
     if not base_price:
         raise HTTPException(400, "Неизвестный тариф")

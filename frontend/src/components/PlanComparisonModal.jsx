@@ -1,4 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { tierPriceLabel, tierFeatures } from "../constants";
 
 /*
   PlanComparisonModal — окно для пользователей на Free.
@@ -30,19 +31,15 @@ const BODY = "'Inter', system-ui, sans-serif";
 
 const DEFAULT_VEGA = {
   name: "Вега",
-  price: "790 ₽",
-  features: ["Индивидуальные астро-рекомендации на неделю и месяц", "Google Календарь"],
+  price: tierPriceLabel("lite"),
+  features: tierFeatures("lite", 2),
 };
 
 const DEFAULT_LYRA = {
   name: "Лира",
-  price: "1 990 ₽",
+  price: tierPriceLabel("pro"),
   recommended: true,
-  features: [
-    "Всё из Веги + долгосрочные периоды",
-    "Чат с Астреей — персональный разбор в любой момент",
-    "До 5 карт для семьи",
-  ],
+  features: tierFeatures("pro", 3),
 };
 
 function Svg({ children, size = 20 }) {

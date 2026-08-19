@@ -8,6 +8,9 @@ import { captureRefCode } from './utils/refCode';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import OrionPage from './pages/OrionPage';
+import PricingPage from './pages/PricingPage';
+import RequisitesPage from './pages/RequisitesPage';
+import Footer from './components/Footer';
 import ChartPage from './pages/ChartPage';
 import PlannerPage from './pages/PlannerPage';
 import SolarReturnPage from './pages/SolarReturnPage';
@@ -19,7 +22,6 @@ import LunarCalendarPage from './pages/LunarCalendarPage';
 import SharePage from './pages/SharePage';
 import IntakePage from './pages/IntakePage';
 import PortalPage from './pages/PortalPage';
-import GiftPage from './pages/GiftPage';
 import ZodiacPage from './pages/ZodiacPage';
 import CRMPage from './pages/CRMPage';
 import AdminPage from './pages/AdminPage';
@@ -445,6 +447,8 @@ function AppRoutes() {
               <Routes location={location}>
                 <Route path="/"               element={<LandingPage currentUser={user} onShowAuth={openAuth} />} />
                 <Route path="/orion"          element={<OrionPage currentUser={user} />} />
+                <Route path="/pricing"        element={<PricingPage currentUser={user} onShowAuth={openAuth} />} />
+                <Route path="/requisites"     element={<RequisitesPage />} />
                 <Route path="/home"           element={<HomePage currentUser={user} onShowAuth={openAuth} />} />
                 <Route path="/chart/share/:token" element={<SharePage />} />
                 <Route path="/intake/:token" element={<IntakePage />} />
@@ -456,7 +460,6 @@ function AppRoutes() {
                 <Route path="/relocation/:chartId"   element={<RelocationPage />} />
                 <Route path="/profile"        element={<ProfilePage />} />
                 <Route path="/lunar"          element={<LunarCalendarPage />} />
-                <Route path="/gift"           element={<GiftPage />} />
                 <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
                 <Route path="/dashboard/clients"     element={<CRMPage />} />
                 <Route path="/admin"                element={<AdminPage />} />
@@ -470,13 +473,7 @@ function AppRoutes() {
           </AnimatePresence>
         </main>
 
-        <footer className="border-t border-brand-border py-5 text-center text-brand-muted text-xs bg-brand-card/50">
-          Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris
-          <span className="mx-2">·</span>
-          <Link to="/privacy" className="hover:text-slate-600 transition-colors">Политика конфиденциальности</Link>
-          <span className="mx-2">·</span>
-          <Link to="/terms" className="hover:text-slate-600 transition-colors">Условия использования</Link>
-        </footer>
+        <Footer />
       </div>
 
       <AnimatePresence>

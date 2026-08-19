@@ -15,7 +15,7 @@ const PLAN_COLORS = {
   pro:     { bar: "var(--color-success)", text: "var(--color-success)", badge: "bg-[var(--accent-muted)] text-[var(--color-success)]" },
   premium: { bar: "var(--accent)", text: "var(--accent)", badge: "bg-[var(--accent-muted)] text-[var(--accent)]" },
 };
-const PLAN_PRICES = { lite: 790, pro: 1990, premium: 7990 };
+const PLAN_PRICES = { lite: 790, pro: 2490, premium: 7990 };
 const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры"];
 
 // Мок-данные пока нет реального API
@@ -126,7 +126,7 @@ function TabOverview({ d }) {
   const plans = d.users.by_plan;
   const paying = d.users.paying_by_plan ?? plans;
   const total = d.users.total;
-  const mrr_by_plan = { lite: paying.lite * 790, pro: paying.pro * 1990, premium: paying.premium * 7990 };
+  const mrr_by_plan = { lite: paying.lite * 790, pro: paying.pro * 2490, premium: paying.premium * 7990 };
   const funnel = d.funnel;
   const funnelSteps = [
     { label: "Регистрация", val: funnel.registered, pct: 100,  color: "var(--text-secondary)" },
@@ -369,7 +369,7 @@ function TabUsers({ d, authFetch, onReload }) {
 function TabRevenue({ d }) {
   const plans = d.users.by_plan;
   const paying = d.users.paying_by_plan ?? plans;
-  const mrr_by_plan = { lite: paying.lite * 790, pro: paying.pro * 1990, premium: paying.premium * 7990 };
+  const mrr_by_plan = { lite: paying.lite * 790, pro: paying.pro * 2490, premium: paying.premium * 7990 };
   const total_mrr = Object.values(mrr_by_plan).reduce((a, b) => a + b, 0);
   return (
     <div>

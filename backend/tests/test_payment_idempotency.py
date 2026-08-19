@@ -83,7 +83,7 @@ class TestAuditTrail:
     """Побочный, но важный эффект таблицы: платежи наконец где-то фиксируются."""
 
     def test_event_row_has_payment_details(self, client, db, user_free, valid_signature):
-        client.post(PATH, data=_form(user_free.id, tier="premium", period="annual"))
+        client.post(PATH, data=_form(user_free.id, tier="premium", period="monthly"))
         db.expire_all()
 
         event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == "777001").first()
@@ -91,8 +91,8 @@ class TestAuditTrail:
         assert event.provider == "robokassa"
         assert event.user_id == user_free.id
         assert event.tier == "premium"
-        assert event.period == "annual"
-        assert event.amount == pytest.approx(TIER_PRICES[("premium", "annual")])
+        assert event.period == "monthly"
+        assert event.amount == pytest.approx(TIER_PRICES[("premium", "monthly")])
         assert event.created_at is not None
 
 

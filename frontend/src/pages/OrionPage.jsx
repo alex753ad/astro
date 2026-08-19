@@ -210,7 +210,7 @@ function OrionOfferModal({ onClose, onActivate }) {
             textAlign: 'center',
           }}
         >
-          Отмена в любой момент · Без обязательств
+          Доступ на 1 месяц · Без автопродления
         </button>
       </motion.div>
     </motion.div>

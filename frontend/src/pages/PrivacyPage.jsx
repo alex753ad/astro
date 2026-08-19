@@ -75,7 +75,6 @@ export default function PrivacyPage() {
         <p style={s.p}>— <strong>Доступ</strong> — запросить копию ваших данных.</p>
         <p style={s.p}>— <strong>Исправление</strong> — изменить данные в личном кабинете.</p>
         <p style={s.p}>— <strong>Удаление</strong> — запросить полное удаление аккаунта и данных (исполняется в течение 30 дней).</p>
-        <p style={s.p}>— <strong>Переносимость</strong> — получить данные в машиночитаемом формате.</p>
         <p style={s.p}>— <strong>Отзыв согласия</strong> — отказаться от email-рассылок через ссылку «Отписаться» в любом письме.</p>
 
         <h2 style={s.h2}>6. Использование данных Google</h2>
@@ -103,12 +102,12 @@ export default function PrivacyPage() {
 
         <h2 style={s.h2}>9. Контакт</h2>
         <p style={s.p}>
-          По вопросам обработки данных: <a href="mailto:support@astreatime.ru" style={s.link}>support@astreatime.ru</a>
+          По вопросам обработки данных: <a href="mailto:careastrea@yandex.ru" style={s.link}>careastrea@yandex.ru</a>
         </p>
 
         <div style={s.footer}>
           <Link to="/" style={s.link}>← Главная</Link>
-          <Link to="/terms" style={s.link}>Условия использования</Link>
+          <Link to="/terms" style={s.link}>Оферта</Link>
         </div>
       </div>
     </div>
