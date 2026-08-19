@@ -23,6 +23,22 @@ from backend.config import get_settings
 
 logger = logging.getLogger("astro.router")
 
+
+class IncompleteInterpretation(Exception):
+    """Стрим оборвался или был обрезан по длине — не полный ответ.
+
+    Поднимается из InterpretationRouter.stream(), когда finish_reason
+    провайдера не "stop" (например "length") или соединение разорвалось после
+    того, как часть текста уже ушла. Вызывающая сторона (SSE-эндпоинт) должна
+    поймать это отдельно от прочих ошибок: не засчитывать интерпретацию как
+    использованную и показать пользователю явную ошибку вместо [DONE].
+    """
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
 _COST_PER_1K_TOKENS = {
     "gpt4o": 0.005,
     "deepseek": 0.0003,
@@ -217,12 +233,23 @@ class InterpretationRouter:
             yield chunk
 
     async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
-        """Stream interpretation with fallback chain.
+        """Stream interpretation with fallback chain, caching, and truncation
+        detection.
 
         Once any chunk has been yielded the SSE channel is open and headers
         have been sent — switching engines would produce duplicate text.
-        If the active engine fails mid-stream we log and close gracefully.
+
+        Кэш — "одна карта, одна интерпретация": ключ включает tier И точную
+        модель (model_for), чтобы Flash- и Pro-тексты не смешивались. Кэшируется
+        только полный ответ (finish_reason == "stop") — обрезанный по длине или
+        оборванный связью поток не сохраняется и поднимает
+        IncompleteInterpretation, чтобы вызывающая сторона (SSE-эндпоинт) не
+        засчитала интерпретацию как использованную и показала явную ошибку
+        вместо тихого [DONE].
         """
+        profile_hash = make_profile_hash(request.natal_profile)
+        wl_key = str(request.word_limit) if request.word_limit else f"tier_{request.tier}"
+
         budget_ok = budget_tracker.is_within_budget(self._settings.ai_daily_budget_usd, "gpt4o")
         stream_engines = (
             [self._engines[-1]]
@@ -236,16 +263,50 @@ class InterpretationRouter:
             if not self._check_budget(engine.name):
                 continue
 
+            # Шаблон детерминирован сам по себе — кэшировать нечего, и у него
+            # нет осмысленного finish_reason.
+            cache_key = None
+            if engine.name != "template":
+                model_id = engine.model_for(request)
+                cache_key = f"stream:{profile_hash}:{request.tier}:{model_id}:{wl_key}"
+                cached = interpretation_cache.get(cache_key)
+                if cached:
+                    logger.info(
+                        "Stream cache hit for profile %s (%s/%s)",
+                        profile_hash[:8], request.tier, model_id,
+                    )
+                    yield cached["content"]
+                    return
+
+            collected: list[str] = []
             yielded_any = False
             try:
                 async for chunk in self._try_stream(engine, request):
                     yielded_any = True
+                    collected.append(chunk)
                     yield chunk
 
                 tokens = getattr(engine, "_last_stream_tokens", 0) or 0
                 self._track_spend(engine.name, tokens)
+
+                if cache_key is not None:
+                    finish_reason = getattr(engine, "_last_finish_reason", None)
+                    if finish_reason == "stop":
+                        interpretation_cache.set(
+                            cache_key,
+                            {"content": "".join(collected), "engine": engine.name},
+                            ttl=30 * 24 * 3600,
+                        )
+                    else:
+                        logger.warning(
+                            "%s stream ended with finish_reason=%s — not caching",
+                            engine.name, finish_reason,
+                        )
+                        raise IncompleteInterpretation(finish_reason or "connection_lost")
                 return  # success
 
+            except IncompleteInterpretation:
+                raise  # уже залогировано выше — наверх, пусть эндпоинт не засчитывает попытку
             except Exception as e:
                 logger.error("Stream from %s failed: %s", engine.name, str(e))
                 if yielded_any:
@@ -253,7 +314,7 @@ class InterpretationRouter:
                         "Engine %s failed mid-stream — aborting to prevent duplicate content.",
                         engine.name,
                     )
-                    return
+                    raise IncompleteInterpretation("connection_lost") from e
                 continue  # no chunks yet — try next engine
 
         yield "Интерпретация временно недоступна. Пожалуйста, попробуйте позже."

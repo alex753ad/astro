@@ -889,7 +889,7 @@ async def interpret_chart(
     """
     tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
-    from backend.interpretation.router import get_router
+    from backend.interpretation.router import get_router, IncompleteInterpretation
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
 
@@ -915,9 +915,14 @@ async def interpret_chart(
                 # SSE format: data: <content>\n\n
                 yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
-            # Расход фиксируем только при реально выданном контенте
+            # Расход фиксируем только при реально выданном полном контенте
             if produced:
                 tier_limiter.commit_interpretation(user, db)
+        except IncompleteInterpretation:
+            # Обрезано по длине или связь оборвалась после части текста —
+            # не [DONE], не засчитываем попытку (см. router.stream()).
+            logger.warning("Interpretation stream incomplete for chart=%s", chart_id)
+            yield f"data: {json.dumps({'error': 'Не удалось получить полный текст интерпретации. Попробуйте ещё раз.'})}\n\n"
         except Exception as e:
             logger.exception("Streaming interpretation failed")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

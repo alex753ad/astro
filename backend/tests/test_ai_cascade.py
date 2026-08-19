@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.interpretation.router import InterpretationRouter
+from backend.interpretation.router import InterpretationRouter, IncompleteInterpretation
 from backend.interpretation.base import InterpretationRequest, InterpretationResult
 from backend.interpretation.template import TemplateEngine
 from backend.cache import budget_tracker
@@ -317,6 +317,7 @@ class TestStream:
         async def _fake_stream(req):
             for chunk in ["Солнце ", "в Козероге."]:
                 yield chunk
+            router._engines[0]._last_finish_reason = "stop"
 
         router._engines[0].stream = _fake_stream
 
@@ -347,6 +348,81 @@ class TestStream:
 
         result = _run(_collect())
         assert isinstance(result, str)
+
+    def test_stream_caches_full_response(self):
+        """«Одна карта, одна интерпретация»: второй запрос по той же карте
+        отдаёт кэш, не зовёт движок заново."""
+        router = InterpretationRouter()
+        call_count = {"n": 0}
+
+        async def _fake_stream(req):
+            call_count["n"] += 1
+            for chunk in ["Полный ", "текст."]:
+                yield chunk
+            router._engines[0]._last_finish_reason = "stop"
+
+        router._engines[0].stream = _fake_stream
+
+        async def _collect():
+            return "".join([c async for c in router.stream(_request())])
+
+        first = _run(_collect())
+        second = _run(_collect())
+
+        assert first == second == "Полный текст."
+        assert call_count["n"] == 1, "второй вызов должен был отдать кэш, не звать движок заново"
+
+    def test_stream_truncated_response_raises_and_is_not_cached(self):
+        """finish_reason != 'stop' — не кэшируем, поднимаем IncompleteInterpretation,
+        чтобы вызывающая сторона не засчитала интерпретацию как использованную."""
+        router = InterpretationRouter()
+
+        async def _fake_stream(req):
+            yield "Обрывок"
+            router._engines[0]._last_finish_reason = "length"
+
+        router._engines[0].stream = _fake_stream
+
+        async def _collect():
+            return "".join([c async for c in router.stream(_request())])
+
+        with pytest.raises(IncompleteInterpretation):
+            _run(_collect())
+
+        # Ничего не закэшировалось — повтор снова доходит до движка, а не до кэша.
+        call_count = {"n": 0}
+
+        async def _fake_stream_ok(req):
+            call_count["n"] += 1
+            yield "Второй раз"
+            router._engines[0]._last_finish_reason = "stop"
+
+        router._engines[0].stream = _fake_stream_ok
+        result = _run(_collect())
+        assert call_count["n"] == 1
+        assert "Второй раз" in result
+
+    def test_stream_cache_key_varies_by_tier_model(self):
+        """Free/Lite (Flash) и Pro/Premium (Pro) — разные модели, разные тексты,
+        не должны делить один слот кэша."""
+        router = InterpretationRouter()
+        calls = {"n": 0}
+
+        async def _fake_stream(req):
+            calls["n"] += 1
+            yield f"Текст для {req.tier}"
+            router._engines[0]._last_finish_reason = "stop"
+
+        router._engines[0].stream = _fake_stream
+
+        async def _collect(tier):
+            return "".join([c async for c in router.stream(_request(tier=tier))])
+
+        lite_text = _run(_collect("lite"))
+        pro_text = _run(_collect("pro"))
+
+        assert calls["n"] == 2, "разные тарифы/модели не должны делить кэш"
+        assert lite_text != pro_text
 
 
 # ═══════════════════════════════════════════════════════════

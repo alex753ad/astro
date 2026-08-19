@@ -38,6 +38,9 @@ class GPT4oEngine(InterpretationEngine):
         self._base_url = "https://api.openai.com/v1"
         self._model = "gpt-4o"
 
+    def model_for(self, request: InterpretationRequest) -> str:
+        return self._model
+
     @property
     def _headers(self) -> dict:
         return {
@@ -101,6 +104,9 @@ class GPT4oEngine(InterpretationEngine):
         """Stream interpretation token by token."""
         payload = self._build_payload(request, stream=True)
         self._last_stream_tokens = 0
+        # None до первого чанка с непустым finish_reason — остаётся None, если
+        # соединение оборвалось раньше финального чанка (см. deepseek.py).
+        self._last_finish_reason = None
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
@@ -120,7 +126,11 @@ class GPT4oEngine(InterpretationEngine):
                         chunk = json.loads(data_str)
                         if "usage" in chunk and chunk["usage"] is not None:
                             self._last_stream_tokens = chunk["usage"].get("total_tokens", 0)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choice = chunk.get("choices", [{}])[0]
+                        finish_reason = choice.get("finish_reason")
+                        if finish_reason:
+                            self._last_finish_reason = finish_reason
+                        delta = choice.get("delta", {})
                         content = delta.get("content", "")
                         if content:
                             yield content

@@ -47,6 +47,14 @@ class InterpretationEngine(ABC):
 
     name: str = "base"
 
+    def model_for(self, request: InterpretationRequest) -> str:
+        """Точный идентификатор модели, которая обработает этот запрос —
+        для ключа кэша (Flash и Pro не должны делить кэш друг с другом).
+        По умолчанию — имя движка; переопределяется там, где модель зависит
+        от тарифа (DeepSeek) или иначе не совпадает с именем движка.
+        """
+        return self.name
+
     @abstractmethod
     async def generate(self, request: InterpretationRequest) -> InterpretationResult:
         """Generate a complete interpretation synchronously."""

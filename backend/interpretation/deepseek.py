@@ -40,6 +40,9 @@ class DeepSeekEngine(InterpretationEngine):
         flags = TIER_FLAGS.get(tier, TIER_FLAGS["lite"])
         return flags["ai_engine"]
 
+    def model_for(self, request: InterpretationRequest) -> str:
+        return self._model_for_tier(request.tier)
+
     @property
     def _headers(self) -> dict:
         return {
@@ -100,6 +103,10 @@ class DeepSeekEngine(InterpretationEngine):
     async def stream(self, request: InterpretationRequest) -> AsyncIterator[str]:
         payload = self._build_payload(request, stream=True)
         self._last_stream_tokens = 0
+        # None до первого чанка с непустым finish_reason. Остаётся None, если
+        # соединение оборвалось раньше, чем провайдер прислал финальный чанк —
+        # это отличает разрыв связи от штатного "stop"/"length" для router.stream().
+        self._last_finish_reason = None
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
@@ -119,7 +126,11 @@ class DeepSeekEngine(InterpretationEngine):
                         chunk = json.loads(data_str)
                         if "usage" in chunk and chunk["usage"] is not None:
                             self._last_stream_tokens = chunk["usage"].get("total_tokens", 0)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choice = chunk.get("choices", [{}])[0]
+                        finish_reason = choice.get("finish_reason")
+                        if finish_reason:
+                            self._last_finish_reason = finish_reason
+                        delta = choice.get("delta", {})
                         content = delta.get("content", "")
                         if content:
                             yield content
