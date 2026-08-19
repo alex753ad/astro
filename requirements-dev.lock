@@ -1,17 +1,3 @@
-# АВТОГЕНЕРАЦИЯ — руками не править.
-#
-# Обновить:  make lock   (или напрямую)
-#   uv pip compile pyproject.toml --extra dev --python-version 3.12 \
-#     --python-platform linux --generate-hashes --no-header -o requirements-dev.lock
-#
-# Зачем лок: раньше и pyproject, и Dockerfile перечисляли зависимости
-# диапазонами '>=', а при сбое установки Dockerfile молча откатывался на
-# список пакетов вообще без версий. Каждая пересборка давала другой набор,
-# упавший прод-образ было не воспроизвести, а подменённый пакет в цепочке
-# уезжал в прод на ближайшем деплое. Хеши закрывают и это: pip с
-# --require-hashes (включается автоматически, раз хеши есть) откажется
-# ставить артефакт, который не совпал побайтово.
-# Python 3.12 / linux — целевая платформа контейнера, а не машины разработчика.
 aiofiles==25.1.0 \
     --hash=sha256:a8d728f0a29de45dc521f18f07297428d56992a742f0cd2701ba86e44d23d5b2 \
     --hash=sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695
@@ -2068,9 +2054,7 @@ reportlab==5.0.0 \
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
-    # via
-    #   pywebpush
-    #   stripe
+    # via pywebpush
 rsa==4.9.1 \
     --hash=sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762 \
     --hash=sha256:e7bdbfdb5497da4c07dfd35530e1a902659db6ff241e39d9953cad06ebd0ae75
@@ -2179,10 +2163,6 @@ starlette==1.6.0 \
     --hash=sha256:a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c \
     --hash=sha256:d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b
     # via fastapi
-stripe==15.4.0 \
-    --hash=sha256:cb1b23253473c17fa8e8d9bd3b5e66bc1454089f904843ca92ac785d5bf0d4d9 \
-    --hash=sha256:f94c2780a7728c5fb49789e0fbb18e984267f93fa724e8400b31aebf36d01b1e
-    # via astro-spa (pyproject.toml)
 timezonefinder==8.2.5 \
     --hash=sha256:447fd33a39d3ae60a0b7ca2e2b9b3538b941e434a3673300659aa79996a0ae9c \
     --hash=sha256:976230555eb9943f3651fa00fe587854a5c1b6d0aa9c7c714296d0934dccf406 \
@@ -2206,7 +2186,6 @@ typing-extensions==4.16.0 \
     #   pytest-asyncio
     #   sqlalchemy
     #   starlette
-    #   stripe
     #   typing-inspection
 typing-inspection==0.4.2 \
     --hash=sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7 \
