@@ -180,6 +180,12 @@ def share_card_key(request: Request) -> str:
     return f"share:ip:{client_ip(request)}"
 
 
+# Экспорт данных (152-ФЗ) — тяжёлый запрос (все карты, интерпретации,
+# платежи), счёт по владельцу токена, чтобы не ограничивать общий NAT/офис.
+def export_key(request: Request) -> str:
+    return f"export:{_base_id(request)}"
+
+
 
 
 # ═══════════════════════════════════════════════════════════

@@ -1038,6 +1038,46 @@ function TabNotifications({ authFetch }) {
   );
 }
 
+// ─── Мои данные (152-ФЗ) ────────────────────────────────────────────────────
+function DataExport({ authFetch }) {
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleExport = async () => {
+    setLoading(true);
+    setErr('');
+    try {
+      const data = await authFetch(`${API_BASE}/profile/export`);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `astrea-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e.message || 'Не удалось скачать данные');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ ...S.card, marginTop: 8 }}>
+      <p style={S.cardTitle}>Мои данные</p>
+      <p style={{ ...S.muted, marginBottom: 14 }}>
+        Скачайте все данные, которые мы храним о вас: карты, интерпретации, историю платежей и согласий.
+      </p>
+      <MotionButton level="ghost" style={S.btn('ghost')} onClick={handleExport} disabled={loading}>
+        {loading ? 'Формируем файл…' : 'Скачать мои данные'}
+      </MotionButton>
+      {err && <p style={{ ...S.muted, color: 'var(--color-danger)', marginTop: 8 }}>{err}</p>}
+    </div>
+  );
+}
+
 // ─── Зона опасности ───────────────────────────────────────────────────────────
 function DangerZone({ authFetch, logout, navigate }) {
   const [gdprConfirm, setGdprConfirm] = useState(false);
@@ -1129,6 +1169,8 @@ export default function ProfilePage() {
             </Link>
           </div>
         )}
+
+        <DataExport authFetch={authFetch} />
 
         {/* Зона опасности — всегда снизу */}
         <DangerZone authFetch={authFetch} logout={logout} navigate={navigate} />

@@ -8,20 +8,22 @@ Endpoints:
   GET    /api/v1/profile/history             — interpretation history
   GET    /api/v1/profile/subscription        — current subscription info
   DELETE /api/v1/profile/data                — GDPR: delete all user data
+  GET    /api/v1/profile/export              — 152-ФЗ: скачать свои данные
 """
 
 from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import NatalChart, User, Subscription
 from backend.auth.dependencies import get_current_user
-from backend.auth.rate_limits import get_feature_flags
+from backend.auth.rate_limits import get_feature_flags, export_key
+from backend.limiter import limiter
 from backend.schemas import MessageResponse, UpdateNameRequest, UserProfileResponse
 
 logger = logging.getLogger("astro.profile")
@@ -358,6 +360,105 @@ async def delete_all_data(
         deleted_charts,
     )
     return MessageResponse(message="All personal data deleted successfully.")
+
+
+# ═══════════════════════════════════════════════════════════
+# 152-ФЗ — ЭКСПОРТ СВОИХ ДАННЫХ (право на доступ)
+# ═══════════════════════════════════════════════════════════
+
+@router.get(
+    "/export",
+    summary="152-ФЗ: выгрузить все свои персональные данные",
+)
+@limiter.limit("3/hour", key_func=export_key)
+async def export_my_data(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Право на доступ к своим ПДн (152-ФЗ). Отдаёт всё, что у нас есть о
+    пользователе, кроме хеша пароля, сервисных токенов (stripe/google id) и
+    внутренних идентификаторов сессий. Дата последнего входа не отслеживается
+    (нет такого поля) — не включена.
+    """
+    from backend.models import Interpretation, PaymentEvent, AstreaMemory
+    from backend.time_utils import utcnow
+
+    charts = db.query(NatalChart).filter(NatalChart.user_id == user.id).all()
+
+    interpretations = (
+        db.query(Interpretation)
+        .join(NatalChart, Interpretation.chart_id == NatalChart.id)
+        .filter(NatalChart.user_id == user.id)
+        .all()
+    )
+
+    payments = (
+        db.query(PaymentEvent)
+        .filter(PaymentEvent.user_id == user.id)
+        .order_by(PaymentEvent.created_at)
+        .all()
+    )
+
+    memory = db.query(AstreaMemory).filter(AstreaMemory.user_id == user.id).first()
+
+    data = {
+        "exported_at": utcnow().isoformat(),
+        "account": {
+            "email": user.email,
+            "name": user.name,
+            "tier": user.tier,
+            "is_email_confirmed": user.is_email_confirmed,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+        },
+        "consent": {
+            "given_at": user.consent_given_at.isoformat() if user.consent_given_at else None,
+            "terms_version": user.consent_terms_version,
+            "privacy_version": user.consent_privacy_version,
+        },
+        "charts": [
+            {
+                "id": c.id,
+                "label": c.label,
+                "name": c.name,
+                "birth_date": c.birth_date,
+                "birth_time": c.birth_time,
+                "birth_place": c.birth_place,
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "timezone": c.timezone,
+                "time_unknown": c.time_unknown,
+                "house_system": c.house_system,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            }
+            for c in charts
+        ],
+        "interpretations": [
+            {
+                "id": i.id,
+                "chart_id": i.chart_id,
+                "engine": i.engine,
+                "content": i.content,
+                "created_at": i.created_at.isoformat() if i.created_at else None,
+            }
+            for i in interpretations
+        ],
+        "payments": [
+            {
+                "provider": p.provider,
+                "tier": p.tier,
+                "period": p.period,
+                "amount": p.amount,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in payments
+        ],
+        "astrea_chat_summary": memory.summary if memory and memory.summary else None,
+    }
+
+    logger.info("Data export: user=%s charts=%d interpretations=%d payments=%d",
+                user.id, len(charts), len(interpretations), len(payments))
+    return data
 
 
 # ═══════════════════════════════════════════════════════════

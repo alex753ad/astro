@@ -322,3 +322,69 @@ class TestGDPRDeleteData:
         client.delete("/api/v1/profile/data", headers=auth_headers(user_a))
 
         assert db.query(NatalChart).filter(NatalChart.id == chart_b.id).first() is not None
+
+
+# ═══════════════════════════════════════════════════════════
+# 152-ФЗ — DATA EXPORT
+# ═══════════════════════════════════════════════════════════
+
+class TestDataExport:
+    def test_requires_auth(self, client: TestClient):
+        resp = client.get("/api/v1/profile/export")
+        assert resp.status_code == 401
+
+    def test_returns_account_and_consent(self, client: TestClient, db: Session):
+        user = make_user(db, "export@example.com")
+        resp = client.get("/api/v1/profile/export", headers=auth_headers(user))
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert data["account"]["email"] == "export@example.com"
+        assert data["consent"]["given_at"] is not None
+        assert data["consent"]["terms_version"]
+        assert data["consent"]["privacy_version"]
+
+    def test_includes_own_charts(self, client: TestClient, db: Session):
+        user = make_user(db, "export_charts@example.com")
+        make_chart(db, user.id, "Berlin")
+        make_chart(db, user.id, "Tokyo")
+
+        resp = client.get("/api/v1/profile/export", headers=auth_headers(user))
+        places = {c["birth_place"] for c in resp.json()["charts"]}
+        assert places == {"Berlin", "Tokyo"}
+
+    def test_does_not_include_other_users_charts(self, client: TestClient, db: Session):
+        user_a = make_user(db, "export_a@example.com")
+        user_b = make_user(db, "export_b@example.com")
+        make_chart(db, user_b.id, "Paris")
+
+        resp = client.get("/api/v1/profile/export", headers=auth_headers(user_a))
+        assert resp.json()["charts"] == []
+
+    def test_excludes_password_hash_and_service_tokens(self, client: TestClient, db: Session):
+        user = make_user(db, "export_secrets@example.com")
+        resp = client.get("/api/v1/profile/export", headers=auth_headers(user))
+        raw = resp.text
+
+        assert user.hashed_password not in raw
+        assert "hashed_password" not in raw
+        assert "stripe_customer_id" not in raw
+        assert "stripe_subscription_id" not in raw
+        assert "google_sub" not in raw
+
+    def test_rate_limited(self, client: TestClient, db: Session):
+        """3/hour — превышение возвращает 429. Лимитер включаем только для теста."""
+        from backend.main import limiter
+
+        user = make_user(db, "export_throttle@example.com")
+        headers = auth_headers(user)
+
+        limiter.enabled = True
+        try:
+            responses = [
+                client.get("/api/v1/profile/export", headers=headers).status_code
+                for _ in range(5)
+            ]
+            assert 429 in responses
+        finally:
+            limiter.enabled = False
