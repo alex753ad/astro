@@ -124,6 +124,12 @@ async def _get_share_quote(
                     "max_tokens": 120,
                     "temperature": 0.9,
                     "stream": False,
+                    # 20.08.2026: третье место, вызывающее DeepSeek — see
+                    # interpretation/deepseek.py и interpretation/rag_router.py.
+                    # Модель здесь другая (deepseek-chat, не V4), но поле
+                    # безвредно, если reasoning неприменим, и защищает на
+                    # случай смены модели на V4-совместимую.
+                    "thinking": {"type": "disabled"},
                 },
             )
             resp.raise_for_status()

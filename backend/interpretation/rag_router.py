@@ -43,6 +43,22 @@ MAX_HISTORY = 10   # максимум сообщений истории
 MAX_QUESTION_LEN = 1000
 HISTORY_TTL = 6 * 3600  # диалог живёт 6 часов бездействия
 
+# 20.08.2026: инцидент — «прогноз на сегодня» вернул 200 и 14 байт (только
+# data: [DONE]), ни одного символа текста. DeepSeek V4 по умолчанию reasoning
+# (thinking.reasoning_effort="high") и тратит max_tokens на reasoning_content
+# ДО финального ответа — то же самое, что уже было эмпирически найдено для
+# интерпретаций (interpretation/deepseek.py) и вылечено там же полем
+# "thinking": {"type": "disabled"}. В чат это поле не попало вообще ни в
+# один из двух вызовов. Без reasoning-токенов на сам текст остаётся весь
+# бюджет max_tokens — считаем как в interpretation/gpt4o.py:_calc_max_tokens
+# (2.5 токена/слово), но с своей целью по длине.
+# Чат: промпт просит 3–6 абзацев, берём верхнюю границу с запасом — 400 слов
+# (не среднее, а худший случай, под который считается лимит) × 3 токена/слово
+# (верхняя граница для русского, с учётом пунктуации/markdown) + 200 буфер.
+CHAT_MAX_TOKENS = 1500
+# Память: сводка до ~120 слов (см. промпт в _update_memory) × 3 + запас.
+MEMORY_MAX_TOKENS = 400
+
 
 class RagChatRequest(BaseModel):
     question: str
@@ -209,9 +225,10 @@ async def _update_memory(user_id: str, question: str, history: list[dict]) -> No
                     json={
                         "model": settings.deepseek_model_flash,
                         "messages": [{"role": "user", "content": fold_prompt}],
-                        "max_tokens": 220,
+                        "max_tokens": MEMORY_MAX_TOKENS,
                         "temperature": 0.3,
                         "stream": False,
+                        "thinking": {"type": "disabled"},
                     },
                 )
                 resp.raise_for_status()
@@ -257,14 +274,23 @@ async def _sse_generator(
     question: str = "",
     history: list[dict] | None = None,
 ):
-    """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю."""
+    """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю.
+
+    20.08.2026: узел, где раньше терялся текст молча. finish_reason и факт
+    reasoning_content логируются на пустом ответе — единственная зацепка,
+    если thinking-флаг когда-нибудь перестанет действовать (смена модели,
+    поведение провайдера) и это повторится.
+    """
     collected: list[str] = []
+    finish_reason: str | None = None
+    saw_reasoning = False
     payload = {
         "model": settings.deepseek_model_flash,
         "messages": messages,
-        "max_tokens": 800,
+        "max_tokens": CHAT_MAX_TOKENS,
         "temperature": 0.7,
         "stream": True,
+        "thinking": {"type": "disabled"},
     }
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -282,12 +308,15 @@ async def _sse_generator(
                         continue
                     data_str = line[6:]
                     if data_str.strip() == "[DONE]":
-                        await _persist_turn(user_id, chart_id, question, "".join(collected), history)
-                        yield "data: [DONE]\n\n"
-                        return
+                        break
                     try:
                         chunk = json.loads(data_str)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choice = chunk.get("choices", [{}])[0]
+                        if choice.get("finish_reason"):
+                            finish_reason = choice["finish_reason"]
+                        delta = choice.get("delta", {})
+                        if delta.get("reasoning_content"):
+                            saw_reasoning = True
                         text = delta.get("content", "")
                         if text:
                             collected.append(text)
@@ -295,8 +324,28 @@ async def _sse_generator(
                     except (json.JSONDecodeError, KeyError, IndexError):
                         continue
 
-            # Поток закончился без явного [DONE] — сохраняем то, что успело прийти.
-            await _persist_turn(user_id, chart_id, question, "".join(collected), history)
+        # Единая точка выхода что для литерала [DONE] от DeepSeek, что для
+        # обрыва потока без него — раньше второй случай не слал [DONE]
+        # клиенту вообще, и это расходилось с обработкой на фронте.
+        answer = "".join(collected)
+        if not answer:
+            # 200 без текста — то, что случилось 20.08.2026 (см. коммит).
+            # Раньше здесь молча уходил [DONE] без единого байта текста —
+            # с точки зрения фронта неотличимо от начавшегося и зависшего
+            # ответа. Явная ошибка вместо тихого «успеха».
+            logger.error(
+                "RAG chat empty response: user=%s chart=%s finish_reason=%s "
+                "saw_reasoning=%s question=%r",
+                user_id, chart_id, finish_reason, saw_reasoning, question[:120],
+            )
+            error_payload = {
+                "error": "empty_response",
+                "text": "Не получилось сформировать ответ. Попробуйте ещё раз.",
+            }
+            yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+        else:
+            await _persist_turn(user_id, chart_id, question, answer, history)
+        yield "data: [DONE]\n\n"
 
     except httpx.HTTPStatusError as e:
         logger.error("AI API error %s: %s", e.response.status_code, e.response.text[:200])

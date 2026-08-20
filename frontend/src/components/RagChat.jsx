@@ -185,8 +185,9 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       const reader  = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let streamDone = false;
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -197,9 +198,15 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6);
-          if (data.trim() === '[DONE]') break;
+          if (data.trim() === '[DONE]') { streamDone = true; break; }
           try {
             const parsed = JSON.parse(data);
+            if (parsed.error) {
+              setError(parsed.text || 'Не получилось получить ответ. Попробуйте ещё раз.');
+              setMessages(prev => prev.slice(0, -1));
+              streamDone = true;
+              break;
+            }
             if (parsed.text) {
               setMessages(prev => {
                 const next = [...prev];
