@@ -225,11 +225,24 @@ async def create_client(
     db: Session = Depends(get_db),
 ):
     astrologer = _get_astrologer(user, db)
+
+    # ClientProfile.birth_time — Column(Time), а ClientCreate.birth_time —
+    # строка "ЧЧ:ММ". Под Postgres сырая строка тихо проходит (сервер сам
+    # приводит текстовый литерал времени), под SQLite падает TypeError —
+    # расхождение всплыло только в тестах. Парсим явно, с понятной 422
+    # вместо непредсказуемого поведения на границе драйверов.
+    birth_time_obj = None
+    if payload.birth_time:
+        try:
+            birth_time_obj = datetime.strptime(payload.birth_time, "%H:%M").time()
+        except ValueError:
+            raise HTTPException(status_code=422, detail="birth_time должен быть в формате ЧЧ:ММ")
+
     client = ClientProfile(
         astrologer_id=astrologer.id,
         name=payload.name,
         birth_date=payload.birth_date,
-        birth_time=payload.birth_time,
+        birth_time=birth_time_obj,
         birth_place=payload.birth_place,
         notes=payload.notes,
         email=payload.email,

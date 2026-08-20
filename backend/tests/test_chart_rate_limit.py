@@ -178,14 +178,12 @@ class TestCRMChartRateLimit:
             await check_chart_rate_limit(premium_user, fake_req)
 
         headers = auth_headers(premium_user)
-        # birth_time не передаём (Optional) — ClientProfile.birth_time это
-        # SQLAlchemy Time, а create_client кладёт туда сырую строку из
-        # ClientCreate.birth_time: Optional[str] без конвертации. Под SQLite
-        # это падает ("Time type only accepts Python time objects"),
-        # отдельный баг, не по этой задаче — сюда его не тащим.
         resp = client.post(
             "/api/v1/clients",
-            json={"name": "Клиент", "birth_date": "1990-01-10", "birth_place": "Moscow"},
+            json={
+                "name": "Клиент", "birth_date": "1990-01-10",
+                "birth_time": "12:00", "birth_place": "Moscow",
+            },
             headers=headers,
         )
 
