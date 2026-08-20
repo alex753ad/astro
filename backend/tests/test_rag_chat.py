@@ -23,9 +23,9 @@ from backend.auth.jwt import create_token_pair
 from backend.interpretation import rag_router
 
 
-def make_pro_user(db: Session) -> User:
+def make_pro_user(db: Session, email: str = "chat_pro@example.com") -> User:
     user = User(
-        email="chat_pro@example.com",
+        email=email,
         hashed_password=hash_password("password123"),
         is_active=True,
         is_email_confirmed=True,
@@ -118,6 +118,16 @@ def no_rag_lookup():
     with patch.object(rag_router, "retrieve", return_value=[]), \
          patch.object(rag_router, "build_chart_summary", return_value="Карта: тест"), \
          patch.object(rag_router, "_get_transits_block_cached", return_value=""):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def default_topic_astrology():
+    """Классификатор темы делает свой (реальный) сетевой вызов к DeepSeek —
+    без мока каждый тест в этом файле молча ждал бы реального (провального)
+    запроса. По умолчанию — на тему карты, тесты про офф-топик переопределяют
+    точечно в своей области действия."""
+    with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="astrology")):
         yield
 
 
@@ -322,3 +332,88 @@ class TestStreamDeadline:
 
         key = rag_router._history_key(user.id, chart.id)
         assert await fake_redis.get(key) is None
+
+
+class TestTopicRestriction:
+    """20.08.2026: офф-топик вопрос не должен доходить до основной модели с
+    полным контекстом карты и базой знаний — отдельный классификатор, не
+    только инструкция в system prompt (промпт обходится уговорами)."""
+
+    def test_off_topic_returns_fixed_reply_without_calling_main_model(
+        self, client: TestClient, db: Session,
+    ):
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+
+        # Основной DeepSeek-клиент не подставлен вообще — если код всё же
+        # попробует его вызвать, тест упадёт с AttributeError/сетевой ошибкой,
+        # а не тихо пройдёт.
+        with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="off_topic")):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Что будет с рублём в этом году?"},
+                headers=auth_headers(user),
+            )
+
+        assert resp.status_code == 200
+        assert rag_router.OFF_TOPIC_REPLY in resp.text
+        assert '"error"' not in resp.text
+
+    @pytest.mark.asyncio
+    async def test_off_topic_reply_is_persisted_to_history(
+        self, client: TestClient, db: Session, fake_redis,
+    ):
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+
+        with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="off_topic")):
+            client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Какие акции покупать?"},
+                headers=auth_headers(user),
+            )
+
+        key = rag_router._history_key(user.id, chart.id)
+        raw = await fake_redis.get(key)
+        assert raw is not None
+        history = json.loads(raw)
+        assert history[-1]["role"] == "assistant"
+        assert history[-1]["content"] == rag_router.OFF_TOPIC_REPLY
+
+    def test_off_topic_does_not_bypass_chart_ownership_check(
+        self, client: TestClient, db: Session,
+    ):
+        """Классификация темы не должна идти раньше проверки владения
+        картой — иначе можно писать в историю чата под чужим chart_id."""
+        owner = make_pro_user(db)
+        other = make_pro_user(db, email="other_pro@example.com")
+        chart = make_chart(db, owner.id)
+
+        with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="off_topic")):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Курс доллара?"},
+                headers=auth_headers(other),
+            )
+
+        assert resp.status_code == 404
+
+    def test_astrology_topic_reaches_main_model_as_before(
+        self, client: TestClient, db: Session,
+    ):
+        """Классификатор не должен ломать штатный путь — уже покрыто другими
+        тестами через autouse-фикстуру, здесь — явная проверка на всякий случай."""
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+        lines = [_sse({"choices": [{"delta": {"content": "Ответ по карте"}}]}), "data: [DONE]"]
+
+        with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="astrology")), \
+             patch.object(rag_router.httpx, "AsyncClient", _fake_async_client(lines, [])):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Что моя карта говорит про карьеру?"},
+                headers=auth_headers(user),
+            )
+
+        assert resp.status_code == 200
+        assert "Ответ по карте" in resp.text
