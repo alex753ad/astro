@@ -93,7 +93,7 @@ from backend.metrics import log_event, maybe_mark_second_visit, EventName
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
-from backend.auth.rate_limits import tier_limiter, get_tier_limits
+from backend.auth.rate_limits import tier_limiter, get_tier_limits, CHART_CREATION_ABUSE_LIMIT
 from sqlalchemy import func as sa_func
 from backend.models import User
 
@@ -633,7 +633,6 @@ async def calculate_chart(
     if user:
         tier = user.tier or "free"
         limits = get_tier_limits(tier)
-        monthly_limit = limits.get("charts_per_month")
         daily_limit = limits.get("charts_per_day")
 
         now = utcnow()
@@ -646,9 +645,9 @@ async def calculate_chart(
         # проверялось: на витрине «до N карт», а технически можно было
         # создать сколько угодно (19.08.2026, решение владельца — ввести
         # проверку без исключений для уже существующих данных, на проде
-        # пользователей ещё нет). Проверяется ПЕРЕД месячной скоростью
-        # создания ниже: это тот лимит, что реально описан на /pricing, и
-        # единственный, где «удалите карту» — рабочий совет пользователю.
+        # пользователей ещё нет). Проверяется ПЕРЕД защитой от ботов ниже —
+        # это тот лимит, что реально описан на /pricing, и единственный,
+        # где «удалите карту» — рабочий совет пользователю.
         profiles_limit = limits.get("profiles_limit")
         if profiles_limit is not None:
             total_charts = (
@@ -667,29 +666,25 @@ async def calculate_chart(
                     ),
                 )
 
-        # Скорость создания карт в месяц — отдельная защита от злоупотребления
-        # (быстрое создание-удаление по кругу), не то, что продаётся на
-        # /pricing. Удаление карты НЕ освобождает эту квоту (charts_this_month
-        # считает события создания, а не текущие сохранённые карты) — поэтому
-        # совет здесь другой: подождать или перейти на тариф с более высоким
-        # лимитом, а не «удалите карту».
-        if monthly_limit is not None:
-            charts_this_month = (
-                db.query(sa_func.count(NatalChart.id))
-                .filter(NatalChart.user_id == user.id, NatalChart.created_at >= month_start)
-                .scalar() or 0
+        # Защита от ботов/скриптов — не тарифная фича, нигде не описана и не
+        # обещана (20.08.2026, решение владельца). Одно число на все тарифы:
+        # для free/lite/pro оно недостижимо (profiles_limit блокирует
+        # намного раньше), реальный смысл имеет только для Orion, где слотов
+        # без ограничения. Сообщение намеренно не упоминает ни «удалите
+        # карту» (это подсказка, как обойти защиту), ни «перейдите на
+        # тариф выше» (бессмысленно для Orion, который и так старший).
+        charts_this_month = (
+            db.query(sa_func.count(NatalChart.id))
+            .filter(NatalChart.user_id == user.id, NatalChart.created_at >= month_start)
+            .scalar() or 0
+        )
+        if charts_this_month >= CHART_CREATION_ABUSE_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail="Слишком много карт создано за последнее время. Попробуйте позже.",
             )
-            if charts_this_month >= monthly_limit:
-                from backend.email_service import TIER_NAMES
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        f"Достигнут лимит создания карт за этот месяц ({monthly_limit}) для тарифа "
-                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Попробуйте в следующем месяце "
-                        f"или перейдите на старший тариф на странице /pricing."
-                    ),
-                )
-        elif daily_limit is not None:
+
+        if daily_limit is not None:
             day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             charts_today = (
                 db.query(sa_func.count(NatalChart.id))

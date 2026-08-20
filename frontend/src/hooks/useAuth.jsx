@@ -102,7 +102,6 @@ const DEFAULT_FEATURES = {
   synastry: false,
   interpretation_word_limit: 500,
   interpretations_per_month: 0,
-  charts_per_month: null,
   lunar_months: 1,
   planner_months: 0,
 };

@@ -299,7 +299,6 @@ class TestTierMonotonicity:
     NUMERIC_FIELDS = [
         "interpretation_word_limit",
         "interpretations_per_month",
-        "charts_per_month",
         "charts_per_day",
         "transits_months",
         "transits_ai_per_month",
@@ -378,10 +377,11 @@ class TestProfilesLimitEnforcement:
     def test_exceeding_profiles_limit_returns_403_not_500(
         self, client, db, mock_calculator, mock_geo, auth_headers_free, user_free
     ):
-        """profiles_limit — это лимит на аккаунт целиком, не на месяц (в
-        отличие от charts_per_month, который совпадает с ним по числу для
-        free). Бэкдейтим существующие карты в прошлый месяц, чтобы месячный
-        лимит не сработал раньше и не заслонил собой именно эту проверку."""
+        """profiles_limit — это лимит на аккаунт целиком, не на месяц. Бэкдейтим
+        существующие карты в прошлый месяц, чтобы плоская защита от ботов
+        (CHART_CREATION_ABUSE_LIMIT, см. rate_limits.py) не заслонила собой
+        именно эту проверку — хотя при её значении (100) это и так недостижимо
+        для free."""
         from datetime import timedelta
 
         from backend.auth.rate_limits import TIER_FLAGS
@@ -428,5 +428,93 @@ class TestProfilesLimitEnforcement:
                 "house_system": "placidus",
             },
             headers=auth_headers_free,
+        )
+        assert resp.status_code == 200, resp.text
+
+
+# ── CHART_CREATION_ABUSE_LIMIT: плоский бэкстоп от ботов ─────────────────────
+
+class TestChartCreationAbuseLimit:
+    """20.08.2026: слотовая модель (profiles_limit) не защищает Orion от
+    скрипта, который создаёт карты по кругу — там слотов без ограничения.
+    Это единственный тариф, где CHART_CREATION_ABUSE_LIMIT вообще может
+    сработать (у free/lite/pro раньше блокирует profiles_limit)."""
+
+    @pytest.fixture
+    def user_premium(self, db):
+        from backend.models import User
+        from backend.auth.passwords import hash_password
+
+        user = User(
+            email="premium_abuse@example.com",
+            hashed_password=hash_password("Password123!"),
+            name="Premium User",
+            tier="premium",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    @pytest.fixture
+    def auth_headers_premium(self, user_premium):
+        from backend.auth.jwt import create_access_token
+        token = create_access_token(
+            user_id=user_premium.id, email=user_premium.email, tier=user_premium.tier,
+        )
+        return {"Authorization": f"Bearer {token}"}
+
+    def test_premium_blocked_after_abuse_limit(
+        self, client, db, mock_calculator, mock_geo, user_premium, auth_headers_premium,
+    ):
+        from backend.auth.rate_limits import CHART_CREATION_ABUSE_LIMIT
+        from backend.models import NatalChart
+        from backend.time_utils import utcnow
+
+        month_start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        for _ in range(CHART_CREATION_ABUSE_LIMIT):
+            db.add(NatalChart(
+                user_id=user_premium.id,
+                birth_date="1990-01-10",
+                birth_place="Moscow",
+                latitude=55.75, longitude=37.62, timezone="Europe/Moscow",
+                planets=[], houses=[], aspects=[],
+                created_at=month_start,
+            ))
+        db.commit()
+
+        resp = client.post(
+            "/api/v1/chart/calculate",
+            json={
+                "birth_date": "1990-01-10",
+                "birth_time": "12:00",
+                "birth_place": "Moscow",
+                "house_system": "placidus",
+            },
+            headers=auth_headers_premium,
+        )
+
+        assert resp.status_code == 403, resp.text
+        detail = resp.json()["detail"]
+        # Не должен подсказывать обход (удалить карту) или бессмысленный для
+        # старшего тарифа совет (перейти на тариф выше).
+        assert "удалите" not in detail.lower()
+        assert "тариф выше" not in detail.lower()
+        assert "/pricing" not in detail
+
+    def test_premium_well_under_abuse_limit_succeeds(
+        self, client, mock_calculator, mock_geo, auth_headers_premium,
+    ):
+        """Обычное использование Orion (безлимит слотов) не должно спотыкаться
+        о защиту от ботов."""
+        resp = client.post(
+            "/api/v1/chart/calculate",
+            json={
+                "birth_date": "1990-01-10",
+                "birth_time": "12:00",
+                "birth_place": "Moscow",
+                "house_system": "placidus",
+            },
+            headers=auth_headers_premium,
         )
         assert resp.status_code == 200, resp.text

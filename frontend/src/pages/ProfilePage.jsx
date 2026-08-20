@@ -301,10 +301,8 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
   };
 
   // Счётчик карт для free — слотовая модель (profiles_limit): сколько карт
-  // сохранено СЕЙЧАС, не сколько создано в этом месяце (charts_per_month —
-  // отдельный, не показываемый здесь, лимит скорости создания). Удаление
-  // карты освобождает слот, поэтому источник — charts.length, а не серверный
-  // месячный счётчик, который после удаления не уменьшается (19.08.2026).
+  // сохранено СЕЙЧАС. Удаление карты освобождает слот, источник —
+  // charts.length (то, что реально отрисовано), не серверная сводка.
   const isFree = !user?.tier || user?.tier === 'free';
   const chartsLimit = subscription?.limits?.profiles_limit ?? null;
   const chartsUsed = charts.length;
@@ -645,8 +643,6 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
 
         const interpLimit = lim.interpretations_per_month;   // 0 у free, число у lite, 15/100 pro/premium
         const interpUsed = use.ai_interpretations_this_month ?? 0;
-        const chartsLimit = lim.charts_per_month;             // null = безлимит
-        const chartsUsed = use.charts_this_month ?? 0;
         const transitAiLimit = lim.transits_ai_per_month;     // 3 у lite, null у pro/premium, 0 у free
         const transitAiUsed = use.transit_ai_this_month ?? 0;
 
@@ -684,13 +680,6 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                 tierColor={tierColor}
               />
             )}
-
-            <UsageBar
-              label="Построение карт"
-              used={chartsUsed}
-              limit={chartsLimit}
-              tierColor={tierColor}
-            />
 
             {/* Мягкий апсейл при исчерпании */}
             {tier !== 'premium' && !interpUnlimited && interpLimit > 0 && interpUsed >= interpLimit && (

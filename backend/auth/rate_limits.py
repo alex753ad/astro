@@ -37,12 +37,11 @@ TIER_FLAGS: dict[str, dict] = {
         "interpretation_word_limit": 500,
         "interpretations_per_month": 0,        # только превью (блюр)
         "first_interpretation_free": True,     # 3.3: одна полная интерпретация навсегда
-        "charts_per_month": 2,  # 19.08.2026: было 4 — новая тарифная сетка, решение владельца
         "charts_per_day": None,
         "transits_months": 0,
         "transits_ai": False,
         "transits_ai_per_month": 0,
-        "profiles_limit": 2,    # 19.08.2026: было 1 — синхронизировано с charts_per_month (единая цифра «Карты»)
+        "profiles_limit": 2,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
         "synastry": False,
@@ -53,12 +52,11 @@ TIER_FLAGS: dict[str, dict] = {
     "lite": {
         "interpretation_word_limit": 800,
         "interpretations_per_month": 5,        # 3.4a: было 3; = числу карт (19.08.2026)
-        "charts_per_month": 5,
         "charts_per_day": None,
         "transits_months": 1,                  # 19.08.2026: было 12 — решение владельца
         "transits_ai": False,                  # полный AI-доступ — нет
         "transits_ai_per_month": 3,            # 3.4a: тизер Pro — 3 AI-транзита/мес
-        "profiles_limit": 5,    # 19.08.2026: было 1 — синхронизировано с charts_per_month (единая цифра «Карты»)
+        "profiles_limit": 5,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
         "synastry": False,
@@ -69,12 +67,11 @@ TIER_FLAGS: dict[str, dict] = {
     "pro": {
         "interpretation_word_limit": 2500,
         "interpretations_per_month": 15,       # = числу карт (19.08.2026)
-        "charts_per_month": 15,  # 19.08.2026: было 20 — синхронизировано с profiles_limit
         "charts_per_day": None,
         "transits_months": 3,                  # 19.08.2026: было 12 — решение владельца
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
-        "profiles_limit": 15,   # 19.08.2026: было 5 — синхронизировано с charts_per_month (единая цифра «Карты»)
+        "profiles_limit": 15,   # 19.08.2026: было 5 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,
         "planner_months": 12,
         "synastry": False,
@@ -85,7 +82,6 @@ TIER_FLAGS: dict[str, dict] = {
     "premium": {
         "interpretation_word_limit": 5000,
         "interpretations_per_month": None,  # 19.08.2026: было 100 — новая сетка, «безлимит»
-        "charts_per_month": None,
         "charts_per_day": None,
         "transits_months": 24,                 # 3.2: было 12 — дифференциатор над Pro
         "transits_ai": True,
@@ -99,6 +95,29 @@ TIER_FLAGS: dict[str, dict] = {
         "ai_engine": settings.deepseek_model_pro,
     },
 }
+
+
+# 20.08.2026: раньше здесь было отдельное поле charts_per_month на тариф,
+# вручную синхронизированное с profiles_limit — два независимых числа,
+# обязанных совпадать, рано или поздно расходились (уже случалось с
+# pdf_per_month, см. TestTierMonotonicity). Слотовая модель (вариант А,
+# решение владельца) отменяет саму идею «лимита создания в месяц» как
+# тарифной фичи — на витрине только profiles_limit.
+#
+# Но месячный COUNT(*) в chart/calculate — не только тарифная витрина, это
+# ещё и единственная защита от скрипта, который создаёт карты по кругу
+# (30/минуту по IP — burst-лимит, не помеха ровному потоку раз в несколько
+# секунд). Для free/lite/pro это по-прежнему не имеет значения: profiles_limit
+# (2/5/15) блокирует раньше, чем скрипт успел бы дойти хоть до какого-то
+# порога. Но у Orion profiles_limit = None (безлимит слотов) — там раньше
+# не было вообще никакой защиты от такого скрипта. CRM создаёт карты
+# клиентам отдельным путём (crm/router.py), под этот лимит не подпадает —
+# число ниже не мешает даже активной практике астролога.
+#
+# Плоское число, одно на все тарифы — это больше не тарифная фича, а
+# бэкстоп от ботов, поэтому на витрине не описывается нигде (ни в оферте,
+# ни в интерфейсе).
+CHART_CREATION_ABUSE_LIMIT = 100
 
 
 def get_feature_flags(user: Optional[User]) -> dict:
@@ -121,7 +140,7 @@ def get_feature_flags(user: Optional[User]) -> dict:
         ),
         # pro и premium считаются "безлимитными" относительно free/lite
         "unlimited_interpretations": tier in ("pro", "premium"),
-        "unlimited_charts": flags["charts_per_month"] is None and flags.get("charts_per_day") is None,
+        "unlimited_charts": flags["profiles_limit"] is None and flags.get("charts_per_day") is None,
         "pdf_reports": flags["pdf_export"],
         "google_calendar": tier != "free",
         "rag_chat": tier in ("pro", "premium"),
