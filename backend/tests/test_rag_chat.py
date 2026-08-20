@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import patch, AsyncMock
 
@@ -220,3 +221,104 @@ class TestNormalResponseUnaffected:
         history = json.loads(raw)
         assert history[-1]["role"] == "assistant"
         assert "втором доме" in history[-1]["content"]
+
+
+class _FakeHangingStreamResp:
+    """Отдаёт chunks_before_hang строк, затем «висит» — трикл-имитация:
+    httpx read-timeout сбрасывался бы на каждую строку, iter_with_deadline —
+    нет."""
+
+    def __init__(self, lines_before_hang, hang_seconds):
+        self._lines = lines_before_hang
+        self._hang_seconds = hang_seconds
+
+    def raise_for_status(self):
+        pass
+
+    async def aiter_lines(self):
+        for line in self._lines:
+            yield line
+        await asyncio.sleep(self._hang_seconds)
+        yield "data: [DONE]"  # pragma: no cover — дедлайн должен сработать раньше
+
+
+class _FakeHangingStreamCtx:
+    def __init__(self, lines_before_hang, hang_seconds):
+        self._lines = lines_before_hang
+        self._hang_seconds = hang_seconds
+
+    async def __aenter__(self):
+        return _FakeHangingStreamResp(self._lines, self._hang_seconds)
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def _fake_hanging_async_client(lines_before_hang, hang_seconds):
+    class _FakeAsyncClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def stream(self, method, url, headers=None, json=None):
+            return _FakeHangingStreamCtx(lines_before_hang, hang_seconds)
+
+    return _FakeAsyncClient
+
+
+class TestStreamDeadline:
+    """20.08.2026: httpx read-timeout сбрасывается на каждый чанк — трикл
+    держит соединение сколько угодно. CHAT_STREAM_TIMEOUT — общий, не
+    сбрасываемый дедлайн (backend/async_utils.py)."""
+
+    @pytest.mark.asyncio
+    async def test_deadline_exceeded_with_no_text_yields_explicit_timeout_error(
+        self, client: TestClient, db: Session, fake_redis,
+    ):
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+
+        with patch.object(rag_router, "CHAT_STREAM_TIMEOUT", 0.05), \
+             patch.object(rag_router.httpx, "AsyncClient", _fake_hanging_async_client([], 10)):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Прогноз на сегодня?"},
+                headers=auth_headers(user),
+            )
+
+        assert resp.status_code == 200
+        assert '"timeout"' in resp.text
+        assert "[DONE]" in resp.text
+
+        key = rag_router._history_key(user.id, chart.id)
+        assert await fake_redis.get(key) is None
+
+    @pytest.mark.asyncio
+    async def test_deadline_exceeded_after_partial_text_still_errors(
+        self, client: TestClient, db: Session, fake_redis,
+    ):
+        """Часть текста уже ушла клиенту до обрыва — не должно тихо
+        превратиться в [DONE] без объяснения."""
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+        partial = [_sse({"choices": [{"delta": {"content": "Начало ответа"}}]})]
+
+        with patch.object(rag_router, "CHAT_STREAM_TIMEOUT", 0.05), \
+             patch.object(rag_router.httpx, "AsyncClient", _fake_hanging_async_client(partial, 10)):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Прогноз на сегодня?"},
+                headers=auth_headers(user),
+            )
+
+        assert resp.status_code == 200
+        assert "Начало ответа" in resp.text
+        assert '"timeout"' in resp.text
+
+        key = rag_router._history_key(user.id, chart.id)
+        assert await fake_redis.get(key) is None

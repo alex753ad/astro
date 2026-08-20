@@ -161,6 +161,19 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
     const ctrl  = new AbortController();
     abortRef.current = ctrl;
 
+    // Клиентская страховка — на случай, если серверный потолок (45 сек,
+    // backend/interpretation/rag_router.py:CHAT_STREAM_TIMEOUT) по какой-то
+    // причине не сработал сам (20.08.2026: до этой правки такой страховки
+    // не было вообще — индикатор мог висеть бесконечно). Заведомо больше
+    // серверного: иначе браузер сдастся раньше сервера и покажет ошибку по
+    // запросу, который на самом деле успешно бы завершился.
+    const CLIENT_TIMEOUT_MS = 60000;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, CLIENT_TIMEOUT_MS);
+
     try {
       const resp = await fetch(`${API_BASE}/chart/${chartId}/rag-chat`, {
         method: 'POST',
@@ -203,7 +216,15 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
             const parsed = JSON.parse(data);
             if (parsed.error) {
               setError(parsed.text || 'Не получилось получить ответ. Попробуйте ещё раз.');
-              setMessages(prev => prev.slice(0, -1));
+              // Пустой пузырёк убираем; частичный ответ (например, обрыв по
+              // таймауту после того, как что-то уже пришло) оставляем видимым.
+              setMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant' && !last.content) {
+                  return prev.slice(0, -1);
+                }
+                return prev;
+              });
               streamDone = true;
               break;
             }
@@ -235,10 +256,27 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       });
 
     } catch (e) {
-      if (e.name === 'AbortError') return;
+      if (e.name === 'AbortError') {
+        // Размонтирование компонента (см. cleanup-эффект ниже) тоже даёт
+        // AbortError — там сообщение уже никто не увидит, молчим. Но если
+        // абортнула именно наша клиентская страховка (timedOut) — это тот
+        // самый случай «сервер не ответил», и его нельзя проглатывать молча.
+        if (timedOut) {
+          setError('Ответ не пришёл вовремя. Попробуйте ещё раз.');
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last?.role === 'assistant' && !last.content) {
+              return prev.slice(0, -1);
+            }
+            return prev;
+          });
+        }
+        return;
+      }
       setError('Ошибка соединения. Попробуйте ещё раз.');
       setMessages(prev => prev.slice(0, -1));
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }

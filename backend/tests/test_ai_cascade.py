@@ -480,3 +480,64 @@ class TestResponseValidation:
 
         result = _run(router.generate(_request()))
         assert result.engine == "template"
+
+
+# ═══════════════════════════════════════════════════════════
+# Общий дедлайн на стрим (20.08.2026)
+# ═══════════════════════════════════════════════════════════
+# _try_stream раньше не имел общего таймаута вообще — тот же изъян, что
+# и в чате (rag_router.py): httpx read-timeout сбрасывается на каждый
+# успешный чанк, трикл-байты держат соединение сколько угодно.
+
+class TestStreamDeadline:
+    def test_engine_hangs_before_any_chunk_falls_back_to_next_engine(self):
+        """Дедлайн истёк, ни одного чанка не пришло — как и обычный обрыв
+        связи без данных, пробуем следующий движок в цепочке."""
+        router = InterpretationRouter()
+
+        async def _hangs_forever(req):
+            await asyncio.sleep(10)
+            yield "никогда не дойдёт"  # pragma: no cover
+
+        async def _fallback_ok(req):
+            yield "текст от template"
+            router._engines[1]._last_finish_reason = "stop"
+
+        router._engines[0].stream = _hangs_forever
+        router._engines[1].stream = _fallback_ok
+
+        with patch("backend.interpretation.router._stream_deadline_seconds", return_value=0.05):
+            async def _collect():
+                return "".join([c async for c in router.stream(_request())])
+            result = _run(_collect())
+
+        assert "template" in result
+
+    def test_engine_hangs_after_partial_chunk_raises_incomplete(self):
+        """Дедлайн истёк ПОСЛЕ того, как часть текста уже ушла клиенту —
+        нельзя тихо переключиться на другой движок (дублирующийся текст),
+        поднимаем IncompleteInterpretation, как и при обычном обрыве связи."""
+        router = InterpretationRouter()
+
+        async def _partial_then_hangs(req):
+            yield "Начало ответа"
+            await asyncio.sleep(10)
+            yield "никогда не дойдёт"  # pragma: no cover
+
+        router._engines[0].stream = _partial_then_hangs
+
+        with patch("backend.interpretation.router._stream_deadline_seconds", return_value=0.05):
+            async def _collect():
+                return "".join([c async for c in router.stream(_request())])
+            with pytest.raises(IncompleteInterpretation):
+                _run(_collect())
+
+    def test_deadline_scales_with_target_word_count(self):
+        """Premium (5000 слов) должен получать заметно больше времени, чем
+        free (500 слов) — иначе длинные легитимные тексты будут обрезаться."""
+        from backend.interpretation.router import _stream_deadline_seconds
+
+        free_deadline = _stream_deadline_seconds(_request(tier="free"))
+        premium_deadline = _stream_deadline_seconds(_request(tier="premium"))
+
+        assert premium_deadline > free_deadline * 5

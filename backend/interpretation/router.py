@@ -10,6 +10,7 @@ import sys
 import time
 from typing import AsyncIterator
 
+from backend.async_utils import iter_with_deadline
 from backend.cache import interpretation_cache, make_profile_hash, budget_tracker
 from backend.interpretation.base import (
     InterpretationEngine,
@@ -17,11 +18,32 @@ from backend.interpretation.base import (
     InterpretationResult,
 )
 from backend.interpretation.deepseek import DeepSeekEngine
-from backend.interpretation.gpt4o import GPT4oEngine
+from backend.interpretation.gpt4o import GPT4oEngine, _TOKENS_PER_WORD
+from backend.interpretation.prompts import resolve_word_limit
 from backend.interpretation.template import TemplateEngine
 from backend.config import get_settings
 
 logger = logging.getLogger("astro.router")
+
+# 20.08.2026: тот же изъян, что и в чате (rag_router.py) — httpx read-timeout
+# в deepseek.py/gpt4o.py сбрасывается на каждый успешный чанк и не даёт
+# реального потолка на весь стрим (trickle-байты держат соединение сколько
+# угодно). _try_stream ниже вообще не имел общего таймаута — в отличие от
+# нестримингового _try_engine (asyncio.wait_for(..., timeout=30.0) чуть выше).
+#
+# Фиксированное число сюда не подходит: интерпретации сильно длиннее чата
+# (до 5000 слов на Orion), нужен предел, растущий вместе с целевым объёмом.
+# Считаем той же формулой, что и max_tokens (_TOKENS_PER_WORD в gpt4o.py), с
+# консервативной (намеренно заниженной) оценкой скорости генерации — реальной
+# телеметрии нет (боевого ключа DeepSeek нет в dev-окружении), а резать
+# легитимный длинный текст премиум-тарифа хуже, чем подождать лишнее.
+_STREAM_TOKENS_PER_SEC = 20.0
+_STREAM_TIMEOUT_BUFFER_SEC = 20.0
+
+
+def _stream_deadline_seconds(request: InterpretationRequest) -> float:
+    target_tokens = resolve_word_limit(request) * _TOKENS_PER_WORD
+    return target_tokens / _STREAM_TOKENS_PER_SEC + _STREAM_TIMEOUT_BUFFER_SEC
 
 
 class IncompleteInterpretation(Exception):
@@ -359,7 +381,8 @@ class InterpretationRouter:
     ) -> AsyncIterator[str]:
         """Try streaming from an engine (single attempt)."""
         chunks_received = 0
-        async for chunk in engine.stream(request):
+        deadline = _stream_deadline_seconds(request)
+        async for chunk in iter_with_deadline(engine.stream(request), deadline):
             chunks_received += 1
             yield chunk
 

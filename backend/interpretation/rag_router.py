@@ -9,6 +9,7 @@ POST /api/v1/chart/{chart_id}/rag-chat
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend.async_utils import iter_with_deadline
 from backend.auth.dependencies import get_current_user, require_tier
 from backend.auth.rate_limits import increment_monthly_usage, rag_chat_key
 from backend.cache import budget_tracker
@@ -58,6 +60,21 @@ HISTORY_TTL = 6 * 3600  # диалог живёт 6 часов бездейст�
 CHAT_MAX_TOKENS = 1500
 # Память: сводка до ~120 слов (см. промпт в _update_memory) × 3 + запас.
 MEMORY_MAX_TOKENS = 400
+
+# 20.08.2026: общий потолок на весь стрим чата (не per-chunk, см.
+# backend/async_utils.py). Нет реальной телеметрии по скорости генерации
+# DeepSeek Flash (боевого ключа нет в dev-окружении) — оценка сверху:
+# типичный полный ответ на 3–6 абзацев (см. system prompt) заметно меньше
+# потолка CHAT_MAX_TOKENS=1500 — ориентир ~1000–1200 токенов. При
+# консервативной (нарочно заниженной, с запасом на сеть/провайдера) оценке
+# скорости генерации ~35 ток/сек это ~30–35 сек — берём 45 сек, чтобы
+# заведомо уложить нормальный ответ с запасом. Владелец наблюдала реальное
+# ожидание ~65 сек до того, как решила, что чат завис (следующее сообщение
+# «Ты тут?» в 08:20:57 против начала запроса в 08:19:52) — 45 сек заметно
+# (на треть) ниже этого порога терпения, ошибка успевает показаться раньше,
+# чем человек решит, что всё сломалось. Если реальные логи покажут другое
+# распределение длительностей — пересмотреть на основе них, не оценки.
+CHAT_STREAM_TIMEOUT = 45.0
 
 
 class RagChatRequest(BaseModel):
@@ -303,7 +320,11 @@ async def _sse_generator(
                 json=payload,
             ) as resp:
                 resp.raise_for_status()
-                async for line in resp.aiter_lines():
+                # httpx read-timeout сбрасывается на каждый чанк — не даёт
+                # реального потолка на весь стрим (трикл-байты держат его
+                # сколько угодно). iter_with_deadline — общий, не сбрасываемый
+                # дедлайн на весь проход (backend/async_utils.py).
+                async for line in iter_with_deadline(resp.aiter_lines(), CHAT_STREAM_TIMEOUT):
                     if not line.startswith("data: "):
                         continue
                     data_str = line[6:]
@@ -347,13 +368,36 @@ async def _sse_generator(
             await _persist_turn(user_id, chart_id, question, answer, history)
         yield "data: [DONE]\n\n"
 
+    except asyncio.TimeoutError:
+        # Общий дедлайн (CHAT_STREAM_TIMEOUT) сработал — DeepSeek не уложился
+        # в отведённое время. Не претендуем, что частичный текст — законченный
+        # ответ: не пишем в историю, но то, что уже успело прийти, оставляем
+        # видимым в пузырьке (см. RagChat.jsx) — только сообщаем об обрыве.
+        logger.error(
+            "RAG chat stream deadline exceeded (%.0fs): user=%s chart=%s "
+            "collected_chars=%d finish_reason=%s question=%r",
+            CHAT_STREAM_TIMEOUT, user_id, chart_id, len("".join(collected)),
+            finish_reason, question[:120],
+        )
+        error_payload = {
+            "error": "timeout",
+            "text": "Ответ не пришёл вовремя. Попробуйте ещё раз.",
+        }
+        yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+        yield "data: [DONE]\n\n"
+
     except httpx.HTTPStatusError as e:
         logger.error("AI API error %s: %s", e.response.status_code, e.response.text[:200])
         fallback = "Извините, AI-сервис временно недоступен. Попробуйте через несколько минут."
         yield f"data: {json.dumps({'text': fallback}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
     except Exception as e:
-        logger.error("RAG stream error: %s", e)
+        logger.error("RAG stream error: user=%s chart=%s: %s", user_id, chart_id, e)
+        error_payload = {
+            "error": "stream_failed",
+            "text": "Извините, что-то пошло не так. Попробуйте ещё раз.",
+        }
+        yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
 
