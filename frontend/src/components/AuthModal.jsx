@@ -348,7 +348,9 @@ export default function AuthModal({ onClose, returnTo }) {
               <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}
                 style={{ marginTop:2, flexShrink:0 }} />
               <span>
-                Мне есть 18 лет. Я даю согласие на обработку персональных данных и принимаю условия{' '}
+                Мне есть 18 лет. Я даю согласие на обработку персональных данных — в том числе на
+                трансграничную передачу астрологических данных AI-провайдерам за пределами РФ для
+                подготовки интерпретаций — и принимаю условия{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent-glow)' }}>Публичной оферты</a>{' '}
                 и{' '}
                 <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent-glow)' }}>Политики конфиденциальности</a>.
