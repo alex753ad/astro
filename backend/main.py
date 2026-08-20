@@ -93,7 +93,7 @@ from backend.metrics import log_event, maybe_mark_second_visit, EventName
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
-from backend.auth.rate_limits import tier_limiter, get_tier_limits, CHART_CREATION_ABUSE_LIMIT
+from backend.auth.rate_limits import tier_limiter, get_tier_limits, CHART_CREATION_ABUSE_LIMIT, check_chart_rate_limit
 from sqlalchemy import func as sa_func
 from backend.models import User
 
@@ -521,6 +521,8 @@ async def calculate_chart(
     Accepts date, optional time, and place of birth.
     Returns full chart with planets, houses, aspects, ASC, MC.
     """
+    await check_chart_rate_limit(user, request)
+
     warnings: list[str] = []
 
     # 1. Geocode the birth place
@@ -556,7 +558,10 @@ async def calculate_chart(
 
     # 4. Calculate chart
     try:
-        (chart_data, aspects) = calculate_full_chart(
+        # Swiss Ephemeris — синхронный, блокирует единственный event loop
+        # процесса (см. CLAUDE.md). asyncio.to_thread — не напрямую.
+        (chart_data, aspects) = await asyncio.to_thread(
+            calculate_full_chart,
             utc_dt=utc_dt,
             latitude=geo.latitude,
             longitude=geo.longitude,
@@ -775,7 +780,8 @@ async def save_anonymous_chart(
         birth_time=data.birth_time,
         timezone=geo.timezone,
     )
-    (chart_data, aspects) = _calc(
+    (chart_data, aspects) = await asyncio.to_thread(
+        _calc,
         utc_dt=utc_dt,
         latitude=geo.latitude,
         longitude=geo.longitude,
@@ -1467,7 +1473,9 @@ async def interpret_transit_event(
 
     logger.info("Transit interp cache MISS key=%s", cache_key)
 
-    facts = compute_exact_facts(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    facts = await asyncio.to_thread(
+        compute_exact_facts,
         transit_planet, natal_planet, aspect_type, _date.fromisoformat(_ref_date_str), profile,
     )
     transit_event_dict = {
@@ -1967,7 +1975,10 @@ async def get_monthly_planner(
         "midheaven": chart.midheaven,
     }
 
-    planner = build_planner(
+    # build_planner считает через Swiss Ephemeris (дома/ретрограды) —
+    # синхронный, блокирует event loop (см. CLAUDE.md).
+    planner = await asyncio.to_thread(
+        build_planner,
         natal_profile=natal_profile,
         from_date=month_start,
         to_date=month_end,
@@ -2227,8 +2238,8 @@ async def get_general_calendar(
     except ValueError:
         raise HTTPException(status_code=422, detail="Формат: YYYY-MM (напр. 2025-12)")
 
-    # 1. Вычислить события месяца
-    key_events = get_monthly_calendar(year, mon)
+    # 1. Вычислить события месяца — Swiss Ephemeris, синхронно (см. CLAUDE.md)
+    key_events = await asyncio.to_thread(get_monthly_calendar, year, mon)
 
     # 2. Сформировать обзор через AI
     month_names_ru = {
@@ -2278,25 +2289,14 @@ async def get_general_calendar(
 # LUNAR CALENDAR
 # ═══════════════════════════════════════════════════════════
 
-@app.get(
-    "/api/v1/calendar/lunar",
-    tags=["calendar"],
-    summary="Lunar calendar: moon phases + moon sign per day",
-)
-@limiter.limit(settings.rate_limit_anon)
-async def get_lunar_calendar(
-    request: Request,
-    year: int = None,
-    month: int = None,
-):
+def _compute_lunar_calendar(year: int, month: int) -> dict:
+    """Фазы луны (бисекция) + знак Луны на каждый день месяца — тяжёлый
+    синхронный расчёт через Swiss Ephemeris. Вызывать только через
+    asyncio.to_thread (см. CLAUDE.md) — не напрямую из async-хендлера."""
     from datetime import date as date_type
     from backend.calendar.lunar_engine import get_moon_phases, get_eclipses, ZODIAC_SIGNS
     import swisseph as swe
     import calendar as cal_mod
-
-    today = date_type.today()
-    year  = year  or today.year
-    month = month or today.month
 
     # Точный расчёт фаз через бисекцию
     def _moon_angle(jd):
@@ -2399,6 +2399,25 @@ async def get_lunar_calendar(
         "daily_signs": daily_signs,
         "eclipses":    eclipses,
     }
+
+
+@app.get(
+    "/api/v1/calendar/lunar",
+    tags=["calendar"],
+    summary="Lunar calendar: moon phases + moon sign per day",
+)
+@limiter.limit(settings.rate_limit_anon)
+async def get_lunar_calendar(
+    request: Request,
+    year: int = None,
+    month: int = None,
+):
+    from datetime import date as date_type
+
+    today = date_type.today()
+    year  = year  or today.year
+    month = month or today.month
+    return await asyncio.to_thread(_compute_lunar_calendar, year, month)
 
 
 # ── DEBUG: show house cusps ───────────────────────────────────────────────────

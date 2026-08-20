@@ -3,6 +3,7 @@ Call daily via Railway Cron: POST /api/v1/internal/onboarding-emails
 Protected by X-Internal-Secret header.
 """
 from __future__ import annotations
+import asyncio
 import logging
 import os
 from datetime import timedelta
@@ -127,7 +128,10 @@ async def send_onboarding_emails(
             from datetime import date as date_type
             from backend.transit.engine import calculate_transits
             today = date_type.today()
-            events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=7))
+            # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+            events = await asyncio.to_thread(
+                calculate_transits, natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=7)
+            )
             event = _pick_best_transit(events)
             if not event:
                 continue
@@ -149,7 +153,10 @@ async def send_onboarding_emails(
             from datetime import date as date_type
             from backend.transit.engine import calculate_transits
             today = date_type.today()
-            events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30))
+            # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+            events = await asyncio.to_thread(
+                calculate_transits, natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30)
+            )
             await send_retention_day7(user.email, max(0, len(events) - 1))
             sent_day7 += 1
         except Exception as e:

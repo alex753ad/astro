@@ -13,6 +13,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import hashlib
 import logging
@@ -30,6 +31,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import AstrologerProfile, ClientPortalAccess, ClientProfile, Consultation, NatalChart, User
 from backend.auth.dependencies import get_current_user, require_tier
+from backend.auth.rate_limits import check_chart_rate_limit
 
 logger = logging.getLogger("astro.crm")
 
@@ -177,7 +179,9 @@ async def _geocode_and_build_chart(db: Session, *, user_id: str, date_str: str, 
     utc_dt, time_unknown, _ = resolve_utc_datetime(
         birth_date=date_str, birth_time=time_str, timezone=geo.timezone,
     )
-    (chart_data, aspects) = calculate_full_chart(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    (chart_data, aspects) = await asyncio.to_thread(
+        calculate_full_chart,
         utc_dt=utc_dt, latitude=geo.latitude, longitude=geo.longitude,
         house_system="placidus", time_unknown=time_unknown,
     )
@@ -215,6 +219,7 @@ async def _geocode_and_build_chart(db: Session, *, user_id: str, date_str: str, 
 
 @router.post("", response_model=ClientOut, status_code=status.HTTP_201_CREATED)
 async def create_client(
+    request: Request,
     payload: ClientCreate,
     user: User = _write,
     db: Session = Depends(get_db),
@@ -248,7 +253,11 @@ async def create_client(
             db.refresh(client)
         return client
 
-    # Автоматически считаем натальную карту
+    # Автоматически считаем натальную карту. Лимит — вне try/except ниже:
+    # он мягко проглатывает ошибки расчёта (клиента всё равно создаём, карту
+    # можно посчитать позже), но 429 не должен тонуть в этом же логе молча —
+    # тогда пользователь не поймёт, что дело в скорости, а не в данных.
+    await check_chart_rate_limit(user, request)
     try:
         chart = await _geocode_and_build_chart(
             db, user_id=user.id,
@@ -558,6 +567,7 @@ async def list_consultations(
 
 @router.post("/{client_id}/consultations", response_model=ConsultationOut, status_code=status.HTTP_201_CREATED)
 async def create_consultation(
+    request: Request,
     client_id: int,
     payload: ConsultationCreate,
     user: User = _write,
@@ -580,6 +590,7 @@ async def create_consultation(
 
     # Хорар: строим карту на момент вопроса (№17)
     if payload.topic in ("horary", "хорар") and payload.question_moment and payload.question_place:
+        await check_chart_rate_limit(user, request)
         try:
             qm = payload.question_moment
             chart = await _geocode_and_build_chart(
@@ -667,7 +678,9 @@ async def generate_brief(
     }
 
     today = date_type.today()
-    events = calculate_transits(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    events = await asyncio.to_thread(
+        calculate_transits,
         natal_planets=chart.planets,
         from_date=today,
         to_date=today + timedelta(days=30),
@@ -884,6 +897,7 @@ async def set_portal(
 
 @router.get("/{client_id}/chart")
 async def get_client_chart(
+    request: Request,
     client_id: int,
     user: User = _read,
     db: Session = Depends(get_db),
@@ -893,6 +907,7 @@ async def get_client_chart(
 
     # Если карта ещё не посчитана — считаем сейчас
     if not client.natal_chart_id:
+        await check_chart_rate_limit(user, request)
         try:
             from backend.ephemeris.geo import geocode_place, resolve_utc_datetime
             from backend.ephemeris.calculator import calculate_full_chart
@@ -904,7 +919,9 @@ async def get_client_chart(
                 birth_time=birth_time_str,
                 timezone=geo.timezone,
             )
-            (chart_data, aspects) = calculate_full_chart(
+            # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+            (chart_data, aspects) = await asyncio.to_thread(
+                calculate_full_chart,
                 utc_dt=utc_dt,
                 latitude=geo.latitude,
                 longitude=geo.longitude,
@@ -974,7 +991,9 @@ async def get_client_transits(
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
     from backend.transit.engine import calculate_transits
-    events = calculate_transits(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    events = await asyncio.to_thread(
+        calculate_transits,
         natal_planets=chart.planets,
         from_date=from_date,
         to_date=to_date,

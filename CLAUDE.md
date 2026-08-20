@@ -192,6 +192,33 @@ GPT-4o → DeepSeek V3 → Template engine
 
 ---
 
+## Swiss Ephemeris — синхронный, не вызывать напрямую из async-хендлеров
+
+`calculate_full_chart`, `calculate_transits`, `compute_exact_facts` и всё,
+что в итоге вызывает `pyswisseph` (`backend/ephemeris/calculator.py`,
+`backend/transit/engine.py`, `backend/ephemeris/synastry.py`,
+`backend/ephemeris/solar_return.py`, `backend/calendar/lunar_engine.py`,
+`backend/transit/house_passages.py`) — обычные `def`, не `async def`.
+`api` — один процесс (`start.sh`, без `--workers`), один asyncio event loop
+на все запросы разом. Вызов такой функции напрямую внутри `async def`
+блокирует ЭТОТ event loop на всё время расчёта — не только для вызвавшего
+запроса, для вообще всех, кто в этот момент обращается к серверу (чат,
+чужие интерпретации, health-check).
+
+Обнаружено 20.08.2026 сразу в трёх независимых местах (`main.py:calculate_chart`,
+`crm/router.py:_geocode_and_build_chart`, `interpretation/rag.py:build_transits_block`
+из чата) — из кода это не очевидно, ошибка тихая (не падает, просто копится
+задержка под нагрузкой), поэтому фиксируется здесь явно.
+
+**Правило**: в любом `async def`-обработчике (FastAPI route, `_scheduler_loop`
+в `main.py`) вызов такой функции — только через
+`await asyncio.to_thread(calculate_full_chart, ...)` (или аналог), не напрямую.
+Внутри Celery-задач (`@celery_app.task`, `backend/tasks.py`, роли `worker`/`beat`)
+прямой синхронный вызов — нормально: там нет общего event loop, блокировать
+нечего, воркер и так один запрос за раз обрабатывает.
+
+---
+
 ## Деплой
 
 Всё на одном сервере: **Timeweb VPS**.

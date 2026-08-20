@@ -10,6 +10,7 @@ Templates:
 """
 
 from __future__ import annotations
+import asyncio
 import logging
 import os
 import httpx
@@ -572,7 +573,10 @@ async def send_weekly_digest(user, db) -> bool:
         chart = get_primary_chart(db, user)
         if not chart:
             return False
-        events = calculate_transits(natal_planets=chart.planets, from_date=now, to_date=week_end)
+        # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+        events = await asyncio.to_thread(
+            calculate_transits, natal_planets=chart.planets, from_date=now, to_date=week_end
+        )
     except Exception as e:
         logger.warning("Weekly digest transit fetch failed: %s", e)
         return False
@@ -640,7 +644,8 @@ async def send_weekly_digest(user, db) -> bool:
     lunar_block = ""
     try:
         from backend.calendar.lunar_engine import get_moon_phases
-        phases = get_moon_phases(now.year, now.month)
+        # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+        phases = await asyncio.to_thread(get_moon_phases, now.year, now.month)
         week_phases = [
             p for p in phases
             if now <= date_type.fromisoformat(p.to_dict()["date"]) <= week_end

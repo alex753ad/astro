@@ -1,17 +1,23 @@
 """Per-tier rate limiting helpers.
 
-SlowAPI-лимиты реализованы через ДВА декоратора на каждый эндпоинт:
-  @limiter.limit("10/minute", key_func=chart_free_key)   # считает только free-запросы
-  @limiter.limit("60/minute", key_func=chart_pro_key)    # считает только pro/premium
+20.08.2026: раньше здесь стояла схема из двух статичных slowapi-декораторов
+(chart_free_key/chart_pro_key/chart_premium_key) поверх TierMiddleware,
+кладущего tier в request.state.user_tier до вызова декораторов. У неё было
+два независимых дефекта: TierMiddleware сняли ещё 27.05.2026 в том же
+коммите, что добавил Prometheus/health-эндпоинты (сторонний рефакторинг,
+не по злому умыслу — просто задели), и с тех пор все три ключа возвращали
+СТАТИЧНОЕ имя тира прямо в строке (f"chart:free:...") независимо от
+реального пользователя — то есть даже пока TierMiddleware ещё стоял, схема
+уже не различала тарифы по-настоящему, просто вешала два счётчика на одну и
+ту же связку request→id, и слабейший из двух декораторов (10/мин) всегда
+выигрывал у более щедрого. Ключи не были подключены ни к одному эндпоинту с
+27.05.2026, реальной защиты не давали ни дня.
 
-Ключи строятся так:
-  free:    "chart:free:token:<...>" или "chart:free:ip:<...>"
-  pro:     "chart:pro:token:<...>"  или "chart:pro:ip:<...>"
-
-Поскольку ключи разные — счётчики независимы.
-Free-пользователь попадает под лимит 10/min (ключ chart:free:...).
-Pro-пользователь попадает под лимит 60/min (ключ chart:pro:...).
-TierMiddleware кладёт tier в request.state.user_tier до декораторов.
+Взамен — check_chart_rate_limit ниже: явная проверка внутри хендлера
+(Redis-счётчик, фиксированное окно 60 сек), а не slowapi-декоратор. Тариф
+читается из уже доступного в эндпоинте объекта User (Depends(
+get_current_user_optional) уже декодирует JWT корректно) — отдельного
+middleware для этого не требуется, FastAPI даёт правильный тариф и так.
 """
 
 from __future__ import annotations
@@ -160,17 +166,6 @@ def _base_id(request: Request) -> str:
     return f"ip:{client_ip(request)}"
 
 
-# /chart/calculate — два ключа, два декоратора в main.py
-def chart_free_key(request: Request) -> str:
-    return f"chart:free:{_base_id(request)}"
-
-def chart_pro_key(request: Request) -> str:
-    return f"chart:pro:{_base_id(request)}"
-
-def chart_premium_key(request: Request) -> str:
-    return f"chart:premium:{_base_id(request)}"
-
-
 # /interpret — два ключа, два декоратора в main.py
 def interpret_free_key(request: Request) -> str:
     return f"interp:free:{_base_id(request)}"
@@ -197,6 +192,66 @@ def register_send_key(request: Request) -> str:
 # Публичные share-картинки: рендер PNG + генерация подписи через LLM.
 def share_card_key(request: Request) -> str:
     return f"share:ip:{client_ip(request)}"
+
+
+# ═══════════════════════════════════════════════════════════
+# CHART RATE LIMIT — тарифный per-minute лимит на создание карт
+# ═══════════════════════════════════════════════════════════
+# 20.08.2026: calculate_full_chart дёшев по CPU (~3мс), но api — один процесс,
+# один event loop на все запросы разом (см. CLAUDE.md про Swiss Ephemeris).
+# Единственная защита раньше — плоский @limiter.limit(rate_limit_anon) =
+# 30/минуту по IP, без различия тарифов и без привязки к аккаунту (общий NAT
+# делит один лимит на всех). Числа ниже — не оценка «сколько выдержит
+# сервер» (там запас на порядки), а «сколько правдоподобно делает живой
+# человек руками за минуту» — никто не отправляет форму рождения 10+ раз
+# подряд.
+CHART_RATE_LIMIT_PER_MINUTE = {
+    "free": 10,
+    "lite": 15,
+    "pro": 20,
+    "premium": 30,  # с запасом под CRM-сессию (несколько клиентов подряд)
+}
+CHART_RATE_LIMIT_WINDOW_SEC = 60
+
+
+async def check_chart_rate_limit(user: Optional[User], request: Request) -> None:
+    """Тарифный per-minute лимит на построение карты — POST /chart/calculate
+    и CRM (backend/crm/router.py). Тариф — из уже декодированного JWT
+    (Depends(get_current_user_optional) в эндпоинте), не из
+    request.state.user_tier: то поле зависело от TierMiddleware, снятого
+    27.05.2026 (см. докстринг модуля) — здесь такой ошибки повторить нельзя,
+    потому что мы вообще не читаем request.state.
+
+    Redis, фиксированное окно 60 сек. Fail-open при сбое Redis — как и
+    остальные rate-limit'ы в проекте (см. backend/limiter.py): это защита от
+    перебора, не контроль доступа, отвал кэша не должен ронять сервис.
+    """
+    tier = user.tier if user else "free"
+    limit = CHART_RATE_LIMIT_PER_MINUTE.get(tier, CHART_RATE_LIMIT_PER_MINUTE["free"])
+    identity = f"user:{user.id}" if user else f"ip:{client_ip(request)}"
+    key = f"chart_rate:{identity}"
+
+    try:
+        from backend.redis_client import get_redis
+        redis = get_redis()
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, CHART_RATE_LIMIT_WINDOW_SEC)
+    except Exception as e:
+        import logging
+        logging.getLogger("astro.rate_limits").warning(
+            "chart rate limit check failed (fail open): %s", e
+        )
+        return
+
+    if count > limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Слишком много запросов на построение карт ({limit}/мин). "
+                f"Подождите минуту и повторите."
+            ),
+        )
 
 
 # Экспорт данных (152-ФЗ) — тяжёлый запрос (все карты, интерпретации,

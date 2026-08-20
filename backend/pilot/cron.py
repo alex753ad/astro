@@ -16,6 +16,7 @@ POST /api/v1/internal/pilot-tick   (header X-Internal-Secret)
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import timedelta, date as date_type
@@ -139,7 +140,9 @@ async def _process(db: Session, user: User) -> dict:
         ref = f"farewell:{end.date().isoformat()}"
         if not _already(db, user.id, "farewell", ref):
             days_left = max(1, (end.date() - now.date()).days)
-            windows = _upcoming_windows(db, user)
+            # _upcoming_windows считает транзиты через Swiss Ephemeris —
+            # синхронно, блокирует event loop api-процесса (см. CLAUDE.md).
+            windows = await asyncio.to_thread(_upcoming_windows, db, user)
 
             # письмо. Раньше здесь стоял asyncio.get_event_loop().run_until_complete()
             # внутри уже запущенного event loop (pilot_tick — async) — гарантированный

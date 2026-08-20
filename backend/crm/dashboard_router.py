@@ -9,6 +9,7 @@ GET /api/v1/crm/alerts?from=&to= → важные периоды по всем �
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, timedelta
 from typing import Optional
@@ -63,7 +64,10 @@ async def get_alerts(
     alerts = []
     for client, chart in rows:
         try:
-            events = calculate_transits(
+            # Swiss Ephemeris — синхронный, блокирует event loop (см.
+            # CLAUDE.md). N клиентов на запрос — самое чувствительное место.
+            events = await asyncio.to_thread(
+                calculate_transits,
                 natal_planets=chart.planets,
                 from_date=frm,
                 to_date=to,
@@ -160,7 +164,8 @@ async def broadcast_preview(
 
     brand = astrologer.display_name or "Ваш астролог"
     period_label = ru_month_label(date.today())
-    transits = _month_transits(chart)
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    transits = await asyncio.to_thread(_month_transits, chart)
 
     if not client.unsubscribe_token:
         client.unsubscribe_token = uuid.uuid4().hex
@@ -621,7 +626,10 @@ async def crm_reactivation(
         reason = None
         if chart:
             try:
-                events = calculate_transits(
+                # Swiss Ephemeris — синхронный, блокирует event loop (см.
+                # CLAUDE.md). N клиентов на запрос.
+                events = await asyncio.to_thread(
+                    calculate_transits,
                     natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=21)
                 )
                 for e in events:
@@ -680,7 +688,11 @@ async def group_forecast(
     result = []
     for client, chart in rows:
         try:
-            events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=to)
+            # Swiss Ephemeris — синхронный, блокирует event loop (см.
+            # CLAUDE.md). N клиентов на запрос.
+            events = await asyncio.to_thread(
+                calculate_transits, natal_planets=chart.planets, from_date=today, to_date=to
+            )
         except Exception as e:
             logger.warning("Group forecast transit calc failed for %s: %s", client.id, e)
             continue

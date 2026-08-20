@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import datetime, date as date_type, timedelta
@@ -571,7 +572,17 @@ def _process_user(db: Session, user: User) -> int:
 
 async def run_push_tick(db: Session) -> dict:
     """Основная логика тика — переиспользуется HTTP-эндпоинтом ниже и
-    внутренним планировщиком в main.py (см. lifespan)."""
+    внутренним планировщиком в main.py (см. lifespan).
+
+    20.08.2026: _process_user — синхронная цепочка (расчёт транзитов/домов
+    через Swiss Ephemeris + отправка push), и раньше вызывалась напрямую
+    внутри этого async-цикла. main.py — один процесс, один event loop на все
+    запросы разом (см. CLAUDE.md); этот тик срабатывает каждые 15 минут для
+    ВСЕХ подписанных пользователей — самый частый и самый широкий по блокировке
+    источник синхронной нагрузки в приложении. asyncio.to_thread на каждого
+    пользователя не ускоряет сам тик, но отдаёт event loop между итерациями —
+    остальные запросы больше не встают в очередь на всё время тика.
+    """
     # Только пользователи с хотя бы одной подпиской
     user_ids = [row[0] for row in db.query(PushSubscription.user_id).distinct().all()]
     if not user_ids:
@@ -581,7 +592,7 @@ async def run_push_tick(db: Session) -> dict:
     processed = 0
     for user in db.query(User).filter(User.id.in_(user_ids)).all():
         try:
-            total += _process_user(db, user)
+            total += await asyncio.to_thread(_process_user, db, user)
             processed += 1
         except Exception as e:
             logger.warning("push-tick user=%s failed: %s", user.id, e)

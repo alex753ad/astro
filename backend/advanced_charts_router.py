@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -255,7 +256,9 @@ async def _build_solar_return(chart: NatalChart, year: int, location: str | None
             "В карте нет данных о Солнце или времени рождения — соляр не рассчитать.",
         )
 
-    exact_dt = find_solar_return(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    exact_dt = await asyncio.to_thread(
+        find_solar_return,
         natal_sun_longitude=float(natal_sun["longitude"]),
         natal_dt=chart.utc_datetime,
         year=year,
@@ -263,7 +266,8 @@ async def _build_solar_return(chart: NatalChart, year: int, location: str | None
 
     lat, lon, _tz, display_name = await _resolve_location(location, chart)
 
-    chart_data, aspects = calculate_full_chart(
+    chart_data, aspects = await asyncio.to_thread(
+        calculate_full_chart,
         utc_dt=exact_dt,
         latitude=lat,
         longitude=lon,
@@ -356,7 +360,9 @@ async def _build_synastry(chart: NatalChart, partner: PartnerData) -> dict:
         timezone=geo.timezone,
     )
 
-    partner_data, partner_aspects = calculate_full_chart(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    partner_data, partner_aspects = await asyncio.to_thread(
+        calculate_full_chart,
         utc_dt=utc_dt,
         latitude=geo.latitude,
         longitude=geo.longitude,
@@ -407,7 +413,7 @@ async def _build_synastry(chart: NatalChart, partner: PartnerData) -> dict:
         for p in chart.planets
     ]
 
-    cross = calculate_synastry_aspects(planets1, partner_data.planets)
+    cross = await asyncio.to_thread(calculate_synastry_aspects, planets1, partner_data.planets)
     cross_aspects = [
         AspectData(
             planet1=a.planet1, planet2=a.planet2, aspect_type=a.aspect_type,
@@ -488,7 +494,9 @@ async def _build_relocation(chart: NatalChart, location: str) -> dict:
     time_unknown = bool(chart.time_unknown)
 
     # Момент рождения тот же — меняются только координаты.
-    chart_data, aspects = calculate_full_chart(
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    chart_data, aspects = await asyncio.to_thread(
+        calculate_full_chart,
         utc_dt=chart.utc_datetime,
         latitude=geo.latitude,
         longitude=geo.longitude,

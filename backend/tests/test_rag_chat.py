@@ -117,7 +117,7 @@ def no_memory_fold():
 def no_rag_lookup():
     with patch.object(rag_router, "retrieve", return_value=[]), \
          patch.object(rag_router, "build_chart_summary", return_value="Карта: тест"), \
-         patch.object(rag_router, "_get_transits_block_cached", return_value=""):
+         patch.object(rag_router, "_get_transits_block_cached", AsyncMock(return_value="")):
         yield
 
 

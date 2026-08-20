@@ -254,7 +254,7 @@ def _system_prompt(
 
 
 
-def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
+async def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
     """Слой 3: транзиты на сегодня для этого чарта — раз в сутки, не на
     каждое сообщение чата (иначе каждая реплика пересчитывала бы эфемериды)."""
     from datetime import datetime, timedelta
@@ -268,7 +268,10 @@ def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
         return cached
 
     from backend.interpretation.rag import build_transits_block
-    block = build_transits_block(chart_data)
+    # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    # Кэш на сутки смягчает частоту, но первый вызов в дне всё равно бьёт
+    # напрямую в event loop без этого.
+    block = await asyncio.to_thread(build_transits_block, chart_data)
 
     now = datetime.now()
     midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
@@ -562,7 +565,7 @@ async def rag_chat(
     # + текущие транзиты, слой 3 — считаются раз в сутки на чарт, не на реплику)
     chart_summary = build_chart_summary(chart_data)
     memory_summary = _load_memory(db, user.id)
-    transits_block = _get_transits_block_cached(chart_id, chart_data)
+    transits_block = await _get_transits_block_cached(chart_id, chart_data)
     system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block)
 
     # История берётся с сервера, а не из тела запроса: клиентская история
