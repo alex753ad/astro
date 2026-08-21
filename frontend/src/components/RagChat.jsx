@@ -308,15 +308,15 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
 
       {/* Шапка */}
       <div style={s.header}>
-        <span style={s.headerTitle}>Чат с AI-астрологом</span>
-        <span style={s.headerSub}>Помнит вашу карту и все ваши разговоры</span>
+        <span style={s.headerTitle}>Чат с астрологом Астреей</span>
+        <span style={s.headerSub}>Помнит вашу карту и суть прошлых разговоров</span>
       </div>
 
       {/* Сообщения */}
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>Астрея знает вашу карту и помнит все ваши разговоры. Спросите что угодно.</p>
+            <p style={s.emptyText}>Астрея знает вашу карту и помнит, о чём вы говорили раньше. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>
@@ -337,7 +337,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
               style={msg.role === 'user' ? s.msgUser : s.msgAssistant}
             >
               {msg.role === 'assistant' && (
-                <span style={s.aiLabel}>✦ AI</span>
+                <span style={s.aiLabel}>✦ Астрея</span>
               )}
               <div style={msg.role === 'user' ? s.bubbleUser : s.bubbleAssistant}>
                 {msg.content || (msg.streaming ? <TypingDots /> : '')}

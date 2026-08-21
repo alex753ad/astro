@@ -8,6 +8,15 @@ export const TIER_NAMES = {
   premium: 'Орион',
 };
 
+// Родительный падеж названий тарифов — для фраз вида «Всё из X, плюс:».
+// Отдельное поле, не шаблонится из TIER_NAMES (склонение непредсказуемо).
+export const TIER_NAMES_GENITIVE = {
+  free: 'Бесплатного',
+  lite: 'Веги',
+  pro: 'Лиры',
+  premium: 'Ориона',
+};
+
 // Цены за месяц, ₽. Разовая оплата, без автопродления — годовых/квартальных
 // периодов нет. Единственный источник цены: бэкенд (robokassa_service.TIER_PRICES,
 // stripe_service.TIER_PRICE_MAP) должен совпадать с этими числами.
@@ -33,13 +42,13 @@ export const TIERS = [
     id: 'free', label: TIER_NAMES.free, price: `${tierPriceLabel('free')}/мес`,
     features: [
       '2 сохранённые карты',
-      '1 бесплатная интерпретация карты навсегда, дальше — по шаблону',
+      '1 бесплатная интерпретация карты навсегда',
       'Лунный календарь текущего месяца',
     ],
   },
   {
     id: 'lite', label: TIER_NAMES.lite, price: `${tierPriceLabel('lite')}/мес`,
-    upsellFrom: `Всё из ${TIER_NAMES.free}, плюс:`,
+    upsellFrom: `Всё из ${TIER_NAMES_GENITIVE.free}, плюс:`,
     features: [
       'До 5 сохранённых карт одновременно',
       '5 AI-интерпретаций в месяц',
@@ -52,7 +61,7 @@ export const TIERS = [
   },
   {
     id: 'pro', label: TIER_NAMES.pro, price: `${tierPriceLabel('pro')}/мес`, recommended: true,
-    upsellFrom: `Всё из ${TIER_NAMES.lite}, плюс:`,
+    upsellFrom: `Всё из ${TIER_NAMES_GENITIVE.lite}, плюс:`,
     features: [
       'До 15 сохранённых карт одновременно',
       '15 AI-интерпретаций в месяц',
@@ -64,7 +73,7 @@ export const TIERS = [
   },
   {
     id: 'premium', label: TIER_NAMES.premium, price: `${tierPriceLabel('premium')}/мес`,
-    upsellFrom: `Всё из ${TIER_NAMES.pro}, плюс:`,
+    upsellFrom: `Всё из ${TIER_NAMES_GENITIVE.pro}, плюс:`,
     features: [
       'Безлимит карт',
       'Безлимит AI-интерпретаций',
