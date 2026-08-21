@@ -729,11 +729,17 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                 </div>
                 <MotionButton
                   level="primary"
-                  onClick={() => handleCheckout(t.id)}
-                  disabled={!!checkoutLoading}
-                  style={{ ...S.btn('primary'), whiteSpace: 'nowrap', flexShrink: 0, opacity: checkoutLoading && checkoutLoading !== t.id ? 0.5 : 1 }}
+                  onClick={t.id === 'premium' ? undefined : () => handleCheckout(t.id)}
+                  disabled={t.id === 'premium' ? true : !!checkoutLoading}
+                  style={{
+                    ...S.btn('primary'),
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    opacity: t.id === 'premium' ? 0.6 : (checkoutLoading && checkoutLoading !== t.id ? 0.5 : 1),
+                    ...(t.id === 'premium' ? { cursor: 'default' } : {}),
+                  }}
                 >
-                  {checkoutLoading === t.id ? 'Открываю…' : `Перейти →`}
+                  {t.id === 'premium' ? 'Скоро' : checkoutLoading === t.id ? 'Открываю…' : `Перейти →`}
                 </MotionButton>
               </div>
             ))}
