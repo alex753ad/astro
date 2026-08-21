@@ -40,7 +40,7 @@ class TestBirthDataValidation:
             )
 
     def test_future_date_rejected(self):
-        with pytest.raises(ValueError, match="future"):
+        with pytest.raises(ValueError, match="будущем"):
             BirthDataInput(
                 birth_date=date(2030, 12, 31),
                 birth_place="London",
@@ -80,7 +80,7 @@ class TestTransitValidation:
         assert req.from_date < req.to_date
 
     def test_end_before_start(self):
-        with pytest.raises(ValueError, match="after"):
+        with pytest.raises(ValueError, match="позже"):
             TransitRequest(
                 from_date=date(2026, 2, 1),
                 to_date=date(2026, 1, 1),

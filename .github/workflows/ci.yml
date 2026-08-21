@@ -81,7 +81,7 @@ jobs:
           pip install --no-cache-dir --no-deps -e .
 
       - name: Run unit tests
-        run: pytest backend/tests/ -v -m "not integration and not load" --tb=short --ignore=backend/tests/test_payments.py --ignore=backend/tests/test_validation.py
+        run: pytest backend/tests/ -v -m "not integration and not load" --tb=short --ignore=backend/tests/test_payments.py
 
   # ─────────────────────────────────────────────
   # 2. Статический анализ и уязвимости

@@ -210,10 +210,9 @@ class TestAssignHousesExtended:
 
 # ═══════════════════════════════════════════════════════════
 # Знаменитости — известные позиции Солнца
-# (интеграционные тесты, требуют ephemeris-файлы)
+# (требуют локальные ephemeris-файлы, без сети/БД/Redis)
 # ═══════════════════════════════════════════════════════════
 
-@pytest.mark.integration
 class TestCelebrityCharts:
     """Верификация через реальные даты рождения знаменитостей.
 
@@ -277,11 +276,15 @@ class TestCelebrityCharts:
         assert 9.0 <= sun.degree_in_sign <= 12.0
 
     def test_vernal_equinox_sun_aries(self):
-        """Весеннее равноденствие ~20 марта → Солнце входит в Овен."""
-        dt = datetime(2000, 3, 20, 7, 35, 0)  # UTC весеннее равноденствие 2000
+        """Весеннее равноденствие ~20 марта → Солнце у 0° Овна (longitude ~0°/360°)."""
+        dt = datetime(2000, 3, 20, 7, 35, 0)  # UTC весеннее равноденствие 2000, округлено до минуты
         sun = self._get_sun(dt)
-        assert sun.sign == "Aries"
-        assert sun.degree_in_sign < 1.0  # почти 0° Овна
+        lon = sun.longitude % 360
+        distance_to_zero = min(lon, 360 - lon)
+        # 0.01° (36 угл. сек) — на порядки больше расхождения от секундного
+        # округления даты равноденствия, но на порядки меньше сдвига,
+        # который дал бы ошибочный сидерический режим (~24°).
+        assert distance_to_zero < 0.01, f"Sun at {sun.longitude}°, too far from 0° Aries"
 
     # ── Граничные моменты ────────────────────────────────
 
@@ -382,7 +385,6 @@ class TestCalculateHousesExtended:
 # calculate_full_chart — расширенные тесты
 # ═══════════════════════════════════════════════════════════
 
-@pytest.mark.integration
 class TestCalculateFullChartExtended:
     def test_returns_full_chart_type(self):
         dt = datetime(1990, 6, 15, 10, 30, 0)
@@ -403,7 +405,7 @@ class TestCalculateFullChartExtended:
         warning_texts = " ".join(chart.warnings).lower()
         assert "unknown" in warning_texts or "noon" in warning_texts
         # Карта всё равно полностью посчитана
-        assert len(chart.planets) == 11
+        assert len(chart.planets) == 12  # включая производный South Node
         assert len(chart.houses) == 12
 
     def test_all_planets_have_valid_house(self):

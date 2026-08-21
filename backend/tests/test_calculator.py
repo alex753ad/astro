@@ -167,10 +167,9 @@ class TestDatetimeToJD:
 
 
 # ═══════════════════════════════════════════════════════════
-# calculate_planets (integration — requires ephemeris files)
+# calculate_planets (requires local ephemeris files, no network/DB/Redis)
 # ═══════════════════════════════════════════════════════════
 
-@pytest.mark.integration
 class TestCalculatePlanets:
     """Requires actual Swiss Ephemeris data files in EPHE_PATH."""
 
@@ -179,8 +178,10 @@ class TestCalculatePlanets:
     def test_returns_all_planets(self):
         planets = calculate_planets(self.KNOWN_DT)
         names = {p.name for p in planets}
+        # South Node — производная точка (opposite North Node), см. calculator.py.
         expected = {"Sun", "Moon", "Mercury", "Venus", "Mars",
-                    "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto", "North Node"}
+                    "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+                    "North Node", "South Node"}
         assert expected == names
 
     def test_sun_longitude_range(self):
@@ -245,10 +246,9 @@ class TestCalculateHouses:
 
 
 # ═══════════════════════════════════════════════════════════
-# calculate_full_chart (integration)
+# calculate_full_chart (requires local ephemeris files, no network/DB/Redis)
 # ═══════════════════════════════════════════════════════════
 
-@pytest.mark.integration
 class TestCalculateFullChart:
     DT = datetime(1990, 6, 15, 10, 30, 0)
     LAT, LON = 48.85, 2.35  # Paris
@@ -260,7 +260,7 @@ class TestCalculateFullChart:
 
     def test_chart_has_planets_and_houses(self):
         chart, aspects = calculate_full_chart(self.DT, self.LAT, self.LON)
-        assert len(chart.planets) == 11
+        assert len(chart.planets) == 12  # включая производный South Node
         assert len(chart.houses) == 12
 
     def test_aspects_is_list(self):
