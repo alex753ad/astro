@@ -105,11 +105,19 @@ if [[ "$MODE" != "frontend" ]]; then
     fi
   fi
 
-  log "Синхронизирую копии деплой-скриптов из $APP_DIR/deploy/opt-astro/"
+  log "Синхронизирую копии деплой-скриптов из $APP_DIR/deploy/opt-astro/ (temp + atomic mv)"
+  dest_dir="$(pwd)"
   for f in 05-update.sh docker-compose.yml 07-backup-cron.sh; do
-    cp "$APP_DIR/deploy/opt-astro/$f" "./$f"
+    tmp="$(mktemp "${dest_dir}/.${f}.XXXXXX")"
+    if ! cp "$APP_DIR/deploy/opt-astro/$f" "$tmp"; then
+      rm -f "$tmp"
+      die "не удалось скопировать $f во временный файл — рабочая копия не тронута."
+    fi
+    case "$f" in
+      05-update.sh|07-backup-cron.sh) chmod +x "$tmp" ;;
+    esac
+    mv -f "$tmp" "${dest_dir}/$f"
   done
-  chmod +x 05-update.sh 07-backup-cron.sh
   echo "  синхронизировано: 05-update.sh, docker-compose.yml, 07-backup-cron.sh"
 fi
 
