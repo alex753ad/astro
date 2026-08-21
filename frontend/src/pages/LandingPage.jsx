@@ -314,14 +314,11 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         </MotionButton>
       </motion.div>
 
-      {/* Ссылка на B2B-пространство */}
+      {/* B2B-пространство — временно неактивно (chore: временно отключить вход в CRM с лендинга) */}
       <div style={{ textAlign: 'center', padding: '0 24px 8px' }}>
-        <Link to="/orion" style={{ fontSize: 16, color: '#9B97B0', textDecoration: 'none' }}
-          onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-          onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
-        >
-          Ты астролог и ведёшь клиентов? → Астрея для практики
-        </Link>
+        <span style={{ fontSize: 16, color: '#6B6780', cursor: 'default' }}>
+          Ты астролог и ведёшь клиентов? Астрея для практики — скоро
+        </span>
       </div>
     </div>
   );
