@@ -45,10 +45,14 @@ export default function PricingPage({ currentUser, onShowAuth }) {
               </ul>
               <MotionButton
                 level={t.recommended ? 'primary' : 'secondary'}
-                style={t.recommended ? s.ctaPrimary : s.ctaSecondary}
-                onClick={handleChoose}
+                style={{
+                  ...(t.recommended ? s.ctaPrimary : s.ctaSecondary),
+                  ...(t.id === 'premium' ? s.ctaDisabled : {}),
+                }}
+                onClick={t.id === 'premium' ? undefined : handleChoose}
+                disabled={t.id === 'premium'}
               >
-                {t.id === 'free' ? 'Начать бесплатно' : `Выбрать «${t.label}»`}
+                {t.id === 'premium' ? 'Скоро' : t.id === 'free' ? 'Начать бесплатно' : `Выбрать «${t.label}»`}
               </MotionButton>
             </div>
           ))}
@@ -185,6 +189,13 @@ const s = {
     fontSize: 14,
     fontWeight: 700,
     cursor: 'pointer',
+  },
+  ctaDisabled: {
+    background: 'var(--bg-card)',
+    color: 'var(--text-secondary)',
+    border: '1.5px solid var(--border)',
+    opacity: 0.6,
+    cursor: 'default',
   },
   accessBlock: {
     background: 'var(--bg-card)',
