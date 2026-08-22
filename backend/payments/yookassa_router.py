@@ -41,7 +41,8 @@ from backend.auth.dependencies import get_current_user
 from backend.config import get_settings
 from backend.database import get_db
 from backend.limiter import client_ip
-from backend.models import PaymentEvent, User
+from backend.models import PaymentEvent, Subscription, User
+from backend.time_utils import utcnow
 from backend.payments.common import (
     TIER_PRICES_RUB,
     DuplicatePayment,
@@ -176,9 +177,19 @@ async def create_checkout(
         # metadata возвращается в вебхуке и перечитывается из API — это
         # единственный способ понять, за кого и за какой тариф пришли деньги.
         "metadata": {"user_id": str(user.id), "tier": tier, "period": PERIOD},
-        # TODO (54-ФЗ): сюда встанет блок "receipt" (customer + items) — ждём
-        # ответ поддержки ЮKassa, формирует ли она чек для НПД автоматически.
-        # Если нет — добавлять здесь, вместе с email/телефоном покупателя.
+        # Блока "receipt" здесь нет и не будет — это не недоделка.
+        #
+        # ЮKassa закрыла сервис «Чеки для самозанятых» 29.12.2025 (ответ их
+        # поддержки, 22.08.2026). Чек по НПД теперь не сформировать ни через
+        # личный кабинет, ни передачей receipt в API: передавать его просто
+        # некуда. Доход владелец регистрирует вручную в приложении «Мой налог».
+        #
+        # Чтобы делать это не заглядывая в кабинет ЮKassa, вебхук шлёт
+        # владельцу в Telegram всё нужное для проведения дохода — см.
+        # _notify_payment ниже.
+        #
+        # Автоматизация возможна только через API ФНС напрямую, мимо ЮKassa, —
+        # отдельная задача, см. CLAUDE.md.
     }
 
     try:
@@ -313,7 +324,51 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
         logger.error("YooKassa: обработка платежа %s упала на шаге %s", payment_id, exc.stage)
         raise HTTPException(status_code=500, detail="processing failed")
 
+    # Только после успешной обработки: на повторной доставке сюда не доходим
+    # (DuplicatePayment вернул выше), поэтому одно сообщение на один платёж.
+    await _notify_payment(db, payment_id, user_id, tier, paid)
     return {"ok": True}
+
+
+async def _notify_payment(db: Session, payment_id, user_id, tier, amount) -> None:
+    """Сообщить владельцу о поступившем платеже — для «Мой налог».
+
+    Не дублирует кабинет ЮKassa, а заменяет поход в него: ЮKassa закрыла
+    сервис «Чеки для самозанятых» 29.12.2025, и доход по НПД регистрируется
+    вручную в приложении. Здесь собрано ровно то, что нужно ввести: сумма,
+    дата и от кого. Без этого пришлось бы сверять кабинет со своей базой.
+
+    Молчит и не мешает ответить 200, если Telegram недоступен или не задан
+    TELEGRAM_SUPPORT_CHAT_ID: провал уведомления не повод заставлять ЮKassa
+    ретраить уже обработанный платёж.
+    """
+    from backend.email_service import TIER_NAMES
+    from backend.notifications.telegram import send_support_message
+
+    try:
+        buyer = db.query(User).filter(User.id == user_id).first()
+        sub = (
+            db.query(Subscription)
+            .filter(Subscription.user_id == user_id)
+            .order_by(Subscription.current_period_end.desc().nullslast())
+            .first()
+        )
+        until = (
+            sub.current_period_end.strftime("%d.%m.%Y")
+            if sub and sub.current_period_end else "—"
+        )
+        text = (
+            f"💰 Оплата {amount:.2f} ₽ — {TIER_NAMES.get(tier, tier)}\n"
+            f"Дата: {utcnow().strftime('%d.%m.%Y %H:%M')} UTC\n"
+            f"Плательщик: {buyer.email if buyer else user_id}\n"
+            f"Подписка действует до: {until}\n"
+            f"payment_id: {payment_id}\n\n"
+            f"⚠️ Провести доход вручную в «Мой налог» — ЮKassa чеки для "
+            f"самозанятых не формирует с 29.12.2025."
+        )
+        await send_support_message(text)
+    except Exception:
+        logger.warning("YooKassa: не удалось отправить уведомление о платеже %s", payment_id)
 
 
 async def _handle_refund(db: Session, obj: dict[str, Any]) -> dict[str, Any]:
