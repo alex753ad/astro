@@ -15,8 +15,7 @@ const PLAN_COLORS = {
   pro:     { bar: "var(--color-success)", text: "var(--color-success)", badge: "bg-[var(--accent-muted)] text-[var(--color-success)]" },
   premium: { bar: "var(--accent)", text: "var(--accent)", badge: "bg-[var(--accent-muted)] text-[var(--accent)]" },
 };
-const PLAN_PRICES = { lite: 790, pro: 2490, premium: 7990 };
-const TABS = ["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры"];
+const TABS =["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры"];
 
 // Мок-данные пока нет реального API
 const MOCK = {
