@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import App from './App';
+import { initMetrika } from './analytics';
 import './index.css';
 
 // Без VITE_SENTRY_DSN SDK не инициализируется — работает как раньше.
@@ -23,6 +24,12 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(console.error);
   });
 }
+
+// Счётчик посещаемости. Без VITE_YANDEX_METRIKA_ID не грузится вообще —
+// переменная задаётся только в /opt/astro/frontend.env на сервере, где и
+// собирается боевой фронтенд. Подробности и состав отключённых опций —
+// в analytics.js.
+initMetrika();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
