@@ -58,6 +58,19 @@ done
 grep -qE '^REDIS_URL=redis://:[^@]+@' .env \
   || die "REDIS_URL без пароля — Redis теперь запускается с requirepass, приложение не подключится."
 
+# ЮKassa. Те же три правила, что и в прод-гварде backend/main.py — проверка
+# только в приложении означает, что о проблеме узнаёшь на середине деплоя,
+# когда старый контейнер уже погашен (так прод падал дважды, см. CLAUDE.md).
+# Обе переменные пусты — проходим: платежи просто не активны.
+# (`&& die` здесь нельзя: при set -e несработавший grep уронил бы скрипт молча.)
+_yk_id=0;  _env_has YOOKASSA_SHOP_ID    && _yk_id=1  || true
+_yk_key=0; _env_has YOOKASSA_SECRET_KEY && _yk_key=1 || true
+[[ "$_yk_id" == "$_yk_key" ]] \
+  || die "ЮKassa настроена наполовину: в .env задана только одна из YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY. Задайте обе или ни одной."
+if grep -qE '^YOOKASSA_SECRET_KEY=test_' .env; then
+  die "YOOKASSA_SECRET_KEY — тестовый ключ (test_...) в боевом .env: подписки выдавались бы без реальной оплаты."
+fi
+
 # Ретраи на 429 от Docker Hub при пуллинге базового образа во время сборки.
 # Стримит вывод живьём (tee) и одновременно проверяет его на признаки rate-limit.
 run_with_registry_retry() {

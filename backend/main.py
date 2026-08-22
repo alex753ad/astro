@@ -74,6 +74,7 @@ from backend.push.cron import router as push_cron_router
 from backend.share_router import router as share_router
 from backend.advanced_charts_router import router as advanced_charts_router
 from backend.payments.payments_router import router as payments_router
+from backend.payments.yookassa_router import router as yookassa_router
 from backend.crm.router import router as crm_router
 from backend.crm.author_router import router as author_router
 from backend.crm.portal_router import router as portal_router
@@ -273,6 +274,16 @@ if settings.sentry_dsn:
         environment="production",
         traces_sample_rate=0.1,
         send_default_pii=False,
+        # Не отправлять локальные переменные фреймов (по умолчанию SDK их
+        # отправляет). Секреты попадают туда не из нашего кода, а из чужих
+        # фреймов в трейсбеке: httpx получает Basic-auth как кортеж
+        # (shop_id, secret_key) — при любом исключении внутри httpx этот кортеж
+        # уезжает в Sentry в открытом виде, и before_send его не видит, потому
+        # что маскирование ниже работает по тексту сообщений, а не по vars.
+        # Тот же механизм касается JWT_SECRET, пароля БД и ключа Resend.
+        # Событие, уже ушедшее к стороннему сервису, назад не отзывается —
+        # поэтому выключаем целиком, а не пытаемся вычищать по списку.
+        include_local_variables=False,
         before_send=_sentry_before_send,
     )
 
@@ -318,6 +329,28 @@ if not (settings.debug or settings.testing):
             "INTERNAL_SECRET не задан — служебные эндпоинты /api/v1/internal/* "
             "не смогут работать. Сгенерируйте: "
             "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
+
+    # ── Платежи (ЮKassa) ──
+    # Тот же набор проверок продублирован в deploy/opt-astro/05-update.sh.
+    # Дубль не лишний: проверка только в приложении означает, что о проблеме
+    # узнаёшь на середине деплоя, когда старый контейнер уже погашен, — так
+    # прод падал дважды (см. CLAUDE.md, раздел «Деплой»).
+    #
+    # Обе пусты — нормальное состояние: платежи просто не активны, checkout
+    # отвечает 503. Падаем только на конфигурации, которая опаснее отсутствия.
+    if bool(settings.yookassa_shop_id) != bool(settings.yookassa_secret_key):
+        raise RuntimeError(
+            "ЮKassa настроена наполовину: задана только одна из YOOKASSA_SHOP_ID / "
+            "YOOKASSA_SECRET_KEY. Задайте обе или ни одной — половина конфигурации "
+            "означает checkout, который создаёт платежи, но не может проверить вебхук "
+            "(или наоборот)."
+        )
+    if settings.yookassa_secret_key.startswith("test_"):
+        raise RuntimeError(
+            "YOOKASSA_SECRET_KEY — тестовый ключ (test_...) в боевом окружении. "
+            "В тестовом режиме ЮKassa «оплата» проходит без реальных денег, то есть "
+            "подписки выдавались бы бесплатно. Подставьте боевой ключ магазина."
         )
 
 # ── Доверенные прокси ──
@@ -382,6 +415,7 @@ app.include_router(push_cron_router)
 app.include_router(share_router)
 app.include_router(advanced_charts_router)
 app.include_router(payments_router)
+app.include_router(yookassa_router)
 app.include_router(crm_router)
 app.include_router(author_router)
 app.include_router(portal_router)

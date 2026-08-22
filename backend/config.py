@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     from_email: str = "onboarding@resend.dev"
 
+    # ── Платежи (ЮKassa) ──
+    # Обе пусты — платежи не активны, checkout отвечает 503. Это допустимое
+    # состояние (так живёт локальная разработка и прод до запуска оплаты).
+    # Прод-гвард — в backend/main.py и продублирован в
+    # deploy/opt-astro/05-update.sh: задана ровно одна из двух → падаем
+    # (неполная конфигурация опаснее её отсутствия), боевой ключ начинается
+    # с test_ → падаем (подписки выдавались бы без реальной оплаты).
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+
     # ── App ──
     app_url: str = "http://localhost:8000"
     frontend_url: str = "https://www.astreatime.ru"

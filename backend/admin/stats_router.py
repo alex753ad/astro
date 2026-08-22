@@ -52,8 +52,8 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     # Revenue (simple MRR estimate). Пилотные участники (pilot_started_at) и
     # вручную помеченные (revenue_excluded — друзья/тест/промо) считаются в
     # by_plan (честная картина использования), но не в paying_by_plan/MRR.
-    prices = {"lite": 790, "pro": 2490, "premium": 7990}
-    mrr = sum(paying_by_plan.get(t, 0) * p for t, p in prices.items())
+    from backend.payments.common import TIER_PRICES_RUB
+    mrr = sum(paying_by_plan.get(t, 0) * p for t, p in TIER_PRICES_RUB.items())
 
     # Funnel
     made_chart = db.query(func.count(func.distinct(NatalChart.user_id))).filter(NatalChart.user_id.isnot(None)).scalar() or 0

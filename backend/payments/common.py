@@ -25,6 +25,20 @@ logger = logging.getLogger("astro.payments")
 PERIOD_DAYS = {"monthly": 30, "annual": 365}
 REFERRAL_REWARD_DAYS = 14
 
+# Цена тарифа в рублях за месяц. Единственный источник этого числа на бэкенде:
+# до 21.08.2026 тот же словарь был скопирован в admin/promo_router.py и
+# admin/stats_router.py — три независимые копии одного числа расходятся рано
+# или поздно (так уже случалось с charts_per_month и pdf_per_month, см.
+# CLAUDE.md). Витрина — frontend/src/constants.js (TIER_PRICES), она обязана
+# совпадать с этим словарём.
+#
+# premium здесь есть, хотя в чекаут не выпускается (Орион отключён в
+# интерфейсе, yookassa_router отвечает на него 400): словарь нужен для расчёта
+# MRR по уже выданным вручную премиумам и для промокодов в админке. Источником
+# цены для показа пользователю он не является — фронт берёт цены из своего
+# constants.js, а /pricing Орион не показывает.
+TIER_PRICES_RUB = {"lite": 790, "pro": 2490, "premium": 7990}
+
 
 class DuplicatePayment(Exception):
     """Платёж с этим payment_id уже обработан — не ошибка, вызывающая

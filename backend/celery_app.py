@@ -39,6 +39,13 @@ celery_app.conf.update(
             "task": "tasks.send_broadcast_auto",
             "schedule": crontab(hour=6, minute=10),
         },
+        # Истёкшие подписки → free. 08:00 МСК: намеренно не рядом с ночным
+        # pg_dump (03:30, systemd-таймер, deploy/opt-astro/07-backup-cron.sh) —
+        # массовый UPDATE во время дампа не ломает его, но удлиняет обоих.
+        "expire-subscriptions-daily": {
+            "task": "tasks.expire_subscriptions",
+            "schedule": crontab(hour=5, minute=0),
+        },
     },
     beat_timezone="UTC",
 )

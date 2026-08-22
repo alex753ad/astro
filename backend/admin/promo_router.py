@@ -164,9 +164,10 @@ def apply_promo(
     можно обойти подстановкой чужого id. Строка промокода блокируется
     (SELECT ... FOR UPDATE), чтобы исключить гонку при проверке лимита.
     """
+    from backend.payments.common import TIER_PRICES_RUB
+
     user_id = str(current_user.id)
-    PLAN_PRICES = {"lite": 790, "pro": 2490, "premium": 7990}
-    base_price = PLAN_PRICES.get(plan)
+    base_price = TIER_PRICES_RUB.get(plan)
     if not base_price:
         raise HTTPException(400, "Неизвестный тариф")
 

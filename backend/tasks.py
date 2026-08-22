@@ -847,3 +847,56 @@ def send_broadcast_auto_task() -> dict:
 
     logger.info("send_broadcast_auto_task: queued %d astrologers", len(ids))
     return {"queued_astrologers": len(ids)}
+
+
+# ═══════════════════════════════════════════════════════════
+# SUBSCRIPTIONS
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.expire_subscriptions")
+def expire_subscriptions() -> dict:
+    """Истёкшая подписка → тариф падает до free.
+
+    Оплата разовая, на 30 дней (backend/payments/common.activate_subscription),
+    автопродления у ЮKassa мы не подключаем. До появления этой задачи джоба,
+    понижающего tier по истечении current_period_end, в системе не было вовсе
+    (кроме пилотного backend/pilot/cron.py) — то есть один платёж давал платный
+    тариф навсегда.
+
+    Карты сверх лимита free при этом НЕ удаляются и остаются доступны: проверка
+    в POST /chart/calculate (main.py) слотовая — `total_charts >= profiles_limit`,
+    то есть новый слот просто не выдаётся, пока карт не станет меньше лимита
+    free. Отдельного кода для этого случая не требуется.
+
+    Пилотных участников задача не трогает: у них нет записи в subscriptions,
+    их даунгрейдом занимается backend/pilot/cron.py. Ручная выдача тарифа
+    админкой ставит срок на 10 лет и сюда тоже не попадает.
+    """
+    from backend.models import Subscription, User
+
+    db = SessionLocal()
+    try:
+        now = utcnow()
+        rows = (
+            db.query(Subscription, User)
+            .join(User, User.id == Subscription.user_id)
+            .filter(
+                Subscription.status == "active",
+                Subscription.current_period_end.isnot(None),
+                Subscription.current_period_end < now,
+            )
+            .all()
+        )
+        for sub, user in rows:
+            logger.info(
+                "Subscription expired: user=%s tier=%s until=%s → free",
+                user.id, user.tier, sub.current_period_end,
+            )
+            sub.status = "expired"
+            sub.tier = "free"
+            user.tier = "free"
+        if rows:
+            db.commit()
+        return {"expired": len(rows)}
+    finally:
+        db.close()

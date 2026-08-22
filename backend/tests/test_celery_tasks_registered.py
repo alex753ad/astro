@@ -47,6 +47,7 @@ class TestTasksRegistered:
         # celery_app.py: beat_schedule
         "backend.tasks.send_weekly_digest_task",
         "backend.tasks.send_broadcast_auto_task",
+        "backend.tasks.expire_subscriptions",
     ])
     def test_dispatched_object_is_a_registered_task(self, import_path):
         import importlib
