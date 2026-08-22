@@ -28,6 +28,7 @@ const MOCK = {
   payment_errors: { total: 14, items: [{ code: "card_declined", plan: "lite", count: 6 }, { code: "insufficient_funds", plan: "pro", count: 4 }, { code: "expired_card", plan: "premium", count: 3 }, { code: "authentication_required", plan: "pro", count: 1 }] },
   churn: { count: 29, rate_pct: 3.2 },
   gift_codes: { total: 48, activated: 31, activation_pct: 65 },
+  anon_charts: { total: 0, last_30d: 0, last_7d: 0, share_pct: 0 },
   avg_per_plan: {
     free:    { charts: 1.4, interpretations: 0 },
     lite:    { charts: 4.2, interpretations: 2.1 },
@@ -223,6 +224,13 @@ function TabOverview({ d }) {
           <div className="my-2 border-t border-gray-100" />
           <Row left="🌙 Лунный календарь" right={fmt(d.activity_30d.lunar_calendar_views)} />
           <Row left="📅 Планировщик"      right={fmt(d.activity_30d.planner_views)} />
+          <div className="my-2 border-t border-gray-100" />
+          <Row left="Анонимных карт (30д)" right={fmt(d.anon_charts?.last_30d ?? 0)} />
+          <Row left="Анонимных за 7 дней"  right={fmt(d.anon_charts?.last_7d ?? 0)} />
+          <Row
+            left="Анонимных всего"
+            right={`${fmt(d.anon_charts?.total ?? 0)} (${d.anon_charts?.share_pct ?? 0}%)`}
+          />
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Ошибки оплат</div>

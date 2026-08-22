@@ -58,6 +58,23 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     # Funnel
     made_chart = db.query(func.count(func.distinct(NatalChart.user_id))).filter(NatalChart.user_id.isnot(None)).scalar() or 0
 
+    # Анонимные карты — верх воронки: построено без регистрации.
+    # user_id IS NULL — единственный признак (models.py:108). Строки живут
+    # вечно: удаления natal_charts нет нигде в бэкенде, expires_at (models.py:138)
+    # только закрывает доступ в resolve_chart_access, саму запись не трогает.
+    # Поэтому история полная, с самого начала.
+    #
+    # Конверсия «аноним → регистрация» отсюда НЕ считается: /chart/save-anonymous
+    # пересчитывает карту заново и вставляет новую строку, а анонимную не
+    # привязывает и никак не помечает (см. CLAUDE.md). Связи между записями нет.
+    anon_total = db.query(func.count(NatalChart.id)).filter(NatalChart.user_id.is_(None)).scalar() or 0
+    anon_30d = db.query(func.count(NatalChart.id)).filter(
+        NatalChart.user_id.is_(None), NatalChart.created_at >= day30,
+    ).scalar() or 0
+    anon_7d = db.query(func.count(NatalChart.id)).filter(
+        NatalChart.user_id.is_(None), NatalChart.created_at >= week_start,
+    ).scalar() or 0
+
     # Gift codes
     gift_total     = db.query(func.count(GiftCode.id)).scalar() or 0
     gift_activated = db.query(func.count(GiftCode.id)).filter(GiftCode.redeemed_by.isnot(None)).scalar() or 0
@@ -168,6 +185,14 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "lite": by_plan["lite"],
             "pro": by_plan["pro"],
             "premium": by_plan["premium"],
+        },
+        "anon_charts": {
+            "total": anon_total,
+            "last_30d": anon_30d,
+            "last_7d": anon_7d,
+            # Доля анонимных среди всех построенных карт — насколько верх
+            # воронки шире, чем зарегистрированная часть.
+            "share_pct": round(anon_total / charts_total * 100) if charts_total else 0,
         },
         "gift_codes": {
             "total": gift_total,
