@@ -78,6 +78,43 @@ function fmtDate(iso) {
   return Math.floor(diff / 7) + " нед. назад";
 }
 
+// Срок действия тарифа. Пустая ячейка здесь недопустима: два из пяти состояний
+// означают тариф, который tasks.expire_subscriptions не понизит никогда (строки
+// подписки нет вовсе, либо она есть, но без даты) — это должно быть заметно
+// глазом, а не выглядеть как «данные не подгрузились».
+function SubscriptionCell({ user }) {
+  const dim = "text-gray-400";
+  const warn = "text-amber-600";
+
+  if (!user.has_subscription) {
+    if (user.is_pilot) {
+      return <span className={dim} title="Пилотный участник: тариф выдан без подписки, понижается pilot/cron.py">Пилот</span>;
+    }
+    if (user.plan && user.plan !== "free") {
+      return (
+        <span className={warn} title="Платный тариф без строки в subscriptions — expire_subscriptions его не найдёт, тариф не истечёт никогда">
+          без подписки ⚠
+        </span>
+      );
+    }
+    return <span className={dim}>—</span>;
+  }
+
+  if (!user.subscription_end) {
+    return (
+      <span className={warn} title="Подписка без даты окончания — expire_subscriptions пропускает такие (current_period_end IS NULL)">
+        бессрочно ⚠
+      </span>
+    );
+  }
+
+  const end = new Date(user.subscription_end);
+  const label = end.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return end < new Date()
+    ? <span className="text-red-500" title={`Статус: ${user.subscription_status}`}>истекла {label}</span>
+    : <span className="text-gray-700" title={`Статус: ${user.subscription_status}`}>до {label}</span>;
+}
+
 function Badge({ plan }) {
   const c = PLAN_COLORS[plan]?.badge ?? "";
   return <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${c}`}>{PLAN_LABELS[plan] ?? plan}</span>;
@@ -286,7 +323,7 @@ function TabUsers({ d, authFetch, onReload }) {
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-gray-100">
-                {["Email", "Тариф", "Карт", "Интерп.", "Регистрация", "MRR", "Сменить тариф", ""].map((h, i) => (
+                {["Email", "Тариф", "Действует", "Карт", "Интерп.", "Регистрация", "MRR", "Сменить тариф", ""].map((h, i) => (
                   <th key={i} className="text-left pb-2 pr-4 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
                 ))}
               </tr>
@@ -296,6 +333,7 @@ function TabUsers({ d, authFetch, onReload }) {
                 <tr key={u.id} className="border-b border-gray-100 last:border-0">
                   <td className="py-2 pr-4 text-gray-700">{u.email}</td>
                   <td className="py-2 pr-4"><Badge plan={u.plan} /></td>
+                  <td className="py-2 pr-4"><SubscriptionCell user={u} /></td>
                   <td className="py-2 pr-4">{u.charts}</td>
                   <td className="py-2 pr-4">{u.interpretations}</td>
                   <td className="py-2 pr-4 text-gray-400">{fmtDate(u.created_at)}</td>

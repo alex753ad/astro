@@ -85,8 +85,31 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
         .all()
     ) if recent_ids else {}
 
-    recent_users = [
-        {
+    # Срок действия подписки. Раньше в этом блоке его не было вовсе — ни в API,
+    # ни в интерфейсе: тариф виден (users.tier), а дата окончания лежит в другой
+    # таблице и наружу не отдавалась. Отличить «оплачено до 21.09» от «платный
+    # тариф без срока, который tasks.expire_subscriptions не понизит никогда»
+    # было нечем.
+    #
+    # На subscriptions.user_id нет уникального индекса (наследство Stripe, где
+    # у клиента законно несколько подписок), поэтому строк на пользователя может
+    # оказаться больше одной. Берём ту же, что и остальной код: самую позднюю,
+    # NULL в конце — как в crm/router.py:427. Одним запросом на всех, не по
+    # запросу на юзера: блок выше специально избавлялись от N+1.
+    subs_by_user: dict[str, Subscription] = {}
+    if recent_ids:
+        for sub in (
+            db.query(Subscription)
+            .filter(Subscription.user_id.in_(recent_ids))
+            .order_by(Subscription.current_period_end.desc().nullslast())
+            .all()
+        ):
+            subs_by_user.setdefault(sub.user_id, sub)
+
+    recent_users = []
+    for u in recent:
+        sub = subs_by_user.get(u.id)
+        recent_users.append({
             "id": u.id,
             "email": u.email,
             "plan": u.tier,
@@ -95,9 +118,16 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "created_at": u.created_at.isoformat() if u.created_at else None,
             "revenue_excluded": bool(u.revenue_excluded),
             "is_pilot": u.pilot_started_at is not None,
-        }
-        for u in recent
-    ]
+            # None здесь неоднозначен, поэтому отдаём и статус: has_subscription
+            # различает «строки нет» и «строка есть, но дата пустая». Фронт по
+            # этой паре разводит пять состояний, см. AdminPage.jsx.
+            "has_subscription": sub is not None,
+            "subscription_status": sub.status if sub else None,
+            "subscription_end": (
+                sub.current_period_end.isoformat()
+                if sub and sub.current_period_end else None
+            ),
+        })
 
     retention = compute_retention(db)
     funnel_v2 = compute_funnel(db)
