@@ -56,17 +56,68 @@ class PaymentProcessingError(Exception):
 # ── Активация подписки ─────────────────────────────────────
 
 def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> None:
-    user = db.query(User).filter(User.id == user_id).first()
+    """Активировать или продлить подписку. Всегда ровно одна строка на юзера.
+
+    Срок считается от одной из двух точек (решение владельца 22.08.2026):
+
+    • **Тот же тариф, подписка ещё действует** → срок СУММИРУЕТСЯ: отсчёт от
+      текущей даты окончания, а не от сегодня. Заплативший дважды получает
+      60 дней. Раньше второй платёж просто перезаписывал дату на «сегодня+30»,
+      то есть оплаченный остаток первого молча пропадал.
+    • **Другой тариф (апгрейд/даунгрейд) или подписка уже истекла** → отсчёт
+      от сегодня, остаток сгорает.
+
+    «Ещё действует» = `status == "active"` И дата окончания в будущем. Просто
+    `status` недостаточно: `tasks.expire_subscriptions` ходит раз в сутки, и
+    между истечением и его запуском строка остаётся `active` с датой в прошлом.
+    Складывать с ней означало бы выдать меньше 30 дней за полный платёж.
+    Та же проверка «дата в будущем, иначе сейчас» уже используется в
+    `apply_referral_reward` ниже.
+
+    Вторую строку не создаём никогда: `subscriptions.user_id` не уникален
+    (наследство Stripe), а два одновременных платежа одного человека раньше
+    оба не находили строку и оба вставляли свою. Дальше `.first()` без
+    сортировки выбирал из них произвольную, а `expire_subscriptions`,
+    наткнувшись на просроченную, сбрасывал тариф в free при живой второй —
+    человек, заплативший дважды, терял доступ раньше срока. Уникальный индекс
+    здесь не годится: он уронил бы второй платёж ошибкой БД вместо того, чтобы
+    его обработать. Вместо этого строка User блокируется на время активации
+    (`with_for_update`) — параллельный платёж дожидается и продлевает уже
+    существующую подписку. Блокировка не может «не дать» платежу пройти, она
+    только выстраивает их в очередь.
+    """
+    # Блокировка снимается вместе с транзакцией (db.commit() в конце функции).
+    # SQLite (тесты) FOR UPDATE игнорирует — там всё и так последовательно.
+    user = db.query(User).filter(User.id == user_id).with_for_update().first()
     if not user:
         logger.warning("activate_subscription: user %s not found", user_id)
         return
 
     days = PERIOD_DAYS.get(period, 30)
-    period_end = utcnow() + timedelta(days=days)
+    now = utcnow()
+
+    # Порядок тот же, что в crm/router.py:427 и admin/stats_router.py: если
+    # дубли всё же есть в базе (созданы до этого фикса), берём самую позднюю,
+    # а не произвольную.
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user.id)
+        .order_by(Subscription.current_period_end.desc().nullslast())
+        .first()
+    )
+
+    still_active = bool(
+        sub
+        and sub.status == "active"
+        and sub.current_period_end
+        and sub.current_period_end > now
+    )
+    renewal = still_active and sub.tier == tier
+
+    period_end = (sub.current_period_end if renewal else now) + timedelta(days=days)
 
     user.tier = tier
 
-    sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
     if sub:
         sub.tier             = tier
         sub.status           = "active"
@@ -83,7 +134,11 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
         db.add(sub)
 
     db.commit()
-    logger.info("Activated: user=%s tier=%s period=%s until=%s", user_id, tier, period, period_end.date())
+    logger.info(
+        "Activated: user=%s tier=%s period=%s until=%s (%s)",
+        user_id, tier, period, period_end.date(),
+        "продление, срок суммирован" if renewal else "отсчёт от сегодня",
+    )
 
 
 def apply_referral_reward(referrer_user_id: str, db: Session) -> None:
