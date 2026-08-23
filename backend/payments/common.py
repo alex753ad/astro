@@ -53,6 +53,31 @@ class PaymentProcessingError(Exception):
         super().__init__(message or stage)
 
 
+class SubscriptionOwnerMissing(Exception):
+    """Платёж проверен и записан, но активировать его НЕКОМУ: пользователя из
+    metadata.user_id нет в БД.
+
+    Отдельный тип, а не PaymentProcessingError, потому что ответ провайдеру
+    противоположный (аудит 23.08.2026, находка 2.1). PaymentProcessingError
+    означает «попробуй ещё раз» → 500 → ретрай. Здесь ретрай бессмыслен:
+    причина постоянная — пользователь удалил аккаунт (`DELETE /api/v1/auth/me`
+    доступен ему самому) между созданием платежа и вебхуком, либо строка
+    пропала при восстановлении из бэкапа. Временный сбой БД сюда не попадает:
+    он поднимает исключение из самого запроса и уходит в PaymentProcessingError,
+    а `.first() is None` — это именно достоверное отсутствие.
+
+    Запись о платеже к моменту возбуждения уже закоммичена (см.
+    process_payment): деньги пришли, и след обязан остаться, даже когда
+    активировать некому. Вызывающая сторона должна подтвердить приём (200) и
+    сообщить владельцу — разбираться руками.
+    """
+
+    def __init__(self, user_id: str, payment_id: str = ""):
+        self.user_id = user_id
+        self.payment_id = payment_id
+        super().__init__(f"user {user_id} not found for payment {payment_id or '?'}")
+
+
 # ── Активация подписки ─────────────────────────────────────
 
 def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> None:
@@ -90,8 +115,13 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
     # SQLite (тесты) FOR UPDATE игнорирует — там всё и так последовательно.
     user = db.query(User).filter(User.id == user_id).with_for_update().first()
     if not user:
-        logger.warning("activate_subscription: user %s not found", user_id)
-        return
+        # Раньше здесь был warning + return. Функция, обязанная либо
+        # активировать, либо сообщить о невозможности, молча возвращала успех:
+        # process_payment записывал «payment OK», вебхук отвечал 200, ЮKassa
+        # прекращала доставку — а db.commit() ниже так и не выполнялся, и
+        # сфлашенный PaymentEvent откатывался при закрытии сессии. Итог: деньги
+        # списаны, подписки нет, следа нет (аудит 23.08.2026, находка 2.1).
+        raise SubscriptionOwnerMissing(user_id)
 
     days = PERIOD_DAYS.get(period, 30)
     now = utcnow()
@@ -262,6 +292,22 @@ def process_payment(
 
     try:
         activate_subscription(user_id=user_id, tier=tier, period=period, db=db)
+    except SubscriptionOwnerMissing as exc:
+        # ВАЖЕН ПОРЯДОК: эта ветка обязана стоять ВЫШЕ общего except —
+        # тот делает rollback и потерял бы запись о платеже, ради сохранения
+        # которой всё и затевалось.
+        #
+        # Коммитим: деньги пришли, активировать некому — след обязан остаться.
+        # user.tier при этом не тронут, до него не дошли. Если сам commit
+        # упадёт (вот это уже настоящий временный сбой), исключение уйдёт
+        # наверх, вебхук ответит 500 и провайдер ретраит — и это правильно.
+        exc.payment_id = payment_id
+        db.commit()
+        logger.error(
+            "%s: платёж %s записан, но активировать некому — user %s не найден",
+            provider, payment_id, user_id,
+        )
+        raise
     except Exception as exc:
         # Откатывает и активацию, и запись о платеже — ретрай провайдера
         # начнёт с чистого листа, а не упрётся в «уже обработано».

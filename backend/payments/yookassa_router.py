@@ -48,6 +48,7 @@ from backend.payments.common import (
     TIER_PRICES_RUB,
     DuplicatePayment,
     PaymentProcessingError,
+    SubscriptionOwnerMissing,
     process_payment,
 )
 
@@ -405,6 +406,17 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
         # что и на первую успешную доставку — иначе ретраи не прекратятся.
         logger.info("YooKassa: повторная доставка payment_id=%s, пропущено", payment_id)
         return {"ok": True}
+    except SubscriptionOwnerMissing as exc:
+        # 200, а не 500: причина постоянная (пользователя нет), ретрай ЮKassa
+        # сутки подряд ничего не исправит — только зашумит. Запись о платеже
+        # при этом уже закоммичена в process_payment, деньги не пропали
+        # бесследно. Дальше — руками, поэтому уведомление обязательно.
+        logger.error(
+            "YooKassa: платёж %s записан, но подписку выдать некому (user=%s)",
+            payment_id, exc.user_id,
+        )
+        await _notify_orphan_payment(payment_id, exc.user_id, tier, paid)
+        return {"ok": True}
     except PaymentProcessingError as exc:
         logger.error("YooKassa: обработка платежа %s упала на шаге %s", payment_id, exc.stage)
         raise HTTPException(status_code=500, detail="processing failed")
@@ -413,6 +425,45 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
     # (DuplicatePayment вернул выше), поэтому одно сообщение на один платёж.
     await _notify_payment(db, payment_id, user_id, tier, paid)
     return {"ok": True}
+
+
+async def _notify_orphan_payment(payment_id, user_id, tier, amount) -> None:
+    """Деньги пришли, а активировать некому — владельцу нужны ОБА действия.
+
+    Четвёртая тонкая обёртка над send_support_message (рядом с _notify_payment,
+    _notify_refund, _notify_ip_reject) — новый канал не заводится.
+    Переиспользовать _notify_payment напрямую нельзя: он говорит «💰 Оплата» и
+    умалчивает, что подписки нет, — владелец решил бы, что всё прошло штатно.
+
+    Троттла здесь намеренно НЕТ, в отличие от _notify_ip_reject: там гасится
+    лавина одинаковых отказов, а тут каждое событие — отдельные деньги
+    конкретного человека, пропустить нельзя ни одно.
+
+    Как и остальные уведомления, ошибку проглатывает: недоступный Telegram не
+    повод заставлять ЮKassa ретраить уже записанный платёж.
+    """
+    from backend.email_service import TIER_NAMES
+    from backend.notifications.telegram import send_support_message
+
+    text = (
+        "⚠️ ЮKassa: платёж получен, но подписку выдать НЕКОМУ\n"
+        f"Сумма: {amount:.2f} ₽ — {TIER_NAMES.get(tier, tier)}\n"
+        f"Дата: {utcnow().strftime('%d.%m.%Y %H:%M')} UTC\n"
+        f"user_id из платежа: {user_id} — такого пользователя нет в базе\n"
+        f"payment_id: {payment_id}\n\n"
+        "Платёж записан в payment_events, деньги не потерялись. Нужно два "
+        "действия:\n"
+        "1) Провести доход вручную в «Мой налог» — это обязательно в любом "
+        "случае, деньги получены (ЮKassa чеки для самозанятых не формирует "
+        "с 29.12.2025).\n"
+        "2) Разобраться с подпиской руками: скорее всего человек удалил "
+        "аккаунт после оплаты. Если он вернётся — выдать тариф через админку "
+        "(/api/v1/payments/admin/set-tier) или вернуть деньги."
+    )
+    try:
+        await send_support_message(text)
+    except Exception:
+        logger.warning("YooKassa: не удалось отправить уведомление о платеже без владельца %s", payment_id)
 
 
 async def _notify_payment(db: Session, payment_id, user_id, tier, amount) -> None:

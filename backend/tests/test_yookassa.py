@@ -305,6 +305,67 @@ class TestPaymentSucceeded:
         assert db.query(PaymentEvent).filter(PaymentEvent.inv_id.notlike("refund:%")).count() == 0, \
             "платёж в чужой валюте не должен оставлять запись об оплате"
 
+    def test_missing_user_keeps_payment_record_and_does_not_retry(
+        self, client, db, from_yookassa, api_returns, monkeypatch
+    ):
+        """Аудит 23.08.2026, находка 2.1: платёж за удалённый аккаунт.
+
+        Раньше activate_subscription писала warning и делала return, это
+        считалось успехом — вебхук отвечал 200, ЮKassa прекращала доставку, а
+        коммита не было и PaymentEvent откатывался. Деньги списаны, следов нет.
+
+        Теперь: 200 (ретрай не поможет, причина постоянная), запись о платеже
+        сохранена, владелец уведомлён.
+
+        ВНИМАНИЕ про проверку «запись уцелела». Наличие строки в БД тут
+        показательным НЕ является: conftest отдаёт роутеру ту же сессию, что и
+        фикстуре db, и не закрывает её, а в проде запись терялась именно на
+        db.close() в get_db — сфлашенное без commit откатывалось. То есть
+        `event is not None` проходило бы и на сломанном коде. Поэтому ниже
+        считается число commit'ов: ровно оно и было нулём, когда
+        activate_subscription молча возвращалась.
+        """
+        sent: list[str] = []
+
+        async def _fake_send(text, photo_path=None):
+            sent.append(text)
+            return True
+
+        monkeypatch.setattr("backend.notifications.telegram.send_support_message", _fake_send)
+
+        commits = {"n": 0}
+        real_commit = db.commit
+
+        def _counting_commit():
+            commits["n"] += 1
+            return real_commit()
+
+        monkeypatch.setattr(db, "commit", _counting_commit)
+
+        ghost_id = "00000000-0000-4000-8000-00000000dead"
+        assert db.query(User).filter(User.id == ghost_id).first() is None, "фикстура: такого юзера быть не должно"
+        api_returns(_api_payment(ghost_id, tier="pro"))
+
+        resp = client.post(WEBHOOK_URL, json=_payment_body())
+
+        assert resp.status_code == 200, "500 заставил бы ЮKassa ретраить сутки без шанса на успех"
+
+        db.expire_all()
+        event = db.query(PaymentEvent).filter(
+            PaymentEvent.inv_id == "2f0c8a1e-000f-5000-8000-1d0e0c0b0a09"
+        ).first()
+        assert event is not None, "запись о платеже потеряна — деньги пришли в никуда без следа"
+        assert event.amount == float(TIER_PRICES_RUB["pro"])
+        assert event.user_id == ghost_id
+        assert commits["n"] >= 1, (
+            "commit не вызван: в проде сфлашенный PaymentEvent откатится на "
+            "db.close(), и платёж исчезнет без следа"
+        )
+
+        assert len(sent) == 1, "владелец должен узнать о платеже без владельца"
+        assert "НЕКОМУ" in sent[0]
+        assert "Мой налог" in sent[0], "доход провести надо в любом случае — это должно быть в сообщении"
+
     def test_premium_metadata_rejected(self, client, db, user_free, from_yookassa, api_returns):
         """Даже если платёж на 7990 каким-то образом создан — Орион не выдаём."""
         api_returns(_api_payment(user_free.id, tier="premium"))
