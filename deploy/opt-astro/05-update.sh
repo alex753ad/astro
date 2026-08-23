@@ -52,16 +52,22 @@ done
 # ---------------------------------------------------------------------------
 _env_has() { grep -qE "^${1}=.+" .env; }
 for _required in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL \
-                 REDIS_PASSWORD REDIS_URL JWT_SECRET INTERNAL_SECRET; do
+                 REDIS_PASSWORD REDIS_URL JWT_SECRET INTERNAL_SECRET \
+                 YOOKASSA_SHOP_ID YOOKASSA_SECRET_KEY; do
   _env_has "$_required" || die "в .env не задан ${_required} — деплой остановлен."
 done
 grep -qE '^REDIS_URL=redis://:[^@]+@' .env \
   || die "REDIS_URL без пароля — Redis теперь запускается с requirepass, приложение не подключится."
 
-# ЮKassa. Те же три правила, что и в прод-гварде backend/main.py — проверка
+# ЮKassa. Те же правила, что и в прод-гварде backend/main.py — проверка
 # только в приложении означает, что о проблеме узнаёшь на середине деплоя,
 # когда старый контейнер уже погашен (так прод падал дважды, см. CLAUDE.md).
-# Обе переменные пусты — проходим: платежи просто не активны.
+#
+# 23.08.2026: обе переменные добавлены в обязательный список выше, поэтому
+# сюда мы доходим, только когда обе заданы, и проверка «ровно одна из двух»
+# ниже недостижима. Оставлена намеренно — страхует, если обязательность
+# когда-нибудь снова смягчат, и держит отдельную внятную формулировку.
+# Не удалять как «мёртвый код».
 # (`&& die` здесь нельзя: при set -e несработавший grep уронил бы скрипт молча.)
 _yk_id=0;  _env_has YOOKASSA_SHOP_ID    && _yk_id=1  || true
 _yk_key=0; _env_has YOOKASSA_SECRET_KEY && _yk_key=1 || true

@@ -12,4 +12,9 @@ TESTING=false, чтобы проверить ровно один прод-guard 
 PROD_STARTUP_ENV = {
     # C-2: без секрета служебные /api/v1/internal/* не работают — main.py падает.
     "INTERNAL_SECRET": "test-internal-secret-not-used-anywhere",
+    # 23.08.2026: платежи стали обязательными в проде — без пары переменных
+    # main.py падает на старте. Значение ключа НЕ должно начинаться с "test_",
+    # иначе сработает соседний guard про тестовый ключ.
+    "YOOKASSA_SHOP_ID": "1442186",
+    "YOOKASSA_SECRET_KEY": "live_stub_not_a_real_key",  # gitleaks:allow — тестовая фикстура
 }
