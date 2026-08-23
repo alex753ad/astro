@@ -299,7 +299,20 @@ async def yookassa_notification(request: Request, db: Session = Depends(get_db))
     отдаётся и на уже обработанное событие, и на событие, которое нас не
     касается — иначе доставка будет повторяться до истечения суток. 5xx
     остаётся только для случаев, когда ретрай действительно нужен (не смогли
-    проверить платёж, не смогли активировать подписку).
+    проверить платёж, не смогли обработать его технически).
+
+    Правило разделения (аудит 23.08.2026, находки 2.1 и 2.9):
+      • ПОСТОЯННАЯ причина → 200. Повтор гарантированно даст тот же результат,
+        сутки ретраев только зашумят. Но 200 обязан оставлять след: платёж
+        записывается в payment_events и владелец получает уведомление
+        (_record_unusable_payment, _notify_orphan_payment).
+      • ВРЕМЕННАЯ причина → 500, ретрай нужен: API ЮKassa недоступен,
+        обработка упала технически.
+    Единственное не-2xx на постоянную причину, оставленное намеренно, — 403 по
+    IP: если список подсетей устареет и стучится настоящая ЮKassa, сутки
+    ретраев дают окно, за которое список можно поправить, и платёж активируется
+    сам. Плюс 400 на нечитаемое тело — там нет даже идентификатора платежа,
+    записывать нечего.
     """
     ip = client_ip(request)
     if not _is_yookassa_ip(ip):
@@ -363,18 +376,30 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
     tier = str(meta.get("tier") or "")
     period = str(meta.get("period") or PERIOD)
 
+    paid = _amount_value(payment)
+
+    # Непригодная metadata — постоянная причина: она фиксируется при создании
+    # платежа и при перечитывании всегда та же. Сюда же попадает оплаченный
+    # premium (Орион в чекаут не выпускается) — деньги за тариф, который мы не
+    # обслуживаем. Сырую metadata в лог кладём, в Telegram — нет.
     if not user_id or tier not in CHECKOUT_TIERS:
         logger.error("YooKassa: непригодная metadata у платежа %s: %s", payment_id, meta)
-        raise HTTPException(status_code=400, detail="bad metadata")
+        problem = (
+            f"тариф «{tier}» не продаётся или не распознан" if tier
+            else "в metadata платежа нет user_id и тарифа"
+        )
+        return await _record_unusable_payment(
+            db, payment_id, problem=problem, amount=paid,
+            user_id=user_id or None, tier=tier if tier in TIER_PRICES_RUB else None,
+        )
 
-    paid = _amount_value(payment)
     expected = TIER_PRICES_RUB[tier]
     if abs(paid - expected) > 0.01:
-        logger.error(
-            "YooKassa: сумма платежа %s не совпадает с ценой тарифа %s: %s ≠ %s — подписка НЕ выдана",
-            payment_id, tier, paid, expected,
+        return await _record_unusable_payment(
+            db, payment_id,
+            problem=f"сумма не совпадает с ценой тарифа: заплачено {paid:.2f}, ожидалось {expected:.2f}",
+            amount=paid, user_id=user_id, tier=tier,
         )
-        raise HTTPException(status_code=400, detail="amount mismatch")
 
     # Валюта — часть сверки суммы, а не отдельная проверка (аудит 23.08.2026,
     # находка 2.3). До этого читался только amount.value, и «790» в любой
@@ -385,11 +410,11 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
     # платёж. Дешевле держать её, чем вспоминать про неё потом.
     currency = str((payment.get("amount") or {}).get("currency") or "")
     if currency != "RUB":
-        logger.error(
-            "YooKassa: валюта платежа %s не RUB (%s) — цены в TIER_PRICES_RUB рублёвые, подписка НЕ выдана",
-            payment_id, currency or "не указана",
+        return await _record_unusable_payment(
+            db, payment_id,
+            problem=f"валюта {currency or 'не указана'}, а цены в TIER_PRICES_RUB рублёвые",
+            amount=paid, user_id=user_id, tier=tier,
         )
-        raise HTTPException(status_code=400, detail="currency mismatch")
 
     try:
         process_payment(
@@ -425,6 +450,96 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
     # (DuplicatePayment вернул выше), поэтому одно сообщение на один платёж.
     await _notify_payment(db, payment_id, user_id, tier, paid)
     return {"ok": True}
+
+
+async def _record_unusable_payment(
+    db: Session,
+    payment_id: str,
+    *,
+    problem: str,
+    amount: float,
+    user_id: str | None = None,
+    tier: str | None = None,
+) -> dict[str, Any]:
+    """Платёж пришёл, но выдать по нему нечего. Записать, сообщить, ответить 200.
+
+    Сюда попадают ТОЛЬКО постоянные причины (аудит 23.08.2026, находка 2.9):
+    сумма или валюта не сходятся с ценой тарифа, metadata непригодна. Раньше
+    все они отвечали 400, а ЮKassa ретраит всё, что не 2xx — сутки запросов,
+    каждый из которых заведомо кончится тем же отказом, потому что и платёж, и
+    его metadata на стороне провайдера уже неизменны. Логика та же, что для
+    SubscriptionOwnerMissing: постоянная причина → 200, временная → 500
+    (недоступность API и сбой обработки по-прежнему отдают 500 и ретраятся).
+
+    200 без следа было бы молчаливым проглатыванием платежа, поэтому:
+      • запись в payment_events под тем же inv_id, что и обычный платёж —
+        деньги пришли, след обязан остаться, а уникальный индекс заодно
+        не даст обработать этот платёж повторно;
+      • уведомление владельцу — разбираться руками.
+
+    Порядок несущий, как и в _handle_refund: коммит ДО уведомления, поэтому
+    параллельный ретрай уходит по ветке IntegrityError и второго сообщения в
+    Telegram не будет.
+
+    user_id/tier могут быть None (непригодная metadata) — колонки nullable.
+    """
+    try:
+        db.add(PaymentEvent(
+            provider=PROVIDER,
+            inv_id=payment_id,
+            user_id=user_id or None,
+            tier=tier or None,
+            period=None,
+            amount=amount,
+        ))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        logger.info("YooKassa: повторная доставка непригодного платежа %s, пропущено", payment_id)
+        return {"ok": True}
+
+    logger.error(
+        "YooKassa: платёж %s записан, но подписка НЕ выдана — %s", payment_id, problem,
+    )
+    await _notify_unusable_payment(payment_id, problem, amount, tier)
+    return {"ok": True}
+
+
+async def _notify_unusable_payment(payment_id, problem: str, amount: float, tier) -> None:
+    """Сообщить владельцу о платеже, по которому ничего не выдано.
+
+    Пятая тонкая обёртка над send_support_message — новый канал не заводится.
+    Троттла нет по той же причине, что и у _notify_orphan_payment: это деньги
+    и единичное событие, пропустить нельзя ни одного.
+
+    Сырую metadata платежа сюда намеренно НЕ кладём (решение владельца
+    23.08.2026): по payment_id всё остальное видно в кабинете ЮKassa, а состав
+    полей metadata может измениться, и передача их в служебный чат политикой
+    конфиденциальности не описана. Уходит только payment_id, сумма и тариф,
+    если он вообще распознан.
+    """
+    from backend.email_service import TIER_NAMES
+    from backend.notifications.telegram import send_support_message
+
+    tier_line = f"Тариф: {TIER_NAMES.get(tier, tier)}\n" if tier else "Тариф: не распознан\n"
+    text = (
+        "⚠️ ЮKassa: платёж получен, подписка НЕ выдана\n"
+        f"Причина: {problem}\n"
+        f"Сумма платежа: {amount:.2f}\n"
+        f"{tier_line}"
+        f"Дата: {utcnow().strftime('%d.%m.%Y %H:%M')} UTC\n"
+        f"payment_id: {payment_id}\n\n"
+        "Платёж записан в payment_events, деньги не потерялись. Нужно два "
+        "действия:\n"
+        "1) Провести доход вручную в «Мой налог» — деньги получены.\n"
+        "2) Решить с доступом: выдать тариф через админку "
+        "(/api/v1/payments/admin/set-tier) или вернуть деньги. Подробности "
+        "платежа — по payment_id в кабинете ЮKassa."
+    )
+    try:
+        await send_support_message(text)
+    except Exception:
+        logger.warning("YooKassa: не удалось отправить уведомление о непригодном платеже %s", payment_id)
 
 
 async def _notify_orphan_payment(payment_id, user_id, tier, amount) -> None:

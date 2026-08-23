@@ -32,6 +32,7 @@ from backend.time_utils import utcnow
 YOOKASSA_IP = "185.71.76.1"
 FOREIGN_IP = "203.0.113.7"
 
+PAYMENT_ID = "2f0c8a1e-000f-5000-8000-1d0e0c0b0a09"
 WEBHOOK_URL = "/api/v1/payments/yookassa/notification"
 CHECKOUT_URL = "/api/v1/payments/checkout"
 
@@ -70,6 +71,24 @@ def _api_payment(user_id, tier="pro", amount=None, status="succeeded"):
         "amount": {"value": f"{value:.2f}", "currency": "RUB"},
         "metadata": {"user_id": str(user_id), "tier": tier, "period": "monthly"},
     }
+
+
+@pytest.fixture
+def telegram_capture(monkeypatch):
+    """Перехват уведомлений владельцу.
+
+    Платежи, по которым ничего не выдано (расхождение суммы/валюты,
+    непригодная metadata), отвечают 200 — единственный признак, что платёж не
+    проглочен молча, это запись в БД и сообщение отсюда.
+    """
+    sent: list[str] = []
+
+    async def _fake(text, photo_path=None):
+        sent.append(text)
+        return True
+
+    monkeypatch.setattr("backend.notifications.telegram.send_support_message", _fake)
+    return sent
 
 
 @pytest.fixture
@@ -145,7 +164,9 @@ class TestCheckoutTiers:
         assert captured["json"]["amount"]["value"] == f"{TIER_PRICES_RUB[tier]:.2f}"
         assert captured["json"]["metadata"]["tier"] == tier
         assert "Idempotence-Key" in captured["headers"]
-        # 54-ФЗ: блок чека пока не формируем — ждём ответ поддержки ЮKassa.
+        # 54-ФЗ: блока receipt нет и не будет. ЮKassa закрыла «Чеки для
+        # самозанятых» 29.12.2025 (ответ поддержки получен 22.08.2026) —
+        # передавать чек некуда, приёмника не существует. См. CLAUDE.md.
         assert "receipt" not in captured["json"]
 
     def test_unconfigured_returns_503(self, client, auth_headers_free, monkeypatch):
@@ -279,17 +300,26 @@ class TestPaymentSucceeded:
         assert subs[0].current_period_end == first_end, "повтор продлил подписку"
         assert db.query(PaymentEvent).filter(PaymentEvent.inv_id.notlike("refund:%")).count() == 1
 
-    def test_amount_mismatch_does_not_activate(self, client, db, user_free, from_yookassa, api_returns):
+    def test_amount_mismatch_does_not_activate(self, client, db, user_free, from_yookassa,
+                                                api_returns, telegram_capture):
         """Заплатили 1 ₽ за Pro — подписки быть не должно."""
         api_returns(_api_payment(user_free.id, tier="pro", amount=1.0))
 
         resp = client.post(WEBHOOK_URL, json=_payment_body())
 
-        assert resp.status_code == 400, resp.text
+        assert resp.status_code == 200, "400 заставлял ЮKassa ретраить сутки без шанса на успех"
         db.expire_all()
         assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
+        event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first()
+        assert event is not None, "платёж проглочен молча — деньги пришли без следа"
+        assert event.amount == 1.0
+        assert len(telegram_capture) == 1, "владелец должен узнать о расхождении"
+        msg = telegram_capture[0]
+        assert "1.00" in msg and "2490.00" in msg, "нужны фактическая и ожидаемая суммы"
+        assert PAYMENT_ID in msg
 
-    def test_foreign_currency_does_not_activate(self, client, db, user_free, from_yookassa, api_returns):
+    def test_foreign_currency_does_not_activate(self, client, db, user_free, from_yookassa,
+                                                api_returns, telegram_capture):
         """Аудит 23.08.2026, находка 2.3: сверялся только amount.value, и «2490»
         в любой валюте проходило как 2490 ₽ — TIER_PRICES_RUB рублёвые."""
         payment = _api_payment(user_free.id, tier="pro")
@@ -299,11 +329,13 @@ class TestPaymentSucceeded:
 
         resp = client.post(WEBHOOK_URL, json=_payment_body())
 
-        assert resp.status_code == 400, resp.text
+        assert resp.status_code == 200, resp.text
         db.expire_all()
         assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
-        assert db.query(PaymentEvent).filter(PaymentEvent.inv_id.notlike("refund:%")).count() == 0, \
-            "платёж в чужой валюте не должен оставлять запись об оплате"
+        event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first()
+        assert event is not None, "платёж в чужой валюте тоже обязан оставить след"
+        assert len(telegram_capture) == 1
+        assert "KZT" in telegram_capture[0], "в сообщении должна быть фактическая валюта"
 
     def test_missing_user_keeps_payment_record_and_does_not_retry(
         self, client, db, from_yookassa, api_returns, monkeypatch
@@ -366,15 +398,63 @@ class TestPaymentSucceeded:
         assert "НЕКОМУ" in sent[0]
         assert "Мой налог" in sent[0], "доход провести надо в любом случае — это должно быть в сообщении"
 
-    def test_premium_metadata_rejected(self, client, db, user_free, from_yookassa, api_returns):
-        """Даже если платёж на 7990 каким-то образом создан — Орион не выдаём."""
+    def test_premium_metadata_rejected(self, client, db, user_free, from_yookassa,
+                                        api_returns, telegram_capture):
+        """Даже если платёж на 7990 каким-то образом создан — Орион не выдаём.
+
+        Аудит 23.08.2026, находка 2.9: причина постоянная (metadata платежа на
+        стороне ЮKassa уже неизменна), поэтому 200 плюс запись и уведомление, а
+        не 400 с сутками бесполезных ретраев. Деньги за тариф, который мы не
+        обслуживаем, — как раз тот случай, где след обязателен.
+        """
         api_returns(_api_payment(user_free.id, tier="premium"))
 
         resp = client.post(WEBHOOK_URL, json=_payment_body())
 
-        assert resp.status_code == 400, resp.text
+        assert resp.status_code == 200, resp.text
+        assert db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first() is not None
+        assert len(telegram_capture) == 1
+        assert PAYMENT_ID in telegram_capture[0]
         db.expire_all()
         assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
+
+    def test_metadata_without_user_id_is_recorded_not_retried(
+        self, client, db, from_yookassa, api_returns, telegram_capture
+    ):
+        """Аудит 23.08.2026, находка 2.9: платёж без user_id в metadata.
+
+        Причина постоянная — metadata неизменна, ретрай дал бы тот же отказ.
+        Раньше отвечали 400: сутки ретраев, потом платёж исчезал без следа и
+        без уведомления. Тариф тут не распознан, поэтому в записи он пуст —
+        колонки payment_events.user_id/tier объявлены nullable как раз под
+        такие случаи.
+        """
+        payment = _api_payment("irrelevant", tier="pro")
+        payment["metadata"] = {}
+        api_returns(payment)
+
+        resp = client.post(WEBHOOK_URL, json=_payment_body())
+
+        assert resp.status_code == 200, resp.text
+        event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first()
+        assert event is not None, "платёж без metadata тоже обязан оставить след"
+        assert event.user_id is None and event.tier is None
+        assert len(telegram_capture) == 1
+        assert PAYMENT_ID in telegram_capture[0]
+
+    def test_unusable_payment_replay_does_not_notify_twice(
+        self, client, db, user_free, from_yookassa, api_returns, telegram_capture
+    ):
+        """Ретрай до того, как ЮKassa увидела 200, не должен слать второе
+        сообщение: дедупликация держится на уникальном inv_id, коммит идёт
+        ДО уведомления."""
+        api_returns(_api_payment(user_free.id, tier="pro", amount=1.0))
+
+        for _ in range(3):
+            assert client.post(WEBHOOK_URL, json=_payment_body()).status_code == 200
+
+        assert db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).count() == 1
+        assert len(telegram_capture) == 1, "повторная доставка отправила второе сообщение"
 
     def test_api_unavailable_returns_500_for_retry(self, client, db, user_free, from_yookassa, api_returns):
         """Не смогли перечитать платёж — активировать по неподписанному телу
