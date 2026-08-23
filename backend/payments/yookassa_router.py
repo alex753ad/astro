@@ -42,6 +42,7 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.limiter import client_ip
 from backend.models import PaymentEvent, Subscription, User
+from backend.redis_client import get_redis
 from backend.time_utils import utcnow
 from backend.payments.common import (
     TIER_PRICES_RUB,
@@ -124,6 +125,73 @@ def _amount_value(obj: dict[str, Any]) -> float:
         return float((obj.get("amount") or {}).get("value") or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+# Троттлинг уведомлений об отказе по IP. ЮKassa ретраит доставку, а сломавшийся
+# фильтр отбивает подряд всё — без окна владелец получит сотни сообщений и
+# перестанет их читать. Счётчик в Redis, а не в памяти процесса: перезапуск
+# контейнера не должен открывать окно заново.
+_IP_REJECT_NOTIFY_KEY = "yookassa:ip_reject_notified"
+_IP_REJECT_COUNT_KEY = "yookassa:ip_reject_count"
+_IP_REJECT_WINDOW_SEC = 3600
+
+
+async def _notify_ip_reject(ip: str) -> None:
+    """Сообщить владельцу, что вебхук отбит по IP — не чаще раза в час.
+
+    Зачем: отказ виден только в логе контейнера, а логи не переживают деплой.
+    Если список подсетей ЮKassa устареет, изменится docker-сеть или сломается
+    определение IP, платежи начнут молча не активироваться — деньги списаны,
+    подписки нет, узнать неоткуда.
+
+    Тело запроса намеренно НЕ пересылается: там платёжные данные, а чат
+    служебный. Уходит только адрес отправителя, число отказов за окно и дата
+    последней сверки списка подсетей.
+
+    Молчит при недоступности Redis (без счётчика нечем сдержать лавину —
+    предпочитаем не уведомить, чем завалить чат) и при незаданном
+    TELEGRAM_SUPPORT_CHAT_ID, как и _notify_payment. Ни то, ни другое не
+    меняет ответ вебхука: как отвечали 403, так и отвечаем.
+    """
+    from backend.notifications.telegram import send_support_message
+
+    try:
+        redis = get_redis()
+        rejected = await redis.incr(_IP_REJECT_COUNT_KEY)
+        if rejected == 1:
+            await redis.expire(_IP_REJECT_COUNT_KEY, _IP_REJECT_WINDOW_SEC)
+        # SET NX: окно занимает ровно один запрос, даже если отказы пришли
+        # одновременно в несколько соединений.
+        claimed = await redis.set(
+            _IP_REJECT_NOTIFY_KEY, "1", ex=_IP_REJECT_WINDOW_SEC, nx=True
+        )
+        if not claimed:
+            return
+        # Следующее окно считает с нуля — в сообщении будет число за период,
+        # а не с начала времён.
+        await redis.delete(_IP_REJECT_COUNT_KEY)
+    except Exception as exc:
+        logger.warning(
+            "YooKassa: троттлинг уведомления об отказе по IP недоступен, "
+            "сообщение не отправлено: %s", exc,
+        )
+        return
+
+    text = (
+        "🚫 ЮKassa: вебхук отбит по IP-фильтру\n"
+        f"Отправитель: {ip}\n"
+        f"Отказов за последний час: {rejected}\n"
+        f"Список подсетей сверялся: {YOOKASSA_IP_LIST_CHECKED}\n"
+        f"Время: {utcnow().strftime('%d.%m.%Y %H:%M')} UTC\n\n"
+        "⚠️ Если это была сама ЮKassa, а не чужой запрос — платежи сейчас НЕ "
+        "активируются: деньги списываются, подписка не выдаётся. Сверьте "
+        "список подсетей (yookassa.ru/developers/using-api/webhooks) и "
+        "TRUSTED_PROXY_IPS."
+    )
+    try:
+        await send_support_message(text)
+    except Exception:
+        logger.warning("YooKassa: не удалось отправить уведомление об отказе по IP")
 
 
 # ── Checkout ───────────────────────────────────────────────
@@ -241,6 +309,8 @@ async def yookassa_notification(request: Request, db: Session = Depends(get_db))
             "https://yookassa.ru/developers/using-api/webhooks",
             ip, YOOKASSA_IP_LIST_CHECKED,
         )
+        # Лог не переживает деплой — дублируем владельцу в Telegram (раз в час).
+        await _notify_ip_reject(ip)
         raise HTTPException(status_code=403, detail="forbidden")
 
     try:

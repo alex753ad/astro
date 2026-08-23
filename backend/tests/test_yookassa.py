@@ -187,6 +187,60 @@ class TestWebhookIPCheck:
     def test_outside_addresses_rejected(self, ip):
         assert not yk._is_yookassa_ip(ip)
 
+    def test_reject_notifies_owner_once_per_window(self, client, monkeypatch):
+        """Отказ по IP виден только в логе контейнера, а логи не переживают
+        деплой: если фильтр сломается (устареет список подсетей, изменится
+        docker-сеть), платежи молча перестанут активироваться. Владельцу
+        должно прийти сообщение — но ЮKassa ретраит доставку, поэтому ровно
+        одно за окно, иначе чат завалит и его перестанут читать."""
+        class _FakeRedis:
+            """Ровно те операции, что использует _notify_ip_reject."""
+            def __init__(self):
+                self.store: dict[str, str] = {}
+
+            async def incr(self, key):
+                self.store[key] = str(int(self.store.get(key, 0)) + 1)
+                return int(self.store[key])
+
+            async def expire(self, key, ttl):
+                return True
+
+            async def set(self, key, value, ex=None, nx=False):
+                if nx and key in self.store:
+                    return None  # окно уже занято
+                self.store[key] = value
+                return True
+
+            async def delete(self, key):
+                self.store.pop(key, None)
+                return 1
+
+        sent: list[str] = []
+
+        async def _fake_send(text, photo_path=None):
+            sent.append(text)
+            return True
+
+        fake_redis = _FakeRedis()
+        monkeypatch.setattr(yk, "get_redis", lambda: fake_redis)
+        monkeypatch.setattr("backend.notifications.telegram.send_support_message", _fake_send)
+        monkeypatch.setattr(yk, "client_ip", lambda request: FOREIGN_IP)
+
+        first = client.post(WEBHOOK_URL, json=_payment_body())
+
+        assert first.status_code == 403, "уведомление не должно менять ответ вебхука"
+        assert len(sent) == 1, "первый отказ обязан уведомить владельца"
+        assert FOREIGN_IP in sent[0], "в сообщении должен быть адрес отправителя"
+        assert yk.YOOKASSA_IP_LIST_CHECKED in sent[0], "нужна дата сверки списка подсетей"
+        # Тело запроса не пересылаем: там платёжные данные, а чат служебный.
+        assert "2f0c8a1e" not in sent[0], "тело вебхука не должно попадать в чат"
+
+        for _ in range(4):
+            repeat = client.post(WEBHOOK_URL, json=_payment_body())
+            assert repeat.status_code == 403
+
+        assert len(sent) == 1, "ретраи в пределах часа не должны слать второе сообщение"
+
 
 # ── payment.succeeded ──────────────────────────────────────
 

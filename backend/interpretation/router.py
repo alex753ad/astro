@@ -1,4 +1,19 @@
-"""Interpretation router — GPT-4o → DeepSeek → Template fallback chain."""
+"""Interpretation router — цепочка движков интерпретации.
+
+⚠️ Заголовок этого модуля до 23.08.2026 гласил «GPT-4o → DeepSeek → Template
+fallback chain». Это неверно и вводило в заблуждение: реальный порядок строит
+`_engines_for_tier` ниже, и **DeepSeek стоит первым всегда**, включая pro и
+premium. GPT-4o вообще попадает в список только для pro/premium и только как
+запасной вариант, если DeepSeek упал или не прошёл валидацию ответа:
+
+    DeepSeek v4-pro → [GPT-4o, если pro/premium] → Template
+
+`select_model` возвращает «предпочтительный» движок, но им определяется лишь,
+попадёт ли GPT-4o в очередь, — первым он не становится никогда. Модель DeepSeek
+одна на все тарифы (`TIER_FLAGS[*]["ai_engine"]` == `deepseek_model_pro`),
+тариф регулирует глубину через `interpretation_word_limit`, а не выбор модели
+(решение владельца 19.08.2026, см. CLAUDE.md, раздел «AI-контуры»).
+"""
 
 from __future__ import annotations
 
