@@ -375,6 +375,21 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
         )
         raise HTTPException(status_code=400, detail="amount mismatch")
 
+    # Валюта — часть сверки суммы, а не отдельная проверка (аудит 23.08.2026,
+    # находка 2.3). До этого читался только amount.value, и «790» в любой
+    # валюте проходило как 790 ₽: TIER_PRICES_RUB — рубли по определению.
+    # Сегодня чекаут жёстко ставит RUB (см. create_checkout), поэтому путь
+    # недостижим — но ровно эта проверка выстрелит первой, если в кабинете
+    # ЮKassa включат мультивалютность или появится второй способ создать
+    # платёж. Дешевле держать её, чем вспоминать про неё потом.
+    currency = str((payment.get("amount") or {}).get("currency") or "")
+    if currency != "RUB":
+        logger.error(
+            "YooKassa: валюта платежа %s не RUB (%s) — цены в TIER_PRICES_RUB рублёвые, подписка НЕ выдана",
+            payment_id, currency or "не указана",
+        )
+        raise HTTPException(status_code=400, detail="currency mismatch")
+
     try:
         process_payment(
             db,

@@ -289,6 +289,22 @@ class TestPaymentSucceeded:
         db.expire_all()
         assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
 
+    def test_foreign_currency_does_not_activate(self, client, db, user_free, from_yookassa, api_returns):
+        """Аудит 23.08.2026, находка 2.3: сверялся только amount.value, и «2490»
+        в любой валюте проходило как 2490 ₽ — TIER_PRICES_RUB рублёвые."""
+        payment = _api_payment(user_free.id, tier="pro")
+        assert payment["amount"]["value"] == "2490.00", "тест потерял смысл: сумма не совпадает с ценой Лиры"
+        payment["amount"]["currency"] = "KZT"
+        api_returns(payment)
+
+        resp = client.post(WEBHOOK_URL, json=_payment_body())
+
+        assert resp.status_code == 400, resp.text
+        db.expire_all()
+        assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
+        assert db.query(PaymentEvent).filter(PaymentEvent.inv_id.notlike("refund:%")).count() == 0, \
+            "платёж в чужой валюте не должен оставлять запись об оплате"
+
     def test_premium_metadata_rejected(self, client, db, user_free, from_yookassa, api_returns):
         """Даже если платёж на 7990 каким-то образом создан — Орион не выдаём."""
         api_returns(_api_payment(user_free.id, tier="premium"))
