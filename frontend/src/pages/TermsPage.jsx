@@ -157,7 +157,7 @@ export default function TermsPage() {
           <p style={{ ...s.p, margin: '4px 0 0' }}>Адрес: г. Новочеркасск, Ростовская область</p>
           <p style={{ ...s.p, margin: '4px 0 0' }}>Сайт: <a href="https://www.astreatime.ru/" style={s.link}>https://www.astreatime.ru/</a></p>
           <p style={{ ...s.p, margin: '4px 0 0' }}>Email: <a href="mailto:careastrea@yandex.ru" style={s.link}>careastrea@yandex.ru</a></p>
-          <p style={{ ...s.p, margin: '4px 0 0' }}>Телефон: +7 910 853-72-37</p>
+          <p style={{ ...s.p, margin: '4px 0 0' }}>Телефон: +7 910 655-65-03</p>
           <p style={{ ...s.p, margin: '4px 0 0' }}>Поддержка: ежедневно, без выходных; ответ в течение 24 часов.</p>
         </div>
 
