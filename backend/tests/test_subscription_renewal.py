@@ -106,6 +106,65 @@ class TestTierChangeResets:
         assert 29 < _days_from_now(sub.current_period_end) <= 30
 
 
+# ── Правило обязано быть описано в оферте ──────────────────
+
+class TestOfferDocumentsTheRule:
+    """Сгорание остатка при смене тарифа — то, о чём пользователь узнаёт
+    постфактум, если не написать. Купивший Лиру на 25-й день Веги теряет пять
+    дней; по ЗоЗПП это недоведённая информация об услуге.
+
+    Правило работает в коде с самого начала (см. TestTierChangeResets выше) и
+    до 23.08.2026 нигде не было описано. Тесты ниже связывают код с текстом:
+    если поведение поменяют, упадёт последний тест и напомнит, что оферта
+    стала неправдой.
+
+    Текст проверяется в ОБЕИХ половинах пары: TermsPage.jsx — то, что видит
+    пользователь, oferta_final.md — утверждённый владельцем исходник.
+    Расхождение пары недопустимо (CLAUDE.md).
+    """
+
+    CLAUSE = (
+        "При переходе на другой тариф до окончания оплаченного периода "
+        "неиспользованные дни текущего тарифа не переносятся и не компенсируются. "
+        "Новый тариф действует 30 дней с даты оплаты."
+    )
+
+    @staticmethod
+    def _read(*parts) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parents[2].joinpath(*parts)).read_text(encoding="utf-8")
+
+    def test_clause_present_in_both_halves_of_the_pair(self):
+        page = self._read("frontend", "src", "pages", "TermsPage.jsx")
+        source = self._read("oferta_final.md")
+        assert self.CLAUSE in page, "оферта на сайте не предупреждает о сгорании остатка"
+        assert self.CLAUSE in source, "oferta_final.md разошёлся с TermsPage.jsx"
+
+    def test_pricing_page_warns_too(self):
+        pricing = self._read("frontend", "src", "pages", "PricingPage.jsx")
+        assert "При переходе на другой тариф" in pricing, \
+            "на /pricing нет предупреждения — человек видит цену раньше, чем оферту"
+
+    def test_clause_matches_actual_behaviour(self, db, user_free):
+        """Если этот тест упал — сначала прочитать оферту, п. 4.3.
+
+        Код перестал сжигать остаток при смене тарифа, значит текст в
+        TermsPage.jsx / oferta_final.md стал неправдой. Писать в оферте то,
+        чего код не делает, хуже, чем не писать ничего: править надо оба места
+        разом, а не «чинить» этот assert.
+        """
+        _pay(db, user_free.id, "pay-1", tier="lite")
+        before = _sub(db, user_free.id).current_period_end
+
+        _pay(db, user_free.id, "pay-2", tier="pro")
+        after = _sub(db, user_free.id).current_period_end
+
+        assert after < before + timedelta(days=29), (
+            "остаток прежнего тарифа перенёсся — оферта (п. 4.3) обещает обратное"
+        )
+        assert 29 < _days_from_now(after) <= 30, "новый тариф должен идти 30 дней с даты оплаты"
+
+
 # ── Истёкшая подписка ──────────────────────────────────────
 
 class TestExpiredStartsFromToday:

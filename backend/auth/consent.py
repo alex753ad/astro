@@ -4,5 +4,5 @@
 друг от друга, поэтому две константы, а не одна.
 """
 
-CURRENT_TERMS_VERSION = "2026-08-20"
+CURRENT_TERMS_VERSION = "2026-08-23"
 CURRENT_PRIVACY_VERSION = "2026-08-20"
