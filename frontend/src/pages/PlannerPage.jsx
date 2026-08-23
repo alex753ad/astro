@@ -840,12 +840,22 @@ function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warnin
             <div className="period-group" key={gi}>
               {g.heading && <div className="period-group-heading">{g.heading}</div>}
               <ul className="period-items">
-                {g.items.map((item, i) => (
-                  <li key={i}>
-                    <span className="dot" style={{ background: color }} />
-                    {item}
-                  </li>
-                ))}
+                {g.items.map((item, i) => {
+                  const colonIdx = item.indexOf(':');
+                  return (
+                    <li key={i}>
+                      <span className="dot" style={{ background: color }} />
+                      <span>
+                        {colonIdx === -1 ? item : (
+                          <>
+                            <strong>{item.slice(0, colonIdx + 1)}</strong>
+                            {item.slice(colonIdx + 1)}
+                          </>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
