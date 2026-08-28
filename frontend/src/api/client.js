@@ -34,6 +34,29 @@ export function apiErrorText(err, fallback) {
   return typeof err?.status === 'number' && err.message ? err.message : fallback;
 }
 
+/**
+ * То же, но для потоковых ответов, которые читаются вручную через
+ * resp.body.getReader() и мимо request() — там ApiError не создаётся, а
+ * непрочитанный detail просто пропадает.
+ *
+ * Тело читается ОДИН раз и только при !resp.ok: у Response тело одноразовое,
+ * и вызвать json() после getReader() (или наоборот) уже нельзя.
+ *
+ * detail не всегда строка: часть эндпоинтов отдаёт объект вида
+ * {error: "tier_required", required: "pro"} — его пользователю показывать
+ * нечего, поэтому такие случаи уходят в запасной текст со статусом.
+ */
+export async function responseErrorText(resp, fallback = 'Не удалось загрузить.') {
+  let detail;
+  try {
+    detail = (await resp.json())?.detail;
+  } catch {
+    // тело не JSON или пустое — сказать нечего
+  }
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  return resp.status ? `${fallback} (${resp.status})` : fallback;
+}
+
 const ACCESS_TOKEN_KEY  = 'astro_access_token';
 // Refresh-токена здесь больше нет: он живёт в HttpOnly-куке astro_refresh,
 // которую JS не читает и не пишет. Раньше он лежал в localStorage и жил 7 дней —
@@ -323,6 +346,17 @@ export async function streamTransitEventInterpretation(chartId, transitEvent, on
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(transitEvent),
     });
+
+    // Проверка статуса до getReader(). Без неё на 403 («AI-расшифровка
+    // транзитов доступна на Лире и выше») в тело уходил обычный JSON без строк
+    // `data: `, цикл ниже не выдавал ни одного события, доходил до done и
+    // вызывал onDone — то есть отказ выглядел как успешно завершившийся пустой
+    // разбор: пустая панель и ни слова объяснения. Здесь, в отличие от
+    // EventSource, статус и тело доступны — их надо просто прочитать.
+    if (!resp.ok) {
+      onError?.(await responseErrorText(resp, 'Не удалось загрузить разбор транзита.'));
+      return;
+    }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();

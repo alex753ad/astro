@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES, tierPriceLabel, tierFeatures } from "../constants";
-import { createCheckoutSession, getSubscription, authFetch, apiErrorText } from "../api/client";
+import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
 import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
 import LyraPaywallModal from "./LyraPaywallModal";
@@ -635,7 +635,11 @@ function InterpretationPanel({ event, chartId, onClose }) {
       signal: ctrl.signal,
     })
       .then(async r => {
-        if (!r.ok) throw new Error(r.statusText);
+        // statusText — это «Forbidden»/«Too Many Requests» на языке протокола.
+        // Пользователю нужен detail: бэкенд формулирует его по-русски и по делу
+        // («AI-расшифровка транзитов доступна на Лире и выше»). Ниже .catch
+        // кладёт e.message в setError, поэтому текст доезжает до экрана.
+        if (!r.ok) throw new Error(await responseErrorText(r, "Не удалось загрузить разбор транзита."));
         const reader = r.body.getReader();
         const dec    = new TextDecoder();
         while (true) {
