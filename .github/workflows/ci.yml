@@ -299,7 +299,12 @@ jobs:
     #
     # Окружение оставлено: оно даёт журнал деплоев и область для секретов.
     # Именем `production` регистронезависимо матчится окружение «Production».
-    if: github.event_name == 'workflow_dispatch'
+    #
+    # Проверка ветки обязательна отдельно от события: workflow_dispatch
+    # запускается с любой ветки (`gh workflow run ci.yml --ref <любая>`), и без
+    # неё на прод уехал бы код этой ветки. Раньше привязка к main была частью
+    # прежнего условия, при переводе на ручной запуск потерялась.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
 
     environment: production
 
