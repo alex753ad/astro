@@ -139,6 +139,17 @@ class NatalChart(Base):
 
     created_at = Column(DateTime, default=utcnow)
 
+    # Бесплатный AI-разбор Free-тарифа: одна штука на КАЖДУЮ сохранённую карту
+    # (048). Раньше ключом был аккаунт (users.free_interpretation_used), и
+    # человек с двумя слотами под карты мог разобрать только одну из них.
+    # Потолок задаёт profiles_limit, отдельного счётчика нет: два слота — два
+    # разбора. Удаление карты возвращает право по новой само собой, вместе со
+    # строкой. Ставится только в TierRateLimiter.commit_interpretation, поэтому
+    # PDF-эндпоинт, намеренно обходящий проверку лимита, право не тратит.
+    free_interpretation_used = Column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
+
     user = relationship("User", back_populates="charts", foreign_keys=[user_id])
     interpretations = relationship(
         "Interpretation", back_populates="chart", cascade="all, delete-orphan"

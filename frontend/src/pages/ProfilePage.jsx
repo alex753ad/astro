@@ -646,9 +646,6 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         const transitAiLimit = lim.transits_ai_per_month;     // 3 у lite, null у pro/premium, 0 у free
         const transitAiUsed = use.transit_ai_this_month ?? 0;
 
-        // Free: показываем статус бесплатной интерпретации отдельно
-        const freeInterpAvailable = feat.first_interpretation_available;
-
         // Pro/Premium — интерпретации безлимитны
         const interpUnlimited = feat.unlimited_interpretations;
 
@@ -656,13 +653,16 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           <div style={S.card}>
             <p style={S.cardTitle}>Использование в этом месяце</p>
 
-            {tier === 'free' ? (
-              <div style={{ fontSize: 13, color: 'var(--accent-glow)', marginBottom: 12 }}>
-                {freeInterpAvailable
-                  ? '🎁 У вас есть 1 бесплатная интерпретация карты'
-                  : '✓ Бесплатная интерпретация использована'}
-              </div>
-            ) : (
+            {/* У Free строки о бесплатной интерпретации больше нет. Она читала
+                features.first_interpretation_available — флаг на АККАУНТЕ, а с
+                048 право считается по каждой карте отдельно: после разбора
+                первой карты флаг гас, и строка сообщала «использована», хотя по
+                второй карте разбор оставался доступен. Показывать неверное
+                состояние хуже, чем не показывать ничего, а счётчик вида
+                «осталась 1 из 2» здесь не нужен по решению владельца: вторая
+                интерпретация просто открывается. Сам флаг в API остался — он
+                отвечает на вопрос «разбирал ли пользователь хоть раз». */}
+            {tier !== 'free' && (
               <UsageBar
                 label="AI-интерпретации"
                 used={interpUsed}

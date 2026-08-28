@@ -326,12 +326,23 @@ class TierRateLimiter:
     «съедала» лимит. Инкремент вызывается отдельно (commit_*).
     """
 
-    def check_interpretation_limit(self, user: Optional[User], db=None) -> None:
+    def check_interpretation_limit(self, user: Optional[User], db=None, chart=None) -> None:
         """Проверка лимита интерпретаций.
 
-        Free: 0/мес по тарифу, НО одна бесплатная навсегда (3.3) —
-              разрешается, если user.free_interpretation_used == False.
+        Free: 0/мес по тарифу, НО одна бесплатная на КАЖДУЮ сохранённую карту —
+              разрешается, если chart.free_interpretation_used == False.
+              Ключ — карта, а не аккаунт: у Free два слота (profiles_limit),
+              значит два разбора. Отдельного счётчика нет и не нужно — потолок
+              задаёт число слотов, а удаление карты возвращает право по новой
+              вместе со строкой.
         Lite/Pro/Premium: месячный лимит из usage_counters.
+
+        `chart` обязателен для Free. Вызывающая сторона (main.py) передаёт уже
+        разрешённую resolve_chart_access карту, поэтому проверка стоит ПОСЛЕ
+        неё: до 28.08.2026 лимит отбивал раньше доступа, и Free-пользователь,
+        спросивший чужую карту, получал 403 вместо 404. Теперь наоборот, и это
+        не утечка — resolve_chart_access отвечает 404 одинаково на «нет карты»
+        и «нет доступа».
         """
         if user is None:
             # анонимы — только превью, блокируется на уровне эндпоинта
@@ -344,10 +355,16 @@ class TierRateLimiter:
         flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
         limit = flags["interpretations_per_month"]
 
-        # 3.3 — первая бесплатная интерпретация для Free
+        # Бесплатный разбор Free — по одному на карту (048)
         if limit == 0 and flags.get("first_interpretation_free"):
-            if not getattr(user, "free_interpretation_used", False):
-                return  # разрешаем первую и единственную бесплатную
+            # chart=None означает, что вызывающая сторона карту не передала.
+            # Отказывать в этом случае нельзя (это была бы поломка на ровном
+            # месте), пропускать молча — тоже: право осталось бы бесконтрольным.
+            # Такой вызывающей стороны сейчас нет, обе передают карту.
+            if chart is not None and not getattr(chart, "free_interpretation_used", False):
+                return  # по этой карте разбора ещё не было
+            if chart is None and not getattr(user, "free_interpretation_used", False):
+                return  # запасной путь по старому ключу — аккаунт целиком
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -381,7 +398,7 @@ class TierRateLimiter:
                 ),
             )
 
-    def commit_interpretation(self, user: Optional[User], db) -> None:
+    def commit_interpretation(self, user: Optional[User], db, chart=None) -> None:
         """Зафиксировать расход интерпретации ПОСЛЕ успешной генерации."""
         if user is None or db is None:
             return
@@ -389,11 +406,21 @@ class TierRateLimiter:
         flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
         limit = flags["interpretations_per_month"]
 
-        # 3.3 — отметить, что бесплатная интерпретация Free израсходована
+        # Free: гасим право по КАРТЕ (048). users.free_interpretation_used при
+        # этом продолжаем писать — гейтом он больше не является, но остаётся
+        # ответом на вопрос «разбирал ли пользователь хоть раз» (его читает
+        # get_feature_flags.first_interpretation_available).
         if limit == 0 and flags.get("first_interpretation_free"):
+            changed = False
+            if chart is not None and not getattr(chart, "free_interpretation_used", False):
+                chart.free_interpretation_used = True
+                db.add(chart)
+                changed = True
             if not getattr(user, "free_interpretation_used", False):
                 user.free_interpretation_used = True
                 db.add(user)
+                changed = True
+            if changed:
                 db.commit()
             return
 

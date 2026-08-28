@@ -977,11 +977,16 @@ async def interpret_chart(
     The response is streamed token-by-token for a smooth UX.
     Fallback chain: GPT-4o → DeepSeek V3 → Template engine.
     """
-    tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router, IncompleteInterpretation
 
+    # Проверка лимита переехала ПОСЛЕ resolve_chart_access: с 048 бесплатный
+    # разбор Free считается по карте, а не по аккаунту, и карту сначала надо
+    # получить. Следствие: Free с исчерпанным правом, спросивший чужую или
+    # несуществующую карту, получает 404 вместо прежнего 403. Не утечка —
+    # resolve_chart_access отвечает 404 одинаково на «нет карты» и «нет доступа».
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
+    tier_limiter.check_interpretation_limit(user, db, chart=chart)
 
     # Build natal profile from stored data
     profile = {
@@ -1007,7 +1012,7 @@ async def interpret_chart(
             yield "data: [DONE]\n\n"
             # Расход фиксируем только при реально выданном полном контенте
             if produced:
-                tier_limiter.commit_interpretation(user, db)
+                tier_limiter.commit_interpretation(user, db, chart=chart)
         except IncompleteInterpretation:
             # Обрезано по длине или связь оборвалась после части текста —
             # не [DONE], не засчитываем попытку (см. router.stream()).
@@ -1044,11 +1049,15 @@ async def interpret_chart_full(
 
     Returns the full text at once (no streaming).
     """
-    tier_limiter.check_interpretation_limit(user, db)
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
 
+    # Как и в потоковом близнеце выше: карту получаем ДО проверки лимита —
+    # с 048 бесплатный разбор Free считается по карте. Здесь, в отличие от SSE,
+    # отказ остаётся обычным HTTP 403: этот эндпоинт не потоковый, ответ
+    # доезжает до клиента целиком и читается через ApiError.
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
+    tier_limiter.check_interpretation_limit(user, db, chart=chart)
 
     profile = {
         "planets": chart.planets,
@@ -1066,7 +1075,7 @@ async def interpret_chart_full(
 
     # Успешную генерацию (не сервис-заглушку) фиксируем в счётчик
     if result and result.engine not in ("none",):
-        tier_limiter.commit_interpretation(user, db)
+        tier_limiter.commit_interpretation(user, db, chart=chart)
 
     return {
         "chart_id": chart_id,
