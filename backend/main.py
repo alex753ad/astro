@@ -986,7 +986,26 @@ async def interpret_chart(
     # несуществующую карту, получает 404 вместо прежнего 403. Не утечка —
     # resolve_chart_access отвечает 404 одинаково на «нет карты» и «нет доступа».
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
-    tier_limiter.check_interpretation_limit(user, db, chart=chart)
+
+    # Отказ по лимиту уезжает ПЕРВЫМ СОБЫТИЕМ В ПОТОКЕ, а не HTTP-статусом.
+    # EventSource не даёт JS доступа ни к коду ответа, ни к телу: браузер
+    # сообщает только «ошибка». Прежний 403 до открытия StreamingResponse
+    # означал, что текст «Вы использовали бесплатную интерпретацию…» до
+    # пользователя не доезжал вовсе — после трёх реконнектов он видел
+    # «Соединение прервалось». Клиент (_connectSSE в api/client.js) на событие
+    # с полем error закрывает соединение сам, поэтому реконнектов теперь нет:
+    # ответ 200, обрыва транспорта не происходит.
+    #
+    # Аноним — исключение, ему по-прежнему настоящий 403: для SSE этот статус
+    # работает ещё и как отказ по аутентификации (ходят по одноразовому
+    # тикету), и на нём держится одноразовость тикета (test_sse_tickets.py).
+    limit_error: str | None = None
+    try:
+        tier_limiter.check_interpretation_limit(user, db, chart=chart)
+    except HTTPException as exc:
+        if user is None or not isinstance(exc.detail, str):
+            raise
+        limit_error = exc.detail
 
     # Build natal profile from stored data
     profile = {
@@ -1003,6 +1022,13 @@ async def interpret_chart(
     router = get_router()
 
     async def event_stream():
+        # Отказ по лимиту: единственное событие и выход. Ни [DONE] (клиент
+        # счёл бы это успехом), ни обращений к БД, ни расхода — до цикла не
+        # доходим, produced остаётся False.
+        if limit_error is not None:
+            yield f"data: {json.dumps({'error': limit_error}, ensure_ascii=False)}\n\n"
+            return
+
         produced = False
         try:
             async for chunk in router.stream(interp_request):
