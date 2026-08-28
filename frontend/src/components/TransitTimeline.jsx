@@ -1081,8 +1081,14 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     if (checkoutLoading) return;
     setCheckoutLoading(true);
     try {
-      const { url } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
-      window.location.href = url;
+      // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
+      const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
+      if (!checkoutUrl) {
+        alert("Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.");
+        setCheckoutLoading(false);
+        return;
+      }
+      window.location.href = checkoutUrl;
     } catch (e) {
       alert("Не удалось открыть страницу оплаты. Попробуйте позже.");
       setCheckoutLoading(false);

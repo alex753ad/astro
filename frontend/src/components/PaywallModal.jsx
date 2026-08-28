@@ -131,8 +131,18 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
     setLoading(true);
     setError(null);
     try {
-      const { url } = await createCheckoutSession(content.tier, 'monthly', chartId, promoApplied || null);
-      window.location.href = url;
+      // Поле называется checkout_url — так его отдаёт POST /payments/checkout
+      // (backend/payments/yookassa_router.py). Раньше здесь читалось { url } —
+      // форма ответа Stripe Checkout Session, удалённого 19.08.2026: значение
+      // было undefined, браузер уходил на /undefined и показывал пустую
+      // страницу, а исключения не возникало и catch не срабатывал.
+      const { checkout_url: checkoutUrl } = await createCheckoutSession(content.tier, 'monthly', chartId, promoApplied || null);
+      if (!checkoutUrl) {
+        setError('Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.');
+        setLoading(false);
+        return;
+      }
+      window.location.href = checkoutUrl;
     } catch (e) {
       if (e.detail?.error === 'invalid_promo_code') {
         setPromoError('Промокод не действителен');

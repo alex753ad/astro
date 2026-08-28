@@ -337,8 +337,14 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (chatCheckoutLoading) return;
     setChatCheckoutLoading(true);
     try {
-      const { url } = await createCheckoutSession(tier, 'monthly', chartId, null);
-      window.location.href = url;
+      // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
+      const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, 'monthly', chartId, null);
+      if (!checkoutUrl) {
+        alert('Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.');
+        setChatCheckoutLoading(false);
+        return;
+      }
+      window.location.href = checkoutUrl;
     } catch (e) {
       alert('Не удалось открыть страницу оплаты. Попробуйте позже.');
       setChatCheckoutLoading(false);
