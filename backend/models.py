@@ -9,7 +9,7 @@ from backend.auth.consent import (
 
 from sqlalchemy import (
     Column, String, Float, Boolean, DateTime, ForeignKey, Text, JSON, Integer,
-    Date, Time, UniqueConstraint,
+    Date, Time, UniqueConstraint, Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -228,8 +228,32 @@ class Partner(Base):
     """
     __tablename__ = "partners"
 
+    # Запись user_id повторяет то, что реально создано в БД миграцией
+    # 045_partners_and_commissions.py: UNIQUE-ограничение из `unique=True` в
+    # create_table (строка 31) плюс ОТДЕЛЬНЫЙ неуникальный индекс
+    # ix_partners_user_id (строка 40).
+    #
+    # Раньше здесь стояло `unique=True, index=True`. Эта пара рендерится в
+    # метаданных одним уникальным индексом ix_partners_user_id и никаким
+    # ограничением — то есть описывала не ту схему, что в базе. Autogenerate
+    # честно предлагал разницу устранить (снести ограничение и пересоздать
+    # индекс уникальным), и check-migrations в CI на этом падал.
+    #
+    # Выбрана правка модели, а не миграция: в базе уже есть и ограничение, и
+    # индекс, менять там нечего — расходилось только описание. Гарантия
+    # уникальности та же и обеспечивается тем же UNIQUE-ограничением, что и до
+    # правки; ни одного DDL на прод это не тянет.
+    #
+    # Отдельный неуникальный индекс поверх UNIQUE-ограничения избыточен
+    # (ограничение в Postgres и так подпёрто уникальным индексом), но он
+    # существует на проде — поэтому объявлен, а не убран: убрать его значило бы
+    # завести миграцию, а задача была выровнять запись, не менять схему.
+    __table_args__ = (
+        Index("ix_partners_user_id", "user_id"),
+    )
+
     id = Column(String(36), primary_key=True, default=gen_uuid)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     rate = Column(Float, nullable=False, default=0.10, server_default="0.10")
     started_at = Column(DateTime, nullable=False, default=utcnow)
     # active — начисления идут; paused — партнёрство приостановлено без удаления.
