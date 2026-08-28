@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Ручной запуск — единственный способ выкатить прод, см. job deploy ниже.
+  workflow_dispatch:
 
 # По умолчанию GITHUB_TOKEN получает права из настроек репозитория — вплоть до
 # write-all. Здесь он нужен только на чтение кода; джобы, которым нужно больше,
@@ -176,11 +178,14 @@ jobs:
         run: npm audit --audit-level=high
 
   # ─────────────────────────────────────────────
-  # 3. Alembic autogenerate (только PR)
+  # 3. Alembic autogenerate
   # ─────────────────────────────────────────────
   check-migrations:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # Раньше было только `pull_request`, а работа в проекте идёт пушами прямо
+    # в main — то есть проверка не отрабатывала ни разу. Модель, изменённая без
+    # миграции, доезжала до прода и падала на первом запросе к новой колонке.
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
 
     services:
       postgres:
@@ -275,11 +280,20 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend, security]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Только ручной запуск: Actions → CI/CD → Run workflow (ветка main).
+    # Пуш в main прогоняет тесты, но на прод ничего не увозит.
+    #
+    # Раньше здесь стояло `github.event_name == 'push'`, а гарантией от
+    # немедленного выезда считалось окружение production с Required reviewers.
+    # Такой защиты нет и включить её нельзя: раздел Deployment protection rules
+    # недоступен на текущем тарифном плане GitHub (ограничение плана, а не
+    # настройки окружения — API отдаёт "protection_rules": []). То есть любой
+    # push в main всё это время уезжал на прод сразу и без подтверждения.
+    #
+    # Окружение оставлено: оно даёт журнал деплоев и область для секретов.
+    # Именем `production` регистронезависимо матчится окружение «Production».
+    if: github.event_name == 'workflow_dispatch'
 
-    # Environment с required reviewers: без него любой push в main уезжал на
-    # прод немедленно. Настраивается в Settings → Environments → production
-    # (Required reviewers + Deployment branches: main).
     environment: production
 
     steps:
