@@ -94,6 +94,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # gitleaks-action на событии pull_request читает список коммитов PR через
+      # GET /repos/{owner}/{repo}/pulls/{n}/commits — без этого права запрос
+      # возвращает 403 «Resource not accessible by integration» и джоба падает.
+      # На push и workflow_dispatch не требуется (там сканируется диапазон
+      # коммитов или вся история), поэтому дефект не всплывал: PR в проекте
+      # почти не используются, работа идёт пушами в main.
+      pull-requests: read
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
