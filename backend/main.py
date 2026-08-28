@@ -1319,7 +1319,6 @@ async def interpret_transits(
     First calculates transits, then generates an overview interpretation
     via the AI fallback chain (GPT-4o → DeepSeek → templates).
     """
-    tier_limiter.check_transit_ai_limit(user, db)
     from datetime import date as date_type
     from backend.transit.engine import calculate_transits, get_transit_summary
     from backend.transit.prompts import build_transit_period_prompt, get_template_transit_text
@@ -1327,6 +1326,28 @@ async def interpret_transits(
     from backend.interpretation.router import get_router
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
+
+    # Тот же приём, что в /chart/{id}/interpret: отказ по лимиту уезжает первым
+    # событием в потоке, а не HTTP-статусом. Эндпоинт читается через EventSource
+    # (streamTransitInterpretation → _connectSSE в api/client.js), а тот не даёт
+    # JS доступа ни к коду ответа, ни к телу — прежний 403 до открытия
+    # StreamingResponse означал, что текст «AI-расшифровка транзитов доступна на
+    # Лире и выше» до пользователя не доезжал: после трёх реконнектов он видел
+    # «Соединение прервалось».
+    #
+    # Проверка переехала ПОСЛЕ resolve_chart_access — как и в интерпретации
+    # карты: отложенный отказ означает, что выполнение продолжается, и порядок
+    # «сначала доступ, потом лимит» надо задать явно. Следствие: чужая или
+    # несуществующая карта отвечает 404 раньше, чем сработает лимит.
+    #
+    # Аноним — исключение, ему по-прежнему настоящий 403.
+    limit_error: str | None = None
+    try:
+        tier_limiter.check_transit_ai_limit(user, db)
+    except HTTPException as exc:
+        if user is None or not isinstance(exc.detail, str):
+            raise
+        limit_error = exc.detail
 
     # Parse dates
     try:
@@ -1371,6 +1392,13 @@ async def interpret_transits(
     router = get_router()
 
     async def event_stream():
+        # Отказ по лимиту: единственное событие и выход. Ни [DONE] (клиент
+        # счёл бы это успехом), ни расхода — commit_transit_ai ниже стоит внутри
+        # ветки успешного стрима, до неё не доходим.
+        if limit_error is not None:
+            yield f"data: {json.dumps({'error': limit_error}, ensure_ascii=False)}\n\n"
+            return
+
         try:
             # Build a custom request with transit context
             period_prompt = build_transit_period_prompt(
