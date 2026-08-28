@@ -608,7 +608,23 @@ function InterpretationPanel({ event, chartId, onClose }) {
   useEffect(() => {
     setText(""); setLoading(true); setError(null);
 
-    if (MOCK_INTERPRETATIONS[mockKey]) {
+    // import.meta.env.DEV обязателен. Проверка стоит ПЕРВОЙ — раньше сети и
+    // раньше любых тарифных условий — и до 29.08.2026 никакого условия сборки
+    // здесь не было: на проде клик по одной из трёх зашитых пар показывал
+    // придуманный текст вместо разбора реальной карты, посимвольной анимацией,
+    // на любом тарифе. Две из трёх пар (Jupiter conjunction Sun, Pluto
+    // conjunction Saturn) — медленная планета к личной, то есть кандидаты в
+    // топ-2 free_unlocked: именно их первым делом открывает новый
+    // бесплатный пользователь.
+    //
+    // Не путать с MOCK_EVENTS выше: тот подставляется осознанно и только когда
+    // карты нет вовсе (:837, демо и CRM-клиент без карты), а настоящая ошибка
+    // загрузки идёт отдельной веткой. Здесь же карта есть, запрос возможен, и
+    // подменять его нечем.
+    //
+    // Vite подставляет вместо import.meta.env.DEV литерал false в прод-сборке,
+    // поэтому ветка и сам словарь вырезаются бандлером.
+    if (import.meta.env.DEV && MOCK_INTERPRETATIONS[mockKey]) {
       let i = 0;
       const mock = MOCK_INTERPRETATIONS[mockKey];
       const interval = setInterval(() => {
