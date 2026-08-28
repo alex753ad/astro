@@ -32,7 +32,9 @@ import {
   startPdfGeneration,
   startTransitsAsync,
   pollTask,
+  apiErrorText,
 } from '../api/client';
+import { useToast } from '../components/Toast';
 import PlanComparisonModal from '../components/PlanComparisonModal';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
@@ -307,6 +309,7 @@ function SunPeakBanner({ chart, sunPeriod }) {
 // ── Хук тёмной темы перенесён в App.jsx ──
 
 export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
+  const toast = useToast();
   const { chartId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -340,13 +343,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
       const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, 'monthly', chartId, null);
       if (!checkoutUrl) {
-        alert('Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.');
+        toast.error('Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.');
         setChatCheckoutLoading(false);
         return;
       }
       window.location.href = checkoutUrl;
     } catch (e) {
-      alert('Не удалось открыть страницу оплаты. Попробуйте позже.');
+      toast.error(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуйте позже.'));
       setChatCheckoutLoading(false);
     }
   }

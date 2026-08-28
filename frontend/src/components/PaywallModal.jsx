@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { createCheckoutSession, validatePromoCode } from '../api/client';
+import { createCheckoutSession, validatePromoCode, apiErrorText } from '../api/client';
 import MotionButton from './MotionButton';
 import { TIER_NAMES } from '../constants';
 
@@ -148,7 +148,7 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         setPromoError('Промокод не действителен');
         setPromoApplied('');
       } else {
-        setError('Не удалось открыть страницу оплаты. Попробуйте позже.');
+        setError(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуйте позже.'));
       }
       setLoading(false);
     }

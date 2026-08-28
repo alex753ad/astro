@@ -17,6 +17,23 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * Текст ошибки для пользователя.
+ *
+ * Бэкенд формулирует detail по-русски и по делу («Тариф Орион пока не
+ * продаётся», «Вы использовали бесплатную интерпретацию. Оформите Вега…»),
+ * request() кладёт его в ApiError.message — и раньше всё это выбрасывалось
+ * ради одной общей фразы во всех случаях сразу.
+ *
+ * Показываем detail там, где он есть, то есть когда сервер ответил (у ошибки
+ * есть status). Сетевой сбой доезжает сюда TypeError без status и с текстом
+ * вида «Failed to fetch» — он на языке браузера, не переводится и
+ * пользователю ничего не объясняет, поэтому подменяется запасной фразой.
+ */
+export function apiErrorText(err, fallback) {
+  return typeof err?.status === 'number' && err.message ? err.message : fallback;
+}
+
 const ACCESS_TOKEN_KEY  = 'astro_access_token';
 // Refresh-токена здесь больше нет: он живёт в HttpOnly-куке astro_refresh,
 // которую JS не читает и не пишет. Раньше он лежал в localStorage и жил 7 дней —

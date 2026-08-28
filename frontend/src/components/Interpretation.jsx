@@ -228,15 +228,29 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       },
       () => { setStreaming(false); setDone(true); },
       (err) => {
-        if (!receivedAny && retryCount < 3) {
+        const msg = String(err);
+        // 'Connection lost' — единственный текст, который _connectSSE отдаёт
+        // при обрыве транспорта (api/client.js). Всё остальное пришло от
+        // сервера полем error внутри потока и уже является объяснением на
+        // русском — его и показываем, не заменяя общей фразой и не пряча за
+        // приставкой «Не удалось загрузить интерпретацию».
+        const isTransport = msg === 'Connection lost';
+
+        // Ретраим только обрыв связи. Раньше повтор шёл на любую ошибку: если
+        // сервер прислал причину (например исчерпан дневной бюджет AI), три
+        // попытки по 1.5/3/4.5 сек ничего не меняли и лишь на 9 секунд
+        // откладывали сообщение, которое уже было известно.
+        if (!receivedAny && isTransport && retryCount < 3) {
           console.warn(`SSE retry ${retryCount + 1}`);
           setTimeout(() => start(retryCount + 1), 1500 * (retryCount + 1));
           return;
         }
-        const msg = String(err);
-        setError(msg);
+
+        setError(isTransport
+          ? 'Соединение прервалось. Проверьте связь и попробуйте снова.'
+          : msg);
         setStreaming(false);
-        toast.error('Не удалось загрузить интерпретацию');
+        toast.error(isTransport ? 'Соединение прервалось' : msg);
       },
     );
 
@@ -328,7 +342,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           border: '1px solid rgba(239,68,68,0.2)', marginBottom: 12,
         }}>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>
-            Не удалось загрузить интерпретацию: {error}
+            {error}
           </p>
           <button onClick={() => start()} style={{
             marginTop: 10, padding: '6px 16px', borderRadius: 8,

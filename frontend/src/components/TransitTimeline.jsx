@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES, tierPriceLabel, tierFeatures } from "../constants";
-import { createCheckoutSession, getSubscription, authFetch } from "../api/client";
+import { createCheckoutSession, getSubscription, authFetch, apiErrorText } from "../api/client";
+import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
 import LyraPaywallModal from "./LyraPaywallModal";
 import PlanComparisonModal from "./PlanComparisonModal";
@@ -751,6 +752,7 @@ function fetchTransits(url) {
 }
 
 export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade, focusEventKey }) {
+  const toast = useToast();
   const [events,        setEvents]        = useState([]);
   const [loadError,     setLoadError]     = useState(false);  // явная ошибка загрузки — не путать с "0 транзитов"
   const [loading,       setLoading]       = useState(true);   // первый запрос
@@ -1084,13 +1086,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
       const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
       if (!checkoutUrl) {
-        alert("Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.");
+        toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.");
         setCheckoutLoading(false);
         return;
       }
       window.location.href = checkoutUrl;
     } catch (e) {
-      alert("Не удалось открыть страницу оплаты. Попробуйте позже.");
+      toast.error(apiErrorText(e, "Не удалось открыть страницу оплаты. Попробуйте позже."));
       setCheckoutLoading(false);
     }
   }

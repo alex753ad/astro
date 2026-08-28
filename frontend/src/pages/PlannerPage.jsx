@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
-import { authFetch, createCheckoutSession } from "../api/client";
+import { authFetch, createCheckoutSession, apiErrorText } from "../api/client";
+import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import LyraPaywallModal from "../components/LyraPaywallModal";
@@ -877,6 +878,7 @@ function LoadingState() {
 // ── Главный компонент ─────────────────────────────────────────────────────────
 
 export default function PlannerPage() {
+  const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -943,13 +945,13 @@ export default function PlannerPage() {
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
       const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, "monthly", id, promoCode);
       if (!checkoutUrl) {
-        alert("Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.");
+        toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.");
         setCheckoutLoading(false);
         return;
       }
       window.location.href = checkoutUrl;
     } catch (e) {
-      alert("Не удалось открыть страницу оплаты. Попробуйте позже.");
+      toast.error(apiErrorText(e, "Не удалось открыть страницу оплаты. Попробуйте позже."));
       setCheckoutLoading(false);
     }
   }
