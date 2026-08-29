@@ -2345,12 +2345,38 @@ async def get_general_calendar(
     Возвращает: список событий + AI-обзор месяца.
     """
     import httpx, os
+    from backend.interpretation.router import track_claude_spend
     from backend.transit.forecast_prompt import build_general_calendar_prompt, parse_forecast_response
 
     try:
         year, mon = map(int, month.split("-"))
     except ValueError:
         raise HTTPException(status_code=422, detail="Формат: YYYY-MM (напр. 2025-12)")
+
+    # Кэш стоит ДО проверки бюджета намеренно: попадание в кэш не тратит
+    # ничего, и упирать его в исчерпанный бюджет значило бы отключать
+    # бесплатную выдачу вместе с платной.
+    #
+    # Ответ зависит только от YYYY-MM и одинаков для всех — календарь общий,
+    # не привязан к натальной карте. Отдельного экземпляра RedisCache под это
+    # не заводим: interpretation_cache — тот же механизм, а TTL передаём явно
+    # (сутки вместо его дефолтных 30 дней). Сутки, а не больше, потому что
+    # обзор пишет LLM: правка промпта или смена модели должны доезжать до
+    # пользователя за день, а не за месяц.
+    calendar_cache_key = f"general_calendar:{year:04d}-{mon:02d}"
+    cached_calendar = interpretation_cache.get(calendar_cache_key)
+    if cached_calendar is not None:
+        return cached_calendar
+
+    # Общий суточный бюджет AI — тот же, что у прогнозов (main.py, ключ
+    # "claude"). Раньше здесь проверки не было вовсе, а ручка анонимная:
+    # единственная точка, где посторонний мог тратить деньги владельца в
+    # цикле, ограниченный только rate_limit_anon.
+    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "claude"):
+        raise HTTPException(
+            status_code=503,
+            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+        )
 
     # 1. Вычислить события месяца — Swiss Ephemeris, синхронно (см. CLAUDE.md)
     key_events = await asyncio.to_thread(get_monthly_calendar, year, mon)
@@ -2382,6 +2408,7 @@ async def get_general_calendar(
                 )
                 data = resp.json()
                 raw = data["content"][0]["text"]
+                track_claude_spend(data, "calendar/monthly")
         except Exception as e:
             logger.warning(f"General calendar AI failed: {e}")
 
@@ -2392,11 +2419,18 @@ async def get_general_calendar(
         except Exception as e:
             logger.warning(f"Failed to parse calendar overview: {e}")
 
-    return {
+    result = {
         "month": month,
         "events": key_events,
         "overview": overview,
     }
+
+    # Кладём в кэш только удавшийся обзор. Иначе сутки отдавали бы ответ без
+    # overview всем, кто пришёл после единственного сбоя провайдера.
+    if overview is not None:
+        interpretation_cache.set(calendar_cache_key, result, ttl=86400)
+
+    return result
 
 
 # ═══════════════════════════════════════════════════════════
