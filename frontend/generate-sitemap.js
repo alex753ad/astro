@@ -25,6 +25,7 @@ const STATIC_ROUTES = [
   { path: '/pricing',       changefreq: 'monthly', priority: '0.9' },
   { path: '/requisites',    changefreq: 'monthly', priority: '0.5' },
   { path: '/terms',         changefreq: 'monthly', priority: '0.5' },
+  { path: '/privacy',       changefreq: 'monthly', priority: '0.5' },
   ...ZODIAC_SIGNS.map(sign => ({
     path: `/zodiac/${sign}`,
     changefreq: 'monthly',
