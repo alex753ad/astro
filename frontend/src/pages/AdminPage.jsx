@@ -151,10 +151,10 @@ function TabOverview({ d }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
         <MetricCard label="Пользователи" value={fmt(total)} sub={`+${d.users.new_month} за месяц`} subColor="text-green-600" />
         <MetricCard label="MRR" value={fmtMoney(d.revenue.mrr)} sub={`+${d.revenue.mrr_growth_pct}% м/м`} subColor="text-green-600" />
-        <MetricCard label="Карт (всё время)" value={fmt(d.activity_30d.charts)} sub="за 30 дней" />
+        <MetricCard label="Карт (30 дней)" value={fmt(d.activity_30d.charts)} sub="за 30 дней" />
         <MetricCard label="AI-интерпретаций" value={fmt(d.activity_30d.interpretations)} sub={fmtMoney(d.ai_costs.total) + " расходы"} subColor="text-red-500" />
         <MetricCard label="Churn (мес)" value={d.churn.rate_pct + "%"} sub={`−0.8% к пр.`} subColor="text-green-600" />
-        <MetricCard label="Ошибки оплат" value={d.payment_errors.total} sub="₽ 22K под угрозой" subColor="text-red-500" />
+        <MetricCard label="Ошибки оплат" value={d.payment_errors.total} sub="—" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
@@ -212,7 +212,6 @@ function TabOverview({ d }) {
               <span className="text-red-500 font-medium bg-red-50 px-2 py-0.5 rounded text-[10px]">{e.count}</span>
             </div>
           ))}
-          <div className="mt-3 text-[11px] text-gray-400">Stripe Portal отправлен: 11 / {d.payment_errors.total}</div>
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">AI-расходы (месяц)</div>
@@ -429,17 +428,17 @@ function TabAI({ d }) {
   return (
     <div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <MetricCard label="Токены (мес)" value="48M" />
+        <MetricCard label="Токены (мес)" value="—" />
         <MetricCard label="Расходы AI" value={fmtMoney(d.ai_costs.total)} />
         <MetricCard label="Стоимость / интерп" value="₽ 51" />
-        <MetricCard label="Маржа на AI" value="87%" />
+        <MetricCard label="Маржа на AI" value="—" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Разбивка по движку</div>
-          <Row left="GPT-4o" right={fmtMoney(d.ai_costs.gpt4o)} sub="86%" />
-          <Row left="DeepSeek V3 (fallback)" right={fmtMoney(d.ai_costs.deepseek)} sub="14%" />
-          <Row left="Template engine" right={<span className="text-green-600">₽ 0</span>} sub="0%" />
+          <Row left="GPT-4o" right={fmtMoney(d.ai_costs.gpt4o)} sub="—" />
+          <Row left="DeepSeek V3 (fallback)" right={fmtMoney(d.ai_costs.deepseek)} sub="—" />
+          <Row left="Template engine" right={<span className="text-green-600">₽ 0</span>} sub="—" />
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Rate limits (за 24ч)</div>
@@ -454,14 +453,13 @@ function TabAI({ d }) {
 }
 
 function TabEmails({ d }) {
-  const total_sent = 18402;
   return (
     <div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <MetricCard label="Отправлено (мес)" value={fmt(total_sent)} />
-        <MetricCard label="Открытий" value="41%" />
-        <MetricCard label="Кликов" value="12%" />
-        <MetricCard label="Конверсий с email" value="8.4%" />
+        <MetricCard label="Отправлено (мес)" value="—" />
+        <MetricCard label="Открытий" value="—" />
+        <MetricCard label="Кликов" value="—" />
+        <MetricCard label="Конверсий с email" value="—" />
       </div>
       <div className="border border-gray-100 rounded-xl p-4">
         <div className="text-[13px] font-medium text-gray-500 mb-4">Эффективность цепочек</div>
