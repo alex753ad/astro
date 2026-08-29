@@ -43,6 +43,40 @@ export function tierPriceLabel(tierId) {
   return `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ₽`;
 }
 
+// Сколько PDF в месяц даёт тариф. null = безлимит.
+//
+// Обязаны совпадать с pdf_per_month в TIER_FLAGS
+// (backend/auth/rate_limits.py) — по нему check_pdf_limit реально отбивает
+// скачивание. Совпадение проверяется тестом
+// backend/tests/test_pdf_limit_sync.py, устроенным как test_price_sync.py.
+//
+// Раньше эти числа были набраны прозой прямо в features ('PDF-экспорт
+// (5 карт)') и с сеткой не связаны ничем. Это та же конструкция, что уже
+// дважды разошлась в этом проекте — charts_per_month и сам pdf_per_month,
+// см. CLAUDE.md.
+export const TIER_PDF_PER_MONTH = {
+  free: 1,
+  lite: 5,
+  pro: 15,
+  premium: null,
+};
+
+// «карта / карты / карт» — склонение по числу, как в русском счёте.
+function chartsWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'карта';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'карты';
+  return 'карт';
+}
+
+// "PDF-экспорт (5 карт)" — пункт витрины, выведенный из сетки, а не набранный.
+export function pdfFeatureLabel(tierId) {
+  const n = TIER_PDF_PER_MONTH[tierId];
+  if (n === null || n === undefined) return 'PDF-экспорт без лимита';
+  return `PDF-экспорт (${n} ${chartsWord(n)})`;
+}
+
 // Состав тарифов — единый источник для страницы /pricing, вкладки «Подписка»
 // в личном кабинете (ProfilePage) и модалок сравнения тарифов. Подача
 // накопительная: каждый следующий тариф — «всё из предыдущего плюс…».
@@ -53,6 +87,7 @@ export const TIERS = [
       '2 сохранённые карты',
       '1 бесплатная интерпретация карты навсегда',
       'Лунный календарь текущего месяца',
+      pdfFeatureLabel('free'),
     ],
   },
   {
@@ -65,7 +100,7 @@ export const TIERS = [
       'Транзиты: горизонт 1 месяц + AI-разбор аспектов (3 в месяц)',
       'Лунный календарь на год',
       'Google Calendar (1 карта)',
-      'PDF-экспорт (5 карт)',
+      pdfFeatureLabel('lite'),
     ],
   },
   {
@@ -77,7 +112,7 @@ export const TIERS = [
       'Планер: + долгосрочные периоды',
       'Транзиты: горизонт 3 месяца + AI-разбор без лимита',
       'Чат с Астреей',
-      'PDF-экспорт (15 карт)',
+      pdfFeatureLabel('pro'),
     ],
   },
   {
@@ -87,7 +122,7 @@ export const TIERS = [
       'Безлимит карт',
       'Безлимит AI-интерпретаций',
       'Транзиты: горизонт 24 месяца',
-      'PDF-экспорт без лимита',
+      pdfFeatureLabel('premium'),
       'Рабочий кабинет астролога',
     ],
   },

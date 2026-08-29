@@ -51,8 +51,12 @@ TIER_FLAGS: dict[str, dict] = {
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
         "synastry": False,
-        "pdf_export": False,   # 19.08.2026: было безлимитно — новая сетка PDF только с Веги
-        "pdf_per_month": 0,
+        # 30.08.2026: один PDF в месяц. Решение владельца — человек должен
+        # один раз увидеть файл, за который просят денег: описание на витрине
+        # продаёт хуже открытого документа. До этого (с 19.08.2026) PDF был
+        # закрыт для free целиком.
+        "pdf_export": True,
+        "pdf_per_month": 1,
         "ai_engine": settings.deepseek_model_pro,
     },
     "lite": {

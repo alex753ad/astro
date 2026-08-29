@@ -265,6 +265,7 @@ async def get_subscription(
     month_start = utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     ai_used = 0
     transit_ai_used = 0
+    pdf_used = 0
     charts_used = 0
 
     # Интерпретации и AI-транзиты считаем из usage_counters — того же
@@ -274,6 +275,10 @@ async def get_subscription(
         from backend.auth.rate_limits import get_monthly_usage
         ai_used = get_monthly_usage(db, str(user.id), "interpretation")
         transit_ai_used = get_monthly_usage(db, str(user.id), "transit_ai")
+        # kind="pdf" — счётчик, который ведёт commit_pdf (30.08.2026). До
+        # этого pdf_per_month существовал в сетке, но нигде не считался и не
+        # показывался.
+        pdf_used = get_monthly_usage(db, str(user.id), "pdf")
     except Exception:
         # запасной путь: старый способ по таблице Interpretation
         try:
@@ -319,6 +324,7 @@ async def get_subscription(
         "usage": {
             "ai_interpretations_this_month": ai_used,
             "transit_ai_this_month": transit_ai_used,
+            "pdf_this_month": pdf_used,
             "charts_this_month": charts_used,
         },
     }

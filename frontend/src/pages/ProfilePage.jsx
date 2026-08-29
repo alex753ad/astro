@@ -645,6 +645,8 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         const interpUsed = use.ai_interpretations_this_month ?? 0;
         const transitAiLimit = lim.transits_ai_per_month;     // 3 у lite, null у pro/premium, 0 у free
         const transitAiUsed = use.transit_ai_this_month ?? 0;
+        const pdfLimit = lim.pdf_per_month;                   // 1 у free, 5/15, null у premium
+        const pdfUsed = use.pdf_this_month ?? 0;
 
         // Pro/Premium — интерпретации безлимитны
         const interpUnlimited = feat.unlimited_interpretations;
@@ -677,6 +679,18 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                 label="AI-расшифровки транзитов"
                 used={transitAiUsed}
                 limit={transitAiLimit}
+                tierColor={tierColor}
+              />
+            )}
+
+            {/* PDF: условие показа как у транзитов — есть квота или безлимит.
+                У free с 30.08.2026 квота 1, значит полосу он видит, и это
+                намеренно: она показывает, потрачен ли бесплатный PDF. */}
+            {(pdfLimit === null || pdfLimit > 0) && (
+              <UsageBar
+                label="PDF-отчёты"
+                used={pdfUsed}
+                limit={pdfLimit}
                 tierColor={tierColor}
               />
             )}

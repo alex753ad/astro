@@ -46,41 +46,79 @@ def fake_interpretation(monkeypatch):
     )
 
 
-class TestFreeIsRefused:
-    def test_free_gets_refusal_not_a_file(
+class TestFreeGetsOnePdf:
+    """30.08.2026: бесплатному тарифу открыт один PDF в месяц.
+
+    Решение владельца — человек должен один раз увидеть файл, за который
+    просят денег. До этого pdf_export у free был False.
+    """
+
+    def test_first_pdf_of_the_month_is_issued(
         self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
     ):
         chart = _make_chart(db, user_id=user_free.id)
 
         resp = client.post(f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free)
 
-        assert resp.status_code == 403
+        assert resp.status_code == 200, resp.text
+        assert resp.content.startswith(b"%PDF")
+
+    def test_second_pdf_in_the_same_month_is_refused(
+        self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
+    ):
+        first = _make_chart(db, user_id=user_free.id)
+        second = _make_chart(db, user_id=user_free.id)
+
+        client.post(f"/api/v1/chart/{first.id}/pdf", headers=auth_headers_free)
+        resp = client.post(f"/api/v1/chart/{second.id}/pdf", headers=auth_headers_free)
+
+        assert resp.status_code == 429
         assert not resp.content.startswith(b"%PDF")
 
-    def test_refusal_names_the_tier(
-        self, client, db, user_free, auth_headers_free, no_pdf_render
+    def test_quota_refusal_names_the_tier(
+        self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
     ):
-        """Читаемый текст с названием тарифа, а не голый 403."""
+        """Читаемый текст с названием тарифа, а не голый код."""
+        from backend.email_service import TIER_NAMES
+
         chart = _make_chart(db, user_id=user_free.id)
+        increment_monthly_usage(db, str(user_free.id), "pdf")
 
         detail = client.post(
             f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free
         ).json()["detail"]
 
         assert isinstance(detail, str)
-        assert len(detail) > 20
         assert "PDF" in detail
+        assert TIER_NAMES["free"] in detail
 
-    def test_free_does_not_spend_interpretation(
+    def test_pdf_after_reading_interpretation_costs_nothing_extra(
         self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
     ):
-        """Гейт PDF стоит раньше — до генерации разбора дело не доходит."""
+        """Ради этого сценария и делалась вся правка.
+
+        Free читает разбор на экране (тот сохраняется в Interpretation), затем
+        жмёт PDF. Строка в базе есть, значит генерации нет и квота
+        интерпретаций не трогается — PDF просто выдаётся.
+        """
+        from backend.models import Interpretation
+
         chart = _make_chart(db, user_id=user_free.id)
+        # То же, что оставляет за собой SSE-путь после досмотренного разбора.
+        db.add(Interpretation(
+            chart_id=chart.id,
+            profile_hash="testhash",
+            engine="deepseek",
+            content="Разбор, прочитанный на экране.",
+            sections=None,
+        ))
+        chart.free_interpretation_used = True
+        db.commit()
 
-        client.post(f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free)
+        resp = client.post(f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free)
 
-        db.refresh(chart)
-        assert not chart.free_interpretation_used, "право на бесплатный разбор сгорело"
+        assert resp.status_code == 200, resp.text
+        assert resp.content.startswith(b"%PDF")
 
 
 class TestPaidWithExhaustedInterpretations:
@@ -196,3 +234,27 @@ class TestPaidWithQuota:
 
         assert resp.status_code == 429
         assert not resp.content.startswith(b"%PDF")
+
+
+class TestUsageIsVisible:
+    """pdf_per_month три недели существовал в сетке и не показывался нигде."""
+
+    def test_pdf_this_month_is_in_usage(self, client, db, user_free, auth_headers_free):
+        usage = client.get(
+            "/api/v1/profile/subscription", headers=auth_headers_free
+        ).json()["usage"]
+
+        assert "pdf_this_month" in usage, "профиль не отдаёт расход PDF"
+        assert usage["pdf_this_month"] == 0
+
+    def test_counter_grows_after_download(
+        self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
+    ):
+        chart = _make_chart(db, user_id=user_free.id)
+        client.post(f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free)
+
+        usage = client.get(
+            "/api/v1/profile/subscription", headers=auth_headers_free
+        ).json()["usage"]
+
+        assert usage["pdf_this_month"] == 1
