@@ -241,6 +241,55 @@ async def share_data(token: str, db: Session = Depends(get_db)):
     }
 
 
+# Аварийный путь у /share/{token} раньше отдавал голый JSON исключения
+# ({"detail": "..."}) — человек, перешедший по ссылке из мессенджера, видел
+# текст ошибки вместо страницы. На старом SPA-пути тот же случай выглядел
+# прилично («Карта не найдена» + кнопка на главную). Отдаём HTML в том же
+# тёмном стиле, что у заставки, вместо HTTPException — но статус 404
+# сохраняем: это не тот случай, что нужно чинить общим обработчиком
+# HTTPException в main.py (он тронул бы всё приложение), здесь нужен
+# ровно один путь.
+def _share_not_found_html() -> HTMLResponse:
+    html = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <title>Ссылка недействительна · Astrea Timeline</title>
+</head>
+<body style="background:#0e0c1a;color:#fff;font-family:sans-serif;
+             display:flex;align-items:center;justify-content:center;
+             height:100vh;margin:0;">
+  <div style="text-align:center;max-width:480px;padding:0 24px;">
+    <div style="font-size:32px;margin-bottom:12px;">☽ ✦ ☾</div>
+    <div style="font-size:20px;font-weight:700;color:#c9a8ff;">Astrea Timeline</div>
+    <p style="color:#9080b0;font-size:15px;line-height:1.6;margin:20px 0 24px;">Ссылка больше не действует.</p>
+    <a href="/" style="
+      display:inline-block;background:linear-gradient(135deg,#8b5cf6,#a855f7);
+      color:#fff;text-decoration:none;border-radius:14px;
+      padding:14px 32px;font-size:16px;font-weight:600;
+      font-family:inherit;letter-spacing:0.02em;">
+      На главную
+    </a>
+  </div>
+</body>
+</html>"""
+    return HTMLResponse(
+        content=html,
+        status_code=404,
+        headers={
+            "Content-Security-Policy": (
+                "default-src 'none'; img-src 'self' https:; "
+                "style-src 'unsafe-inline'; "
+                "base-uri 'none'; frame-ancestors 'none'"
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        },
+    )
+
+
 @router.get("/share/{token}", response_class=HTMLResponse)
 async def share_page(token: str, db: Session = Depends(get_db)):
     """Публичная страница карты с Open Graph мета-тегами.
@@ -250,8 +299,11 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     """
     chart = db.query(NatalChart).filter(NatalChart.public_token == token).first()
     if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    _ensure_chart_not_expired(chart)
+        return _share_not_found_html()
+    try:
+        _ensure_chart_not_expired(chart)
+    except HTTPException:
+        return _share_not_found_html()
 
     planets = chart.planets or []
     name = chart.share_name or "Натальная карта"
@@ -293,6 +345,11 @@ async def share_page(token: str, db: Session = Depends(get_db)):
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>{og_title}</title>
+  <!-- Персональные данные (имя, знаки) третьего лица, ссылка живёт 90 дней —
+       индексировать нельзя. robots.txt при этом не трогаем: Disallow запретил
+       бы скачивание страницы и убил бы превью в мессенджерах, ради которого
+       она и существует. noindex разрешает скачать, запрещает индексировать. -->
+  <meta name="robots" content="noindex, nofollow"/>
 
   <!-- Open Graph -->
   <meta property="og:type"        content="website"/>
