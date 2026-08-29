@@ -13,12 +13,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BASE_URL = 'https://astreatime.ru';
 const TODAY = new Date().toISOString().split('T')[0];
 
-const ZODIAC_SIGNS = [
-  'aries', 'taurus', 'gemini', 'cancer',
-  'leo', 'virgo', 'libra', 'scorpio',
-  'sagittarius', 'capricorn', 'aquarius', 'pisces',
-];
-
 const STATIC_ROUTES = [
   { path: '/',              changefreq: 'weekly',  priority: '1.0' },
   { path: '/lunar',          changefreq: 'daily',   priority: '0.9' },
@@ -26,11 +20,6 @@ const STATIC_ROUTES = [
   { path: '/requisites',    changefreq: 'monthly', priority: '0.5' },
   { path: '/terms',         changefreq: 'monthly', priority: '0.5' },
   { path: '/privacy',       changefreq: 'monthly', priority: '0.5' },
-  ...ZODIAC_SIGNS.map(sign => ({
-    path: `/zodiac/${sign}`,
-    changefreq: 'monthly',
-    priority: '0.8',
-  })),
 ];
 
 function buildXml(routes) {
