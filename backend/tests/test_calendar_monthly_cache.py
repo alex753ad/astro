@@ -13,10 +13,14 @@ claude-sonnet-4 с max_tokens=3000 на КАЖДЫЙ запрос, без кэш
 import pytest
 
 from backend.cache import interpretation_cache
+from backend.transit.forecast_prompt import GENERAL_CALENDAR_PROMPT_VERSION
 
 
 MONTH = "2031-07"
-CACHE_KEY = "general_calendar:2031-07"
+# Ключ собирается из версии промпта, а не пишется литералом: иначе поднятие
+# GENERAL_CALENDAR_PROMPT_VERSION молча расходило бы тест с кодом, и тест
+# начал бы проверять ключ, которого никто не пишет.
+CACHE_KEY = f"general_calendar:v{GENERAL_CALENDAR_PROMPT_VERSION}:2031-07"
 
 
 @pytest.fixture(autouse=True)
@@ -75,6 +79,29 @@ class TestCache:
     def test_cache_entry_is_written(self, client, fake_anthropic):
         client.get(f"/api/v1/calendar/monthly?month={MONTH}")
         assert interpretation_cache.get(CACHE_KEY) is not None
+
+
+class TestPromptVersionInvalidatesCache:
+    def test_version_bump_changes_the_key(self, client, fake_anthropic):
+        """Поднятие версии промпта обнуляет кэш само, без чистки ключей руками.
+
+        Проверяем не сам факт другого ключа (это тавтология), а следствие:
+        после поднятия версии запрос снова идёт в LLM.
+        """
+        client.get(f"/api/v1/calendar/monthly?month={MONTH}")
+        assert fake_anthropic["n"] == 1
+
+        from backend.transit import forecast_prompt
+
+        bumped = GENERAL_CALENDAR_PROMPT_VERSION + 1
+        original = forecast_prompt.GENERAL_CALENDAR_PROMPT_VERSION
+        forecast_prompt.GENERAL_CALENDAR_PROMPT_VERSION = bumped
+        try:
+            client.get(f"/api/v1/calendar/monthly?month={MONTH}")
+            assert fake_anthropic["n"] == 2, "правка промпта не сбросила кэш"
+        finally:
+            forecast_prompt.GENERAL_CALENDAR_PROMPT_VERSION = original
+            interpretation_cache.delete(f"general_calendar:v{bumped}:2031-07")
 
 
 class TestBudget:

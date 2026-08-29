@@ -2393,7 +2393,11 @@ async def get_general_calendar(
     Возвращает: список событий + AI-обзор месяца.
     """
     import httpx, os
-    from backend.transit.forecast_prompt import build_general_calendar_prompt, parse_forecast_response
+    from backend.transit.forecast_prompt import (
+        GENERAL_CALENDAR_PROMPT_VERSION,
+        build_general_calendar_prompt,
+        parse_forecast_response,
+    )
 
     try:
         year, mon = map(int, month.split("-"))
@@ -2410,7 +2414,13 @@ async def get_general_calendar(
     # (сутки вместо его дефолтных 30 дней). Сутки, а не больше, потому что
     # обзор пишет LLM: правка промпта или смена модели должны доезжать до
     # пользователя за день, а не за месяц.
-    calendar_cache_key = f"general_calendar:{year:04d}-{mon:02d}"
+    # Версия промпта в ключе: без неё правка build_general_calendar_prompt
+    # сутки не доезжала до пользователя — раздавался ответ, собранный старым
+    # промптом, и сбросить его можно было только удалив ключ руками.
+    # Поднятие константы (forecast_prompt.py) обнуляет кэш само.
+    calendar_cache_key = (
+        f"general_calendar:v{GENERAL_CALENDAR_PROMPT_VERSION}:{year:04d}-{mon:02d}"
+    )
     cached_calendar = interpretation_cache.get(calendar_cache_key)
     if cached_calendar is not None:
         return cached_calendar
