@@ -22,8 +22,6 @@ class TestTasksRegistered:
         assert celery_app.main == "astro"
 
     @pytest.mark.parametrize("import_path", [
-        # payments/stripe_service.py:572
-        "backend.tasks.task_generate_pdf",
         # main.py:705, stripe_service.py:328-332
         "backend.tasks.schedule_retention_emails",
         "backend.tasks.schedule_lite_emails",
