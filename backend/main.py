@@ -1145,11 +1145,11 @@ async def interpret_chart(
                 collected.append(chunk)
                 # SSE format: data: <content>\n\n
                 yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
             # Расход фиксируем только при реально выданном полном контенте
             if produced:
                 _save_chart_interpretation(db, chart, profile, collected, interp_request)
                 tier_limiter.commit_interpretation(user, db, chart=chart)
+            yield "data: [DONE]\n\n"
         except IncompleteInterpretation:
             # Обрезано по длине или связь оборвалась после части текста —
             # не [DONE], не засчитываем попытку (см. router.stream()).
@@ -1538,7 +1538,6 @@ async def interpret_transits(
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
                     if streamed:
-                        yield "data: [DONE]\n\n"
                         # Ключ расхода — eng.name, тот же, по которому выше
                         # спрашивали _check_budget. Токены из движка, не оценка.
                         router._track_spend(
@@ -1546,6 +1545,7 @@ async def interpret_transits(
                         )
                         # Списываем AI-транзит только при реальной работе AI-движка (Lite-квота)
                         tier_limiter.commit_transit_ai(user, db)
+                        yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
                     logger.warning("Transit stream from %s failed: %s", eng.name, e)
@@ -1745,7 +1745,6 @@ async def interpret_transit_event(
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
                     if streamed:
-                        yield "data: [DONE]\n\n"
                         router._track_spend(
                             eng.name, getattr(eng, "_last_stream_tokens", 0) or 0
                         )
@@ -1754,6 +1753,7 @@ async def interpret_transit_event(
                             {"content": "".join(collected), "engine": eng.name},
                         )
                         tier_limiter.commit_transit_ai(user, db)
+                        yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
                     logger.error("Transit event stream from %s failed: %s", eng.name, e)
