@@ -1063,13 +1063,35 @@ async def interpret_chart(
     # Аноним — исключение, ему по-прежнему настоящий 403: для SSE этот статус
     # работает ещё и как отказ по аутентификации (ходят по одноразовому
     # тикету), и на нём держится одноразовость тикета (test_sse_tickets.py).
+    # Готовый разбор этой карты отдаём БЕЗ проверки лимита: за него уже
+    # заплачено (или потрачено бесплатное право), и повторное чтение своего
+    # текста ничего не стоит — генерации не будет. Лимит остаётся ровно там,
+    # где тратятся деньги: перед созданием НОВОГО разбора.
+    #
+    # До 30.08.2026 гейт стоял раньше всего, поэтому человек с исчерпанным
+    # правом не получал даже собственный, уже оплаченный текст.
+    #
+    # Аноним намеренно исключён: ему по-прежнему настоящий 403 (см. ниже),
+    # на этом статусе держится одноразовость SSE-тикета
+    # (test_sse_tickets.py). Короткое замыкание для него сломало бы контракт.
+    saved_interpretation = None
+    if user is not None:
+        from backend.models import Interpretation
+        saved_interpretation = (
+            db.query(Interpretation)
+            .filter(Interpretation.chart_id == chart_id)
+            .order_by(Interpretation.created_at.desc())
+            .first()
+        )
+
     limit_error: str | None = None
-    try:
-        tier_limiter.check_interpretation_limit(user, db, chart=chart)
-    except HTTPException as exc:
-        if user is None or not isinstance(exc.detail, str):
-            raise
-        limit_error = exc.detail
+    if saved_interpretation is None:
+        try:
+            tier_limiter.check_interpretation_limit(user, db, chart=chart)
+        except HTTPException as exc:
+            if user is None or not isinstance(exc.detail, str):
+                raise
+            limit_error = exc.detail
 
     # Build natal profile from stored data
     profile = {
@@ -1086,6 +1108,17 @@ async def interpret_chart(
     router = get_router()
 
     async def event_stream():
+        # Сохранённый разбор: одно событие с текстом и [DONE]. Формат тот
+        # же, что у живого стрима — клиент (_connectSSE в api/client.js)
+        # копит текст в буфер и сбрасывает его по [DONE], ему безразлично,
+        # пришёл текст одним куском или сотней. Разница только визуальная:
+        # набор не анимируется, разбор появляется целиком.
+        if saved_interpretation is not None:
+            payload = {'text': saved_interpretation.content}
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
         # Отказ по лимиту: единственное событие и выход. Ни [DONE] (клиент
         # счёл бы это успехом), ни обращений к БД, ни расхода — до цикла не
         # доходим, produced остаётся False.

@@ -95,3 +95,53 @@ class TestSaved:
         client.get(_sse_url(chart.id), headers=auth_headers_pro)
 
         assert len(_rows(db, chart.id)) == 1
+
+
+class TestServedBack:
+    def test_saved_text_is_returned_again(
+        self, client, db, user_pro, auth_headers_pro, full_stream
+    ):
+        chart = _make_chart(db, user_id=user_pro.id)
+        first = client.get(_sse_url(chart.id), headers=auth_headers_pro)
+        assert "Вторая часть." in first.text
+
+        second = client.get(_sse_url(chart.id), headers=auth_headers_pro)
+
+        assert second.status_code == 200
+        assert "Вторая часть." in second.text
+        assert "[DONE]" in second.text
+
+    def test_second_read_costs_no_quota(
+        self, client, db, user_pro, auth_headers_pro, full_stream
+    ):
+        """Перечитать своё можно бесплатно — за этот текст уже заплачено."""
+        chart = _make_chart(db, user_id=user_pro.id)
+        client.get(_sse_url(chart.id), headers=auth_headers_pro)
+
+        db.expire_all()
+        after_first = get_monthly_usage(db, str(user_pro.id), "interpretation")
+
+        client.get(_sse_url(chart.id), headers=auth_headers_pro)
+
+        db.expire_all()
+        assert get_monthly_usage(db, str(user_pro.id), "interpretation") == after_first
+
+    def test_free_can_reread_after_right_is_spent(
+        self, client, db, user_free, auth_headers_free, full_stream
+    ):
+        """Главное следствие правки: право потрачено, но текст свой — отдаём.
+
+        Раньше здесь приходил отказ «Вы использовали бесплатную
+        интерпретацию», то есть человек не мог перечитать то, что уже
+        получил.
+        """
+        chart = _make_chart(db, user_id=user_free.id)
+        client.get(_sse_url(chart.id), headers=auth_headers_free)
+
+        db.expire_all()
+        assert db.get(type(chart), chart.id).free_interpretation_used is True
+
+        again = client.get(_sse_url(chart.id), headers=auth_headers_free)
+
+        assert "Вторая часть." in again.text
+        assert "error" not in again.text

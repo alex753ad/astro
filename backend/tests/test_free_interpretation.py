@@ -119,12 +119,34 @@ class TestSecondInterpretationOfSameChartRefused:
     def test_repeat_is_refused(
         self, client, db, user_free, auth_headers_free, fake_stream
     ):
+        """Право потрачено и сохранённого текста нет — отказ.
+
+        30.08.2026 смысл теста сузился. Раньше отказ приходил на ЛЮБОЕ
+        повторное открытие карты, и это была та самая поломка: человек не мог
+        перечитать разбор, который уже получил. Теперь сохранённый текст
+        отдаётся без проверки лимита, поэтому гейт срабатывает только когда
+        отдавать нечего — карты, разобранные до этой правки, и редкие случаи
+        несохранившегося текста. Флаг ставим руками: через эндпоинт такое
+        состояние воспроизвести уже нельзя.
+        """
+        chart = _make_chart(db, user_id=user_free.id)
+        chart.free_interpretation_used = True
+        db.commit()
+
+        refused = _interpret(client, chart.id, auth_headers_free)
+        assert _error_of(refused) is not None, "право потрачено, генерировать нельзя"
+
+    def test_saved_interpretation_is_rereadable(
+        self, client, db, user_free, auth_headers_free, fake_stream
+    ):
+        """Своё перечитать можно, хотя право уже потрачено."""
         chart = _make_chart(db, user_id=user_free.id)
 
         assert _error_of(_interpret(client, chart.id, auth_headers_free)) is None
 
         second = _interpret(client, chart.id, auth_headers_free)
-        assert _error_of(second) is not None, "повторный разбор той же карты обязан отказать"
+        assert _error_of(second) is None, "за этот текст уже заплачено"
+        assert "Текст разбора." in second.text
 
     def test_refusal_does_not_consume_anything_further(
         self, client, db, user_free, auth_headers_free, fake_stream
@@ -134,7 +156,7 @@ class TestSecondInterpretationOfSameChartRefused:
         other = _make_chart(db, user_id=user_free.id)
 
         _interpret(client, chart.id, auth_headers_free)
-        _interpret(client, chart.id, auth_headers_free)  # отказ
+        _interpret(client, chart.id, auth_headers_free)  # отдаётся сохранённый
 
         db.expire_all()
         assert db.get(NatalChart, other.id).free_interpretation_used is False
