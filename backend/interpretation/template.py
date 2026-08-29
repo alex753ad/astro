@@ -118,7 +118,7 @@ class TemplateEngine(InterpretationEngine):
 
             if asc and asc.get("sign"):
                 parts.append(
-                    f"Ваш Асцендент в {SIGN_RU_NOM.get(asc['sign'], asc['sign'])} — это маска, которую вы показываете миру, "
+                    f"Ваш Асцендент в {SIGN_RU.get(asc['sign'], asc['sign'])} — это маска, которую вы показываете миру, "
                     f"первое впечатление, которое вы производите."
                 )
 
@@ -136,7 +136,7 @@ class TemplateEngine(InterpretationEngine):
             parts.append("\n### Карьера и профессиональная реализация\n")
             if mc and mc.get("sign"):
                 parts.append(
-                    f"Середина Неба (MC) в {SIGN_RU_NOM.get(mc['sign'], mc['sign'])} указывает на направление "
+                    f"Середина Неба (MC) в {SIGN_RU.get(mc['sign'], mc['sign'])} указывает на направление "
                     f"вашей профессиональной самореализации и публичный образ."
                 )
             saturn = planets.get("Saturn", {})
