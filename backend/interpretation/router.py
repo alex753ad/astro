@@ -401,6 +401,7 @@ class InterpretationRouter:
                         "Stream cache hit for profile %s (%s/%s)",
                         profile_hash[:8], request.tier, model_id,
                     )
+                    request.engine_used = cached.get("engine") or engine.name
                     yield cached["content"]
                     return
 
@@ -429,6 +430,10 @@ class InterpretationRouter:
                             engine.name, finish_reason,
                         )
                         raise IncompleteInterpretation(finish_reason or "connection_lost")
+                # Дошли сюда — текст доставлен целиком (finish_reason == "stop"
+                # либо шаблон, у которого его нет). Только теперь называем
+                # движок: вызывающая сторона по нему решает, что записывать.
+                request.engine_used = engine.name
                 return  # success
 
             except IncompleteInterpretation:

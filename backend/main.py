@@ -965,6 +965,65 @@ async def get_chart(
 # INTERPRETATION ENDPOINTS
 # ═══════════════════════════════════════════════════════════
 
+
+def _save_chart_interpretation(db, chart, profile: dict, chunks: list[str], interp_request) -> None:
+    """Сохранить разбор карты после ПОЛНОСТЬЮ доставленного стрима.
+
+    Зачем: до 30.08.2026 строку в Interpretation писали только PDF-пути
+    (этот файл и tasks.py). SSE-путь не писал ничего, поэтому прочитанный на
+    экране разбор нигде не оставался: закрыл вкладку — текст исчез, а право
+    на него сгорело (chart.free_interpretation_used). Перечитать было нельзя
+    ни на одном тарифе.
+
+    Вызывать ТОЛЬКО из ветки, где стрим завершился штатно. Половина разбора в
+    базе хуже его отсутствия: человек откроет обрубок, а право будет
+    потрачено. Отдельной проверки «доставлено целиком» здесь нет и не нужно —
+    её уже делает router.stream(): при finish_reason != "stop" он поднимает
+    IncompleteInterpretation, управление уходит в except и сюда не приходит.
+    Тот же приём, что у разбора транзитного события ниже в этом файле:
+    накопленный collected сохраняется только после [DONE].
+
+    Дубль не создаём: как и PDF-путь, при уже существующей строке просто
+    ничего не делаем. Гонка двух вкладок теоретически даст две строки — обе
+    читающие стороны берут последнюю по created_at, поведение то же, что уже
+    было у PDF.
+
+    Ошибку записи глушим: разбор пользователю уже доставлен, и падение после
+    [DONE] испортило бы успешный ответ ради журнала.
+    """
+    from backend.models import Interpretation
+
+    content = "".join(chunks).strip()
+    if not content:
+        return
+
+    exists = (
+        db.query(Interpretation.id)
+        .filter(Interpretation.chart_id == chart.id)
+        .first()
+    )
+    if exists:
+        return
+
+    try:
+        from backend.cache import make_profile_hash
+        db.add(Interpretation(
+            chart_id=chart.id,
+            profile_hash=make_profile_hash(profile),
+            # Настоящий движок, а не заглушка: иначе учёт разъедется. Роутер
+            # называет его в interp_request.engine_used — поле лежит на
+            # объекте запроса, а не на роутере, потому что тот синглтон
+            # (см. interpretation/base.py).
+            engine=getattr(interp_request, "engine_used", None) or "unknown",
+            content=content,
+            sections=None,
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Не удалось сохранить разбор карты %s", chart.id)
+
+
 @app.get(
     "/api/v1/chart/{chart_id}/interpret",
     tags=["interpretation"],
@@ -1035,14 +1094,17 @@ async def interpret_chart(
             return
 
         produced = False
+        collected: list[str] = []
         try:
             async for chunk in router.stream(interp_request):
                 produced = True
+                collected.append(chunk)
                 # SSE format: data: <content>\n\n
                 yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
             # Расход фиксируем только при реально выданном полном контенте
             if produced:
+                _save_chart_interpretation(db, chart, profile, collected, interp_request)
                 tier_limiter.commit_interpretation(user, db, chart=chart)
         except IncompleteInterpretation:
             # Обрезано по длине или связь оборвалась после части текста —
