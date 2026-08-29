@@ -469,7 +469,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   async function handleDownloadCard() {
     const token = localStorage.getItem('astro_access_token');
-    if (!token) { alert('Войдите, чтобы скачать карточку'); return; }
+    if (!token) { toast.info('Войдите, чтобы скачать карточку'); return; }
     // получаем токен если нет
     let url = shareUrl;
     if (!url) {
@@ -495,7 +495,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   async function handleDownloadPdf() {
     if (pdfLoading) return;
     const token = localStorage.getItem('astro_access_token');
-    if (!token) { alert('Войдите, чтобы скачать PDF'); return; }
+    if (!token) { toast.info('Войдите, чтобы скачать PDF'); return; }
     setPdfLoading(true);
     try {
       const wheelPng = await captureChartPng(setChartForExport);
@@ -521,7 +521,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Не удалось сгенерировать PDF: ' + e.message);
+      toast.error('Не удалось сгенерировать PDF: ' + e.message);
     } finally {
       setPdfLoading(false);
     }
