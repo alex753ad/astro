@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import logging
 from backend.time_utils import utcnow
 
@@ -12,17 +11,6 @@ from backend.models import NatalChart
 from backend.chart_utils import get_primary_chart as _get_primary_chart  # noqa: F401 — реэкспорт для backend.pilot.cron и др.
 
 logger = logging.getLogger("astro.tasks")
-
-
-# ═══════════════════════════════════════════════════════════
-# HELPERS
-# ═══════════════════════════════════════════════════════════
-
-def _get_chart(db, chart_id: str) -> NatalChart:
-    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
-    if not chart:
-        raise ValueError(f"Chart not found: {chart_id}")
-    return chart
 
 
 # ═══════════════════════════════════════════════════════════
@@ -243,147 +231,6 @@ def schedule_retention_emails(user_id: int) -> None:
     send_retention_day2_task.apply_async(args=[user_id], countdown=48 * 3600)
     send_retention_day7_task.apply_async(args=[user_id], countdown=7 * 24 * 3600)
     send_retention_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
-
-
-def _render_pdf(chart: NatalChart) -> bytes:
-    """Render PDF using reportlab. Falls back to plain text if not installed."""
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import cm
-        from reportlab.lib import colors
-        from reportlab.platypus import (
-            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        )
-
-        buf = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buf, pagesize=A4,
-            leftMargin=2*cm, rightMargin=2*cm,
-            topMargin=2*cm, bottomMargin=2*cm,
-        )
-
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            "Title", parent=styles["Title"],
-            fontSize=20, textColor=colors.HexColor("#4A2C8C"),
-            spaceAfter=12,
-        )
-        heading_style = ParagraphStyle(
-            "Heading", parent=styles["Heading2"],
-            fontSize=13, textColor=colors.HexColor("#6B46C1"),
-            spaceBefore=14, spaceAfter=6,
-        )
-        body_style = styles["Normal"]
-
-        elements = []
-
-        # ── Заголовок ──
-        elements.append(Paragraph("✦ Натальная карта", title_style))
-        elements.append(Spacer(1, 0.3*cm))
-
-        # ── Данные рождения ──
-        birth_info = [
-            ["Дата рождения", chart.birth_date or "—"],
-            ["Время рождения", chart.birth_time or "Неизвестно"],
-            ["Место рождения", chart.birth_place or "—"],
-            ["Часовой пояс",   chart.timezone or "—"],
-        ]
-        t = Table(birth_info, colWidths=[5*cm, 11*cm])
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#F3F0FF")),
-            ("TEXTCOLOR",  (0,0), (0,-1), colors.HexColor("#4A2C8C")),
-            ("FONTNAME",   (0,0), (0,-1), "Helvetica-Bold"),
-            ("FONTSIZE",   (0,0), (-1,-1), 10),
-            ("ROWBACKGROUNDS", (0,0), (-1,-1), [colors.white, colors.HexColor("#FAF9FF")]),
-            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#D1C4E9")),
-            ("PADDING",    (0,0), (-1,-1), 6),
-        ]))
-        elements.append(t)
-        elements.append(Spacer(1, 0.5*cm))
-
-        # ── Планеты ──
-        elements.append(Paragraph("Позиции планет", heading_style))
-        planet_data = [["Планета", "Знак", "Градус", "Дом", "R"]]
-        for p in (chart.planets or []):
-            planet_data.append([
-                p.get("name", ""),
-                p.get("sign", ""),
-                f"{p.get('degree_in_sign', 0):.1f}°",
-                str(p.get("house") or "—"),
-                "℞" if p.get("retrograde") else "",
-            ])
-        pt = Table(planet_data, colWidths=[4*cm, 4*cm, 3*cm, 3*cm, 2*cm])
-        pt.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#6B46C1")),
-            ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
-            ("FONTSIZE",   (0,0), (-1,-1), 9),
-            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#FAF9FF")]),
-            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#D1C4E9")),
-            ("PADDING",    (0,0), (-1,-1), 5),
-        ]))
-        elements.append(pt)
-        elements.append(Spacer(1, 0.5*cm))
-
-        # ── Аспекты ──
-        elements.append(Paragraph("Аспекты", heading_style))
-        aspect_data = [["Планета 1", "Аспект", "Планета 2", "Орб"]]
-        for a in (chart.aspects or [])[:20]:   # топ-20
-            aspect_data.append([
-                a.get("planet1", ""),
-                a.get("aspect_type", ""),
-                a.get("planet2", ""),
-                f"{a.get('orb', 0):.2f}°",
-            ])
-        at = Table(aspect_data, colWidths=[4*cm, 4*cm, 4*cm, 4*cm])
-        at.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#6B46C1")),
-            ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
-            ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
-            ("FONTSIZE",   (0,0), (-1,-1), 9),
-            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#FAF9FF")]),
-            ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#D1C4E9")),
-            ("PADDING",    (0,0), (-1,-1), 5),
-        ]))
-        elements.append(at)
-
-        # ── Футер ──
-        elements.append(Spacer(1, 1*cm))
-        elements.append(Paragraph(
-            "Создано Astrea Timeline · Swiss Ephemeris · astro-navy-one.vercel.app",
-            ParagraphStyle("footer", parent=body_style, fontSize=8,
-                           textColor=colors.grey, alignment=1),
-        ))
-
-        doc.build(elements)
-        return buf.getvalue()
-
-    except ImportError:
-        # Fallback: plain text "PDF" если reportlab не установлен
-        logger.warning("reportlab not installed, generating plain text PDF")
-        return _render_plain_text_pdf(chart)
-
-
-def _render_plain_text_pdf(chart: NatalChart) -> bytes:
-    """Minimal plain-text fallback (не настоящий PDF, но отдаёт байты)."""
-    lines = [
-        "НАТАЛЬНАЯ КАРТА",
-        "=" * 40,
-        f"Дата: {chart.birth_date}",
-        f"Время: {chart.birth_time or 'Неизвестно'}",
-        f"Место: {chart.birth_place}",
-        "",
-        "ПЛАНЕТЫ",
-        "-" * 40,
-    ]
-    for p in (chart.planets or []):
-        lines.append(
-            f"{p.get('name',''):<14} {p.get('sign',''):<12} {p.get('degree_in_sign',0):.1f}°"
-            + (" R" if p.get("retrograde") else "")
-        )
-    lines += ["", "Создано Astrea Timeline"]
-    return "\n".join(lines).encode("utf-8")
 
 
 # ═══════════════════════════════════════════════════════════
