@@ -85,7 +85,8 @@ export default function FeedbackButton() {
       {!open && (
         <button className="fb-fab" onClick={() => setOpen(true)}
                 aria-label="Здесь что-то не так">
-          ⚠️ Здесь что-то не так
+          <span className="fb-fab-full">⚠️ Здесь что-то не так</span>
+          <span className="fb-fab-icon" aria-hidden="true">⚠️</span>
         </button>
       )}
 
@@ -147,12 +148,31 @@ const fbStyles = `
   background:rgba(30,22,50,.92); color:#fff; border:1px solid var(--bg-deeper);
   border-radius:22px; padding:9px 15px; font-size:13px; font-weight:600;
   cursor:pointer; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.3);
+  bottom:calc(16px + env(safe-area-inset-bottom, 0px));
 }
 .fb-fab:hover{ background:rgba(45,33,74,.98); }
+.fb-fab-icon{ display:none; }
+/* На мобильных полная надпись перекрывала текст рекомендаций планера и
+   карточек транзитов в правом нижнем углу — сворачиваем в маленькую
+   иконку без текста, площадь перекрытия падает в разы. */
+@media (max-width: 640px){
+  .fb-fab{
+    right:10px; bottom:calc(10px + env(safe-area-inset-bottom, 0px));
+    padding:0; width:40px; height:40px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+  }
+  .fb-fab-full{ display:none; }
+  .fb-fab-icon{ display:inline; }
+}
 .fb-panel{
   position:fixed; right:16px; bottom:16px; z-index:9999; width:300px;
+  max-width:calc(100vw - 32px);
   background:var(--bg-card); border:1px solid var(--bg-deeper); border-radius:14px;
   padding:16px; box-shadow:0 8px 32px rgba(0,0,0,.45);
+  bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 640px){
+  .fb-panel{ right:10px; bottom:calc(10px + env(safe-area-inset-bottom, 0px)); }
 }
 .fb-title{ color:var(--text-primary); font-size:14px; font-weight:700; margin-bottom:10px; }
 .fb-input{
