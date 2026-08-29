@@ -17,54 +17,27 @@ const PLAN_COLORS = {
 };
 const TABS =["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры"];
 
-// Мок-данные пока нет реального API
-const MOCK = {
-  online_count: null,
-  users: { total: 2847, new_month: 143, new_week: 47, google_pct: 61, by_plan: { free: 1906, lite: 541, pro: 284, premium: 116 }, paying_by_plan: { free: 1906, lite: 541, pro: 284, premium: 116 }, pilot_count: 0 },
-  activity_30d: { charts: 1842, interpretations: 1203, pdf_reports: 187, rag_sessions: 432, crm_cards: 94, lunar_calendar_views: 3218, planner_views: 1547 },
-  revenue: { mrr: 341000, mrr_growth_pct: 18, arr: 4092000, arpu: 365 },
-  funnel: { registered: 2847, made_chart: 2220, lite: 541, pro: 284, premium: 116 },
-  payment_errors: { total: 14, items: [{ code: "card_declined", plan: "lite", count: 6 }, { code: "insufficient_funds", plan: "pro", count: 4 }, { code: "expired_card", plan: "premium", count: 3 }, { code: "authentication_required", plan: "pro", count: 1 }] },
-  churn: { count: 29, rate_pct: 3.2 },
-  gift_codes: { total: 48, activated: 31, activation_pct: 65 },
-  anon_charts: { total: 0, last_30d: 0, last_7d: 0, share_pct: 0 },
-  avg_per_plan: {
-    free:    { charts: 1.4, interpretations: 0 },
-    lite:    { charts: 4.2, interpretations: 2.1 },
-    pro:     { charts: 11.7, interpretations: 9.8 },
-    premium: { charts: 23.1, interpretations: 41.2 },
-  },
-  recent_users: [
-    { id: 1, email: "a.smirnova@mail.ru",  plan: "premium", charts: 23, interpretations: 84, created_at: new Date(Date.now() - 2*86400000).toISOString() },
-    { id: 2, email: "kozlov.d@yandex.ru",  plan: "pro",     charts: 11, interpretations: 15, created_at: new Date(Date.now() - 5*86400000).toISOString() },
-    { id: 3, email: "marina.v@gmail.com",  plan: "lite",    charts: 8,  interpretations: 3,  created_at: new Date(Date.now() - 7*86400000).toISOString() },
-    { id: 4, email: "user4821@gmail.com",  plan: "free",    charts: 2,  interpretations: 0,  created_at: new Date(Date.now() - 8*86400000).toISOString() },
-    { id: 5, email: "p.novikova@bk.ru",   plan: "pro",     charts: 17, interpretations: 14, created_at: new Date(Date.now() - 14*86400000).toISOString() },
-  ],
-  ai_costs: { gpt4o: 38400, deepseek: 6200, total: 44600, fallback_rate_pct: 8.3 },
-  rate_limits_24h: { lite: 89, pro: 31, premium: 0 },
-  email_chains: [
-    { name: "Welcome (регистрация)",   open_pct: 67, click_pct: 23 },
-    { name: "Day 2 — транзит",         open_pct: 48, click_pct: 18 },
-    { name: "Day 7 — апгрейд-нудж",   open_pct: 34, click_pct: 14 },
-    { name: "Day 14 — купон 30%",      open_pct: 41, click_pct: 22 },
-    { name: `Welcome ${TIER_NAMES.lite}`,                                     open_pct: 58, click_pct: 16 },
-    { name: `${TIER_NAMES.lite} Day 14 → ${TIER_NAMES.pro} тизер`,            open_pct: 29, click_pct: 9  },
-    { name: `${TIER_NAMES.pro} Day 30 → ${TIER_NAMES.premium}`,               open_pct: 36, click_pct: 11 },
-    { name: "Еженедельный дайджест",   open_pct: 52, click_pct: 19 },
-    { name: "Ошибка оплаты → Portal",  open_pct: 71, click_pct: 54 },
-  ],
-  promos: {
-    list: [
-      { code: "LITE30",    active: true,  times_redeemed: 48, discount: "30%", duration: "once",       expires_at: "2026-08-01" },
-      { code: "PRO20",     active: true,  times_redeemed: 21, discount: "20%", duration: "repeating",  expires_at: "2026-07-01" },
-      { code: "WELCOME10", active: true,  times_redeemed: 134,discount: "10%", duration: "forever",    expires_at: null },
-      { code: "ASTRO500",  active: false, times_redeemed: 12, discount: "₽500",duration: "once",       expires_at: "2026-03-01" },
-    ],
-    promo_by_plan: { free: 0, lite: 48, pro: 21, premium: 7 },
-    gift_by_plan:  { lite: 18, pro: 9, premium: 4 },
-  },
-};
+// Мок-данных здесь больше нет. Было: константа MOCK на 47 строк
+// (2847 пользователей, MRR 341 000 ₽, выдуманные адреса, проценты
+// открытий писем, промокоды LITE30/PRO20/WELCOME10/ASTRO500), которая
+// подставлялась в двух местах и оба раза молча: в catch при любой ошибке
+// /admin/stats и как основа под spread при УСПЕШНОМ ответе, из-за чего
+// любое поле, которого нет в ответе API, оставалось выдуманным.
+//
+// Владелец принимает решения по этим цифрам. Пустой экран с текстом ошибки
+// честнее правдоподобной выдумки: выдумка не отличима от реальных данных
+// ни на глаз, ни по экспорту JSON (кнопка ↓ Экспорт выгружает то, что
+// лежит в state). Не возвращать фолбэк.
+//
+// Единственное поле, которого /admin/stats не отдаёт, — avg_per_plan
+// (карт и интерпретаций на пользователя в разрезе тарифов). Оно нигде не
+// считается: честно вывести нечего, поэтому в интерфейсе стоит —.
+
+// Заглушка на месте метрики, которой бэкенд не отдаёт. Осознанно пустая:
+// подставить сюда правдоподобное число значило бы вернуть MOCK.
+function EmptyMetric() {
+  return <div className="text-[12px] text-gray-400 py-2">Нет данных: метрика не считается на бэкенде.</div>;
+}
 
 function fmt(n) { return n?.toLocaleString("ru-RU") ?? "—"; }
 function fmtMoney(n) { return "₽ " + fmt(n); }
@@ -313,7 +286,7 @@ function TabUsers({ d, authFetch, onReload }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <MetricCard label="Новых за 7 дней" value={d.users.new_week} />
         <MetricCard label="Активных (30д)" value={fmt(d.activity_30d.charts)} />
-        <MetricCard label="Среднее карт/user" value={d.avg_per_plan.pro.charts} />
+        <MetricCard label="Среднее карт/user" value={d.avg_per_plan?.pro?.charts ?? "—"} />
         <MetricCard label="Google OAuth" value={d.users.google_pct + "%"} />
       </div>
       <div className="border border-gray-100 rounded-xl p-4 mb-3">
@@ -396,15 +369,17 @@ function TabUsers({ d, authFetch, onReload }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Карт на пользователя</div>
-          {Object.entries(d.avg_per_plan).map(([plan, v]) => (
+          {Object.entries(d.avg_per_plan ?? {}).map(([plan, v]) => (
             <Row key={plan} left={<Badge plan={plan} />} right={v.charts} />
           ))}
+          {!d.avg_per_plan && <EmptyMetric />}
         </div>
         <div className="border border-gray-100 rounded-xl p-4">
           <div className="text-[13px] font-medium text-gray-500 mb-4">Интерпретаций на пользователя</div>
-          {Object.entries(d.avg_per_plan).map(([plan, v]) => (
+          {Object.entries(d.avg_per_plan ?? {}).map(([plan, v]) => (
             <Row key={plan} left={<Badge plan={plan} />} right={v.interpretations} />
           ))}
+          {!d.avg_per_plan && <EmptyMetric />}
         </div>
       </div>
     </div>
@@ -1068,13 +1043,18 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
+      // Промокоды тянутся отдельно и своей ошибкой не роняют весь кабинет:
+      // /admin/coupons/stats — необязательная вкладка, /admin/stats — основа экрана.
       const [stats, promos] = await Promise.all([
         authFetch("/api/v1/admin/stats"),
-        authFetch("/api/v1/admin/coupons/stats"),
+        authFetch("/api/v1/admin/coupons/stats").catch(() => null),
       ]);
-      setData({ ...MOCK, ...stats, promos: promos ?? MOCK.promos });
-    } catch {
-      setData({ ...MOCK });
+      setData({ ...stats, promos });
+    } catch (e) {
+      // Фолбэка на выдуманные цифры здесь быть не должно — см. комментарий
+      // в шапке файла. Пусто и с причиной, а не правдоподобно и неверно.
+      setData(null);
+      setError(e?.message || "Не удалось загрузить статистику.");
     } finally {
       setLoading(false);
     }
@@ -1092,6 +1072,9 @@ export default function AdminPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
+      // Запасной путь выгружает то, что уже показано на экране. Раньше это мог
+      // быть MOCK, теперь либо реальные данные, либо ничего.
+      if (!data) return;
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
