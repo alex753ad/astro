@@ -523,7 +523,12 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         const msg = typeof err.detail === 'string' ? err.detail : err.detail?.message;
-        throw new Error(msg || `HTTP ${resp.status}`);
+        // Отказ по тарифу или лимиту — законченное объяснение с бэкенда, а не
+        // сбой. Показываем его как есть: под префиксом «Не удалось
+        // сгенерировать PDF:» текст про исчерпанный лимит читался бы как
+        // поломка, хотя человеку там сказано, что делать.
+        if (msg) { toast.error(msg); return; }
+        throw new Error(`HTTP ${resp.status}`);
       }
       const blob = await resp.blob();
       const url  = URL.createObjectURL(blob);

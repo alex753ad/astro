@@ -2237,7 +2237,32 @@ async def start_pdf_generation(
         # Проверка стоит СНАРУЖИ try: внутри её HTTPException проглотил бы
         # `except Exception` ниже, и отказ превратился бы в тихую выдачу PDF
         # без разбора.
-        tier_limiter.check_interpretation_limit(user, db, chart=chart)
+        #
+        # Текст отказа переформулируется под этот путь. Общий текст гейта
+        # («Лимит N интерпретаций в месяц исчерпан…») здесь дезориентирует:
+        # человек нажимал «Скачать PDF» и про интерпретации не спрашивал —
+        # решит, что сломалось. Сам гейт не трогаем, у него ещё три
+        # вызывающих, где его формулировка верна.
+        #
+        # Статус сохраняется тот, что поднял гейт: 429 при исчерпанной квоте,
+        # 403 на прочих ветвях (сейчас недостижимых — check_pdf_limit отбивает
+        # free раньше).
+        try:
+            tier_limiter.check_interpretation_limit(user, db, chart=chart)
+        except HTTPException as limit_exc:
+            from backend.email_service import TIER_NAMES
+            tier_name = (
+                TIER_NAMES.get(user.tier, user.tier.capitalize())
+                if user else TIER_NAMES["free"]
+            )
+            raise HTTPException(
+                status_code=limit_exc.status_code,
+                detail=(
+                    "PDF собирается вместе с разбором карты, а лимит разборов "
+                    f"в этом месяце исчерпан на тарифе {tier_name}. "
+                    "PDF по картам, где разбор уже есть, работает как обычно."
+                ),
+            ) from limit_exc
 
         # Generate on-the-fly
         try:

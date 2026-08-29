@@ -97,6 +97,31 @@ class TestPaidWithExhaustedInterpretations:
         assert resp.status_code == 429
         assert not resp.content.startswith(b"%PDF")
 
+    def test_refusal_speaks_about_pdf_not_interpretations(
+        self, client, db, user_lite, auth_headers_free, no_pdf_render, fake_interpretation
+    ):
+        """Человек нажимал «Скачать PDF» — отказ обязан говорить про PDF.
+
+        Общий текст check_interpretation_limit («Лимит N интерпретаций в месяц
+        исчерпан…») здесь дезориентирует: про интерпретации не спрашивали,
+        и такой ответ читается как поломка.
+        """
+        chart = _make_chart(db, user_id=user_lite.id)
+        for _ in range(5):
+            increment_monthly_usage(db, str(user_lite.id), "interpretation")
+
+        detail = client.post(
+            f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free
+        ).json()["detail"]
+
+        assert "PDF" in detail
+        # Последнее предложение говорит, что делать сейчас, а не только чего
+        # нельзя — без него отказ остаётся тупиком.
+        assert "уже есть" in detail
+        # Название тарифа из TIER_NAMES, не литералом в коде.
+        from backend.email_service import TIER_NAMES
+        assert TIER_NAMES["lite"] in detail
+
     def test_pdf_quota_not_spent_on_interpretation_refusal(
         self, client, db, user_lite, auth_headers_free, no_pdf_render, fake_interpretation
     ):
