@@ -540,9 +540,13 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                # Формулировка без согласования числа с существительным:
+                # при quota = 1 (free с 30.08.2026) прежний текст читался как
+                # «Лимит 1 PDF-отчётов». «{quota} в месяц» верно для любого
+                # числа и не потребует правки при следующей смене сетки.
                 detail=(
-                    f"Лимит {quota} PDF-отчётов в месяц исчерпан для тарифа "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())}. "
+                    "PDF-отчёты на этот месяц закончились: тариф "
+                    f"{TIER_NAMES.get(tier, tier.capitalize())} даёт {quota} в месяц. "
                     "Оформите более высокий тариф."
                 ),
             )

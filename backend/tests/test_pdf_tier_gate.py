@@ -92,6 +92,26 @@ class TestFreeGetsOnePdf:
         assert "PDF" in detail
         assert TIER_NAMES["free"] in detail
 
+    def test_quota_refusal_reads_grammatically(
+        self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
+    ):
+        """При квоте 1 текст не должен читаться как «Лимит 1 PDF-отчётов».
+
+        Согласование числа с существительным по-русски меняется на 1, 2-4 и
+        5+, а квоты в сетке равны 1 / 5 / 15. Поэтому формулировка построена
+        так, что числу не с чем согласовываться, — и этот тест стережёт, что
+        её не вернут к прежнему виду.
+        """
+        chart = _make_chart(db, user_id=user_free.id)
+        increment_monthly_usage(db, str(user_free.id), "pdf")
+
+        detail = client.post(
+            f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free
+        ).json()["detail"]
+
+        assert "1 PDF-отчётов" not in detail, detail
+        assert "1 в месяц" in detail
+
     def test_pdf_after_reading_interpretation_costs_nothing_extra(
         self, client, db, user_free, auth_headers_free, no_pdf_render, fake_interpretation
     ):
