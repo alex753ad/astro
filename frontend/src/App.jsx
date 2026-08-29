@@ -28,6 +28,7 @@ import AdminPage from './pages/AdminPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import NotFoundPage from './pages/NotFoundPage';
 import PilotClaim from './components/PilotClaim';
 import ExitSurveyModal from './components/ExitSurveyModal';
 import FeedbackButton from './components/FeedbackButton';
@@ -468,6 +469,7 @@ function AppRoutes() {
                 <Route path="/reset-password"      element={<ResetPasswordPage />} />
                 <Route path="/pilot/claim"         element={<PilotClaim onShowAuth={openAuth} />} />
                 <Route path="/exit-survey"         element={<ExitSurveyModal page />} />
+                <Route path="*"                     element={<NotFoundPage />} />
               </Routes>
             </motion.div>
           </AnimatePresence>
