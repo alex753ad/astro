@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { createCheckoutSession, validatePromoCode, apiErrorText } from '../api/client';
+import { createCheckoutSession, apiErrorText } from '../api/client';
 import MotionButton from './MotionButton';
 import { TIER_NAMES } from '../constants';
 
@@ -105,27 +105,6 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
       };
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState(null);
-  const [promoInput, setPromoInput]   = useState('');
-  const [promoApplied, setPromoApplied] = useState('');   // применённый код
-  const [promoError, setPromoError]   = useState('');
-  const [promoLoading, setPromoLoading] = useState(false);
-
-  async function handleApplyPromo() {
-    const code = promoInput.trim().toUpperCase();
-    if (!code) return;
-    setPromoLoading(true);
-    setPromoError('');
-    try {
-      await validatePromoCode(code);
-      setPromoApplied(code);
-      setPromoError('');
-    } catch {
-      setPromoError('Промокод не найден или истёк');
-      setPromoApplied('');
-    } finally {
-      setPromoLoading(false);
-    }
-  }
 
   async function handleUpgrade() {
     setLoading(true);
@@ -136,7 +115,7 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
       // форма ответа Stripe Checkout Session, удалённого 19.08.2026: значение
       // было undefined, браузер уходил на /undefined и показывал пустую
       // страницу, а исключения не возникало и catch не срабатывал.
-      const { checkout_url: checkoutUrl } = await createCheckoutSession(content.tier, 'monthly', chartId, promoApplied || null);
+      const { checkout_url: checkoutUrl } = await createCheckoutSession(content.tier, 'monthly', chartId);
       if (!checkoutUrl) {
         setError('Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.');
         setLoading(false);
@@ -144,12 +123,7 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
       }
       window.location.href = checkoutUrl;
     } catch (e) {
-      if (e.detail?.error === 'invalid_promo_code') {
-        setPromoError('Промокод не действителен');
-        setPromoApplied('');
-      } else {
-        setError(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуйте позже.'));
-      }
+      setError(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуйте позже.'));
       setLoading(false);
     }
   }
@@ -181,27 +155,6 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
         </div>
 
         <p style={s.monthlyPrice}>{content.monthly}</p>
-
-        {/* Промокод */}
-        <div style={s.promoRow}>
-          <input
-            style={{ ...s.promoInput, ...(promoApplied ? s.promoInputOk : {}) }}
-            placeholder="Промокод"
-            value={promoApplied ? `✓ ${promoApplied}` : promoInput}
-            disabled={!!promoApplied || promoLoading}
-            onChange={e => { setPromoInput(e.target.value); setPromoError(''); }}
-            onKeyDown={e => e.key === 'Enter' && handleApplyPromo()}
-          />
-          {!promoApplied && (
-            <MotionButton level="secondary" style={s.promoBtn} onClick={handleApplyPromo} disabled={promoLoading || !promoInput.trim()}>
-              {promoLoading ? '…' : 'Применить'}
-            </MotionButton>
-          )}
-          {promoApplied && (
-            <button style={s.promoClear} onClick={() => { setPromoApplied(''); setPromoInput(''); }}>✕</button>
-          )}
-        </div>
-        {promoError && <p style={s.promoErrorMsg}>{promoError}</p>}
 
         {/* CTA */}
         <MotionButton level="primary" style={s.cta} onClick={handleUpgrade} disabled={loading}>
@@ -337,56 +290,5 @@ const s = {
     fontSize: '11px',
     color: 'var(--text-secondary)',
     textAlign: 'center',
-  },
-  promoRow: {
-    display: 'flex',
-    gap: '8px',
-    marginBottom: '6px',
-  },
-  promoInput: {
-    flex: 1,
-    padding: '9px 12px',
-    border: '1.5px solid var(--border)',
-    borderRadius: '8px',
-    fontSize: '13px',
-    fontFamily: 'inherit',
-    color: 'var(--text-primary)',
-    background: 'var(--border)',
-    outline: 'none',
-    letterSpacing: '0.04em',
-  },
-  promoInputOk: {
-    borderColor: 'var(--color-success)',
-    background: 'var(--accent-muted)',
-    color: 'var(--color-success)',
-    fontWeight: '600',
-  },
-  promoBtn: {
-    padding: '9px 14px',
-    background: 'var(--bg-card)',
-    color: 'var(--text-primary)',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    whiteSpace: 'nowrap',
-  },
-  promoClear: {
-    padding: '9px 12px',
-    background: 'none',
-    color: 'var(--text-secondary)',
-    border: '1.5px solid var(--border)',
-    borderRadius: '8px',
-    fontSize: '13px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-  promoErrorMsg: {
-    margin: '0 0 10px',
-    fontSize: '12px',
-    color: 'var(--color-danger)',
-    textAlign: 'left',
   },
 };
