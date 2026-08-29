@@ -21,7 +21,7 @@ const ZODIAC_SIGNS = [
 
 const STATIC_ROUTES = [
   { path: '/',              changefreq: 'weekly',  priority: '1.0' },
-  { path: '/calendar/lunar', changefreq: 'daily',   priority: '0.9' },
+  { path: '/lunar',          changefreq: 'daily',   priority: '0.9' },
   { path: '/pricing',       changefreq: 'monthly', priority: '0.9' },
   { path: '/requisites',    changefreq: 'monthly', priority: '0.5' },
   { path: '/terms',         changefreq: 'monthly', priority: '0.5' },
