@@ -199,8 +199,21 @@ async def create_share_link(
     db.commit()
     db.refresh(chart)
 
+    # share_url ведёт на /share/{token} — серверный HTML с OG-тегами (share_page
+    # ниже), а НЕ на SPA-маршрут /chart/share/{token}. Разница видна только в
+    # мессенджере: краулер JS не исполняет, поэтому с SPA-пути он забирал общие
+    # теги из index.html и превью выходило безликим у всех карт сразу. На
+    # /share/{token} он получает имя, знаки Солнца/Луны/Асцендента и картинку
+    # 1080x1920. Человека эта страница через 3 секунды сама уводит на SPA, где
+    # рисуется настоящая карта, так что конечный экран прежний.
+    #
+    # Побочно закрывает расхождение с robots.txt: /chart/ там в Disallow, то
+    # есть ссылка, которую мы сами же выдаём на шаринг, была запрещена к обходу.
+    #
+    # Оба пути были заведены одним коммитом 695a9b2, и share_url с самого начала
+    # указывал мимо страницы, ради которой всё это писалось.
     return {
-        "share_url": f"{APP_URL}/chart/share/{chart.public_token}",
+        "share_url": f"{APP_URL}/share/{chart.public_token}",
         "card_url":  f"{APP_URL}/share/{chart.public_token}/card.png",
         "token":     chart.public_token,
     }
