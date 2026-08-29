@@ -25,13 +25,6 @@ SIGN_RU = {
     "Libra": "Весах", "Scorpio": "Скорпионе", "Sagittarius": "Стрельце",
     "Capricorn": "Козероге", "Aquarius": "Водолее", "Pisces": "Рыбах",
 }
-SIGN_RU_NOM = {
-    "Aries": "Овен", "Taurus": "Телец", "Gemini": "Близнецы",
-    "Cancer": "Рак", "Leo": "Лев", "Virgo": "Дева",
-    "Libra": "Весы", "Scorpio": "Скорпион", "Sagittarius": "Стрелец",
-    "Capricorn": "Козерог", "Aquarius": "Водолей", "Pisces": "Рыбы",
-}
-
 # ── Knowledge Base (subset — expand as needed) ──
 
 SUN_IN_SIGN = {
