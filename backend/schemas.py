@@ -393,6 +393,15 @@ class NatalChartResponse(BaseModel):
     # расчёта): фронт сохраняет его и шлёт в X-Chart-Token для планера/транзитов.
     access_token: Optional[str] = None
 
+    # Состояние разбора этой карты. Нужно фронту, чтобы предупредить о тихом
+    # списании: free, нажавший «Скачать PDF» и не открывавший разбор, теряет
+    # единственное бесплатное право по этой карте внутри генерации PDF.
+    # Вычислить это на клиенте нельзя — ни строки interpretations, ни флага
+    # карты он не видит, а гадать по косвенным признакам значит показывать
+    # предупреждение не тем.
+    has_interpretation: bool = False
+    free_interpretation_used: bool = False
+
 
 class TransitEvent(BaseModel):
     start_date: str

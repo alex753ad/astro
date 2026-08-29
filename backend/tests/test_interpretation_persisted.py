@@ -145,3 +145,37 @@ class TestServedBack:
 
         assert "Вторая часть." in again.text
         assert "error" not in again.text
+
+
+class TestChartResponseExposesState:
+    """Фронт должен знать, израсходует ли PDF бесплатный разбор.
+
+    Вычислить это на клиенте нечем: ни строки interpretations, ни флага карты
+    он не видит. Предупреждение показывается строго при
+    has_interpretation == False и free_interpretation_used == False, поэтому
+    оба поля обязаны приходить с бэкенда.
+    """
+
+    def _get(self, client, chart_id, headers):
+        return client.get(f"/api/v1/chart/{chart_id}", headers=headers).json()
+
+    def test_fresh_chart_reports_no_interpretation(
+        self, client, db, user_free, auth_headers_free
+    ):
+        chart = _make_chart(db, user_id=user_free.id)
+
+        data = self._get(client, chart.id, auth_headers_free)
+
+        assert data["has_interpretation"] is False
+        assert data["free_interpretation_used"] is False
+
+    def test_after_reading_both_flags_flip(
+        self, client, db, user_free, auth_headers_free, full_stream
+    ):
+        chart = _make_chart(db, user_id=user_free.id)
+        client.get(_sse_url(chart.id), headers=auth_headers_free)
+
+        data = self._get(client, chart.id, auth_headers_free)
+
+        assert data["has_interpretation"] is True
+        assert data["free_interpretation_used"] is True

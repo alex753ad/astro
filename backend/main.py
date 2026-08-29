@@ -943,8 +943,19 @@ async def get_chart(
     asc = PointData(**chart.ascendant) if chart.ascendant else None
     mc = PointData(**chart.midheaven) if chart.midheaven else None
 
+    from backend.models import Interpretation
+    has_interpretation = (
+        db.query(Interpretation.id)
+        .filter(Interpretation.chart_id == chart.id)
+        .first()
+    ) is not None
+
     return NatalChartResponse(
         id=chart.id,
+        has_interpretation=has_interpretation,
+        free_interpretation_used=bool(
+            getattr(chart, "free_interpretation_used", False)
+        ),
         birth_date=chart.birth_date,
         birth_time=chart.birth_time,
         birth_place=chart.birth_place,

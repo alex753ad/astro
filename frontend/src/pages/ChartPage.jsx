@@ -372,6 +372,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const _upsellCtx = (required = 'lite') =>
     getPaywallContext({ error: 'tier_required', current: currentUser?.tier || 'free', required }) || 'free_to_lite';
   const [pdfLoading, setPdfLoading]   = useState(false);
+  const [pdfConfirm, setPdfConfirm]   = useState(false);
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
@@ -492,6 +493,19 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     a.click();
   }
 
+  // PDF собирается вместе с разбором карты. Если разбора ещё нет, бэкенд
+  // сгенерирует его внутри запроса и погасит бесплатное право по этой карте
+  // (commit_interpretation) — человек об этом не знает, потому что текста на
+  // экране не видел. Предупреждаем ДО списания.
+  //
+  // Показываем строго когда списание действительно произойдёт. Оба поля
+  // приходят с бэкенда (GET /chart/{id}) — вычислить их на клиенте нечем:
+  // ни строки interpretations, ни флага карты он не видит.
+  const pdfWillSpendInterpretation =
+    (currentUser?.tier || 'free') === 'free' &&
+    chart?.has_interpretation === false &&
+    chart?.free_interpretation_used === false;
+
   async function handleDownloadPdf() {
     if (pdfLoading) return;
     const token = localStorage.getItem('astro_access_token');
@@ -508,6 +522,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     // openPaywall молча проглотил бы показ по лимиту частоты
     // (canShowPaywall), то есть кнопка не делала бы ничего.
     if (!tierAllowed('lite')) { openPaywall(_upsellCtx('lite'), true); return; }
+    if (pdfWillSpendInterpretation) { setPdfConfirm(true); return; }
+    await runPdfDownload(token);
+  }
+
+  async function runPdfDownload(token) {
     setPdfLoading(true);
     try {
       const wheelPng = await captureChartPng(setChartForExport);
@@ -999,6 +1018,47 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         )}
       </AnimatePresence>
 
+      {/* Готового диалога подтверждения в проекте нет: все существующие
+          подтверждения — системный window.confirm (AdminPage, CRMPage) либо
+          инлайн-переключение кнопок на месте (ProfilePage, gdprConfirm).
+          Инлайн сюда не встаёт — это одна кнопка в шапке, а текста три
+          предложения; поэтому взята форма модалки, как у PaywallModal:
+          оверлей, карточка, объяснение, основная кнопка и «Отмена». */}
+      {pdfConfirm && (
+        <div style={s.confirmOverlay} onClick={() => setPdfConfirm(false)}>
+          <div style={s.confirmCard} onClick={e => e.stopPropagation()}>
+            <p style={s.confirmTitle}>PDF соберётся вместе с разбором</p>
+            <p style={s.confirmText}>
+              У этой карты разбора ещё нет, поэтому он будет создан для отчёта —
+              и это израсходует единственный бесплатный разбор для неё.
+            </p>
+            <p style={s.confirmText}>
+              Текст не пропадёт внутри файла: после этого разбор можно будет
+              открыть и перечитать на экране.
+            </p>
+            <div style={s.confirmRow}>
+              <MotionButton
+                level="primary"
+                style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}
+                onClick={() => {
+                  setPdfConfirm(false);
+                  runPdfDownload(localStorage.getItem('astro_access_token'));
+                }}
+              >
+                Скачать PDF
+              </MotionButton>
+              <MotionButton
+                level="ghost"
+                style={s.plannerLinkBtn}
+                onClick={() => setPdfConfirm(false)}
+              >
+                Отмена
+              </MotionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PlanComparisonModal
         open={showChatPlans}
         onClose={() => setShowChatPlans(false)}
@@ -1370,6 +1430,31 @@ const s = {
     borderRadius: 16,
     overflowY: 'auto',
     padding: 20,
+  },
+  // Диалог подтверждения перед PDF, который израсходует бесплатный разбор.
+  // Геометрия и цвета повторяют PaywallModal — отдельного языка для модалок
+  // в проекте нет, и заводить второй ради одного диалога незачем.
+  confirmOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(30,26,46,0.55)',
+    backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center',
+    justifyContent: 'center', zIndex: 1000, padding: 16,
+  },
+  confirmCard: {
+    background: 'var(--bg-card)', borderRadius: 20,
+    border: '0.5px solid var(--border)', padding: '28px 24px 22px',
+    maxWidth: 420, width: '100%',
+    boxShadow: '0 20px 60px rgba(112,96,160,0.15)',
+  },
+  confirmTitle: {
+    margin: '0 0 12px', fontSize: 17, fontWeight: 600,
+    color: 'var(--text-primary)',
+  },
+  confirmText: {
+    margin: '0 0 12px', fontSize: 13, lineHeight: 1.55,
+    color: 'var(--text-secondary)',
+  },
+  confirmRow: {
+    display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap',
   },
   overlayBlurWrap: { position: 'relative' },
   overlayLogin: {
