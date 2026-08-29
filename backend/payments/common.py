@@ -170,6 +170,43 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
         "продление, срок суммирован" if renewal else "отсчёт от сегодня",
     )
 
+    # Приветственная цепочка писем по тарифу. Постановщик стоял в
+    # payments/stripe_service.py и уехал вместе с ним в f3fc0a3 («удалить
+    # Robokassa и Stripe как мёртвый код», 19.08.2026) — к ЮKassa цепочку
+    # тогда не перепривязали, и с тех пор платящий человек не получал по
+    # почте ничего: ни приветствия, ни даже подтверждения оплаты.
+    #
+    # ТОЛЬКО при renewal == False. Признак уже посчитан выше и означает
+    # «живая подписка того же тарифа»: продливший Вегу на второй месяц
+    # приветствие повторно не получит. Смена тарифа (lite -> pro) даёт
+    # renewal == False намеренно — это новый тариф, и письмо про него
+    # человек видит впервые.
+    #
+    # Ставится ПОСЛЕ db.commit(): подписка уже выдана, и что бы дальше ни
+    # случилось с очередью, оплата не откатывается.
+    if not renewal:
+        try:
+            from backend.tasks import (
+                schedule_lite_emails,
+                schedule_premium_emails,
+                schedule_pro_emails,
+            )
+            _chain = {
+                "lite": schedule_lite_emails,
+                "pro": schedule_pro_emails,
+                "premium": schedule_premium_emails,
+            }.get(tier)
+            if _chain is not None:
+                _chain.delay(user.id)
+        except Exception as exc:
+            # Недоступный Redis/Celery не должен стоить человеку подписки:
+            # деньги списаны, тариф выдан и закоммичен выше. Письмо —
+            # приятное дополнение, а не часть оплаты.
+            logger.warning(
+                "Не удалось поставить цепочку писем: user=%s tier=%s: %s",
+                user_id, tier, exc,
+            )
+
 
 def apply_referral_reward(referrer_user_id: str, db: Session) -> None:
     """«Пригласи друга — получи 2 недели Pro бесплатно»: продлить
