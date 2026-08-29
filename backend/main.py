@@ -64,6 +64,11 @@ from backend.ephemeris.geo import (
     AmbiguousTimeError,
 )
 from backend.cache import interpretation_cache, transit_cache, make_profile_hash, budget_tracker
+# Прямые вызовы Anthropic/OpenAI мимо InterpretationRouter (прогнозы и общий
+# астрокалендарь ниже) обязаны сами записывать расход в общий суточный
+# бюджет: проверять его и не пополнять — значит смещать потолок для всех
+# остальных контуров.
+from backend.interpretation.router import track_claude_spend, track_openai_spend
 from backend.calendar.lunar_engine import get_monthly_calendar
 from backend.auth.router import router as auth_router
 from backend.profile.router import router as profile_router
@@ -1428,6 +1433,11 @@ async def interpret_transits(
                         streamed = True
                     if streamed:
                         yield "data: [DONE]\n\n"
+                        # Ключ расхода — eng.name, тот же, по которому выше
+                        # спрашивали _check_budget. Токены из движка, не оценка.
+                        router._track_spend(
+                            eng.name, getattr(eng, "_last_stream_tokens", 0) or 0
+                        )
                         # Списываем AI-транзит только при реальной работе AI-движка (Lite-квота)
                         tier_limiter.commit_transit_ai(user, db)
                         return
@@ -1630,6 +1640,9 @@ async def interpret_transit_event(
                         streamed = True
                     if streamed:
                         yield "data: [DONE]\n\n"
+                        router._track_spend(
+                            eng.name, getattr(eng, "_last_stream_tokens", 0) or 0
+                        )
                         transit_interp_cache.set(
                             cache_key,
                             {"content": "".join(collected), "engine": eng.name},
@@ -1750,6 +1763,7 @@ async def get_weekly_forecast(
                 )
                 data = resp.json()
                 raw  = data["content"][0]["text"]
+                track_claude_spend(data, "forecast/weekly")
         except Exception as e:
             logger.warning(f"Anthropic weekly forecast failed: {e}")
 
@@ -1768,6 +1782,7 @@ async def get_weekly_forecast(
                 )
                 data = resp.json()
                 raw  = data["choices"][0]["message"]["content"]
+                track_openai_spend(data, "forecast/weekly")
         except Exception as e:
             logger.warning(f"OpenAI weekly forecast failed: {e}")
 
@@ -1878,6 +1893,7 @@ async def get_daily_forecast(
                 )
                 data = resp.json()
                 raw = data["content"][0]["text"]
+                track_claude_spend(data, "forecast/daily")
         except Exception as e:
             logger.warning(f"Anthropic daily forecast failed: {e}")
 
@@ -1896,6 +1912,7 @@ async def get_daily_forecast(
                 )
                 data = resp.json()
                 raw = data["choices"][0]["message"]["content"]
+                track_openai_spend(data, "forecast/daily")
         except Exception as e:
             logger.warning(f"OpenAI daily forecast failed: {e}")
 
@@ -2002,6 +2019,7 @@ async def get_monthly_forecast(
                 )
                 data = resp.json()
                 raw = data["content"][0]["text"]
+                track_claude_spend(data, "forecast/monthly")
         except Exception as e:
             logger.warning(f"Anthropic monthly forecast failed: {e}")
 
@@ -2020,6 +2038,7 @@ async def get_monthly_forecast(
                 )
                 data = resp.json()
                 raw = data["choices"][0]["message"]["content"]
+                track_openai_spend(data, "forecast/monthly")
         except Exception as e:
             logger.warning(f"OpenAI monthly forecast failed: {e}")
 
@@ -2345,7 +2364,6 @@ async def get_general_calendar(
     Возвращает: список событий + AI-обзор месяца.
     """
     import httpx, os
-    from backend.interpretation.router import track_claude_spend
     from backend.transit.forecast_prompt import build_general_calendar_prompt, parse_forecast_response
 
     try:

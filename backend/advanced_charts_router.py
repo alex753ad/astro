@@ -226,6 +226,11 @@ def _stream_interpretation(prompt: str, profile: dict, context: str, tier: str, 
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
                     if streamed:
+                        # Ключ расхода совпадает с ключом проверки выше
+                        # (_check_budget(engine.name)). Токены — из движка.
+                        ai_router._track_spend(
+                            engine.name, getattr(engine, "_last_stream_tokens", 0) or 0
+                        )
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as exc:  # noqa: BLE001

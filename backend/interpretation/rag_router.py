@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from backend.async_utils import iter_with_deadline
 from backend.auth.dependencies import get_current_user, require_tier
 from backend.auth.rate_limits import increment_monthly_usage, rag_chat_key
+from backend.interpretation.router import track_engine_spend
 from backend.cache import budget_tracker
 from backend.database import get_db, SessionLocal
 from backend.limiter import limiter
@@ -390,6 +391,7 @@ async def _sse_generator(
     collected: list[str] = []
     finish_reason: str | None = None
     saw_reasoning = False
+    stream_tokens = 0
     payload = {
         "model": settings.deepseek_model_flash,
         "messages": messages,
@@ -397,6 +399,10 @@ async def _sse_generator(
         "temperature": 0.7,
         "stream": True,
         "thinking": {"type": "disabled"},
+        # Без include_usage DeepSeek не присылает счётчик токенов вовсе, и
+        # расход чата было бы неоткуда взять, кроме как оценкой. Тот же
+        # приём, что в interpretation/deepseek.py:89 — тот же провайдер.
+        "stream_options": {"include_usage": True},
     }
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -421,6 +427,8 @@ async def _sse_generator(
                         break
                     try:
                         chunk = json.loads(data_str)
+                        if chunk.get("usage"):
+                            stream_tokens = chunk["usage"].get("total_tokens", 0)
                         choice = chunk.get("choices", [{}])[0]
                         if choice.get("finish_reason"):
                             finish_reason = choice["finish_reason"]
@@ -454,6 +462,10 @@ async def _sse_generator(
             }
             yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
         else:
+            # Ключ расхода — deepseek, тот же, по которому выше спрашивали
+            # is_within_budget. Токены из usage провайдера, не оценка;
+            # при их отсутствии track_spend ничего не пишет.
+            track_engine_spend("deepseek", stream_tokens, "rag_chat")
             await _persist_turn(user_id, chart_id, question, answer, history)
         yield "data: [DONE]\n\n"
 

@@ -756,6 +756,11 @@ async def generate_brief(
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
                     if streamed:
+                        # Ключ расхода совпадает с ключом проверки выше
+                        # (_check_budget(eng.name)). Токены — из движка.
+                        ai_router._track_spend(
+                            eng.name, getattr(eng, "_last_stream_tokens", 0) or 0
+                        )
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
