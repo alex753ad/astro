@@ -562,19 +562,6 @@ class TierRateLimiter:
             return  # безлимитным тарифам счётчик не нужен
         increment_monthly_usage(db, str(user.id), "pdf")
 
-    def check_premium_ip(self, user: Optional[User], request: Request) -> None:
-        """Для Premium: сброс сессии при 3+ уникальных IP за 30 минут."""
-        if user is None or user.tier != "premium":
-            return
-        from backend.cache import ip_monitor
-        ip = client_ip(request)
-        if ip_monitor.record_and_check(str(user.id), ip):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Обнаружен вход с нескольких устройств. Пожалуйста, войдите заново.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
 
 tier_limiter = TierRateLimiter()
 
