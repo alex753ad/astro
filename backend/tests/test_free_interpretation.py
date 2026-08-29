@@ -48,6 +48,18 @@ def _events(resp):
     return out
 
 
+def _spend_right_without_saving(db, chart):
+    """Право потрачено, сохранённого текста нет.
+
+    С 30.08.2026 повторное открытие карты отдаёт сохранённый разбор и до
+    гейта не доходит, поэтому «исчерпанное право» через эндпоинт больше не
+    воспроизводится. Это состояние карт, разобранных ДО той правки, и оно же
+    единственное, в котором отказ вообще может быть показан.
+    """
+    chart.free_interpretation_used = True
+    db.commit()
+
+
 def _error_of(resp):
     """Текст ошибки из потока или None, если поток нормальный."""
     for ev in _events(resp):
@@ -176,7 +188,10 @@ class TestDeletingChartRestoresTheRight:
     ):
         chart = _make_chart(db, user_id=user_free.id)
         assert _error_of(_interpret(client, chart.id, auth_headers_free)) is None
-        assert _error_of(_interpret(client, chart.id, auth_headers_free)) is not None
+        # Право по этой карте израсходовано — проверяем флагом, а не повторным
+        # запросом: тот теперь отдаёт сохранённый разбор, а не отказ.
+        db.expire_all()
+        assert db.get(NatalChart, chart.id).free_interpretation_used is True
 
         deleted = client.delete(
             f"/api/v1/profile/charts/{chart.id}", headers=auth_headers_free
@@ -198,16 +213,16 @@ class TestRefusalReachesTheUser:
         self, client, db, user_free, auth_headers_free, fake_stream
     ):
         chart = _make_chart(db, user_id=user_free.id)
-        _interpret(client, chart.id, auth_headers_free)
+        _spend_right_without_saving(db, chart)
 
-        second = _interpret(client, chart.id, auth_headers_free)
-        assert second.status_code == 200, "403 не доезжает через EventSource"
+        refused = _interpret(client, chart.id, auth_headers_free)
+        assert refused.status_code == 200, "403 не доезжает через EventSource"
 
     def test_error_event_carries_the_backend_text(
         self, client, db, user_free, auth_headers_free, fake_stream
     ):
         chart = _make_chart(db, user_id=user_free.id)
-        _interpret(client, chart.id, auth_headers_free)
+        _spend_right_without_saving(db, chart)
 
         text = _error_of(_interpret(client, chart.id, auth_headers_free))
         assert text, "в потоке обязано быть событие с текстом отказа"
@@ -220,7 +235,7 @@ class TestRefusalReachesTheUser:
     ):
         """[DONE] клиент считает успехом — при отказе его быть не должно."""
         chart = _make_chart(db, user_id=user_free.id)
-        _interpret(client, chart.id, auth_headers_free)
+        _spend_right_without_saving(db, chart)
 
         events = _events(_interpret(client, chart.id, auth_headers_free))
         assert not any(e.get("done") for e in events)
