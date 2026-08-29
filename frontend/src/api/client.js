@@ -463,16 +463,6 @@ export async function createCheckoutSession(tier, billing, chartId, promoCode = 
   });
 }
 
-export async function validatePromoCode(code) {
-  // Пробуем создать сессию с промокодом — если invalid_promo_code, бросаем
-  // Используем отдельный лёгкий эндпоинт-валидатор (или полагаемся на ошибку checkout)
-  // Здесь делаем HEAD-запрос к специальному эндпоинту валидации
-  const token = localStorage.getItem('astro_access_token');
-  return request(`/payments/promo-validate?code=${encodeURIComponent(code)}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-}
-
 // ── Соляр / синастрия / релокация (только для админов) ──
 //
 // Расчёты — обычный request(). Стримы: соляр и релокация это GET, поэтому
