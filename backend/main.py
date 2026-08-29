@@ -2235,56 +2235,6 @@ async def get_monthly_planner(
 # ASYNC TASK ENDPOINTS (Celery)
 # ═══════════════════════════════════════════════════════════
 
-@app.post(
-    "/api/v1/chart/{chart_id}/transits/async",
-    tags=["transits"],
-    summary="Start async transit calculation (returns task_id)",
-)
-@limiter.limit(settings.rate_limit_anon)
-async def start_transits_async(
-    request: Request,
-    chart_id: str,
-    from_date: str,
-    to_date: str,
-    planet: str | None = None,
-    max_orb: float | None = None,
-    db: Session = Depends(get_db),
-    user: User | None = Depends(get_current_user_optional),
-):
-    """Start heavy transit calculation as background Celery task.
-
-    Returns task_id immediately. Poll GET /api/v1/tasks/{task_id}/status for result.
-    Use instead of /transits when period > 3 months.
-    """
-    # E2: список транзитов виден всем тарифам (Free — с блюром AI-разбора на клиенте).
-
-    chart = resolve_chart_access(chart_id, user, chart_token(request), db)
-
-    try:
-        from_dt = __import__("datetime").date.fromisoformat(from_date)
-        to_dt   = __import__("datetime").date.fromisoformat(to_date)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid date format. Use YYYY-MM-DD.")
-
-    if to_dt <= from_dt:
-        raise HTTPException(status_code=422, detail="to_date must be after from_date.")
-
-    delta = (to_dt - from_dt).days
-    if delta > 366:
-        raise HTTPException(status_code=422, detail="Transit period cannot exceed 1 year.")
-
-    from backend.tasks import task_calculate_transits
-    task = task_calculate_transits.delay(
-        chart_id=chart_id,
-        from_date=from_date,
-        to_date=to_date,
-        planet_filter=planet,
-        max_orb=max_orb,
-    )
-
-    return {"task_id": task.id, "status": "pending"}
-
-
 class PdfRequest(BaseModel):
     wheel_png: str | None = None  # base64 PNG колеса, опционально
 
@@ -2440,41 +2390,6 @@ async def start_pdf_generation(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
-@app.get(
-    "/api/v1/tasks/{task_id}/status",
-    tags=["tasks"],
-    summary="Poll async task status and result",
-)
-async def get_task_status(task_id: str):
-    """Poll the status of a background Celery task.
-
-    Returns:
-      - status: pending | started | success | failure
-      - step: current step name (while running)
-      - result: task result (when status=success)
-      - error: error message (when status=failure)
-    """
-    from celery.result import AsyncResult
-    from backend.celery_app import celery_app
-
-    result = AsyncResult(task_id, app=celery_app)
-
-    if result.state == "PENDING":
-        return {"task_id": task_id, "status": "pending"}
-
-    if result.state == "STARTED":
-        meta = result.info or {}
-        return {"task_id": task_id, "status": "started", "step": meta.get("step", "")}
-
-    if result.state == "SUCCESS":
-        return {"task_id": task_id, "status": "success", "result": result.result}
-
-    if result.state == "FAILURE":
-        return {"task_id": task_id, "status": "failure", "error": str(result.result)}
-
-    return {"task_id": task_id, "status": result.state.lower()}
 
 
 @debug_router.get('/api/v1/debug/moon')

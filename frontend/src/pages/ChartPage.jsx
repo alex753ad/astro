@@ -20,7 +20,7 @@ import { useExpertMode } from '../hooks/useExpertMode.js';
 import useIsMobile from '../hooks/useIsMobile';
 import { TIER_NAMES } from '../constants';
 import { enablePush, pushSupported } from '../push';
-import { todayLocalISO, addDaysISO } from '../utils/dateISO';
+import { todayLocalISO } from '../utils/dateISO';
 import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
 import OnboardingTooltips from '../components/OnboardingTooltips';
@@ -30,8 +30,6 @@ import RagChat from '../components/RagChat';
 import {
   createCheckoutSession,
   startPdfGeneration,
-  startTransitsAsync,
-  pollTask,
   apiErrorText,
 } from '../api/client';
 import { useToast } from '../components/Toast';
@@ -380,11 +378,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [hoverAspect, setHoverAspect]  = useState(null); // cross-highlight: аспект под курсором в таблице ("A|B")
   const [chartForExport, setChartForExport] = useState(false); // светлая тема при PNG-экспорте
 
-  // Async-транзиты (Celery)
-  const [asyncTransits, setAsyncTransits]     = useState(null);   // результат
-  const [asyncTransitStep, setAsyncTransitStep] = useState('');   // шаг прогресса
-  const [asyncTransitLoading, setAsyncTransitLoading] = useState(false);
-
   const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
   const { streak, isNew } = useStreak();
   const isMobile = useIsMobile(900);
@@ -406,35 +399,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     }
     schedulePushReminder();
   }, [chart]);
-
-  // Запустить расчёт транзитов за 12 месяцев через Celery
-  async function loadTransitsAsync() {
-    const from = todayLocalISO();
-    const to   = addDaysISO(from, 365);
-    setAsyncTransitLoading(true);
-    setAsyncTransitStep('Отправляем запрос…');
-    setAsyncTransits(null);
-    try {
-      const { task_id } = await startTransitsAsync(chartId, from, to);
-      const result = await pollTask(
-        task_id,
-        ({ status, step }) => setAsyncTransitStep(
-          step === 'loading_chart' ? 'Загружаем карту…'      :
-          step === 'calculating'   ? 'Считаем транзиты…'     :
-          step === 'serializing'   ? 'Подготавливаем данные…' :
-          'Обрабатываем…'
-        ),
-        2000,
-        180_000,
-      );
-      setAsyncTransits(result.events);
-      setAsyncTransitStep('');
-    } catch (e) {
-      setAsyncTransitStep('Ошибка: ' + e.message);
-    } finally {
-      setAsyncTransitLoading(false);
-    }
-  }
 
   async function handleShare() {
     const token = localStorage.getItem('astro_access_token');

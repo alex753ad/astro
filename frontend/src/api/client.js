@@ -390,45 +390,8 @@ export async function streamTransitEventInterpretation(chartId, transitEvent, on
 
 // ── Async Tasks API ──
 
-export async function startTransitsAsync(chartId, fromDate, toDate, options = {}) {
-  const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
-  if (options.planet) params.set('planet', options.planet);
-  if (options.maxOrb) params.set('max_orb', options.maxOrb);
-  return request(`/chart/${chartId}/transits/async?${params}`, { method: 'POST' });
-}
-
 export async function startPdfGeneration(chartId) {
   return request(`/chart/${chartId}/pdf`, { method: 'POST' });
-}
-
-export async function getTaskStatus(taskId) {
-  return request(`/tasks/${taskId}/status`);
-}
-
-export function pollTask(taskId, onProgress, intervalMs = 1500, timeoutMs = 120_000) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-
-    const tick = async () => {
-      if (Date.now() - start > timeoutMs) {
-        return reject(new Error('Task timeout'));
-      }
-
-      try {
-        const data = await getTaskStatus(taskId);
-        onProgress?.({ status: data.status, step: data.step });
-
-        if (data.status === 'success') return resolve(data.result);
-        if (data.status === 'failure') return reject(new Error(data.error || 'Task failed'));
-
-        setTimeout(tick, intervalMs);
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    tick();
-  });
 }
 
 // ── Lunar Calendar API ──

@@ -22,8 +22,6 @@ class TestTasksRegistered:
         assert celery_app.main == "astro"
 
     @pytest.mark.parametrize("import_path", [
-        # main.py:1950 — POST /chart/{id}/transits/async
-        "backend.tasks.task_calculate_transits",
         # payments/stripe_service.py:572
         "backend.tasks.task_generate_pdf",
         # main.py:705, stripe_service.py:328-332

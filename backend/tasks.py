@@ -1,7 +1,6 @@
 """Celery tasks for heavy computations.
 
 Tasks:
-  task_calculate_transits  — transit calculation for up to 12 months (~8 sec)
   task_generate_pdf        — PDF report generation (~5-15 sec)
 """
 
@@ -9,7 +8,6 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import date as date_type
 from backend.time_utils import utcnow
 
 from backend.celery_app import celery_app
@@ -249,89 +247,6 @@ def schedule_retention_emails(user_id: int) -> None:
     send_retention_day2_task.apply_async(args=[user_id], countdown=48 * 3600)
     send_retention_day7_task.apply_async(args=[user_id], countdown=7 * 24 * 3600)
     send_retention_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
-
-
-# ═══════════════════════════════════════════════════════════
-# TASK: Calculate transits
-# ═══════════════════════════════════════════════════════════
-
-@celery_app.task(bind=True, name="tasks.calculate_transits")
-def task_calculate_transits(
-    self,
-    chart_id: str,
-    from_date: str,
-    to_date: str,
-    planet_filter: str | None = None,
-    max_orb: float | None = None,
-) -> dict:
-    """Calculate transits for up to 12 months.
-
-    Returns serialized list of TransitEvent dicts.
-    """
-    from backend.transit.engine import calculate_transits
-    from backend.cache import transit_cache
-
-    self.update_state(state="STARTED", meta={"step": "loading_chart"})
-
-    db = SessionLocal()
-    try:
-        chart = _get_chart(db, chart_id)
-
-        cache_key = f"transit:v3:{chart_id}:{from_date}:{to_date}:{planet_filter}:{max_orb}"
-        cached = transit_cache.get(cache_key)
-        if cached:
-            logger.info("Transit cache hit in task: %s", cache_key[:40])
-            return {"events": cached, "cached": True}
-
-        self.update_state(state="STARTED", meta={"step": "calculating"})
-
-        from_dt = date_type.fromisoformat(from_date)
-        to_dt = date_type.fromisoformat(to_date)
-        planet_list = [planet_filter] if planet_filter else None
-
-        events = calculate_transits(
-            natal_planets=chart.planets,
-            from_date=from_dt,
-            to_date=to_dt,
-            orb_filter=max_orb,
-            planet_filter=planet_list,
-        )
-
-        self.update_state(state="STARTED", meta={"step": "serializing"})
-
-        # E2: пометить значимые (топ-2 → free_unlocked)
-        from backend.transit.engine import mark_transit_significance
-        mark_transit_significance(events)
-
-        events_data = [
-            {
-                "start_date": getattr(e, "start_date", None) or getattr(e, "date", ""),
-                "peak_date":  getattr(e, "peak_date",  None) or getattr(e, "date", ""),
-                "end_date":   getattr(e, "end_date",   None) or getattr(e, "date", ""),
-                "transit_planet": e.transit_planet,
-                "transit_sign":   getattr(e, "transit_sign", ""),
-                "transit_degree": getattr(e, "transit_degree", 0.0),
-                "natal_planet":   e.natal_planet,
-                "natal_sign":     getattr(e, "natal_sign", ""),
-                "aspect_type":    e.aspect_type,
-                "peak_orb":       getattr(e, "peak_orb", None) or getattr(e, "orb", 0.0),
-                "exact_date":     getattr(e, "exact_date", None),
-                "applying":       getattr(e, "applying", True),
-                "significant":    getattr(e, "significant", False),
-                "free_unlocked":  getattr(e, "free_unlocked", False),
-            }
-            for e in events
-        ]
-
-        transit_cache.set(cache_key, events_data, ttl=7 * 24 * 3600)
-
-        return {"events": events_data, "cached": False}
-
-    except Exception as exc:
-        logger.exception("task_calculate_transits failed: %s", exc)
-        raise
-    finally:
-        db.close()
 
 
 # ═══════════════════════════════════════════════════════════
