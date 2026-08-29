@@ -79,16 +79,24 @@ class TestPdfLimitSync:
         assert TIER_FLAGS["free"]["pdf_export"] is True
         assert _parse_frontend_pdf_limits()["free"] == TIER_FLAGS["free"]["pdf_per_month"]
 
-    def test_storefront_line_shows_the_flag_number(self):
-        """Строка витрины содержит именно то число, что стоит в сетке."""
+    def test_storefront_line_is_derived_not_typed(self):
+        """В features пункт PDF должен быть вызовом, а не строкой.
+
+        Смотрим только внутрь объявления TIERS: та же подстрока законно
+        встречается выше — в комментариях и в самом pdfFeatureLabel, который
+        её и собирает. Первая версия теста проверяла весь файл и падала на
+        собственном комментарии.
+        """
         src = CONSTANTS_JS.read_text(encoding="utf-8")
-        # Прозы с числом PDF в features остаться не должно — только вызов
-        # pdfFeatureLabel, иначе смысл правки потерян.
-        assert "PDF-экспорт (" not in src, (
+        marker = "export const TIERS = ["
+        assert marker in src, "TIERS не найден — изменился формат объявления?"
+        tiers_block = src[src.index(marker) + len(marker):]
+
+        assert "PDF-экспорт" not in tiers_block, (
             "число PDF снова набрано прозой в features — оно обязано выводиться "
             "из TIER_PDF_PER_MONTH через pdfFeatureLabel"
         )
         for tier in TIER_FLAGS:
-            assert f"pdfFeatureLabel('{tier}')" in src, (
+            assert f"pdfFeatureLabel('{tier}')" in tiers_block, (
                 f"пункт PDF для {tier} не выводится из флага"
             )

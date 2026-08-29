@@ -223,7 +223,11 @@ class TestSubscriptionInfo:
         assert data["tier"] == "free"
         assert data["features"]["transits"] is False
         assert data["features"]["unlimited_interpretations"] is False
-        assert data["features"]["pdf_reports"] is False  # 19.08.2026: PDF теперь только с Веги
+        # 30.08.2026: free снова получил PDF, но с квотой 1 в месяц (было
+        # False с 19.08.2026). Флаг pdf_reports отвечает только на вопрос
+        # «доступен ли PDF вообще»; сколько именно — в limits.pdf_per_month.
+        assert data["features"]["pdf_reports"] is True
+        assert data["limits"]["pdf_per_month"] == 1
 
     def test_pro_user_has_transits_enabled(self, client: TestClient, db: Session):
         user = make_user(db, "pro_sub@example.com", tier="pro")
