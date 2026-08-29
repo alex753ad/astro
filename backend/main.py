@@ -2211,6 +2211,11 @@ async def start_pdf_generation(
     from backend.authz import assert_chart_access
     assert_chart_access(chart, user)
 
+    # Тарифный гейт самого PDF. До 30.08.2026 его здесь не было вовсе:
+    # проверялся только доступ к карте, и бесплатный пользователь получал
+    # платный пункт сетки в любом количестве.
+    tier_limiter.check_pdf_limit(user, db)
+
     # Load interpretation from DB
     from backend.models import Interpretation
     interp_row = (
@@ -2224,6 +2229,16 @@ async def start_pdf_generation(
     if interp_row:
         interpretation_text = interp_row.content
     else:
+        # Генерация на лету остаётся: платный пользователь может нажать
+        # «Скачать PDF», не открыв разбор, и отказ в этом случае был бы
+        # регрессом. Но идти она обязана через лимитер — иначе это второй
+        # бесплатный путь к AI-разбору мимо квоты.
+        #
+        # Проверка стоит СНАРУЖИ try: внутри её HTTPException проглотил бы
+        # `except Exception` ниже, и отказ превратился бы в тихую выдачу PDF
+        # без разбора.
+        tier_limiter.check_interpretation_limit(user, db, chart=chart)
+
         # Generate on-the-fly
         try:
             from backend.interpretation.base import InterpretationRequest
@@ -2233,7 +2248,13 @@ async def start_pdf_generation(
                 "ascendant": chart.ascendant, "midheaven": chart.midheaven,
                 "time_unknown": chart.time_unknown,
             }
-            interp_req = InterpretationRequest(natal_profile=profile)
+            # tier передаётся явно: без него глубина бралась дефолтная, то есть
+            # платный пользователь получал через PDF не тот объём, за который
+            # заплатил (interpretation_word_limit — тарифный).
+            interp_req = InterpretationRequest(
+                natal_profile=profile,
+                tier=user.tier if user else "free",
+            )
             ai_router = get_router()
             result = await ai_router.generate(interp_req)
             interpretation_text = result.content or ""
@@ -2248,6 +2269,10 @@ async def start_pdf_generation(
                     sections=result.sections,
                 ))
                 db.commit()
+                # Расход списывается только при реально выданном тексте и
+                # только здесь — на ветке с готовой строкой в Interpretation
+                # генерации не было, списывать нечего.
+                tier_limiter.commit_interpretation(user, db, chart=chart)
         except Exception as exc:
             logger.exception("PDF: failed to get interpretation: %s", exc)
 
@@ -2273,6 +2298,10 @@ async def start_pdf_generation(
         astrologer_name=astrologer_name,
         wheel_png=wheel_png,
     )
+
+    # Списываем PDF только после реально собранного файла: если
+    # generate_pdf_bytes упадёт, исключение уйдёт наверх и квота не сгорит.
+    tier_limiter.commit_pdf(user, db)
 
     filename = f"natal_chart_{chart_id[:8]}.pdf"
     return FastResponse(

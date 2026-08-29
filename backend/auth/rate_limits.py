@@ -492,6 +492,68 @@ class TierRateLimiter:
             return
         increment_monthly_usage(db, str(user.id), "transit_ai")
 
+    def check_pdf_limit(self, user: Optional[User], db=None) -> None:
+        """Доступ к PDF-экспорту натальной карты.
+
+        Free: запрещено (pdf_export=False).
+        Lite/Pro: pdf_per_month штук в месяц.
+        Premium: pdf_per_month=None — безлимит.
+
+        До 30.08.2026 гейта не было вовсе: ручка проверяла только доступ к
+        карте, и бесплатный пользователь получал PDF в любом количестве.
+        Устройство повторяет check_transit_ai_limit — тот же порядок ветвей
+        (флаг доступа, затем квота), тот же вид отказа с названием тарифа.
+        """
+        tier = user.tier if user else "free"
+        flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+
+        if not flags["pdf_export"]:
+            from backend.email_service import TIER_NAMES
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"PDF-отчёты недоступны на {TIER_NAMES['free']} плане. "
+                    f"Оформите {TIER_NAMES['lite']}."
+                ),
+            )
+
+        # Недостижимо, пока free не имеет pdf_export: аноним получает tier
+        # "free" и отбивается веткой выше. Оставлено как страховка на случай,
+        # если флаг когда-нибудь откроют бесплатному тарифу.
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Войдите в аккаунт, чтобы скачать PDF-отчёт.",
+            )
+
+        quota = flags.get("pdf_per_month")
+        if quota is None:
+            return  # безлимит
+        if db is None:
+            return
+        used = get_monthly_usage(db, str(user.id), "pdf")
+        if used >= quota:
+            from backend.email_service import TIER_NAMES
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"Лимит {quota} PDF-отчётов в месяц исчерпан для тарифа "
+                    f"{TIER_NAMES.get(tier, tier.capitalize())}. "
+                    "Оформите более высокий тариф."
+                ),
+            )
+
+    def commit_pdf(self, user: Optional[User], db) -> None:
+        """Зафиксировать расход PDF ПОСЛЕ успешной генерации файла."""
+        if user is None or db is None:
+            return
+        flags = TIER_FLAGS.get(user.tier, TIER_FLAGS["free"])
+        if not flags["pdf_export"]:
+            return
+        if flags.get("pdf_per_month") is None:
+            return  # безлимитным тарифам счётчик не нужен
+        increment_monthly_usage(db, str(user.id), "pdf")
+
     def check_premium_ip(self, user: Optional[User], request: Request) -> None:
         """Для Premium: сброс сессии при 3+ уникальных IP за 30 минут."""
         if user is None or user.tier != "premium":

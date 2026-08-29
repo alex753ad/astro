@@ -496,6 +496,18 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (pdfLoading) return;
     const token = localStorage.getItem('astro_access_token');
     if (!token) { toast.info('Войдите, чтобы скачать PDF'); return; }
+    // PDF — платный пункт сетки (TIER_FLAGS.pdf_export, с Веги). Единого
+    // приёма для платных действий в этом файле нет: чат прячет содержимое за
+    // ternary с блоком апселла (:725), «Карточка» просто скрыта у анонимов
+    // (:776), транзиты оставляют элемент на месте и уводят в PaywallModal
+    // через onUpgrade (:972). Взят третий: кнопка остаётся видимой, но клик
+    // ведёт в оплату. Скрывать её нельзя — PDF один из главных доводов за
+    // Вегу, а спрятанная кнопка ничего не продаёт; блок-заглушка как у чата
+    // сюда не встаёт, это одна кнопка в шапке, а не панель.
+    // forced=true: клик по кнопке — явное намерение, и без него
+    // openPaywall молча проглотил бы показ по лимиту частоты
+    // (canShowPaywall), то есть кнопка не делала бы ничего.
+    if (!tierAllowed('lite')) { openPaywall(_upsellCtx('lite'), true); return; }
     setPdfLoading(true);
     try {
       const wheelPng = await captureChartPng(setChartForExport);
