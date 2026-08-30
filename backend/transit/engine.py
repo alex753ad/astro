@@ -265,25 +265,6 @@ def mark_transit_significance(events: list[TransitEvent]) -> None:
         e.free_unlocked = True
 
 
-def is_free_unlocked_event(
-    events: list[TransitEvent],
-    transit_planet: str,
-    natal_planet: str,
-    aspect_type: str,
-) -> bool:
-    """Есть ли среди топ-2 значимых транзит с такими планетами/аспектом."""
-    mark_transit_significance(events)
-    for e in events:
-        if (
-            e.free_unlocked
-            and e.transit_planet == transit_planet
-            and e.natal_planet == natal_planet
-            and e.aspect_type == aspect_type
-        ):
-            return True
-    return False
-
-
 def get_active_transits(
     events: list[TransitEvent],
     on_date: date,

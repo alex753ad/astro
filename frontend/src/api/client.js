@@ -172,15 +172,6 @@ export async function getChart(chartId) {
   return request(`/chart/${chartId}`);
 }
 
-// ── Transit API ──
-
-export async function getTransits(chartId, fromDate, toDate, options = {}) {
-  const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
-  if (options.planet) params.set('planet', options.planet);
-  if (options.maxOrb) params.set('max_orb', options.maxOrb);
-  return request(`/chart/${chartId}/transits?${params}`);
-}
-
 // ── SSE Streaming ──
 
 /**
@@ -327,80 +318,10 @@ export function streamInterpretation(chartId, onChunk, onDone, onError) {
   return _connectSSE(buildUrl, onChunk, onDone, onError);
 }
 
-export function streamTransitInterpretation(chartId, fromDate, toDate, onChunk, onDone, onError) {
-  const buildUrl = async () => {
-    const ticket = await _sseTicket();
-    const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
-    if (ticket) params.set('ticket', ticket);
-    return `${API_BASE}/chart/${chartId}/transits/interpret?${params}`;
-  };
-  return _connectSSE(buildUrl, onChunk, onDone, onError);
-}
-
-export async function streamTransitEventInterpretation(chartId, transitEvent, onChunk, onDone, onError) {
-  const url = `${API_BASE}/chart/${chartId}/transits/event/interpret`;
-
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(transitEvent),
-    });
-
-    // Проверка статуса до getReader(). Без неё на 403 («AI-расшифровка
-    // транзитов доступна на Лире и выше») в тело уходил обычный JSON без строк
-    // `data: `, цикл ниже не выдавал ни одного события, доходил до done и
-    // вызывал onDone — то есть отказ выглядел как успешно завершившийся пустой
-    // разбор: пустая панель и ни слова объяснения. Здесь, в отличие от
-    // EventSource, статус и тело доступны — их надо просто прочитать.
-    if (!resp.ok) {
-      onError?.(await responseErrorText(resp, 'Не удалось загрузить разбор транзита.'));
-      return;
-    }
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') { onDone?.(); return; }
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.text) onChunk(parsed.text);
-            if (parsed.error) onError?.(parsed.error);
-          } catch { /* skip */ }
-        }
-      }
-    }
-    onDone?.();
-  } catch (err) {
-    onError?.(err.message);
-  }
-}
-
 // ── Async Tasks API ──
 
 export async function startPdfGeneration(chartId) {
   return request(`/chart/${chartId}/pdf`, { method: 'POST' });
-}
-
-// ── Lunar Calendar API ──
-
-export async function getLunarCalendar(year, month) {
-  const params = new URLSearchParams();
-  if (year)  params.set('year', year);
-  if (month) params.set('month', month);
-  return request(`/calendar/lunar?${params}`);
 }
 
 export { ApiError };
@@ -430,7 +351,7 @@ export async function createCheckoutSession(tier, billing, chartId, promoCode = 
 //
 // Расчёты — обычный request(). Стримы: соляр и релокация это GET, поэтому
 // идут через EventSource + одноразовый тикет; синастрия передаёт партнёра в
-// теле, поэтому это POST + ReadableStream (как streamTransitEventInterpretation).
+// теле, поэтому это POST + ReadableStream.
 // onChunk во всех трёх получает обычную строку текста.
 
 export async function calculateSolarReturn(chartId, year, location = null) {
