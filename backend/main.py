@@ -1691,9 +1691,13 @@ async def interpret_transit_event(
         logger.info("Transit interp cache HIT key=%s engine=%s", cache_key, cached.get("engine"))
 
         async def event_stream_cached():
+            # Кэш-хит не расходует квоту: модель не вызывается, платить не за
+            # что. Ключ кэша без user_id и держится 30 суток — без этой
+            # оговорки повторное открытие того же транзита в пределах месяца
+            # списывало бы у Веги единицу из трёх ни за что. Списание живёт
+            # только на пути реальной генерации, ниже.
             async for chunk in _yield_chunked(cached["content"]):
                 yield chunk
-            tier_limiter.commit_transit_ai(user, db)
 
         return StreamingResponse(
             event_stream_cached(),
