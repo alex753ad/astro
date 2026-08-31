@@ -130,6 +130,111 @@ TIER_FLAGS: dict[str, dict] = {
 CHART_CREATION_ABUSE_LIMIT = 100
 
 
+# ── Горизонт транзитов: витрина free и бэкстоп по прошлому ──────────────────
+#
+# ⚠️ ЭТО РАЗМЕР ВИТРИНЫ, А НЕ ТАРИФНАЯ ФИЧА. Решение E2: список транзитов
+# виден ВСЕМ тарифам, включая free, и монетизируется не он, а AI-разбор
+# аспектов (у free открыт только топ-2, поле free_unlocked). Поэтому у free
+# `transits_months = 0` — это ноль про AI-разбор, а НЕ про длину списка.
+#
+# Из-за этого free видит список ДАЛЬШЕ, чем Лира: 12 месяцев против 3.
+# Выглядит как ошибка, ошибкой не является — под блюром должно быть что
+# показать, иначе FreePlanBanner со счётчиком закрытых транзитов и
+# PlanComparisonModal остаются без данных, и апселл не на чем строить.
+# НЕ «чинить» приравниванием к transits_months: это выключит витрину.
+#
+# Мерить витрину тарифным флагом нельзя — это смешало бы в одном числе две
+# разные вещи (что человек видит и за что платит), и следующая правка сетки
+# молча сломала бы одну из них.
+#
+# ⚠️ Число обязано совпадать с литералом 12 в `TransitTimeline.jsx` (строка с
+# `const maxMonths = isFree ? 12 : ...`) — там оно НЕ выводится из флага, это
+# именно литерал. Расхождение = free запрашивает больше, чем разрешает
+# сервер, и получает 403 на витрине. Синхронность закреплена тестом
+# `frontend/src/api/transitsHorizon.test.js` (читает оба файла).
+FREE_TRANSITS_TEASER_MONTHS = 12
+
+# Насколько назад вообще разрешено смотреть транзиты и планер — одно число на
+# все тарифы. Прошлое не монетизируется ни одним пунктом сетки, поэтому это
+# не тарифная фича, а бэкстоп: и таймлайн (`loadPrevious`), и планер (кнопка
+# «‹») отматывают назад БЕЗ нижней границы, по месяцу за клик, и без этого
+# числа скрипт мог бы гонять эфемериды на произвольную глубину. 24 месяца —
+# заведомо дальше, чем доходят руками (24 клика), поэтому видимого поведения
+# не меняет. На витрине не описывается, как и CHART_CREATION_ABUSE_LIMIT.
+PAST_WINDOW_ABUSE_MONTHS = 24
+
+
+def transits_horizon_months(tier: str) -> int:
+    """Сколько месяцев вперёд разрешено запрашивать транзиты.
+
+    Для free это размер витрины (см. FREE_TRANSITS_TEASER_MONTHS), для
+    остальных — тарифный `transits_months`.
+    """
+    if tier == "free":
+        return FREE_TRANSITS_TEASER_MONTHS
+    return TIER_FLAGS.get(tier, TIER_FLAGS["free"])["transits_months"]
+
+
+def _month_edge(anchor: "date", months: int, *, end: bool) -> "date":
+    """Первый (end=False) или последний (end=True) день месяца anchor+months."""
+    import calendar as _cal
+    from datetime import date as _date
+
+    total = anchor.month - 1 + months
+    year = anchor.year + total // 12
+    month = total % 12 + 1
+    day = _cal.monthrange(year, month)[1] if end else 1
+    return _date(year, month, day)
+
+
+def transits_date_window(tier: str, today: "date") -> tuple["date", "date"]:
+    """Разрешённый диапазон дат транзитов: (не раньше, не позже).
+
+    Верхняя граница повторяет `monthEndISO(today, maxMonths)` из
+    `TransitTimeline.jsx` — ПОСЛЕДНИЙ ДЕНЬ месяца `today + horizon`, а не
+    `today + horizon` день в день. Текущий месяц входит в горизонт целиком,
+    поэтому листается `horizon + 1` месяцев: у Веги (`transits_months = 1`)
+    это текущий и следующий. Так работает интерфейс с 19.08.2026; проверка
+    ставится ПОД существующее поведение, а не вместо него — иначе платящая
+    Вега потеряла бы месяц, который видит сегодня.
+
+    ⚠️ Обе границы сдвинуты на сутки наружу, и это не запас «на всякий
+    случай». Фронтенд берёт «сегодня» по ЛОКАЛЬНОМУ времени пользователя
+    (`todayLocalISO`, см. шапку `utils/dateISO.js`), сервер — по UTC. В ночь
+    смены месяца это разные месяцы: в Москве (UTC+3) уже 1 сентября, на
+    сервере ещё 31 августа — горизонт фронтенда уходит на месяц дальше
+    серверного, и таймлайн получил бы 403 на несколько часов каждый месяц.
+    Сутки покрывают любой реальный пояс (крайние — UTC-11…UTC+14).
+    Направление выбрано осознанно: лишний месяц раз в месяц безвреден,
+    ложный 403 на витрине — нет.
+    """
+    from datetime import timedelta as _td
+
+    horizon = transits_horizon_months(tier)
+    return (
+        _month_edge(today - _td(days=1), -PAST_WINDOW_ABUSE_MONTHS, end=False),
+        _month_edge(today + _td(days=1), horizon, end=True),
+    )
+
+
+def planner_offset_window(tier: str) -> tuple[int, int]:
+    """Разрешённый диапазон `month_offset` планера: (минимум, максимум).
+
+    Максимум — тарифный `planner_months` (free 0 / Вега 3 / Лира 12 /
+    Орион 12). Интерфейс сам уходит не дальше 11 (`PlannerPage.jsx`, кнопка
+    «›» скрыта при `monthOffset >= 11`) и у free/lite не показывает
+    навигацию по месяцам вовсе, поэтому проверка ничего из видимого не
+    сокращает — она закрывает прямой запрос мимо интерфейса.
+
+    Минимум — общий бэкстоп по прошлому (PAST_WINDOW_ABUSE_MONTHS), а не
+    `-planner_months`: кнопка «‹» в планере отматывает назад без нижней
+    границы на всех тарифах, и симметричный тарифный минимум отобрал бы у
+    людей то, что у них сегодня работает.
+    """
+    limit = TIER_FLAGS.get(tier, TIER_FLAGS["free"])["planner_months"]
+    return (-PAST_WINDOW_ABUSE_MONTHS, limit)
+
+
 def get_feature_flags(user: Optional[User]) -> dict:
     tier = user.tier if user else "free"
     flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])

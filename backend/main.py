@@ -100,7 +100,10 @@ from backend.metrics import log_event, maybe_mark_second_visit, EventName
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
-from backend.auth.rate_limits import tier_limiter, get_tier_limits, CHART_CREATION_ABUSE_LIMIT, check_chart_rate_limit
+from backend.auth.rate_limits import (
+    tier_limiter, get_tier_limits, CHART_CREATION_ABUSE_LIMIT, check_chart_rate_limit,
+    transits_date_window, planner_offset_window,
+)
 from sqlalchemy import func as sa_func
 from backend.models import User
 
@@ -1297,6 +1300,29 @@ async def get_transits(
             detail="Transit period cannot exceed 1 year (366 days).",
         )
 
+    # 2b. Тарифный горизонт. До 31.08.2026 диапазон не проверялся вовсе:
+    # transits_months жил только в TIER_FLAGS и в арифметике фронтенда, а
+    # check_transit_access (auth/rate_limits.py) была написана и не вызывалась
+    # ни разу — то есть горизонт держался исключительно на клиенте, и прямой
+    # запрос отдавал Веге хоть 24 месяца.
+    #
+    # ⚠️ check_transit_access здесь НАМЕРЕННО не подключена. Она отдаёт 403
+    # при transits_months == 0, то есть закрыла бы free сам СПИСОК транзитов,
+    # а решение E2 (комментарий ниже по коду и FREE_TRANSITS_TEASER_MONTHS)
+    # — ровно обратное: список виден всем, монетизируется AI-разбор. Её 403
+    # снёс бы витрину free вместе с FreePlanBanner и PlanComparisonModal.
+    # Гейтим горизонт, а не факт доступа.
+    _tier = user.tier if user else "free"
+    _win_from, _win_to = transits_date_window(_tier, date_type.today())
+    if from_dt < _win_from or to_dt > _win_to:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Запрошенный период вне горизонта тарифа. "
+                f"Доступно с {_win_from.isoformat()} по {_win_to.isoformat()}."
+            ),
+        )
+
     # 3. Check cache
     cache_key = f"transit:v3:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
     cached = transit_cache.get(cache_key)
@@ -2193,6 +2219,25 @@ async def get_monthly_planner(
 
     if chart.time_unknown:
         return {"planner": {"error": "Время рождения неизвестно — планер недоступен."}}
+
+    # Тарифный горизонт планера. До 31.08.2026 month_offset не проверялся
+    # ничем: planner_months жил в TIER_FLAGS, но на бэкенде не читался нигде,
+    # а во фронтенде использовался только для подписи в профиле. Ограничение
+    # держалось на одной строке PlannerPage.jsx (`if (isPro && monthOffset)`),
+    # то есть прямой запрос отдавал Веге планер на год вперёд.
+    #
+    # Гейт КОНТЕНТА внутри build_planner (locked/_locked_payload) работает
+    # верно и здесь не дублируется: он решает, что показать в месяце, а эта
+    # проверка — какой месяц вообще можно запросить.
+    _p_min, _p_max = planner_offset_window(user.tier if user else "free")
+    if not (_p_min <= month_offset <= _p_max):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Планер доступен на {_p_max} мес. вперёд на вашем тарифе "
+                f"(запрошено {month_offset})."
+            ),
+        )
 
     # today в timezone пользователя
     _tz = getattr(chart, "timezone", None)
