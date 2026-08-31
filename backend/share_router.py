@@ -178,7 +178,9 @@ async def create_share_link(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Генерирует public_token для карты. Повторный вызов возвращает тот же токен."""
+    """Генерирует public_token для карты. Повторный вызов возвращает тот же токен,
+    пока он не истёк — не продлевая при этом срок и не выдавая новый.
+    """
     chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -186,12 +188,17 @@ async def create_share_link(
     if chart.user_id is not None and chart.user_id != user.id:
         raise HTTPException(status_code=404, detail="Chart not found")
 
-    if not chart.public_token:
+    # Новый токен — только если его нет вообще или прежний уже истёк. Живой
+    # токен возвращаем как есть, без продления: иначе ссылка становится
+    # вечной, пока по ней хоть изредка «делятся» повторно — ровно то, чем
+    # раньше был этот же безусловный сдвиг expires_at на каждый вызов.
+    token_expired = (
+        chart.public_token_expires_at is not None
+        and chart.public_token_expires_at <= utcnow()
+    )
+    if not chart.public_token or token_expired:
         chart.public_token = secrets.token_urlsafe(32)
-
-    # Срок продлевается при каждом обращении к ручке — повторный «Поделиться»
-    # оживляет ссылку, как и раньше при перезаписи ключа в Redis.
-    chart.public_token_expires_at = utcnow() + timedelta(seconds=SHARE_TTL_SECONDS)
+        chart.public_token_expires_at = utcnow() + timedelta(seconds=SHARE_TTL_SECONDS)
 
     if share_name:
         chart.share_name = share_name[:100]
