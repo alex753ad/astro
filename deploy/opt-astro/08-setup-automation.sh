@@ -23,6 +23,7 @@ UNITS=(
   astro-prune.service astro-prune.timer
   astro-onboarding-emails.service astro-onboarding-emails.timer
   astro-pilot-tick.service astro-pilot-tick.timer
+  astro-beat-watchdog.service astro-beat-watchdog.timer
 )
 
 log() { echo -e "\n\033[1;32m==>\033[0m $*"; }
@@ -205,7 +206,8 @@ done
 sudo systemctl daemon-reload
 sudo systemctl enable --now \
   astro-backup.timer astro-prune.timer \
-  astro-onboarding-emails.timer astro-pilot-tick.timer
+  astro-onboarding-emails.timer astro-pilot-tick.timer \
+  astro-beat-watchdog.timer
 
 log "Готово"
 cat <<EOF

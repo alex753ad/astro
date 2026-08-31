@@ -526,6 +526,7 @@ def expire_subscriptions() -> dict:
     их даунгрейдом занимается backend/pilot/cron.py. Ручная выдача тарифа
     админкой ставит срок на 10 лет и сюда тоже не попадает.
     """
+    from backend.beat_watchdog import WATCHED_TASK, mark_success
     from backend.models import Subscription, User
 
     db = SessionLocal()
@@ -551,6 +552,12 @@ def expire_subscriptions() -> dict:
             user.tier = "free"
         if rows:
             db.commit()
+        # Метка живости — ПОСЛЕ коммита и только на успешном пути. Её читает
+        # сторож (backend/beat_watchdog.py), запущенный вне очереди: молчаливый
+        # незапуск задачи иначе не обнаружить — падение видно по task_failure,
+        # а вот не стартовавший beat не падает, он просто ничего не делает.
+        # Запись не может уронить задачу, см. mark_success.
+        mark_success(WATCHED_TASK)
         return {"expired": len(rows)}
     finally:
         db.close()

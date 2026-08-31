@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily astro Celery beat watchdog
+
+# 07:30 UTC — через 2.5 часа после expire_subscriptions (05:00 UTC).
+# Порог в backend/beat_watchdog.py — 26 часов: на здоровом сервере метке здесь
+# ~2.5 ч, при одном пропущенном прогоне ~26.5 ч. Сдвигая это время, сдвигать и
+# порог: они подобраны в паре.
+[Timer]
+OnCalendar=*-*-* 07:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -15,8 +15,8 @@ from unittest.mock import patch
 import pytest
 
 
-# Все шесть ручек из аудита. Держать список полным важно: новая ручка в
-# роутере /internal без строки здесь останется непроверенной.
+# Все ручки роутера /internal. Держать список полным важно: новая ручка
+# без строки здесь останется непроверенной.
 INTERNAL_ENDPOINTS = [
     "/api/v1/internal/pilot-token",
     "/api/v1/internal/onboarding-emails",
@@ -24,6 +24,7 @@ INTERNAL_ENDPOINTS = [
     "/api/v1/internal/lunar-returns",
     "/api/v1/internal/push-tick",
     "/api/v1/internal/pilot-tick",
+    "/api/v1/internal/beat-watchdog",
 ]
 
 SECRET = "internal-secret-for-tests-0123456789"  # gitleaks:allow — тестовая фикстура, не реальный секрет
