@@ -355,7 +355,7 @@ class ClientProfile(Base):
     __tablename__ = "client_profiles"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    astrologer_id = Column(Integer, ForeignKey("astrologer_profiles.id", ondelete="CASCADE"), nullable=False)
+    astrologer_id = Column(Integer, ForeignKey("astrologer_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     birth_date = Column(Date, nullable=False)
     birth_time = Column(Time, nullable=True)
