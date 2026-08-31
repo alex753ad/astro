@@ -40,6 +40,14 @@ certbot отдельным шагом.
 `git pull` в `app/`, собирает `app/frontend`, публикует результат в
 `frontend/dist/`, накатывает `nginx/astreatime.conf` и перечитывает nginx.
 
+⚠️ **Ни `04-frontend-deploy.sh`, ни `05-update.sh` нельзя запускать под
+`sudo`.** Оба рассчитаны на пользователя `deploy` и берут `sudo` точечно.
+Запуск целиком под `sudo` делает root-овыми `app/.git` и
+`app/frontend/node_modules`, после чего обычный запуск падает. `nginx-backup`
+и `frontend/dist` от этого защищены иначе — они создаются и наполняются
+только через `sudo`, одним владельцем: root перезапишет любого, а `deploy`
+root-овый каталог удалить не может.
+
 Для `VITE_GOOGLE_CLIENT_ID` (нужен только на этапе сборки фронта, в бэкендовом
 `.env` ему не место — это отдельный build-time секрет, не рантайм-переменная
 API): скопировать `frontend.env.example` в `frontend.env` (рядом с
@@ -52,8 +60,13 @@ API): скопировать `frontend.env.example` в `frontend.env` (рядо�
 
 `./05-update.sh` — однокомандный деплой изменений из git. По умолчанию:
 `git pull` → дамп БД в `backups/pre-update_<дата>_<время>.dump` → сборка
-образа → пересоздание `api`/`bot`/`worker`/`beat`; если в пришедших коммитах менялся
-`app/frontend/` — следом ещё и `04-frontend-deploy.sh`. Флаги `--backend-only`
+образа → пересоздание `api`/`bot`/`worker`/`beat`; если менялись
+`app/frontend/` или `app/deploy/opt-astro/nginx/` — следом ещё и
+`04-frontend-deploy.sh` (он единственный, кто кладёт на сервер и `dist`, и
+конфиг nginx). «Менялись» считается не по одному `git pull`, а диффом от
+метки `.frontend-deployed-rev` — коммита последнего успешного деплоя
+фронтенда; метка пишется только после того, как `04-frontend-deploy.sh`
+вернул 0, поэтому упавший деплой не теряет изменения. Флаги `--backend-only`
 / `--frontend-only` ограничивают набор действий. Если сборка образа падает —
 работавшие контейнеры не трогаются (сначала `docker compose build`, и только
 при успехе — `up -d`). При 429 от Docker Hub во время сборки — 3 попытки с
@@ -209,7 +222,9 @@ WebSocket), поэтому — отдельный поддомен, а не `/st
 - `.env.example` — скопировать в `.env`, заполнить реальными значениями
 - `frontend.env.example` — скопировать в `frontend.env`, build-time секреты фронта
 - `app/` — сюда клонируется репозиторий (build context для api/bot, источник для сборки фронта)
-- `frontend/` — сюда кладётся собранный `dist/` для nginx на хосте
+- `frontend/` — сюда кладётся собранный `dist/` для nginx на хосте (root-овый: см. ниже)
+- `nginx-backup/` — копии конфигов nginx перед перезаписью, последние 10 прогонов
+- `.frontend-deployed-rev` — коммит последнего успешно доставленного фронтенда
 - `nginx/astreatime.conf` — конфиг основного сайта для nginx на хосте
 - `nginx/status.astreatime.conf` — конфиг Uptime Kuma (basic-auth) для nginx на хосте
 - `systemd/` — юниты таймеров бэкапа и чистки образов
