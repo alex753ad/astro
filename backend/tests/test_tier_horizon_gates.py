@@ -59,8 +59,8 @@ def created_chart_pro(client, mock_calculator, mock_geo, auth_headers_pro):
 class TestTransitsWindowArithmetic:
     @pytest.mark.parametrize("tier,expected", [
         ("free", FREE_TRANSITS_TEASER_MONTHS),
-        ("lite", 1),
-        ("pro", 3),
+        ("lite", 6),
+        ("pro", 12),
         ("premium", 24),
     ])
     def test_horizon_per_tier(self, tier, expected):
@@ -75,33 +75,52 @@ class TestTransitsWindowArithmetic:
         assert TIER_FLAGS["free"]["transits_months"] == 0
         assert transits_horizon_months("free") == FREE_TRANSITS_TEASER_MONTHS > 0
 
-    def test_free_sees_further_than_pro_and_that_is_intended(self):
-        """Странность, которую нельзя «исправлять»: free дальше Лиры."""
-        assert transits_horizon_months("free") > transits_horizon_months("pro")
+    def test_free_teaser_never_beats_a_paid_tier(self):
+        """Правило владельца от 31.08.2026: платный тариф не хуже free-витрины.
+
+        До этой даты витрина free (12 мес) была БОЛЬШЕ, чем transits_months
+        Лиры (3 мес) — платный тариф оказывался хуже бесплатного по видимому
+        горизонту. Числа здесь читаются из TIER_FLAGS/константы, а не
+        хардкодятся — тест обязан ловить ПОВТОРЕНИЕ этой ошибки при любой
+        следующей правке сетки, а не фиксировать сегодняшний расклад чисел.
+        """
+        paid_tiers = ("lite", "pro", "premium")
+        violations = [
+            t for t in paid_tiers
+            if TIER_FLAGS[t]["transits_months"] < FREE_TRANSITS_TEASER_MONTHS
+        ]
+        assert not violations, (
+            f"витрина free ({FREE_TRANSITS_TEASER_MONTHS} мес) обгоняет "
+            f"платные тарифы: {violations}"
+        )
 
     @pytest.mark.parametrize("today,tier,expected_end", [
         # Обычный день месяца: конец месяца today + horizon.
-        (date(2026, 8, 15), "lite", date(2026, 9, 30)),
-        (date(2026, 8, 15), "pro", date(2026, 11, 30)),
+        (date(2026, 8, 15), "lite", date(2027, 2, 28)),
+        (date(2026, 8, 15), "pro", date(2027, 8, 31)),
         (date(2026, 8, 15), "premium", date(2028, 8, 31)),
-        (date(2026, 8, 15), "free", date(2027, 8, 31)),
+        (date(2026, 8, 15), "free", date(2026, 11, 30)),
         # Конец года — переход через границу лет.
-        (date(2026, 12, 15), "lite", date(2027, 1, 31)),
+        (date(2026, 12, 15), "lite", date(2027, 6, 30)),
         # Високосный февраль.
-        (date(2024, 1, 15), "lite", date(2024, 2, 29)),
+        (date(2024, 1, 15), "lite", date(2024, 7, 31)),
     ])
     def test_upper_bound_is_month_end(self, today, tier, expected_end):
         assert transits_date_window(tier, today)[1] == expected_end
 
-    def test_current_month_is_included_so_lite_gets_two_months(self):
-        """Вега видит текущий и следующий месяц — так работает интерфейс.
+    def test_current_month_is_included_so_horizon_gains_one_month(self):
+        """Вега видит горизон + 1 месяц — так работает интерфейс.
 
         Это наблюдаемое поведение прода, а не ошибка округления: горизонт
-        отсчитывается от КОНЦА текущего месяца. Строгий `today + 1 месяц`
-        отобрал бы у платящей Веги месяц, который она видит сегодня.
+        отсчитывается от КОНЦА текущего месяца, и текущий месяц входит в
+        него целиком. Строгий `today + N месяцев` отобрал бы у платящей
+        Веги месяц, который она видит сегодня. Формула — `horizon + 1`
+        месяцев, независимо от конкретного значения `horizon`.
         """
         _, end = transits_date_window("lite", date(2026, 8, 15))
-        assert end == date(2026, 9, 30)
+        # 6 месяцев горизонта от 15.08 + 1 (текущий, входит целиком) = до
+        # конца февраля 2027, а не до конца января (строго +6 от августа).
+        assert end == date(2027, 2, 28)
 
     def test_past_bound_is_flat_not_per_tier(self):
         """Прошлое не монетизируется — бэкстоп один на все тарифы."""

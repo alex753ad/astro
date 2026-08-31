@@ -143,7 +143,8 @@ CHART_CREATION_ABUSE_LIMIT = 100
 # (6/12/24) теперь построена так, чтобы платный тариф не уступал free ни по
 # одному числу. Держать это неравенство впредь — при следующей правке сетки
 # проверить, что FREE_TRANSITS_TEASER_MONTHS не обгоняет ни один платный
-# transits_months (см. TestFreeTeaserNeverBeatsAPaidTier).
+# transits_months (см. test_free_teaser_never_beats_a_paid_tier в
+# test_tier_horizon_gates.py).
 #
 # Мерить витрину тарифным флагом нельзя — это смешало бы в одном числе две
 # разные вещи (что человек видит и за что платит), и следующая правка сетки
