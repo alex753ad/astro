@@ -96,6 +96,7 @@ from backend.beat_watchdog import router as beat_watchdog_router
 from backend.partners.router import router as partners_router, admin_router as partners_admin_router
 from backend.exit_survey.router import router as exit_survey_router
 from backend.crm.access_router import router as crm_access_router
+from backend.calendar.export_router import router as calendar_export_router
 from backend.metrics import log_event, maybe_mark_second_visit, EventName
 from backend.auth.jwt import decode_token
 from backend.database import SessionLocal
@@ -459,6 +460,7 @@ app.include_router(partners_router)
 app.include_router(partners_admin_router)
 app.include_router(exit_survey_router)
 app.include_router(crm_access_router)
+app.include_router(calendar_export_router)
 
 
 # ═══════════════════════════════════════════════════════════
