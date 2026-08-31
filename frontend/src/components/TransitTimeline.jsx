@@ -956,14 +956,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     monthBoundsISO(addMonthISO(`${viewMonth}-01`).slice(0, 7)).start <= loadedUntil || !reachedEnd
   );
 
-  // ── Free: догружаем до горизонта в фоне, не дожидаясь скролла —
-  //    иначе счётчик FreePlanBanner/блюр-тизер занижен, пока пользователь не долистал ──
-  useEffect(() => {
-    if (!isFree || loading || loadingMore || reachedEnd || loadedUntil == null) return;
-    const t = setTimeout(loadMore, 400);
-    return () => clearTimeout(t);
-  }, [isFree, loading, loadingMore, reachedEnd, loadedUntil, loadMore]);
-
   // ── Sentinel для скролл-догрузки (все тарифы) ──
   const sentinelRef = useRef(null);
   useEffect(() => {
