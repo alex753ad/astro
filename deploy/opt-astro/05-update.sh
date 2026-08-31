@@ -6,6 +6,14 @@ set -euo pipefail
 APP_DIR="app"
 BACKUP_DIR="backups"
 FRONTEND_DEPLOY_SCRIPT="./04-frontend-deploy.sh"
+# Пути, изменение которых требует запуска 04-frontend-deploy.sh. Это НЕ только
+# frontend/: тот же скрипт — единственный, кто кладёт на сервер конфиг nginx,
+# сниппеты (security-headers, csp) и conf.d/00-astro-hardening.conf. Пока здесь
+# стоял один frontend/, коммит, трогающий только deploy/opt-astro/nginx/, флага
+# не поднимал, и конфиг на прод не уезжал вообще никогда — так он и отстал на
+# четыре недели (обнаружено 31.08.2026). Повторный запуск не помогал: pull уже
+# пустой, шаг пропускался, джоб зеленел.
+FRONTEND_PATHS=(frontend/ deploy/opt-astro/nginx/)
 REGISTRY_RETRY_MAX=3
 REGISTRY_RETRY_DELAY=20
 
@@ -23,8 +31,9 @@ usage() {
 
 Без флагов (по умолчанию, "оба"):
   git pull, пересборка + рестарт api/bot, и пересборка фронтенда —
-  но фронтенд пересобирается ТОЛЬКО если в пришедших коммитах менялся
-  app/frontend/.
+  но фронтенд пересобирается ТОЛЬКО если менялся app/frontend/ либо
+  app/deploy/opt-astro/nginx/ (второе — потому что конфиг nginx на сервер
+  кладёт тот же 04-frontend-deploy.sh).
 
 --backend-only   git pull + пересборка/рестарт только api и bot.
 --frontend-only  только пересборка фронтенда, безусловно (без бэкенд-шагов;
@@ -118,9 +127,9 @@ if [[ "$MODE" != "frontend" ]]; then
     echo "  уже на актуальном коммите ($after_rev), изменений нет"
   else
     echo "  $before_rev -> $after_rev"
-    if ! git -C "$APP_DIR" diff --quiet "$before_rev" "$after_rev" -- frontend/; then
+    if ! git -C "$APP_DIR" diff --quiet "$before_rev" "$after_rev" -- "${FRONTEND_PATHS[@]}"; then
       frontend_changed=true
-      echo "  затронут app/frontend/"
+      echo "  затронут ${FRONTEND_PATHS[*]}"
     fi
   fi
 
@@ -246,7 +255,8 @@ if $DO_BACKEND; then
 fi
 
 # ---------------------------------------------------------------------------
-# Фронтенд: только если менялся app/frontend/, либо запрошено явно
+# Фронтенд: только если менялся app/frontend/ или app/deploy/opt-astro/nginx/,
+# либо запрошено явно
 # ---------------------------------------------------------------------------
 if $DO_FRONTEND; then
   if $FORCE_FRONTEND || $frontend_changed; then
@@ -254,7 +264,7 @@ if $DO_FRONTEND; then
     [[ -x "$FRONTEND_DEPLOY_SCRIPT" ]] || die "$FRONTEND_DEPLOY_SCRIPT не найден или не исполняемый"
     "$FRONTEND_DEPLOY_SCRIPT"
   else
-    echo -e "\nФронтенд не менялся — пересборку пропускаю."
+    echo -e "\nФронтенд и конфиг nginx не менялись — пересборку пропускаю."
   fi
 fi
 
