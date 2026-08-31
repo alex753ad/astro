@@ -237,6 +237,13 @@ def created_chart(client, mock_calculator, mock_geo, auth_headers_free):
         },
         headers=auth_headers_free,
     )
-    if resp.status_code != 200:
-        return None
-    return resp.json().get("id")
+    # Не `if ...: return None`. Провал подготовки карты возвращал None, тест
+    # шёл дальше и звал /api/v1/chart/None/... — сервер отвечал 404, тест падал
+    # с «404 != 403» и уводил разбор к правам доступа, хотя ломалось создание
+    # карты. Так уже теряли время на разборе прогона CI 31.08.2026 (реальный
+    # Nominatim отдал 429, посыпались 19 несвязанных тестов). Ассерт с телом
+    # ответа роняет тест ровно там, где сломалось, и показывает причину.
+    assert resp.status_code == 200, f"фикстура created_chart: {resp.status_code} {resp.text}"
+    chart_id = resp.json().get("id")
+    assert chart_id, f"фикстура created_chart: в ответе нет id — {resp.text}"
+    return chart_id
