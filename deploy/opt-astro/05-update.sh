@@ -14,6 +14,10 @@ FRONTEND_DEPLOY_SCRIPT="./04-frontend-deploy.sh"
 # четыре недели (обнаружено 31.08.2026). Повторный запуск не помогал: pull уже
 # пустой, шаг пропускался, джоб зеленел.
 FRONTEND_PATHS=(frontend/ deploy/opt-astro/nginx/)
+# Метка последнего УСПЕШНОГО деплоя фронтенда: один коммит-хеш в файле.
+# Лежит в /opt/astro рядом со скриптом, а НЕ в app/ — app/ это рабочая копия
+# git, посторонний файл в ней блокирует следующий git pull (уже роняло прод).
+FRONTEND_MARKER=".frontend-deployed-rev"
 REGISTRY_RETRY_MAX=3
 REGISTRY_RETRY_DELAY=20
 
@@ -86,6 +90,53 @@ if grep -qE '^YOOKASSA_SECRET_KEY=test_' .env; then
   die "YOOKASSA_SECRET_KEY — тестовый ключ (test_...) в боевом .env: подписки выдавались бы без реальной оплаты."
 fi
 
+# ---------------------------------------------------------------------------
+# Метка последнего успешного деплоя фронтенда.
+#
+# Зачем: раньше frontend_changed выводился из диффа before_rev..after_rev, то
+# есть из ОДНОГО pull. Если запуск падал после pull (не прошёл healthcheck,
+# сработал откат), пришедшие изменения frontend/ терялись НАВСЕГДА: следующий
+# запуск делал пустой pull, флаг оставался false, фронтенд молча оставался
+# старым, а джоб зеленел. То же самое происходило при --backend-only, который
+# честно вычислял флаг и выбрасывал его.
+#
+# Теперь точка отсчёта — не «что приехало сейчас», а «что реально доставлено».
+# Метка двигается только после того, как 04-frontend-deploy.sh вернул 0.
+# ---------------------------------------------------------------------------
+
+# Печатает валидный коммит из метки, либо возвращает 1 (метки нет, пустая,
+# или коммита нет в репозитории — так бывает после переклонирования app/).
+# Возврат 1 означает «считать, что фронтенд изменился»: пересобрать лишний раз
+# безопасно, не пересобрать нужное — нет.
+read_frontend_marker() {
+  local rev
+  [[ -f "$FRONTEND_MARKER" ]] || return 1
+  rev="$(tr -d '[:space:]' < "$FRONTEND_MARKER")"
+  [[ -n "$rev" ]] || return 1
+  git -C "$APP_DIR" cat-file -e "${rev}^{commit}" 2>/dev/null || return 1
+  printf '%s' "$rev"
+}
+
+# Пишет метку атомарно (temp + mv), уже ПОСЛЕ успешного 04.
+# Ошибка записи НЕ роняет деплой: фронтенд к этому моменту уже доставлен,
+# ронять запуск после успеха нельзя. Худшее последствие — лишняя пересборка
+# в следующий раз, и о нём предупреждаем громко (например, если файл остался
+# root-овым после запуска 05-update.sh под sudo).
+write_frontend_marker() {
+  local rev tmp
+  rev="$(git -C "$APP_DIR" rev-parse HEAD)"
+  if ! tmp="$(mktemp "./${FRONTEND_MARKER}.XXXXXX" 2>/dev/null)"; then
+    echo "  ВНИМАНИЕ: не удалось создать временный файл для $FRONTEND_MARKER — метка не обновлена, следующий запуск пересоберёт фронтенд заново." >&2
+    return 0
+  fi
+  if printf '%s\n' "$rev" > "$tmp" && mv -f "$tmp" "$FRONTEND_MARKER"; then
+    echo "  метка успешного деплоя фронтенда: ${rev:0:12} -> $(pwd)/$FRONTEND_MARKER"
+  else
+    rm -f "$tmp"
+    echo "  ВНИМАНИЕ: не удалось записать $FRONTEND_MARKER — метка не обновлена, следующий запуск пересоберёт фронтенд заново." >&2
+  fi
+}
+
 # Ретраи на 429 от Docker Hub при пуллинге базового образа во время сборки.
 # Стримит вывод живьём (tee) и одновременно проверяет его на признаки rate-limit.
 run_with_registry_retry() {
@@ -127,10 +178,18 @@ if [[ "$MODE" != "frontend" ]]; then
     echo "  уже на актуальном коммите ($after_rev), изменений нет"
   else
     echo "  $before_rev -> $after_rev"
-    if ! git -C "$APP_DIR" diff --quiet "$before_rev" "$after_rev" -- "${FRONTEND_PATHS[@]}"; then
+  fi
+
+  if marker_rev="$(read_frontend_marker)"; then
+    if git -C "$APP_DIR" diff --quiet "$marker_rev" HEAD -- "${FRONTEND_PATHS[@]}"; then
+      echo "  с последнего успешного деплоя фронтенда (${marker_rev:0:12}) ${FRONTEND_PATHS[*]} не менялись"
+    else
       frontend_changed=true
-      echo "  затронут ${FRONTEND_PATHS[*]}"
+      echo "  с последнего успешного деплоя фронтенда (${marker_rev:0:12}) затронут ${FRONTEND_PATHS[*]}"
     fi
+  else
+    frontend_changed=true
+    echo "  метки $FRONTEND_MARKER нет или она нечитаема — считаю, что фронтенд изменился"
   fi
 
   # 04-frontend-deploy.sh синхронизируется здесь же и ЭТО ВАЖНО: он единственный,
@@ -262,7 +321,11 @@ if $DO_FRONTEND; then
   if $FORCE_FRONTEND || $frontend_changed; then
     log "Фронтенд: пересобираю"
     [[ -x "$FRONTEND_DEPLOY_SCRIPT" ]] || die "$FRONTEND_DEPLOY_SCRIPT не найден или не исполняемый"
+    # set -e: если 04 вернёт ненулевой код, скрипт умрёт здесь и до записи
+    # метки не дойдёт — ровно то, что нужно. Метка обязана означать
+    # «доставлено», а не «попытались».
     "$FRONTEND_DEPLOY_SCRIPT"
+    write_frontend_marker
   else
     echo -e "\nФронтенд и конфиг nginx не менялись — пересборку пропускаю."
   fi
