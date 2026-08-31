@@ -820,10 +820,10 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   // Реальный горизонт тарифа — из TIER_FLAGS.transits_months на бэкенде
   // (через /profile/subscription), а не своя копия чисел здесь: раньше эта
-  // лесенка (1/3/24) дублировала бэкенд и однажды уже разошлась с ним при
-  // правке тарифной сетки (19.08.2026). Числа ниже — только fallback на
-  // время до ответа сервера, держать в синхроне с TIER_FLAGS вручную не
-  // нужно, но и не критично, если временно устареют.
+  // лесенка дублировала бэкенд и однажды уже разошлась с ним при правке
+  // тарифной сетки (19.08.2026). Числа ниже — только fallback на время до
+  // ответа сервера, держать в синхроне с TIER_FLAGS вручную не нужно, но и
+  // не критично, если временно устареют.
   const [tierTransitsMonths, setTierTransitsMonths] = useState(null);
   useEffect(() => {
     if (isFree) { setTierTransitsMonths(null); return; }
@@ -833,11 +833,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       .catch(() => {});
   }, [isFree]);
 
-  // Горизонт догрузки. Free нужен на 12 мес вперёд для блюр-тизера — это
-  // отдельно от тарифного лимита транзитов: free до транзитов вообще не
-  // допускается (check_transit_access в backend/auth/rate_limits.py), 12
-  // мес здесь — только чтобы было что показать под блюром.
-  const maxMonths = isFree ? 12 : (tierTransitsMonths ?? (isPremium ? 24 : (isLite ? 1 : 3)));
+  // Горизонт догрузки free — витрина (решение E2), не тарифный лимит: список
+  // транзитов виден всем тарифам, монетизируется AI-разбор аспектов, не сам
+  // факт просмотра. 31.08.2026: витрина сокращена с 12 до 3 мес — платный
+  // тариф не может быть хуже бесплатного по видимому горизонту, а Вега
+  // теперь видит 6 месяцев (было 1). 3 мес здесь — чтобы под блюром
+  // (FreePlanBanner/PlanComparisonModal) было что показать.
+  const maxMonths = isFree ? 3 : (tierTransitsMonths ?? (isPremium ? 24 : (isLite ? 6 : 12)));
   const horizonEnd = useMemo(() => monthEndISO(todayISO(), maxMonths), [maxMonths]);
 
   // ── Первый запрос: ближайший месяц — список появляется быстро ──
@@ -1023,7 +1025,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   // Сплошной календарный ряд на три месяца вокруг viewMonth (предыдущий +
   // текущий + следующий, обрезанные по loadedFrom…loadedUntil) — не весь
-  // загруженный горизонт (Free — 12 мес, Premium — 24 мес = сотни DOM-узлов
+  // загруженный горизонт (Premium — 24 мес = сотни DOM-узлов
   // и, до фикса addDaysISO, бесконечный цикл в часовых поясах восточнее UTC —
   // регрессия 78da87f), но и не один месяц: прокрутка внутри одного месяца
   // упиралась в его границы (регрессия после первого фикса viewMonth), три

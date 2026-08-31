@@ -3,10 +3,10 @@ import { addDaysISO, addMonthISO, monthEndISO } from "../utils/dateISO";
 
 /**
  * Чистая симуляция горизонта догрузки из TransitTimeline.jsx (initial fetch +
- * loadMore), без React/fetch — специально под узкие горизонты (Lite 1 мес,
- * Pro 3 мес, 19.08.2026: было 2 мес на оба тарифа плоско), которые раньше
- * никогда не тестировались и не наступали в реальном использовании (горизонт
- * всегда был ощутимо больше одного шага догрузки).
+ * loadMore), без React/fetch — специально под узкие горизонты (Вега 6 мес,
+ * Лира 12 мес, 31.08.2026: было 1/3), которые раньше никогда не
+ * тестировались и не наступали в реальном использовании (горизонт всегда
+ * был ощутимо больше одного шага догрузки).
  *
  * Воспроизводит формулы 1:1 из TransitTimeline.jsx:
  *   - первый fetch: to = min(addMonthISO(today), horizonEnd)
@@ -49,12 +49,12 @@ describe("TransitTimeline: горизонт догрузки не перевал
     "2026-08-19", "2026-12-01", "2026-12-31",
   ];
 
-  // 1 — Lite, 3 — Pro (19.08.2026), 24 — Premium. 12 (Free) не тестируется
+  // 6 — Вега, 12 — Лира, 24 — Орион (31.08.2026). 3 (Free) не тестируется
   // здесь: это не тарифный лимит транзитов, а отдельная величина для
-  // блюр-тизера (см. комментарий в TransitTimeline.jsx), free до транзитов
-  // не допускается вовсе (check_transit_access).
+  // блюр-тизера (см. комментарий в TransitTimeline.jsx) — список транзитов
+  // виден free целиком, монетизируется только AI-разбор (решение E2).
   for (const today of sampleDates) {
-    for (const maxMonths of [1, 3, 24]) {
+    for (const maxMonths of [6, 12, 24]) {
       it(`today=${today} maxMonths=${maxMonths} — доходит до горизонта и не переваливает`, () => {
         const { horizonEnd, seenTo, steps } = simulateHorizon(today, maxMonths);
 
