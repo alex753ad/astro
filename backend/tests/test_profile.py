@@ -246,7 +246,10 @@ class TestSubscriptionInfo:
         data = resp.json()
         assert data["tier"] == "premium"
         assert data["features"]["pdf_reports"] is True
-        assert data["features"]["synastry"] is True
+        # 31.08.2026: снято с True — фича не готова, эндпоинты синастрии
+        # всё ещё за require_admin (AUDIT, FIXES_19). Вернётся к True тем
+        # же заходом, что снимет require_admin.
+        assert data["features"]["synastry"] is False
 
     def test_subscription_requires_auth(self, client: TestClient):
         resp = client.get("/api/v1/profile/subscription")

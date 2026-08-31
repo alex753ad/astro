@@ -99,7 +99,15 @@ TIER_FLAGS: dict[str, dict] = {
         "profiles_limit": None,
         "lunar_months": None,   # 19.08.2026: было 12 — «безлимит» по новой сетке (12 = как у Pro, не дифференциатор)
         "planner_months": 12,
-        "synastry": True,
+        # 31.08.2026: снято с True — решение владельца (AUDIT, FIXES_19).
+        # Флаг обещал Ориону функцию, недоступную никому: эндпоинты
+        # /chart/synastry и /synastry/interpret за require_admin,
+        # SynastryPage редиректит не-админа. Фронт его и не читал (пункт
+        # меню шёл по user?.is_admin, не по флагу) — вреда не было, но
+        # TIER_FLAGS обязан быть источником правды, а не аспирацией.
+        # Вернуть True ТЕМ ЖЕ заходом, что снимет require_admin с обеих
+        # ручек в advanced_charts_router.py и редирект в SynastryPage.jsx.
+        "synastry": False,
         "pdf_export": True,
         "pdf_per_month": None,  # 19.08.2026: было 50 — новая сетка, «безлимит»
         "ai_engine": settings.deepseek_model_pro,
