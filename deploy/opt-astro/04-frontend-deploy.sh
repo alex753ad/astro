@@ -120,12 +120,18 @@ if ! $NGINX_CHECK_ONLY; then
   # Публикация dist (атомарная замена, чтобы nginx не отдавал наполовину
   # скопированный каталог)
   # ---------------------------------------------------------------------------
+  # Всё через sudo, целиком. Раньше здесь не было sudo нигде, и это выглядело
+  # согласованно — но один запуск скрипта целиком под sudo делал
+  # /opt/astro/frontend/dist root-овым, после чего следующий запуск от deploy
+  # умирал на `rm -rf "$DIST_TARGET"`. «Никогда не sudo» такое не лечит: deploy
+  # не может удалить root-овый каталог. «Всегда sudo» лечит — root перезапишет
+  # любого владельца. nginx каталог только читает, владелец ему безразличен.
   log "Публикую сборку в $DIST_TARGET"
-  mkdir -p "$(dirname "$DIST_TARGET")"
-  rm -rf "${DIST_TARGET}.new"
-  cp -r "${FRONTEND_SRC_DIR}/dist" "${DIST_TARGET}.new"
-  rm -rf "$DIST_TARGET"
-  mv "${DIST_TARGET}.new" "$DIST_TARGET"
+  sudo mkdir -p "$(dirname "$DIST_TARGET")"
+  sudo rm -rf "${DIST_TARGET}.new"
+  sudo cp -r "${FRONTEND_SRC_DIR}/dist" "${DIST_TARGET}.new"
+  sudo rm -rf "$DIST_TARGET"
+  sudo mv "${DIST_TARGET}.new" "$DIST_TARGET"
   echo "  готово: $DIST_TARGET"
 fi
 
@@ -141,7 +147,13 @@ log "Обновляю конфиг nginx"
 # вспомнит. Теперь: бэкап -> копирование -> проверка -> откат при провале.
 
 BACKUP_DIR="${NGINX_BACKUP_ROOT}/$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$BACKUP_DIR"
+# sudo, потому что наполняется каталог тоже через sudo (`sudo cp -p` ниже:
+# читать /etc/nginx/* от deploy нельзя). Создание без sudo при наполнении с
+# sudo — ровно та поломка, из-за которой скрипт переставал работать: один
+# запуск целиком под sudo делал nginx-backup root-овым, и следующий запуск от
+# deploy умирал здесь, на mkdir, ДО копирования конфигов. `sudo mkdir -p`
+# отрабатывает при любом владельце.
+sudo mkdir -p "$BACKUP_DIR"
 
 # Список «куда пишем» -> «как называется копия». Бэкапим ровно те файлы,
 # которые собираемся перезаписать, а не каталог целиком: в /etc/nginx/snippets
