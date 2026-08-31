@@ -12,14 +12,20 @@ test_profile.py) и в этой миграции не трогается.
 
 Идемпотентная миграция (guard через inspect), по образцу 038_user_is_admin.
 
-Revision ID: 050_drop_user_stripe_subscription_id
+Revision ID: 050_drop_stripe_sub_id
 Revises: 049_forgive_lost_interpretations
+
+⚠️ Имя ревизии короче, чем можно было бы ожидать (не
+"050_drop_user_stripe_subscription_id") — `alembic_version.version_num`
+имеет тип `varchar(32)` (виден в CI: 049_forgive_lost_interpretations,
+32 символа, — это не совпадение, а фактический потолок), длинное имя роняет
+`check-migrations` с `StringDataRightTruncation`. Не удлинять обратно.
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
-revision = "050_drop_user_stripe_subscription_id"
+revision = "050_drop_stripe_sub_id"
 down_revision = "049_forgive_lost_interpretations"
 branch_labels = None
 depends_on = None

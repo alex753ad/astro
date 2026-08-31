@@ -139,7 +139,7 @@ og_title = f"Натальная карта · {name}"
 покрывающий тест (`test_active_subscription_reflected`). И не трогал
 `users.stripe_customer_id` — тоже живой (`profile/router.py:314`).
 
-**Коммит**: `8acbea1`, миграция `050_drop_user_stripe_subscription_id.py`
+**Коммит**: `8acbea1`, миграция `050_drop_stripe_sub_id.py` (короткое имя ревизии — не опечатка, см. комментарий в файле: `alembic_version.version_num` это `varchar(32)`)
 (идемпотентна, `downgrade` восстанавливает колонку). `test_profile.py` —
 30/30 зелёных после удаления, включая GDPR-экспорт.
 
@@ -166,7 +166,7 @@ og_title = f"Натальная карта · {name}"
 разом при каждом таком запросе.
 
 **Коммит**: `02c3738`, миграция
-`051_client_profiles_astrologer_id_index.py` (идемпотентна). Тест
+`051_client_profile_idx.py` (идемпотентна, короткое имя по той же причине). Тест
 `test_client_profiles_index.py` — 2 теста: индекс объявлен на уровне
 модели SQLAlchemy и реально создаётся в БД (проверено на SQLite тестовой
 схемы; на Postgress-проде подтверждает `check-migrations` в CI и команда

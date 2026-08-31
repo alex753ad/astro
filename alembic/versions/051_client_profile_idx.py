@@ -11,14 +11,17 @@ client_profiles по всем астрологам сразу.
 Идемпотентная миграция (guard через inspect), по образцу
 046_partner_visits.
 
-Revision ID: 051_client_profiles_astrologer_id_index
-Revises: 050_drop_user_stripe_subscription_id
+Revision ID: 051_client_profile_idx
+Revises: 050_drop_stripe_sub_id
+
+⚠️ Короткое имя ревизии не случайность — `alembic_version.version_num` это
+`varchar(32)` (см. комментарий в 050_drop_stripe_sub_id.py). Не удлинять.
 """
 from alembic import op
 from sqlalchemy import inspect
 
-revision = "051_client_profiles_astrologer_id_index"
-down_revision = "050_drop_user_stripe_subscription_id"
+revision = "051_client_profile_idx"
+down_revision = "050_drop_stripe_sub_id"
 branch_labels = None
 depends_on = None
 
