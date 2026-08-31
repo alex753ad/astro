@@ -124,20 +124,30 @@ if [[ "$MODE" != "frontend" ]]; then
     fi
   fi
 
+  # 04-frontend-deploy.sh синхронизируется здесь же и ЭТО ВАЖНО: он единственный,
+  # кто кладёт на сервер конфиг nginx, сниппеты, conf.d и собранный dist. До
+  # 31.08.2026 его в списке не было — на сервере годами исполнялась копия,
+  # положенная руками, и любая правка этого файла в репозитории туда не
+  # доезжала вообще никак (ни повторным запуском, ни новым коммитом).
+  #
+  # Порядок работает в нашу пользу: синхронизация идёт ЗДЕСЬ, а вызов
+  # "$FRONTEND_DEPLOY_SCRIPT" — в самом конце скрипта. 04 запускается отдельным
+  # процессом и читает уже обновлённый файл, то есть новая версия подхватывается
+  # в ТОМ ЖЕ запуске.
   log "Синхронизирую копии деплой-скриптов из $APP_DIR/deploy/opt-astro/ (temp + atomic mv)"
   dest_dir="$(pwd)"
-  for f in 05-update.sh docker-compose.yml 07-backup-cron.sh; do
+  for f in 05-update.sh 04-frontend-deploy.sh docker-compose.yml 07-backup-cron.sh; do
     tmp="$(mktemp "${dest_dir}/.${f}.XXXXXX")"
     if ! cp "$APP_DIR/deploy/opt-astro/$f" "$tmp"; then
       rm -f "$tmp"
       die "не удалось скопировать $f во временный файл — рабочая копия не тронута."
     fi
     case "$f" in
-      05-update.sh|07-backup-cron.sh) chmod +x "$tmp" ;;
+      05-update.sh|04-frontend-deploy.sh|07-backup-cron.sh) chmod +x "$tmp" ;;
     esac
     mv -f "$tmp" "${dest_dir}/$f"
   done
-  echo "  синхронизировано: 05-update.sh, docker-compose.yml, 07-backup-cron.sh"
+  echo "  синхронизировано: 05-update.sh, 04-frontend-deploy.sh, docker-compose.yml, 07-backup-cron.sh"
 fi
 
 # ---------------------------------------------------------------------------
