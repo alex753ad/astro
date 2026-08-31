@@ -306,7 +306,6 @@ async def share_page(token: str, db: Session = Depends(get_db)):
         return _share_not_found_html()
 
     planets = chart.planets or []
-    name = chart.share_name or "Натальная карта"
     sun = _sign_label(planets, "Sun")
     moon = _sign_label(planets, "Moon")
     asc_data = chart.ascendant or {}
@@ -331,8 +330,22 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     # XSS: любое пользовательское значение (share_name) экранируется перед
     # вставкой в HTML/мета-теги. Токен — из secrets.token_urlsafe (безопасный
     # алфавит), но экранируем и его для единообразия.
-    safe_name = escape(name, quote=True)
-    og_title       = f"Натальная карта · {safe_name}"
+    #
+    # 31.08.2026: раньше title был `f"Натальная карта · {chart.share_name or
+    # 'Натальная карта'}"` — при отсутствии share_name (а его сегодня не
+    # передаёт НИ ОДИН вызывающий на фронте, ни один POST .../share не шлёт
+    # этот параметр) заголовок дублировался в «Натальная карта · Натальная
+    # карта». chart.name (реальное имя человека) сюда специально не
+    # подставляем — это отдельное приватное поле, share_name существует
+    # именно как его opt-in замена для публичной страницы (комментарий у
+    # поля в models.py). Вместо дубля — солнечный знак, который и так уже
+    # считается для описания ниже: он публичный, узнаваемый и не пустой
+    # почти никогда (нет знака только если Sun не нашёлся в planets).
+    title_suffix = chart.share_name or sun or None
+    og_title = (
+        escape(f"Натальная карта · {title_suffix}", quote=True)
+        if title_suffix else "Натальная карта"
+    )
     og_description = escape(description, quote=True)
     safe_token     = escape(token, quote=True)
     og_image       = f"{APP_URL}/share/{safe_token}/card.png"
