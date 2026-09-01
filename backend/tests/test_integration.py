@@ -129,13 +129,14 @@ def mock_llm():
 class TestChartCalculateEndpoint:
     """POST /api/v1/chart/calculate"""
 
+    # Координат здесь нет намеренно: BirthDataInput их не объявляет, и
+    # присланные молча отбрасываются (extra по умолчанию ignore). См.
+    # CLAUDE.md, «POST /chart/calculate координаты из тела не принимает».
     VALID_PAYLOAD = {
         "name": "Тест",
         "birth_date": "1990-06-15",
         "birth_time": "10:30",
         "birth_place": "Moscow, Russia",
-        "latitude": 55.75,
-        "longitude": 37.62,
         "house_system": "placidus",
     }
 
@@ -171,11 +172,6 @@ class TestChartCalculateEndpoint:
         resp = client.post("/api/v1/chart/calculate", json=payload)
         assert resp.status_code == 422
 
-    def test_invalid_coordinates_returns_422(self, client):
-        payload = {**self.VALID_PAYLOAD, "latitude": 999.0}
-        resp = client.post("/api/v1/chart/calculate", json=payload)
-        assert resp.status_code in (200, 422, 400)
-
     def test_calculator_called_with_correct_datetime(self, client, mock_calculator, mock_geo):
         client.post("/api/v1/chart/calculate", json=self.VALID_PAYLOAD)
         mock_calculator.assert_called_once()
@@ -193,8 +189,7 @@ class TestChartGetEndpoint:
     def _create_chart(self, client, mock_calculator, mock_geo, headers=None):
         payload = {
             "name": "Тест", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
-            "house_system": "placidus",
+            "birth_place": "Moscow", "house_system": "placidus",
         }
         resp = client.post("/api/v1/chart/calculate", json=payload, headers=headers or {})
         data = resp.json()
@@ -214,8 +209,7 @@ class TestChartGetEndpoint:
     def test_get_chart_contains_planets(self, client, mock_calculator, mock_geo):
         payload = {
             "name": "Тест", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
-            "house_system": "placidus",
+            "birth_place": "Moscow", "house_system": "placidus",
         }
         post = client.post("/api/v1/chart/calculate", json=payload)
         pdata = post.json()
@@ -235,8 +229,7 @@ class TestChartGetEndpoint:
         """Данные при GET совпадают с тем, что вернул POST."""
         payload = {
             "name": "Тест", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
-            "house_system": "placidus",
+            "birth_place": "Moscow", "house_system": "placidus",
         }
         post_resp = client.post("/api/v1/chart/calculate", json=payload)
         post_data = post_resp.json()
@@ -270,7 +263,7 @@ class TestFullCyclePOSTtoGETtoInterpret:
         # 1. Создаём карту (от лица пользователя — карта принадлежит ему)
         payload = {
             "name": "Полный цикл", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
+            "birth_place": "Moscow",
         }
         post_resp = client.post("/api/v1/chart/calculate", json=payload, headers=auth_headers_free)
         assert post_resp.status_code == 200
@@ -301,7 +294,7 @@ class TestFullCyclePOSTtoGETtoInterpret:
         """SSE-эндпоинт возвращает text/event-stream."""
         payload = {
             "name": "SSE", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
+            "birth_place": "Moscow",
         }
         post_resp = client.post("/api/v1/chart/calculate", json=payload)
         chart_id = (
@@ -354,7 +347,7 @@ class TestAuthAndChartPermissions:
         """Анонимный пользователь может создать карту (согласно архитектуре)."""
         payload = {
             "name": "Аноним", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow", "latitude": 55.75, "longitude": 37.62,
+            "birth_place": "Moscow",
         }
         resp = client.post("/api/v1/chart/calculate", json=payload)
         # Либо 200 (если анонимный доступ разрешён), либо 401

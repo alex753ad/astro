@@ -58,23 +58,6 @@ class BirthDataInput(BaseModel):
         return v
 
 
-class CoordinatesInput(BaseModel):
-    latitude: float = Field(..., ge=-90.0, le=90.0)
-    longitude: float = Field(..., ge=-180.0, le=180.0)
-
-    @field_validator("latitude")
-    @classmethod
-    def lat_not_pole(cls, v: float) -> float:
-        if abs(v) > 89.9:
-            raise ValueError("Широта слишком близка к полюсу (|lat| ≤ 89.9°).")
-        return round(v, 6)
-
-    @field_validator("longitude")
-    @classmethod
-    def lon_precision(cls, v: float) -> float:
-        return round(v, 6)
-
-
 class TransitRequest(BaseModel):
     from_date: date
     to_date: date
