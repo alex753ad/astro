@@ -297,7 +297,17 @@ def _share_not_found_html() -> HTMLResponse:
     )
 
 
-@router.get("/share/{token}", response_class=HTMLResponse)
+# methods=["GET", "HEAD"], а не @router.get: FastAPI, в отличие от Starlette,
+# НЕ добавляет HEAD к GET-маршрутам автоматически (fastapi/routing.py:892
+# против starlette/routing.py:229-234). Краулеры превью проверяют ресурс
+# HEAD-запросом до GET, получали 405 и до GET не доходили — превью не
+# строилось при полностью исправных тегах. Подробности в CLAUDE.md.
+#
+# Раннего выхода по HEAD здесь нет намеренно (в отличие от card.png ниже):
+# страница дешёвая — запрос в БД и сборка строки, — а тело отбрасывается на
+# уровне ASGI. Единственное, что стоит денег, — _get_share_quote, но он
+# кэшируется по токену и нужен самой странице, не только телу.
+@router.api_route("/share/{token}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def share_page(token: str, db: Session = Depends(get_db)):
     """Публичная страница карты с Open Graph мета-тегами.
 
@@ -442,7 +452,9 @@ async def share_page(token: str, db: Session = Depends(get_db)):
 
 # ── PNG карточка 1080×1920 (формат Stories) ───────────────────────────────────
 
-@router.get("/share/{token}/card.png")
+# methods=["GET", "HEAD"] — см. комментарий у share_page выше: FastAPI сам
+# HEAD не добавляет, а без него краулер превью не доходит до картинки.
+@router.api_route("/share/{token}/card.png", methods=["GET", "HEAD"])
 @limiter.limit("30/minute", key_func=share_card_key)
 async def share_card_png(request: Request, token: str, db: Session = Depends(get_db)):
     """Генерирует вертикальную PNG-карточку 1080×1920 для Stories / мессенджеров.
@@ -459,6 +471,29 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
         raise HTTPException(status_code=503, detail="Pillow not installed")
+
+    # ── Ранний выход по HEAD ────────────────────────────────────────────────
+    # Стоит ЗДЕСЬ, а не выше, и это важно в обе стороны.
+    #
+    # ПОСЛЕ проверок токена — иначе ручка станет оракулом существования
+    # токенов: HEAD отвечал бы 200 там, где GET отвечает 404, и перебором
+    # можно было бы выяснять, какие токены живые, ни разу не получив картинку.
+    #
+    # ДО рендера и до _get_share_quote — иначе каждый HEAD краулера
+    # оплачивает генерацию PNG 1080×1920 и запрос к LLM за подписью, а тело
+    # всё равно будет отброшено на уровне ASGI. Ради этого выход и написан:
+    # без него methods=["GET","HEAD"] превращает ручку в нагрузку.
+    #
+    # ⚠️ Расхождение с GET, принятое осознанно: обнаружить сбой генерации, не
+    # выполнив её, HEAD не может, поэтому здесь он отвечает 200 там, где GET
+    # ответил бы 503. Утечки нет — 503 не зависит от токена и одинаков для
+    # всех. Content-Length намеренно не выставляется: настоящий размер без
+    # генерации неизвестен, а неверный хуже отсутствующего.
+    if request.method == "HEAD":
+        return Response(
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     planets = chart.planets or []
     name = chart.share_name or "Натальная карта"

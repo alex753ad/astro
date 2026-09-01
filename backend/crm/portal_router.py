@@ -10,7 +10,7 @@ import logging
 import urllib.parse
 from backend.time_utils import utcnow
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -83,14 +83,44 @@ async def portal_data(token: str, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/portal-report/{token}")
-async def portal_report(token: str, db: Session = Depends(get_db)):
+# methods=["GET", "HEAD"]: FastAPI, в отличие от Starlette, не добавляет HEAD
+# к GET-маршрутам сам (fastapi/routing.py:892 против starlette/routing.py:229-234).
+# Ссылку на этот PDF присылают в мессенджер, а краулер превью сначала делает
+# HEAD — на 405 он останавливается. Подробности в CLAUDE.md.
+@router.api_route("/portal-report/{token}", methods=["GET", "HEAD"])
+async def portal_report(token: str, request: Request, db: Session = Depends(get_db)):
     _, client, astrologer = _resolve(token, db)
     if not client.natal_chart_id:
         raise HTTPException(status_code=404, detail="Chart not calculated yet")
     chart = db.query(NatalChart).filter(NatalChart.id == client.natal_chart_id).first()
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
+
+    # Имя файла считается ЗДЕСЬ, после всех проверок 404, и это условие
+    # работы, а не порядок ради красоты: в нём имя клиента и дата рождения,
+    # то есть персональные данные. Поднимется выше проверок — HEAD с чужим
+    # или протухшим токеном начнёт отдавать их в Content-Disposition, не
+    # отдав ни байта PDF. Закреплено тестом (плохой токен → 404 и никакого
+    # Content-Disposition).
+    filename = f"natal_{chart.birth_date}.pdf"
+    encoded = urllib.parse.quote(f"natal_{client.name}_{chart.birth_date}.pdf")
+    disposition = f"attachment; filename={filename}; filename*=UTF-8''{encoded}"
+
+    # ── Ранний выход по HEAD ────────────────────────────────────────────────
+    # После проверок токена (иначе ручка стала бы оракулом существования
+    # порталов) и до generate_pdf_bytes — ReportLab собирает PDF целиком,
+    # синхронно, а тело всё равно будет отброшено на уровне ASGI.
+    #
+    # ⚠️ Расхождение с GET, принятое осознанно: обнаружить сбой генерации, не
+    # выполнив её, HEAD не может, поэтому здесь он отвечает 200 там, где GET
+    # ответил бы 503. Утечки нет — 503 не зависит от токена и одинаков для
+    # всех. Content-Length намеренно не выставляется: настоящий размер без
+    # генерации неизвестен, а неверный хуже отсутствующего.
+    if request.method == "HEAD":
+        return Response(
+            media_type="application/pdf",
+            headers={"Content-Disposition": disposition},
+        )
 
     brand = (astrologer.display_name if astrologer else None) or "Ваш астролог"
     try:
@@ -100,10 +130,8 @@ async def portal_report(token: str, db: Session = Depends(get_db)):
         logger.warning("Portal PDF generation failed: %s", e)
         raise HTTPException(status_code=503, detail="PDF временно недоступен")
 
-    filename = f"natal_{chart.birth_date}.pdf"
-    encoded = urllib.parse.quote(f"natal_{client.name}_{chart.birth_date}.pdf")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}; filename*=UTF-8''{encoded}"},
+        headers={"Content-Disposition": disposition},
     )

@@ -103,5 +103,90 @@ def test_valid_page_is_also_noindex(client, db, monkeypatch):
     assert 'property="og:image"' in resp.text
 
 
+class TestHeadRequests:
+    """HEAD на обеих ручках шаринга.
+
+    Причина существования: FastAPI, в отличие от Starlette, НЕ добавляет HEAD
+    к GET-маршрутам (fastapi/routing.py:892 против starlette/routing.py:229-234),
+    и обе ручки отвечали на HEAD 405 с `allow: GET`. Краулеры превью
+    проверяют ресурс HEAD-запросом до GET — Telegram до GET не доходил, и
+    превью не строилось при полностью исправных тегах и рабочей картинке.
+    Отладка 01.09.2026 несколько заходов ушла в теги, кэш мессенджера и
+    отправителя, а дело было в методе.
+    """
+
+    def test_head_share_page_returns_200_html(self, client, db, monkeypatch):
+        monkeypatch.setattr(
+            "backend.share_router._get_share_quote",
+            lambda *a, **kw: _async_return(""),
+        )
+        chart = _make_shared_chart(db)
+
+        resp = client.head(f"/share/{chart.public_token}")
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/html")
+        assert resp.content == b""
+
+    def test_head_card_png_returns_200_image(self, client, db):
+        chart = _make_shared_chart(db)
+
+        resp = client.head(f"/share/{chart.public_token}/card.png")
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/png"
+        assert resp.content == b""
+
+    def test_head_card_png_does_not_generate_anything(self, client, db, monkeypatch):
+        """ГЛАВНЫЙ тест этого класса — он закрепляет причину раннего выхода.
+
+        Без него `if request.method == "HEAD"` в share_card_png выглядит
+        лишней веткой, и следующий рефакторинг снимет её как упрощение. А
+        снятие означает, что каждый HEAD краулера оплачивает рендер PNG
+        1080x1920 и запрос к LLM за подписью, хотя тело всё равно
+        отбрасывается на уровне ASGI: ручка превью превращается в нагрузку.
+        """
+        called = {"quote": 0, "render": 0}
+
+        async def _spy_quote(*a, **kw):
+            called["quote"] += 1
+            return ""
+
+        def _spy_new(*a, **kw):
+            called["render"] += 1
+            raise AssertionError("рендер картинки при HEAD не должен вызываться")
+
+        monkeypatch.setattr("backend.share_router._get_share_quote", _spy_quote)
+        import PIL.Image
+        monkeypatch.setattr(PIL.Image, "new", _spy_new)
+
+        chart = _make_shared_chart(db)
+        resp = client.head(f"/share/{chart.public_token}/card.png")
+
+        assert resp.status_code == 200
+        assert called == {"quote": 0, "render": 0}
+
+    def test_head_matches_get_on_unknown_token(self, client, db):
+        """Иначе ручка станет оракулом существования токенов."""
+        for path in ("/share/does-not-exist", "/share/does-not-exist/card.png"):
+            get_code = client.get(path).status_code
+            head_code = client.head(path).status_code
+            assert head_code == get_code, path
+            assert head_code == 404, path
+
+    def test_head_matches_get_on_expired_token(self, client, db, monkeypatch):
+        monkeypatch.setattr(
+            "backend.share_router._get_share_quote",
+            lambda *a, **kw: _async_return(""),
+        )
+        chart = _make_shared_chart(db, expires_delta=timedelta(days=-1))
+
+        for path in (
+            f"/share/{chart.public_token}",
+            f"/share/{chart.public_token}/card.png",
+        ):
+            assert client.head(path).status_code == client.get(path).status_code, path
+
+
 async def _async_return(value):
     return value
