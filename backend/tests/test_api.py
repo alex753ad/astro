@@ -19,14 +19,14 @@ class TestHealthEndpoints:
 class TestChartEndpoints:
     """Tests for natal chart calculation endpoint.
 
-    Note: These tests call the real Nominatim API for geocoding.
-    In CI, use mocked responses.
+    Тесты, которым нужен живой Nominatim, помечены маркером `external` и в
+    обычный прогон не попадают (см. addopts в pytest.ini). Запуск отдельно:
+    `pytest backend/tests/ -m external`. Раньше они стояли под
+    `skipif(True)`/`pytest.skip()` — то есть не запускались НИКОГДА и ни в
+    одном отчёте не значились как отложенные намеренно.
     """
 
-    @pytest.mark.skipif(
-        True,  # Skip in environments without internet
-        reason="Requires internet for geocoding"
-    )
+    @pytest.mark.external
     def test_calculate_chart(self, client):
         resp = client.post("/api/v1/chart/calculate", json={
             "birth_date": "2000-01-15",
@@ -48,10 +48,15 @@ class TestChartEndpoints:
         })
         assert resp.status_code == 422
 
+    @pytest.mark.external
     def test_calculate_chart_no_time(self, client):
         """Chart without birth time should use 12:00 noon."""
-        # Skip if no internet
-        pytest.skip("Requires internet for geocoding")
+        resp = client.post("/api/v1/chart/calculate", json={
+            "birth_date": "2000-01-15",
+            "birth_place": "Berlin, Germany",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["time_unknown"] is True
 
     def test_get_nonexistent_chart(self, client):
         resp = client.get("/api/v1/chart/nonexistent-id")
