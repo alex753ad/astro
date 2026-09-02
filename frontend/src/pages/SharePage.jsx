@@ -1,6 +1,6 @@
 /**
  * SharePage.jsx — публичная страница карты по токену (/chart/share/:token)
- * Загружает данные карты и показывает превью + кнопку "Открыть в Astrea"
+ * Загружает данные карты и показывает превью + кнопку "Открыть в Aristea"
  */
 
 import React, { useEffect, useState } from 'react';
@@ -56,7 +56,7 @@ export default function SharePage() {
   function handleDownloadCard() {
     const a = document.createElement('a');
     a.href = `${BACKEND}/share/${token}/card.png`;
-    a.download = 'astrea-timeline-card.png';
+    a.download = 'aristea-timeline-card.png';
     a.click();
   }
 

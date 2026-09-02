@@ -145,7 +145,7 @@ class TestResponseParsing:
         assert "format=json" in seen["url"]
         assert "limit=1" in seen["url"]
         # Nominatim требует опознаваемый User-Agent, без него банит.
-        assert "AstreaTime" in seen["user_agent"]
+        assert "AristeaTime" in seen["user_agent"]
 
 
 class TestErrorHandling:

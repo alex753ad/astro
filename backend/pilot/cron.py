@@ -217,7 +217,7 @@ async def _process(db: Session, user: User) -> dict:
                         14: "Последнее напоминание. Ваша карта будет ждать, если захотите вернуться.",
                     }[step]
                     send_to_user(db, user.id, {
-                        "title": "✦ Astrea", "body": body, "url": "/planner",
+                        "title": "✦ Aristea", "body": body, "url": "/planner",
                     })
                 except Exception as e:
                     logger.warning("dormant%s push failed user=%s: %s", step, user.id, e)

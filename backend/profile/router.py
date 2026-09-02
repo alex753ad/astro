@@ -459,7 +459,7 @@ async def export_my_data(
             }
             for p in payments
         ],
-        "astrea_chat_summary": memory.summary if memory and memory.summary else None,
+        "aristea_chat_summary": memory.summary if memory and memory.summary else None,
     }
 
     logger.info("Data export: user=%s charts=%d interpretations=%d payments=%d",

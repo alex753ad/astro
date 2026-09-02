@@ -884,7 +884,7 @@ export default function PlannerPage() {
   const [searchParams] = useSearchParams();
 
   // Слой 3: пуш привёл сюда с темой для разговора — переводим сразу в чат
-  // на странице карты, где Astrea встретит пользователя первой репликой.
+  // на странице карты, где Aristea встретит пользователя первой репликой.
   useEffect(() => {
     const topic = searchParams.get('astrea');
     if (topic) {

@@ -92,7 +92,7 @@ async def on_start(message: Message):
     checks = await asyncio.gather(*[_is_member(uid, cid) for cid in CHANNEL_IDS])
     if not CHANNEL_IDS or not all(checks):
         await message.answer(
-            "Чтобы открыть бесплатный месяц Astrea, подпишитесь на оба канала, "
+            "Чтобы открыть бесплатный месяц Aristea, подпишитесь на оба канала, "
             "а затем снова напишите /start.",
             reply_markup=_subscribe_keyboard(),
         )
@@ -110,10 +110,10 @@ async def on_start(message: Message):
 
     # 3) выдаём ссылку
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Открыть Astrea Premium", url=data["claim_url"])]
+        [InlineKeyboardButton(text="Открыть Aristea Premium", url=data["claim_url"])]
     ])
     await message.answer(
-        "Готово! Нажмите кнопку ниже — откроется Astrea, и мы включим вам "
+        "Готово! Нажмите кнопку ниже — откроется Aristea, и мы включим вам "
         "Premium на 30 дней.\n\nСсылка одноразовая и действует ограниченное время.\n\n"
         "Доступ к скачиванию PDF в приложении открыт.",
         reply_markup=kb,

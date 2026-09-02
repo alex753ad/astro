@@ -104,7 +104,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           maxWidth: 540,
           margin: '0 auto 36px',
         }}>
-          Астрея мягко ведёт тебя по твоим жизненным циклам — показывает, какой
+          Аристея мягко ведёт тебя по твоим жизненным циклам — показывает, какой
           период сейчас наступает, о чём он для тебя и как прожить его в своём
           ритме, опираясь на твою натальную карту.
         </motion.p>
@@ -167,7 +167,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           {/* Full-width preview image */}
           <img
             src={chartPreview}
-            alt="Твой таймлайн на месяц в Астрея"
+            alt="Твой таймлайн на месяц в Аристее"
             loading="lazy"
             style={{
               width: '100%',
@@ -189,7 +189,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             color: '#8B5CF6',
             lineHeight: 1.6,
           }}>
-            И это лишь одно окно твоего месяца — Астрея проведёт тебя по всем транзитным периодам
+            И это лишь одно окно твоего месяца — Аристея проведёт тебя по всем транзитным периодам
             и покажет, как их эффективно использовать.
           </div>
         </motion.div>
@@ -210,7 +210,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           color: '#1a1230',
         }}
       >
-        Что делает Астрея
+        Что делает Аристея
       </motion.h2>
       <motion.div
         variants={gridContainer}
@@ -240,8 +240,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             highlight: true,
           },
           {
-            title: 'Астролог Астрея',
-            desc: 'В чате с Астреей можно спросить о своей карте — она ответит по натальной карте и текущим транзитам сразу. Периоды, аспекты, сферы жизни — конкретно для тебя, здесь и сейчас.',
+            title: 'Астролог Аристея',
+            desc: 'В чате с Аристеей можно спросить о своей карте — она ответит по натальной карте и текущим транзитам сразу. Периоды, аспекты, сферы жизни — конкретно для тебя, здесь и сейчас.',
             descShort: 'Спроси о своей карте — ответит по ней и транзитам сейчас.',
           },
         ].map((f) => (
@@ -317,7 +317,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
       {/* B2B-пространство — временно неактивно (chore: временно отключить вход в CRM с лендинга) */}
       <div style={{ textAlign: 'center', padding: '0 24px 8px' }}>
         <span style={{ fontSize: 16, color: '#6B6780', cursor: 'default' }}>
-          Ты астролог и ведёшь клиентов? Астрея для практики — скоро
+          Ты астролог и ведёшь клиентов? Аристея для практики — скоро
         </span>
       </div>
     </div>

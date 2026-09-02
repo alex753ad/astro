@@ -1,4 +1,4 @@
-"""Astrea Timeline — FastAPI application.
+"""Aristea Timeline — FastAPI application.
 
 Endpoints:
   POST /api/v1/chart/calculate                  — compute natal chart
@@ -187,7 +187,7 @@ async def lifespan(app: FastAPI):
 
 # ── App ──
 app = FastAPI(
-    title="Astrea Timeline API",
+    title="Aristea Timeline API",
     version="0.1.0",
     description="Natal chart calculation, transits, AI interpretations",
     lifespan=lifespan,

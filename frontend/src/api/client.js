@@ -1,5 +1,5 @@
 /**
- * API client for Astrea Timeline backend.
+ * API client for Aristea Timeline backend.
  *
  * Handles:
  * - REST calls (chart, transits)

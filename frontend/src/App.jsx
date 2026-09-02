@@ -70,7 +70,7 @@ function useOGMeta() {
 
     if (path === '/' || path === '/home') {
       updateOG({
-        title: 'Astrea Timeline — Натальные карты и AI-астрология',
+        title: 'Aristea Timeline — Натальные карты и AI-астрология',
         description: 'Постройте натальную карту, получите AI-интерпретацию транзитов и персональный астро-планер.',
         url: `${base}${path}`,
       });
@@ -78,13 +78,13 @@ function useOGMeta() {
       const sign = path.split('/zodiac/')[1]?.toLowerCase();
       const signRu = ZODIAC_SIGNS[sign] || sign;
       updateOG({
-        title: `${signRu} — характеристика знака зодиака | Astrea`,
-        description: `Подробная характеристика знака ${signRu}: личность, карьера, отношения. AI-астрология на Astrea Timeline.`,
+        title: `${signRu} — характеристика знака зодиака | Aristea`,
+        description: `Подробная характеристика знака ${signRu}: личность, карьера, отношения. AI-астрология на Aristea Timeline.`,
         url: `${base}${path}`,
       });
     } else if (path === '/lunar' || path.startsWith('/calendar/lunar')) {
       updateOG({
-        title: 'Лунный календарь 2026 | Astrea Timeline',
+        title: 'Лунный календарь 2026 | Aristea Timeline',
         description: 'Фазы Луны, знак Луны на каждый день, благоприятные дни. Персональный лунный календарь.',
         url: `${base}${path}`,
       });
@@ -198,9 +198,9 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
         {/* Логотип + слоган — верхняя строка фиксированной высоты, без переноса */}
         <Link to="/" className="flex items-center gap-2 group h-8 overflow-hidden">
-          <img src="/logo_120x120.png" alt="Astrea Timeline" className="w-8 h-8 rounded-full shrink-0" />
+          <img src="/logo_120x120.png" alt="Aristea Timeline" className="w-8 h-8 rounded-full shrink-0" />
           <span className="font-display text-lg font-bold text-brand-text group-hover:text-brand-accent transition-colors duration-200 whitespace-nowrap">
-            Astrea Timeline
+            Aristea Timeline
           </span>
           <span className="hidden sm:block text-sm text-brand-muted border-l border-brand-border pl-3 ml-1 min-w-0 truncate">
             — плавное выравнивание жизни по ритму космических циклов

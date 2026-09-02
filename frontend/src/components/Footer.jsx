@@ -17,7 +17,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-brand-border py-5 text-center text-brand-muted text-xs bg-brand-card/50">
       <div>
-        Astrea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris
+        Aristea Timeline © {new Date().getFullYear()} · Расчёты: Swiss Ephemeris
       </div>
       <div style={{ marginTop: 6 }}>
         {LINKS.map((l, i) => (

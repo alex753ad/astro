@@ -186,7 +186,7 @@ const LEFT_BTNS = [
 ];
 const LEFT_BTNS_BOTTOM = [
   { key: 'interpretation', label: 'AI-интерпретация',   icon: '' },
-  { key: 'chat',           label: 'Астролог Астрея', icon: '', minTier: 'pro' },
+  { key: 'chat',           label: 'Астролог Аристея', icon: '', minTier: 'pro' },
 ];
 
 
@@ -453,7 +453,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     const backendBase = API_BASE.replace('/api/v1', '');
     const a = document.createElement('a');
     a.href = `${backendBase}/share/${shareToken}/card.png`;
-    a.download = 'astrea-timeline-card.png';
+    a.download = 'aristea-timeline-card.png';
     a.click();
   }
 
@@ -729,8 +729,8 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Астролог Астрея</div>
-              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Астрея знает вашу карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Астролог Аристея</div>
+              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Аристея знает вашу карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
               <MotionButton level="primary" onClick={() => setShowChatPlans(true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 50, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Открыть доступ
               </MotionButton>
@@ -1029,7 +1029,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         onChooseVega={() => handleChatPlanCheckout('lite')}
         onChooseLyra={() => handleChatPlanCheckout('pro')}
         onContinueFree={() => setShowChatPlans(false)}
-        contextLabel="Чат с астрологом Астреей"
+        contextLabel="Чат с астрологом Аристеей"
       />
 
     </div>

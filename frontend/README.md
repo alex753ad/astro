@@ -1,4 +1,4 @@
-# Astrea — Frontend
+# Aristea — Frontend
 
 ## Структура
 

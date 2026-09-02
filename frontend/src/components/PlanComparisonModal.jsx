@@ -175,7 +175,7 @@ export default function PlanComparisonModal({
   onChooseLyra,
   onContinueFree,
   contextLabel,
-  title = "Откройте больше в Astrea Timeline",
+  title = "Откройте больше в Aristea Timeline",
   vega = DEFAULT_VEGA,
   lyra = DEFAULT_LYRA,
 }) {

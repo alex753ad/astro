@@ -90,7 +90,7 @@ export function schedulePushReminder() {
     // В продакшн заменить на реальный Push API
     reg.active.postMessage({
       type: 'SCHEDULE_REMINDER',
-      title: '✦ Astrea Timeline',
+      title: '✦ Aristea Timeline',
       body: `Вы не заглядывали в карту ${Math.floor(daysSince)} дн. Посмотрите, что происходит сейчас!`,
       delayMs: 5000,
     });

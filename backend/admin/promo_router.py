@@ -391,6 +391,6 @@ def export_stats(db: Session = Depends(get_db), _: User = Depends(require_admin)
     return JSONResponse(
         content=payload,
         headers={
-            "Content-Disposition": f'attachment; filename="astrea_stats_{utcnow().strftime("%Y%m%d")}.json"'
+            "Content-Disposition": f'attachment; filename="aristea_stats_{utcnow().strftime("%Y%m%d")}.json"'
         },
     )

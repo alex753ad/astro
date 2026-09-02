@@ -319,13 +319,13 @@ async def register_email_send(
             body = (
                 _h2("Аккаунт уже существует")
                 + _p("Кто-то попытался зарегистрироваться с вашим адресом в "
-                     "<strong>Astrea Timeline</strong>. Аккаунт уже создан ранее.")
+                     "<strong>Aristea Timeline</strong>. Аккаунт уже создан ранее.")
                 + _p("Если это были вы — просто войдите. Если нет — проигнорируйте письмо.")
                 + _btn("Войти →", f"{get_settings().frontend_url}/login")
             )
             await _send(
                 data.email,
-                "Попытка регистрации — Astrea Timeline",
+                "Попытка регистрации — Aristea Timeline",
                 _base("Аккаунт уже существует", "Вход в аккаунт", body),
             )
         except Exception as exc:  # noqa: BLE001
@@ -719,13 +719,13 @@ async def forgot_password(
             from backend.email_service import _send, _base, _h2, _p, _btn
             body = (
                 _h2("Сброс пароля")
-                + _p("Вы запросили сброс пароля для аккаунта <strong>Astrea Timeline</strong>.")
+                + _p("Вы запросили сброс пароля для аккаунта <strong>Aristea Timeline</strong>.")
                 + _p("Ссылка действительна <strong>1 час</strong>. Если не запрашивали — проигнорируйте.")
                 + _btn("Сбросить пароль →", reset_url)
             )
             await _send(
                 data.email,
-                "Сброс пароля — Astrea Timeline",
+                "Сброс пароля — Aristea Timeline",
                 _base("Сброс пароля", "Ссылка для сброса", body),
             )
         except Exception as exc:

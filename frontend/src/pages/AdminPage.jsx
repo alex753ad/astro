@@ -1066,7 +1066,7 @@ export default function AdminPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `astrea_stats_${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `aristea_stats_${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -1077,7 +1077,7 @@ export default function AdminPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `astrea_stats_${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `aristea_stats_${new Date().toISOString().slice(0,10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -1096,7 +1096,7 @@ export default function AdminPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
-        <h1 className="text-[18px] font-medium text-gray-900">Кабинет управляющего · Astrea Timeline</h1>
+        <h1 className="text-[18px] font-medium text-gray-900">Кабинет управляющего · Aristea Timeline</h1>
         <div className="flex items-center gap-3">
           <span className="text-[12px] text-gray-500" title="Пользователи с активным запросом за последние 5 минут">
             Онлайн сейчас: <strong className="text-gray-900">{data?.online_count ?? "—"}</strong>

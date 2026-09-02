@@ -242,7 +242,7 @@ async def create_checkout(
             "type": "redirect",
             "return_url": f"{settings.frontend_url}/profile",
         },
-        "description": f"Astrea Timeline — {TIER_NAMES.get(tier, tier.capitalize())}, 30 дней",
+        "description": f"Aristea Timeline — {TIER_NAMES.get(tier, tier.capitalize())}, 30 дней",
         # metadata возвращается в вебхуке и перечитывается из API — это
         # единственный способ понять, за кого и за какой тариф пришли деньги.
         "metadata": {"user_id": str(user.id), "tier": tier, "period": PERIOD},

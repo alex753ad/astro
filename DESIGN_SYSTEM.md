@@ -1,4 +1,4 @@
-# Astrea Timeline — Design System
+# Aristea Timeline — Design System
 
 > Источник истины для всех визуальных решений проекта. Любое отклонение от этого документа требует явного обоснования.
 

@@ -543,12 +543,12 @@ def _build_transit_alert_description(transit_planet: str, natal_planet: str, asp
 # раздел 2 «Голос Astrea»). {sphere} обрезаем до первой смысловой части — в теме нет места
 # на полную формулировку из NATAL_SPHERE.
 SUBJECT_TEMPLATES = {
-    "harmonious": ("🌟 Окно открылось: {sphere} — что сделать · Astrea Timeline",
-                   "🌟 {planet} открывает благоприятный период — что сделать · Astrea Timeline"),
-    "tense":      ("🌟 {planet}: {sphere} — как использовать напряжение · Astrea Timeline",
-                   "🌟 {planet} проверяет на прочность — что делать · Astrea Timeline"),
-    "new_cycle":  ("🌟 {planet} запускает новый цикл: {sphere} · Astrea Timeline",
-                   "🌟 {planet} запускает новый цикл в вашей карте · Astrea Timeline"),
+    "harmonious": ("🌟 Окно открылось: {sphere} — что сделать · Aristea Timeline",
+                   "🌟 {planet} открывает благоприятный период — что сделать · Aristea Timeline"),
+    "tense":      ("🌟 {planet}: {sphere} — как использовать напряжение · Aristea Timeline",
+                   "🌟 {planet} проверяет на прочность — что делать · Aristea Timeline"),
+    "new_cycle":  ("🌟 {planet} запускает новый цикл: {sphere} · Aristea Timeline",
+                   "🌟 {planet} запускает новый цикл в вашей карте · Aristea Timeline"),
 }
 
 

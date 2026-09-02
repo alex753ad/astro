@@ -19,7 +19,7 @@ const SUGGESTIONS = [
 ];
 
 // ── Слой 3: проактивность ──
-// Декодирует ?astrea=<topic> из пуша в открывающую реплику Астреи
+// Декодирует ?astrea=<topic> из пуша в открывающую реплику Аристеи
 // и в вопрос, который реально уйдёт в rag-chat, если пользователь согласится обсудить.
 const PLANET_RU = {
   sun: 'Солнце', moon: 'Луна', mercury: 'Меркурий', venus: 'Венера', mars: 'Марс',
@@ -129,7 +129,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
   const abortRef                     = useRef(null);
   const prefersReduced               = useReducedMotion();
 
-  // Слой 3: если чат открыт из пуша (?astrea=...), Астрея говорит первой.
+  // Слой 3: если чат открыт из пуша (?astrea=...), Аристея говорит первой.
   useEffect(() => {
     if (!proactiveTopic || messages.length > 0) return;
     const decoded = decodeTopic(proactiveTopic);
@@ -308,7 +308,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
 
       {/* Шапка */}
       <div style={s.header}>
-        <span style={s.headerTitle}>Чат с астрологом Астреей</span>
+        <span style={s.headerTitle}>Чат с астрологом Аристеей</span>
         <span style={s.headerSub}>Помнит вашу карту и суть прошлых разговоров</span>
       </div>
 
@@ -316,7 +316,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>Астрея знает вашу карту и помнит, о чём вы говорили раньше. Спросите что угодно.</p>
+            <p style={s.emptyText}>Аристея знает вашу карту и помнит, о чём вы говорили раньше. Спросите что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>
@@ -337,7 +337,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
               style={msg.role === 'user' ? s.msgUser : s.msgAssistant}
             >
               {msg.role === 'assistant' && (
-                <span style={s.aiLabel}>✦ Астрея</span>
+                <span style={s.aiLabel}>✦ Аристея</span>
               )}
               <div style={msg.role === 'user' ? s.bubbleUser : s.bubbleAssistant}>
                 {msg.content || (msg.streaming ? <TypingDots /> : '')}

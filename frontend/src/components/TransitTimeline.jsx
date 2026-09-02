@@ -478,7 +478,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
     const np = PLANET_LABELS_RU[featuredTransit.natal_planet] || featuredTransit.natal_planet;
     const tail = isHarmonic(featuredTransit.aspect_type)
       ? "один из лучших периодов месяца"
-      : "важный период — Астрея подскажет, как пройти его мягче";
+      : "важный период — Аристея подскажет, как пройти его мягче";
     headline = `${tp} ${asp} ваш ${np} — ${tail}`;
     sub = `Разбор этого и ещё ${lockedCount} периодов — на тарифе ${TIER_NAMES.pro}`;
   }

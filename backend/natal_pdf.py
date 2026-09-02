@@ -410,7 +410,7 @@ def _page_cover(c, d):
     footer_text = (
         f"Система домов: {hs}  ·  Подготовлено: {astrologer}"
         if astrologer
-        else f"Система домов: {hs}  ·  Astrea Timeline"
+        else f"Система домов: {hs}  ·  Aristea Timeline"
     )
     c.drawCentredString(W/2, by-28, footer_text)
 
@@ -739,7 +739,7 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"Натальная карта — {data['birth_place']}")
-    author = astrologer_name or "Astrea Timeline"
+    author = astrologer_name or "Aristea Timeline"
     c.setAuthor(author)
 
     _page_cover(c, data)

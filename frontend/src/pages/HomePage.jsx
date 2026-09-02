@@ -40,7 +40,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
   const schemaOrg = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'Astrea Timeline',
+    name: 'Aristea Timeline',
     url: 'https://aristeatime.ru',
     applicationCategory: 'LifestyleApplication',
     operatingSystem: 'Web',

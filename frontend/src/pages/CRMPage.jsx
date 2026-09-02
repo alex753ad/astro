@@ -1942,7 +1942,7 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
   );
 }
 
-// ─── Раскладка Astrea: сайдбар + разделы + нижняя полоса ──────────────────────
+// ─── Раскладка Aristea: сайдбар + разделы + нижняя полоса ──────────────────────
 const NAV_ITEMS = [
   { id: 'clients',   title: 'Клиенты' },
   { id: 'library',   title: 'Мои трактовки' },
@@ -2211,7 +2211,7 @@ export default function CRMPage() {
       <style>{CRM_THEME_CSS}</style>
       <div style={SL.shell(isMobile)}>
         <aside style={SL.sidebar(isMobile)}>
-          <div style={SL.brand}><span>Рабочий кабинет<br/>Astrea</span></div>
+          <div style={SL.brand}><span>Рабочий кабинет<br/>Aristea</span></div>
           <AvatarProfile user={user} authFetch={authFetch} updateUser={updateUser} />
           <div style={SL.navWrap(isMobile)}>
             {NAV_ITEMS.map(n => (

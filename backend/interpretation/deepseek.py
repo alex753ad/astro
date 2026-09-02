@@ -37,7 +37,7 @@ class DeepSeekEngine(InterpretationEngine):
         Для интерпретации натальной карты — всегда deepseek-v4-pro (решение
         владельца 19.08.2026, качество важнее на всех тарифах; глубина уже
         различается лимитом слов — TIER_FLAGS.interpretation_word_limit, а не
-        моделью). deepseek-v4-flash используется в чате Астреи
+        моделью). deepseek-v4-flash используется в чате Аристеи
         (rag_router.py), не здесь. Значение читается из TIER_FLAGS.ai_engine
         (заведено под config.deepseek_model_pro, а не зашито строкой здесь) —
         если понадобится снова развести модели по тарифу, менять нужно там."""

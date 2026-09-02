@@ -1,4 +1,4 @@
-"""Email service via Resend API — Astrea Timeline.
+"""Email service via Resend API — Aristea Timeline.
 
 Templates:
   send_welcome_email        — сразу после регистрации
@@ -87,11 +87,11 @@ def _base(title: str, preview: str, body: str) -> str:
                         border-radius:50%;
                         box-shadow:0 0 32px 10px rgba(144,96,200,0.5),
                                    0 0 64px 20px rgba(144,96,200,0.2);">
-              <img src="{LOGO_URL}" width="72" height="72" alt="Astrea Timeline"
+              <img src="{LOGO_URL}" width="72" height="72" alt="Aristea Timeline"
                    style="display:block;border-radius:50%;"/>
             </div>
             <div style="color:#c9a8ff;font-size:20px;font-weight:700;letter-spacing:1px;">
-              Astrea Timeline
+              Aristea Timeline
             </div>
             <div style="color:rgba(201,168,255,0.55);font-size:12px;margin-top:4px;letter-spacing:2px;">
               АСТРОЛОГИЯ · AI · ТРАНЗИТЫ
@@ -110,7 +110,7 @@ def _base(title: str, preview: str, body: str) -> str:
               <tr>
                 <td style="text-align:center;font-size:11px;color:#a090c0;line-height:1.7;">
                   <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">
-                    Astrea Timeline
+                    Aristea Timeline
                   </a>
                   &nbsp;·&nbsp;aristeatime.ru<br/>
                   <a href="{APP_URL}/unsubscribe" style="color:#b0a0d0;text-decoration:none;">
@@ -165,7 +165,7 @@ async def _send(to: str, subject: str, html: str) -> bool:
             resp = await client.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                json={"from": f"Astrea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
+                json={"from": f"Aristea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
             )
             if resp.status_code not in (200, 201):
                 logger.error("Resend error %s: %s", resp.status_code, resp.text)
@@ -190,7 +190,7 @@ def ru_month_label(d) -> str:
 
 
 def _base_branded(brand_name: str, title: str, preview: str, body: str, unsubscribe_url: str | None = None) -> str:
-    """Базовый шаблон под брендом астролога: его имя в шапке, мелкий кредит Astrea в футере."""
+    """Базовый шаблон под брендом астролога: его имя в шапке, мелкий кредит Aristea в футере."""
     safe_brand = (brand_name or "Ваш астролог").strip()
     unsub_html = (
         f'<br/><a href="{unsubscribe_url}" style="color:#b0a0d0;text-decoration:none;">Отписаться от рассылки</a>'
@@ -215,7 +215,7 @@ def _base_branded(brand_name: str, title: str, preview: str, body: str, unsubscr
             {body}
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;border-top:1px solid #e8e0f4;padding-top:20px;">
               <tr><td style="text-align:center;font-size:11px;color:#a090c0;line-height:1.7;">
-                работает на <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">Astrea</a> &nbsp;·&nbsp; aristeatime.ru{unsub_html}
+                работает на <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">Aristea</a> &nbsp;·&nbsp; aristeatime.ru{unsub_html}
               </td></tr>
             </table>
           </td>
@@ -232,7 +232,7 @@ async def _send_as(from_name: str, to: str, subject: str, html: str) -> bool:
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not set — skipping email to %s", mask_email(to))
         return False
-    safe_from = (from_name or "Astrea Timeline").replace('"', "").replace("<", "").replace(">", "").strip() or "Astrea Timeline"
+    safe_from = (from_name or "Aristea Timeline").replace('"', "").replace("<", "").replace(">", "").strip() or "Aristea Timeline"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
@@ -387,7 +387,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
 
     Если planets переданы — включает инсайт по Солнцу.
     """
-    greeting = f"Привет, {name}!" if name else "Добро пожаловать в Astrea Timeline ✦"
+    greeting = f"Привет, {name}!" if name else "Добро пожаловать в Aristea Timeline ✦"
 
     if planets:
         sun_sign = _get_sun_sign(planets)
@@ -412,7 +412,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
         preview = f"Солнце в {sun_sign_ru}: {insight[:60]}..."
     else:
         sun_block = ""
-        subject_line = "✨ Добро пожаловать в Astrea Timeline"
+        subject_line = "✨ Добро пожаловать в Aristea Timeline"
         preview = "Ваша натальная карта ждёт — откройте её прямо сейчас"
 
     body = (
@@ -436,7 +436,7 @@ async def send_retention_day2(to: str, transit_text: str) -> bool:
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
           f'{transit_text}</div>'
-        + _p("Откройте Astrea Timeline, чтобы увидеть все активные транзиты и AI-интерпретацию.")
+        + _p("Откройте Aristea Timeline, чтобы увидеть все активные транзиты и AI-интерпретацию.")
         + _btn("Смотреть полный прогноз", APP_URL)
     )
     return await _send(
@@ -482,7 +482,7 @@ async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAME
     body = (
         _h2(f"⏳ Ваш триал заканчивается {days_str}")
         + _p(
-            f"Вы пользуетесь <strong>Astrea Timeline {plan}</strong>. "
+            f"Вы пользуетесь <strong>Aristea Timeline {plan}</strong>. "
             f"Триальный период заканчивается {days_str}."
         )
         + _p(
@@ -496,7 +496,7 @@ async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAME
     )
     return await _send(
         to,
-        f"⏳ Ваш триал Astrea Timeline заканчивается {days_str}",
+        f"⏳ Ваш триал Aristea Timeline заканчивается {days_str}",
         _base("Триал заканчивается", f"Продлите доступ к {plan} — осталось {days_left} дн.", body),
     )
 
@@ -538,7 +538,7 @@ async def send_weekly_digest_email(
     )
     return await _send(
         to,
-        f"🔭 Ваша неделя {week_label} — окна периода и что в них делать · Astrea",
+        f"🔭 Ваша неделя {week_label} — окна периода и что в них делать · Aristea",
         _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
     )
 
@@ -756,9 +756,9 @@ async def send_weekly_digest(user, db) -> bool:
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
     if variant == "A" and highlights:
         h0 = highlights[0]
-        subject = f"✦ {h0['planet']} открывает окно в вашей карте — что сделать · Astrea"
+        subject = f"✦ {h0['planet']} открывает окно в вашей карте — что сделать · Aristea"
     else:
-        subject = f"✦ Ваша неделя {week_label} — что важно и что делать · Astrea"
+        subject = f"✦ Ваша неделя {week_label} — что важно и что делать · Aristea"
 
     return await _send(
         user.email,
@@ -779,7 +779,7 @@ async def send_gift_code_email(
     redeem_url = f"https://aristeatime.ru/gift/redeem?code={code}"
     tier_name = TIER_NAMES.get(tier, tier.capitalize())
     body = (
-        _h2(f"🎁 Ваш подарочный код Astrea {tier_name}")
+        _h2(f"🎁 Ваш подарочный код Aristea {tier_name}")
         + _p(f"Спасибо за покупку! Вот подарочный код на <strong>{duration_months} мес.</strong> подписки {tier_name}:")
         + f'<div style="text-align:center;margin:24px 0">'
         + f'<code style="font-size:22px;font-weight:700;letter-spacing:3px;color:#7C6CFF;background:#1e1b4b;padding:12px 24px;border-radius:8px">{code}</code>'
@@ -790,7 +790,7 @@ async def send_gift_code_email(
     )
     return await _send(
         to,
-        f"🎁 Ваш подарочный код Astrea {tier_name} на {duration_months} мес.",
+        f"🎁 Ваш подарочный код Aristea {tier_name} на {duration_months} мес.",
         _base(f"Подарочная подписка {tier_name}", f"Код для активации {duration_months} мес. {tier_name}", body),
     )
 
@@ -827,7 +827,7 @@ async def send_retention_day14(to: str) -> bool:
     19.08.2026, годовых планов в текущей модели тоже больше нет)."""
     pricing_url = f"{APP_URL}/pricing"
     body = (
-        _h2("Две недели с Astrea Timeline")
+        _h2("Две недели с Aristea Timeline")
         + _p(
             "Вы уже две недели с нами на бесплатном тарифе. Если хочется больше — "
             f"полные транзиты, AI-разбор карты, персональный планер ({TIER_NAMES['lite']} "
@@ -842,8 +842,8 @@ async def send_retention_day14(to: str) -> bool:
     )
     return await _send(
         to,
-        "Ваши тарифы на Astrea Timeline",
-        _base("Тарифы Astrea Timeline", "Полные транзиты, AI-разбор карты и персональный планер", body),
+        "Ваши тарифы на Aristea Timeline",
+        _base("Тарифы Aristea Timeline", "Полные транзиты, AI-разбор карты и персональный планер", body),
     )
 
 
@@ -878,7 +878,7 @@ async def send_lite_welcome(to: str, name: str | None = None) -> bool:
     )
     return await _send(
         to,
-        f"✨ Добро пожаловать в Astrea {TIER_NAMES['lite']}",
+        f"✨ Добро пожаловать в Aristea {TIER_NAMES['lite']}",
         _base(f"{TIER_NAMES['lite']} активирован", "Транзиты и лунный календарь ждут вас", body),
     )
 
@@ -919,7 +919,7 @@ async def send_lite_day14(to: str, name: str | None = None) -> bool:
     return await _send(
         to,
         "🌟 Вы исследуете себя серьёзнее других",
-        _base("14 дней с Astrea", "Следующий уровень — задавать вопросы своей карте", body),
+        _base("14 дней с Aristea", "Следующий уровень — задавать вопросы своей карте", body),
     )
 
 
@@ -956,7 +956,7 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
     )
     return await _send(
         to,
-        f"🪐 Добро пожаловать в Astrea {TIER_NAMES['pro']}",
+        f"🪐 Добро пожаловать в Aristea {TIER_NAMES['pro']}",
         _base(f"{TIER_NAMES['pro']} активирован", "RAG-чат, AI-транзиты и PDF ждут вас", body),
     )
 
@@ -967,7 +967,7 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
     body = (
         _h2(greeting)
         + _p(
-            f"Месяц с Astrea {TIER_NAMES['pro']} — это не просто подписка. "
+            f"Месяц с Aristea {TIER_NAMES['pro']} — это не просто подписка. "
             "Это месяц глубокого знакомства с собой через транзиты, планировщик и AI-ассистента."
         )
         + _p("Вопрос к вам: вы занимаетесь астрологией только для себя или уже консультируете других?")
@@ -989,7 +989,7 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
     return await _send(
         to,
         "✦ Уже 30 дней с вашей астрологической картой",
-        _base("30 дней с Astrea", "Результат + взгляд вперёд", body),
+        _base("30 дней с Aristea", "Результат + взгляд вперёд", body),
     )
 
 
@@ -1021,7 +1021,7 @@ async def send_premium_welcome(to: str, name: str | None = None) -> bool:
     )
     return await _send(
         to,
-        f"🖥️ Ваш профессиональный инструмент Astrea {TIER_NAMES['premium']} готов",
+        f"🖥️ Ваш профессиональный инструмент Aristea {TIER_NAMES['premium']} готов",
         _base(f"{TIER_NAMES['premium']} активирован", "CRM клиентов и брендированные PDF ждут вас", body),
     )
 
@@ -1035,7 +1035,7 @@ async def send_otp_email(to: str, code: str) -> bool:
     body = (
         _h2("Код подтверждения")
         + _p(
-            "Для завершения регистрации в <strong>Astrea Timeline</strong> введите код:"
+            "Для завершения регистрации в <strong>Aristea Timeline</strong> введите код:"
         )
         + (
             '<div style="text-align:center;margin:28px 0;">'
@@ -1051,7 +1051,7 @@ async def send_otp_email(to: str, code: str) -> bool:
     )
     return await _send(
         to,
-        f"Ваш код: {code} — Astrea Timeline",
+        f"Ваш код: {code} — Aristea Timeline",
         _base("Подтверждение регистрации", f"Код подтверждения: {code}", body),
     )
 
@@ -1074,9 +1074,9 @@ async def send_pilot_farewell(
     deadline   — до какой даты код действует (задаётся админом).
     """
     intro = (
-        f"Через {days_left} дня ваш месяц в Astrea заканчивается."
+        f"Через {days_left} дня ваш месяц в Aristea заканчивается."
         if days_left != 1 else
-        "Завтра ваш месяц в Astrea заканчивается."
+        "Завтра ваш месяц в Aristea заканчивается."
     )
 
     if windows:
@@ -1114,7 +1114,7 @@ async def send_pilot_farewell(
 
     return await _send(
         to,
-        "Ваш месяц в Astrea заканчивается",
+        "Ваш месяц в Aristea заканчивается",
         _base("Ваш месяц заканчивается", "Ближайшие окна, которые вы можете потерять", body),
     )
 
@@ -1155,12 +1155,12 @@ async def send_dormant(
         body = (
             _h2("Последнее сообщение")
             + _p("Это последнее сообщение — не хотим беспокоить больше.")
-            + _p("Если Astrea не подошла — нам важно понять почему. "
+            + _p("Если Aristea не подошла — нам важно понять почему. "
                  "30 секунд, один вопрос.")
             + (_btn("Ответить на один вопрос", survey_url) if survey_url else "")
             + _p("Если когда-нибудь захотите вернуться — ваша карта будет ждать.")
         )
-        subj, prev = "Один вопрос напоследок", "Если Astrea не подошла"
+        subj, prev = "Один вопрос напоследок", "Если Aristea не подошла"
 
     return await _send(to, subj, _base(subj, prev, body))
 
@@ -1177,7 +1177,7 @@ async def send_end_of_month_survey(to: str, survey_url: str) -> bool:
              "как даты.")
     )
     return await _send(
-        to, "Ваш месяц в Astrea закончился",
+        to, "Ваш месяц в Aristea закончился",
         _base("Ваш месяц закончился", "Один вопрос — почему не остались", body),
     )
 

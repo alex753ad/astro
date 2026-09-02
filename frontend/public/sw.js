@@ -127,7 +127,7 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
   let payload = {};
   try { payload = event.data.json(); } catch { payload = { body: event.data.text() }; }
-  const title = payload.title || '✦ Astrea';
+  const title = payload.title || '✦ Aristea';
   event.waitUntil(
     self.registration.showNotification(title, {
       body:    payload.body || '',

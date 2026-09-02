@@ -263,14 +263,14 @@ def _share_not_found_html() -> HTMLResponse:
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <meta name="robots" content="noindex, nofollow"/>
-  <title>Ссылка недействительна · Astrea Timeline</title>
+  <title>Ссылка недействительна · Aristea Timeline</title>
 </head>
 <body style="background:#0e0c1a;color:#fff;font-family:sans-serif;
              display:flex;align-items:center;justify-content:center;
              height:100vh;margin:0;">
   <div style="text-align:center;max-width:480px;padding:0 24px;">
     <div style="font-size:32px;margin-bottom:12px;">☽ ✦ ☾</div>
-    <div style="font-size:20px;font-weight:700;color:#c9a8ff;">Astrea Timeline</div>
+    <div style="font-size:20px;font-weight:700;color:#c9a8ff;">Aristea Timeline</div>
     <p style="color:#9080b0;font-size:15px;line-height:1.6;margin:20px 0 24px;">Ссылка больше не действует.</p>
     <a href="/" style="
       display:inline-block;background:linear-gradient(135deg,#8b5cf6,#a855f7);
@@ -389,7 +389,7 @@ async def share_page(token: str, db: Session = Depends(get_db)):
   <meta property="og:image"       content="{og_image}"/>
   <meta property="og:image:width"  content="1200"/>
   <meta property="og:image:height" content="630"/>
-  <meta property="og:site_name"   content="Astrea Timeline"/>
+  <meta property="og:site_name"   content="Aristea Timeline"/>
 
   <!-- Twitter Card -->
   <meta name="twitter:card"        content="summary_large_image"/>
@@ -404,7 +404,7 @@ async def share_page(token: str, db: Session = Depends(get_db)):
              height:100vh;margin:0;">
   <div style="text-align:center;max-width:480px;padding:0 24px;">
     <div style="font-size:32px;margin-bottom:12px;">☽ ✦ ☾</div>
-    <div style="font-size:20px;font-weight:700;color:#c9a8ff;">Astrea Timeline</div>
+    <div style="font-size:20px;font-weight:700;color:#c9a8ff;">Aristea Timeline</div>
     <p style="color:#9080b0;font-size:15px;line-height:1.6;margin:20px 0 24px;">{safe_quote}</p>
     <button onclick="shareCard()" style="
       background:linear-gradient(135deg,#8b5cf6,#a855f7);
@@ -598,7 +598,7 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
     font_quote  = load_font(32, bold=False)
 
     # ── логотип ──
-    draw.text((ML, 80), "ASTREA TIMELINE", font=font_logo, fill=C_PURPLE)
+    draw.text((ML, 80), "ARISTEA TIMELINE", font=font_logo, fill=C_PURPLE)
 
     # ── имя / заголовок ──
     draw.text((ML, 150), name, font=font_title, fill=C_DARK)
