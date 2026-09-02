@@ -21,11 +21,16 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import sys
 import time
 from typing import AsyncIterator
 
-from backend.async_utils import iter_with_deadline
+from backend.async_utils import iter_with_deadline, replay_as_stream
+
+# Теги секций, которые нельзя склеивать с соседним текстом при воспроизведении
+# кэша. Совпадает с разбором на фронте (`api/client.js`, flushBuffer).
+_SECTION_TAG_RE = re.compile(r'</?section(?: name="[^"]+")?>\n?')
 from backend.cache import interpretation_cache, make_profile_hash, budget_tracker
 from backend.interpretation.base import (
     InterpretationEngine,
@@ -402,7 +407,18 @@ class InterpretationRouter:
                         profile_hash[:8], request.tier, model_id,
                     )
                     request.engine_used = cached.get("engine") or engine.name
-                    yield cached["content"]
+                    # Порциями, а не одним yield: вызывающая сторона
+                    # (main.py) заворачивает КАЖДЫЙ чанк в отдельное
+                    # SSE-событие, а фронт разбирает теги <section> в
+                    # пределах одного события. Единый кусок отдавал шесть
+                    # section_start подряд до всякого текста — оглавление
+                    # выходило пустым, а разбор целиком приклеивался к
+                    # последней секции. Подробности — в docstring
+                    # replay_as_stream и в CLAUDE.md.
+                    async for piece in replay_as_stream(
+                        cached["content"], keep_intact=_SECTION_TAG_RE
+                    ):
+                        yield piece
                     return
 
             collected: list[str] = []

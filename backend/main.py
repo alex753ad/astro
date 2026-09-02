@@ -37,6 +37,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+from backend.async_utils import replay_as_stream
 from backend.config import get_settings
 from backend.limiter import limiter
 from backend.log_utils import mask_emails_in_text
@@ -1705,15 +1706,14 @@ async def interpret_transit_event(
 
     async def _yield_chunked(text: str):
         """Отдаём готовый текст тем же SSE-форматом, что и живой стрим —
-        фронт не отличает кэш-хит от генерации."""
-        words = text.split(" ")
-        step = 8
-        for i in range(0, len(words), step):
-            piece = " ".join(words[i:i + step])
-            if i + step < len(words):
-                piece += " "
+        фронт не отличает кэш-хит от генерации.
+
+        Нарезка общая с интерпретацией натальной карты
+        (async_utils.replay_as_stream); здесь остаётся только обрамление в
+        SSE-кадры, потому что у второго вызывающего оно своё.
+        """
+        async for piece in replay_as_stream(text):
             yield f"data: {json.dumps({'text': piece}, ensure_ascii=False)}\n\n"
-            await asyncio.sleep(0.02)
         yield "data: [DONE]\n\n"
 
     cached = transit_interp_cache.get(cache_key)
