@@ -13,7 +13,7 @@ const ROWS = [
   { label: 'ИНН', value: '615011483048' },
   { label: 'Город', value: 'г. Новочеркасск, Ростовская область' },
   { label: 'Телефон', value: '+7 910 655-65-03' },
-  { label: 'Email', value: 'careastrea@yandex.ru' },
+  { label: 'Email', value: 'carearistea@mail.ru' },
   { label: 'Поддержка', value: 'Ежедневно, без выходных. Ответ в течение 24 часов.' },
 ];
 
