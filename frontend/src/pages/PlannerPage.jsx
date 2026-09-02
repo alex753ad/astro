@@ -279,6 +279,35 @@ function useGcalExport() {
     );
   }
 
+  // Журнал экспорта. Единственное место, где экспорт вообще виден серверу:
+  // сами события уходят из браузера прямо в googleapis.com с токеном
+  // пользователя, бэкенд этого запроса не видит. Поэтому без журнала на
+  // вопрос «сколько карт реально экспортируют» ответить нечем — ни сейчас,
+  // ни задним числом.
+  //
+  // Ручка, модель и тест написаны давно, но вызывающих не имели: логирование
+  // жило в useGoogleCalendar.js, который удалён 02.09.2026 как мёртвый дубль.
+  //
+  // fire-and-forget: сбой журнала не должен ломать успешный экспорт, поэтому
+  // без await и с проглоченной ошибкой. Неавторизованный сюда не дойдёт —
+  // кнопка закрыта для free, а ручка требует JWT.
+  function _logExport(events, status, errorMsg) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + monthOffset);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    authFetch(`${API_BASE}/api/v1/calendar/export-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        month,
+        event_count: events.length,
+        event_types: [...new Set(events.map((e) => e.type).filter(Boolean))],
+        status,
+        error_msg: errorMsg || null,
+      }),
+    }).catch(() => {});
+  }
+
   async function exportEvents(events) {
     if (!events?.length) return;
     setStatus("loading");
@@ -316,10 +345,15 @@ function useGcalExport() {
       }
       setStatus("success");
       setTimeout(() => setStatus("idle"), 3500);
+      _logExport(events, "success");
     } catch (e) {
       console.error("[gcal]", e);
       setStatus("error");
       setTimeout(() => setStatus("idle"), 4000);
+      // 255, а не круглое число: столько в колонке error_msg
+      // (models.py, String(255)). Длиннее — падение вставки на Postgres
+      // ровно в тот момент, когда журнал нужнее всего.
+      _logExport(events, "error", String(e?.message || e).slice(0, 255));
     }
   }
 
@@ -1097,6 +1131,9 @@ export default function PlannerPage() {
             description: "",
             date:        `${yr}-${match[2]}-${match[1]}`,
             colorId:     "1",
+            // type в Google Calendar не уходит — он только для журнала
+            // экспорта (см. _logExport ниже).
+            type:        "planet_period",
           });
         }
       });
@@ -1110,6 +1147,7 @@ export default function PlannerPage() {
           description: "",
           date:        `${yr}-${match[2]}-${match[1]}`,
           colorId:     "5",
+          type:        "moon_day",
         });
       }
     });
