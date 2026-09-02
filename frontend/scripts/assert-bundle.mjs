@@ -27,6 +27,17 @@
 // вечно красную сборку.
 // Проверить кандидата просто: собрать и поискать строку в dist глазами.
 //
+// ⚠️ ВТОРОЕ ОГРАНИЧЕНИЕ, И ОНО УЖЕ РОНЯЛО ДЕПЛОЙ.
+// Маркер обязан приходить из КОДА (нашего или SDK), а не из ЗНАЧЕНИЯ
+// переменной. Значение попадает в бандл подстановкой, поэтому маркер,
+// списанный с него, проверяет не наличие кода, а совпадение строки — и в CI
+// проходит просто потому, что заглушку писал тот же человек. На проде
+// значение другое, и деплой падает на исправном коде.
+// 02.09.2026 ровно так и вышло с "ingest.sentry.io": боевой DSN оказался на
+// региональном хосте o<org>.ingest.de.sentry.io, подстроки там нет.
+// Мутационный тест это НЕ ловит: он подменяет код, а не значение.
+// Ниже стоит машинная проверка на этот случай — она надёжнее памяти.
+//
 // Запуск: node scripts/assert-bundle.mjs   (из каталога frontend)
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
@@ -57,7 +68,12 @@ const REQUIRED = [
     // VITE_SENTRY_DSN из бандла уходит не только init, а весь SDK: он
     // импортируется только ради этой ветки.
     requires: "VITE_SENTRY_DSN",
-    marker: "ingest.sentry.io",
+    // Маркер — из кода САМОГО SDK (заголовок протокола транспорта), а не из
+    // значения DSN. Первая версия проверяла "ingest.sentry.io" и уронила
+    // деплой 02.09.2026: боевой DSN живёт на региональном хосте
+    // (o<org>.ingest.de.sentry.io), где такой подстроки нет, а в CI проверка
+    // проходила лишь потому, что эту строку содержала моя же заглушка.
+    marker: "x-sentry-rate-limits",
     why: "SDK Sentry целиком — без него ошибки фронта никуда не отправляются",
   },
   {
@@ -87,12 +103,32 @@ const bundle = files.map((f) => readFileSync(join(ASSETS, f), "utf8")).join("\n"
 const missing = [];
 const skipped = [];
 
+const selfValidating = [];
+
 for (const item of REQUIRED) {
-  if (item.requires && !process.env[item.requires]) {
+  const value = item.requires ? process.env[item.requires] : undefined;
+  if (item.requires && !value) {
     skipped.push(item);
     continue;
   }
+  // Маркер, входящий в значение переменной, попадёт в бандл подстановкой и
+  // «найдётся» независимо от того, собрался ли код. Такая проверка
+  // самоподтверждается и потому бесполезна — падаем сразу, а не притворяемся.
+  if (value && value.includes(item.marker)) {
+    selfValidating.push(item);
+    continue;
+  }
   if (!bundle.includes(item.marker)) missing.push(item);
+}
+
+if (selfValidating.length > 0) {
+  console.error("\nassert-bundle: маркер списан со значения переменной, а не с кода:\n");
+  for (const item of selfValidating) {
+    console.error(`  ! ${item.marker}`);
+    console.error(`    входит в значение ${item.requires}, поэтому найдётся всегда`);
+    console.error("    брать маркер из кода — нашего или SDK, см. шапку файла\n");
+  }
+  process.exit(1);
 }
 
 for (const item of skipped) {

@@ -285,7 +285,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_GOOGLE_CLIENT_ID: ci-dummy.apps.googleusercontent.com
-          VITE_SENTRY_DSN: https://ci@ci-dummy.ingest.sentry.io/0
+          VITE_SENTRY_DSN: https://ci@ci.example.invalid/0
           VITE_YANDEX_METRIKA_ID: "00000000"
           VITE_API_URL: https://ci.invalid
         run: npm run build
@@ -301,7 +301,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_GOOGLE_CLIENT_ID: ci-dummy.apps.googleusercontent.com
-          VITE_SENTRY_DSN: https://ci@ci-dummy.ingest.sentry.io/0
+          VITE_SENTRY_DSN: https://ci@ci.example.invalid/0
           VITE_YANDEX_METRIKA_ID: "00000000"
         run: npm run assert-bundle
 
