@@ -166,51 +166,109 @@ function buildTimeline(planData, phases) {
   return events.sort((a, b) => (a.mon - b.mon) || (a.day - b.day));
 }
 
-// ── Встроенный Google Calendar OAuth + export ─────────────────────────────────
+// ── Google Calendar: авторизация через GIS + экспорт ──────────────────────────
+//
+// 02.09.2026: переписано с implicit flow на Google Identity Services.
+//
+// Раньше здесь был window.open на accounts.google.com и setInterval, который
+// каждые 300 мс пытался прочитать popup.location.href в ожидании
+// #access_token. Этот приём несовместим с заголовком
+// `Cross-Origin-Opener-Policy: same-origin` (nginx/snippets/security-headers.conf):
+// как только попап уходит на чужой origin, браузер помещает его в отдельную
+// группу контекстов и ссылка на окно обрывается НАВСЕГДА — в том числе после
+// возврата попапа на наш origin. Отсюда были два разных симптома одной
+// причины: на десктопе чтение location бросало SecurityError, его глотал
+// пустой catch, и опрос крутился вечно (вход прошёл, экспорт не начался); на
+// мобильном оборванная ссылка сразу отдавала closed === true, и код отклонял
+// промис с «Авторизация отменена» ещё до входа.
+//
+// COOP не снимаем — он защищает от XS-Leaks. GIS сам управляет окном, opener
+// ему не нужен, и токен приходит в колбэк.
+//
+// ⚠️ Скрипту GIS нужен `script-src https://accounts.google.com` в CSP
+// (nginx/snippets/csp.conf). connect-src и frame-src для Google там уже были.
+// Пока CSP в режиме Report-Only, отсутствие источника НЕ проявится: скрипт
+// загрузится, всё будет работать, и отвалится молча в день включения боевой
+// политики — поэтому правка внесена сразу, тем же коммитом.
+
+const GIS_SRC = "https://accounts.google.com/gsi/client";
+
+// Загрузка скрипта GIS — один раз на вкладку. Промис держим на уровне модуля,
+// а не в хуке: страница может смонтировать хук повторно, а тег <script> в
+// документе всё равно один.
+let gisLoading = null;
+function loadGis() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (gisLoading) return gisLoading;
+  gisLoading = new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = GIS_SRC;
+    el.async = true;
+    el.defer = true;
+    el.onload = () => resolve();
+    el.onerror = () => {
+      // Сбрасываем, иначе одна сетевая ошибка навсегда заблокирует повтор.
+      gisLoading = null;
+      reject(new Error("Не удалось загрузить Google Identity Services"));
+    };
+    document.head.appendChild(el);
+  });
+  return gisLoading;
+}
 
 function useGcalExport() {
+  // Токен живёт в памяти вкладки и намеренно НЕ кладётся в localStorage:
+  // access token действует час, хранить его между сессиями незачем.
   const tokenRef = useRef(null);
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
 
   function getToken() {
-    return new Promise((resolve, reject) => {
-      if (tokenRef.current && tokenRef.current.expiry > Date.now()) {
-        return resolve(tokenRef.current.token);
-      }
-      if (!GCAL_CLIENT_ID) {
-        return reject(new Error("VITE_GOOGLE_CLIENT_ID не задан в .env"));
-      }
-      const params = new URLSearchParams({
-        client_id: GCAL_CLIENT_ID,
-        redirect_uri: window.location.origin,
-        response_type: "token",
-        scope: GCAL_SCOPE,
-        prompt: "select_account",
-      });
-      const popup = window.open(
-        `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
-        "gcal_oauth",
-        "width=500,height=620,left=200,top=100"
-      );
-      const timer = setInterval(() => {
-        try {
-          const url = popup?.location?.href || "";
-          if (url.includes("access_token")) {
-            clearInterval(timer);
-            popup.close();
-            const hash = new URLSearchParams(url.split("#")[1]);
-            const token = hash.get("access_token");
-            const expiry = Date.now() + Number(hash.get("expires_in") || 3600) * 1000;
-            tokenRef.current = { token, expiry };
-            resolve(token);
-          }
-          if (popup?.closed && !url.includes("access_token")) {
-            clearInterval(timer);
-            reject(new Error("Авторизация отменена"));
-          }
-        } catch (_) {}
-      }, 300);
-    });
+    if (tokenRef.current && tokenRef.current.expiry > Date.now()) {
+      return Promise.resolve(tokenRef.current.token);
+    }
+    if (!GCAL_CLIENT_ID) {
+      return Promise.reject(new Error("VITE_GOOGLE_CLIENT_ID не задан в .env"));
+    }
+    return loadGis().then(
+      () =>
+        new Promise((resolve, reject) => {
+          // Клиент создаём на каждый запрос: колбэки замыкают resolve/reject
+          // конкретного промиса. Переиспользуемый клиент потребовал бы
+          // хранить их отдельно и разбираться, чей ответ пришёл.
+          const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: GCAL_CLIENT_ID,
+            scope: GCAL_SCOPE,
+            callback: (resp) => {
+              if (resp.error) {
+                reject(new Error(resp.error_description || resp.error));
+                return;
+              }
+              tokenRef.current = {
+                token: resp.access_token,
+                expiry: Date.now() + Number(resp.expires_in || 3600) * 1000,
+              };
+              resolve(resp.access_token);
+            },
+            // error_callback обязателен, и это не перестраховка: закрытое
+            // пользователем окно и заблокированный попап приходят ТОЛЬКО
+            // сюда, в callback они не попадают. Без него промис остался бы
+            // висеть навсегда — ровно тот отказ, ради которого всё и
+            // переписывалось.
+            error_callback: (err) => {
+              const cancelled =
+                err?.type === "popup_closed" || err?.type === "user_cancel";
+              reject(
+                new Error(
+                  cancelled
+                    ? "Авторизация отменена"
+                    : err?.message || "Не удалось авторизоваться в Google"
+                )
+              );
+            },
+          });
+          client.requestAccessToken();
+        })
+    );
   }
 
   async function exportEvents(events) {
@@ -220,21 +278,33 @@ function useGcalExport() {
       const token = await getToken();
       for (const ev of events) {
         if (!ev.date) continue;
-        await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            summary: ev.summary,
-            description: ev.description || "",
-            start: { date: ev.date },
-            end:   { date: ev.date },
-            colorId: ev.colorId || "1",
-            reminders: { useDefault: false },
-          }),
-        });
+        const res = await fetch(
+          "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              summary: ev.summary,
+              description: ev.description || "",
+              start: { date: ev.date },
+              end: { date: ev.date },
+              colorId: ev.colorId || "1",
+              reminders: { useDefault: false },
+            }),
+          }
+        );
+        // Раньше ответ не проверялся вовсе: при 401 или превышении квоты
+        // цикл молча доходил до конца и кнопка показывала «Готово», хотя в
+        // календаре не появлялось ничего. Отказ, неотличимый от успеха, —
+        // худший вид отказа, поэтому проверка добавлена здесь же.
+        if (!res.ok) {
+          if (res.status === 401) tokenRef.current = null;
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `Google ответил ${res.status}`);
+        }
       }
       setStatus("success");
       setTimeout(() => setStatus("idle"), 3500);
