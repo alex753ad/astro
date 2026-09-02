@@ -193,6 +193,23 @@ function buildTimeline(planData, phases) {
 
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 
+// ── [gcal-diag] ВРЕМЕННАЯ ДИАГНОСТИКА, УДАЛИТЬ ПОСЛЕ РАЗБОРА ─────────────────
+// Все точки помечены префиксом [gcal-diag] — `grep -rn "gcal-diag" frontend/src`
+// находит их разом. Отвечают на три вопроса, которые нельзя закрыть чтением
+// кода: что РЕАЛЬНО приходит в error_callback (сейчас тип теряется, наружу
+// уходит уже сконструированный текст), сколько времени проходит между кликом и
+// requestAccessToken (жив ли пользовательский жест) и сколько раз вообще
+// вызывается exportEvents (отказ наблюдался дважды на один клик).
+// console.error, а не log/info: чтобы не потерялись при фильтре консоли.
+let diagSeq = 0;
+let diagT0 = 0;
+const diagNow = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+const diagMs = () => Math.round(diagNow() - diagT0);
+const diagAct = () => [
+  navigator.userActivation?.isActive,
+  navigator.userActivation?.hasBeenActive,
+];
+
 // Загрузка скрипта GIS — один раз на вкладку. Промис держим на уровне модуля,
 // а не в хуке: страница может смонтировать хук повторно, а тег <script> в
 // документе всё равно один.
@@ -229,9 +246,14 @@ function useGcalExport() {
     if (!GCAL_CLIENT_ID) {
       return Promise.reject(new Error("VITE_GOOGLE_CLIENT_ID не задан в .env"));
     }
+    const diagGisWasReady = !!window.google?.accounts?.oauth2;
     return loadGis().then(
       () =>
         new Promise((resolve, reject) => {
+          console.error(
+            "[gcal-diag] loadGis готов +" + diagMs() + " мс от клика",
+            "| скрипт был загружен заранее:", diagGisWasReady
+          );
           // Клиент создаём на каждый запрос: колбэки замыкают resolve/reject
           // конкретного промиса. Переиспользуемый клиент потребовал бы
           // хранить их отдельно и разбираться, чей ответ пришёл.
@@ -255,6 +277,15 @@ function useGcalExport() {
             // висеть навсегда — ровно тот отказ, ради которого всё и
             // переписывалось.
             error_callback: (err) => {
+              console.error(
+                "[gcal-diag] error_callback type:", err?.type,
+                "| +" + diagMs() + " мс от клика",
+                "| userActivation.isActive:", diagAct()[0]
+              );
+              // Три формы намеренно: stringify — чтобы скопировать текстом,
+              // сам объект — на случай неперечисляемых полей, при которых
+              // stringify вернёт пустой {}.
+              console.error("[gcal-diag] error_callback raw:", JSON.stringify(err), err);
               const cancelled =
                 err?.type === "popup_closed" || err?.type === "user_cancel";
               reject(
@@ -266,6 +297,12 @@ function useGcalExport() {
               );
             },
           });
+          const [diagActive, diagEver] = diagAct();
+          console.error(
+            "[gcal-diag] requestAccessToken +" + diagMs() + " мс от клика",
+            "| userActivation.isActive:", diagActive,
+            "| hasBeenActive:", diagEver
+          );
           client.requestAccessToken();
         })
     );
@@ -273,6 +310,9 @@ function useGcalExport() {
 
   async function exportEvents(events) {
     if (!events?.length) return;
+    diagSeq += 1;
+    diagT0 = diagNow();
+    console.error("[gcal-diag] export start #" + diagSeq, "| событий:", events.length);
     setStatus("loading");
     try {
       const token = await getToken();
