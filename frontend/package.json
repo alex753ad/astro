@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx",
     "sitemap": "node generate-sitemap.js",
-    "test": "TZ=UTC vitest run && TZ=Europe/Moscow vitest run"
+    "test": "TZ=UTC vitest run && TZ=Europe/Moscow vitest run",
+    "assert-bundle": "node scripts/assert-bundle.mjs"
   },
   "dependencies": {
     "@sentry/react": "^8.0.0",

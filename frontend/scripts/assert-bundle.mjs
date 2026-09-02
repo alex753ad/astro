@@ -1,0 +1,118 @@
+// scripts/assert-bundle.mjs — проверка, что фича действительно попала в бандл.
+//
+// Зачем это существует. `import.meta.env.VITE_*` — константы ВРЕМЕНИ СБОРКИ:
+// Vite подставляет их значение в код, а не читает в рантайме. Поэтому ветка
+// вида
+//
+//     const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+//     if (!CLIENT_ID) return Promise.reject(...);
+//
+// при незаданной переменной становится статически истинной, и всё, что за ней,
+// вырезается из бандла как недостижимое. Сборка при этом проходит зелёной.
+//
+// 02.09.2026 замерено: сборка без четырёх переменных VITE_* меньше полной на
+// 74 КБ (9%). Отсутствовали целиком авторизация Google Calendar, SDK Sentry и
+// счётчик Метрики. Ни локальная сборка, ни CI этого не показывали — «собралось»
+// было ложным сигналом, а первой настоящей сборкой этого кода оказывался
+// деплой на прод.
+//
+// Скрипт закрывает ровно это: после сборки грепает dist на строки, которые
+// обязаны там быть.
+//
+// ⚠️ ОГРАНИЧЕНИЕ, ИЗ-ЗА КОТОРОГО МАНИФЕСТ НЕЛЬЗЯ НАБИВАТЬ ЧЕМ УГОДНО.
+// Минификатор переименовывает идентификаторы, но сохраняет строковые литералы.
+// В маркеры годятся ТОЛЬКО литералы: URL, имена свойств чужого API, текст
+// сообщений. Имена собственных функций и переменных в бандле выглядят как `m6`
+// и `v6` — проверять их бессмысленно, такой маркер не найдётся никогда и даст
+// вечно красную сборку.
+// Проверить кандидата просто: собрать и поискать строку в dist глазами.
+//
+// Запуск: node scripts/assert-bundle.mjs   (из каталога frontend)
+
+import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+
+// Манифест держим коротким осознанно: пустой хуже неполного, а неполный
+// лучше набитого мусором. Сегодня здесь три контура, каждый из которых
+// вырезался целиком и отказывал МОЛЧА — страница работает, просто фичи
+// нет. Добавляя новый маркер, проверь его по ограничению выше.
+const REQUIRED = [
+  {
+    // Пропускаем проверку, если переменная не задана: локальная сборка без
+    // client id — законный сценарий, разработчику он не нужен. Строгость
+    // включается там, где переменная есть: в CI (заглушки) и на деплое.
+    requires: "VITE_GOOGLE_CLIENT_ID",
+    marker: "accounts.google.com/gsi/client",
+    why: "загрузка Google Identity Services — без неё экспорт в Google Calendar не авторизуется",
+  },
+  {
+    requires: "VITE_GOOGLE_CLIENT_ID",
+    marker: "initTokenClient",
+    why: "точка входа GIS в PlannerPage; имя свойства чужого API, минификацию переживает",
+  },
+  {
+    // Sentry проконтролировать больше нечем: он сам и есть контроль. Если его
+    // вырежет, ошибки на проде просто перестанут доезжать — и узнать об этом
+    // будет неоткуда, потому что признак отказа здесь — тишина. При пустом
+    // VITE_SENTRY_DSN из бандла уходит не только init, а весь SDK: он
+    // импортируется только ради этой ветки.
+    requires: "VITE_SENTRY_DSN",
+    marker: "ingest.sentry.io",
+    why: "SDK Sentry целиком — без него ошибки фронта никуда не отправляются",
+  },
+  {
+    // Метрика отказывает так же тихо: счётчик не грузится, страница работает,
+    // цифры посещаемости просто становятся неполными.
+    requires: "VITE_YANDEX_METRIKA_ID",
+    marker: "mc.yandex.ru",
+    why: "загрузка счётчика Яндекс.Метрики (analytics.js)",
+  },
+];
+
+const ASSETS = join("dist", "assets");
+
+if (!existsSync(ASSETS)) {
+  console.error(`assert-bundle: каталога ${ASSETS} нет — сборка не выполнялась?`);
+  process.exit(1);
+}
+
+const files = readdirSync(ASSETS).filter((f) => f.endsWith(".js"));
+if (files.length === 0) {
+  console.error(`assert-bundle: в ${ASSETS} нет ни одного .js`);
+  process.exit(1);
+}
+
+const bundle = files.map((f) => readFileSync(join(ASSETS, f), "utf8")).join("\n");
+
+const missing = [];
+const skipped = [];
+
+for (const item of REQUIRED) {
+  if (item.requires && !process.env[item.requires]) {
+    skipped.push(item);
+    continue;
+  }
+  if (!bundle.includes(item.marker)) missing.push(item);
+}
+
+for (const item of skipped) {
+  console.log(`assert-bundle: пропуск «${item.marker}» — ${item.requires} не задана`);
+}
+
+if (missing.length > 0) {
+  console.error("\nassert-bundle: в собранном бандле нет обязательных фрагментов:\n");
+  for (const item of missing) {
+    console.error(`  ✗ ${item.marker}`);
+    console.error(`    ${item.why}`);
+    console.error(`    зависит от ${item.requires} (сейчас задана)\n`);
+  }
+  console.error(
+    "Переменная задана, а кода нет — значит его вырезали не за неё.\n" +
+      "Смотреть: не изменилось ли условие, под которым живёт фича, и не удалён\n" +
+      "ли сам код. Проверять поиском по dist/assets/*.js.\n"
+  );
+  process.exit(1);
+}
+
+const checked = REQUIRED.length - skipped.length;
+console.log(`assert-bundle: проверено маркеров ${checked}, пропущено ${skipped.length} — ок`);

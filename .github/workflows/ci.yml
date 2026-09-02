@@ -271,9 +271,39 @@ jobs:
         working-directory: frontend
         run: npm test
 
+      # Заглушки VITE_* обязательны, и это не косметика. Vite подставляет
+      # эти переменные как константы ВРЕМЕНИ СБОРКИ, поэтому при пустом
+      # значении весь код за проверкой `if (!VAR)` вырезается как
+      # недостижимый. Без них CI собирал бандл на 74 КБ (9%) меньше
+      # продового: без авторизации Google Calendar, без SDK Sentry и без
+      # счётчика Метрики — то есть НЕ проверял их вовсе, а «собралось» было
+      # ложным сигналом. Замерено 02.09.2026.
+      #
+      # Значения фиктивные намеренно: секреты здесь не нужны, важна только
+      # непустота. Боевые живут в /opt/astro/frontend.env на сервере.
       - name: Build
         working-directory: frontend
+        env:
+          VITE_GOOGLE_CLIENT_ID: ci-dummy.apps.googleusercontent.com
+          VITE_SENTRY_DSN: https://ci@ci-dummy.ingest.sentry.io/0
+          VITE_YANDEX_METRIKA_ID: "00000000"
+          VITE_API_URL: https://ci.invalid
         run: npm run build
+
+      # Проверяет, что фича действительно в бандле, а не вырезана. Смысл —
+      # в паре с шагом выше: тот делает код собираемым, этот доказывает, что
+      # он собрался. Подробности и ограничение про минификацию — в самом
+      # скрипте.
+      # Переменные обязаны совпадать с шагом Build: маркер, чья переменная
+      # здесь не задана, скрипт ПРОПУСКАЕТ, а не проверяет. Разъедутся
+      # списки — проверка молча ослабнет и останется зелёной.
+      - name: Assert bundle
+        working-directory: frontend
+        env:
+          VITE_GOOGLE_CLIENT_ID: ci-dummy.apps.googleusercontent.com
+          VITE_SENTRY_DSN: https://ci@ci-dummy.ingest.sentry.io/0
+          VITE_YANDEX_METRIKA_ID: "00000000"
+        run: npm run assert-bundle
 
   # ─────────────────────────────────────────────
   # 5. Deploy на VPS по SSH (только main, только после зелёных тестов)
