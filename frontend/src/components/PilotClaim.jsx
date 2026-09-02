@@ -30,7 +30,7 @@ export default function PilotClaim({ onShowAuth }) {
     const token = params.get("t") || localStorage.getItem(LS_KEY);
     if (!token) {
       setState("error");
-      setError("Ссылка недействительна. Откройте бота @astreyatimelinebot заново.");
+      setError("Ссылка недействительна. Откройте бота @Aristeatimebot заново.");
       return;
     }
 
