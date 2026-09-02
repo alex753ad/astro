@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
-import { TIER_NAMES, tierPriceLabel, tierFeatures } from "../constants";
+import { TIER_NAMES, tierPriceLabel, tierFeatures, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
 import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
 import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
@@ -839,7 +839,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   // тариф не может быть хуже бесплатного по видимому горизонту, а Вега
   // теперь видит 6 месяцев (было 1). 3 мес здесь — чтобы под блюром
   // (FreePlanBanner/PlanComparisonModal) было что показать.
-  const maxMonths = isFree ? 3 : (tierTransitsMonths ?? (isPremium ? 24 : (isLite ? 6 : 12)));
+  const maxMonths = isFree ? FREE_TRANSITS_TEASER_MONTHS : (tierTransitsMonths ?? (isPremium ? 24 : (isLite ? 6 : 12)));
   const horizonEnd = useMemo(() => monthEndISO(todayISO(), maxMonths), [maxMonths]);
 
   // ── Первый запрос: ближайший месяц — список появляется быстро ──

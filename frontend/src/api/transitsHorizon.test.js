@@ -10,10 +10,16 @@ import { fileURLToPath } from "node:url";
  * AI-разбор, а не про длину списка (решение E2 — список виден всем, платят за
  * разбор). Реальная величина витрины живёт в двух местах:
  *
- *   - `TransitTimeline.jsx` — литерал в `const maxMonths = isFree ? 12 : ...`,
- *     он и определяет, до какой даты фронтенд запрашивает транзиты;
+ *   - `constants.js` — `FREE_TRANSITS_TEASER_MONTHS`, единственный источник на
+ *     фронте с 03.09.2026: по нему считает `TransitTimeline` и по нему же
+ *     набирается строка витрины в `TIERS` у бесплатного тарифа;
  *   - `rate_limits.py` — `FREE_TRANSITS_TEASER_MONTHS`, по которому сервер с
  *     31.08.2026 отдаёт 403 за горизонтом.
+ *
+ * До 03.09.2026 фронтовая половина была ЛИТЕРАЛОМ в `TransitTimeline.jsx`, и
+ * тест сверял именно его. Когда витрину понадобилось назвать ещё и в тексте
+ * тарифа, литерал стал бы третьей копией — поэтому он вынесен в константу, а
+ * тест переведён на неё и дополнен проверкой, что литерал не вернулся.
  *
  * Два числа, обязанные совпадать, в разных языках и без общего источника —
  * ровно та конструкция, которая уже расходилась в этом проекте (копии
@@ -30,7 +36,8 @@ const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const read = (p) => readFileSync(repoRoot + p, "utf-8");
 
 const BACKEND = "backend/auth/rate_limits.py";
-const FRONTEND = "frontend/src/components/TransitTimeline.jsx";
+const FRONTEND = "frontend/src/constants.js";
+const TIMELINE = "frontend/src/components/TransitTimeline.jsx";
 
 /** Значение FREE_TRANSITS_TEASER_MONTHS из rate_limits.py. */
 function backendTeaserMonths() {
@@ -39,20 +46,29 @@ function backendTeaserMonths() {
   return Number(m[1]);
 }
 
-/** Литерал из `const maxMonths = isFree ? 12 : ...` в TransitTimeline.jsx. */
+/** Значение FREE_TRANSITS_TEASER_MONTHS из constants.js. */
 function frontendFreeMonths() {
-  const m = read(FRONTEND).match(/const\s+maxMonths\s*=\s*isFree\s*\?\s*(\d+)\s*:/);
-  expect(m, `в ${FRONTEND} не найдено "const maxMonths = isFree ? <число> :"`).not.toBeNull();
+  const m = read(FRONTEND).match(/^export const FREE_TRANSITS_TEASER_MONTHS\s*=\s*(\d+)/m);
+  expect(m, `в ${FRONTEND} не найдена FREE_TRANSITS_TEASER_MONTHS`).not.toBeNull();
   return Number(m[1]);
 }
 
 describe("витрина транзитов free: фронтенд и бэкенд считают одинаково", () => {
-  it("FREE_TRANSITS_TEASER_MONTHS совпадает с литералом в TransitTimeline", () => {
+  it("FREE_TRANSITS_TEASER_MONTHS во фронте и на бэкенде совпадают", () => {
     expect(frontendFreeMonths()).toBe(backendTeaserMonths());
   });
 
   it("величина не нулевая — иначе витрины у free нет вовсе", () => {
     expect(backendTeaserMonths()).toBeGreaterThan(0);
+  });
+
+  it("TransitTimeline считает по константе, а не по своему литералу", () => {
+    // Литерал здесь означал бы третью копию числа: константа, текст витрины и
+    // расчёт горизонта разъехались бы молча, а увидел бы это только free —
+    // получив 403 на странице, ради которой всё и показывается.
+    const src = read(TIMELINE);
+    expect(src).toMatch(/const\s+maxMonths\s*=\s*isFree\s*\?\s*FREE_TRANSITS_TEASER_MONTHS\s*:/);
+    expect(src).not.toMatch(/const\s+maxMonths\s*=\s*isFree\s*\?\s*\d+\s*:/);
   });
 
   it("на бэкенде это отдельная константа, а не transits_months у free", () => {
