@@ -27,7 +27,7 @@ def _vapid_private_key() -> str:
 
 
 def _vapid_subject() -> str:
-    return os.getenv("VAPID_SUBJECT", "mailto:admin@astreatime.ru")
+    return os.getenv("VAPID_SUBJECT", "mailto:admin@aristeatime.ru")
 
 
 def send_web_push(sub: PushSubscription, payload: dict) -> bool:

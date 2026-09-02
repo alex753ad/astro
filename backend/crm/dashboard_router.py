@@ -307,7 +307,7 @@ import os as _os
 import secrets as _secrets
 from backend.time_utils import utcnow as _utcnow
 
-_INTAKE_APP_URL = _os.getenv("APP_URL", "https://astreatime.ru")
+_INTAKE_APP_URL = _os.getenv("APP_URL", "https://aristeatime.ru")
 
 
 class IntakeSubmitIn(BaseModel):

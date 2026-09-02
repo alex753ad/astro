@@ -180,7 +180,7 @@ services:
       NODE_OPTIONS: "--dns-result-order=ipv6first"
     extra_hosts:
       - "api.telegram.org:2001:67c:4e8:f004::9"
-      - "www.astreatime.ru:2a03:6f00:a::3:f6b"
+      - "www.aristeatime.ru:2a03:6f00:a::3:f6b"
     restart: always
     security_opt: ["no-new-privileges:true"]
     mem_limit: 256m

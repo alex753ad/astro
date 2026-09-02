@@ -21,9 +21,9 @@ from backend.ephemeris.ru_names import PLANET_RU as _PLANET_RU, ASPECT_RU as _AS
 logger = logging.getLogger("astro.email")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-FROM_EMAIL     = os.getenv("FROM_EMAIL", "noreply@astreatime.ru")
-APP_URL        = os.getenv("APP_URL", "https://astreatime.ru")
-FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://astreatime.ru")
+FROM_EMAIL     = os.getenv("FROM_EMAIL", "noreply@aristeatime.ru")
+APP_URL        = os.getenv("APP_URL", "https://aristeatime.ru")
+FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://aristeatime.ru")
 # Публичный адрес API (для ссылки отписки в письмах). Если API не на APP_URL — задайте env.
 PUBLIC_API_URL = os.getenv("PUBLIC_API_URL", APP_URL)
 
@@ -112,7 +112,7 @@ def _base(title: str, preview: str, body: str) -> str:
                   <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">
                     Astrea Timeline
                   </a>
-                  &nbsp;·&nbsp;astreatime.ru<br/>
+                  &nbsp;·&nbsp;aristeatime.ru<br/>
                   <a href="{APP_URL}/unsubscribe" style="color:#b0a0d0;text-decoration:none;">
                     Отписаться
                   </a>
@@ -215,7 +215,7 @@ def _base_branded(brand_name: str, title: str, preview: str, body: str, unsubscr
             {body}
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;border-top:1px solid #e8e0f4;padding-top:20px;">
               <tr><td style="text-align:center;font-size:11px;color:#a090c0;line-height:1.7;">
-                работает на <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">Astrea</a> &nbsp;·&nbsp; astreatime.ru{unsub_html}
+                работает на <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">Astrea</a> &nbsp;·&nbsp; aristeatime.ru{unsub_html}
               </td></tr>
             </table>
           </td>
@@ -776,7 +776,7 @@ async def send_gift_code_email(
     duration_months: int,
 ) -> bool:
     """Email gift code to the buyer after successful payment."""
-    redeem_url = f"https://astreatime.ru/gift/redeem?code={code}"
+    redeem_url = f"https://aristeatime.ru/gift/redeem?code={code}"
     tier_name = TIER_NAMES.get(tier, tier.capitalize())
     body = (
         _h2(f"🎁 Ваш подарочный код Astrea {tier_name}")
@@ -808,7 +808,7 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
             "Это хороший момент для рефлексии, новых намерений и создания ритуалов. "
             "Ваши эмоции сейчас особенно чувствительны к тому, что действительно важно."
         )
-        + _btn("Открыть мою карту →", "https://astreatime.ru/profile")
+        + _btn("Открыть мою карту →", "https://aristeatime.ru/profile")
     )
     return await _send(
         user.email,

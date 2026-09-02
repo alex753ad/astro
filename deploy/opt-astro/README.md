@@ -32,7 +32,7 @@ upgrade head` после этого либо упадёт (таблицы уже
 ## Фронтенд (nginx на хосте, не в контейнере)
 
 `nginx/astreatime.conf` — отдаёт `frontend/dist/` на `/`, проксирует `/api/`
-и `/health` на `127.0.0.1:8000`. Один домен (`www.astreatime.ru`) для фронта
+и `/health` на `127.0.0.1:8000`. Один домен (`www.aristeatime.ru`) для фронта
 и бэка — same-origin, CORS не нужен. Пока только порт 80, HTTPS добавит
 certbot отдельным шагом.
 
@@ -152,12 +152,12 @@ New repository secret):
 
 `./08-setup-automation.sh` поднимает `uptime-kuma` (только на
 `127.0.0.1:3001`, лимит памяти 256 МБ) и настраивает доступ к нему на
-`status.astreatime.ru` за basic-auth (nginx). Официально Uptime Kuma не
+`status.aristeatime.ru` за basic-auth (nginx). Официально Uptime Kuma не
 поддерживает работу из-под подпути на основном домене (ломаются ассеты и
 WebSocket), поэтому — отдельный поддомен, а не `/status/`.
 
 Перед запуском `08-setup-automation.sh` (или после — просто доступ не
-заработает до этого): добавить DNS A-запись `status.astreatime.ru` → IP
+заработает до этого): добавить DNS A-запись `status.aristeatime.ru` → IP
 сервера.
 
 При первом запуске скрипт сам генерирует логин/пароль для basic-auth и
@@ -166,10 +166,10 @@ WebSocket), поэтому — отдельный поддомен, а не `/st
 
 После установки:
 
-1. Открыть `http://status.astreatime.ru`, ввести basic-auth логин/пароль,
+1. Открыть `http://status.aristeatime.ru`, ввести basic-auth логин/пароль,
    пройти мастер первого запуска Uptime Kuma (создать админ-аккаунт — это
    отдельная сущность от basic-auth, второй слой).
-2. Add New Monitor → HTTP(s) → URL `https://www.astreatime.ru/health` →
+2. Add New Monitor → HTTP(s) → URL `https://www.aristeatime.ru/health` →
    Friendly Name `astro api` → интервал проверки на вкус (60s достаточно).
 3. Settings → Notifications → Add New Notification Type → Telegram → вписать
    тот же `TELEGRAM_BOT_TOKEN`, что и в `.env`, и `TELEGRAM_SUPPORT_CHAT_ID`

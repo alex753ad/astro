@@ -32,7 +32,7 @@ logger = logging.getLogger("astro.share")
 
 router = APIRouter(tags=["share"])
 
-APP_URL = os.getenv("APP_URL", "https://astreatime.ru")
+APP_URL = os.getenv("APP_URL", "https://aristeatime.ru")
 
 # ── TTL публичных токенов шаринга ─────────────────────────────────────────────
 # Срок живёт в natal_charts.public_token_expires_at. Раньше он хранился только в
@@ -641,7 +641,7 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
 
     # ── CTA-полоска внизу ──
     draw.rectangle([0, H - bar_h, W, H], fill=C_DARK)
-    draw.text((ML, H - bar_h // 2 - 44), "astreatime.ru", font=font_small, fill=(0xEA, 0xE0, 0xFF))
+    draw.text((ML, H - bar_h // 2 - 44), "aristeatime.ru", font=font_small, fill=(0xEA, 0xE0, 0xFF))
     draw.text((ML, H - bar_h // 2 - 4), "Узнай свою карту", font=font_small, fill=(0xC9, 0xA8, 0xFF))
     draw.text((ML, H - bar_h // 2 + 46), today_str, font=load_font(22), fill=(0xA0, 0x90, 0xC0))
 

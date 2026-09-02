@@ -499,7 +499,7 @@ async def get_referral(
 
     reward_weeks_earned = referrals_count * 2
 
-    base_url = getattr(settings, "frontend_url", "https://astreatime.ru")
+    base_url = getattr(settings, "frontend_url", "https://aristeatime.ru")
     ref_code = user.referral_code or ""
     ref_url = f"{base_url}?ref={ref_code}" if ref_code else ""
 

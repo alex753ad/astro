@@ -63,7 +63,7 @@ async def _nominatim_get(client: "httpx.AsyncClient", params: dict) -> "httpx.Re
     global _last_nominatim_request
 
     url = "https://nominatim.openstreetmap.org/search"
-    _contact = os.getenv("NOMINATIM_CONTACT", "https://astreatime.ru")
+    _contact = os.getenv("NOMINATIM_CONTACT", "https://aristeatime.ru")
     headers = {"User-Agent": f"AstreaTime/1.0 (+{_contact})"}
 
     resp = None

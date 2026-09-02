@@ -86,7 +86,7 @@ class Settings(BaseSettings):
 
     # ── App ──
     app_url: str = "http://localhost:8000"
-    frontend_url: str = "https://www.astreatime.ru"
+    frontend_url: str = "https://www.aristeatime.ru"
     debug: bool = False
     testing: bool = False
 
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
     # Читается из CORS_ORIGINS или ALLOWED_ORIGINS (второе имя раньше было
     # только в комментарии и по факту игнорировалось).
     cors_origins: str = Field(
-        default="https://www.astreatime.ru,https://astreatime.ru",
+        default="https://www.aristeatime.ru,https://aristeatime.ru",
         validation_alias=AliasChoices("CORS_ORIGINS", "ALLOWED_ORIGINS"),
     )
 

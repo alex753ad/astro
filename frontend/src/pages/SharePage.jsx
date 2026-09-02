@@ -144,7 +144,7 @@ export default function SharePage() {
         </div>
 
         <p style={s.promo}>
-          Персональные натальные карты, транзиты и AI-интерпретации — <strong>astreatime.ru</strong>
+          Персональные натальные карты, транзиты и AI-интерпретации — <strong>aristeatime.ru</strong>
         </p>
       </main>
     </div>

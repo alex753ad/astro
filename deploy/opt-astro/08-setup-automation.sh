@@ -8,7 +8,7 @@ set -euo pipefail
 
 HTPASSWD_FILE="/etc/nginx/.htpasswd-status"
 HTPASSWD_USER="admin"
-STATUS_DOMAIN="status.astreatime.ru"
+STATUS_DOMAIN="status.aristeatime.ru"
 NGINX_SITE_SRC="nginx/status.astreatime.conf"
 NGINX_SITE_DST="/etc/nginx/sites-available/status.astreatime.conf"
 NGINX_SITE_LINK="/etc/nginx/sites-enabled/status.astreatime.conf"
@@ -96,7 +96,7 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
-# Basic-auth для status.astreatime.ru — генерируем один раз, если файла ещё нет
+# Basic-auth для status.aristeatime.ru — генерируем один раз, если файла ещё нет
 # ---------------------------------------------------------------------------
 log "Проверяю $HTPASSWD_FILE"
 # Пароли, созданные до перевода поддомена на TLS, ходили по открытому HTTP и
@@ -130,7 +130,7 @@ log "Поднимаю uptime-kuma"
 docker compose up -d --no-deps uptime-kuma
 
 # ---------------------------------------------------------------------------
-# nginx: status.astreatime.ru
+# nginx: status.aristeatime.ru
 #
 # Панель обязана жить за TLS: basic-auth передаёт логин и пароль в заголовке
 # base64 при КАЖДОМ запросе, и по открытому HTTP их читает любой на пути.
@@ -216,10 +216,10 @@ cat <<EOF
 $(systemctl list-timers 'astro-*' --no-pager 2>/dev/null || true)
 
 Дальше руками (см. README):
-  1. DNS: A-запись status.astreatime.ru -> IP этого сервера (если ещё нет).
-  2. Открыть http://status.astreatime.ru, ввести логин/пароль из вывода выше
+  1. DNS: A-запись status.aristeatime.ru -> IP этого сервера (если ещё нет).
+  2. Открыть http://status.aristeatime.ru, ввести логин/пароль из вывода выше
      (или сохранённый ранее), пройти мастер первого запуска Uptime Kuma.
-  3. В Uptime Kuma добавить монитор на https://www.astreatime.ru/health
+  3. В Uptime Kuma добавить монитор на https://www.aristeatime.ru/health
      и настроить Telegram-уведомление (см. README).
 
 EOF

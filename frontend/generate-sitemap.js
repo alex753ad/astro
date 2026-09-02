@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const BASE_URL = 'https://astreatime.ru';
+const BASE_URL = 'https://aristeatime.ru';
 const TODAY = new Date().toISOString().split('T')[0];
 
 const STATIC_ROUTES = [

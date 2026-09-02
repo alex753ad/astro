@@ -88,7 +88,7 @@ export default function PortalPage() {
         </section>
 
         <p style={s.promo}>
-          работает на <strong>Astrea</strong> · astreatime.ru
+          работает на <strong>Astrea</strong> · aristeatime.ru
         </p>
       </main>
     </div>

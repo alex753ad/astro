@@ -213,7 +213,7 @@ export default function LunarCalendarPage() {
           name: `Новолуние в ${SIGNS_RU[e.sign]?.name || e.sign || 'знаке'}`,
           startDate: (e.exact_date || e.date || '').slice(0, 10),
           description: 'Новолуние — начало нового лунного цикла',
-          location: { '@type': 'VirtualLocation', url: 'https://astreatime.ru/calendar/lunar' },
+          location: { '@type': 'VirtualLocation', url: 'https://aristeatime.ru/calendar/lunar' },
         },
       })),
       ...fullMoons.map((e, i) => ({
@@ -224,7 +224,7 @@ export default function LunarCalendarPage() {
           name: `Полнолуние в ${SIGNS_RU[e.sign]?.name || e.sign || 'знаке'}`,
           startDate: (e.exact_date || e.date || '').slice(0, 10),
           description: 'Полнолуние — кульминация лунного цикла',
-          location: { '@type': 'VirtualLocation', url: 'https://astreatime.ru/calendar/lunar' },
+          location: { '@type': 'VirtualLocation', url: 'https://aristeatime.ru/calendar/lunar' },
         },
       })),
     ],

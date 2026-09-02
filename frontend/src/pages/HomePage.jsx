@@ -41,7 +41,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     name: 'Astrea Timeline',
-    url: 'https://astreatime.ru',
+    url: 'https://aristeatime.ru',
     applicationCategory: 'LifestyleApplication',
     operatingSystem: 'Web',
     offers: {

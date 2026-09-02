@@ -1,4 +1,4 @@
-# Email DNS Setup — astreatime.ru
+# Email DNS Setup — aristeatime.ru
 
 Настройка SPF, DKIM, DMARC для домена через Resend.
 
@@ -6,7 +6,7 @@
 
 ## 1. SPF
 
-Добавь TXT-запись на `astreatime.ru`:
+Добавь TXT-запись на `aristeatime.ru`:
 
 | Тип | Хост | Значение |
 |-----|------|----------|
@@ -18,7 +18,7 @@
 
 ## 2. DKIM
 
-В панели Resend: **Domains → Add Domain → astreatime.ru**  
+В панели Resend: **Domains → Add Domain → aristeatime.ru**  
 Resend выдаст 2–3 CNAME-записи вида:
 
 | Тип | Хост | Значение |
@@ -31,11 +31,11 @@ Resend выдаст 2–3 CNAME-записи вида:
 
 ## 3. DMARC
 
-Добавь TXT-запись на `_dmarc.astreatime.ru`:
+Добавь TXT-запись на `_dmarc.aristeatime.ru`:
 
 | Тип | Хост | Значение |
 |-----|------|----------|
-| TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@astreatime.ru; ruf=mailto:dmarc@astreatime.ru; fo=1` |
+| TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@aristeatime.ru; ruf=mailto:dmarc@aristeatime.ru; fo=1` |
 
 Параметры:
 - `p=quarantine` — подозрительные письма уходят в спам (не удаляются)
@@ -53,7 +53,7 @@ Resend выдаст 2–3 CNAME-записи вида:
 
 В `.env`:
 ```
-FROM_EMAIL=noreply@astreatime.ru
+FROM_EMAIL=noreply@aristeatime.ru
 ```
 
 ---
@@ -62,13 +62,13 @@ FROM_EMAIL=noreply@astreatime.ru
 
 ```bash
 # SPF
-dig TXT astreatime.ru
+dig TXT aristeatime.ru
 
 # DKIM
-dig CNAME resend._domainkey.astreatime.ru
+dig CNAME resend._domainkey.aristeatime.ru
 
 # DMARC
-dig TXT _dmarc.astreatime.ru
+dig TXT _dmarc.aristeatime.ru
 ```
 
 Онлайн-проверка: https://mxtoolbox.com/SuperTool.aspx
@@ -80,7 +80,7 @@ dig TXT _dmarc.astreatime.ru
 - [ ] SPF TXT добавлен
 - [ ] DKIM CNAME(s) добавлены и Resend показывает "Verified"
 - [ ] DMARC TXT добавлен
-- [ ] `FROM_EMAIL=noreply@astreatime.ru` в `.env` на проде
+- [ ] `FROM_EMAIL=noreply@aristeatime.ru` в `.env` на проде
 - [ ] `RESEND_API_KEY` в переменных Railway/Vercel
-- [ ] Через 48ч: проверить отчёты на `dmarc@astreatime.ru`
+- [ ] Через 48ч: проверить отчёты на `dmarc@aristeatime.ru`
 - [ ] Через 2–4 нед: переключить DMARC `p=reject`

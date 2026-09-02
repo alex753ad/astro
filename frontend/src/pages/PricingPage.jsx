@@ -62,7 +62,7 @@ export default function PricingPage({ currentUser, onShowAuth }) {
           <h2 style={s.accessTitle}>Как получить доступ</h2>
           <p style={s.accessText}>
             Доступ открывается автоматически сразу после оплаты, в личном кабинете
-            на astreatime.ru. Ничего скачивать и ждать не нужно.
+            на aristeatime.ru. Ничего скачивать и ждать не нужно.
           </p>
         </div>
 

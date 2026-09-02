@@ -9,4 +9,4 @@ Disallow: /api/
 Disallow: /chart/
 Disallow: /profile
 Disallow: /dashboard/
-Sitemap: https://astreatime.ru/sitemap.xml
+Sitemap: https://aristeatime.ru/sitemap.xml

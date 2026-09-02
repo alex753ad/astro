@@ -66,7 +66,7 @@ function useOGMeta() {
 
   useEffect(() => {
     const path = location.pathname;
-    const base = 'https://astreatime.ru';
+    const base = 'https://aristeatime.ru';
 
     if (path === '/' || path === '/home') {
       updateOG({

@@ -866,7 +866,7 @@ async def client_summary(
 
 # ── Client portal on/off (026 / roadmap idea 10) ──
 
-_PORTAL_APP_URL = os.getenv("APP_URL", "https://astreatime.ru")
+_PORTAL_APP_URL = os.getenv("APP_URL", "https://aristeatime.ru")
 
 
 class PortalToggle(BaseModel):
@@ -1146,7 +1146,7 @@ def _simple_pdf(chart, client, astrologer_name=None) -> bytes:
     lines += ["", "АСПЕКТЫ", "-" * 50]
     for a in (chart.aspects or [])[:30]:
         lines.append(f"  {a['planet1']:<12} {a['aspect_type']:<12} {a['planet2']:<12} орб {a.get('orb', 0):.1f}°")
-    lines += ["", "-" * 50, astrologer_name or "Astrea Timeline · astreatime.ru"]
+    lines += ["", "-" * 50, astrologer_name or "Astrea Timeline · aristeatime.ru"]
 
     text = "\n".join(lines)
 
