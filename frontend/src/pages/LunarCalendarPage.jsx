@@ -65,6 +65,22 @@ const ECLIPSE_LABELS = {
 };
 const ECLIPSE_KIND_RU = { total: 'полное', partial: 'частичное', annular: 'кольцеобразное', penumbral: 'полутеневое' };
 
+// Равноденствия и солнцестояния. Приходят с /calendar/lunar отдельным ключом
+// solar_events — так же, как eclipses, а не внутри phases.
+//
+// Сезонные эмодзи, а не глифы кардинальных знаков (Овен/Рак/Весы/Козерог): в той
+// же ячейке уже стоит иконка знака Луны, и два зодиакальных символа рядом
+// читались бы как один смысл. У затмений по той же причине ☉/☾, а не глифы.
+const SOLAR_EVENT_LABELS = {
+  equinox_spring:  { title: 'Весеннее равноденствие', emoji: '🌸', short: 'равноденствие' },
+  solstice_summer: { title: 'Летнее солнцестояние',   emoji: '☀️', short: 'солнцестояние' },
+  equinox_autumn:  { title: 'Осеннее равноденствие',  emoji: '🍂', short: 'равноденствие' },
+  solstice_winter: { title: 'Зимнее солнцестояние',   emoji: '❄️', short: 'солнцестояние' },
+};
+
+// Порядок строк легенды: как в SOLAR_EVENT_LABELS, а не как пришло с сервера.
+const SOLAR_EVENT_ORDER = Object.keys(SOLAR_EVENT_LABELS);
+
 // Приближённый знак Луны (меняется каждые ~2.46 дня)
 // Якорь: 1 мая 2026 → Стрелец (индекс 8)
 const ANCHOR_MS   = new Date('2026-05-01').getTime();
@@ -141,6 +157,7 @@ export default function LunarCalendarPage() {
   const [dailyMap,    setDailyMap]    = useState({});
   const [lunarPhases, setLunarPhases] = useState([]);
   const [eclipses,    setEclipses]    = useState([]);
+  const [solarEvents, setSolarEvents] = useState([]);
 
   useEffect(() => { load(); }, [year, month]);
 
@@ -166,8 +183,9 @@ export default function LunarCalendarPage() {
           setDailyMap(map);
           setLunarPhases(j2.phases || []);
           setEclipses(j2.eclipses || []);
-        } else { setDailyMap({}); setLunarPhases([]); setEclipses([]); }
-      } catch { setDailyMap({}); setEclipses([]); }
+          setSolarEvents(j2.solar_events || []);
+        } else { setDailyMap({}); setLunarPhases([]); setEclipses([]); setSolarEvents([]); }
+      } catch { setDailyMap({}); setEclipses([]); setSolarEvents([]); }
 
     } catch(e) {
       setError(e.message);
@@ -304,6 +322,7 @@ export default function LunarCalendarPage() {
               const signKey    = dailyMap[dateStr] || approxMoonSign(dateStr);
               const signData   = SIGNS_RU[signKey] || SIGNS_RU.Leo;
               const eclipse    = eclipses.find(e => sameDay(e.date, dateStr)) || null;
+              const solarEvent = solarEvents.find(e => sameDay(e.date, dateStr)) || null;
 
               return (
                 <DayCell
@@ -314,24 +333,38 @@ export default function LunarCalendarPage() {
                   isFullMoon={isFullMoon}
                   signData={signData}
                   eclipse={eclipse}
+                  solarEvent={solarEvent}
                 />
               );
             })}
           </div>
 
           {/* ── Легенда ───────────────────────────────── */}
+          {/* Три постоянных пункта — «Сегодня» есть всегда, фазы Луны есть в
+              любом месяце. Затмения и равноденствия/солнцестояния — только когда
+              они в этом месяце действительно случаются: затмений 2-4 в году,
+              солнечных событий ровно 4, и подпись к значку, которого в сетке нет,
+              объясняет пустоту вместо того, что видно. */}
           <div style={pg.legend}>
             <LegendDot fill="#C3CFFC" border="#8898D8" label="Сегодня" />
             <LegendDot fill="#2A2A3A" border="none"    label="Новолуние" />
             <LegendDot fill="#F5C842" border="#C0980A" label="Полнолуние" />
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ fontSize: 12 }}>☉</span>
-              <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>Солнечное затмение</span>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ fontSize: 12 }}>☾</span>
-              <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>Лунное затмение</span>
-            </div>
+            {['solar', 'lunar']
+              .filter(kind => eclipses.some(e => e.type === kind))
+              .map(kind => (
+                <div key={kind} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                  <span style={{ fontSize: 12 }}>{ECLIPSE_LABELS[kind].emoji}</span>
+                  <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>{ECLIPSE_LABELS[kind].title}</span>
+                </div>
+              ))}
+            {SOLAR_EVENT_ORDER
+              .filter(key => solarEvents.some(e => e.type === key))
+              .map(key => (
+                <div key={key} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                  <span style={{ fontSize: 12 }}>{SOLAR_EVENT_LABELS[key].emoji}</span>
+                  <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>{SOLAR_EVENT_LABELS[key].title}</span>
+                </div>
+              ))}
           </div>
 
         </div>
@@ -453,7 +486,7 @@ function SkeletonRow() {
 
 // ── Ячейка дня ────────────────────────────────────────────
 
-function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) {
+function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse, solarEvent }) {
   const numBg    = isToday    ? '#C3CFFC'
                  : isNewMoon  ? '#2A2A3A'
                  : isFullMoon ? '#F5C842'
@@ -474,6 +507,19 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) 
       <div style={{ ...dc.num, background: numBg, color: numColor, position: 'relative',
                     fontWeight: (isToday||isNewMoon||isFullMoon) ? 600 : 400 }}>
         {dayNum}
+        {solarEvent && SOLAR_EVENT_LABELS[solarEvent.type] && (
+          // Левый угол, а не правый: правый занят затмением. Совпасть в один
+          // день они могут — явления независимые, ничто этого не запрещает.
+          <span
+            title={`${SOLAR_EVENT_LABELS[solarEvent.type].title}${solarEvent.time ? ` · ${solarEvent.time}` : ''}`}
+            style={{
+              position: 'absolute', top: -5, left: -6, fontSize: 13, lineHeight: 1,
+              textShadow: '0 0 2px rgba(0,0,0,0.85), 0 0 4px rgba(0,0,0,0.65)',
+            }}
+          >
+            {SOLAR_EVENT_LABELS[solarEvent.type].emoji}
+          </span>
+        )}
         {eclipse && (
           <span
             title={`${ECLIPSE_LABELS[eclipse.type]?.title || 'Затмение'} · ${ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind}`}
@@ -495,6 +541,11 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse }) 
       {eclipse && (
         <div style={{ fontSize: 8, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
           {ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind} затмение
+        </div>
+      )}
+      {solarEvent && SOLAR_EVENT_LABELS[solarEvent.type] && (
+        <div style={{ fontSize: 8, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
+          {SOLAR_EVENT_LABELS[solarEvent.type].short}
         </div>
       )}
     </div>
@@ -566,8 +617,17 @@ const pg = {
     letterSpacing:'0.02em',
   },
   legend: {
+    // Пунктов теперь 3 в обычный месяц и до 6 в предельном (два затмения плюс
+    // равноденствие); на 2026-2027 максимум по факту 5. Раньше было ровно 5
+    // всегда — то есть шире, чем сейчас, почти никогда не станет.
+    //
+    // flexWrap всё равно обязателен, и его тут не было: у flex-элементов
+    // min-width:auto, без переноса длинная строка вроде «Весеннее
+    // равноденствие» не сжимается, а вылезает за карточку на узком экране.
+    // gap по вертикали меньше горизонтального — иначе перенесённые строки
+    // читаются как отдельные блоки, а не как продолжение ряда.
     display:'flex', alignItems:'center', justifyContent:'center',
-    gap:14, marginTop:12,
+    flexWrap:'wrap', gap:'6px 12px', marginTop:12,
   },
 };
 

@@ -297,6 +297,107 @@ def get_eclipses(start: date, end: date) -> list[dict]:
     return [e.to_dict() for e in events]
 
 
+# ── Равноденствия и солнцестояния ──────────────────────────────
+
+# Четыре точки, в которых долгота Солнца проходит кардинальные градусы. Это те же
+# самые моменты, что и вход Солнца в Овна/Рака/Весы/Козерога, то есть четыре из
+# двенадцати ингрессов Солнца, которые уже умеет считать get_ingresses(). Отдельная
+# функция, а не фильтр по её выводу, потому что get_ingresses сканирует шесть
+# планет сразу, а /calendar/lunar дергается на каждом открытии страницы — платить
+# за Меркурий/Венеру/Марс/Юпитер/Сатурн ради четырёх дат в году незачем.
+SOLAR_EVENTS = [
+    (0,   "equinox_spring",  "🌸", "Весеннее равноденствие"),
+    (90,  "solstice_summer", "☀️", "Летнее солнцестояние"),
+    (180, "equinox_autumn",  "🍂", "Осеннее равноденствие"),
+    (270, "solstice_winter", "❄️", "Зимнее солнцестояние"),
+]
+
+
+def _jd_to_gmt3(jd: float) -> tuple[str, str]:
+    """JD → ("YYYY-MM-DD", "HH:MM") в GMT+3.
+
+    Отдельная от _jd_to_dt(), которая отдаёт UTC: равноденствия обязаны
+    лечь в ту же клетку сетки, что и фазы Луны, а те считаются в GMT+3
+    (main.py, _compute_lunar_calendar). Два часовых пояса на одной странице
+    разъехались бы на событиях около полуночи: значок встал бы на соседний день.
+
+    Перенос через сутки/месяц/год повторяет логику фаз дословно — копией, а не
+    выносом в общую функцию: трогать работающий расчёт фаз ради красоты дороже,
+    чем пятнадцать строк дубля.
+    """
+    from calendar import monthrange
+
+    y, mo, d, h = swe.revjul(jd)
+    y, mo, d = int(y), int(mo), int(d)
+    h += 3
+    if h >= 24:
+        h -= 24
+        d += 1
+        _, max_day = monthrange(y, mo)
+        if d > max_day:
+            d = 1
+            mo += 1
+            if mo > 12:
+                mo = 1
+                y += 1
+    hh, mm = int(h), int((h % 1) * 60)
+    return f"{y:04d}-{mo:02d}-{d:02d}", f"{hh:02d}:{mm:02d}"
+
+
+def get_solar_events(year: int, month: int) -> list[dict]:
+    """Равноденствия и солнцестояния месяца (обычно пусто — их 4 в году).
+
+    Даты не табличные: календарь листается на произвольные годы, а момент
+    плывёт на полторы суток в пределах четырёхлетнего цикла.
+
+    Шаг сканирования — сутки, а не половина, как в _find_phase(): там ищется
+    угол Луна−Солнце, меняющийся ~13°/сутки, здесь — долгота одного Солнца,
+    ~1°/сутки. Проскочить пересечение при таком шаге невозможно.
+
+    Окно шире месяца на сутки с каждой стороны, а фильтр — по уже
+    пересчитанной в GMT+3 дате: событие в 22:30 UTC 31 августа — это 01:30 первого
+    сентября по Москве, и показать его надо в сентябре. Тот же приём, что у
+    фаз Луны (широкое окно + фильтр по month_prefix).
+    """
+    jd0 = _jd(date(year, month, 1), 0) - 1
+    jd1 = (_jd(date(year + 1, 1, 1), 0) if month == 12
+           else _jd(date(year, month + 1, 1), 0)) + 1
+
+    events: list[dict] = []
+    for target, etype, emoji, label in SOLAR_EVENTS:
+        step = 1.0
+        jd, prev = jd0, None
+        while jd <= jd1:
+            # Разность в диапазоне [-180, 180): пересечение цели — смена знака
+            # снизу вверх. Скачок с +180 на −180 на противоположной точке орбиты
+            # сюда не попадает: там prev > 0.
+            val = (_lon(jd, "Sun") - target + 180) % 360 - 180
+            if prev is not None and prev < 0 <= val:
+                lo, hi = jd - step, jd
+                for _ in range(48):
+                    mid = (lo + hi) / 2
+                    v = (_lon(mid, "Sun") - target + 180) % 360 - 180
+                    if v < 0:
+                        lo = mid
+                    else:
+                        hi = mid
+                dt, tm = _jd_to_gmt3((lo + hi) / 2)
+                events.append({
+                    "date": dt,
+                    "time": f"{tm} GMT+3",
+                    "type": etype,
+                    "emoji": emoji,
+                    "description": label,
+                })
+            prev = val
+            jd += step
+
+    month_prefix = f"{year:04d}-{month:02d}-"
+    events = [e for e in events if e["date"].startswith(month_prefix)]
+    events.sort(key=lambda e: (e["date"], e["time"]))
+    return events
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def get_monthly_calendar(year: int, month: int) -> list[dict]:

@@ -2598,7 +2598,9 @@ def _compute_lunar_calendar(year: int, month: int) -> dict:
     синхронный расчёт через Swiss Ephemeris. Вызывать только через
     asyncio.to_thread (см. CLAUDE.md) — не напрямую из async-хендлера."""
     from datetime import date as date_type
-    from backend.calendar.lunar_engine import get_moon_phases, get_eclipses, ZODIAC_SIGNS
+    from backend.calendar.lunar_engine import (
+        get_moon_phases, get_eclipses, get_solar_events, ZODIAC_SIGNS,
+    )
     import swisseph as swe
     import calendar as cal_mod
 
@@ -2674,6 +2676,11 @@ def _compute_lunar_calendar(year: int, month: int) -> dict:
   
     _, days_in_month = cal_mod.monthrange(year, month)
     eclipses = get_eclipses(date_type(year, month, 1), date_type(year, month, days_in_month))
+    # Равноденствия и солнцестояния: обычно пустой список — их четыре в году.
+    # Считаются там же, где затмения, и отдаются отдельным ключом, а не внутри
+    # phases: phases — это ровно две повторяющиеся фазы Луны, и фронт фильтрует
+    # их по type. Своё поле повторяет устройство eclipses, а не ломает phases.
+    solar_events = get_solar_events(year, month)
     daily_signs = []
     for day in range(1, days_in_month + 1):
         d = date_type(year, month, day)
@@ -2699,9 +2706,10 @@ def _compute_lunar_calendar(year: int, month: int) -> dict:
             "sign":   current_sign,
             "degree": current_degree,
         },
-        "phases":      phases,
-        "daily_signs": daily_signs,
-        "eclipses":    eclipses,
+        "phases":       phases,
+        "daily_signs":  daily_signs,
+        "eclipses":     eclipses,
+        "solar_events": solar_events,
     }
 
 
