@@ -110,6 +110,12 @@
 - **cd /opt/astro перед каждой docker compose командой**. Compose ищет файл в текущей директории.
 - **PUBLIC_API_URL был `https://api.astreatime.ru`** — несуществующий поддомен. Все ссылки отписки в рассылках вели в никуда. Исправлено на `https://www.aristeatime.ru`.
 
+### Регрессия экспорта в Google Calendar (коммит 7fb06cf → фикс 7ea5849)
+- **monthOffset is not defined** в _logExport (useGcalExport). Причина: при добавлении журнала экспорта скопирована логика из buildExportEvents, где monthOffset в scope (state PlannerPage), в _logExport, где его нет.
+- Экспорт сам по себе работал — падало только логирование, но ReferenceError бросался синхронно ДО промиса, .catch его не ловил, ошибка уходила в try/catch exportEvents → на экране "ошибка" при уже созданных событиях в календаре.
+- Фикс: monthOffset убран, месяц берётся из events[0].date. Вся подготовка данных лога обёрнута в try. Оба вызова _logExport дополнительно обёрнуты try-catch — сбой журнала больше не убивает экспорт.
+- **Урок: .catch() на промисе не ловит синхронные ошибки до await/fetch.** Fire-and-forget требует try-catch вокруг ВСЕЙ подготовки, не только вокруг fetch.
+
 ---
 
 ## Технический долг (обнаружен, не исправлен)
