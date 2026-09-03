@@ -292,20 +292,36 @@ function useGcalExport() {
   // без await и с проглоченной ошибкой. Неавторизованный сюда не дойдёт —
   // кнопка закрыта для free, а ручка требует JWT.
   function _logExport(events, status, errorMsg) {
-    const d = new Date();
-    d.setMonth(d.getMonth() + monthOffset);
-    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    authFetch(`${API_BASE}/api/v1/calendar/export-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        month,
-        event_count: events.length,
-        event_types: [...new Set(events.map((e) => e.type).filter(Boolean))],
-        status,
-        error_msg: errorMsg || null,
-      }),
-    }).catch(() => {});
+    // 03.09.2026: здесь стоял monthOffset — state из PlannerPage, вне scope
+    // этого хука (useGcalExport — функция верхнего уровня, не вложена в
+    // PlannerPage). ReferenceError бросался ДО вызова authFetch, то есть до
+    // .catch(() => {}) на промисе — .catch ловит отказ промиса, а не
+    // синхронный throw при подготовке данных. Исключение уходило в try/catch
+    // exportEvents и превращало успешный экспорт в «ошибку» на экране, хотя
+    // события в Google Calendar уже были созданы.
+    //
+    // month берём из уже построенных events (buildExportEvents кладёт туда
+    // date "YYYY-MM-DD") — то, что и так в scope, вместо пересчёта заново.
+    //
+    // Вся подготовка — внутри try: fire-and-forget обязан не бросать
+    // синхронно, а .catch(() => {}) на authFetch эту гарантию не даёт.
+    try {
+      const month = events[0]?.date?.slice(0, 7) || "";
+      authFetch(`${API_BASE}/api/v1/calendar/export-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          month,
+          event_count: events.length,
+          event_types: [...new Set(events.map((e) => e.type).filter(Boolean))],
+          status,
+          error_msg: errorMsg || null,
+        }),
+      }).catch(() => {});
+    } catch {
+      // журнал — не более чем журнал; сбой его подготовки не должен мешать
+      // пользователю увидеть результат реального экспорта
+    }
   }
 
   async function exportEvents(events) {
@@ -345,7 +361,7 @@ function useGcalExport() {
       }
       setStatus("success");
       setTimeout(() => setStatus("idle"), 3500);
-      _logExport(events, "success");
+      try { _logExport(events, "success"); } catch { /* fire-and-forget */ }
     } catch (e) {
       console.error("[gcal]", e);
       setStatus("error");
@@ -353,7 +369,9 @@ function useGcalExport() {
       // 255, а не круглое число: столько в колонке error_msg
       // (models.py, String(255)). Длиннее — падение вставки на Postgres
       // ровно в тот момент, когда журнал нужнее всего.
-      _logExport(events, "error", String(e?.message || e).slice(0, 255));
+      try {
+        _logExport(events, "error", String(e?.message || e).slice(0, 255));
+      } catch { /* fire-and-forget */ }
     }
   }
 
