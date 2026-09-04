@@ -77,60 +77,45 @@ Webview Capacitor грузит страницу с origin `https://localhost`
 
 ### Блок команд — вставить целиком
 
-`sed` здесь не годится: значение содержит кавычки и слеши, а правило проекта
-(CLAUDE.md, «Правка файлов скриптом») это запрещает прямым текстом. Скрипт
-ниже сам определяет формат значения и сохраняет его — бэкенд понимает оба
-имени ключа (`backend/config.py:109`, `AliasChoices`) и оба формата значения
-(JSON-массив и список через запятую, `cors_origins_list`), поэтому одна
-команда закрывает оба случая и не переписывает формат без нужды.
+Формат значения на сервере подтверждён владельцем 04.09.2026: ключ
+`CORS_ORIGINS`, **список через запятую**, без кавычек, без JSON-массива, без
+переносов строк, пять origins:
 
 ```
+CORS_ORIGINS=https://astro-qnbq.vercel.app,https://astreatime.ru,https://www.astreatime.ru,https://aristeatime.ru,https://www.aristeatime.ru
+```
+
+`sed` здесь не годится: значение содержит слеши, а правило проекта
+(CLAUDE.md, «Правка файлов скриптом») запрещает такие правки скриптом
+напрямую. Ниже — точная замена под этот конкретный список.
+
+```bash
 grep -E '^(ALLOWED_ORIGINS|CORS_ORIGINS)=' /opt/astro/.env
 
 cp -a /opt/astro/.env /opt/astro/.env.bak-$(date +%Y%m%d)
 
 python3 - <<'PYEOF'
-import json, re
 from pathlib import Path
 
 p = Path("/opt/astro/.env")
 t = p.read_text(encoding="utf-8")
-NEW = ["https://localhost", "http://localhost"]
 
-pat = re.compile("^(ALLOWED_ORIGINS|CORS_ORIGINS)=(.*)$", re.MULTILINE)
-hits = pat.findall(t)
-assert len(hits) == 1, "строк с ключом: " + str(len(hits)) + " (ожидалась ровно 1)"
+OLD = "CORS_ORIGINS=https://astro-qnbq.vercel.app,https://astreatime.ru,https://www.astreatime.ru,https://aristeatime.ru,https://www.aristeatime.ru"
+NEW = OLD + ",https://localhost,http://localhost"
 
-key, raw = hits[0]
-old_line = key + "=" + raw
-raw_s = raw.strip()
+NL = chr(10)
+lines = t.split(NL)
+hits = [i for i, ln in enumerate(lines) if ln.strip() == OLD]
+assert len(hits) == 1, "строк, совпадающих со списком целиком: " + str(len(hits)) + " (ожидалась ровно 1)"
+assert "*" not in NEW, "в списке есть * — backend/main.py:409 уронит старт"
 
-if raw_s.startswith("["):
-    fmt = "JSON-массив"
-    origins = [str(o).strip() for o in json.loads(raw_s) if str(o).strip()]
-else:
-    fmt = "список через запятую"
-    origins = [o.strip() for o in raw_s.split(",") if o.strip()]
-
-assert origins, "список origins пуст — проверьте строку руками"
-assert "*" not in origins, "в списке есть * — backend/main.py:409 уронит старт"
-
-added = [o for o in NEW if o not in origins]
-assert added, "оба origin уже в списке — править нечего"
-origins = origins + added
-
-new_value = json.dumps(origins) if raw_s.startswith("[") else ",".join(origins)
-new_line = key + "=" + new_value
-
-assert t.count(old_line) == 1, "якорь: " + str(t.count(old_line))
-t2 = t.replace(old_line, new_line)
+lines[hits[0]] = NEW
+t2 = NL.join(lines)
 assert t2 != t, "замена не применилась"
 p.write_text(t2, encoding="utf-8")
 
-print("формат:", fmt)
-print("ключ:", key)
-print("добавлено:", ", ".join(added))
-print("стало:", new_line)
+print("стало:")
+print(NEW)
 PYEOF
 
 grep -E '^(ALLOWED_ORIGINS|CORS_ORIGINS)=' /opt/astro/.env
@@ -138,28 +123,47 @@ grep -E '^(ALLOWED_ORIGINS|CORS_ORIGINS)=' /opt/astro/.env
 cd /opt/astro && docker compose up -d --force-recreate api
 ```
 
-Что в нём сделано намеренно:
+Результат — пять существующих origins в прежнем порядке плюс два новых в
+конце:
 
-- **Обе проверки из CLAUDE.md, и одна другую не заменяет.** `count == 1`
-  ловит отсутствующий или неоднозначный якорь (ключ задан дважды — молча
-  победит не та строка); `t2 != t` ловит несработавшую замену — ровно тот
-  случай 23.08.2026, когда `assert count == 1` прошёл, а `replace` не сделал
-  ничего и скрипт отрапортовал успехом.
-- **Ни одного обратного слеша в python-коде.** Регулярка обходится без
-  экранирования, сообщения собираются конкатенацией. В heredoc этого
-  окружения слеши съедаются — однажды это записало литеральный `\n` в
-  середину `05-update.sh`.
-- **Формат определяется и сохраняется, а не навязывается.** Переписывание
-  JSON-массива в список через запятую — лишнее изменение, которого никто не
-  просил.
-- **`assert "*" not in origins`** — страховка от правки поверх уже сломанной
-  конфигурации: с `*` при `allow_credentials=True` контейнер не поднимется
-  (`main.py:409`, в проде `RuntimeError`, в тестовом режиме `logger.error`),
-  и это выглядело бы как «сломалось от добавления localhost».
-- **`assert added`** — повторный запуск не продублирует origins.
+```
+CORS_ORIGINS=https://astro-qnbq.vercel.app,https://astreatime.ru,https://www.astreatime.ru,https://aristeatime.ru,https://www.aristeatime.ru,https://localhost,http://localhost
+```
+
+Откат: `cp -a /opt/astro/.env.bak-20260904 /opt/astro/.env` и тот же
+`docker compose up -d --force-recreate api`.
+
+### ⚠️ Почему сравнивается строка целиком, а не ищется подстрока
+
+Первая версия этого скрипта искала `t.count(OLD) == 1` и делала
+`t.replace(OLD, NEW)`. **Прогон на копии показал, что она дублирует origins
+при повторном запуске:** `OLD` является префиксом `NEW`, поэтому после
+первой правки счётчик по-прежнему равен 1, замена срабатывает второй раз, и
+в списке появляется `...,https://localhost,http://localhost,https://localhost,http://localhost`.
+Проверка «уже добавлено» при этом смотрела в константу `OLD`, а не в
+содержимое файла, то есть не проверяла ничего.
+
+Лечится сравнением строки целиком: `ln.strip() == OLD`. Повторный запуск
+находит 0 совпадений и падает **до** записи. Проверено на копии — после двух
+запусков в файле ровно одна пара `localhost`, соседние строки не тронуты.
+
+Это тот же класс дефекта, что записан в CLAUDE.md за 23.08.2026, но с другой
+стороны: там `replace` не срабатывал вовсе, здесь срабатывал дважды.
+**`assert count == 1` сам по себе от него не защищает** — он проверяет, что
+якорь найден, а не что якорь уникален как строка.
+
+### Остальные решения в блоке
+
 - **`cp -a`, а не `cp`** — сохраняет владельца и права. `.env` читают и
-  контейнеры, и `05-update.sh`; файл с изменёнными правами — знакомый в этом
+  контейнеры, и `05-update.sh`; файл со сбитыми правами — знакомый в этом
   проекте способ сломать деплой.
+- **`assert "*" not in NEW`** — с `*` при `allow_credentials=True` контейнер
+  не поднимется (`backend/main.py:409`: в проде `RuntimeError`, в тестовом
+  режиме `logger.error`), и выглядело бы это как «сломалось от добавления
+  localhost».
+- **Ни одного обратного слеша в python-коде** — перевод строки собирается
+  через `chr(10)`. В heredoc этого окружения слеши съедаются; однажды это
+  записало литеральный `\n` в середину `05-update.sh`.
 - **Пересоздаётся только `api`** — воркеру, beat и боту CORS не нужен.
 
 **Именно `--force-recreate`, а не `down`.** `env_file` читается в момент
@@ -169,14 +173,6 @@ cd /opt/astro && docker compose up -d --force-recreate api
 перечитывания одной строки.
 
 **Звёздочку в список не добавлять** ни в каком виде — см. `assert` выше.
-
-Если первый `grep` покажет неожиданное (два ключа сразу, значение в кавычках
-целиком, перенос строки внутри списка) — скрипт упадёт на assert **до**
-записи и файл останется нетронутым.
-
-После применения — скажите, перепроверю тем же запросом с
-`Origin: https://localhost` и подтвержу, что заголовок появился.
-
 ---
 
 ## Что сделано в репозитории
