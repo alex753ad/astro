@@ -79,6 +79,27 @@ patch({
   doneWhen: (t) => t.includes('android:allowBackup="false"'),
 });
 
+/**
+ * screenOrientation=portrait на MainActivity.
+ *
+ * Экраны (форма входа, таб-бар) свёрстаны под портретную раскладку без
+ * альтернативной вёрстки для альбомной. Без явного запрета поворот доступен
+ * по умолчанию, и поворот планшета/телефона на бок даёт не адаптивный
+ * лейаут, а обрезанные и наползающие друг на друга элементы.
+ *
+ * android:configChanges (уже в шаблоне, включает "orientation|screenSize")
+ * этому не мешает — тот атрибут регулирует, пересоздаётся ли Activity при
+ * смене конфигурации, а не то, разрешён ли сам поворот; в портретном режиме
+ * событие смены ориентации просто не наступает.
+ */
+patch({
+  file: MANIFEST,
+  name: 'screenOrientation=portrait',
+  anchor: 'android:launchMode="singleTask"',
+  replacement: 'android:launchMode="singleTask"\n            android:screenOrientation="portrait"',
+  doneWhen: (t) => t.includes('android:screenOrientation="portrait"'),
+});
+
 if (failed) {
   console.error('patch-android: правки не применены — сборка остановлена');
   process.exit(1);

@@ -16,12 +16,11 @@
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { readFileSync, renameSync, existsSync } from 'node:fs';
+import { renameSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
 
 const OUT_DIR = 'dist-mobile';
 
@@ -49,10 +48,6 @@ export default defineConfig({
   // сервера, а из локальных файлов APK. С абсолютного /assets/index-*.js
   // webview не найдёт ничего, экран останется пустым.
   base: './',
-
-  define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
-  },
 
   build: {
     outDir: OUT_DIR,
