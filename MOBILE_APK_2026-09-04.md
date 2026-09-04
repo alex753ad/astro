@@ -75,35 +75,92 @@ Webview Capacitor грузит страницу с origin `https://localhost`
 печатается сам URL: по нему сразу видно, ушёл запрос на боевой домен или на
 относительный путь.
 
-### Блок команд
+### Блок команд — вставить целиком
 
-Сначала посмотреть, под каким именем лежит ключ и в каком он формате —
-бэкенд понимает оба имени (`backend/config.py:109`,
-`AliasChoices("CORS_ORIGINS", "ALLOWED_ORIGINS")`) и оба формата значения
-(JSON-массив и список через запятую, `cors_origins_list`):
-
-```
-grep -E '^(ALLOWED_ORIGINS|CORS_ORIGINS)=' /opt/astro/.env
-```
-
-Если значение — **JSON-массив** (как в локальном `.env`):
-
-```
-sed -i.bak -E 's#^(ALLOWED_ORIGINS|CORS_ORIGINS)=\[(.*)\]$#\1=[\2,"https://localhost","http://localhost"]#' /opt/astro/.env
-```
-
-Если **через запятую**:
-
-```
-sed -i.bak -E 's#^(ALLOWED_ORIGINS|CORS_ORIGINS)=(.*)$#\1=\2,https://localhost,http://localhost#' /opt/astro/.env
-```
-
-Проверить результат и применить:
+`sed` здесь не годится: значение содержит кавычки и слеши, а правило проекта
+(CLAUDE.md, «Правка файлов скриптом») это запрещает прямым текстом. Скрипт
+ниже сам определяет формат значения и сохраняет его — бэкенд понимает оба
+имени ключа (`backend/config.py:109`, `AliasChoices`) и оба формата значения
+(JSON-массив и список через запятую, `cors_origins_list`), поэтому одна
+команда закрывает оба случая и не переписывает формат без нужды.
 
 ```
 grep -E '^(ALLOWED_ORIGINS|CORS_ORIGINS)=' /opt/astro/.env
+
+cp -a /opt/astro/.env /opt/astro/.env.bak-$(date +%Y%m%d)
+
+python3 - <<'PYEOF'
+import json, re
+from pathlib import Path
+
+p = Path("/opt/astro/.env")
+t = p.read_text(encoding="utf-8")
+NEW = ["https://localhost", "http://localhost"]
+
+pat = re.compile("^(ALLOWED_ORIGINS|CORS_ORIGINS)=(.*)$", re.MULTILINE)
+hits = pat.findall(t)
+assert len(hits) == 1, "строк с ключом: " + str(len(hits)) + " (ожидалась ровно 1)"
+
+key, raw = hits[0]
+old_line = key + "=" + raw
+raw_s = raw.strip()
+
+if raw_s.startswith("["):
+    fmt = "JSON-массив"
+    origins = [str(o).strip() for o in json.loads(raw_s) if str(o).strip()]
+else:
+    fmt = "список через запятую"
+    origins = [o.strip() for o in raw_s.split(",") if o.strip()]
+
+assert origins, "список origins пуст — проверьте строку руками"
+assert "*" not in origins, "в списке есть * — backend/main.py:409 уронит старт"
+
+added = [o for o in NEW if o not in origins]
+assert added, "оба origin уже в списке — править нечего"
+origins = origins + added
+
+new_value = json.dumps(origins) if raw_s.startswith("[") else ",".join(origins)
+new_line = key + "=" + new_value
+
+assert t.count(old_line) == 1, "якорь: " + str(t.count(old_line))
+t2 = t.replace(old_line, new_line)
+assert t2 != t, "замена не применилась"
+p.write_text(t2, encoding="utf-8")
+
+print("формат:", fmt)
+print("ключ:", key)
+print("добавлено:", ", ".join(added))
+print("стало:", new_line)
+PYEOF
+
+grep -E '^(ALLOWED_ORIGINS|CORS_ORIGINS)=' /opt/astro/.env
+
 cd /opt/astro && docker compose up -d --force-recreate api
 ```
+
+Что в нём сделано намеренно:
+
+- **Обе проверки из CLAUDE.md, и одна другую не заменяет.** `count == 1`
+  ловит отсутствующий или неоднозначный якорь (ключ задан дважды — молча
+  победит не та строка); `t2 != t` ловит несработавшую замену — ровно тот
+  случай 23.08.2026, когда `assert count == 1` прошёл, а `replace` не сделал
+  ничего и скрипт отрапортовал успехом.
+- **Ни одного обратного слеша в python-коде.** Регулярка обходится без
+  экранирования, сообщения собираются конкатенацией. В heredoc этого
+  окружения слеши съедаются — однажды это записало литеральный `\n` в
+  середину `05-update.sh`.
+- **Формат определяется и сохраняется, а не навязывается.** Переписывание
+  JSON-массива в список через запятую — лишнее изменение, которого никто не
+  просил.
+- **`assert "*" not in origins`** — страховка от правки поверх уже сломанной
+  конфигурации: с `*` при `allow_credentials=True` контейнер не поднимется
+  (`main.py:409`, в проде `RuntimeError`, в тестовом режиме `logger.error`),
+  и это выглядело бы как «сломалось от добавления localhost».
+- **`assert added`** — повторный запуск не продублирует origins.
+- **`cp -a`, а не `cp`** — сохраняет владельца и права. `.env` читают и
+  контейнеры, и `05-update.sh`; файл с изменёнными правами — знакомый в этом
+  проекте способ сломать деплой.
+- **Пересоздаётся только `api`** — воркеру, beat и боту CORS не нужен.
 
 **Именно `--force-recreate`, а не `down`.** `env_file` читается в момент
 создания контейнера: обычный `up -d` без изменений в compose-файле контейнер
@@ -111,15 +168,11 @@ cd /opt/astro && docker compose up -d --force-recreate api
 не сработала». А `down` кладёт весь стек, включая postgres и redis, ради
 перечитывания одной строки.
 
-**Звёздочку в список не добавлять.** `backend/main.py:409` при `*` вместе с
-`allow_credentials=True` на проде роняет старт намеренно — в тестовом режиме
-это `logger.error`, в проде `RuntimeError`.
+**Звёздочку в список не добавлять** ни в каком виде — см. `assert` выше.
 
-Оговорка по процедуре: правило проекта (CLAUDE.md, «Правка файлов скриптом»)
-запрещает `sed` с текстом, содержащим кавычки — здесь они есть. Команда выше
-даётся, потому что запрошена явно, и подстрахована `-i.bak` плюс проверкой
-`grep` до перезапуска. Безопасная альтернатива — `python3 - <<'PYEOF'` с
-точным поиском строки и `assert count == 1`.
+Если первый `grep` покажет неожиданное (два ключа сразу, значение в кавычках
+целиком, перенос строки внутри списка) — скрипт упадёт на assert **до**
+записи и файл останется нетронутым.
 
 После применения — скажите, перепроверю тем же запросом с
 `Origin: https://localhost` и подтвержу, что заголовок появился.
