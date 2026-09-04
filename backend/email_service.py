@@ -671,16 +671,33 @@ async def send_weekly_digest(user, db) -> bool:
     lunar_block = ""
     try:
         from backend.calendar.lunar_engine import get_moon_phases
-        # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
-        phases = await asyncio.to_thread(get_moon_phases, now.year, now.month)
+
+        # Месяцы, которые задевает неделя, — обычно один, но у недели через
+        # 31-е их два. get_moon_phases берёт КАЛЕНДАРНЫЙ месяц, поэтому на
+        # одном месяце фаза первых чисел следующего терялась молча: за год
+        # вперёд так пропадали две недели — письмо от 29.06.2027 не показало бы
+        # фазу 04.07, письмо от 27.07.2027 — фазу 02.08.
+        # dict.fromkeys, а не set: порядок месяцев сохраняется, и строки в
+        # письме идут по возрастанию даты без отдельной сортировки.
+        months = dict.fromkeys([(now.year, now.month), (week_end.year, week_end.month)])
+        phases = []
+        for year, month in months:
+            # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+            phases += await asyncio.to_thread(get_moon_phases, year, month)
         week_phases = [
             p for p in phases
             if now <= date_type.fromisoformat(p.to_dict()["date"]) <= week_end
         ]
         if week_phases:
+            # `description`, а не `title`: у CalendarEvent поля title нет вовсе
+            # (date, time, type, planet, sign, planet2, aspect_name,
+            # description, emoji). Обращение к несуществующему ключу поднимало
+            # KeyError, его глотал общий except ниже — и блок «Лунные фазы
+            # недели» не показывался НИ РАЗУ с момента написания. Дефект был не
+            # виден именно потому, что ошибка тихо превращалась в пустой блок.
             phase_lines = "".join(
                 f'<li style="margin:4px 0;color:#5a4a7a;font-size:14px;">'
-                f'{p.to_dict()["date"]} — {p.to_dict()["title"]}</li>'
+                f'{p.to_dict()["date"]} — {p.to_dict()["emoji"]} {p.to_dict()["description"]}</li>'
                 for p in week_phases
             )
             lunar_block = (
@@ -750,8 +767,18 @@ async def send_weekly_digest(user, db) -> bool:
             else:
                 variant = random.choice(["A", "B"])
                 redis.set(ab_key, variant, ex=8 * 24 * 3600)
-    except Exception:
+    except Exception as e:
+        # Логирование, а не тишина. Логика ниже не меняется: при недоступном
+        # Redis вариант всё так же выбирается броском монеты — но раньше об
+        # этом не было НИ СТРОКИ в логах, и выключенный эксперимент выглядел
+        # ровно как работающий. Тот же класс дефекта, что фантомные фазы:
+        # ошибка съедена, последствие невидимо.
+        #
+        # Цена молчания здесь другая: вариант не запоминается в Redis, поэтому
+        # у одного пользователя за неделю письма могут прийти с разными
+        # темами, а разбивка A/B — перестать быть разбивкой.
         variant = random.choice(["A", "B"])
+        logger.warning("Digest A/B variant not persisted (%s) — выбран %s случайно", e, variant)
 
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
     if variant == "A" and highlights:
