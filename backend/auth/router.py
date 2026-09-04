@@ -168,6 +168,37 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
 REFRESH_COOKIE_NAME = "astro_refresh"
 REFRESH_COOKIE_PATH = "/api/v1/auth"
 
+# ── Мобильный клиент: refresh в теле, а не кукой ──────────────────────────────
+#
+# Webview Capacitor открывает страницу с origin https://localhost и ходит на
+# www.aristeatime.ru. Для браузера это кросс-сайтовый запрос, а кука выше стоит
+# с SameSite=Strict — то есть на /refresh и /logout она не отдаётся вообще.
+# Access-токен живёт 15 минут, поэтому без обходного пути пользователя
+# выбрасывало бы из приложения примерно через час, и выглядело бы это как
+# «приложение само разлогинивается».
+#
+# Ослаблять куку до SameSite=None ради этого нельзя: она защищает веб, где
+# пользователей несравнимо больше, а None открывает CSRF-поверхность на обе
+# ручки сразу. Поэтому мобильному клиенту refresh отдаётся в теле ответа, и он
+# сам хранит его в нативном хранилище устройства (Capacitor Preferences,
+# приватный каталог приложения) — не в localStorage, куда дотянется XSS.
+#
+# Клиент опознаётся ЯВНЫМ заголовком, а не User-Agent и не origin: и то и
+# другое подделывается тривиально и меняется само по себе при смене webview
+# или домена, то есть завязка на них ломается молча.
+#
+# Заголовок ничего не «разрешает»: refresh в теле получает тот, кто и так уже
+# прошёл аутентификацию и кому в этом же ответе выдан access-токен. Подделка
+# заголовка не даёт злоумышленнику ничего, чего у него не было бы без него, —
+# она лишь меняет способ доставки токена его собственной сессии.
+MOBILE_CLIENT_HEADER = "X-Client-Platform"
+MOBILE_CLIENT_VALUE = "mobile"
+
+
+def _is_mobile_client(request: Request) -> bool:
+    """True, если запрос пришёл от мобильного клиента (Capacitor)."""
+    return (request.headers.get(MOBILE_CLIENT_HEADER) or "").strip().lower() == MOBILE_CLIENT_VALUE
+
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
     settings = get_settings()
@@ -200,9 +231,17 @@ def _build_token_response(
 ) -> TokenResponse:
     """Выдаёт пару токенов: access — в теле, refresh — HttpOnly-кукой.
 
-    echo_refresh_in_body=True нужен ровно в одном случае: старая сборка фронта
-    прислала refresh в теле запроса. Не ответить ей тем же — значит разлогинить
-    всех, у кого в момент деплоя открыта вкладка со старым бандлом.
+    echo_refresh_in_body=True нужен в двух случаях, и оба обязательные:
+
+    1. Мобильный клиент прислал заголовок X-Client-Platform: mobile. Куку он
+       получить не может (SameSite=Strict + кросс-сайтовый origin webview),
+       поэтому для него тело — единственный канал доставки refresh.
+    2. Старая сборка фронта прислала refresh в теле запроса. Не ответить ей тем
+       же — значит разлогинить всех, у кого в момент деплоя открыта вкладка со
+       старым бандлом.
+
+    Кука ставится в обоих случаях: она безвредна там, где её некому принять, и
+    её отсутствие сломало бы веб.
     """
     tokens = create_token_pair(user.id, email, user.tier, user.token_version or 0)
     _set_refresh_cookie(response, tokens.refresh_token)
@@ -347,6 +386,7 @@ async def register_email_send(
     summary="Регистрация — подтвердить OTP",
 )
 async def register_email_verify(
+    request: Request,
     response: Response,
     data: VerifyEmailOTPRequest,
     db: Session = Depends(get_db),
@@ -370,7 +410,9 @@ async def register_email_verify(
         name=otp_data.get("name", ""),
     )
     logger.info("New user via email OTP: %s (%s)", mask_email(data.email), user.id)
-    return _build_token_response(user, data.email, response, db)
+    return _build_token_response(
+        user, data.email, response, db, echo_refresh_in_body=_is_mobile_client(request),
+    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -384,6 +426,7 @@ async def register_email_verify(
     summary="Регистрация (legacy, без OTP)",
 )
 async def register_legacy(
+    request: Request,
     response: Response,
     data: RegisterRequest,
     db: Session = Depends(get_db),
@@ -415,7 +458,9 @@ async def register_legacy(
     db.commit()
     db.refresh(user)
     logger.info("New user via legacy register: %s (%s)", mask_email(data.email), user.id)
-    return _build_token_response(user, data.email, response, db)
+    return _build_token_response(
+        user, data.email, response, db, echo_refresh_in_body=_is_mobile_client(request),
+    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -449,7 +494,9 @@ async def login(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
 
     await login_guard.reset(data.email)
-    return _build_token_response(user, user.email, response, db)
+    return _build_token_response(
+        user, user.email, response, db, echo_refresh_in_body=_is_mobile_client(request),
+    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -465,9 +512,15 @@ async def refresh_token(
     astro_refresh: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    # Источник токена — HttpOnly-кука. Тело запроса читается только как запасной
-    # путь для старых сборок фронта; когда они уйдут из кэшей браузеров, ветку с
-    # body можно удалить вместе с полем refresh_token в RefreshRequest.
+    # Источник токена — HttpOnly-кука (веб) ИЛИ тело запроса (мобильный клиент
+    # и старые сборки фронта).
+    #
+    # ⚠️ Если удалить чтение из тела: мобильное приложение потеряет возможность
+    # обновлять access-токен, и пользователей начнёт выбрасывать из аккаунта
+    # примерно через час — при полностью зелёных веб-тестах, потому что в вебе
+    # этот путь не используется вовсе. Куку webview не получает: она стоит с
+    # SameSite=Strict, а origin приложения (https://localhost) для неё
+    # кросс-сайтовый. Подробности — у MOBILE_CLIENT_HEADER выше.
     from_body = bool(data and data.refresh_token)
     raw_refresh = astro_refresh or (data.refresh_token if data else None)
     if not raw_refresh:
@@ -504,7 +557,11 @@ async def refresh_token(
         logger.error("refresh rotation deny failed: %s", exc)
 
     return _build_token_response(
-        user, user.email or token_data.email, response, db, echo_refresh_in_body=from_body
+        user,
+        user.email or token_data.email,
+        response,
+        db,
+        echo_refresh_in_body=from_body or _is_mobile_client(request),
     )
 
 
@@ -529,6 +586,12 @@ async def logout(
         pass  # некорректный access — отзывать нечего
     except Exception as exc:  # noqa: BLE001
         logger.error("logout deny(access) failed: %s", exc)
+    # Refresh из куки (веб) или из тела (мобильный клиент — куки у него нет).
+    #
+    # ⚠️ Если удалить чтение из тела: выход из мобильного приложения перестанет
+    # отзывать refresh на сервере. Токен останется живым до конца своего срока —
+    # то есть «вышел из аккаунта» будет означать только очистку памяти
+    # устройства, а украденный до выхода токен продолжит работать неделю.
     raw_refresh = astro_refresh or (data.refresh_token if data else None)
     if raw_refresh:
         try:
@@ -550,6 +613,7 @@ async def logout(
 
 @router.post("/google", response_model=TokenResponse, summary="Вход через Google")
 async def google_oauth(
+    request: Request,
     response: Response,
     data: GoogleOAuthRequest,
     db: Session = Depends(get_db),
@@ -602,7 +666,9 @@ async def google_oauth(
         user.google_sub = google_user.sub
         db.commit()
 
-    return _build_token_response(user, user.email, response, db)
+    return _build_token_response(
+        user, user.email, response, db, echo_refresh_in_body=_is_mobile_client(request),
+    )
 
 
 # ═══════════════════════════════════════════════════════════

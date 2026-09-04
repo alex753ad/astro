@@ -72,6 +72,12 @@ jobs:
             echo "В dist-mobile нет абсолютного адреса API — .env.mobile не подхватился"
             exit 1
           fi
+          if ! grep -rq "X-Client-Platform" dist-mobile/assets/; then
+            echo "В dist-mobile нет заголовка мобильного клиента — VITE_MOBILE не подхватился"
+            echo "Без него refresh придёт кукой, которую webview не получит,"
+            echo "и пользователя выбросит из приложения через час."
+            exit 1
+          fi
 
       # Каталог android/ не в git (см. frontend/CAPACITOR.md), поэтому каждый
       # прогон генерирует его из шаблона Capacitor. Условие оставлено ради
@@ -83,6 +89,17 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
+
+      # Правки нативного проекта, который генерируется заново каждым прогоном.
+      # Падает, если якорь не найден: молчаливый пропуск дал бы APK без
+      # настройки, о наличии которой все уверены.
+      - name: Патчи нативного проекта
+        working-directory: frontend
+        run: node scripts/patch-android.mjs
+
+      - name: Проверить allowBackup=false
+        working-directory: frontend
+        run: grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
 
       # SDK на образе runner'а уже стоит, но состав платформ меняется от
       # образа к образу. sdkmanager идемпотентен: если пакет есть, шаг
