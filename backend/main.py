@@ -402,7 +402,10 @@ else:
 # "*", а Starlette в ответ на preflight отражает запрошенные значения —
 # фактически разрешая любой метод и заголовок.
 CORS_ALLOW_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
-CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "X-Chart-Token"]
+# X-Client-Platform: им мобильный клиент (Capacitor) просит отдать refresh-токен
+# в теле ответа вместо HttpOnly-куки — webview ходит с origin https://localhost,
+# и SameSite=Strict куку туда не отдаёт. Подробности — backend/auth/router.py.
+CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "X-Chart-Token", "X-Client-Platform"]
 
 # Сочетание allow_credentials=True с "*" в origins недопустимо: браузер
 # отбросит такой ответ, а на сервере это тихая ошибка конфигурации.
