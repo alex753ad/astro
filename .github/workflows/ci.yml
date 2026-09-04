@@ -2,11 +2,12 @@ name: CI/CD
 
 on:
   push:
-    # mobile добавлена, потому что ветка меняет бэкенд (транспорт refresh-токена),
-    # а решающий прогон — здесь: Linux, Redis и Postgres, которых нет локально.
+    # mobile и feed добавлены, потому что обе ветки меняют бэкенд (транспорт
+    # refresh-токена и лента событий), а решающий прогон — здесь: Linux, Redis
+    # и Postgres, которых нет локально.
     # Деплой этим не задевается: job deploy требует workflow_dispatch И ref=main,
     # то есть с пуша в любую ветку он не стартует в принципе.
-    branches: [main, mobile]
+    branches: [main, mobile, feed]
   pull_request:
     branches: [main]
   # Ручной запуск — единственный способ выкатить прод, см. job deploy ниже.
