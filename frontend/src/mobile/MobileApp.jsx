@@ -21,6 +21,7 @@ import React from 'react';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../hooks/useAuth.jsx';
 import useAuth from '../hooks/useAuth.jsx';
+import { ThemeProvider } from './useTheme.jsx';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import TabShell from './components/TabShell';
@@ -60,8 +61,12 @@ function MobileRouter() {
 
 export default function MobileApp() {
   return (
-    <AuthProvider>
-      <MobileRouter />
-    </AuthProvider>
+    // ThemeProvider снаружи: класс .dark на <html> нужен всему дереву сразу,
+    // включая экран входа, а не только вкладке «Ещё», где живёт переключатель.
+    <ThemeProvider>
+      <AuthProvider>
+        <MobileRouter />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

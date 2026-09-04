@@ -13,12 +13,37 @@
  * (значит "хардкодить только через CSS-переменные" соблюдено), а сюда
  * вынесено то, что инлайн-стилями не выразить: :focus, :active, @font-face.
  *
- * Токены — те же значения, что в DESIGN_SYSTEM.md, только тёмная тема:
- * тумблера темы в этом задании нет, и раздел «Оформление» просит именно
- * «тёмная тема по умолчанию» без переключателя.
+ * Токены — те же значения, что в DESIGN_SYSTEM.md (§2), обе темы. Умолчание
+ * в мобильном приложении — СВЕТЛАЯ тема (обратное вебу, см. §1 документа и
+ * useTheme.jsx рядом) — поэтому `:root` держит светлые значения без всякого
+ * класса, а `.dark` их переопределяет. Это тот же механизм, что и в
+ * index.css веба (`:root` / `.dark`, класс на <html> через
+ * classList.toggle), только с обратным умолчанием — сделано намеренно
+ * одинаково, чтобы не заводить второй способ переключения темы в проекте.
  */
 
 :root {
+  --bg: #FDFBF9;
+  --bg-card: #FFFFFF;
+  --bg-deeper: #FDFBFF;
+  --text-primary: #1E1A2E;
+  --text-secondary: #6B6885;
+  --border: #EDE8F5;
+  --accent: #7C6CFF;
+  --accent-glow: #8B5CF6;
+  --accent-muted: rgba(139, 92, 246, 0.08);
+  --color-danger: #DC2626;
+  --color-success: #059669;
+
+  /* Кириллица — весь UI-текст, латиница — email/версия/бренд. У Space
+     Grotesk кириллицы нет вовсе (см. src/assets/fonts/README.md) — для
+     русского текста display-стек намеренно проваливается в Inter, а не в
+     system-ui, как в index.css: так ближе к рисунку дизайн-системы. */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+.dark {
   --bg: #0F0A1A;
   --bg-card: #1A1230;
   --bg-deeper: #231C38;
@@ -30,13 +55,6 @@
   --accent-muted: rgba(139, 92, 246, 0.15);
   --color-danger: #F87171;
   --color-success: #34D399;
-
-  /* Кириллица — весь UI-текст, латиница — email/версия/бренд. У Space
-     Grotesk кириллицы нет вовсе (см. src/assets/fonts/README.md) — для
-     русского текста display-стек намеренно проваливается в Inter, а не в
-     system-ui, как в index.css: так ближе к рисунку дизайн-системы. */
-  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-  --font-body: 'Inter', system-ui, sans-serif;
 }
 
 /* ── Локальные шрифты: без сети, приложение открывается сразу после установки ── */
@@ -120,6 +138,14 @@ body {
   font-size: 16px;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  /* §7 DESIGN_SYSTEM.md — «Смена темы» */
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition-duration: 0s;
+  }
 }
 
 * {
