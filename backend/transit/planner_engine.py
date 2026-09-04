@@ -37,6 +37,37 @@ def _locked_payload() -> dict:
     return {"theme": "", "groups": []}
 
 
+# ── Тарифные предикаты: что закрыто в планере ────────────────────────────────
+#
+# Вынесены из build_planner() под ленту (backend/feed/) — той нужны РОВНО те же
+# правила, а второй их экземпляр разъехался бы с этим при первой же правке
+# сетки. build_planner ниже зовёт эти же функции, поведение не изменилось.
+#
+# ⚠️ Этих правил НЕТ в TIER_FLAGS и искать их там бесполезно: там лежит
+# `planner_months` — горизонт (какой месяц вообще разрешено запросить,
+# проверяется в main.py через planner_offset_window). Что закрыто ВНУТРИ
+# разрешённого месяца — только здесь.
+
+def is_month_period_locked(tier: Optional[str], planet_key: str, is_current: bool) -> bool:
+    """Период быстрой планеты в месячных секциях.
+
+    E1 (Free-витрина): у Free открыт ровно один период — текущий период
+    Солнца. Он и продаёт остальные: человек видит формат разбора на своём
+    настоящем периоде, а не на примере.
+    """
+    return tier == "free" and not (planet_key == "sun" and is_current)
+
+
+def is_moon_week_locked(tier: Optional[str]) -> bool:
+    """Луна по домам на неделю — закрыта только на Free."""
+    return tier == "free"
+
+
+def is_longterm_locked(tier: Optional[str]) -> bool:
+    """Долгосрочные транзиты — открыты с Pro и выше, то есть закрыты и на Lite."""
+    return tier not in ("pro", "premium")
+
+
 def _unlocked_payload(planet_eng: str, house: int) -> dict:
     """Полный набор текстов дома дословно из methodology.json.
 
@@ -100,9 +131,6 @@ def build_planner(
     if today is None:
         today = date.today()
 
-    free = (tier == "free")
-    is_pro = tier in ("pro", "premium")
-
     periods = compute_planner_periods(
         natal_profile=natal_profile,
         from_date=from_date,
@@ -118,14 +146,13 @@ def build_planner(
     month_sections = []
     for p in periods.get("fast_planets", []):
         eng = _KEY_TO_ENG.get(p["planet_key"], "")
-        is_sun = p["planet_key"] == "sun"
         sections_periods = []
         for period in p.get("periods", []):
             house = period.get("house")
             if not house:
                 continue
             # E1: у Free разблокирован только текущий период Солнца
-            locked = free and not (is_sun and period.get("is_current", False))
+            locked = is_month_period_locked(tier, p["planet_key"], period.get("is_current", False))
             sections_periods.append({
                 "period": period["period"],
                 "house":  house,
@@ -152,8 +179,9 @@ def build_planner(
             "date":  passage["date"],
             "time":  passage.get("time", ""),
             "house": house,
-            "locked": free,
-            **(_locked_payload() if (free or not house) else _unlocked_payload("Moon", house)),
+            "locked": is_moon_week_locked(tier),
+            **(_locked_payload() if (is_moon_week_locked(tier) or not house)
+               else _unlocked_payload("Moon", house)),
         })
 
     # ── longterm: медленные планеты — открыто только с Pro (сетка тарифов) ────
@@ -161,7 +189,7 @@ def build_planner(
     for p in periods.get("slow_planets", []):
         eng = _KEY_TO_ENG.get(p["planet_key"], "")
         house = p.get("house", 0)
-        locked = not is_pro
+        locked = is_longterm_locked(tier)
         longterm.append({
             "planet":          p["planet_key"],
             "planet_name":     p["planet_name"],

@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Optional
 import swisseph as swe
@@ -64,11 +64,42 @@ class CalendarEvent:
 def _jd(d: date, hour: float = 12.0) -> float:
     return swe.julday(d.year, d.month, d.day, hour)
 
-def _jd_to_dt(jd: float) -> tuple[str, str]:
+
+def jd_to_utc(jd: float) -> datetime:
+    """Julian Day → момент как aware-datetime в UTC.
+
+    ЕДИНСТВЕННАЯ точка, где момент перестаёт быть числом и становится
+    временем. Заведена под ленту (backend/feed/), но существующие
+    форматтеры ниже переведены на неё же — иначе в проекте осталось бы
+    два независимых способа превратить JD во время, и они разъехались бы
+    ровно так, как уже разъехались пояса.
+
+    Почему это важно: `swe.revjul` отдаёт УТЦ-компоненты, и раньше каждый
+    потребитель сам решал, что с ними делать — `_jd_to_dt` подписывал их
+    «UTC», `_jd_to_gmt3` и фазы Луны в main.py вручную прибавляли три часа
+    (арифметикой, не таймзоной). В результате затмения и фазы одного и того
+    же календаря приходили в РАЗНЫХ поясах, расхождение до 3 часов, а у
+    события около полуночи уезжала и дата. Это находка 3.7 из CLAUDE.md.
+
+    Дробная часть часа переводится в секунды УСЕЧЕНИЕМ, а не округлением, и
+    это не небрежность: все три прежних форматтера брали `int()` и от часов,
+    и от минут. Округление сдвинуло бы отображаемую минуту у моментов вида
+    59.7 секунды — то есть поменяло бы строки, которые уже отдаёт
+    /calendar/lunar. Секунды при этом сохраняются: для показа они не нужны,
+    для сортировки ленты по времени — нужны.
+    """
     y, mo, d, h_float = swe.revjul(jd)
-    h = int(h_float)
-    m = int((h_float - h) * 60)
-    return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}", f"{h:02d}:{m:02d}"
+    total_seconds = int(h_float * 3600)
+    # revjul может отдать 24:00:00 на границе суток — timedelta переносит сам,
+    # без ручной возни с длиной месяца, как это было в _jd_to_gmt3 ниже.
+    return datetime(int(y), int(mo), int(d), tzinfo=timezone.utc) + timedelta(seconds=total_seconds)
+
+
+def _jd_to_dt(jd: float) -> tuple[str, str]:
+    """JD → ("YYYY-MM-DD", "HH:MM") в UTC. Формат сохранён дословно:
+    строки уходят наружу в /calendar/lunar, менять их нельзя."""
+    dt = jd_to_utc(jd)
+    return dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M")
 
 def _lon(jd: float, planet: str) -> float:
     r, _ = swe.calc_ut(jd, PLANET_IDS[planet], swe.FLG_SWIEPH)
@@ -359,26 +390,19 @@ def _jd_to_gmt3(jd: float) -> tuple[str, str]:
     (main.py, _compute_lunar_calendar). Два часовых пояса на одной странице
     разъехались бы на событиях около полуночи: значок встал бы на соседний день.
 
-    Перенос через сутки/месяц/год повторяет логику фаз дословно — копией, а не
-    выносом в общую функцию: трогать работающий расчёт фаз ради красоты дороже,
-    чем пятнадцать строк дубля.
-    """
-    from calendar import monthrange
+    Здесь раньше лежала копия переноса через сутки/месяц/год из расчёта фаз
+    (main.py) — пятнадцать строк ручной арифметики, и в комментарии стояло,
+    что копия дешевле выноса. Под ленту момент всё равно понадобился честным
+    datetime, поэтому обе копии сведены в jd_to_utc(): перенос делает
+    timedelta, а не проверка длины месяца руками.
 
-    y, mo, d, h = swe.revjul(jd)
-    y, mo, d = int(y), int(mo), int(d)
-    h += 3
-    if h >= 24:
-        h -= 24
-        d += 1
-        _, max_day = monthrange(y, mo)
-        if d > max_day:
-            d = 1
-            mo += 1
-            if mo > 12:
-                mo = 1
-                y += 1
-    hh, mm = int(h), int((h % 1) * 60)
+    Смещение остаётся фиксированным +3 без учёта DST — Москва его не
+    переводит с 2014 года, а менять пояс календаря — отдельное решение, не
+    побочный эффект этой правки. Выдаваемые строки прежние.
+    """
+    local = jd_to_utc(jd) + timedelta(hours=3)
+    y, mo, d = local.year, local.month, local.day
+    hh, mm = local.hour, local.minute
     return f"{y:04d}-{mo:02d}-{d:02d}", f"{hh:02d}:{mm:02d}"
 
 
