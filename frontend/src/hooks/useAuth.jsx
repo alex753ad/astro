@@ -7,14 +7,26 @@
  * - Automatic token refresh before expiry
  * - Tier-based feature flags
  *
- * Refresh-токен здесь не хранится и не виден вовсе: сервер кладёт его в
+ * Refresh-токен в вебе здесь не хранится и не виден вовсе: сервер кладёт его в
  * HttpOnly-куку astro_refresh (Path=/api/v1/auth, SameSite=Strict). Раньше он
  * лежал в localStorage и жил 7 дней — то есть один XSS или одна испорченная
  * npm-зависимость давали неделю доступа к чужому аккаунту.
+ *
+ * В мобильной сборке куки нет (webview ходит кросс-сайтово, SameSite=Strict её
+ * не отдаёт), поэтому refresh едет в теле ответа и хранится в нативном
+ * хранилище устройства — весь этот путь в api/authTransport.js, в localStorage
+ * он не попадает и там.
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { ApiError, getSubscription, saveAnonymousChart } from '../api/client';
+import {
+  AUTH_CREDENTIALS,
+  authRequestBody,
+  clientHeaders,
+  forgetRefreshToken,
+  rememberRefreshToken,
+} from '../api/authTransport';
 import { API_BASE as CONFIG_API_BASE } from '../config';
 import { getRefCode } from '../utils/refCode';
 
@@ -77,10 +89,11 @@ function clearStorage() {
 
 async function apiFetch(path, options = {}) {
   const resp = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', ...clientHeaders(), ...options.headers },
     // Кука с refresh нужна на /refresh и /logout; по умолчанию fetch её не шлёт,
     // если API живёт на другом origin (dev-сервер, отдельный поддомен).
-    credentials: 'include',
+    // В мобильной сборке куки нет — там 'omit' и токен в теле, см. authTransport.js.
+    credentials: AUTH_CREDENTIALS,
     ...options,
   });
   const body = await resp.json().catch(() => ({ detail: resp.statusText }));
@@ -162,6 +175,11 @@ function useAuthInternal() {
     setUser(newUser);
     // Сохраняем сразу — не ждём useEffect
     saveTokens({ accessToken: data.access_token, user: newUser });
+    // Мобильный клиент: refresh пришёл в теле и живёт в нативном хранилище.
+    // Сервер ротирует его на каждом обновлении, поэтому сохранять надо здесь —
+    // в единственной точке, через которую проходят и логин, и refresh, и OAuth.
+    // В вебе это no-op: там data.refresh_token пуст, токен в куке.
+    await rememberRefreshToken(data);
     scheduleRefresh(data.access_token);
     loadFeatures(data.access_token);
 
@@ -188,8 +206,9 @@ function useAuthInternal() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Automatic token refresh ─────────────────────────────
-  // Токен не передаём: сервер берёт его из HttpOnly-куки, которую браузер
-  // приложит сам (credentials: 'include' в apiFetch).
+  // В вебе токен не передаём: сервер берёт его из HttpOnly-куки, которую
+  // браузер приложит сам (credentials: 'include' в apiFetch). В мобильной
+  // сборке куки нет, и токен уезжает в теле — authRequestBody() ниже.
   // Дедуп: несколько запросов, упавших в 401 одновременно (или таймер +
   // ручной вызов), не должны бить /refresh параллельно — ротация делает
   // использованный refresh недействительным, второй запрос разлогинил бы юзера.
@@ -201,7 +220,9 @@ function useAuthInternal() {
       try {
         const data = await apiFetch('/refresh', {
           method: 'POST',
-          body: JSON.stringify({}),
+          // В вебе `{}` — сервер возьмёт refresh из куки. На устройстве сюда
+          // попадёт сохранённый токен: куки там нет.
+          body: await authRequestBody(),
         });
         await applyTokenResponse(data);
         return data.access_token;
@@ -325,21 +346,34 @@ function useAuthInternal() {
   const logout = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     // Отзываем токены на сервере (fire-and-forget, сессию чистим в любом случае).
+    //
+    // Порядок важен для мобильной сборки: тело запроса собирается из нативного
+    // хранилища, поэтому чистить его можно только ПОСЛЕ того, как запрос
+    // отправлен. Иначе выход перестанет отзывать refresh на сервере, и
+    // «вышел из аккаунта» будет означать лишь очистку памяти устройства —
+    // украденный до выхода токен продолжит работать неделю.
     try {
       const at = localStorage.getItem(ACCESS_TOKEN_KEY);
       if (at) {
-        fetch(`${API_BASE}/logout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${at}`,
-          },
-          // Refresh сервер возьмёт из куки и там же её погасит — телу передавать
-          // нечего. credentials обязателен, иначе кука не уедет.
-          credentials: 'include',
-          body: JSON.stringify({}),
-          keepalive: true,
-        }).catch(() => {});
+        authRequestBody()
+          .then((body) => fetch(`${API_BASE}/logout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${at}`,
+              ...clientHeaders(),
+            },
+            // В вебе refresh сервер возьмёт из куки и там же её погасит — телу
+            // передавать нечего, но credentials обязателен, иначе кука не уедет.
+            // На устройстве куки нет: токен уходит в теле.
+            credentials: AUTH_CREDENTIALS,
+            body,
+            keepalive: true,
+          }))
+          .catch(() => {})
+          .finally(() => { forgetRefreshToken().catch(() => {}); });
+      } else {
+        forgetRefreshToken().catch(() => {});
       }
     } catch { /* noop */ }
     setAccessToken(null);
