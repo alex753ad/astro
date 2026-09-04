@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Aristea Timeline</title>
+
+    <!--
+      Отдельный HTML для Capacitor-сборки. От index.html отличается намеренно:
+
+      • нет <link rel="manifest"> и apple-touch-icon — PWA-манифест в нативной
+        обёртке не нужен, приложение уже установлено;
+      • нет Google Fonts и вообще любых внешних <link> — страница грузится
+        локально из APK, и запрос к шрифтам на старте упирался бы в сеть
+        раньше, чем отрисуется что-либо. Шрифт системный;
+      • путь к точке входа тот же относительный стиль, что и base: './' в
+        vite.config.mobile.js — с абсолютного /src/... webview по file://
+        ничего не найдёт.
+
+      Инлайновых <script> здесь, как и в index.html, быть не должно.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.mobile.jsx"></script>
+  </body>
+</html>

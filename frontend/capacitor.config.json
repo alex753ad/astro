@@ -1,0 +1,8 @@
+{
+  "appId": "ru.aristeatime.app",
+  "appName": "Aristea Timeline",
+  "webDir": "dist-mobile",
+  "android": {
+    "allowMixedContent": false
+  }
+}
