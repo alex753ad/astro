@@ -106,3 +106,73 @@ import astroSymbols2Src from '../assets/fonts/NotoSansSymbols2-subset.woff2?inli
 Файлы лежат в `src/`, а не в `public/` — только так их можно импортировать
 как модуль и использовать `?inline`; `public/` Vite копирует как есть, без
 доступа к сборке.
+
+---
+
+# UI-шрифты мобильной сборки — Space Grotesk / Inter (сабсет по начертаниям)
+
+`SpaceGrotesk-600.woff2`, `SpaceGrotesk-700.woff2`,
+`Inter-{400,500,600}-{cyrillic,latin}.woff2` — используются
+`frontend/src/mobile/` (Capacitor-приложение) через `@font-face` в
+`frontend/src/mobile/fonts.css`.
+
+## Зачем локально, а не как в вебе
+
+Веб (`index.html`) подключает оба шрифта с `fonts.googleapis.com` —
+`<link rel="preconnect">` + `<link rel="stylesheet" href="...css2?family=...">`.
+Мобильное приложение открывается из `file://`/`https://localhost` и обязано
+работать без сети сразу после установки (см. `CAPACITOR.md`) — внешний
+`<link>` на Google Fonts недопустим тем же способом, каким недопустим
+инлайновый `<script>` в `index.html` (см. комментарий там же). Поэтому здесь
+— не ссылка, а сами файлы, byte-for-byte из официального источника, тем же
+способом, каким уже собраны сабсеты Noto Sans Symbols выше.
+
+## Источник и как перекачать заново
+
+Файлы взяты из npm-пакетов `@fontsource/space-grotesk@5.3.0` и
+`@fontsource/inter@5.3.0` (`node_modules/@fontsource/*/files/*.woff2` после
+`npm install @fontsource/space-grotesk @fontsource/inter`, пакеты после
+копирования удалены — они нужны были только как источник файлов, не как
+зависимость времени сборки). Fontsource публикует те же файлы, что отдаёт
+`fonts.gstatic.com`, с тем же байткодом — распаковка их npm-пакета проще и
+воспроизводимее, чем ручной `curl` по `fonts.googleapis.com/css2`.
+
+## Почему не все начертания и не все сабсеты Google-версии
+
+Google Fonts на вебе грузит Space Grotesk `400;500;600;700` и Inter
+`400;500;600` — калька с `index.html`. Мобильный экран входа использует
+только то, что реально требует DESIGN_SYSTEM.md для заголовков/кнопок
+(`text-lg`+, `font-weight: 600–700`) и текста (`text-base`, `400`; подписи
+полей, `text-xs` — тоже 700, но уже покрыто); `500` для Inter взят с запасом
+под будущие экраны, не используется сегодняшним экраном входа впрямую.
+Тянуть весь набор весов ради двух экранов — лишний вес в офлайн-бандл без
+видимого эффекта.
+
+Сабсеты — по языку глифов, а не «как у Google»: **Inter** взят в
+`cyrillic` + `latin` (UI полностью на русском, плюс email/версия — латиница).
+**Space Grotesk** взят только в `latin` — **у него нет кириллического
+покрытия вовсе** (`metadata.json` пакета: `"subsets": ["latin", "latin-ext",
+"vietnamese"]`). Это не ограничение сабсетирования, а факт исходного шрифта:
+то же самое уже происходит и в вебе — `font-family: 'Space Grotesk', ...` на
+русском тексте молча не находит ни одного кириллического глифа и рендерится
+шрифтом, стоящим в стеке следующим. Стек в `mobile/fonts.css` — намеренно
+`'Space Grotesk', 'Inter', system-ui, sans-serif` (не как в `index.css`,
+где после Space Grotesk сразу `system-ui`): для кириллицы это даёт
+последовательный Inter вместо шрифта ОС, ближе по рисунку к дизайн-системе.
+Латиница (сам бренд «Aristea Timeline», версия сборки) рендерится Space
+Grotesk по-настоящему.
+
+## Лицензия
+
+SIL Open Font License 1.1 для обоих — `OFL-SpaceGrotesk.txt` (Copyright 2020
+The Space Grotesk Project Authors) и `OFL-Inter.txt` (Copyright 2020 The
+Inter Project Authors). Тексты — из тех же npm-пакетов.
+
+## Пересборка (другие веса/сабсеты)
+
+```bash
+npm install @fontsource/space-grotesk@5 @fontsource/inter@5
+# нужные файлы лежат в node_modules/@fontsource/<name>/files/
+#   <name>-<subset>-<weight>-normal.woff2
+npm uninstall @fontsource/space-grotesk @fontsource/inter
+```

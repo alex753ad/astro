@@ -97,9 +97,11 @@ jobs:
         working-directory: frontend
         run: node scripts/patch-android.mjs
 
-      - name: Проверить allowBackup=false
+      - name: Проверить allowBackup=false и портретную ориентацию
         working-directory: frontend
-        run: grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
+        run: |
+          grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:screenOrientation="portrait"' android/app/src/main/AndroidManifest.xml
 
       # SDK на образе runner'а уже стоит, но состав платформ меняется от
       # образа к образу. sdkmanager идемпотентен: если пакет есть, шаг
