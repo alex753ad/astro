@@ -55,7 +55,11 @@ export default function FeedDayStrip({ from, to, today, dotsByDay, onSelectDay }
         gap: 4,
         overflowX: 'auto',
         overflowY: 'hidden',
-        padding: '4px 0 12px',
+        // Слева и справа — не только сверху/снизу: без него первая и
+        // последняя колонки стоят вровень с краем экрана, и на прокрутке
+        // видна обрезанная половина точек следующей колонки без всякого
+        // отступа перед ней — читается как поломка, а не как «есть ещё».
+        padding: '4px 8px 12px',
         // Скроллбар скрыт (§7) — Firefox/стандарт и WebKit разными свойствами.
         scrollbarWidth: 'none',
       }}

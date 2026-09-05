@@ -137,12 +137,9 @@ export default function FeedEventCard({ event, onOpen }) {
     <article
       onClick={openable ? () => onOpen(event) : undefined}
       style={{
+        position: 'relative',
         background: boxed ? 'var(--bg-card)' : 'transparent',
         border: boxed ? `1px solid ${openInterpretation ? 'var(--accent)' : 'var(--border)'}` : 'none',
-        // Цветная полоса периода (§5) — тем же свойством border, но
-        // толще и своим цветом с левой стороны; остальные три стороны не
-        // трогает, поэтому объявлена ПОСЛЕ общего border, а не вместо.
-        ...(periodColor ? { borderLeft: `3px solid ${periodColor}` } : {}),
         borderRadius: boxed ? 20 : 0,
         padding: boxed ? 16 : 0,
         overflow: 'hidden',
@@ -155,6 +152,18 @@ export default function FeedEventCard({ event, onOpen }) {
         minHeight,
       }}
     >
+      {/*
+        Цветная полоса периода (§5) — отдельный элемент, а не борт `border`.
+        Утолщённый `border-left` держит скругление УГЛОВОЙ ДУГИ card'а, но не
+        собственное: на стыке с 1px border остальных сторон дуга съезжает по
+        радиусу иначе и торчит поверх скругления сверху/снизу. Прямоугольник
+        без своего radius, вырезанный по форме card'а через `overflow:hidden`
+        + `borderRadius` родителя (уже стоят на article), даёт ровно те же
+        3px спецификации без этого эффекта.
+      */}
+      {periodColor && (
+        <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: periodColor }} />
+      )}
       {/* Время дублировало бы колонку слева на линии (§3) — убрано у
           формулы транзита. У остальных видов колонка не даёт точного
           времени (период там — датой начала), поэтому строка остаётся. */}
