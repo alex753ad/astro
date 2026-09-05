@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { signRu, timePart } from '../lib/feedTime';
+import { eventTitle, signRu, timePart } from '../lib/feedTime';
 
 export default function FeedEventPanel({ event, onClose, onUpgrade }) {
   if (!event) return null;
@@ -43,7 +43,7 @@ export default function FeedEventPanel({ event, onClose, onUpgrade }) {
       />
       <div
         role="dialog"
-        aria-label={event.text || 'Событие'}
+        aria-label={eventTitle(event)}
         style={{
           position: 'fixed',
           left: 0,
@@ -97,7 +97,7 @@ export default function FeedEventPanel({ event, onClose, onUpgrade }) {
               lineHeight: 1.25,
             }}
           >
-            {event.text || '—'}
+            {eventTitle(event)}
           </h2>
           {hasSigns && (
             <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>

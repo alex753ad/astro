@@ -270,3 +270,31 @@ button, input {
 @media (prefers-reduced-motion: reduce) {
   .mobile-skeleton { animation: none; }
 }
+
+/* ── Астрологические значки (lib/feedGlyphs.js) ──
+   Те же два сабсета, что носит веб (см. src/assets/fonts/README.md): в
+   системных шрифтах Android/iOS этот блок Unicode либо пуст (тофу), либо
+   подменяется цветным emoji-шрифтом, который игнорирует color. Два файла,
+   а не один, — свойство шрифтов: ☉ Солнце (U+2609) есть только в
+   Symbols 2, остальные знаки — в первом.
+
+   unicode-range сужен до тех же кодпоинтов, что в сабсетах: браузер не
+   станет скачивать файл ради текста, в котором этих знаков нет. */
+
+@font-face {
+  font-family: 'AstroSymbols';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/NotoSansSymbols-subset.woff2') format('woff2');
+  unicode-range: U+2648-2653, U+263D, U+263F, U+2640, U+2642-2647, U+260A-260B;
+}
+
+@font-face {
+  font-family: 'AstroSymbols';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/NotoSansSymbols2-subset.woff2') format('woff2');
+  unicode-range: U+2609;
+}

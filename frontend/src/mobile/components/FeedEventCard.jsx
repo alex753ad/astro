@@ -19,7 +19,7 @@
  */
 
 import React from 'react';
-import { signRu, timePart } from '../lib/feedTime';
+import { eventTitle, signRu, timePart } from '../lib/feedTime';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
@@ -135,8 +135,12 @@ export default function FeedEventCard({ event, onOpen }) {
           lineHeight: 1.3,
         }}
       >
-        {event.text || '—'}
+        {eventTitle(event)}
       </h3>
+
+      {/* Тема периода — вторая строка, если пришла. На free она пустая
+          (сервер отдаёт `theme: ""` вместе с locked), и строки не будет. */}
+      {meta.theme && <div style={rowStyle}>{meta.theme}</div>}
 
       {hasSigns && (
         <div style={rowStyle}>

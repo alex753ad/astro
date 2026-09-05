@@ -1,20 +1,19 @@
 /**
- * FeedScreen.jsx — экран «Лента» (SPEC_FEED_SCREEN.md, первый заход).
+ * FeedScreen.jsx — экран «Лента» (SPEC_FEED_SCREEN.md).
  *
- * Сделано: поток событий, липкие заголовки дней, карточка события, панель
- * события по тапу, состояния загрузки/ошибки/отсутствия карты, открытие на
- * сегодняшнем дне.
+ * Первый заход: поток событий, липкие заголовки дней, карточка события,
+ * панель события по тапу, состояния загрузки/ошибки/отсутствия карты,
+ * открытие на сегодняшнем дне.
  *
- * НЕ сделано, второй заход: полоса «сейчас» с долгосрочными периодами (§4),
- * свёртка лунных транзитов (§7), карточка края горизонта (§9).
+ * Второй заход добавил: полосу «сейчас» с долгосрочными периодами (§4),
+ * свёртку лунного фона внутри дня (§7), карточку края горизонта (§9).
  *
- * ⚠️ `planner_longterm` уже сейчас изъят из потока (§4, §5: «изымаются
- * полностью»), хотя полосы для него ещё нет — то есть пять этих событий в
- * первом заходе не показываются нигде. Оставить их в потоке было бы хуже
- * молчаливой потери: их `at` лежит на годы раньше окна (Плутон — 2012), и
- * лента открывалась бы заголовком «17 ноября 2012» над всем остальным. По
- * той же причине после фильтрации в потоке не остаётся ни одного события с
- * `started_before` — единственный вид, который его давал, только что убран.
+ * ⚠️ `planner_longterm` изъят из потока (§4, §5: «изымаются полностью») и
+ * живёт только в полосе сверху. Оставить их в потоке нельзя: их `at` лежит
+ * на годы раньше окна (Плутон — 2012), и лента открывалась бы заголовком
+ * «17 ноября 2012» над всем остальным. По той же причине после фильтрации
+ * в потоке не остаётся ни одного события с `started_before` — единственный
+ * вид, который его давал, только что убран.
  *
  * Прокрутка живёт в TabShell.jsx, одна на все вкладки, и здесь её заводить
  * нельзя: собственный `overflow` на любом предке заголовка сломал бы
@@ -25,6 +24,9 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import FeedDayHeader from '../components/FeedDayHeader';
 import FeedEventCard from '../components/FeedEventCard';
 import FeedEventPanel from '../components/FeedEventPanel';
+import FeedHorizonCard from '../components/FeedHorizonCard';
+import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
+import FeedNowStrip from '../components/FeedNowStrip';
 import FeedSkeleton from '../components/FeedSkeleton';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
 import { dayLabel, groupByDay, localToday } from '../lib/feedTime';
@@ -109,7 +111,9 @@ export default function FeedScreen() {
 
   const today = localToday();
   // planner_longterm — в полосу «сейчас» (§4), а не в поток. См. шапку.
-  const events = (feed?.events || []).filter((e) => e.kind !== 'planner_longterm');
+  const allEvents = feed?.events || [];
+  const longterm = allEvents.filter((e) => e.kind === 'planner_longterm');
+  const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
   const days = groupByDay(events);
 
   /**
@@ -174,16 +178,34 @@ export default function FeedScreen() {
 
   return (
     <div style={PAGE_PADDING}>
-      {days.map((day) => (
-        <section key={day.date} ref={day.date === anchorDate ? anchorRef : undefined}>
-          <FeedDayHeader label={dayLabel(day.date, today)} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 16 }}>
-            {day.events.map((event) => (
-              <FeedEventCard key={event.key} event={event} onOpen={setSelected} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
+          скроллера: собственный overflow здесь сломал бы sticky заголовков
+          (см. FeedDayHeader.jsx), а прибивать полосу к верху экрана
+          спецификация не просит. */}
+      <FeedNowStrip events={longterm} />
+
+      {days.map((day) => {
+        // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
+        // проходы Луны по домам, но не фазы и не затмения — у тех своя
+        // важность, и они остаются в потоке как события.
+        const background = day.events.filter(isLunarBackground);
+        const foreground = day.events.filter((e) => !isLunarBackground(e));
+        return (
+          <section key={day.date} ref={day.date === anchorDate ? anchorRef : undefined}>
+            <FeedDayHeader label={dayLabel(day.date, today)} />
+            {foreground.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: background.length ? 12 : 16 }}>
+                {foreground.map((event) => (
+                  <FeedEventCard key={event.key} event={event} onOpen={setSelected} />
+                ))}
+              </div>
+            )}
+            <FeedLunarFold events={background} onOpen={setSelected} />
+          </section>
+        );
+      })}
+
+      <FeedHorizonCard horizon={feed?.horizon} />
 
       <FeedEventPanel event={selected} onClose={() => setSelected(null)} />
     </div>

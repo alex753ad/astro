@@ -109,6 +109,50 @@ export function dayLabel(dateStr, todayStr) {
 }
 
 /**
+ * Заголовок карточки.
+ *
+ * У транзитов, фаз, затмений, станций и равноденствий заголовок приходит
+ * готовым в `text`. У периодов планера (`planner_period`,
+ * `planner_moon_house`) `text` пустой — там подпись собирается на клиенте
+ * из meta: «Солнце в 11 доме» (решение владельца 05.09.2026, бэкенд не
+ * трогаем). Без этого 21 карточка из 718 рисовалась прочерком.
+ */
+export function eventTitle(event) {
+  if (event.text) return event.text;
+  const meta = event.meta || {};
+  if (meta.planet_name && meta.house) return `${meta.planet_name} в ${meta.house} доме`;
+  return '—';
+}
+
+/** «2026-03-31» → «31 марта». Для края горизонта (§9). */
+export function dayMonth(dateStr) {
+  const [, m, d] = dateStr.split('-').map(Number);
+  return `${d} ${MONTHS_GENITIVE[m - 1] || ''}`;
+}
+
+// Именительный — он же винительный для месяцев: «по март 2032» (§4).
+const MONTHS_NOMINATIVE = [
+  'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+  'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
+];
+
+/**
+ * Срок долгосрочного периода словами: «с ноября 2012 по март 2032» (§4).
+ *
+ * Два разных падежа в одной фразе, и оба обязательны: предлог «с» требует
+ * родительного («с ноября»), предлог «по» — винительного, который у месяцев
+ * совпадает с именительным («по март»). Одной формой на оба конца выходило
+ * «с ноябре 2012 по марте 2032» — так и было до правки.
+ */
+export function periodRange(fromAt, toAt) {
+  const [fy, fm] = datePart(fromAt).split('-').map(Number);
+  const [ty, tm] = datePart(toAt).split('-').map(Number);
+  const from = `${MONTHS_GENITIVE[fm - 1] || ''} ${fy}`;
+  const to = `${MONTHS_NOMINATIVE[tm - 1] || ''} ${ty}`;
+  return `с ${from} по ${to}`;
+}
+
+/**
  * Группировка событий по календарному дню их `at` (§5).
  *
  * Порядок событий приходит с бэкенда готовым (max(at, from_date), затем at,
