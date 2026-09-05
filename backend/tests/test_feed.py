@@ -378,6 +378,33 @@ class TestLongtermSortAndStartedBefore:
             "но не обязательно в этом порядке относительно окна"
         )
 
+    def test_started_before_group_is_ordered_by_real_at_not_by_key_hash(self):
+        """Внутри группы started_before (все клэмпнуты к одному значению)
+        вторичный ключ сортировки — настоящий `at`, а не хеш `key`: порядок
+        обязан быть хронологическим, а не порядком хеша. До правки на этой
+        же фикстуре порядок был Нептун/Уран/Плутон/Сатурн — по хешу key,
+        без связи с реальными датами."""
+        feed = _feed(date(2026, 9, 1), date(2026, 9, 30))
+        events = feed["events"]
+        before = [e for e in events if e["started_before"]]
+        assert len(before) >= 4, "нужно хотя бы 4 started_before-события для проверки порядка"
+
+        # Хронологический порядок — общее свойство, не привязанное к
+        # конкретным датам конкретной (синтетической) карты: реальные даты
+        # зависят от куспидов, у тестовой фикстуры они не совпадают с боевой
+        # картой из задания (там порядок буквально был Плутон-2012 →
+        # Нептун-2018 → Сатурн-04.2026 → Уран-04.2026 — это подтверждено
+        # отдельно, боем, а не здесь).
+        ats = [e["at"] for e in before]
+        assert ats == sorted(ats), f"группа started_before не отсортирована по at: {ats}"
+
+        # И группа обязана идти единым блоком в начале ленты — до любого
+        # события, не отмеченного started_before.
+        first_not_before = next(i for i, e in enumerate(events) if not e["started_before"])
+        assert all(events[i]["started_before"] for i in range(first_not_before)), (
+            "started_before-события не образуют сплошной блок в начале ленты"
+        )
+
     def test_transit_keys_still_stable_across_windows_after_sort_change(self):
         """Регресс вчерашней проверки: правка сортировки/started_before —
         отдельный шаг после того, как события уже собраны и получили ключ,
