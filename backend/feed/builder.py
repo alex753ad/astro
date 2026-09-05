@@ -150,29 +150,13 @@ def _naive_utc_to_local_iso(naive: datetime, tz) -> str:
 
 
 # ── Шаблонный текст ──────────────────────────────────────────────────────────
-
-def transit_text(transit_planet: str, natal_planet: str, aspect_type: str) -> Optional[str]:
-    """Заголовок транзита из templates.json. Ни ИИ, ни квоты.
-
-    Собирается ровно как строка `key` в LockedTransitPanel на вебе
-    (TransitTimeline.jsx): «Уран Соединение Меркурий». Бесплатный пользователь
-    уже видит эту подпись на ChartPage — лента показывает ту же.
-
-    None возвращается, только если в файле нет какой-то из трёх частей: тогда
-    подписи не будет вовсе, и это заметно, а не молча подставленная заглушка.
-    """
-    aspect = TEMPLATES.get("aspects", {}).get(aspect_type, "")
-    transit = TEMPLATES.get("transit_planets", {}).get(transit_planet, "")
-    natal = TEMPLATES.get("natal_labels", {}).get(natal_planet, "")
-    if not (aspect and transit and natal):
-        return None
-    return (
-        TEMPLATES.get("pattern", "{transit} {aspect} {natal}")
-        .replace("{transit}", transit)
-        .replace("{aspect}", aspect)
-        .replace("{natal}", natal)
-    )
-
+#
+# Заголовка транзита из слов здесь больше нет (была transit_text(), собирала
+# «Уран Соединение Меркурий» из templates.json) — убрана вместе с секциями
+# pattern/aspects/transit_planets/natal_labels, решение владельца 05.09.2026:
+# см. _readme в templates.json. Осталась только подводка (transit_teaser
+# ниже) — она приглашение купить разбор, а не объяснение транзита, решение
+# её не касается.
 
 def transit_teaser(tier: Optional[str], free_unlocked: bool) -> Optional[dict]:
     """Подводка вместо разбора — то же, что показывает веб бесплатному.
@@ -301,7 +285,13 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                 # check_transit_access, чтобы не закрыть витрину). Платный там
                 # только AI-разбор, а его лента не отдаёт вовсе.
                 "locked": False,
-                "text": transit_text(e["transit_planet"], e["natal_planet"], e["aspect_type"]),
+                # Текстового заголовка транзита больше нет — решение владельца
+                # 05.09.2026, см. _readme в templates.json: словесный ярлык
+                # («Уран Соединение Меркурий») читаем как объяснение транзита,
+                # а объяснений в карточке не будет — только фактура. Клиент
+                # строит подпись сам из meta (значки планет, цвет аспекта,
+                # SPEC_FEED_VISUAL.md §4), text ему для этого не нужен.
+                "text": None,
                 "teaser": transit_teaser(tier, e["free_unlocked"]),
                 "meta": {
                     "transit_planet": e["transit_planet"],

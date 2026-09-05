@@ -16,7 +16,7 @@ from datetime import date, datetime
 import pytest
 
 from backend.auth.rate_limits import transits_date_window
-from backend.feed.builder import build_feed, feed_cache, transit_text
+from backend.feed.builder import build_feed, feed_cache
 from backend.feed.horizon import feed_horizon
 
 
@@ -617,24 +617,20 @@ class TestTierAndTemplates:
         n_pro = sum(1 for e in pro["events"] if e["locked"])
         assert n_pro < n_free
 
-    def test_transit_title_matches_the_web(self):
-        """Заголовок собирается ровно как строка `key` в LockedTransitPanel.
+    def test_transit_text_is_always_none(self):
+        """Решение владельца 05.09.2026: текстового заголовка транзита нет —
+        словесный ярлык читается как объяснение транзита, а объяснений в
+        карточке не будет (см. _readme в templates.json). Клиент строит
+        подпись сам из meta (значки, цвет аспекта), text ему не нужен.
 
-        Веб уже показывает бесплатному пользователю «Уран Соединение
-        Меркурий» (TransitTimeline.jsx, PLANET_LABELS_RU + ASPECT_LABELS_RU).
-        Лента обязана показывать ту же подпись, иначе в приложении на месте
-        текста будет пусто там, где на сайте текст есть.
-        """
-        assert transit_text("Uranus", "Mercury", "conjunction") == "Уран Соединение Меркурий"
-        assert transit_text("Jupiter", "Mars", "trine") == "Юпитер Трин Марс"
-
-    def test_every_transit_has_a_title(self):
-        """Ни одного транзита без подписи — иначе в ленте пустой значок."""
+        Регрессия в другую сторону, чем раньше: раньше проверяли, что текст
+        ЕСТЬ у каждого транзита, теперь — что его нет ни у одного. Оставить
+        старую проверку означало бы держать функцию transit_text() и три
+        JSON-словаря живыми только ради теста, который сам не нужен."""
         feed = _feed(date(2026, 8, 1), date(2026, 8, 31), tier="free")
         transits = [e for e in feed["events"] if e["kind"] == "transit"]
         assert transits
-        missing = [e["meta"] for e in transits if not e["text"]]
-        assert not missing, f"транзиты без подписи: {missing[:3]}"
+        assert all(e["text"] is None for e in transits)
 
     def test_free_gets_the_same_teaser_as_the_web(self):
         """Бесплатному вместо разбора — та же подводка, что на ChartPage."""
@@ -661,45 +657,15 @@ class TestTierAndTemplates:
         assert unlocked, "топ-2 значимых обязаны быть хотя бы в одном месяце"
         assert all(e["teaser"] is None for e in unlocked)
 
-    def test_templates_match_the_web_dictionaries(self):
-        """Файл — вторая копия словарей фронта, и она обязана им совпадать.
-
-        Пока веб берёт подписи из своего JSX, а лента из templates.json, это
-        два источника одной правды. Тест не сводит их в один (это отдельная
-        задача, см. _readme в файле), но ловит расхождение.
-        """
+    def test_templates_json_has_only_the_teaser(self):
+        """Решение владельца 05.09.2026 — templates.json остаётся только под
+        тизер. pattern/aspects/transit_planets/natal_labels убраны вместе с
+        transit_text(); если кто-то вернёт их обратно (например, дописывая
+        заготовки), тест напомнит, что это отменённое направление, а не
+        забытая недоделка — см. _readme в файле."""
         from backend.feed.builder import TEMPLATES
 
-        web_aspects = {
-            "conjunction": "Соединение", "sextile": "Секстиль", "square": "Квадрат",
-            "trine": "Трин", "opposition": "Оппозиция",
-        }
-        web_planets = {
-            "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
-            "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн", "Uranus": "Уран",
-            "Neptune": "Нептун", "Pluto": "Плутон", "North Node": "Сев. Узел",
-        }
-        assert TEMPLATES["aspects"] == web_aspects
-        for eng, ru in web_planets.items():
-            assert TEMPLATES["natal_labels"][eng] == ru, eng
-        # Юж. Узел приходит как натальная точка, но в словаре веба его нет
-        # вовсе — там подпись просто не отрисуется. В ленте она есть.
-        assert TEMPLATES["natal_labels"]["South Node"] == "Юж. Узел"
-
-    def test_templates_cover_every_combination_(self):
-        """Каркас обязан покрывать все комбинации, иначе часть транзитов
-        останется без подписи навсегда, и это не будет видно."""
-        from backend.ephemeris.calculator import PLANETS
-        from backend.feed.builder import TEMPLATES
-        from backend.transit.engine import TRANSIT_ORBS
-
-        transit_planets = set(PLANETS) - {"North Node"}
-        assert transit_planets <= set(TEMPLATES["transit_planets"])
-        assert set(TRANSIT_ORBS) == set(TEMPLATES["aspects"])
-        # Узлы приходят как натальные точки, но в PLANET_NAMES_RU их нет —
-        # именно поэтому метки живут в templates.json, а не берутся оттуда.
-        for point in list(PLANETS) + ["South Node"]:
-            assert point in TEMPLATES["natal_labels"], f"нет метки для {point}"
+        assert set(TEMPLATES) <= {"_readme", "teaser"}
 
 
 class TestTeaserTextSingleSource:
