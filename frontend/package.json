@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node generate-sitemap.js && vite build",
+    "build:mobile": "vite build --config vite.config.mobile.js --mode mobile",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx",
     "sitemap": "node generate-sitemap.js",
@@ -13,6 +14,9 @@
     "assert-bundle": "node scripts/assert-bundle.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/preferences": "^7.0.4",
     "@sentry/react": "^8.0.0",
     "d3": "^7.9.0",
     "framer-motion": "^12.42.2",
@@ -21,6 +25,7 @@
     "react-router-dom": "^6.23.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",

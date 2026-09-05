@@ -389,6 +389,19 @@ def compute_planner_periods(
                     "period": _fmt_period(p["start_dt"], p["end_dt"]),
                     "house":  p["house"],
                     "is_current": p["start_dt"] <= today_dt <= p["end_dt"],
+                    # Настоящие границы периода. `period` выше — строка для
+                    # показа человеку, и у неё нет года («07.08 — 06.09»):
+                    # достать из неё дату можно только парсером, доставая год
+                    # откуда-то ещё. Лента (backend/feed/) берёт границы
+                    # отсюда, а не разбирает строку обратно. У moon_week ниже
+                    # эти два ключа лежат с самого начала — здесь просто то же
+                    # самое, симметрично.
+                    #
+                    # build_planner() собирает свой ответ по именованным полям
+                    # и лишние ключи игнорирует — /planner/monthly от их
+                    # появления не меняется ни на байт.
+                    "start_dt": p["start_dt"].isoformat(),
+                    "end_dt":   p["end_dt"].isoformat(),
                 }
                 for p in passages
             ],
@@ -520,6 +533,9 @@ def compute_planner_periods(
             "house":           main["house"],
             "period_label":    f'{main["start_dt"].strftime("%d.%m.%Y")} — {main["end_dt"].strftime("%d.%m.%Y")}',
             "planet_subtitle": PLANET_SUBTITLES.get(planet, ""),
+            # См. комментарий у fast_planets выше — настоящие границы для ленты.
+            "start_dt": main["start_dt"].isoformat(),
+            "end_dt":   main["end_dt"].isoformat(),
         })
 
     return {

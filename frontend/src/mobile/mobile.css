@@ -1,0 +1,252 @@
+/**
+ * mobile.css — токены и базовые стили Capacitor-приложения.
+ *
+ * Загружается ТОЛЬКО мобильной сборкой (импортируется из MobileApp.jsx, а не
+ * из main.jsx/index.css). Веб index.css сюда не подключается и наоборот —
+ * два независимых стилевых мира, как и было решено для main.mobile.jsx на
+ * прошлом этапе.
+ *
+ * Почему не Tailwind, хотя postcss.config.js подключает его глобально: без
+ * директив `@tailwind` в файле плагин не инжектит утилити-классы, а только
+ * проходит по цепочке PostCSS — этот файл компилируется как обычный CSS.
+ * Инлайновые стили компонентов используют `var(--token)` из этого файла
+ * (значит "хардкодить только через CSS-переменные" соблюдено), а сюда
+ * вынесено то, что инлайн-стилями не выразить: :focus, :active, @font-face.
+ *
+ * Токены — те же значения, что в DESIGN_SYSTEM.md (§2), обе темы. Умолчание
+ * в мобильном приложении — СВЕТЛАЯ тема (обратное вебу, см. §1 документа и
+ * useTheme.jsx рядом) — поэтому `:root` держит светлые значения без всякого
+ * класса, а `.dark` их переопределяет. Это тот же механизм, что и в
+ * index.css веба (`:root` / `.dark`, класс на <html> через
+ * classList.toggle), только с обратным умолчанием — сделано намеренно
+ * одинаково, чтобы не заводить второй способ переключения темы в проекте.
+ */
+
+:root {
+  --bg: #FDFBF9;
+  --bg-card: #FFFFFF;
+  --bg-deeper: #FDFBFF;
+  --text-primary: #1E1A2E;
+  --text-secondary: #6B6885;
+  --border: #EDE8F5;
+  --accent: #7C6CFF;
+  --accent-glow: #8B5CF6;
+  --accent-muted: rgba(139, 92, 246, 0.08);
+  --color-danger: #DC2626;
+  --color-success: #059669;
+
+  /* Кириллица — весь UI-текст, латиница — email/версия/бренд. У Space
+     Grotesk кириллицы нет вовсе (см. src/assets/fonts/README.md) — для
+     русского текста display-стек намеренно проваливается в Inter, а не в
+     system-ui, как в index.css: так ближе к рисунку дизайн-системы. */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+.dark {
+  --bg: #0F0A1A;
+  --bg-card: #1A1230;
+  --bg-deeper: #231C38;
+  --text-primary: #E2DFF0;
+  --text-secondary: #9B97B0;
+  --border: #2A2245;
+  --accent: #8B5CF6;
+  --accent-glow: #A78BFA;
+  --accent-muted: rgba(139, 92, 246, 0.15);
+  --color-danger: #F87171;
+  --color-success: #34D399;
+}
+
+/* ── Локальные шрифты: без сети, приложение открывается сразу после установки ── */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-400-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-500-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-500-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-600-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/Inter-600-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/SpaceGrotesk-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/SpaceGrotesk-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+20AC, U+2122;
+}
+
+/* ── Базовый сброс ── */
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  /* §7 DESIGN_SYSTEM.md — «Смена темы» */
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition-duration: 0s;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button, input {
+  font-family: inherit;
+}
+
+/* ── Input (§5 DESIGN_SYSTEM.md) ── */
+
+.mobile-input {
+  width: 100%;
+  background: var(--bg-deeper);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 13px 16px;
+  color: var(--text-primary);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.mobile-input::placeholder {
+  color: var(--text-secondary);
+}
+.mobile-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+.mobile-input.has-error {
+  border-color: var(--color-danger);
+}
+
+.mobile-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 7px;
+}
+
+/* ── Button primary (§5) ── */
+
+.mobile-btn-primary {
+  width: 100%;
+  height: 52px;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 16px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.mobile-btn-primary:active {
+  transform: scale(0.98);
+  background: var(--accent-glow);
+}
+.mobile-btn-primary:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ── Ghost-ссылка (§5 Ghost) ── */
+
+.mobile-link {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px;
+  text-decoration: none;
+}
+.mobile-link:active {
+  background: var(--accent-muted);
+  border-radius: 8px;
+}
+
+/* ── Безопасные зоны: viewport-fit=cover (index.mobile.html) делает эти
+   переменные ненулевыми, когда система рисует контент под статус-баром/
+   жестовой панелью — с targetSdk 35 Android включает edge-to-edge для
+   приложений по умолчанию, и без этих отступов верх формы и таб-бар
+   окажутся перекрыты системными панелями. На более старых Android или без
+   edge-to-edge env() просто возвращает 0 — деградация безопасна. ── */
+
+.mobile-page {
+  min-height: 100%;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.mobile-tabbar {
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}

@@ -8,6 +8,13 @@
  */
 
 import { API_BASE } from '../config';
+import {
+  AUTH_CREDENTIALS,
+  authRequestBody,
+  clientHeaders,
+  forgetRefreshToken,
+  rememberRefreshToken,
+} from './authTransport';
 
 class ApiError extends Error {
   constructor(message, status, detail) {
@@ -76,20 +83,25 @@ async function refreshAccessToken() {
     try {
       const resp = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...clientHeaders() },
         // credentials: кука astro_refresh едет только явно — по умолчанию
-        // fetch её не отправляет, если API на другом origin.
-        credentials: 'include',
-        body: JSON.stringify({}),
+        // fetch её не отправляет, если API на другом origin. На устройстве
+        // куки нет, и токен уезжает в теле — см. authTransport.js.
+        credentials: AUTH_CREDENTIALS,
+        body: await authRequestBody(),
       });
       if (!resp.ok) {
         // Refresh мёртв (истёк, отозван, сменён пароль) — сессии больше нет.
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(LEGACY_REFRESH_KEY);
+        await forgetRefreshToken();
         return null;
       }
       const data = await resp.json();
       localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
+      // Сервер ротирует refresh: не сохранив новый, приложение разлогинится на
+      // следующем обновлении. В вебе это no-op — там refresh в куке.
+      await rememberRefreshToken(data);
       // Подчищаем хвост от прошлой схемы: у вернувшихся пользователей старый
       // refresh может лежать в localStorage ещё неделю.
       localStorage.removeItem(LEGACY_REFRESH_KEY);
