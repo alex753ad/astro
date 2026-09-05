@@ -22,6 +22,39 @@ import { API_BASE } from '../../config';
 import { authFetch, responseErrorText } from '../../api/client';
 import { localToday, shiftDays } from './feedTime';
 
+/**
+ * Таймаут на запрос — 15 секунд.
+ *
+ * Без него зависший запрос вешает экран в скелете НАВСЕГДА (найдено
+ * 05.09.2026: на устройстве, возвращённом из фона после долгого простоя,
+ * `fetch` может ждать ответа по уже мёртвому TCP-соединению бесконечно).
+ * Экран обязан дойти до состояния «Не удалось загрузить» за конечное
+ * время независимо от ПРИЧИНЫ зависания — таймаут закрывает это как
+ * класс, а не только найденный случай.
+ *
+ * ⚠️ `AbortController` здесь не помогает и намеренно не используется для
+ * общего случая: `authFetch` при 401 сам вызывает `refreshAccessToken()`
+ * из client.js — у ТОГО внутреннего fetch своего сигнала нет и снаружи
+ * его не передать, а зависнуть может именно он (тот же протухший сокет).
+ * Наш abort отменил бы только внешний запрос, а `authFetch` всё равно
+ * завис бы на ожидании чужого промиса. Поэтому таймаут — это
+ * `Promise.race`, гарантирующий, что ЭКРАН отпустит ожидание вовремя,
+ * даже если сам сетевой запрос где-то внутри client.js остался висеть
+ * (мы больше не ждём его результата, но он и не отменяется — это
+ * осознанный компромисс: висящий экран хуже, чем висящий фоновый fetch).
+ */
+const REQUEST_TIMEOUT_MS = 15000;
+
+function timeout(ms) {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Сервер не отвечает. Проверьте связь и попробуйте ещё раз.')), ms);
+  });
+}
+
+function authFetchWithTimeout(url, options) {
+  return Promise.race([authFetch(url, options), timeout(REQUEST_TIMEOUT_MS)]);
+}
+
 // Окно фиксированное, решение владельца 05.09.2026: месяц назад и 334 дня
 // вперёд. Верхнюю границу по тарифу клиент НЕ считает — бэкенд сам обрежет
 // запрос своим горизонтом, а настоящий край лента читает из horizon.to
@@ -42,7 +75,7 @@ export function feedWindow(today = localToday()) {
  * `null` — у аккаунта нет ни одной карты (состояние «нет карты», §11).
  */
 export async function resolvePrimaryChartId() {
-  const resp = await authFetch(`${API_BASE}/profile/charts`);
+  const resp = await authFetchWithTimeout(`${API_BASE}/profile/charts`);
   if (!resp.ok) {
     throw new Error(await responseErrorText(resp, 'Не удалось получить список карт.'));
   }
@@ -63,7 +96,7 @@ export async function resolvePrimaryChartId() {
  */
 export async function fetchFeed(chartId, { from, to }) {
   const url = `${API_BASE}/chart/${chartId}/feed?from_date=${from}&to_date=${to}`;
-  const resp = await authFetch(url);
+  const resp = await authFetchWithTimeout(url);
 
   if (resp.status === 404) {
     throw new Error('Карта не найдена. Постройте её заново на вкладке «Карта».');
