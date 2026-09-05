@@ -218,9 +218,16 @@ class TestSingleTimezone:
             )
 
     def test_events_sorted_by_time(self):
+        """Лента отсортирована по моменту — с одной оговоркой (D+B, см.
+        CLAUDE.md «planner_longterm»): событие, начавшееся раньше окна
+        (долгий планер), встаёт по max(at, начало окна), а не по своему
+        настоящему `at` — иначе Плутон с 2012 года стоял бы первым в любой
+        ленте. Сортировка по clamp'нутому моменту и есть то, что проверяется
+        здесь; сырой `at` при этом не меняется — см. TestLongtermSortAndStartedBefore.
+        """
         feed = _feed(date(2026, 8, 1), date(2026, 8, 31))
-        moments = [e["at"] for e in feed["events"]]
-        assert moments == sorted(moments)
+        clamped = [max(e["at"], feed["from_date"]) for e in feed["events"]]
+        assert clamped == sorted(clamped)
 
     def test_eclipse_and_phase_share_the_zone(self):
         """Август 2026 — месяц с двумя затмениями и фазами разом.
@@ -310,6 +317,123 @@ class TestPlannerPeriodsHaveRealDates:
                 assert e["duration_days"] is None
                 assert "start_date" not in e["meta"]
                 assert "end_date" not in e["meta"]
+
+
+# ═══════════════════════════════════════════════════════════
+# planner_longterm: сортировка по max(at, окно), started_before, at честный
+# ═══════════════════════════════════════════════════════════
+
+class TestLongtermSortAndStartedBefore:
+    """Медленная планета выбирается по «содержит сегодня», а не по попаданию
+    начала периода в окно (house_passages.py) — значит planner_longterm может
+    начаться на много лет раньше запроса. До правки такое событие сортировалось
+    по настоящему `at` и улетало в начало ленты, за «месяц назад» (см. CLAUDE.md,
+    «planner_longterm», разбор от 05.09.2026). Правка не трогает ни `at`, ни
+    ключ — только позицию в сортировке и новый флаг `started_before`.
+    """
+
+    def test_at_stays_real_not_clamped_to_window(self):
+        """`at` долгого периода — настоящая дата начала, а не первый день окна."""
+        feed = _feed(date(2026, 9, 1), date(2026, 9, 30))
+        longterm = [e for e in feed["events"] if e["kind"] == "planner_longterm"]
+        before = [e for e in longterm if e["at"] < feed["from_date"]]
+        assert before, "нет периода, начавшегося раньше окна, — тест ничего не проверяет"
+        for e in before:
+            assert e["at"][:10] != feed["from_date"], (
+                "at обрезан по окну — должен остаться настоящим началом периода"
+            )
+
+    def test_started_before_matches_at_vs_window(self):
+        """Флаг обязан совпадать с прямым сравнением at и начала окна ответа —
+        ни для одного события они не должны разойтись, независимо от kind."""
+        feed = _feed(date(2026, 9, 1), date(2026, 9, 30))
+        for e in feed["events"]:
+            assert e["started_before"] == (e["at"] < feed["from_date"]), e["key"]
+
+    def test_started_before_true_for_long_pluto_period(self):
+        """Показательный случай: самый долгий период (Плутон) обязан быть
+        started_before=True, а обычные события окна — False."""
+        feed = _feed(date(2026, 9, 1), date(2026, 9, 30))
+        longterm = [e for e in feed["events"] if e["kind"] == "planner_longterm"]
+        assert longterm
+        longest = max(longterm, key=lambda e: e["duration_days"])
+        assert longest["started_before"] is True
+
+        within_window = [e for e in feed["events"] if e["at"] >= feed["from_date"]]
+        assert within_window
+        assert all(e["started_before"] is False for e in within_window)
+
+    def test_sort_key_is_clamped_not_raw_at(self):
+        """Прямая проверка того, что реально изменилось: позиция в ленте
+        считается по max(at, from_date), а не по голому at. Ключ сортировки
+        наружу не уходит, поэтому проверяем его так же, как его вычисляет
+        сам build_feed — тем же выражением на тех же данных."""
+        feed = _feed(date(2026, 9, 1), date(2026, 9, 30))
+        events = feed["events"]
+        assert events
+        sort_keys = [max(e["at"], feed["from_date"]) for e in events]
+        assert sort_keys == sorted(sort_keys), (
+            "лента не отсортирована по max(at, from_date) — старое поведение "
+            "(сортировка по голому at) вернуло бы событие 2012 года первым, "
+            "но не обязательно в этом порядке относительно окна"
+        )
+
+    def test_transit_keys_still_stable_across_windows_after_sort_change(self):
+        """Регресс вчерашней проверки: правка сортировки/started_before —
+        отдельный шаг после того, как события уже собраны и получили ключ,
+        поэтому устойчивость ключей транзитов (TestKeysAreWindowIndependent)
+        обязана остаться в силе и после неё."""
+        w1 = _feed(date(2026, 8, 15), date(2026, 10, 15))
+        feed_cache.clear()
+        w2 = _feed(date(2026, 9, 1), date(2026, 11, 1))
+
+        def transit_keys(f):
+            return {
+                (e["meta"]["transit_planet"], e["meta"]["natal_planet"],
+                 e["meta"]["aspect_type"], e["at"]): e["key"]
+                for e in f["events"] if e["kind"] == "transit"
+            }
+
+        t1, t2 = transit_keys(w1), transit_keys(w2)
+        common = set(t1) & set(t2)
+        assert common, "окна не пересеклись — тест ничего не проверяет"
+        for ident in common:
+            assert t1[ident] == t2[ident], f"ключ транзита {ident} разъехался между окнами"
+
+    @pytest.mark.xfail(
+        reason=(
+            "Известный пре-существующий дефект (не создан и не в объёме этой "
+            "правки, см. CLAUDE.md «planner_longterm»): _key() хеширует сырые "
+            "start_iso/end_iso ДО обрезки микросекунд, которую _to_local_iso "
+            "делает только для отображаемых at/ends_at. Окна со сдвигом, не "
+            "кратным 3 суткам (step_hours=72 в calculate_house_passages), "
+            "сдвигают сетку коарсного скана — бисекция сходится к тому же "
+            "часу:минуте:секунде, но к другой микросекунде, и ключ расходится, "
+            "хотя at/ends_at совпадают дословно. Подтверждено исполнением на "
+            "main ДО этой правки — тот же результат, дефект не в сортировке."
+        ),
+        strict=True,
+    )
+    def test_longterm_key_stable_across_windows_offset_by_17_days(self):
+        """17 дней — сдвиг НЕ кратен 3 (step_hours=72): именно на нём дефект
+        и был найден. Тест должен упасть (xfail) — если однажды пройдёт,
+        strict=True превратит это в XPASS-провал, и будет сигнал снять xfail
+        и обновить CLAUDE.md."""
+        w1 = _feed(date(2026, 8, 15), date(2026, 10, 15))
+        feed_cache.clear()
+        w2 = _feed(date(2026, 9, 1), date(2026, 11, 1))
+
+        def longterm_by_planet(f):
+            return {
+                e["meta"]["planet"]: e["key"]
+                for e in f["events"] if e["kind"] == "planner_longterm"
+            }
+
+        l1, l2 = longterm_by_planet(w1), longterm_by_planet(w2)
+        common = set(l1) & set(l2)
+        assert common, "окна не пересеклись по planner_longterm — тест ничего не проверяет"
+        for planet in common:
+            assert l1[planet] == l2[planet], f"ключ planner_longterm ({planet}) разъехался между окнами"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -455,6 +579,64 @@ class TestTierAndTemplates:
         # именно поэтому метки живут в templates.json, а не берутся оттуда.
         for point in list(PLANETS) + ["South Node"]:
             assert point in TEMPLATES["natal_labels"], f"нет метки для {point}"
+
+
+class TestTeaserTextSingleSource:
+    """intro/outro тизера дублируют текст LockedTransitPanel(reason="free")
+    с веба (TransitTimeline.jsx) — два файла разных рантаймов (JS-компонент,
+    Python+JSON), синхронизированных только человеческой памятью
+    (FEED_TEASER_TEXT_RECON.md). Веб-путь боевой, трогать его ради общего
+    источника рискованно — вместо этого тест-склейка по образцу
+    TestOfferDocumentsTheRule (test_subscription_renewal.py): читает оба
+    файла как текст и ловит расхождение здесь, а не в проде через полгода.
+
+    Проверяется не вхождение (`in`), а единственность (`count == 1`) — иначе
+    тест прошёл бы и в случае, когда текст-совпадение — случайность
+    (например, слово входит частью в более длинную соседнюю строку), и не
+    заметил бы, если строку продублировали ещё где-то на вебе. Плюс —
+    что найденный литерал стоит именно в ветке `reason === "free"` (после
+    `:` тернарника), а не по ошибке в ветке `lite-limit` (после `?`).
+    """
+
+    @staticmethod
+    def _jsx() -> str:
+        from pathlib import Path
+        return Path(__file__).resolve().parents[2].joinpath(
+            "frontend", "src", "components", "TransitTimeline.jsx"
+        ).read_text(encoding="utf-8")
+
+    def test_intro_and_outro_appear_exactly_once_in_the_web_component(self):
+        from backend.feed.builder import TEMPLATES
+
+        jsx = self._jsx()
+        intro = TEMPLATES["teaser"]["free"]["intro"]
+        outro = TEMPLATES["teaser"]["free"]["outro"]
+
+        assert jsx.count(intro) == 1, (
+            "intro не встречается в TransitTimeline.jsx ровно один раз — "
+            "либо разошлись, либо текст продублирован на вебе"
+        )
+        assert jsx.count(outro) == 1, (
+            "outro не встречается в TransitTimeline.jsx ровно один раз — "
+            "либо разошлись, либо текст продублирован на вебе"
+        )
+
+    def test_literal_sits_in_the_free_branch_not_lite_limit(self):
+        """Оба литерала — правая (false) часть тернарника `reason ===
+        "lite-limit" ? ... : "ТЕКСТ"`. Правая часть в JS всегда следует сразу
+        за `:` — если бы литерал оказался в левой (`?`) части, перед ним
+        стоял бы `?`, а не `:`."""
+        from backend.feed.builder import TEMPLATES
+
+        jsx = self._jsx()
+        for field in ("intro", "outro"):
+            text = TEMPLATES["teaser"]["free"][field]
+            idx = jsx.index(f'"{text}"')
+            before = jsx[:idx].rstrip()
+            assert before.endswith(":"), (
+                f"{field}: перед литералом в JSX нет `:` — похоже, текст "
+                f"стоит в ветке lite-limit (после `?`), а не free (после `:`)"
+            )
 
 
 # ═══════════════════════════════════════════════════════════

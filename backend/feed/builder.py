@@ -605,7 +605,23 @@ def build_feed(*, chart, from_date: date, to_date: date, today: date,
             from_date, to_date, today, getattr(chart, "timezone", None), tier, tz,
         )
 
-    events.sort(key=lambda e: (e["at"], e["key"]))
+    # planner_longterm — единственный kind, чей `at` может лежать раньше
+    # начала окна: медленная планета выбирается по «содержит сегодня»
+    # (house_passages.py), а не по попаданию начала в окно, поэтому Плутон,
+    # вошедший в дом 14 лет назад, отдаётся с настоящей датой 2012 года и на
+    # ЛЮБОМ окне, включающем сегодня (см. CLAUDE.md, «planner_longterm»).
+    # `at` и ключ за это не платят — они остаются настоящими; сортировка не
+    # должна забрасывать такое событие в начало ленты, за «месяц назад»,
+    # поэтому позиция считается по max(at, начало окна ответа), а не по at
+    # напрямую. Сравнение — лексическое совпадение ISO-строк: `from_date_iso`
+    # короче любого `at` и является его префиксом ровно тогда, когда событие
+    # начинается в тот же день, — короткая строка в этом случае меньше, что и
+    # даёт нужный порядок (событие дня `from_date` не проваливается раньше
+    # такого же дня с полным временем).
+    from_date_iso = from_date.isoformat()
+    for e in events:
+        e["started_before"] = e["at"] < from_date_iso
+    events.sort(key=lambda e: (max(e["at"], from_date_iso), e["key"]))
 
     return {
         "chart_id": chart_id,
