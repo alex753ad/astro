@@ -1,16 +1,21 @@
 /**
  * FeedEventCard.jsx — карточка события в потоке ленты (§8 спецификации).
  *
- * В карточке: время, заголовок, знаки, точность и орб. Всё.
+ * В карточке: время, заголовок, знаки, точность и орб.
  *
  * ⚠️ Тизера здесь нет намеренно, и это правка спецификации от 05.09.2026.
  * Первый заход показывал intro/outro прямо в карточке — на боевых данных
  * текст оказался ОДИНАКОВЫМ на всех ~700 закрытых карточках (он общий для
  * тарифа, а не для события) и из подсказки превращался в шум, заодно
- * съедая высоту в ленте, где высота значит длительность. Теперь закрытость
- * показывает один компактный значок замка без текста, а полный тизер и
+ * съедая высоту в ленте, где высота значит длительность. Полный тизер и
  * кнопка доступа живут в панели по тапу (FeedEventPanel.jsx) — как на вебе,
  * где разбор тоже открывается отдельной панелью, а не лежит в списке.
+ *
+ * ⚠️ Помечается ОТКРЫТОЕ, а не закрытое (решение владельца 05.09.2026).
+ * Сначала стоял замок на закрытых — и он оказался на 689 карточках из 718:
+ * пометка, которая стоит почти везде, не сообщает ничего, кроме шума.
+ * Открытых на free всего два (топ-2 значимых транзита, их выбирает
+ * бэкенд) — вот их и видно.
  *
  * Карточка одна на все семь видов событий, остающихся в потоке. Отдельных
  * вёрсток по kind нет: у не-транзитов просто нет части полей (знаков, орба),
@@ -19,23 +24,15 @@
  */
 
 import React from 'react';
+import BlurredHint from './BlurredHint';
 import { eventTitle, signRu, timePart } from '../lib/feedTime';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
 // самый длинный — месячный период Солнца, 30 суток, то есть +75px к базовой
-// высоте. Потолка нет: нужен ли он — открытый вопрос §12.2, решается на
-// макете.
+// высоте. Потолок НЕ вводится (решение владельца, §12.2): пропорция должна
+// остаться честной.
 const PX_PER_DAY = 2.5;
-
-// Замок 14×14, stroke=currentColor — правило B5 DESIGN_SYSTEM.md §8: иначе
-// в тёмной теме значок останется тёмным на тёмном.
-const LOCK_ICON = (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <rect x="2.6" y="6" width="8.8" height="6.2" rx="1.6" stroke="currentColor" strokeWidth="1.4" />
-    <path d="M4.8 6V4.4a2.2 2.2 0 0 1 4.4 0V6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-  </svg>
-);
 
 /** Точка на шкале (транзит, фаза, станция) против периода с длительностью. */
 function durationHeight(event) {
@@ -68,6 +65,17 @@ export default function FeedEventCard({ event, onOpen }) {
   const locked = isLocked(event);
   const extraHeight = durationHeight(event);
 
+  // Витрина под блюром — только у закрытого периода: у него есть высота
+  // (она значит длительность), но нечего в ней показать, потому что на free
+  // сервер отдаёт пустые theme и groups.
+  const showFiller = locked && Boolean(extraHeight);
+
+  // ⚠️ Высота по длительности идёт В ПАРЕ с витриной, а не сама по себе.
+  // Растянутая карточка без содержимого — это пустая коробка, и владелец
+  // просил такие не тянуть: у них высота по контенту. Поэтому minHeight
+  // ставится ровно тогда, когда есть чем его заполнить.
+  const minHeight = showFiller ? 64 + extraHeight : undefined;
+
   // Строка знаков — только когда пришли оба знака: у не-транзитов их нет.
   const hasSigns = meta.transit_sign && meta.natal_sign;
   const degree = typeof meta.transit_degree === 'number'
@@ -80,6 +88,11 @@ export default function FeedEventCard({ event, onOpen }) {
     ? (meta.applying ? 'точный' : 'отходит')
     : null;
 
+  // Открытый разбор помечается только у транзитов: у фазы, затмения,
+  // равноденствия и станции разбора нет в принципе, и «открыто» на них
+  // значило бы «доступно то, чего не существует».
+  const openInterpretation = event.kind === 'transit' && !locked;
+
   // Тапом открывается только то, что есть чем открыть: у события без тизера
   // и без locked панели показать нечего, и «нажимаемая» карточка, которая
   // ничего не делает, читается как поломка.
@@ -90,7 +103,7 @@ export default function FeedEventCard({ event, onOpen }) {
       onClick={openable ? () => onOpen(event) : undefined}
       style={{
         background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
+        border: `1px solid ${openInterpretation ? 'var(--accent)' : 'var(--border)'}`,
         borderRadius: 20,
         padding: 16,
         display: 'flex',
@@ -99,7 +112,7 @@ export default function FeedEventCard({ event, onOpen }) {
         cursor: openable ? 'pointer' : 'default',
         // minHeight, а не height: длительность задаёт нижнюю границу, но
         // длинный заголовок не должен обрезаться.
-        minHeight: extraHeight ? 64 + extraHeight : undefined,
+        minHeight,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -114,14 +127,20 @@ export default function FeedEventCard({ event, onOpen }) {
         >
           {timePart(event.at)}
         </span>
-        {locked && (
+        {openInterpretation && (
           <span
-            title="Разбор — на платном тарифе"
-            aria-label="Закрыто"
-            style={{ display: 'inline-flex', color: 'var(--text-secondary)', opacity: 0.55 }}
-          >
-            {LOCK_ICON}
-          </span>
+            // Точка объясняет рамку: одна рамка без подписи читается как
+            // «выделено», но не говорит чем.
+            aria-label="Разбор открыт"
+            title="Разбор открыт"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--accent)',
+              display: 'inline-block',
+            }}
+          />
         )}
       </div>
 
@@ -153,6 +172,19 @@ export default function FeedEventCard({ event, onOpen }) {
           {precision}
           {precision && hasOrb ? ' · ' : ''}
           {hasOrb ? `орб ${meta.peak_orb.toFixed(1)}°` : ''}
+        </div>
+      )}
+
+      {/*
+        flex:1 + overflow:hidden — обязательная часть, а не оформление.
+        Витрина ЗАПОЛНЯЕТ оставшееся место, но не добавляет своего: иначе
+        двухдневный проход Луны с тремя строками витрины стал бы ВЫШЕ
+        тридцатидневного периода Солнца, и пропорция длительности — главный
+        приём ленты — начала бы врать в обратную сторону.
+      */}
+      {showFiller && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <BlurredHint />
         </div>
       )}
     </article>

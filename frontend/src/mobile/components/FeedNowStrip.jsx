@@ -23,6 +23,7 @@
  */
 
 import React, { useState } from 'react';
+import BlurredHint from './BlurredHint';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
 import { periodRange } from '../lib/feedTime';
 
@@ -54,19 +55,6 @@ function Chip({ event, active, onClick }) {
         {meta.house} дом
       </span>
     </button>
-  );
-}
-
-/** Рекомендации под блюром — витрина закрытого содержимого. */
-function BlurredHint() {
-  return (
-    <div aria-hidden="true" style={{ filter: 'blur(4px)', opacity: 0.5, userSelect: 'none' }}>
-      {['Ставьте цели на будущее и корректируйте курс', 'Расширяйте круг общения', 'Работайте с технологиями'].map((line) => (
-        <p key={line} style={{ margin: '0 0 6px', fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-          {line}
-        </p>
-      ))}
-    </div>
   );
 }
 

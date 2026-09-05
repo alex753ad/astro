@@ -57,6 +57,21 @@ export default function FeedLunarFold({ events, onOpen }) {
 
   return (
     <div style={{ paddingBottom: 16 }}>
+      {/*
+        Развёрнутые карточки идут ПЕРЕД кнопкой, а не после неё. §7 требует
+        свёрнутую строку внизу блока дня — значит и в развёрнутом виде
+        управляющая строка обязана остаться внизу, иначе при раскрытии она
+        уезжает в середину дня и разрывает его пополам (так и было до
+        правки: 5 августа кнопка вставала между событием 13:35 и 19:51).
+      */}
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
+          {events.map((event) => (
+            <FeedEventCard key={event.key} event={event} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -83,14 +98,6 @@ export default function FeedLunarFold({ events, onOpen }) {
           </span>
         )}
       </button>
-
-      {open && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-          {events.map((event) => (
-            <FeedEventCard key={event.key} event={event} onOpen={onOpen} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
