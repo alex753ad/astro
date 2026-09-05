@@ -467,6 +467,12 @@ def _lunar_events(from_date: date, to_date: date, tz) -> list[dict]:
     # Фазы: те же две цели, что и в /calendar/lunar (0° — новолуние, 180° —
     # полнолуние), тем же _find_phase. Здесь не фильтруется по месяцу — окно
     # ленты произвольное.
+    #
+    # Момент (`_at_utc`) держится рядом с готовым словарём, а не только внутри
+    # него: он нужен ниже для сверки с затмением по РЕАЛЬНОМУ времени, а не по
+    # календарной дате — см. _ECLIPSE_PHASE_MERGE_HOURS. Наружу это поле не
+    # уходит, срезается перед тем, как список попадёт в `out`.
+    phase_events: list[dict] = []
     for target, etype, emoji, label in (
         (0.0, "new_moon", "🌑", "Новолуние"),
         (180.0, "full_moon", "🌕", "Полнолуние"),
@@ -479,7 +485,8 @@ def _lunar_events(from_date: date, to_date: date, tz) -> list[dict]:
             at_utc = jd_to_utc(jd)
             moon_lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
             sign = _sign(moon_lon[0])
-            out.append({
+            phase_events.append({
+                "_at_utc": at_utc,
                 "key": _key("l", etype, at_utc.isoformat()),
                 "kind": "moon_phase",
                 "importance": IMPORTANCE_MEDIUM,
@@ -498,9 +505,12 @@ def _lunar_events(from_date: date, to_date: date, tz) -> list[dict]:
         _scan_eclipses(jd_start, jd_end, swe.sol_eclipse_when_glob, _SOLAR_KIND_FLAGS, "solar")
         + _scan_eclipses(jd_start, jd_end, swe.lun_eclipse_when, _LUNAR_KIND_FLAGS, "lunar")
     )
+    eclipse_events: list[dict] = []
     for ec in eclipses:
         at_utc = datetime.fromisoformat(f"{ec.date}T{ec.time.split()[0]}:00").replace(tzinfo=pytz.UTC)
-        out.append({
+        eclipse_events.append({
+            "_at_utc": at_utc,
+            "_phase_type": _ECLIPSE_TO_PHASE_TYPE.get(ec.type),
             "key": _key("l", "eclipse", ec.type, ec.kind, at_utc.isoformat()),
             "kind": "eclipse",
             "importance": IMPORTANCE_HIGH,
@@ -515,6 +525,47 @@ def _lunar_events(from_date: date, to_date: date, tz) -> list[dict]:
             "teaser": None,
             "meta": {"type": ec.type, "kind": ec.kind},
         })
+
+    # Затмение — это фаза: солнечное происходит только в новолуние, лунное —
+    # только в полнолуние (проверено исполнением на боевых данных, 05.09.2026,
+    # FEED_DUPLICATE_MOMENTS.md — 7 затмений из 7 сопровождались фазой того же
+    # рода). Показывать оба — значит показать один момент дважды под разными
+    # подписями: «Новолуние в Деве» и «Полное солнечное затмение» с разницей в
+    # минуты. Решение владельца: фаза не отдаётся, если рядом есть затмение
+    # того же рода, а знак зодиака (у затмения его в данных нет) переезжает в
+    # карточку затмения — иначе это содержание терялось бы вместе с фазой.
+    #
+    # ⚠️ Порог — часы, а не сравнение календарных дат. Лента показывает время
+    # в таймзоне карты; пара, разошедшаяся на 19 минут (наблюдавшийся максимум
+    # на боевых данных) вокруг полуночи по местному времени, оказалась бы на
+    # РАЗНЫХ календарных днях, хотя по факту — один и тот же момент. Три часа —
+    # это наблюдавшийся максимум (19 минут) с запасом на порядок, а не подгонка
+    # под конкретную пару.
+    suppressed_phase_keys: set[str] = set()
+    for ec in eclipse_events:
+        if ec["_phase_type"] is None:
+            continue  # неизвестный тип затмения — сверять не с чем
+        match = min(
+            (p for p in phase_events if p["meta"]["type"] == ec["_phase_type"]),
+            key=lambda p: abs((p["_at_utc"] - ec["_at_utc"]).total_seconds()),
+            default=None,
+        )
+        if match is None:
+            continue
+        if abs((match["_at_utc"] - ec["_at_utc"]).total_seconds()) <= _ECLIPSE_PHASE_MERGE_HOURS * 3600:
+            suppressed_phase_keys.add(match["key"])
+            ec["meta"]["sign"] = match["meta"]["sign"]
+
+    for p in phase_events:
+        if p["key"] in suppressed_phase_keys:
+            continue
+        del p["_at_utc"]
+        out.append(p)
+
+    for ec in eclipse_events:
+        del ec["_at_utc"]
+        del ec["_phase_type"]
+        out.append(ec)
 
     # Равноденствия и солнцестояния: та же математика, что в get_solar_events,
     # но без привязки к календарному месяцу — окно ленты произвольное.
@@ -558,6 +609,14 @@ _ECLIPSE_LABELS = {
     ("lunar", "partial"): "Частное лунное затмение",
     ("lunar", "penumbral"): "Полутеневое лунное затмение",
 }
+
+# Затмение — это фаза: солнечное бывает только в новолуние, лунное — только в
+# полнолуние. См. дедупликацию в _lunar_events.
+_ECLIPSE_TO_PHASE_TYPE = {"solar": "new_moon", "lunar": "full_moon"}
+
+# Порог сверки затмения с фазой — часы, не календарная дата (см. комментарий
+# в _lunar_events). Наблюдавшийся максимум на боевых данных — 19 минут.
+_ECLIPSE_PHASE_MERGE_HOURS = 3
 
 
 # ── Сборка ───────────────────────────────────────────────────────────────────
