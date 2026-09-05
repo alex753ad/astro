@@ -230,20 +230,114 @@ class TestSingleTimezone:
         assert clamped == sorted(clamped)
 
     def test_eclipse_and_phase_share_the_zone(self):
-        """Август 2026 — месяц с двумя затмениями и фазами разом.
-
-        Раньше эти два вида событий приходили в разных поясах из одной ручки;
-        здесь они обязаны лечь в одну шкалу.
+        """Август 2026 — месяц с двумя затмениями. Оба совпадают по моменту
+        со своей фазой (проверено исполнением, FEED_DUPLICATE_MOMENTS.md —
+        7 затмений из 7 боевых сопровождались фазой того же рода) и поэтому
+        обе фазы месяца слиты в затмения (см. TestEclipseAbsorbsPhase) — тем
+        не менее их момент по-прежнему взят из общего jd_to_utc, той же
+        функции, что и раньше отдавала разные пояса для затмений (UTC) и
+        фаз (GMT+3). Сверяем зону на затмении и на любом другом лунном виде
+        того же месяца (retrograde/solar_event/planner), которые дедупу не
+        подлежат.
         """
         feed = _feed(date(2026, 8, 1), date(2026, 8, 31))
         kinds = {e["kind"] for e in feed["events"]}
         assert "eclipse" in kinds, "в августе 2026 два затмения — их нет в ленте"
-        assert "moon_phase" in kinds
         zones = {
             datetime.fromisoformat(e["at"]).utcoffset()
-            for e in feed["events"] if e["kind"] in ("eclipse", "moon_phase")
+            for e in feed["events"] if e["kind"] in ("eclipse", "retrograde", "solar_event")
         }
-        assert len(zones) == 1, f"затмения и фазы в разных поясах: {zones}"
+        assert len(zones) == 1, f"разные пояса внутри одной ленты: {zones}"
+
+
+# ═══════════════════════════════════════════════════════════
+# Дубль затмения и фазы — вариант Б (решение владельца 05.09.2026)
+# ═══════════════════════════════════════════════════════════
+
+class TestEclipseAbsorbsPhase:
+    """Затмение — это фаза: солнечное бывает только в новолуние, лунное —
+    только в полнолуние. Показывать оба — значит показать один момент
+    дважды. Решение: фаза, совпавшая с затмением по времени (не по дате —
+    см. ниже), не отдаётся; её знак зодиака переезжает в meta затмения.
+
+    Август 2026 — боевой месяц с двумя затмениями: полное солнечное 12.08
+    (совпадает с новолунием) и частное лунное 28.08 (совпадает с
+    полнолунием). Оба подтверждены исполнением на бою
+    (FEED_DUPLICATE_MOMENTS.md).
+    """
+
+    def test_both_august_phases_are_absorbed(self):
+        feed = _feed(date(2026, 8, 1), date(2026, 8, 31))
+        kinds = {e["kind"] for e in feed["events"]}
+        assert "eclipse" in kinds
+        assert "moon_phase" not in kinds, (
+            "в августе 2026 обе фазы месяца совпадают со своими затмениями — "
+            "ни одна не должна остаться отдельным событием"
+        )
+
+    def test_eclipse_carries_the_sign_the_phase_would_have_shown(self):
+        """У затмения своего знака в данных нет (`get_eclipses` его не
+        считает) — без переноса содержание терялось бы вместе с фазой."""
+        feed = _feed(date(2026, 8, 1), date(2026, 8, 31))
+        eclipses = [e for e in feed["events"] if e["kind"] == "eclipse"]
+        assert len(eclipses) == 2
+        for e in eclipses:
+            assert e["meta"].get("sign"), f"у затмения {e['at']} нет знака: {e['meta']}"
+
+    def test_eclipse_key_and_text_unchanged_by_the_merge(self):
+        """Ключи существующих событий не меняются (условие задания) —
+        только состав ленты (фаза пропадает) и meta затмения (знак
+        добавляется)."""
+        feed = _feed(date(2026, 8, 1), date(2026, 8, 31))
+        eclipses = {e["key"]: e for e in feed["events"] if e["kind"] == "eclipse"}
+        assert any("Полное солнечное" in e["text"] for e in eclipses.values())
+        assert any("Частное лунное" in e["text"] for e in eclipses.values())
+
+    def test_threshold_is_hours_not_calendar_date(self):
+        """Порог сверки — реальное время, а не строка даты. Синтетическая
+        фаза и затмение на РАЗНЫХ календарных днях (23:50 / 00:05), но в
+        пределах 3 часов, обязаны слиться — иначе пара, разошедшаяся через
+        полночь по местному времени (наблюдалось на бою: до 19 минут вокруг
+        полуночи), осталась бы дублем."""
+        import pytz
+        from backend.feed.builder import _lunar_events
+
+        tz = pytz.timezone("Europe/Moscow")
+        # Патчим _find_phase и _scan_eclipses прямо на модуле lunar_engine —
+        # _lunar_events импортирует их внутри функции (см. её тело), поэтому
+        # патч на месте импорта, откуда их читают, а не на месте вызова.
+        import backend.calendar.lunar_engine as engine
+
+        new_moon_jd = engine._jd(date(2026, 6, 15), 23.0) + 50 / 1440   # 23:50 UTC
+        eclipse_jd = new_moon_jd + 15 / 1440                            # +15 минут → 00:05 UTC следующих суток
+
+        orig_find_phase = engine._find_phase
+        orig_scan = engine._scan_eclipses
+
+        def fake_find_phase(jd_start, jd_end, target):
+            return [new_moon_jd] if target == 0.0 else []
+
+        def fake_scan(jd_start, jd_end, finder, flags, etype):
+            from backend.calendar.lunar_engine import EclipseEvent
+            if etype != "solar":
+                return []
+            dt, tm = engine._jd_to_dt(eclipse_jd)
+            return [EclipseEvent(date=dt, time=f"{tm} UTC", type="solar", kind="total")]
+
+        engine._find_phase = fake_find_phase
+        engine._scan_eclipses = fake_scan
+        try:
+            events = _lunar_events(date(2026, 6, 14), date(2026, 6, 16), tz)
+        finally:
+            engine._find_phase = orig_find_phase
+            engine._scan_eclipses = orig_scan
+
+        kinds = [e["kind"] for e in events]
+        assert kinds.count("eclipse") == 1
+        assert kinds.count("moon_phase") == 0, (
+            f"фаза и затмение на разных календарных днях не слились: "
+            f"{[(e['kind'], e['at']) for e in events]}"
+        )
 
 
 # ═══════════════════════════════════════════════════════════
