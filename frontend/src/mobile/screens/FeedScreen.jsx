@@ -193,6 +193,11 @@ export default function FeedScreen() {
         // важность, и они остаются в потоке как события.
         const background = day.events.filter(isLunarBackground);
         const foreground = day.events.filter((e) => !isLunarBackground(e));
+        // При одном лунном событии свёртывать нечего — «ещё 1 лунное»
+        // ничего не сокращает, только добавляет лишний тап. Показываем его
+        // как обычный узел линии; сворачиваем только от двух и больше.
+        const soloLunar = background.length === 1 ? background[0] : null;
+        const foldedLunar = background.length > 1 ? background : [];
         // Маркер «СЕГОДНЯ» — один раз, перед днём открытия (§2), и только
         // если над ним есть хотя бы один прошедший день: у самого первого
         // дня окна маркер ставить не над чем.
@@ -218,9 +223,19 @@ export default function FeedScreen() {
                 </FeedTimelineNode>
               );
             })}
-            {background.length > 0 && (
+            {soloLunar && (
+              <FeedTimelineNode
+                key={soloLunar.key}
+                time={timePart(soloLunar.at)}
+                color={dotColor(soloLunar)}
+                size={dotSize(soloLunar)}
+              >
+                <FeedEventCard event={soloLunar} onOpen={setSelected} />
+              </FeedTimelineNode>
+            )}
+            {foldedLunar.length > 0 && (
               <FeedTimelineNode time="" gap={16}>
-                <FeedLunarFold events={background} onOpen={setSelected} />
+                <FeedLunarFold events={foldedLunar} onOpen={setSelected} />
               </FeedTimelineNode>
             )}
           </section>

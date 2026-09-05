@@ -107,14 +107,20 @@ export default function FeedEventCard({ event, onOpen }) {
   // ничего не делает, читается как поломка.
   const openable = locked && typeof onOpen === 'function';
 
+  // Рамка и фон — только у карточки периода (§9 SPEC_FEED_VISUAL.md, «до
+  // захода Б»: точка и линия слева уже показывают, что это событие, рамка
+  // с ними спорит). showFiller — исключение: витрине под блюром нужна
+  // видимая граница, иначе непонятно, где она заканчивается.
+  const boxed = event.kind === 'planner_period' || showFiller;
+
   return (
     <article
       onClick={openable ? () => onOpen(event) : undefined}
       style={{
-        background: 'var(--bg-card)',
-        border: `1px solid ${openInterpretation ? 'var(--accent)' : 'var(--border)'}`,
-        borderRadius: 20,
-        padding: 16,
+        background: boxed ? 'var(--bg-card)' : 'transparent',
+        border: boxed ? `1px solid ${openInterpretation ? 'var(--accent)' : 'var(--border)'}` : 'none',
+        borderRadius: boxed ? 20 : 0,
+        padding: boxed ? 16 : 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
@@ -124,34 +130,39 @@ export default function FeedEventCard({ event, onOpen }) {
         minHeight,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '0.09em',
-            fontFamily: 'var(--font-display)',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          {timePart(event.at)}
-        </span>
-        {openInterpretation && (
+      {/* Время дублировало бы колонку слева на линии (§3) — убрано у
+          формулы транзита. У остальных видов колонка не даёт точного
+          времени (период там — датой начала), поэтому строка остаётся. */}
+      {!formula && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span
-            // Точка объясняет рамку: одна рамка без подписи читается как
-            // «выделено», но не говорит чем.
-            aria-label="Разбор открыт"
-            title="Разбор открыт"
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'var(--accent)',
-              display: 'inline-block',
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.09em',
+              fontFamily: 'var(--font-display)',
+              color: 'var(--text-secondary)',
             }}
-          />
-        )}
-      </div>
+          >
+            {timePart(event.at)}
+          </span>
+          {openInterpretation && (
+            <span
+              // Точка объясняет рамку: одна рамка без подписи читается как
+              // «выделено», но не говорит чем.
+              aria-label="Разбор открыт"
+              title="Разбор открыт"
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--accent)',
+                display: 'inline-block',
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {formula ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -173,20 +184,32 @@ export default function FeedEventCard({ event, onOpen }) {
           >
             {planetRu(formula.transit_planet)} — {planetRu(formula.natal_planet)}
           </span>
-          {hasOrb && (
-            <span
-              style={{
-                marginLeft: 'auto',
-                flexShrink: 0,
-                padding: '2px 7px',
-                border: '1px solid var(--border)',
-                borderRadius: 7,
-                fontSize: 10.5,
-                color: 'var(--text-secondary)',
-                fontFamily: 'var(--font-body)',
-              }}
-            >
-              {meta.peak_orb.toFixed(1)}°
+          {(openInterpretation || hasOrb) && (
+            <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Рамки нет (см. boxed выше), поэтому «разбор открыт» переехал
+                  сюда — раньше эта точка объясняла подсвеченную рамку
+                  карточки, теперь она единственный носитель признака. */}
+              {openInterpretation && (
+                <span
+                  aria-label="Разбор открыт"
+                  title="Разбор открыт"
+                  style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}
+                />
+              )}
+              {hasOrb && (
+                <span
+                  style={{
+                    padding: '2px 7px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 7,
+                    fontSize: 10.5,
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'var(--font-body)',
+                  }}
+                >
+                  {meta.peak_orb.toFixed(1)}°
+                </span>
+              )}
             </span>
           )}
         </div>
