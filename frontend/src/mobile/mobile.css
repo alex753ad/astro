@@ -250,3 +250,23 @@ button, input {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
+
+/* ── Скелет загрузки (FeedSkeleton.jsx) ──
+   Пульсация, а не бегущий блик: блик — это градиент, который надо гнать по
+   background-position, и на длинном списке он стоит заметно дороже простой
+   смены прозрачности. prefers-reduced-motion выключает её целиком: по
+   DESIGN_SYSTEM.md §7 анимация не должна быть обязательной для понимания
+   состояния, а «идёт загрузка» здесь и так читается формой блоков. */
+
+.mobile-skeleton {
+  animation: mobile-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes mobile-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-skeleton { animation: none; }
+}
