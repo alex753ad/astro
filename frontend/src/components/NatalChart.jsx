@@ -295,7 +295,7 @@ function NatalChartInner({
         @font-face {
           font-family: 'AstroSymbols';
           src: url(${astroSymbolsSrc}) format('woff2');
-          unicode-range: U+2640, U+2642-2647, U+263D, U+263F, U+2648-2653, U+260A-260B;
+          unicode-range: U+2640, U+2642-2647, U+263D, U+263F, U+2648-2653, U+260A-260D;
           font-weight: normal; font-style: normal; font-display: block;
         }
         @font-face {

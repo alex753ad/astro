@@ -53,3 +53,35 @@ export const glyphStyle = {
   fontFamily: 'AstroSymbols, system-ui, sans-serif',
   lineHeight: 1,
 };
+
+/**
+ * Символы аспектов и их цвет (§4 SPEC_FEED_VISUAL.md) — карточка транзита
+ * показывает фактуру аспекта цветом, а не словом «Оппозиция».
+ *
+ * Символы — обычная пунктуация/математические знаки (□, △, ✶), кроме ☌/☍,
+ * которые лежат в том же блоке Misc Symbols, что и планеты, — поэтому
+ * формула целиком идёт шрифтом AstroSymbols (glyphStyle), не только планеты.
+ */
+const ASPECT_SYMBOLS = {
+  conjunction: '☌',
+  opposition: '☍',
+  square: '□',
+  trine: '△',
+  sextile: '✶',
+};
+
+export function aspectSymbol(aspectType) {
+  return ASPECT_SYMBOLS[aspectType] || '·';
+}
+
+/**
+ * Цвет аспекта: трин/секстиль — гармоничный (`--color-success`), квадрат/
+ * оппозиция — напряжённый (`--color-danger`), соединение — нейтральный
+ * (`--text-primary`): оно само по себе не бывает ни тем ни другим, смысл
+ * задаёт контекст, которого в карточке-фактуре нет.
+ */
+export function aspectColor(aspectType) {
+  if (aspectType === 'trine' || aspectType === 'sextile') return 'var(--color-success)';
+  if (aspectType === 'square' || aspectType === 'opposition') return 'var(--color-danger)';
+  return 'var(--text-primary)';
+}

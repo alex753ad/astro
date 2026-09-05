@@ -25,7 +25,8 @@
 
 import React from 'react';
 import BlurredHint from './BlurredHint';
-import { eventTitle, signRu, timePart } from '../lib/feedTime';
+import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
+import { eventTitle, planetRu, signRu, timePart } from '../lib/feedTime';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
@@ -88,6 +89,14 @@ export default function FeedEventCard({ event, onOpen }) {
     ? (meta.applying ? 'точный' : 'отходит')
     : null;
 
+  // Формула («☽ △ ♆   Луна — Нептун», §4 SPEC_FEED_VISUAL.md) заменяет
+  // словесный заголовок только у транзита и только когда есть чем её
+  // собрать — у остальных шести видов событий этих трёх полей нет вовсе,
+  // и для них заголовок остаётся текстом из eventTitle(), как раньше.
+  const formula = event.kind === 'transit' && meta.transit_planet && meta.natal_planet && meta.aspect_type
+    ? meta
+    : null;
+
   // Открытый разбор помечается только у транзитов: у фазы, затмения,
   // равноденствия и станции разбора нет в принципе, и «открыто» на них
   // значило бы «доступно то, чего не существует».
@@ -144,18 +153,57 @@ export default function FeedEventCard({ event, onOpen }) {
         )}
       </div>
 
-      <h3
-        style={{
-          margin: 0,
-          fontSize: 18,
-          fontWeight: 600,
-          fontFamily: 'var(--font-display)',
-          color: 'var(--text-primary)',
-          lineHeight: 1.3,
-        }}
-      >
-        {eventTitle(event)}
-      </h3>
+      {formula ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ ...glyphStyle, fontSize: 15 }}>{glyph(formula.transit_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: 15, color: aspectColor(formula.aspect_type) }}>
+            {aspectSymbol(formula.aspect_type)}
+          </span>
+          <span style={{ ...glyphStyle, fontSize: 15 }}>{glyph(formula.natal_planet)}</span>
+          <span
+            style={{
+              fontSize: 13,
+              fontFamily: 'var(--font-body)',
+              color: 'var(--text-secondary)',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {planetRu(formula.transit_planet)} — {planetRu(formula.natal_planet)}
+          </span>
+          {hasOrb && (
+            <span
+              style={{
+                marginLeft: 'auto',
+                flexShrink: 0,
+                padding: '2px 7px',
+                border: '1px solid var(--border)',
+                borderRadius: 7,
+                fontSize: 10.5,
+                color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-body)',
+              }}
+            >
+              {meta.peak_orb.toFixed(1)}°
+            </span>
+          )}
+        </div>
+      ) : (
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 18,
+            fontWeight: 600,
+            fontFamily: 'var(--font-display)',
+            color: 'var(--text-primary)',
+            lineHeight: 1.3,
+          }}
+        >
+          {eventTitle(event)}
+        </h3>
+      )}
 
       {/* Тема периода — вторая строка, если пришла. На free она пустая
           (сервер отдаёт `theme: ""` вместе с locked), и строки не будет. */}
@@ -167,13 +215,9 @@ export default function FeedEventCard({ event, onOpen }) {
         </div>
       )}
 
-      {(precision || hasOrb) && (
-        <div style={rowStyle}>
-          {precision}
-          {precision && hasOrb ? ' · ' : ''}
-          {hasOrb ? `орб ${meta.peak_orb.toFixed(1)}°` : ''}
-        </div>
-      )}
+      {/* Орб теперь в чипе формулы выше (§4) — здесь он был бы вторым
+          показом того же числа. Точность остаётся: у неё нет второго места. */}
+      {precision && <div style={rowStyle}>{precision}</div>}
 
       {/*
         flex:1 + overflow:hidden — обязательная часть, а не оформление.

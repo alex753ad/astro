@@ -28,8 +28,11 @@ import FeedHorizonCard from '../components/FeedHorizonCard';
 import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
 import FeedNowStrip from '../components/FeedNowStrip';
 import FeedSkeleton from '../components/FeedSkeleton';
+import FeedTimelineNode from '../components/FeedTimelineNode';
+import FeedTodayMarker from '../components/FeedTodayMarker';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
-import { dayLabel, groupByDay, localToday } from '../lib/feedTime';
+import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
+import { dotColor, dotSize } from '../lib/feedTimelineDot';
 
 const PAGE_PADDING = { padding: '0 16px 24px' };
 
@@ -184,23 +187,42 @@ export default function FeedScreen() {
           спецификация не просит. */}
       <FeedNowStrip events={longterm} />
 
-      {days.map((day) => {
+      {days.map((day, index) => {
         // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
         // проходы Луны по домам, но не фазы и не затмения — у тех своя
         // важность, и они остаются в потоке как события.
         const background = day.events.filter(isLunarBackground);
         const foreground = day.events.filter((e) => !isLunarBackground(e));
+        // Маркер «СЕГОДНЯ» — один раз, перед днём открытия (§2), и только
+        // если над ним есть хотя бы один прошедший день: у самого первого
+        // дня окна маркер ставить не над чем.
+        const showTodayMarker = day.date === anchorDate && index > 0;
         return (
           <section key={day.date} ref={day.date === anchorDate ? anchorRef : undefined}>
+            {showTodayMarker && <FeedTodayMarker />}
             <FeedDayHeader label={dayLabel(day.date, today)} />
-            {foreground.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: background.length ? 12 : 16 }}>
-                {foreground.map((event) => (
-                  <FeedEventCard key={event.key} event={event} onOpen={setSelected} />
-                ))}
-              </div>
+            {foreground.map((event) => {
+              // Период (planner_period) метится датой начала, точка —
+              // временем (§3). Оба признака — те же, что задают высоту
+              // карточки в FeedEventCard.jsx (durationHeight), не выдумка.
+              const isPeriod = Boolean(event.ends_at && event.duration_days);
+              return (
+                <FeedTimelineNode
+                  key={event.key}
+                  time={isPeriod ? dateShort(event.at) : timePart(event.at)}
+                  bold={isPeriod}
+                  color={dotColor(event)}
+                  size={dotSize(event)}
+                >
+                  <FeedEventCard event={event} onOpen={setSelected} />
+                </FeedTimelineNode>
+              );
+            })}
+            {background.length > 0 && (
+              <FeedTimelineNode time="" gap={16}>
+                <FeedLunarFold events={background} onOpen={setSelected} />
+              </FeedTimelineNode>
             )}
-            <FeedLunarFold events={background} onOpen={setSelected} />
           </section>
         );
       })}

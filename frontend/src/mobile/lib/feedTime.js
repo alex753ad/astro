@@ -58,6 +58,25 @@ export function signRu(sign) {
   return SIGN_RU[sign] || sign || '';
 }
 
+/**
+ * Русские названия планет для подписи-словами под формулой транзита
+ * («Луна — Нептун», §4 SPEC_FEED_VISUAL.md). Ключи — как их отдаёт ручка
+ * (`meta.transit_planet`/`meta.natal_planet`, с заглавной буквы) — та же
+ * вторая копия словаря, что и SIGN_RU выше, и по той же причине: имена
+ * планет не меняются, дублирование дешевле выноса в общий модуль ради
+ * десятка слов.
+ */
+export const PLANET_RU = {
+  Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
+  Mars: 'Марс', Jupiter: 'Юпитер', Saturn: 'Сатурн', Uranus: 'Уран',
+  Neptune: 'Нептун', Pluto: 'Плутон', 'North Node': 'Сев. Узел',
+  'South Node': 'Юж. Узел',
+};
+
+export function planetRu(planet) {
+  return PLANET_RU[planet] || planet || '';
+}
+
 /** «2026-08-05T13:35:00+03:00» → «2026-08-05». Срез, не разбор. */
 export function datePart(at) {
   return typeof at === 'string' ? at.slice(0, 10) : '';
@@ -66,6 +85,16 @@ export function datePart(at) {
 /** «2026-08-05T13:35:00+03:00» → «13:35». Срез, не разбор. */
 export function timePart(at) {
   return typeof at === 'string' ? at.slice(11, 16) : '';
+}
+
+/**
+ * «2026-08-05T13:35:00+03:00» → «05.08». Колонка времени периода на линии
+ * (§3 SPEC_FEED_VISUAL.md) — числом, а не словом месяца: там 64 px и
+ * «5 августа» в них не влезает.
+ */
+export function dateShort(at) {
+  if (typeof at !== 'string') return '';
+  return `${at.slice(8, 10)}.${at.slice(5, 7)}`;
 }
 
 /**

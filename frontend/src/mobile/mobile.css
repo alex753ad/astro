@@ -34,6 +34,13 @@
   --accent-muted: rgba(139, 92, 246, 0.08);
   --color-danger: #DC2626;
   --color-success: #059669;
+  --color-warning: #D97706;
+  /* Стихии — из DESIGN_SYSTEM.md, одинаковые в обеих темах (см.
+     NebulaBackground.jsx ELEMENT_COLORS на вебе). Нужны только двум
+     планетам в §5 SPEC_FEED_VISUAL.md (Меркурий — воздух, Сатурн и
+     медленные — земля), поэтому здесь только эти два, не все четыре. */
+  --color-air: #3498DB;
+  --color-earth: #27AE60;
 
   /* Кириллица — весь UI-текст, латиница — email/версия/бренд. У Space
      Grotesk кириллицы нет вовсе (см. src/assets/fonts/README.md) — для
@@ -55,6 +62,7 @@
   --accent-muted: rgba(139, 92, 246, 0.15);
   --color-danger: #F87171;
   --color-success: #34D399;
+  --color-warning: #FBBF24;
 }
 
 /* ── Локальные шрифты: без сети, приложение открывается сразу после установки ── */
@@ -287,7 +295,12 @@ button, input {
   font-weight: 400;
   font-display: swap;
   src: url('../assets/fonts/NotoSansSymbols-subset.woff2') format('woff2');
-  unicode-range: U+2648-2653, U+263D, U+263F, U+2640, U+2642-2647, U+260A-260B;
+  /* U+260C-260D (☌/☍, соединение/оппозиция) добавлены 05.09.2026 для формулы
+     транзита в ленте (§4 SPEC_FEED_VISUAL.md) — тот же риск тофу, что и у
+     планет: оба знака лежат в блоке Misc Symbols, системный шрифт их не
+     гарантирует. Файл пересобран (см. README.md рядом), не просто расширен
+     диапазон без данных в шрифте. */
+  unicode-range: U+2648-2653, U+263D, U+263F, U+2640, U+2642-2647, U+260A-260D;
 }
 
 @font-face {
