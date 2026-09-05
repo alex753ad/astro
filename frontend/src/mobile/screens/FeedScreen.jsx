@@ -1,13 +1,12 @@
 /**
  * FeedScreen.jsx — экран «Лента» (SPEC_FEED_SCREEN.md, первый заход).
  *
- * Сделано в этом заходе: поток событий, липкие заголовки дней, карточка
- * события, состояния загрузки/ошибки/отсутствия карты, открытие на
+ * Сделано: поток событий, липкие заголовки дней, карточка события, панель
+ * события по тапу, состояния загрузки/ошибки/отсутствия карты, открытие на
  * сегодняшнем дне.
  *
- * НЕ сделано, вынесено во второй заход по решению владельца: полоса
- * «сейчас» с долгосрочными периодами (§4), свёртка лунных транзитов (§7),
- * карточка края горизонта (§9).
+ * НЕ сделано, второй заход: полоса «сейчас» с долгосрочными периодами (§4),
+ * свёртка лунных транзитов (§7), карточка края горизонта (§9).
  *
  * ⚠️ `planner_longterm` уже сейчас изъят из потока (§4, §5: «изымаются
  * полностью»), хотя полосы для него ещё нет — то есть пять этих событий в
@@ -15,8 +14,7 @@
  * молчаливой потери: их `at` лежит на годы раньше окна (Плутон — 2012), и
  * лента открывалась бы заголовком «17 ноября 2012» над всем остальным. По
  * той же причине после фильтрации в потоке не остаётся ни одного события с
- * `started_before` — единственный вид, который его давал, только что убран
- * (§5).
+ * `started_before` — единственный вид, который его давал, только что убран.
  *
  * Прокрутка живёт в TabShell.jsx, одна на все вкладки, и здесь её заводить
  * нельзя: собственный `overflow` на любом предке заголовка сломал бы
@@ -26,6 +24,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import FeedDayHeader from '../components/FeedDayHeader';
 import FeedEventCard from '../components/FeedEventCard';
+import FeedEventPanel from '../components/FeedEventPanel';
 import FeedSkeleton from '../components/FeedSkeleton';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
 import { dayLabel, groupByDay, localToday } from '../lib/feedTime';
@@ -68,8 +67,9 @@ export default function FeedScreen() {
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
   const [error, setError] = useState('');
-  const todayRef = useRef(null);
-  const scrolledRef = useRef(false);
+  const [selected, setSelected] = useState(null);
+  const anchorRef = useRef(null);
+  const userMovedRef = useRef(false);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -93,22 +93,57 @@ export default function FeedScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Как только человек сам тронул ленту — перестаём её двигать. Иначе
+  // до-прокрутка после подгрузки шрифта дёрнула бы экран из-под пальца.
+  useEffect(() => {
+    const moved = () => { userMovedRef.current = true; };
+    window.addEventListener('touchstart', moved, { passive: true });
+    window.addEventListener('wheel', moved, { passive: true });
+    window.addEventListener('keydown', moved);
+    return () => {
+      window.removeEventListener('touchstart', moved);
+      window.removeEventListener('wheel', moved);
+      window.removeEventListener('keydown', moved);
+    };
+  }, []);
+
   const today = localToday();
   // planner_longterm — в полосу «сейчас» (§4), а не в поток. См. шапку.
   const events = (feed?.events || []).filter((e) => e.kind !== 'planner_longterm');
   const days = groupByDay(events);
 
-  // §10: лента открывается на сегодня, прошлое отматывается вверх.
-  // Якорь — заголовок сегодняшнего дня; если событий сегодня нет, ref
-  // достаётся ближайшему следующему дню (см. ниже, при отрисовке).
-  // useLayoutEffect, а не useEffect: прокрутка обязана произойти ДО того,
-  // как кадр покажут, иначе виден скачок с начала месяца на сегодня.
+  /**
+   * §10: лента открывается на сегодня, прошлое отматывается вверх.
+   *
+   * Прокрутка повторяется трижды, и это не перестраховка. Одного вызова в
+   * layout-эффекте не хватило (проверено первым заходом: лента открывалась
+   * на 5 августа, начале окна, а не на сегодня). Причина — сдвиг раскладки
+   * ПОСЛЕ первой прокрутки: до анкера лежит около полутора сотен карточек,
+   * и когда локальный Inter доезжает и подменяет запасной шрифт, высоты
+   * всех этих карточек пересчитываются. Якорь уезжает вниз ровно на
+   * накопленную разницу, а экран остаётся там, где был, — то есть заметно
+   * выше нужного дня.
+   *
+   *   1) сразу в layout-эффекте — до первого кадра, как требует §10;
+   *   2) на следующем кадре — после того как браузер разложил список;
+   *   3) по document.fonts.ready — после подмены шрифта, главный сдвиг.
+   *
+   * Любая из трёх отменяется, если человек уже тронул экран сам.
+   */
   useLayoutEffect(() => {
-    if (status !== 'ready' || scrolledRef.current) return;
-    if (todayRef.current) {
-      todayRef.current.scrollIntoView({ block: 'start' });
-      scrolledRef.current = true;
-    }
+    if (status !== 'ready' || !anchorRef.current) return undefined;
+
+    let cancelled = false;
+    const jump = () => {
+      if (cancelled || userMovedRef.current || !anchorRef.current) return;
+      anchorRef.current.scrollIntoView({ block: 'start', behavior: 'instant' });
+    };
+
+    jump();
+    const raf = requestAnimationFrame(jump);
+    document.fonts?.ready?.then(jump);
+
+    return () => { cancelled = true; cancelAnimationFrame(raf); };
   }, [status, days.length]);
 
   if (status === 'loading') {
@@ -133,22 +168,24 @@ export default function FeedScreen() {
   }
 
   // Якорь открытия: сегодняшний день, а если событий сегодня нет — первый
-  // день после сегодняшнего. Ищется один раз на список, а не в цикле
+  // день после сегодняшнего (§10). Ищется один раз на список, а не в цикле
   // отрисовки, чтобы ref достался ровно одному заголовку.
   const anchorDate = (days.find((d) => d.date >= today) || days[days.length - 1]).date;
 
   return (
     <div style={PAGE_PADDING}>
       {days.map((day) => (
-        <section key={day.date} ref={day.date === anchorDate ? todayRef : undefined}>
+        <section key={day.date} ref={day.date === anchorDate ? anchorRef : undefined}>
           <FeedDayHeader label={dayLabel(day.date, today)} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 16 }}>
             {day.events.map((event) => (
-              <FeedEventCard key={event.key} event={event} />
+              <FeedEventCard key={event.key} event={event} onOpen={setSelected} />
             ))}
           </div>
         </section>
       ))}
+
+      <FeedEventPanel event={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

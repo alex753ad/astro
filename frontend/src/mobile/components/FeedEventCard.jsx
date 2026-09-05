@@ -1,24 +1,21 @@
 /**
  * FeedEventCard.jsx — карточка события в потоке ленты (§8 спецификации).
  *
- * Состав полей взят из спецификации дословно и не расширен: время,
- * заголовок, знаки, признак точности, орб, тизер, действие. Того, чего в
- * §8 нет (эмодзи фаз, номер дома, значок планеты), здесь нет тоже — эти
- * поля в данных есть, но решение показывать их не принималось.
+ * В карточке: время, заголовок, знаки, точность и орб. Всё.
  *
- * Карточка одна на все семь видов событий, остающихся в потоке (transit,
- * planner_period, planner_moon_house, moon_phase, eclipse, retrograde,
- * solar_event). Отдельных вёрсток по kind нет намеренно: у не-транзитов
- * просто нет части полей (знаков, орба, тизера), и соответствующие строки
- * не рисуются. Развилка `if (kind === …)` на каждый вид дала бы семь
- * почти одинаковых блоков, которые расходятся при первой же правке.
+ * ⚠️ Тизера здесь нет намеренно, и это правка спецификации от 05.09.2026.
+ * Первый заход показывал intro/outro прямо в карточке — на боевых данных
+ * текст оказался ОДИНАКОВЫМ на всех ~700 закрытых карточках (он общий для
+ * тарифа, а не для события) и из подсказки превращался в шум, заодно
+ * съедая высоту в ленте, где высота значит длительность. Теперь закрытость
+ * показывает один компактный значок замка без текста, а полный тизер и
+ * кнопка доступа живут в панели по тапу (FeedEventPanel.jsx) — как на вебе,
+ * где разбор тоже открывается отдельной панелью, а не лежит в списке.
  *
- * ⚠️ Кнопка действия сейчас никуда не ведёт. §8 требует её показать
- * («Интерпретация» / «Открыть доступ»), но ни экрана интерпретации, ни
- * модалки апгрейда в мобильном приложении пока не существует — оба
- * вынесены в отдельные задания. Обработчик приходит пропсом `onAction`;
- * пока его не передают, кнопка отрисована, но неактивна, и это заявленное
- * состояние первого захода, а не забытый провод.
+ * Карточка одна на все семь видов событий, остающихся в потоке. Отдельных
+ * вёрсток по kind нет: у не-транзитов просто нет части полей (знаков, орба),
+ * и строки не рисуются. Развилка на каждый вид дала бы семь почти
+ * одинаковых блоков, которые разойдутся при первой же правке.
  */
 
 import React from 'react';
@@ -26,10 +23,19 @@ import { signRu, timePart } from '../lib/feedTime';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
-// самый длинный — месячный период Солнца, 30 суток, то есть +75px к
-// базовой высоте. Потолка нет: нужен ли он вообще — открытый вопрос §12.2,
-// его решают на макете, а не здесь.
+// самый длинный — месячный период Солнца, 30 суток, то есть +75px к базовой
+// высоте. Потолка нет: нужен ли он — открытый вопрос §12.2, решается на
+// макете.
 const PX_PER_DAY = 2.5;
+
+// Замок 14×14, stroke=currentColor — правило B5 DESIGN_SYSTEM.md §8: иначе
+// в тёмной теме значок останется тёмным на тёмном.
+const LOCK_ICON = (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <rect x="2.6" y="6" width="8.8" height="6.2" rx="1.6" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M4.8 6V4.4a2.2 2.2 0 0 1 4.4 0V6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
 
 /** Точка на шкале (транзит, фаза, станция) против периода с длительностью. */
 function durationHeight(event) {
@@ -38,22 +44,16 @@ function durationHeight(event) {
 }
 
 /**
- * Что написано на кнопке.
+ * Закрыто ли событие.
  *
  * `teaser != null` — единственный признак «закрыто» для транзита (§8):
- * бэкенд уже учёл free_unlocked и топ-2 значимых транзита на free открыты.
+ * бэкенд уже учёл free_unlocked, и топ-2 значимых транзита на free открыты.
  * Выводить это из тарифа на клиенте нельзя — получилась бы вторая копия
- * тарифного правила, которая разойдётся с серверной.
- *
- * `locked` закрывает периоды планера, у которых тизера нет вовсе.
- * У остальных видов (фаза, затмение, равноденствие, станция) действия нет:
- * разбирать нечего, и кнопка «Интерпретация» под равноденствием обещала бы
- * несуществующий экран.
+ * тарифного правила, которая разойдётся с серверной. `locked` закрывает
+ * периоды планера, у которых тизера нет вовсе.
  */
-function actionLabel(event) {
-  if (event.teaser || event.locked) return 'Открыть доступ';
-  if (event.kind === 'transit') return 'Интерпретация';
-  return null;
+export function isLocked(event) {
+  return Boolean(event.teaser || event.locked);
 }
 
 const rowStyle = {
@@ -63,9 +63,9 @@ const rowStyle = {
   lineHeight: 1.5,
 };
 
-export default function FeedEventCard({ event, onAction }) {
+export default function FeedEventCard({ event, onOpen }) {
   const meta = event.meta || {};
-  const label = actionLabel(event);
+  const locked = isLocked(event);
   const extraHeight = durationHeight(event);
 
   // Строка знаков — только когда пришли оба знака: у не-транзитов их нет.
@@ -80,8 +80,14 @@ export default function FeedEventCard({ event, onAction }) {
     ? (meta.applying ? 'точный' : 'отходит')
     : null;
 
+  // Тапом открывается только то, что есть чем открыть: у события без тизера
+  // и без locked панели показать нечего, и «нажимаемая» карточка, которая
+  // ничего не делает, читается как поломка.
+  const openable = locked && typeof onOpen === 'function';
+
   return (
     <article
+      onClick={openable ? () => onOpen(event) : undefined}
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
@@ -90,21 +96,33 @@ export default function FeedEventCard({ event, onAction }) {
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
+        cursor: openable ? 'pointer' : 'default',
         // minHeight, а не height: длительность задаёт нижнюю границу, но
-        // текст тизера не должен обрезаться, если он длиннее блока.
+        // длинный заголовок не должен обрезаться.
         minHeight: extraHeight ? 64 + extraHeight : undefined,
       }}
     >
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.09em',
-          fontFamily: 'var(--font-display)',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        {timePart(event.at)}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.09em',
+            fontFamily: 'var(--font-display)',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {timePart(event.at)}
+        </span>
+        {locked && (
+          <span
+            title="Разбор — на платном тарифе"
+            aria-label="Закрыто"
+            style={{ display: 'inline-flex', color: 'var(--text-secondary)', opacity: 0.55 }}
+          >
+            {LOCK_ICON}
+          </span>
+        )}
       </div>
 
       <h3
@@ -132,27 +150,6 @@ export default function FeedEventCard({ event, onAction }) {
           {precision && hasOrb ? ' · ' : ''}
           {hasOrb ? `орб ${meta.peak_orb.toFixed(1)}°` : ''}
         </div>
-      )}
-
-      {event.teaser && (
-        <div style={{ ...rowStyle, marginTop: 2 }}>
-          {event.teaser.intro && <p style={{ margin: 0 }}>{event.teaser.intro}</p>}
-          {event.teaser.outro && (
-            <p style={{ margin: '6px 0 0' }}>{event.teaser.outro}</p>
-          )}
-        </div>
-      )}
-
-      {label && (
-        <button
-          type="button"
-          className="mobile-link"
-          disabled={!onAction}
-          onClick={onAction ? () => onAction(event) : undefined}
-          style={{ alignSelf: 'flex-start', marginTop: 2, padding: '8px 0' }}
-        >
-          {label}
-        </button>
       )}
     </article>
   );
