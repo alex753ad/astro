@@ -26,7 +26,8 @@
 import React from 'react';
 import BlurredHint from './BlurredHint';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { eventTitle, planetRu, signRu, timePart } from '../lib/feedTime';
+import { dateRangeShort, daysBetween, eventTitle, localToday, planetRu, signRu, timePart } from '../lib/feedTime';
+import { planetDotColor } from '../lib/feedTimelineDot';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
@@ -111,7 +112,26 @@ export default function FeedEventCard({ event, onOpen }) {
   // захода Б»: точка и линия слева уже показывают, что это событие, рамка
   // с ними спорит). showFiller — исключение: витрине под блюром нужна
   // видимая граница, иначе непонятно, где она заканчивается.
-  const boxed = event.kind === 'planner_period' || showFiller;
+  const isPeriodCard = event.kind === 'planner_period';
+  const boxed = isPeriodCard || showFiller;
+
+  // Цветная полоса периода (§5) — та же таблица «планета → токен», что и у
+  // точки на линии (feedTimelineDot.js): один источник, не вторая копия.
+  const periodColor = isPeriodCard ? planetDotColor(meta.planet) : null;
+
+  // Список рекомендаций периода (§5). Только у открытого: у закрытого
+  // сервер отдаёт пустые theme/groups и показывает вместо них showFiller.
+  const groups = isPeriodCard && !locked && Array.isArray(meta.groups) ? meta.groups : [];
+
+  // Прогресс периода (§5, полоса внизу) — доля прошедшего от всего срока,
+  // по календарным дням. today во всех расчётах ленты — локальная дата
+  // устройства (см. localToday в feedTime.js), не UTC.
+  const progressPct = isPeriodCard && event.ends_at
+    ? Math.min(100, Math.max(0, Math.round(
+      (daysBetween(event.at.slice(0, 10), localToday()) /
+        Math.max(1, daysBetween(event.at.slice(0, 10), event.ends_at.slice(0, 10)))) * 100,
+    )))
+    : null;
 
   return (
     <article
@@ -119,8 +139,13 @@ export default function FeedEventCard({ event, onOpen }) {
       style={{
         background: boxed ? 'var(--bg-card)' : 'transparent',
         border: boxed ? `1px solid ${openInterpretation ? 'var(--accent)' : 'var(--border)'}` : 'none',
+        // Цветная полоса периода (§5) — тем же свойством border, но
+        // толще и своим цветом с левой стороны; остальные три стороны не
+        // трогает, поэтому объявлена ПОСЛЕ общего border, а не вместо.
+        ...(periodColor ? { borderLeft: `3px solid ${periodColor}` } : {}),
         borderRadius: boxed ? 20 : 0,
         padding: boxed ? 16 : 0,
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
@@ -213,6 +238,41 @@ export default function FeedEventCard({ event, onOpen }) {
             </span>
           )}
         </div>
+      ) : isPeriodCard ? (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ ...glyphStyle, fontSize: 17, color: periodColor, flexShrink: 0 }}>
+            {glyph(meta.planet)}
+          </span>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 600,
+              fontFamily: 'var(--font-display)',
+              color: 'var(--text-primary)',
+              lineHeight: 1.3,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {meta.planet_name}
+          </h3>
+          {event.ends_at && (
+            <span
+              style={{
+                marginLeft: 'auto',
+                flexShrink: 0,
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-body)',
+              }}
+            >
+              {dateRangeShort(event.at, event.ends_at)}
+            </span>
+          )}
+        </div>
       ) : (
         <h3
           style={{
@@ -242,6 +302,29 @@ export default function FeedEventCard({ event, onOpen }) {
           показом того же числа. Точность остаётся: у неё нет второго места. */}
       {precision && <div style={rowStyle}>{precision}</div>}
 
+      {/* Рекомендации периода (§5) — только у открытого, с непустым
+          содержимым: у закрытого их место занимает showFiller ниже. */}
+      {groups.map((group, gi) => (
+        <div key={gi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {(group.items || []).map((item) => (
+            <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, ...rowStyle }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  marginTop: 6,
+                  flexShrink: 0,
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  border: '1px solid var(--accent)',
+                }}
+              />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+
       {/*
         flex:1 + overflow:hidden — обязательная часть, а не оформление.
         Витрина ЗАПОЛНЯЕТ оставшееся место, но не добавляет своего: иначе
@@ -252,6 +335,15 @@ export default function FeedEventCard({ event, onOpen }) {
       {showFiller && (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           <BlurredHint />
+        </div>
+      )}
+
+      {/* Полоса прогресса (§5) — во всю ширину карточки, поэтому отрицательные
+          отступы гасят padding родителя; overflow:hidden на article (см. выше)
+          подрезает её углы по общему borderRadius. */}
+      {progressPct !== null && (
+        <div style={{ margin: '4px -16px -16px', height: 3, background: 'var(--border)' }}>
+          <div style={{ width: `${progressPct}%`, height: '100%', background: periodColor }} />
         </div>
       )}
     </article>

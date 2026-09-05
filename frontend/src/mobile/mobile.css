@@ -311,3 +311,10 @@ button, input {
   src: url('../assets/fonts/NotoSansSymbols2-subset.woff2') format('woff2');
   unicode-range: U+2609;
 }
+
+/* ── Полоска дней (FeedDayStrip.jsx, §7) — скрытый скроллбар ──
+   scrollbar-width:none в инлайн-стиле берёт Firefox, WebKit — только через
+   псевдоэлемент, а он не выражается через style-атрибут. */
+.feed-day-strip::-webkit-scrollbar {
+  display: none;
+}

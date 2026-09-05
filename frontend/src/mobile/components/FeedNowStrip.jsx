@@ -1,10 +1,21 @@
 /**
- * FeedNowStrip.jsx — полоса «сейчас»: долгосрочные периоды (§4).
+ * FeedNowStrip.jsx — полоса «сейчас»: три строки заголовка (§6) + чипы
+ * долгосрочных периодов (§4).
  *
- * Пять медленных планет (Юпитер, Сатурн, Уран, Нептун, Плутон) — по одному
- * текущему периоду на планету, структурная константа бэкенда. Из
- * хронологического потока они изъяты полностью, и это главное, ради чего
- * полоса существует.
+ * Строки 1-2 добавлены заходом Б (§6 SPEC_FEED_VISUAL.md) — период Солнца и
+ * состояние Луны. Не сделано сейчас: полоса НЕ липкая (`position: sticky`),
+ * хотя §6 явно просит `top: 0`. Причина — заголовки дней (`FeedDayHeader.jsx`)
+ * уже липкие на том же `top: 0` того же скроллера, а высота этой полосы
+ * плавает (открытие чипа добавляет `ExpandedCard`, строки 1-2 пропадают при
+ * нехватке данных) — без измерения фактической высоты и проброса её как
+ * `top`-отступа в заголовки дней они наедут друг на друга или полоса
+ * перекроет часть контента. Сделать правильно — отдельная, самостоятельная
+ * задача (ResizeObserver + проброс отступа), не путать с содержимым строк.
+ *
+ * Чипы долгосрочных периодов — пять медленных планет (Юпитер, Сатурн,
+ * Уран, Нептун, Плутон), по одному текущему периоду на планету, структурная
+ * константа бэкенда. Из хронологического потока они изъяты полностью, и
+ * это главное, ради чего полоса изначально была заведена.
  *
  * ⚠️ Высота полосы ФИКСИРОВАННАЯ, приём «высота ∝ длительности» к ней не
  * применяется — именно поэтому долгосрочные и вынесены. Период Плутона идёт
@@ -25,7 +36,71 @@
 import React, { useState } from 'react';
 import BlurredHint from './BlurredHint';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
-import { periodRange } from '../lib/feedTime';
+import { daysBetween, periodRange, signInRu } from '../lib/feedTime';
+
+/** «1 день» / «3 дня» / «5 дней» — остаток периода и срок до фазы (§6). */
+function pluralDays(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'день';
+  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return 'дня';
+  return 'дней';
+}
+
+// Родительный падеж для «до …» (§6: «до полнолуния», «до новолуния»).
+// Лента строит только эти два — квадратов (первая/последняя четверть) в
+// /feed нет вовсе (см. builder.py: phase_events собирает только new_moon
+// и full_moon).
+const PHASE_GENITIVE = {
+  new_moon: 'новолуния',
+  full_moon: 'полнолуния',
+};
+
+/**
+ * Строка 1 (§6) — текущий период Солнца: тот же planner_period, что уже
+ * идёт в потоке ленты (не вторая выборка с другим правилом) — здесь просто
+ * найден среди events тот единственный экземпляр, что покрывает сегодня.
+ */
+function findSunPeriod(events, today) {
+  return events.find((e) => (
+    e.kind === 'planner_period'
+    && e.meta?.planet === 'sun'
+    && e.at.slice(0, 10) <= today
+    && today <= (e.ends_at || '').slice(0, 10)
+  )) || null;
+}
+
+/**
+ * Строка 2 (§6) — состояние Луны: ближайшая фаза ВПЕРЁД от сегодня плюс
+ * текущий знак Луны. Своей ручки под «текущий знак» у мобильного приложения
+ * нет (§6 спецификации admits второй вариант — знак берётся из ближайшего
+ * лунного транзита, а не из /calendar/lunar: третий запрос ради одной
+ * строки нарушил бы правило feedApi.js «запросов ровно два»). Ближайший —
+ * по минимальной разнице календарных дат с сегодня, не обязательно вперёд:
+ * трактует «ближайший» буквально, как написано в спецификации.
+ */
+function findMoonState(events, today) {
+  const nextPhase = events
+    .filter((e) => e.kind === 'moon_phase' && e.at.slice(0, 10) >= today)
+    .sort((a, b) => (a.at < b.at ? -1 : 1))[0] || null;
+
+  const moonTransits = events.filter((e) => e.kind === 'transit' && e.meta?.transit_planet === 'Moon');
+  let nearestMoon = null;
+  let nearestDiff = Infinity;
+  for (const e of moonTransits) {
+    const diff = Math.abs(daysBetween(today, e.at.slice(0, 10)));
+    if (diff < nearestDiff) { nearestDiff = diff; nearestMoon = e; }
+  }
+
+  if (!nextPhase || !nearestMoon) return null; // §6: не хватает данных — строку не рисуем.
+
+  return {
+    currentSign: nearestMoon.meta.transit_sign,
+    phaseGenitive: PHASE_GENITIVE[nextPhase.meta?.type] || 'фазы',
+    phaseSign: nextPhase.meta?.sign,
+    daysUntil: Math.max(0, daysBetween(today, nextPhase.at.slice(0, 10))),
+  };
+}
 
 function Chip({ event, active, onClick }) {
   const meta = event.meta || {};
@@ -115,43 +190,86 @@ function ExpandedCard({ event, onUpgrade }) {
   );
 }
 
-export default function FeedNowStrip({ events, onUpgrade }) {
+export default function FeedNowStrip({ events, today, onUpgrade }) {
   const [openKey, setOpenKey] = useState(null);
-  if (!events || events.length === 0) return null;
+  const all = events || [];
+  const longterm = all.filter((e) => e.kind === 'planner_longterm');
+  const sunPeriod = findSunPeriod(all, today);
+  const moonState = findMoonState(all, today);
+
+  if (longterm.length === 0 && !sunPeriod && !moonState) return null;
 
   // Копия перед сортировкой: массив приходит из состояния экрана, и sort
   // на месте перетасовал бы его там же.
-  const chips = [...events].sort((a, b) => (a.duration_days || 0) - (b.duration_days || 0));
+  const chips = [...longterm].sort((a, b) => (a.duration_days || 0) - (b.duration_days || 0));
   const open = chips.find((e) => e.key === openKey) || null;
 
   return (
     <section style={{ padding: '12px 0 4px' }}>
-      <h2
-        style={{
-          margin: '0 0 8px',
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.09em',
-          textTransform: 'uppercase',
-          fontFamily: 'var(--font-display)',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        Сейчас
-      </h2>
+      {/* Строка 1 (§6) — период Солнца, остаток словами. */}
+      {sunPeriod && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+          <span style={{ ...glyphStyle, fontSize: 17, color: 'var(--color-warning)' }}>☉</span>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 19,
+              fontWeight: 600,
+              fontFamily: 'var(--font-display)',
+              color: 'var(--text-primary)',
+            }}
+          >
+            Период Солнца
+          </h2>
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-secondary)', flexShrink: 0 }}>
+            {(() => {
+              const left = daysBetween(today, sunPeriod.ends_at.slice(0, 10));
+              return `${left} ${pluralDays(left)}`;
+            })()}
+          </span>
+        </div>
+      )}
 
-      <div style={{ display: 'flex', gap: 6 }}>
-        {chips.map((event) => (
-          <Chip
-            key={event.key}
-            event={event}
-            active={event.key === openKey}
-            onClick={() => setOpenKey(event.key === openKey ? null : event.key)}
-          />
-        ))}
-      </div>
+      {/* Строка 2 (§6) — состояние Луны. Не хватает данных — строки нет вовсе. */}
+      {moonState && (
+        <div style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-secondary)' }}>
+          Луна в <span style={{ color: 'var(--text-primary)' }}>{signInRu(moonState.currentSign)}</span>
+          {' · до '}{moonState.phaseGenitive} в{' '}
+          <span style={{ color: 'var(--text-primary)' }}>{signInRu(moonState.phaseSign)}</span>
+          {' '}{moonState.daysUntil} {pluralDays(moonState.daysUntil)}
+        </div>
+      )}
 
-      {open && <ExpandedCard event={open} onUpgrade={onUpgrade} />}
+      {chips.length > 0 && (
+        <>
+          <h2
+            style={{
+              margin: '0 0 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.09em',
+              textTransform: 'uppercase',
+              fontFamily: 'var(--font-display)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            Сейчас
+          </h2>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            {chips.map((event) => (
+              <Chip
+                key={event.key}
+                event={event}
+                active={event.key === openKey}
+                onClick={() => setOpenKey(event.key === openKey ? null : event.key)}
+              />
+            ))}
+          </div>
+
+          {open && <ExpandedCard event={open} onUpgrade={onUpgrade} />}
+        </>
+      )}
     </section>
   );
 }

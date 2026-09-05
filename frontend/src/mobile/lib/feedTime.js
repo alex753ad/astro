@@ -35,6 +35,10 @@ const WEEKDAYS = [
   'четверг', 'пятница', 'суббота',
 ];
 
+// То же самое, сокращённо — колонка полоски дней 42px (§7), полному слову
+// там не поместиться.
+const WEEKDAYS_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
 /**
  * Русские названия знаков. Ручка отдаёт английские («Leo», «Taurus»),
  * §8 спецификации требует русские.
@@ -56,6 +60,37 @@ export const SIGN_RU = {
 
 export function signRu(sign) {
   return SIGN_RU[sign] || sign || '';
+}
+
+/**
+ * Предложный падеж знака — «Луна в Деве», «до новолуния в Рыбах» (§6
+ * SPEC_FEED_VISUAL.md). Именительный (SIGN_RU выше) для фразы с «в» не
+ * подходит: «в Дева» — не по-русски. Отдельный словарь, а не склонение по
+ * правилу — у знаков зодиака ровно 12 исключений из общих схем (Телец →
+ * Тельце, Лев → Льве, чередование гласной), проще перечислить, чем
+ * угадывать алгоритмом.
+ *
+ * ⚠️ Ключи — и английские, и русские именительные. Один и тот же по смыслу
+ * `meta.sign` приходит в РАЗНОМ виде в зависимости от события: у транзита
+ * (`meta.transit_sign`) — английским («Virgo», как и везде в ленте), а у
+ * фазы Луны (`meta.sign`, `feed/builder.py`, функция `_sign()` в блоке
+ * фаз) — уже русским («Дева»), потому что тем же значением бэкенд собирает
+ * готовую фразу `text` фазы. Расхождение источника, не опечатка: чинить
+ * его — на бэкенде, отдельной задачей; здесь — принять оба входа, раз оба
+ * реально приходят.
+ */
+const SIGN_PREPOSITIONAL = {
+  Aries: 'Овне', Taurus: 'Тельце', Gemini: 'Близнецах', Cancer: 'Раке',
+  Leo: 'Льве', Virgo: 'Деве', Libra: 'Весах', Scorpio: 'Скорпионе',
+  Sagittarius: 'Стрельце', Capricorn: 'Козероге', Aquarius: 'Водолее',
+  Pisces: 'Рыбах',
+  Овен: 'Овне', Телец: 'Тельце', Близнецы: 'Близнецах', Рак: 'Раке',
+  Лев: 'Льве', Дева: 'Деве', Весы: 'Весах', Скорпион: 'Скорпионе',
+  Стрелец: 'Стрельце', Козерог: 'Козероге', Водолей: 'Водолее', Рыбы: 'Рыбах',
+};
+
+export function signInRu(sign) {
+  return SIGN_PREPOSITIONAL[sign] || signRu(sign);
 }
 
 /**
@@ -95,6 +130,23 @@ export function timePart(at) {
 export function dateShort(at) {
   if (typeof at !== 'string') return '';
   return `${at.slice(8, 10)}.${at.slice(5, 7)}`;
+}
+
+/** «30.08 — 19.09» — шапка карточки периода (§5 SPEC_FEED_VISUAL.md). */
+export function dateRangeShort(fromAt, toAt) {
+  return `${dateShort(fromAt)} — ${dateShort(toAt)}`;
+}
+
+/**
+ * Разница в календарных днях между двумя «YYYY-MM-DD» (b − a). Через
+ * Date.UTC, как shiftDays выше, — переход на летнее время в поясе
+ * устройства не должен исказить разницу на сутки.
+ */
+export function daysBetween(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const diffMs = Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad);
+  return Math.round(diffMs / 86400000);
 }
 
 /**
@@ -151,6 +203,12 @@ export function eventTitle(event) {
   const meta = event.meta || {};
   if (meta.planet_name && meta.house) return `${meta.planet_name} в ${meta.house} доме`;
   return '—';
+}
+
+/** «2026-08-05» → «ср» — колонка полоски дней (§7). */
+export function weekdayShort(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return WEEKDAYS_SHORT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
 
 /** «2026-03-31» → «31 марта». Для края горизонта (§9). */

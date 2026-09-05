@@ -20,8 +20,9 @@
  * `position: sticky` (подробности — в FeedDayHeader.jsx).
  */
 
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import FeedDayHeader from '../components/FeedDayHeader';
+import FeedDayStrip from '../components/FeedDayStrip';
 import FeedEventCard from '../components/FeedEventCard';
 import FeedEventPanel from '../components/FeedEventPanel';
 import FeedHorizonCard from '../components/FeedHorizonCard';
@@ -75,6 +76,9 @@ export default function FeedScreen() {
   const [selected, setSelected] = useState(null);
   const anchorRef = useRef(null);
   const userMovedRef = useRef(false);
+  // Один узел на дату — используется и для якоря открытия (§10), и для тапа
+  // по полоске дней (§7): второе не заводит свой отдельный набор рефов.
+  const dayRefs = useRef(new Map());
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -114,10 +118,38 @@ export default function FeedScreen() {
 
   const today = localToday();
   // planner_longterm — в полосу «сейчас» (§4), а не в поток. См. шапку.
+  // Фильтрация по kind живёт здесь и внутри FeedNowStrip.jsx одновременно —
+  // не дублирование правила, а две независимые выборки из одного массива:
+  // тут нужны все, КРОМЕ долгосрочных, там — не только они, а весь список
+  // (полосе ещё нужны период Солнца и ближайшая фаза Луны, §6).
   const allEvents = feed?.events || [];
-  const longterm = allEvents.filter((e) => e.kind === 'planner_longterm');
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
   const days = groupByDay(events);
+
+  /**
+   * Точки полоски дней (§7) — по дате, до 3 цветов, тем же dotColor(), что и
+   * у узла на линии (одна таблица цветов на оба места). Лунные транзиты
+   * (importance: low) не считаются намеренно: у них своя, отдельная от
+   * важных событий природа (§7 сама это оговаривает), и посчитай их —
+   * у каждого дня был бы полный ряд из трёх точек, индикатор перестал бы
+   * что-либо различать.
+   */
+  const dotsByDay = useMemo(() => {
+    const map = new Map();
+    for (const e of events) {
+      if (e.importance === 'low') continue;
+      const date = e.at.slice(0, 10);
+      const arr = map.get(date) || [];
+      if (arr.length < 3) { arr.push(dotColor(e)); map.set(date, arr); }
+    }
+    return map;
+  }, [events]);
+
+  const scrollToDay = useCallback((date) => {
+    userMovedRef.current = true; // тап по полоске — это осознанное движение, а не подгрузка шрифта
+    const target = days.find((d) => d.date >= date) || days[days.length - 1];
+    dayRefs.current.get(target?.date)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [days]);
 
   /**
    * §10: лента открывается на сегодня, прошлое отматывается вверх.
@@ -185,7 +217,14 @@ export default function FeedScreen() {
           скроллера: собственный overflow здесь сломал бы sticky заголовков
           (см. FeedDayHeader.jsx), а прибивать полосу к верху экрана
           спецификация не просит. */}
-      <FeedNowStrip events={longterm} />
+      <FeedNowStrip events={allEvents} today={today} />
+      <FeedDayStrip
+        from={feed?.horizon?.from}
+        to={feed?.horizon?.to}
+        today={today}
+        dotsByDay={dotsByDay}
+        onSelectDay={scrollToDay}
+      />
 
       {days.map((day, index) => {
         // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
@@ -203,7 +242,13 @@ export default function FeedScreen() {
         // дня окна маркер ставить не над чем.
         const showTodayMarker = day.date === anchorDate && index > 0;
         return (
-          <section key={day.date} ref={day.date === anchorDate ? anchorRef : undefined}>
+          <section
+            key={day.date}
+            ref={(el) => {
+              if (el) dayRefs.current.set(day.date, el); else dayRefs.current.delete(day.date);
+              if (day.date === anchorDate) anchorRef.current = el;
+            }}
+          >
             {showTodayMarker && <FeedTodayMarker />}
             <FeedDayHeader label={dayLabel(day.date, today)} />
             {foreground.map((event) => {

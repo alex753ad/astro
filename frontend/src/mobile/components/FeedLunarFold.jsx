@@ -72,6 +72,12 @@ export default function FeedLunarFold({ events, onOpen }) {
         </div>
       )}
 
+      {/*
+        Вид — из прототипа (§8 SPEC_FEED_VISUAL.md, «заход Б»): текст слева,
+        без рамки, число подчёркнуто. Отступ слева не задаётся здесь — этот
+        компонент уже сидит в содержимом FeedTimelineNode (FeedScreen.jsx),
+        а тот сам даёт те же 80px (64px колонка времени + 16px паддинг).
+      */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -80,18 +86,22 @@ export default function FeedLunarFold({ events, onOpen }) {
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           gap: 8,
-          padding: '10px 12px',
+          padding: '6px 0',
           background: 'transparent',
-          border: '1px dashed var(--border)',
-          borderRadius: 12,
+          border: 'none',
           color: 'var(--text-secondary)',
           fontFamily: 'var(--font-body)',
           fontSize: 13,
+          textAlign: 'left',
         }}
       >
-        <span>{open ? 'скрыть' : `ещё ${events.length} ${plural(events.length)}`}</span>
+        <span>
+          {open ? 'скрыть' : (
+            <>ещё <span style={{ textDecoration: 'underline' }}>{events.length}</span> {plural(events.length)}</>
+          )}
+        </span>
         {!open && points.length > 0 && (
           <span style={{ ...glyphStyle, fontSize: 14, letterSpacing: '0.14em', opacity: 0.75 }}>
             {points.join(' ')}
