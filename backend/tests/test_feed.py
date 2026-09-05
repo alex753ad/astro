@@ -400,21 +400,40 @@ class TestLongtermSortAndStartedBefore:
         for ident in common:
             assert t1[ident] == t2[ident], f"ключ транзита {ident} разъехался между окнами"
 
-    # ⚠️ НЕ добавлено: аналогичная проверка устойчивости ключей для
-    # planner_longterm между перекрывающимися окнами. Прогон это делал — ключ
-    # разошёлся (Нептун, дом 6: at/ends_at совпали посекундно между окнами,
-    # ключ — нет). Причина в `add()` (builder.py): `_key()` хеширует СЫРЫЕ
-    # start_iso/end_iso параметры, ДО обрезки микросекунд, которую
-    # `_to_local_iso` делает только для отображаемых `at`/`ends_at`. Коарсный
-    # `step_hours=72` в `calculate_house_passages` сканирует от
-    # `period_start_dt - lookback`, а `period_start_dt` — это запрошенное
-    # окно; разные окна сдвигают сетку шагов на доли часа, бисекция сходится
-    # к чуть другой микросекунде — невидимо в `at`, но не в ключе.
-    #
-    # Это существовавший ДО этой правки дефект: устойчивость ключей раньше
-    # проверялась только для kind=="transit" (TestKeysAreWindowIndependent),
-    # planner_longterm/planner_period никогда не проверялись. Сортировка его
-    # не создала и не касается — не в объёме этой правки, чинить отдельно.
+    @pytest.mark.xfail(
+        reason=(
+            "Известный пре-существующий дефект (не создан и не в объёме этой "
+            "правки, см. CLAUDE.md «planner_longterm»): _key() хеширует сырые "
+            "start_iso/end_iso ДО обрезки микросекунд, которую _to_local_iso "
+            "делает только для отображаемых at/ends_at. Окна со сдвигом, не "
+            "кратным 3 суткам (step_hours=72 в calculate_house_passages), "
+            "сдвигают сетку коарсного скана — бисекция сходится к тому же "
+            "часу:минуте:секунде, но к другой микросекунде, и ключ расходится, "
+            "хотя at/ends_at совпадают дословно. Подтверждено исполнением на "
+            "main ДО этой правки — тот же результат, дефект не в сортировке."
+        ),
+        strict=True,
+    )
+    def test_longterm_key_stable_across_windows_offset_by_17_days(self):
+        """17 дней — сдвиг НЕ кратен 3 (step_hours=72): именно на нём дефект
+        и был найден. Тест должен упасть (xfail) — если однажды пройдёт,
+        strict=True превратит это в XPASS-провал, и будет сигнал снять xfail
+        и обновить CLAUDE.md."""
+        w1 = _feed(date(2026, 8, 15), date(2026, 10, 15))
+        feed_cache.clear()
+        w2 = _feed(date(2026, 9, 1), date(2026, 11, 1))
+
+        def longterm_by_planet(f):
+            return {
+                e["meta"]["planet"]: e["key"]
+                for e in f["events"] if e["kind"] == "planner_longterm"
+            }
+
+        l1, l2 = longterm_by_planet(w1), longterm_by_planet(w2)
+        common = set(l1) & set(l2)
+        assert common, "окна не пересеклись по planner_longterm — тест ничего не проверяет"
+        for planet in common:
+            assert l1[planet] == l2[planet], f"ключ planner_longterm ({planet}) разъехался между окнами"
 
 
 # ═══════════════════════════════════════════════════════════
