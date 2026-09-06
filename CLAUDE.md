@@ -1,4 +1,4 @@
-# CLAUDE.md — Astrea Timeline
+# CLAUDE.md — Aristea Timeline
 
 ## Правила работы
 1. Спрашивай вместо того чтобы угадывать
@@ -12,7 +12,7 @@
 
 ## Проект
 
-**Astrea Timeline** — веб-приложение: натальные карты, транзиты, лунный календарь, AI-интерпретации. Домен: astreatime.ru.
+**Aristea Timeline** — веб-приложение: натальные карты, транзиты, лунный календарь, AI-интерпретации. Домен: aristeatime.ru.
 **Версия архитектуры:** 4.0 | Август 2026
 
 ---
@@ -71,7 +71,7 @@ frontend/src/
 │   ├── NatalChart.jsx      # SVG колесо натальной карты (D3)
 │   ├── TransitTimeline.jsx # временная шкала транзитов
 │   ├── AuthModal.jsx
-│   ├── RagChat.jsx         # чат Астреи (RAG)
+│   ├── RagChat.jsx         # чат Аристеи (RAG)
 │   ├── Toast.jsx
 │   └── ThemeToggle.jsx
 └── hooks/
@@ -140,7 +140,7 @@ backend/
 
 Модель интерпретации — везде DeepSeek Pro (не зависит от тарифа, решение
 владельца 19.08.2026); тариф регулирует глубину через лимит слов
-(`interpretation_word_limit`), а не модель. Чат Астреи — отдельно, на Flash.
+(`interpretation_word_limit`), а не модель. Чат Аристеи — отдельно, на Flash.
 
 Источник истины — `TIER_FLAGS` (`backend/auth/rate_limits.py`) и `TIERS`
 (`frontend/src/constants.js`); оба обязаны совпадать. «Карты» в таблице —
@@ -415,7 +415,7 @@ fallback chain») и его же комментарий в классе `Interpr
 определяется только, попадёт ли GPT-4o в список вообще, — первым в очереди он
 не становится никогда.
 
-**2. Чат Астреи (RAG)** — `interpretation/rag_router.py`, отдельно и всегда
+**2. Чат Аристеи (RAG)** — `interpretation/rag_router.py`, отдельно и всегда
 `settings.deepseek_model_flash`. К цепочке выше отношения не имеет.
 
 **3. Прогнозы (daily/weekly/monthly) и общий астрокалендарь** — `main.py`,
