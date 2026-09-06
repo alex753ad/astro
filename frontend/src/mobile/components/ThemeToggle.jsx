@@ -5,10 +5,14 @@
  * Те же пути солнца/луны, что в компоненте ThemeToggle веба
  * (src/components/ThemeToggle.jsx) — свой файл (там кнопка-иконка в шапке,
  * здесь строка настроек в списке), но один и тот же глиф, а не два похожих.
+ *
+ * Индикатор — MoreSwitch (визуальный тумблер), не текст «Вкл/Выкл»:
+ * правка приёмки 06.09.2026, в прототипе это тумблер.
  */
 
 import React from 'react';
 import useTheme from '../useTheme.jsx';
+import MoreSwitch from './MoreSwitch';
 
 function SunIcon() {
   return (
@@ -64,19 +68,7 @@ export default function ThemeToggle() {
         </span>
       </span>
 
-      {/* Простой индикатор состояния вместо отдельного графического
-          свитча — на touch-экране весь ряд и так кликабелен целиком,
-          второй интерактивный элемент внутри кнопки был бы лишним. */}
-      <span
-        style={{
-          fontFamily: 'var(--font-display)',
-          fontWeight: 600,
-          fontSize: 13,
-          color: dark ? 'var(--accent)' : 'var(--text-secondary)',
-        }}
-      >
-        {dark ? 'Вкл' : 'Выкл'}
-      </span>
+      <MoreSwitch on={dark} />
     </button>
   );
 }
