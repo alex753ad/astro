@@ -162,7 +162,14 @@ export default function ChartSheet({ chart }) {
         })}
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 12 }}>
+      {/* paddingBottom: 88, не 12 — запас под кнопку чата (AristeaFab.jsx,
+          52px + 16px отступ + немного воздуха): она всегда показана вместе
+          с этим экраном (§5 SPEC_CHART_SCREEN.md), сидит поверх правого
+          нижнего угла именно этого списка. Клиренс — здесь, внутри
+          собственного скролла шторки, а не общим отступом в TabShell.jsx:
+          тот сжал бы всю композицию «колесо + шторка» разом и утопил
+          подсказку под колесом (регресс 06.09.2026, см. TabShell.jsx). */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 88 }}>
         {tab === 'planets' && planets.map((p) => <PlanetRow key={p.name} planet={p} />)}
 
         {tab === 'houses' && (

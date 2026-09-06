@@ -24,9 +24,17 @@
  * зависимость от процентов убирает целиком — высоту считает сам флекс-
  * алгоритм. height:'100%' на корне тоже резолвится надёжно: html/body/#root
  * уже держат height:100% в mobile.css, это всего один уровень, не цепочка.
+ *
+ * ⚠️ 06.09.2026 здесь стояла обёртка скроллера в лишний position:relative
+ * div (для позиционирования FAB) — регресс: ChartSheet.jsx считает свою
+ * высоту в `%` (45%, §5 SPEC_CHART_SCREEN.md), а лишний уровень вложенности
+ * — ровно то, от чего предупреждает абзац выше. Подсказка «Сведите пальцы
+ * для зума» уезжала под шторку. Кнопка вынесена на `position: fixed`
+ * (AristeaFab.jsx) — она не участвует в раскладке скроллера вообще, и
+ * структура вернулась к изначальной, без лишнего уровня.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import FeedScreen from '../screens/FeedScreen';
 import ChartScreen from '../screens/ChartScreen';
@@ -46,6 +54,17 @@ export default function TabShell() {
   // рядом со своим собственным блоком тарифа).
   const showFab = active === 'feed' || active === 'chart';
 
+  // Высота таб-бара — измеряется, а не захардкожена: она уже включает его
+  // собственный `padding-bottom: env(safe-area-inset-bottom)`
+  // (класс mobile-tabbar), и FAB (position: fixed) встаёт ровно над ним
+  // без гадания числом, которое разошлось бы на устройстве с другим
+  // safe-area или другим масштабом шрифта.
+  const tabBarRef = useRef(null);
+  const [tabBarHeight, setTabBarHeight] = useState(56);
+  useEffect(() => {
+    if (tabBarRef.current) setTabBarHeight(tabBarRef.current.offsetHeight);
+  }, []);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/*
@@ -54,53 +73,46 @@ export default function TabShell() {
         (класс mobile-tabbar) — если бы оба применили padding-bottom
         одновременно, отступ снизу задвоился бы и таб-бар оторвался от
         нижнего края экрана видимой пустой полосой.
-
-        position:'relative' здесь — рамка для FAB (см. ниже): кнопка
-        абсолютно позиционируется ОТНОСИТЕЛЬНО ЭТОЙ рамки, а не самого
-        скроллера — иначе она либо уехала бы вместе с прокруткой (будь она
-        внутри скроллера), либо потеряла бы точку отсчёта «прямо над
-        таб-баром» (будь рамкой весь корневой div, где TabBar — тоже
-        видимый сосед снизу, а не позиционирующий контекст).
       */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            overflowY: 'auto',
-            paddingTop: 'env(safe-area-inset-top)',
-            paddingLeft: 'env(safe-area-inset-left)',
-            paddingRight: 'env(safe-area-inset-right)',
-            // Запас снизу, когда FAB показан: без него кнопка легла бы
-            // поверх последней карточки ленты/последней строки шторки
-            // насовсем — с запасом их можно докрутить выше кнопки.
-            paddingBottom: showFab ? 84 : 0,
-          }}
-        >
-          {/* minHeight:0 обязателен на каждом уровне: без него flex-элемент
-              по умолчанию не сжимается уже своего контента (min-height:auto),
-              и высота в процентах внутри (ChartSheet — 45%) резолвится в auto
-              вместо доли экрана — шторка раздувается по контенту и уезжает
-              за нижний край, а не встаёт куда рассчитана. Нашлось на экране
-              «Карта» (вкладка «Аспекты», самый длинный список). */}
-          <div style={{ display: active === 'feed' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-            <FeedScreen />
-          </div>
-          <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-            <ChartScreen />
-          </div>
-          <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-            <MoreScreen />
-          </div>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto',
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)',
+          // Запас снизу — только на «Ленте». Без него последняя карточка
+          // легла бы под кнопку насовсем. На «Карте» тот же запас живёт
+          // внутри списка шторки (ChartSheet.jsx) — этот скроллер сжимать
+          // нельзя: у шторки жёсткий minHeight:220, и общий отступ здесь
+          // душит всю композицию «колесо + шторка» разом, топя подсказку
+          // под колесом (регресс 06.09.2026, найдено при приёмке).
+          paddingBottom: active === 'feed' && showFab ? 84 : 0,
+        }}
+      >
+        {/* minHeight:0 обязателен на каждом уровне: без него flex-элемент
+            по умолчанию не сжимается уже своего контента (min-height:auto),
+            и высота в процентах внутри (ChartSheet — 45%) резолвится в auto
+            вместо доли экрана — шторка раздувается по контенту и уезжает
+            за нижний край, а не встаёт куда рассчитана. Нашлось на экране
+            «Карта» (вкладка «Аспекты», самый длинный список). */}
+        <div style={{ display: active === 'feed' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
+          <FeedScreen />
         </div>
-
-        {/* Сиблинг скроллера, не его потомок — FAB не должен уезжать вместе
-            с прокруткой содержимого, он висит поверх, фиксированно. */}
-        <AristeaFab visible={showFab} />
+        <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
+          <ChartScreen />
+        </div>
+        <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
+          <MoreScreen />
+        </div>
       </div>
-      <TabBar active={active} />
+
+      <AristeaFab visible={showFab} bottomOffset={tabBarHeight + 16} />
+
+      <TabBar ref={tabBarRef} active={active} />
     </div>
   );
 }

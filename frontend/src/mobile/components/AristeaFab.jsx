@@ -9,6 +9,15 @@
  * free/Веге кнопка визуально приглушена и несёт значок замка вместо ✦; тап
  * не ведёт на оплату — переключает на вкладку «Ещё» с подсветкой блока
  * тарифа (там уже есть кнопка «Тарифы»).
+ *
+ * ⚠️ `position: fixed`, не `absolute`. Первая версия была `absolute`
+ * внутри дополнительной `position:relative` обёртки вокруг скроллера —
+ * это добавляло лишний уровень вложенности в цепочку, через которую
+ * `ChartSheet.jsx` считает свою высоту в `%` (45%, §5), и подсказку под
+ * колесом на «Карте» перекрывало шторкой (регресс 06.09.2026, см.
+ * TabShell.jsx). `fixed` позиционируется от viewport и не участвует в
+ * раскладке скроллера вообще — `bottomOffset` приходит из TabShell.jsx,
+ * измеренной высоты `TabBar`, а не магическим числом.
  */
 
 import React, { useState } from 'react';
@@ -16,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import useChatAccess from '../lib/useChatAccess';
 import AristeaChatStub from './AristeaChatStub';
 
-export default function AristeaFab({ visible }) {
+export default function AristeaFab({ visible, bottomOffset }) {
   const hasAccess = useChatAccess();
   const navigate = useNavigate();
   const [stubOpen, setStubOpen] = useState(false);
@@ -38,9 +47,9 @@ export default function AristeaFab({ visible }) {
         onClick={onClick}
         aria-label={hasAccess ? 'Чат с Аристеей' : 'Чат с Аристеей — доступен на Лире и Орионе'}
         style={{
-          position: 'absolute',
-          right: 16,
-          bottom: 16,
+          position: 'fixed',
+          right: 'calc(16px + env(safe-area-inset-right))',
+          bottom: bottomOffset,
           width: 52,
           height: 52,
           borderRadius: '50%',

@@ -42,11 +42,16 @@ const TABS = [
   { key: 'more', path: '/app/more', label: 'Ещё' },
 ];
 
-export default function TabBar({ active }) {
+// forwardRef — TabShell.jsx измеряет реальную высоту таб-бара (уже
+// включающую его собственный safe-area отступ) и ставит по ней кнопку
+// чата (AristeaFab, position: fixed) ровно над панелью, без магического
+// числа, которое разошлось бы на устройстве с другим safe-area.
+const TabBar = React.forwardRef(function TabBar({ active }, ref) {
   const navigate = useNavigate();
 
   return (
     <nav
+      ref={ref}
       className="mobile-tabbar"
       style={{
         display: 'flex',
@@ -84,4 +89,6 @@ export default function TabBar({ active }) {
       })}
     </nav>
   );
-}
+});
+
+export default TabBar;
