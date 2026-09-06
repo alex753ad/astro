@@ -465,6 +465,11 @@ app.include_router(partners_admin_router)
 app.include_router(exit_survey_router)
 app.include_router(crm_access_router)
 app.include_router(calendar_export_router)
+# Лента событий: транзиты + планер + лунный календарь одним ответом.
+# Импорт здесь, а не в шапке файла: feed/router.py при загрузке карты
+# отложенно импортирует backend.main, и импорт наверху замкнул бы цикл.
+from backend.feed.router import router as feed_router  # noqa: E402
+app.include_router(feed_router)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2602,7 +2607,7 @@ def _compute_lunar_calendar(year: int, month: int) -> dict:
     asyncio.to_thread (см. CLAUDE.md) — не напрямую из async-хендлера."""
     from datetime import date as date_type
     from backend.calendar.lunar_engine import (
-        get_moon_phases, get_eclipses, get_solar_events, ZODIAC_SIGNS,
+        get_moon_phases, get_eclipses, get_solar_events, ZODIAC_SIGNS, _jd_to_gmt3,
     )
     import swisseph as swe
     import calendar as cal_mod
@@ -2644,28 +2649,18 @@ def _compute_lunar_calendar(year: int, month: int) -> dict:
                     prev = val
                     jd += 1.0
                     continue
-                y2, mo2, d2, h2 = swe.revjul(exact)
-                h2_gmt3 = h2 + 3
-                d2_gmt3 = int(d2)
-                mo2_gmt3 = int(mo2)
-                y2_gmt3 = int(y2)
-                if h2_gmt3 >= 24:
-                    h2_gmt3 -= 24
-                    d2_gmt3 += 1
-                    import calendar as _cal
-                    _, max_day = _cal.monthrange(y2_gmt3, mo2_gmt3)
-                    if d2_gmt3 > max_day:
-                        d2_gmt3 = 1
-                        mo2_gmt3 += 1
-                        if mo2_gmt3 > 12:
-                            mo2_gmt3 = 1
-                            y2_gmt3 += 1
-                hh, mm = int(h2_gmt3), int((h2_gmt3 % 1) * 60)
+                # Здесь до 04.09.2026 стоял ручной перенос через сутки/месяц/год
+                # с проверкой monthrange — третья копия одной и той же
+                # арифметики (две другие жили в lunar_engine). Момент теперь
+                # берётся единой конвертацией, а +3 применяет _jd_to_gmt3 там же,
+                # где его применяют равноденствия: пояс у фаз и равноденствий
+                # обязан совпадать, иначе значки разъедутся по соседним дням.
+                phase_date, phase_time = _jd_to_gmt3(exact)
                 moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
                 sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
                 phases.append({
-                    "date": f"{y2_gmt3:04d}-{mo2_gmt3:02d}-{d2_gmt3:02d}",
-                    "time": f"{hh:02d}:{mm:02d} GMT+3",
+                    "date": phase_date,
+                    "time": f"{phase_time} GMT+3",
                     "type": etype, "planet": "Moon",
                     "sign": sign, "emoji": emoji,
                     "description": f"{label} в {sign}",

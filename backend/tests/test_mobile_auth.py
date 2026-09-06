@@ -15,6 +15,9 @@ reuse-detection, глобальная ревокация) у обоих клие
 Веб-сторона живёт в test_refresh_cookie.py и этим файлом не дублируется.
 """
 
+import json as _json
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from backend.auth.router import (
@@ -25,6 +28,19 @@ from backend.auth.router import (
 
 MOBILE = {MOBILE_CLIENT_HEADER: MOBILE_CLIENT_VALUE}
 PASSWORD = "Password123!"
+
+# Схема регистрации пускает только разрешённые почтовые домены.
+OTP_EMAIL = "mobile-otp@yandex.ru"
+SEND_CODE = "/api/v1/auth/register/email/send-code"
+VERIFY = "/api/v1/auth/register/email/verify"
+
+
+@pytest.fixture
+def no_outbound_email():
+    """Письма не шлём: интересует форма ответа, а не доставка."""
+    with patch("backend.email_service.send_otp_email", new_callable=AsyncMock), \
+         patch("backend.email_service._send", new_callable=AsyncMock):
+        yield
 
 
 def _login(client, user, headers=None):
@@ -57,6 +73,21 @@ class TestRefreshInBodyOnlyForMobile:
         resp = _login(client, user_free, {MOBILE_CLIENT_HEADER: "web"})
         assert resp.json().get("refresh_token") is None
 
+    @pytest.mark.parametrize("value", [" mobile ", "MOBILE", " MoBiLe\t"])
+    def test_header_value_is_normalized(self, client, user_free, value):
+        """Регистр и пробелы вокруг значения игнорируются — это намеренно.
+
+        `_is_mobile_client` делает .strip().lower(), потому что заголовок
+        проставляет не только наш код: его может нормализовать прокси, а на
+        стороне клиента значение легко приезжает с пробелом из конфига сборки.
+        Точное сравнение выглядело бы аккуратнее и прошло бы все остальные
+        тесты этого файла — а приложение перестало бы получать refresh и стало
+        разлогиниваться через час. Этот тест держит упрощение за руку.
+        """
+        resp = _login(client, user_free, {MOBILE_CLIENT_HEADER: value})
+        assert resp.status_code == 200
+        assert resp.json()["refresh_token"], f"значение {value!r} обязано открывать тело"
+
     def test_register_with_header_returns_refresh_in_body(self, client):
         resp = client.post(
             "/api/v1/auth/register",
@@ -65,6 +96,48 @@ class TestRefreshInBodyOnlyForMobile:
         )
         assert resp.status_code == 201
         assert resp.json()["refresh_token"]
+
+
+class TestOtpRegistrationCarriesRefresh:
+    """Основной путь регистрации — по OTP; /register без него закрыт в проде.
+
+    Сигнатура register_email_verify менялась (добавился request), а покрыт был
+    только legacy-путь, который в проде отдаёт 404. То есть боевая регистрация
+    оставалась без теста ровно там, где её и правили.
+    """
+
+    @pytest.mark.asyncio
+    async def test_otp_verify_with_header_returns_refresh_in_body(
+        self, client, fake_redis, no_outbound_email,
+    ):
+        from backend.auth.router import _otp_key
+
+        client.post(
+            SEND_CODE,
+            json={"email": OTP_EMAIL, "password": PASSWORD, "name": "Mobile", "consent": True},
+        )
+        code = _json.loads(await fake_redis.get(_otp_key(OTP_EMAIL)))["code"]
+
+        resp = client.post(VERIFY, json={"email": OTP_EMAIL, "code": code}, headers=MOBILE)
+        assert resp.status_code == 201
+        assert resp.json()["refresh_token"], "после регистрации приложению нечем обновляться"
+
+    @pytest.mark.asyncio
+    async def test_otp_verify_without_header_keeps_body_empty(
+        self, client, fake_redis, no_outbound_email,
+    ):
+        from backend.auth.router import _otp_key
+
+        client.post(
+            SEND_CODE,
+            json={"email": OTP_EMAIL, "password": PASSWORD, "name": "Web", "consent": True},
+        )
+        code = _json.loads(await fake_redis.get(_otp_key(OTP_EMAIL)))["code"]
+
+        resp = client.post(VERIFY, json={"email": OTP_EMAIL, "code": code})
+        assert resp.status_code == 201
+        assert resp.json().get("refresh_token") is None
+        assert REFRESH_COOKIE_NAME in resp.cookies
 
 
 class TestMobileRefreshCycle:
