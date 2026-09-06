@@ -14,6 +14,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
 import MoreCenteredNotice from '../components/MoreCenteredNotice';
 import MoreTierCard from '../components/MoreTierCard';
@@ -60,6 +61,26 @@ export default function MoreScreen() {
   const [charts, setCharts] = useState([]);
   const [error, setError] = useState('');
   const [view, setView] = useState('root');
+
+  // Подсветка блока тарифа: сюда переключает FAB чата на free/Веге
+  // (AristeaFab.jsx), а не своя кнопка апгрейда — вести к оплате должна
+  // одна дверь. `location.state.highlightTier` — одноразовый флаг с
+  // каждого такого перехода (свежий объект state на каждый navigate, даже
+  // при повторном переходе с тем же значением), поэтому держим его как
+  // отдельное состояние компонента и сразу же чистим из истории, чтобы
+  // «Назад»/повторный рендер не перезапускали подсветку.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [highlightTier, setHighlightTier] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.highlightTier) {
+      setHighlightTier(true);
+      navigate(location.pathname, { replace: true, state: {} });
+      const t = setTimeout(() => setHighlightTier(false), 2200);
+      return () => clearTimeout(t);
+    }
+  }, [location.state, location.pathname, navigate]);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -118,7 +139,7 @@ export default function MoreScreen() {
         </p>
       </header>
 
-      <MoreTierCard tier={subscription.tier} />
+      <MoreTierCard tier={subscription.tier} highlight={highlightTier} />
 
       <MoreCardsList charts={charts} />
 

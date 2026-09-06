@@ -21,6 +21,10 @@
  * разошлись (флаг — 0, факт — 3). Пока источник не станет один
  * (см. CLAUDE.md, накопленные правки бэкенда), пункт про транзиты в
  * апселле этого экрана не показываем — решение владельца 06.09.2026.
+ *
+ * `highlight` — временная подсветка рамки: сюда переключает FAB чата
+ * (AristeaFab.jsx) на free/Веге вместо своей кнопки апгрейда — одна
+ * дверь к оплате на весь апп, а не две. Гасится сама через MoreScreen.jsx.
  */
 
 import React from 'react';
@@ -34,7 +38,7 @@ function nextTierId(currentTier) {
   return TIERS[idx + 1]?.id ?? null;
 }
 
-export default function MoreTierCard({ tier }) {
+export default function MoreTierCard({ tier, highlight }) {
   const currentName = TIER_NAMES[tier] || tier;
   const nextId = nextTierId(tier);
   const nextName = nextId ? TIER_NAMES[nextId] : null;
@@ -46,12 +50,14 @@ export default function MoreTierCard({ tier }) {
     <section
       style={{
         background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
+        border: `1px solid ${highlight ? 'var(--accent)' : 'var(--border)'}`,
+        boxShadow: highlight ? '0 0 0 3px var(--accent-muted)' : 'none',
         borderRadius: 16,
         padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
+        transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
       }}
     >
       <div>
