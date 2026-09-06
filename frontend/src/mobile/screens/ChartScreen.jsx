@@ -131,25 +131,45 @@ export default function ChartScreen() {
         )}
       </header>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 8px' }}>
-        <NatalChart
-          planets={chart.planets}
-          houses={chart.houses}
-          aspects={chart.aspects}
-          ascendant={chart.ascendant}
-          midheaven={chart.midheaven}
-          timeUnknown={chart.time_unknown}
-          dark={dark}
-          // Оба выключателя — со стороны колеса, разбор причин в шапке
-          // NatalChart.jsx: тултипы спорят со шторкой, анимация крутится в
-          // фоне на невидимой вкладке и оставляет пустой круг, если rAF
-          // придержан.
-          onboarding={false}
-          animated={false}
-        />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '0 8px' }}>
+        {/* Колесо квадратное и своей шириной не оглядывается на доступную
+            высоту — SVG внутри NatalChart.jsx растёт по ширине экрана, а
+            высоту берёт из viewBox (квадрат). Раньше это раскладывалось
+            через justifyContent:'center' на весь блок сразу с подсказкой:
+            при недостатке высоты (короткая шапка+шторка съедают больше, чем
+            в среднем) колесо+подсказка суммарно оказывались выше отведённого
+            места, лишнее уходило за нижний край без скролла — и подсказку,
+            как самый маленький и последний элемент, перекрывала шторка,
+            которая рисуется по DOM-порядку позже поверх переполнения соседа.
+            Обёртка ниже — отдельный flex-блок, кадр с aspectRatio:'1' и
+            maxHeight:'100%' — клэмпит сторону квадрата по МЕНЬШЕЙ из
+            доступных величин (ширина/высота), а подсказка вынесена вторым
+            сиблингом с гарантированным местом, не общим overflow с колесом.
+            NatalChart.jsx не трогаем — эффект достигается снаружи. */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '100%', maxHeight: '100%', aspectRatio: '1' }}>
+            <NatalChart
+              planets={chart.planets}
+              houses={chart.houses}
+              aspects={chart.aspects}
+              ascendant={chart.ascendant}
+              midheaven={chart.midheaven}
+              timeUnknown={chart.time_unknown}
+              dark={dark}
+              // Оба выключателя — со стороны колеса, разбор причин в шапке
+              // NatalChart.jsx: тултипы спорят со шторкой, анимация крутится в
+              // фоне на невидимой вкладке и оставляет пустой круг, если rAF
+              // придержан.
+              onboarding={false}
+              animated={false}
+            />
+          </div>
+        </div>
         {/* Про тап по планете здесь не пишем: пока он ничего не открывает
-            (§9 спецификации), обещать нечего. */}
-        <p style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)' }}>
+            (§9 спецификации), обещать нечего. flexShrink:0 — эта строка
+            больше не делит место с колесом через overflow, у неё всегда
+            гарантированная высота. */}
+        <p style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>
           Сведите пальцы для зума · двойной тап — сброс
         </p>
       </div>

@@ -34,6 +34,13 @@ const rowStyle = {
 
 const secondary = { fontSize: 13, color: 'var(--text-secondary)' };
 
+// Общая ширина первой колонки вкладки «Дома» — у Asc/MC и у самих домов
+// разная длина метки («MC» и «VII дом»), но колонка обязана быть одна:
+// без общей ширины знак у Asc/MC начинается сразу за меткой, а у домов —
+// с отступом (ширина «VII дом» их раздвигает), и получаются три вертикали
+// вместо одной. 66 — по самой длинной метке дома, взято из её же строки.
+const HOUSE_LABEL_WIDTH = 66;
+
 // Градус — моноширинными цифрами и всегда справа: колонка из
 // «24° 04′ 12″» и «5° 35′ 01″» иначе пляшет по ширине.
 const degreeStyle = {
@@ -83,7 +90,7 @@ function AngleRow({ label, angle }) {
   if (!angle) return null;
   return (
     <div style={rowStyle}>
-      <span style={{ width: 20, flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+      <span style={{ width: HOUSE_LABEL_WIDTH, flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
         {label}
       </span>
       <span style={{ ...secondary }}>{signRu(angle.sign)}</span>
@@ -167,7 +174,7 @@ export default function ChartSheet({ chart }) {
                 {/* Римскими, как дома подписаны в самом колесе — список и
                     колесо читаются одинаково. Арабской цифры рядом нет: это
                     было бы одно и то же число дважды. */}
-                <span style={{ width: 66, flexShrink: 0, whiteSpace: 'nowrap', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                <span style={{ width: HOUSE_LABEL_WIDTH, flexShrink: 0, whiteSpace: 'nowrap', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
                   {romanHouse(h.number)} дом
                 </span>
                 <span style={{ ...secondary, flexShrink: 0 }}>{signRu(h.sign)}</span>
