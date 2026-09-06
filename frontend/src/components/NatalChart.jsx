@@ -192,7 +192,7 @@ const introLateV = {
 function NatalChartInner({
   planets = [], houses = [], aspects = [],
   ascendant, midheaven, timeUnknown, transitPlanets = [],
-  isCompact, highlightPlanet = null, highlightAspect = null, dark = false,
+  isCompact, highlightPlanet = null, highlightAspect = null, dark = false, animated = true,
   onHoverPlanet = null, reserveTransitPadding = false, forExport = false,
 }) {
   // При экспорте PNG всегда используем светлую палитру
@@ -265,9 +265,9 @@ function NatalChartInner({
   const prefersReduced = useReducedMotion();
   const hasPlayedRef = useRef(false);
   const [introDone, setIntroDone] = useState(false);
-  const playIntro = !prefersReduced && !hasPlayedRef.current && planets.length > 0;
+  const playIntro = animated && !prefersReduced && !hasPlayedRef.current && planets.length > 0;
   const finishIntro = () => { hasPlayedRef.current = true; setIntroDone(true); };
-  const breathingEnabled = !prefersReduced && introDone;
+  const breathingEnabled = animated && !prefersReduced && introDone;
   useEffect(() => {
     if (!playIntro) return;
     const t = setTimeout(finishIntro, 2000); // подстраховка, если onAnimationComplete не сработает
@@ -295,7 +295,7 @@ function NatalChartInner({
         @font-face {
           font-family: 'AstroSymbols';
           src: url(${astroSymbolsSrc}) format('woff2');
-          unicode-range: U+2640, U+2642-2647, U+263D, U+263F, U+2648-2653, U+260A-260B;
+          unicode-range: U+2640, U+2642-2647, U+263D, U+263F, U+2648-2653, U+260A-260D;
           font-weight: normal; font-style: normal; font-display: block;
         }
         @font-face {
@@ -653,7 +653,28 @@ function NatalChartInner({
 // WRAPPER: skeleton + touch
 // ═══════════════════════════════════════════════════════════
 
-export default function NatalChart({ loading = false, compact: _compactProp, forExport = false, ...props }) {
+/**
+ * Два проп-выключателя, оба по умолчанию `true` — веб на них и стоит, его
+ * поведение не меняется ни на пиксель. Оба передаёт `false` мобильное
+ * приложение (`mobile/screens/ChartScreen.jsx`):
+ *
+ * `onboarding` — три вводных тултипа (ASC / MC / аспекты). На телефоне их
+ * место занимает шторка с таблицами (SPEC_CHART_SCREEN.md §4-5): тултип
+ * встал бы поверх неё, а подсказку про жесты экран пишет своей строкой.
+ *
+ * `animated` — интро-сборка колеса и последующее «дыхание» планет.
+ * Выключено на мобильном по двум причинам сразу. Первая: вкладки остаются
+ * смонтированными при переключении (TabShell.jsx), и бесконечный цикл
+ * «дыхания» на двенадцати планетах крутился бы в фоне, пока человек
+ * смотрит ленту. Вторая: интро — это ~1.5 с, в течение которых колесо
+ * пустое, и если rAF почему-то придержан (свёрнутое приложение, экономия
+ * батареи, вкладка в фоне), человек может увидеть пустой круг вместо
+ * карты. Проверено практикой: в headless-браузере с придержанным rAF
+ * колесо так и осталось пустым через семь секунд — на устройстве этого
+ * быть не должно, но состояние «пусто вместо карты» слишком дорогое,
+ * чтобы держать его ради анимации.
+ */
+export default function NatalChart({ loading = false, compact: _compactProp, forExport = false, onboarding = true, ...props }) {
   // Touch state
   const containerRef = useRef(null);
   const [scale,    setScale]    = useState(1);
@@ -718,7 +739,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
 
   if (loading) return <ChartSkeleton />;
 
-  const showOnboarding = !onboardingSeen && props.planets && props.planets.length > 0;
+  const showOnboarding = onboarding && !onboardingSeen && props.planets && props.planets.length > 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, position: 'relative' }}>
