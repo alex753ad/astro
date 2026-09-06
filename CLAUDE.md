@@ -1277,6 +1277,22 @@ cd /opt/astro/app && git checkout -- . && git status --short
    Postgres. Решающий прогон — в CI (Linux, оба сервиса), и он же занимает
    ~4 минуты против ~80 локально.
 
+   ⚠️ **6 кейсов в `test_beat_watchdog.py` падают локально на пустом месте —
+   известный дефект окружения, не кода.** `TestFailureHandler::test_notifies_on_task_exception`,
+   `TestMarker::test_written_after_successful_run`,
+   `TestMarker::test_not_written_when_task_fails`,
+   `TestWatchdog::test_silent_when_marker_fresh`,
+   `TestWatchdog::test_alerts_when_marker_stale`,
+   `TestWatchdog::test_task_write_is_visible_to_watchdog` — падают на любом
+   коммите, включая чистый `main` (проверено 06.09.2026 отдельным
+   `git worktree`). Причина: установленная локально версия `redis-py`
+   заводит новую фичу «maintenance notifications», которая на подключении
+   делает настоящий `socket.getaddrinfo` — `fakeredis` его не подделывает, и
+   запрос улетает в сетевой предохранитель тестов
+   (`OutboundNetworkBlocked`). В CI версии зафиксированы иначе, там этого
+   нет. Не тратить время на разбор при следующей встрече — дефект в паре
+   версий пакетов на этой машине, не в проекте.
+
    ⚠️ **То же и со сборкой фронта: `npm run build` локально не проверяет код,
    спрятанный за `import.meta.env.VITE_*`.** Vite подставляет эти переменные
    как константы **на этапе сборки**, а не читает в рантайме. Локально
