@@ -115,10 +115,11 @@ export default function ChartScreen() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <header style={{ padding: '12px 16px 4px', flexShrink: 0 }}>
-        {/* Имя карты не показываем: поле name приходит null (проверено на
-            обеих картах служебного аккаунта), подставлять пустоту нельзя. */}
+        {/* name сегодня приходит null на обеих картах служебного аккаунта
+            (CHART_API_RECON.md §2), но поле в ответе есть — если карту
+            назвали, показываем имя, иначе запасной заголовок. */}
         <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>
-          Натальная карта
+          {chart.name || 'Натальная карта'}
         </h1>
         <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
           {birthDateWords(chart.birth_date)} · {timeLabel} · {shortPlace(chart.birth_place)}

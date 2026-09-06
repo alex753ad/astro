@@ -53,6 +53,7 @@ export default function TabShell() {
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
@@ -61,13 +62,19 @@ export default function TabShell() {
           paddingRight: 'env(safe-area-inset-right)',
         }}
       >
-        <div style={{ display: active === 'feed' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+        {/* minHeight:0 обязателен на каждом уровне: без него flex-элемент
+            по умолчанию не сжимается уже своего контента (min-height:auto),
+            и высота в процентах внутри (ChartSheet — 45%) резолвится в auto
+            вместо доли экрана — шторка раздувается по контенту и уезжает
+            за нижний край, а не встаёт куда рассчитана. Нашлось на экране
+            «Карта» (вкладка «Аспекты», самый длинный список). */}
+        <div style={{ display: active === 'feed' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
           <FeedScreen />
         </div>
-        <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+        <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
           <ChartScreen />
         </div>
-        <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+        <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
           <MoreScreen />
         </div>
       </div>
