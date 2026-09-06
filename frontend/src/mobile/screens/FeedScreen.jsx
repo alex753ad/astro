@@ -30,7 +30,6 @@ import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
 import FeedNowStrip from '../components/FeedNowStrip';
 import FeedSkeleton from '../components/FeedSkeleton';
 import FeedTimelineNode from '../components/FeedTimelineNode';
-import FeedTodayMarker from '../components/FeedTodayMarker';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
 import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
@@ -226,7 +225,7 @@ export default function FeedScreen() {
         onSelectDay={scrollToDay}
       />
 
-      {days.map((day, index) => {
+      {days.map((day) => {
         // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
         // проходы Луны по домам, но не фазы и не затмения — у тех своя
         // важность, и они остаются в потоке как события.
@@ -237,10 +236,6 @@ export default function FeedScreen() {
         // как обычный узел линии; сворачиваем только от двух и больше.
         const soloLunar = background.length === 1 ? background[0] : null;
         const foldedLunar = background.length > 1 ? background : [];
-        // Маркер «СЕГОДНЯ» — один раз, перед днём открытия (§2), и только
-        // если над ним есть хотя бы один прошедший день: у самого первого
-        // дня окна маркер ставить не над чем.
-        const showTodayMarker = day.date === anchorDate && index > 0;
         return (
           <section
             key={day.date}
@@ -249,7 +244,6 @@ export default function FeedScreen() {
               if (day.date === anchorDate) anchorRef.current = el;
             }}
           >
-            {showTodayMarker && <FeedTodayMarker />}
             <FeedDayHeader label={dayLabel(day.date, today)} />
             {foreground.map((event) => {
               // Период (planner_period) метится датой начала, точка —

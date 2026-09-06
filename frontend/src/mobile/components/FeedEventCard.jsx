@@ -203,7 +203,16 @@ export default function FeedEventCard({ event, onOpen }) {
                   каждым транзитом (при 700+ событиях это была треть высоты
                   ленты на одно слово). Не точкой: точка акцентом уже занята
                   под «разбор открыт» — два одинаковых значка с разным
-                  смыслом в одной строке было бы неотличимо одно от другого. */}
+                  смыслом в одной строке было бы неотличимо одно от другого.
+                  ⚠️ Заливка var(--accent-muted) (8% альфы) сначала стояла
+                  здесь и оказалась неразличима на скриншоте — тон почти не
+                  отличался от фона карточки. Сплошной var(--accent) с белым
+                  текстом — тот же приём, что уже даёт контраст в других
+                  местах приложения (.mobile-btn-primary, «сегодня» в
+                  FeedDayStrip.jsx): текст на акценте — белый, не токеном
+                  (см. проверку токенов, §9 предыдущего захода — литерал
+                  здесь совпадает с уже принятым по всему приложению
+                  исключением, не новый). */}
               {hasOrb && (
                 <span
                   title={precision || undefined}
@@ -212,9 +221,10 @@ export default function FeedEventCard({ event, onOpen }) {
                     border: `1px solid ${precision === 'точный' ? 'var(--accent)' : 'var(--border)'}`,
                     borderRadius: 7,
                     fontSize: 10.5,
+                    fontWeight: precision === 'точный' ? 700 : 400,
                     fontFamily: 'var(--font-body)',
-                    background: precision === 'точный' ? 'var(--accent-muted)' : 'transparent',
-                    color: precision === 'точный' ? 'var(--accent)' : 'var(--text-secondary)',
+                    background: precision === 'точный' ? 'var(--accent)' : 'transparent',
+                    color: precision === 'точный' ? '#fff' : 'var(--text-secondary)',
                   }}
                 >
                   {meta.peak_orb.toFixed(1)}°
