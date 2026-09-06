@@ -1,7 +1,10 @@
 /**
  * FeedEventCard.jsx — карточка события в потоке ленты (§8 спецификации).
  *
- * В карточке: время, заголовок, знаки, точность и орб.
+ * В карточке: заголовок, знаки, орб (точность — заливкой того же чипа, без
+ * отдельной строки). Время не дублируется — оно уже в колонке слева на
+ * линии (FeedTimelineNode.jsx, FeedScreen.jsx), карточка его не показывает
+ * вообще ни для одного вида событий.
  *
  * ⚠️ Тизера здесь нет намеренно, и это правка спецификации от 05.09.2026.
  * Первый заход показывал intro/outro прямо в карточке — на боевых данных
@@ -26,7 +29,7 @@
 import React from 'react';
 import BlurredHint from './BlurredHint';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { dateRangeShort, daysBetween, eventTitle, localToday, planetRu, signRu, timePart } from '../lib/feedTime';
+import { dateRangeShort, daysBetween, eventTitle, localToday, planetRu, signRu } from '../lib/feedTime';
 import { planetDotColor } from '../lib/feedTimelineDot';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
@@ -164,40 +167,6 @@ export default function FeedEventCard({ event, onOpen }) {
       {periodColor && (
         <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: periodColor }} />
       )}
-      {/* Время дублировало бы колонку слева на линии (§3) — убрано у
-          формулы транзита. У остальных видов колонка не даёт точного
-          времени (период там — датой начала), поэтому строка остаётся. */}
-      {!formula && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.09em',
-              fontFamily: 'var(--font-display)',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            {timePart(event.at)}
-          </span>
-          {openInterpretation && (
-            <span
-              // Точка объясняет рамку: одна рамка без подписи читается как
-              // «выделено», но не говорит чем.
-              aria-label="Разбор открыт"
-              title="Разбор открыт"
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--accent)',
-                display: 'inline-block',
-              }}
-            />
-          )}
-        </div>
-      )}
-
       {formula ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ ...glyphStyle, fontSize: 15 }}>{glyph(formula.transit_planet)}</span>
@@ -230,15 +199,22 @@ export default function FeedEventCard({ event, onOpen }) {
                   style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}
                 />
               )}
+              {/* Точность — заливкой чипа, не отдельной строкой «точный» под
+                  каждым транзитом (при 700+ событиях это была треть высоты
+                  ленты на одно слово). Не точкой: точка акцентом уже занята
+                  под «разбор открыт» — два одинаковых значка с разным
+                  смыслом в одной строке было бы неотличимо одно от другого. */}
               {hasOrb && (
                 <span
+                  title={precision || undefined}
                   style={{
                     padding: '2px 7px',
-                    border: '1px solid var(--border)',
+                    border: `1px solid ${precision === 'точный' ? 'var(--accent)' : 'var(--border)'}`,
                     borderRadius: 7,
                     fontSize: 10.5,
-                    color: 'var(--text-secondary)',
                     fontFamily: 'var(--font-body)',
+                    background: precision === 'точный' ? 'var(--accent-muted)' : 'transparent',
+                    color: precision === 'точный' ? 'var(--accent)' : 'var(--text-secondary)',
                   }}
                 >
                   {meta.peak_orb.toFixed(1)}°
@@ -306,10 +282,6 @@ export default function FeedEventCard({ event, onOpen }) {
           {degree}{signRu(meta.transit_sign)} → {signRu(meta.natal_sign)}
         </div>
       )}
-
-      {/* Орб теперь в чипе формулы выше (§4) — здесь он был бы вторым
-          показом того же числа. Точность остаётся: у неё нет второго места. */}
-      {precision && <div style={rowStyle}>{precision}</div>}
 
       {/* Рекомендации периода (§5) — только у открытого, с непустым
           содержимым: у закрытого их место занимает showFiller ниже. */}

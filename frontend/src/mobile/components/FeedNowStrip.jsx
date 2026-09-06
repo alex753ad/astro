@@ -36,7 +36,8 @@
 import React, { useState } from 'react';
 import BlurredHint from './BlurredHint';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
-import { daysBetween, periodRange, signInRu } from '../lib/feedTime';
+import { daysBetween, periodRange } from '../lib/feedTime';
+import { signInRu } from '../lib/ruDeclension';
 
 /** «1 день» / «3 дня» / «5 дней» — остаток периода и срок до фазы (§6). */
 function pluralDays(n) {

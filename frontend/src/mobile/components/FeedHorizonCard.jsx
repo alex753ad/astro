@@ -19,18 +19,7 @@
 
 import React from 'react';
 import { dayMonth } from '../lib/feedTime';
-
-/**
- * Предложный падеж названия тарифа: «на Веге», «на Лире», «на Орионе».
- *
- * Названия приходят с бэкенда в именительном (Вега, Лира, Орион), а фраза
- * §9 требует предложного. Правило покрывает всю сетку: женские на «а»
- * меняют её на «е», мужские получают «е» в конец. Без склонения выходило
- * «на Вегае» — приписать окончание к неизменённой форме мало.
- */
-function inTier(name) {
-  return name.endsWith('а') ? `${name.slice(0, -1)}е` : `${name}е`;
-}
+import { tierInRu } from '../lib/ruDeclension';
 
 export default function FeedHorizonCard({ horizon }) {
   const next = horizon?.next_tier;
@@ -62,7 +51,7 @@ export default function FeedHorizonCard({ horizon }) {
           color: 'var(--text-primary)',
         }}
       >
-        Открывается на {inTier(next.name)}
+        Открывается на {tierInRu(next.name)}
       </p>
     </div>
   );
