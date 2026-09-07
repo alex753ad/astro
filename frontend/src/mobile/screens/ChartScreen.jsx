@@ -16,12 +16,16 @@
  * `overflow` внутри безопасен — ломать `position: sticky` нечего.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NatalChart from '../../components/NatalChart';
 import ChartSheet from '../components/ChartSheet';
+import HintButton from '../components/HintButton';
+import HintOverlay from '../components/HintOverlay';
 import useTheme from '../useTheme.jsx';
 import { fetchChart, resolvePrimaryChartId } from '../lib/chartApi';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
+import { CHART_HINTS } from '../lib/onboardingCopy';
+import useHints from '../lib/useHints';
 
 function CenteredNotice({ title, text, action, onAction }) {
   return (
@@ -67,12 +71,36 @@ function ChartLoading() {
   );
 }
 
-export default function ChartScreen() {
+export default function ChartScreen({ active = true, onHintsToggle }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
   const [error, setError] = useState('');
   const { dark } = useTheme();
+
+  // Якоря подсветки подсказок (SPEC_ONBOARDING.md §10).
+  //
+  // ⚠️ Шаги 1-3 («колесо», «дома», «аспекты») указывают на ОДИН И ТОТ ЖЕ
+  // элемент — обёртку колеса, — хотя §10 спецификации описывает подсветку
+  // кольца домов и слоя аспектов по отдельности. Так сделано намеренно:
+  // внутри SVG (`components/NatalChart.jsx`) у этих слоёв нет ни общих
+  // групп, ни классов, за которые можно зацепиться, — дома нарисованы
+  // отдельным `<g>` на каждый, аспекты просто набором `<line>`. Подсветить
+  // их точно можно было бы двумя способами, и оба хуже: править вебовский
+  // NatalChart (он общий с сайтом, и правка ради подсказки мобильного
+  // приложения задела бы веб) или продублировать здесь его внутренние
+  // радиусы (второй источник истины для геометрии, который разъедется при
+  // первой же правке колеса). Текст шага при этом говорит, куда смотреть.
+  const wheelRef = useRef(null);
+  const zoomHintRef = useRef(null);
+  const hintAnchors = { wheel: wheelRef, zoomHint: zoomHintRef };
+
+  const hints = useHints('chart', active && status === 'ready');
+
+  // Кнопка чата прячется на время подсказок — этим ведает TabShell.
+  useEffect(() => {
+    onHintsToggle?.('chart', hints.open);
+  }, [onHintsToggle, hints.open]);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -118,9 +146,15 @@ export default function ChartScreen() {
         {/* name сегодня приходит null на обеих картах служебного аккаунта
             (CHART_API_RECON.md §2), но поле в ответе есть — если карту
             назвали, показываем имя, иначе запасной заголовок. */}
-        <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>
-          {chart.name || 'Натальная карта'}
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h1 style={{ margin: 0, flex: 1, minWidth: 0, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>
+            {chart.name || 'Натальная карта'}
+          </h1>
+          {/* Кнопка «?» есть только в готовом состоянии: на loading/error/
+              no-chart объяснять нечего (SPEC_ONBOARDING.md §9). Здесь это
+              выходит само — ветки выше возвращаются раньше. */}
+          <HintButton onClick={hints.show} />
+        </div>
         <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
           {birthDateWords(chart.birth_date)} · {timeLabel} · {shortPlace(chart.birth_place)}
         </p>
@@ -147,7 +181,7 @@ export default function ChartScreen() {
             сиблингом с гарантированным местом, не общим overflow с колесом.
             NatalChart.jsx не трогаем — эффект достигается снаружи. */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '100%', maxHeight: '100%', aspectRatio: '1' }}>
+          <div ref={wheelRef} style={{ width: '100%', maxHeight: '100%', aspectRatio: '1' }}>
             <NatalChart
               planets={chart.planets}
               houses={chart.houses}
@@ -169,12 +203,16 @@ export default function ChartScreen() {
             (§9 спецификации), обещать нечего. flexShrink:0 — эта строка
             больше не делит место с колесом через overflow, у неё всегда
             гарантированная высота. */}
-        <p style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>
+        <p ref={zoomHintRef} style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>
           Сведите пальцы для зума · двойной тап — сброс
         </p>
       </div>
 
       <ChartSheet chart={chart} />
+
+      {hints.open && (
+        <HintOverlay steps={CHART_HINTS} anchors={hintAnchors} onClose={hints.close} />
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
+import { BIRTH_FORM_URL } from '../lib/onboardingCopy';
 import { openInBrowser } from '../lib/openInBrowser';
 
 function CardRow({ chart }) {
@@ -66,7 +67,7 @@ export default function MoreCardsList({ charts }) {
             type="button"
             className="mobile-link"
             style={{ padding: 0, fontSize: 13, verticalAlign: 'baseline' }}
-            onClick={() => openInBrowser('https://aristeatime.ru/')}
+            onClick={() => openInBrowser(BIRTH_FORM_URL)}
           >
             Постройте её на сайте
           </button>{' '}

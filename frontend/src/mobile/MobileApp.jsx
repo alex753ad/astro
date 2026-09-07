@@ -9,8 +9,11 @@
  * MemoryRouter держит историю в памяти JS и с адресом загрузки не связан
  * вовсе, поэтому не ломается на этой почве.
  *
- * Экран входа — единственный маршрут с настоящим содержимым; всё остальное,
- * включая /register, — заглушки. Переключение между «не вошёл»/«вошёл»
+ * Маршрут /onboarding — приветствие, три экрана до входа (SPEC_ONBOARDING.md).
+ * Показывается один раз и только не вошедшему: RequireGuest на самом
+ * маршруте плюс порядок условий в `initial` ниже.
+ *
+ * /register остаётся заглушкой. Переключение между «не вошёл»/«вошёл»
  * держится на useAuth().isAuthenticated и работает в обе стороны реактивно:
  * не только логин уводит на /app/feed, но и потеря сессии (например,
  * неудачное обновление токена при возврате из фона) уводит обратно на
@@ -24,7 +27,9 @@ import useAuth from '../hooks/useAuth.jsx';
 import { ThemeProvider } from './useTheme.jsx';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
+import WelcomeScreen from './screens/WelcomeScreen';
 import TabShell from './components/TabShell';
+import { WELCOME_KEY, isSeen } from './lib/onboardingFlags';
 import './mobile.css';
 
 function RequireAuth({ children }) {
@@ -45,11 +50,21 @@ function MobileRouter() {
   // (loadStored() в useAuthInternal), без ожидания эффектов. initialEntries
   // применяется MemoryRouter только один раз при монтировании — этого
   // достаточно, чтобы не мелькнуть экраном входа, если сессия уже на месте.
-  const initial = isAuthenticated ? '/app/feed' : '/login';
+  //
+  // Приветствие встаёт третьим вариантом и читается ТОЖЕ синхронно, здесь
+  // же: асинхронная проверка флага дала бы кадр с экраном входа, который
+  // тут же подменился бы приветствием (SPEC_ONBOARDING.md §2).
+  // Вошедшему приветствие не показывается вовсе — решение владельца
+  // 07.09.2026; это обеспечивают и порядок условий здесь, и RequireGuest
+  // на самом маршруте.
+  const initial = isAuthenticated
+    ? '/app/feed'
+    : (isSeen(WELCOME_KEY) ? '/login' : '/onboarding');
 
   return (
     <MemoryRouter initialEntries={[initial]}>
       <Routes>
+        <Route path="/onboarding" element={<RequireGuest><WelcomeScreen /></RequireGuest>} />
         <Route path="/login" element={<RequireGuest><LoginScreen /></RequireGuest>} />
         <Route path="/register" element={<RequireGuest><RegisterScreen /></RequireGuest>} />
         <Route path="/app/*" element={<RequireAuth><TabShell /></RequireAuth>} />

@@ -35,6 +35,7 @@
 
 import React, { useState } from 'react';
 import BlurredHint from './BlurredHint';
+import HintButton from './HintButton';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
 import { daysBetween, periodRange } from '../lib/feedTime';
 import { signInRu } from '../lib/ruDeclension';
@@ -191,7 +192,7 @@ function ExpandedCard({ event, onUpgrade }) {
   );
 }
 
-export default function FeedNowStrip({ events, today, onUpgrade }) {
+export default function FeedNowStrip({ events, today, onUpgrade, onHelp, chipsRef }) {
   const [openKey, setOpenKey] = useState(null);
   const all = events || [];
   const longterm = all.filter((e) => e.kind === 'planner_longterm');
@@ -206,10 +207,24 @@ export default function FeedNowStrip({ events, today, onUpgrade }) {
   const open = chips.find((e) => e.key === openKey) || null;
 
   return (
-    <section style={{ padding: '12px 0 4px' }}>
-      {/* Строка 1 (§6) — период Солнца, остаток словами. */}
+    // position: relative — под кнопку «?» в правом верхнем углу
+    // (SPEC_ONBOARDING.md §8). У экрана «Лента», в отличие от «Карты», нет
+    // ни <header>, ни <h1> — ставить кнопку больше некуда, а заводить ради
+    // неё полноценную шапку значит отъесть вертикаль там, где её и так не
+    // хватает (тот же довод, по которому 06.09.2026 решено не делать
+    // липкими одновременно полоску дней и заголовок дня).
+    <section style={{ padding: '12px 0 4px', position: 'relative' }}>
+      {onHelp && (
+        <HintButton
+          onClick={onHelp}
+          style={{ position: 'absolute', top: 8, right: 0, zIndex: 2 }}
+        />
+      )}
+
+      {/* Строка 1 (§6) — период Солнца, остаток словами. paddingRight —
+          место под кнопку «?», иначе остаток дней уходит под неё. */}
       {sunPeriod && (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4, paddingRight: 36 }}>
           <span style={{ ...glyphStyle, fontSize: 17, color: 'var(--color-warning)' }}>☉</span>
           <h2
             style={{
@@ -257,7 +272,7 @@ export default function FeedNowStrip({ events, today, onUpgrade }) {
             Планеты сейчас в домах
           </h2>
 
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div ref={chipsRef} style={{ display: 'flex', gap: 6 }}>
             {chips.map((event) => (
               <Chip
                 key={event.key}

@@ -30,6 +30,9 @@ import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
 import FeedNowStrip from '../components/FeedNowStrip';
 import FeedSkeleton from '../components/FeedSkeleton';
 import FeedTimelineNode from '../components/FeedTimelineNode';
+import HintOverlay from '../components/HintOverlay';
+import { FEED_HINTS } from '../lib/onboardingCopy';
+import useHints from '../lib/useHints';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
 import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
@@ -67,13 +70,23 @@ function CenteredNotice({ title, text, action, onAction }) {
   );
 }
 
-export default function FeedScreen() {
+export default function FeedScreen({ active = true, onHintsToggle }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
   const anchorRef = useRef(null);
+  // Якорь подсветки для чипов домов (SPEC_ONBOARDING.md §11). Остальные два
+  // шага переиспользуют `anchorRef` — секцию сегодняшнего дня.
+  //
+  // ⚠️ Своей обёртки вокруг списка дней ради якоря «поток» здесь НЕТ
+  // намеренно. Лишний уровень DOM вокруг секций — ровно тот класс правки,
+  // которым на этом экране уже ломали раскладку: заголовки дней липкие
+  // (`position: sticky`, FeedDayHeader.jsx), а прокрутка общая и живёт в
+  // TabShell.jsx. Ради подсветки трогать структуру принятого экрана дороже,
+  // чем подсветить сегодняшний день дважды с разным текстом.
+  const chipsRef = useRef(null);
   const userMovedRef = useRef(false);
   // Один узел на дату — используется и для якоря открытия (§10), и для тапа
   // по полоске дней (§7): второе не заводит свой отдельный набор рефов.
@@ -150,6 +163,15 @@ export default function FeedScreen() {
     dayRefs.current.get(target?.date)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, [days]);
 
+  // Подсказки — только когда лента и правда есть что показать: одного
+  // status === 'ready' мало, при пустом окне подсвечивать нечего
+  // (SPEC_ONBOARDING.md §9).
+  const hints = useHints('feed', active && status === 'ready' && days.length > 0);
+
+  useEffect(() => {
+    onHintsToggle?.('feed', hints.open);
+  }, [onHintsToggle, hints.open]);
+
   /**
    * §10: лента открывается на сегодня, прошлое отматывается вверх.
    *
@@ -216,7 +238,12 @@ export default function FeedScreen() {
           скроллера: собственный overflow здесь сломал бы sticky заголовков
           (см. FeedDayHeader.jsx), а прибивать полосу к верху экрана
           спецификация не просит. */}
-      <FeedNowStrip events={allEvents} today={today} />
+      <FeedNowStrip
+        events={allEvents}
+        today={today}
+        onHelp={hints.show}
+        chipsRef={chipsRef}
+      />
       <FeedDayStrip
         from={feed?.horizon?.from}
         to={feed?.horizon?.to}
@@ -284,6 +311,14 @@ export default function FeedScreen() {
       <FeedHorizonCard horizon={feed?.horizon} />
 
       <FeedEventPanel event={selected} onClose={() => setSelected(null)} />
+
+      {hints.open && (
+        <HintOverlay
+          steps={FEED_HINTS}
+          anchors={{ timeline: anchorRef, houseChips: chipsRef, card: anchorRef }}
+          onClose={hints.close}
+        />
+      )}
     </div>
   );
 }
