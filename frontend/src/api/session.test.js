@@ -170,6 +170,82 @@ describe('различение причин отказа', () => {
   });
 });
 
+describe('пауза после неудачного обновления', () => {
+  // Дефект холодного старта 07.09.2026. Все три экрана монтируются разом
+  // (TabShell), каждый шлёт свои запросы с протухшим токеном — и каждый залп
+  // заводил новую попытку обновления. На проде /api/v1/auth/ стоит за
+  // ЗАДЕРЖИВАЮЩИМ лимитом nginx (1 r/s, burst=10 без nodelay): лишние запросы
+  // не отбиваются, а ждут в очереди по секунде. Приложение своими же
+  // повторами разгоняло очередь до 10+ секунд и упиралось в 15-секундный
+  // таймаут экрана — «Сервер не отвечает» на всех трёх сразу.
+
+  it('повтор сразу после неудачи не шлёт запрос, а отдаёт ту же неудачу', async () => {
+    const { refreshSession } = await freshClient();
+    const fetchMock = vi.fn(async () => jsonResponse(429, { error: 'Rate limit exceeded' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await refreshSession();
+    const second = await refreshSession();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second).toBe(first);
+    expect(second.reason).toBe('server');
+  });
+
+  it('после паузы попытка возобновляется', async () => {
+    const { refreshSession } = await freshClient();
+    let fail = true;
+    const fetchMock = vi.fn(async () => (fail
+      ? jsonResponse(503, {})
+      : jsonResponse(200, { access_token: 'access-new', refresh_token: 'refresh-2' })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await refreshSession();
+    const realNow = Date.now;
+    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 6000);
+    fail = false;
+
+    const result = await refreshSession();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.ok).toBe(true);
+  });
+
+  it('отказ аутентификации НЕ кэшируется: вход сразу после него работает', async () => {
+    // Иначе закэшированный 401 пережил бы вход и убил только что выданную пару.
+    const { refreshSession } = await freshClient();
+    let first = true;
+    const fetchMock = vi.fn(async () => {
+      if (first) { first = false; return jsonResponse(401, { detail: 'Сессия отозвана.' }); }
+      return jsonResponse(200, { access_token: 'access-new', refresh_token: 'refresh-2' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect((await refreshSession()).reason).toBe('auth');
+    native.token = 'refresh-after-login';
+    expect((await refreshSession()).ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('успех сбрасывает паузу', async () => {
+    const { refreshSession } = await freshClient();
+    let step = 0;
+    const fetchMock = vi.fn(async () => {
+      step += 1;
+      if (step === 1) return jsonResponse(503, {});
+      return jsonResponse(200, { access_token: `access-${step}`, refresh_token: `refresh-${step}` });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await refreshSession();                    // неудача — пауза взведена
+    const realNow = Date.now;
+    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 6000);
+    expect((await refreshSession()).ok).toBe(true);   // пауза истекла, успех
+    expect((await refreshSession()).ok).toBe(true);   // и следующий идёт сразу
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
 describe('authFetch — поведение экранов', () => {
   it('401 на запросе: обновился и повторил с новым токеном', async () => {
     const { authFetch } = await freshClient();
