@@ -328,7 +328,13 @@ jobs:
   # пересобирается тем же скриптом, но только если менялся app/frontend/.
   deploy:
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend, security]
+    # check-migrations добавлен в needs 07.09.2026: раньше он выполнялся
+    # параллельно с деплоем, а не перед ним — упавшая проверка ничего не
+    # останавливала, деплой уезжал на прод одновременно с ней. У обоих
+    # джобов есть условие workflow_dispatch, поэтому на ручном запуске
+    # check-migrations реально выполняется (не skip), и needs честно ждёт
+    # его результат, а не гасит deploy как "зависимость не выполнилась".
+    needs: [test-backend, test-frontend, security, check-migrations]
     # Только ручной запуск: Actions → CI/CD → Run workflow (ветка main).
     # Пуш в main прогоняет тесты, но на прод ничего не увозит.
     #
