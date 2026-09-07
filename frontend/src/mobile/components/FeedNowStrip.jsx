@@ -254,7 +254,7 @@ export default function FeedNowStrip({ events, today, onUpgrade }) {
               color: 'var(--text-secondary)',
             }}
           >
-            Сейчас
+            Планеты сейчас в домах
           </h2>
 
           <div style={{ display: 'flex', gap: 6 }}>

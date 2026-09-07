@@ -12,6 +12,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { streamInterpretation } from '../api/client';
+import { stripSectionTags } from '../lib/sectionStream';
 import { useToast } from './Toast';
 import { TIER_NAMES } from '../constants';
 
@@ -90,34 +91,26 @@ function getCutoffText(text) {
   return lines.slice(0, cutoffLine).join('\n');
 }
 
-const SECTION_TITLES_RU = {
-  general: 'Общий портрет личности',
-  career: 'Карьера и профессиональная реализация',
-  relationships: 'Отношения и партнёрство',
-  health: 'Здоровье и энергия',
-  finance: 'Финансы и материальные ресурсы',
-  spirituality: 'Духовное развитие и внутренний рост',
-};
-
 function renderMarkdown(text) {
   const lines = text.split('\n');
-  return lines.map((line, i) => {
-    // Заменяем <section name="..."> на русский заголовок жирным
-    const sectionMatch = line.match(/<section name="([^"]+)">/);
-    if (sectionMatch) {
-      const title = SECTION_TITLES_RU[sectionMatch[1]] || sectionMatch[1];
-      return (
-        <h2 key={i} style={{
-          fontSize: 17, fontWeight: 700,
-          color: 'var(--accent, var(--accent))',
-          margin: '24px 0 10px',
-        }}>
-          {title}
-        </h2>
-      );
-    }
-    // Убираем </section>
-    if (line.trim() === '</section>') return null;
+  return lines.map((raw, i) => {
+    // Разметка секций до рендера не доезжает — её снимает парсер потока
+    // (lib/sectionStream.js), а заголовок рисуется из sec.title. Чистка
+    // осталась подстраховкой: если тег всё же просочится (текст,
+    // сохранённый в БД до 07.09.2026, ошибка модели), он не должен быть
+    // показан человеку как проза.
+    //
+    // До 07.09.2026 здесь стоял ВТОРОЙ путь отрисовки заголовков: строка
+    // <section name="..."> превращалась в <h2> по собственному словарю
+    // SECTION_TITLES_RU. Он и маскировал дефект flushBuffer на живой
+    // генерации — утёкшие обрывки тегов склеивались в тексте обратно, и
+    // заголовки рисовались отсюда, а не из sec.title (разбор —
+    // INTERPRET_SSE_RECON.md §3). Словарь удалён вместе с ним: заголовки
+    // секций берутся ровно из одного места, SECTION_TITLES ниже.
+    const line = stripSectionTags(raw);
+    // Строка состояла только из разметки — не рисуем вовсе. Пустую строку
+    // ниже ждёт <br>, и без этой ветки на месте тега появился бы разрыв.
+    if (line !== raw && !line.trim()) return null;
 
     if (line.startsWith('### ')) {
       return (
