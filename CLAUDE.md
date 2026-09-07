@@ -1040,13 +1040,30 @@ systemd-таймер на хосте через уже существующий 
 
 ```
 push → main
-  ├── GitHub Actions: pytest (backend) + vite build (frontend)
+  └── GitHub Actions: pytest (backend) + vite build (frontend) — только тесты
+
+Actions → CI/CD → Run workflow (ветка main)   ← РУЧНОЙ шаг, деплой этим и запускается
   └── deploy job (SSH на VPS) → ./05-update.sh
         git pull → dump БД → docker compose up -d --no-deps api bot worker beat
         → alembic upgrade head → /health check → rollback при ошибке
         → фронтенд пересобирается тем же скриптом, если менялись
           frontend/ или deploy/opt-astro/nginx/
 ```
+
+⚠️ **`deploy` не запускается пушем в main — только вручную.** Условие джоба —
+`github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'`
+(`.github/workflows/ci.yml`). Раньше было `github.event_name == 'push'`, а
+единственной защитой от немедленного выезда на прод считалось окружение
+`production` с Required reviewers. Такой защиты нет и включить её нельзя:
+раздел Deployment protection rules недоступен на текущем тарифном плане
+GitHub — ограничение плана, а не настройки окружения (API отдаёт
+`"protection_rules": []`). То есть любой push в main всё это время уезжал на
+прод сразу и без подтверждения; после перевода на `workflow_dispatch` push
+только прогоняет тесты, а на прод ничего не увозит, пока кто-то не запустит
+джоб руками (Actions → CI/CD → Run workflow, ветка `main`) — вручную из
+интерфейса или `gh workflow run "CI/CD" --ref main`.
+Окружение `production` оставлено ради журнала деплоев и области для
+секретов, не ради защиты.
 
 ### Три слоя доставки
 
@@ -1452,9 +1469,14 @@ cd /opt/astro/app && git checkout -- . && git status --short
 
    Локально, если нужно собрать «как на проде»:
    `VITE_GOOGLE_CLIENT_ID=$(grep -E '^VITE_GOOGLE_CLIENT_ID=' deploy/opt-astro/frontend.env | cut -d= -f2-) npm run build`
-2. **Claude Code**: `git push` в `main`. Автодеплой запускается сам.
+2. **Claude Code**: `git push` в `main`. **Автодеплоя нет** — пуш запускает
+   только тесты (job `deploy` требует `workflow_dispatch`, см. раздел
+   «Деплой» выше и почему так). Чтобы код уехал на прод, запустить джоб
+   вручную: Actions → CI/CD → Run workflow (ветка `main`), либо
+   `gh workflow run "CI/CD" --ref main`.
 3. **Claude Code**: следить за GitHub Actions до конца, не отчитываться
-   «запушено» раньше, чем отработает job `deploy`.
+   «запушено» раньше, чем отработает job `deploy` — включая ручной запуск
+   из пункта 2.
 4. **Владелец**: если деплой упал на `git pull` — выполнить блок из пункта
    «Файлы, которые портятся сами», затем сказать Claude Code перезапустить:
    `gh run rerun <ID> --failed`.
