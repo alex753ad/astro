@@ -19,7 +19,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { ApiError, getSubscription, saveAnonymousChart } from '../api/client';
+import {
+  ApiError,
+  getSubscription,
+  onSessionExpired,
+  refreshSession,
+  saveAnonymousChart,
+} from '../api/client';
 import {
   AUTH_CREDENTIALS,
   authRequestBody,
@@ -212,33 +218,30 @@ function useAuthInternal() {
   // Дедуп: несколько запросов, упавших в 401 одновременно (или таймер +
   // ручной вызов), не должны бить /refresh параллельно — ротация делает
   // использованный refresh недействительным, второй запрос разлогинил бы юзера.
-  const refreshInFlightRef = useRef(null);
-
-  const attemptRefresh = useCallback(() => {
-    if (refreshInFlightRef.current) return refreshInFlightRef.current;
-    refreshInFlightRef.current = (async () => {
-      try {
-        const data = await apiFetch('/refresh', {
-          method: 'POST',
-          // В вебе `{}` — сервер возьмёт refresh из куки. На устройстве сюда
-          // попадёт сохранённый токен: куки там нет.
-          body: await authRequestBody(),
-        });
-        await applyTokenResponse(data);
-        return data.access_token;
-      } catch {
-        return null;
-      } finally {
-        refreshInFlightRef.current = null;
-      }
-    })();
-    return refreshInFlightRef.current;
+  // ⚠️ Своего контура обновления здесь больше НЕТ — он единственный и живёт в
+  // api/client.js (refreshSession). Раньше их было два, с независимыми
+  // «идёт обновление»-флагами: они могли отправить один и тот же refresh
+  // параллельно, сервер по reuse-detection отвечал 401 второму, и тот стирал
+  // свежий токен, только что записанный первым. Приложение оставалось с
+  // формально живым access и без refresh — то есть навсегда в состоянии
+  // «вошёл», где не проходит ни один запрос. Разбор — в шапке того раздела
+  // client.js.
+  const attemptRefresh = useCallback(async () => {
+    const result = await refreshSession();
+    if (!result.ok) return null;
+    await applyTokenResponse(result.data);
+    return result.data.access_token;
   }, [applyTokenResponse]);
 
+  // ⚠️ Разлогин ТОЛЬКО по явному отказу аутентификации, и решение об этом
+  // принимает не эта функция: refreshSession сама уведомляет подписчиков
+  // (см. эффект с onSessionExpired ниже), а здесь остаётся молчание.
+  // Потеря связи (самолётный режим, обрыв) и 429/5xx не должны выкидывать
+  // человека на экран входа — там верное поведение «покажи ошибку и дай
+  // повторить», а не «потеряй сессию».
   const doRefresh = useCallback(async () => {
-    const token = await attemptRefresh();
-    if (!token) logout();
-  }, [attemptRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
+    await attemptRefresh();
+  }, [attemptRefresh]);
 
   const scheduleRefresh = useCallback((token) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -289,6 +292,7 @@ function useAuthInternal() {
       window.removeEventListener('pageshow', checkOnReturn);
     };
   }, [accessToken, doRefresh]);
+
 
   // ── Auth actions ────────────────────────────────────────
 
@@ -424,6 +428,21 @@ function useAuthInternal() {
     clearStorage();
   }, []);
 
+  // ⚠️ ЕДИНСТВЕННАЯ точка, где приложение решает, что сессии больше нет.
+  //
+  // Сигнал приходит из refreshSession (api/client.js) и только по ЯВНОМУ
+  // отказу сервера в аутентификации — не по сетевому сбою. Подписка нужна
+  // потому, что запросы экранов идут через authFetch ТОГО ЖЕ МОДУЛЯ, минуя
+  // этот хук: до 07.09.2026 отказ сервера там не приводил вообще ни к чему,
+  // и приложение застревало в состоянии «вошёл» с мёртвым токеном — таб-бар
+  // на месте, а на каждом экране «Не удалось загрузить…» и бесполезная
+  // кнопка «Повторить». В mobile/ не было ни одного вызова logout(), и выйти
+  // из этого состояния человек не мог даже перезапуском приложения.
+  //
+  // Стоит ПОСЛЕ объявления logout намеренно: `const` в TDZ, и подписка,
+  // размещённая выше по файлу, падала бы с ReferenceError на первом рендере.
+  useEffect(() => onSessionExpired(logout), [logout]);
+
   const clearError = useCallback(() => setError(null), []);
 
   // ── Authenticated fetch wrapper ─────────────────────────
@@ -442,18 +461,21 @@ function useAuthInternal() {
     let resp = await send(accessToken);
     if (resp.status === 401) {
       // Access-токен истёк (напр. приложение долго было свёрнуто) — одна
-      // попытка обновиться и повторить запрос, прежде чем разлогинивать.
+      // попытка обновиться и повторить запрос.
+      //
+      // ⚠️ logout() здесь больше НЕ вызывается: разлогин — одна точка, и она
+      // подписана на refreshSession (см. onSessionExpired выше). Раньше
+      // решение принималось и здесь тоже, причём по признаку «обновиться не
+      // вышло», без различения причины — то есть обрыв связи выкидывал на
+      // экран входа наравне с настоящим отказом сервера.
       const fresh = await attemptRefresh();
-      if (!fresh) {
-        logout();
-        throw new ApiError('Session expired', 401, {});
-      }
+      if (!fresh) throw new ApiError('Session expired', 401, {});
       resp = await send(fresh);
     }
     const body = await resp.json().catch(() => ({ detail: resp.statusText }));
     if (!resp.ok) throw new ApiError(body.detail || resp.statusText, resp.status, body);
     return body;
-  }, [accessToken, attemptRefresh, logout]);
+  }, [accessToken, attemptRefresh]);
 
   // Точечное обновление полей пользователя (напр. имени) без повторного
   // логина — persist в localStorage делает уже существующий useEffect выше
