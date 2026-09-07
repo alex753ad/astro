@@ -326,6 +326,49 @@ function useAuthInternal() {
     }
   }, [applyTokenResponse]);
 
+  // ── Регистрация по OTP (шаг 1 и шаг 2) ──────────────────
+  //
+  // ⚠️ Обе ходят через apiFetch, а НЕ голым fetch, как это делает
+  // AuthModal.jsx на вебе. apiFetch подмешивает clientHeaders(), то есть
+  // X-Client-Platform: mobile — от этого заголовка зависит, придёт ли
+  // refresh_token в теле ответа (_build_token_response, backend/auth/router.py).
+  // Без него всё выглядит исправно: аккаунт создан, в приложение пустило, —
+  // а через час истекает access, обновить его нечем (куку webview не
+  // получает), и приложение молча разлогинивается. Разбор —
+  // REGISTER_API_RECON.md §3.1-3.2.
+  //
+  // Здесь же apiFetch срезает у 422 префикс «Value error, » и склеивает
+  // список ошибок pydantic в одну строку — поэтому экрану достаётся
+  // готовый человеческий текст.
+  //
+  // setError/setLoading общего состояния хука эти две НЕ трогают, в отличие
+  // от login/register: у двухшагового экрана свои состояния на каждый шаг
+  // (ошибка ввода кода не должна выглядеть как ошибка формы и наоборот).
+  const sendRegisterCode = useCallback(({ email, password, name, consent }) => (
+    apiFetch('/register/email/send-code', {
+      method: 'POST',
+      // ref_code не отправляется вовсе (решение владельца 07.09.2026):
+      // реферальные ссылки приходят на веб, в приложении его взять неоткуда.
+      body: JSON.stringify({
+        email,
+        password,
+        name: name || undefined,
+        consent,
+      }),
+    })
+  ), []);
+
+  // Возвращает то же, что login: applyTokenResponse сохраняет access и
+  // профиль, а на устройстве ещё и refresh в нативное хранилище. Раскладывать
+  // токены руками нельзя — rememberRefreshToken живёт внутри неё.
+  const verifyRegisterCode = useCallback(async ({ email, code }) => {
+    const data = await apiFetch('/register/email/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+    return applyTokenResponse(data);
+  }, [applyTokenResponse]);
+
   const loginWithGoogle = useCallback(async (code, redirectUri) => {
     setLoading(true);
     setError(null);
@@ -431,6 +474,8 @@ function useAuthInternal() {
     // Actions
     register,
     login,
+    sendRegisterCode,
+    verifyRegisterCode,
     loginWithGoogle,
     applyTokenResponse,
     logout,
