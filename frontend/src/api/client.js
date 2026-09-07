@@ -8,6 +8,7 @@
  */
 
 import { API_BASE } from '../config';
+import { createSectionParser } from '../lib/sectionStream';
 import {
   AUTH_CREDENTIALS,
   authRequestBody,
@@ -219,43 +220,26 @@ function _connectSSE(buildUrl, onChunk, onDone, onError) {
   let cancelled   = false;
   const maxRetries = 3;
 
-  // Буфер для парсинга тегов <section> из потока
-  let textBuffer = '';
-
-  function flushBuffer(buffer, final = false) {
-    // Ищем теги <section name="..."> и </section>
-    const sectionStartRe = /<section name="([^"]+)">\n?/g;
-    const sectionEndRe = /<\/section>\n?/g;
-
-    let lastIndex = 0;
-    let result = buffer;
-
-    // Обрабатываем буфер целиком через замену
-    result = result.replace(/<section name="([^"]+)">\n?/g, (match, name) => {
-      onChunk({ type: 'section_start', name });
-      return '';
-    });
-    result = result.replace(/<\/section>\n?/g, () => {
-      onChunk({ type: 'section_end' });
-      return '';
-    });
-
-    // Если не финальный сброс — придерживаем хвост (незакрытый тег)
-    if (!final) {
-      const lastOpen = result.lastIndexOf('<');
-      if (lastOpen !== -1 && lastOpen > result.length - 20) {
-        const tail = result.slice(lastOpen);
-        result = result.slice(0, lastOpen);
-        // возвращаем хвост в буфер
-        return { text: result, remaining: tail };
-      }
-    }
-    return { text: result, remaining: '' };
-  }
+  // Разбор разметки <section> живёт в общем файле lib/sectionStream.js —
+  // он однопроходный и одинаково переживает все три пути отдачи
+  // (INTERPRET_SSE_RECON.md). Прежний локальный flushBuffer разбирал буфер
+  // двумя проходами и придерживал незакрытый хвост по порогу длины в 19
+  // символов — короче открывающего тега, из-за чего на живой генерации
+  // section_start не приходил вовсе.
+  //
+  // Экземпляр пересоздаётся на каждое подключение (в connect()): у парсера
+  // есть состояние между событиями — недоразобранный хвост и открытая
+  // секция, — а докачки у ручки нет, после обрыва поток начинается сначала.
+  let parser = createSectionParser();
 
   async function connect() {
     const url = await buildUrl();
     if (cancelled) return;
+
+    // Реконнект начинает поток с нуля, поэтому и разбор начинается с нуля:
+    // хвост и открытая секция от оборванной попытки иначе склеились бы с
+    // началом новой.
+    parser = createSectionParser();
 
     const connectUrl = lastEventId
       ? url + (url.includes('?') ? '&' : '?') + 'last_event_id=' + encodeURIComponent(lastEventId)
@@ -267,12 +251,9 @@ function _connectSSE(buildUrl, onChunk, onDone, onError) {
       if (event.lastEventId) lastEventId = event.lastEventId;
 
       if (event.data === '[DONE]') {
-        // Финальный сброс буфера
-        if (textBuffer) {
-          const { text } = flushBuffer(textBuffer, true);
-          if (text) onChunk({ type: 'text', text });
-          textBuffer = '';
-        }
+        // Финальный сброс: остаток хвоста и закрытие секции, если модель
+        // не дописала </section> (обрезка по длине — легальный случай).
+        for (const ev of parser.end()) onChunk(ev);
         isDone = true;
         eventSource.close();
         onDone?.();
@@ -284,10 +265,7 @@ function _connectSSE(buildUrl, onChunk, onDone, onError) {
           onChunk({ type: parsed.type, name: parsed.name });
         } else if (parsed.text) {
           hasData = true;
-          textBuffer += parsed.text;
-          const { text, remaining } = flushBuffer(textBuffer, false);
-          textBuffer = remaining;
-          if (text) onChunk({ type: 'text', text });
+          for (const ev of parser.push(parsed.text)) onChunk(ev);
         }
         if (parsed.error) {
           onError?.(parsed.error);
