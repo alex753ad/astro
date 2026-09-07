@@ -34,7 +34,8 @@ import {
   rememberRefreshToken,
 } from '../api/authTransport';
 import { API_BASE as CONFIG_API_BASE } from '../config';
-import { tokenExpiresAt } from '../lib/jwt';
+import { isTokenExpired, tokenExpiresAt } from '../lib/jwt';
+import { REFRESH_BUFFER_MS, nextRefresh, retryDelay } from '../lib/refreshSchedule';
 import { getRefCode } from '../utils/refCode';
 
 const API_BASE = `${CONFIG_API_BASE}/auth`;
@@ -45,9 +46,6 @@ const USER_KEY          = 'astro_user';
 // Ключ прошлой схемы. Читать его больше нельзя (сервер такой токен всё равно
 // отзовёт при первой ротации), но подчистить у вернувшихся пользователей стоит.
 const LEGACY_REFRESH_KEY = 'astro_refresh_token';
-
-// Refresh 2 minutes before access token expires (token lifetime = 15 min)
-const REFRESH_BUFFER_MS = 2 * 60 * 1000;
 
 // ── Context ───────────────────────────────────────────────
 const AuthContext = createContext(null);
@@ -136,6 +134,13 @@ function useAuthInternal() {
   const [error,        setError]        = useState(null);
 
   const refreshTimerRef = useRef(null);
+  // Сколько неудачных обновлений подряд — от этого зависит пауза перед
+  // следующей попыткой. Обнуляется успехом и разлогином.
+  const retriesRef = useRef(0);
+  // doRefresh планирует ПОВТОР САМОГО СЕБЯ, а сослаться на себя внутри
+  // useCallback нельзя. Ссылка через ref — не хитрость, а единственный
+  // способ не разорвать цепочку на первой же неудаче.
+  const doRefreshRef = useRef(null);
 
   const isAuthenticated = Boolean(accessToken && user);
 
@@ -214,11 +219,13 @@ function useAuthInternal() {
   // формально живым access и без refresh — то есть навсегда в состоянии
   // «вошёл», где не проходит ни один запрос. Разбор — в шапке того раздела
   // client.js.
+  //
+  // Возвращает результат целиком, а не токен: вызывающим важна ПРИЧИНА
+  // неуспеха — от неё зависит, повторять ли попытку.
   const attemptRefresh = useCallback(async () => {
     const result = await refreshSession();
-    if (!result.ok) return null;
-    await applyTokenResponse(result.data);
-    return result.data.access_token;
+    if (result.ok) await applyTokenResponse(result.data);
+    return result;
   }, [applyTokenResponse]);
 
   // ⚠️ Разлогин ТОЛЬКО по явному отказу аутентификации, и решение об этом
@@ -227,31 +234,60 @@ function useAuthInternal() {
   // Потеря связи (самолётный режим, обрыв) и 429/5xx не должны выкидывать
   // человека на экран входа — там верное поведение «покажи ошибку и дай
   // повторить», а не «потеряй сессию».
+  //
+  // ⚠️ Неуспех ОБЯЗАН запланировать повтор. До 07.09.2026 эта функция
+  // результат не читала вовсе, а следующий таймер ставило только успешное
+  // обновление — то есть первая же временная ошибка (обрыв связи на секунду,
+  // 429 от лимитера, заснувший на минуту webview) выключала автоматическое
+  // обновление до перезапуска приложения. Молча: ни экрана, ни записи в
+  // консоль, ни второй попытки. Сессия после этого доживала ровно до конца
+  // текущего access-токена.
   const doRefresh = useCallback(async () => {
-    await attemptRefresh();
+    const result = await attemptRefresh();
+
+    // Успех сам поставит следующий таймер (applyTokenResponse → scheduleRefresh).
+    // Отказ аутентификации повторять бессмысленно: сессии больше нет, разлогин
+    // уже произошёл внутри refreshSession.
+    if (result.ok || result.reason === 'auth') {
+      retriesRef.current = 0;
+      return;
+    }
+
+    const delay = retryDelay(retriesRef.current);
+    retriesRef.current += 1;
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => doRefreshRef.current?.(), delay);
   }, [attemptRefresh]);
 
+  useEffect(() => { doRefreshRef.current = doRefresh; }, [doRefresh]);
+
+  // ⚠️ Протухший токен обновляется НЕМЕДЛЕННО, а не игнорируется. Раньше здесь
+  // стояло `if (delay > 0)` без else: при отрицательной задержке не ставилось
+  // ничего и никто об этом не узнавал — «обновить прямо сейчас» превращалось
+  // в «не делать ничего никогда». Само расписание — в lib/refreshSchedule.js,
+  // там же тесты: внутри хука проверить его нечем, DOM-окружения для тестов в
+  // проекте нет.
   const scheduleRefresh = useCallback((token) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
-    const expiresAt = tokenExpiresAt(token);
-    const delay     = expiresAt - Date.now() - REFRESH_BUFFER_MS;
-
-    if (delay > 0) {
-      refreshTimerRef.current = setTimeout(doRefresh, delay);
+    const next = nextRefresh(token);
+    if (next.kind === 'never') return;
+    if (next.kind === 'now') {
+      doRefresh();
+      return;
     }
+    refreshTimerRef.current = setTimeout(doRefresh, next.delay);
   }, [doRefresh]);
 
   // Schedule refresh on mount if token already in storage
   useEffect(() => {
     if (accessToken) {
-      const expiresAt = tokenExpiresAt(accessToken);
-      if (Date.now() >= expiresAt) {
-        doRefresh();
-      } else {
-        scheduleRefresh(accessToken);
-        loadFeatures(accessToken);
-      }
+      // Решение «сейчас / потом / никогда» принимает scheduleRefresh — одно
+      // место на весь хук. Флаги тарифа тянем только живым токеном: с
+      // протухшим запрос всё равно вернёт 401, а после успешного обновления
+      // их подтянет applyTokenResponse.
+      scheduleRefresh(accessToken);
+      if (!isTokenExpired(accessToken)) loadFeatures(accessToken);
     }
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -457,8 +493,8 @@ function useAuthInternal() {
       // вышло», без различения причины — то есть обрыв связи выкидывал на
       // экран входа наравне с настоящим отказом сервера.
       const fresh = await attemptRefresh();
-      if (!fresh) throw new ApiError('Session expired', 401, {});
-      resp = await send(fresh);
+      if (!fresh.ok) throw new ApiError('Session expired', 401, {});
+      resp = await send(fresh.data.access_token);
     }
     const body = await resp.json().catch(() => ({ detail: resp.statusText }));
     if (!resp.ok) throw new ApiError(body.detail || resp.statusText, resp.status, body);

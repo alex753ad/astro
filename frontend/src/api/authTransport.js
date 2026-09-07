@@ -70,15 +70,37 @@ async function preferences() {
   return Preferences;
 }
 
+/**
+ * Отказ хранилища обязан оставлять след.
+ *
+ * ⚠️ До 07.09.2026 здесь стояли пустые `catch {}` — все три функции ниже
+ * глотали ошибку целиком. Последствие не в том, что «неудобно отлаживать»:
+ * несохранённый refresh даёт РОВНО ТОТ ЖЕ симптом, что и неприсланный
+ * сервером, и что и мёртвый таймер, — «поработало минут двадцать и
+ * перестало». Три разные причины, один вид снаружи и ни одного признака,
+ * по которому их различить. Разбор занял три захода именно поэтому.
+ *
+ * console — единственный канал, какой есть у приложения на устройстве:
+ * экрана для этого нет, а Sentry в мобильную сборку не подключён. Читается
+ * через chrome://inspect, вкладка Console.
+ */
+function storageFailed(action, err) {
+  // eslint-disable-next-line no-console
+  console.warn(`[auth] нативное хранилище refresh недоступно (${action}):`, err);
+}
+
 export async function readRefreshToken() {
-  const store = await preferences();
-  if (!store) return null;
   try {
+    const store = await preferences();
+    if (!store) return null;
     const { value } = await store.get({ key: NATIVE_REFRESH_KEY });
     return value || null;
-  } catch {
-    // Хранилище недоступно — ведём себя как «токена нет»: пользователь
-    // войдёт заново, а не получит белый экран.
+  } catch (err) {
+    // Поведение прежнее — ведём себя как «токена нет»: пользователь войдёт
+    // заново, а не получит белый экран. Но теперь об этом остаётся запись:
+    // «токена нет» и «хранилище отказало» снаружи неразличимы, а чинятся
+    // по-разному.
+    storageFailed('чтение', err);
     return null;
   }
 }
@@ -90,22 +112,27 @@ export async function readRefreshToken() {
  * следующем обновлении.
  */
 export async function rememberRefreshToken(data) {
-  const store = await preferences();
-  if (!store || !data?.refresh_token) return;
   try {
+    const store = await preferences();
+    if (!store || !data?.refresh_token) return false;
     await store.set({ key: NATIVE_REFRESH_KEY, value: data.refresh_token });
-  } catch {
-    /* см. readRefreshToken */
+    return true;
+  } catch (err) {
+    // Возвращаем false, а не бросаем: обновление уже состоялось на сервере,
+    // ронять из-за хранилища нечего. Но вызывающий обязан иметь возможность
+    // отличить «записали» от «не записали» — до этой правки не мог никто.
+    storageFailed('запись', err);
+    return false;
   }
 }
 
 export async function forgetRefreshToken() {
-  const store = await preferences();
-  if (!store) return;
   try {
+    const store = await preferences();
+    if (!store) return;
     await store.remove({ key: NATIVE_REFRESH_KEY });
-  } catch {
-    /* см. readRefreshToken */
+  } catch (err) {
+    storageFailed('удаление', err);
   }
 }
 
