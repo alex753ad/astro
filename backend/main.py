@@ -691,6 +691,7 @@ async def calculate_chart(
     # 6. Persist to database (only for authenticated users)
     chart_record = NatalChart(
         user_id=user.id if user else None,
+        name=data.name,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
@@ -810,6 +811,7 @@ async def calculate_chart(
 
     return NatalChartResponse(
         id=chart_record.id,
+        name=chart_record.name,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
@@ -891,6 +893,7 @@ async def save_anonymous_chart(
 
     chart_record = NatalChart(
         user_id=user.id,
+        name=data.name,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
@@ -912,6 +915,7 @@ async def save_anonymous_chart(
 
     return NatalChartResponse(
         id=chart_record.id,
+        name=chart_record.name,
         birth_date=str(data.birth_date),
         birth_time=data.birth_time,
         birth_place=geo.display_name,
@@ -968,6 +972,7 @@ async def get_chart(
 
     return NatalChartResponse(
         id=chart.id,
+        name=chart.name,
         has_interpretation=has_interpretation,
         free_interpretation_used=bool(
             getattr(chart, "free_interpretation_used", False)
