@@ -8,6 +8,7 @@
  */
 
 import { API_BASE } from '../config';
+import { isTokenExpired } from '../lib/jwt';
 import { createSectionParser } from '../lib/sectionStream';
 import {
   AUTH_CREDENTIALS,
@@ -255,7 +256,29 @@ export async function authFetch(url, options = {}) {
     },
   });
 
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  let token = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+  // Заведомо мёртвый токен не отправляем: обновляемся ДО запроса.
+  //
+  // ⚠️ Это не оптимизация, а лечение залпа на холодном старте. TabShell
+  // монтирует все три экрана разом, и каждый шлёт свои запросы с одним и тем
+  // же протухшим токеном. Без этой ветки старт выглядел так: N обречённых
+  // запросов → N ответов 401 → одно обновление (дедуп refreshInFlight) →
+  // N повторов, то есть 2N+1 запросов вместо N+1, и часть из них — в
+  // задерживающей зоне лимитера (/auth/me). Дедуп и пауза этого не решают:
+  // они схлопывают ПОВТОРНЫЕ обновления, а сам залп создают экраны.
+  // Четвёртый экран удлинил бы залп ровно на столько же.
+  //
+  // Здесь же оно чинится один раз для всех — и для тех экранов, которых ещё
+  // нет: параллельные вызовы сходятся в один refreshSession, ждут его и
+  // уходят уже с живым токеном.
+  if (token && isTokenExpired(token)) {
+    const ahead = await refreshSession();
+    if (ahead.ok) token = ahead.data.access_token;
+    // Не вышло — отправляем как есть. Сервер скажет своё 401, а решение о
+    // судьбе сессии остаётся единственным и лежит в refreshSession.
+  }
+
   let resp = await send(token);
 
   if (resp.status === 401 && token) {

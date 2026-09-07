@@ -34,6 +34,7 @@ import {
   rememberRefreshToken,
 } from '../api/authTransport';
 import { API_BASE as CONFIG_API_BASE } from '../config';
+import { tokenExpiresAt } from '../lib/jwt';
 import { getRefCode } from '../utils/refCode';
 
 const API_BASE = `${CONFIG_API_BASE}/auth`;
@@ -52,19 +53,6 @@ const REFRESH_BUFFER_MS = 2 * 60 * 1000;
 const AuthContext = createContext(null);
 
 // ── Internal helpers ──────────────────────────────────────
-
-function parseJwtPayload(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
-
-function tokenExpiresAt(token) {
-  const payload = parseJwtPayload(token);
-  return payload?.exp ? payload.exp * 1000 : 0;
-}
 
 function loadStored() {
   try {

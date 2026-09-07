@@ -170,6 +170,96 @@ describe('различение причин отказа', () => {
   });
 });
 
+/** Токен с настоящим claim exp — гейт в authFetch читает именно его. */
+function jwt(secondsFromNow) {
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + secondsFromNow }));
+  return `header.${payload}.signature`;
+}
+
+describe('залп на холодном старте', () => {
+  // TabShell монтирует все три экрана разом, и каждый шлёт свои запросы с
+  // одним и тем же протухшим токеном. Дедуп и пауза схлопывают ПОВТОРНЫЕ
+  // обновления, но сам залп создают экраны — четвёртый экран удлинил бы его
+  // ровно на столько же. Поэтому обречённый запрос не отправляется вовсе.
+
+  it('три параллельных запроса с протухшим токеном: одно обновление и ни одного 401', async () => {
+    const stale = jwt(-60);
+    const fresh = jwt(900);
+    installStorage({ [ACCESS_KEY]: stale });
+    const { authFetch } = await freshClient();
+
+    const sent = [];
+    let refreshes = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      if (String(url).endsWith('/auth/refresh')) {
+        refreshes += 1;
+        return jsonResponse(200, { access_token: fresh, refresh_token: 'refresh-2' });
+      }
+      sent.push(opts.headers.Authorization);
+      return jsonResponse(200, { ok: true });
+    }));
+
+    const responses = await Promise.all([
+      authFetch('https://api.example/profile/charts'),
+      authFetch('https://api.example/auth/me'),
+      authFetch('https://api.example/profile/subscription'),
+    ]);
+
+    expect(responses.every((r) => r.status === 200)).toBe(true);
+    expect(refreshes).toBe(1);
+    // Главное: обречённых запросов не было вовсе — ровно три, все с новым
+    // токеном. Раньше их было 2N+1: три 401, обновление и три повтора.
+    expect(sent).toHaveLength(3);
+    expect(sent).toEqual([`Bearer ${fresh}`, `Bearer ${fresh}`, `Bearer ${fresh}`]);
+    expect(sent).not.toContain(`Bearer ${stale}`);
+  });
+
+  it('живой токен не вызывает обновления', async () => {
+    installStorage({ [ACCESS_KEY]: jwt(900) });
+    const { authFetch } = await freshClient();
+    const fetchMock = vi.fn(async () => jsonResponse(200, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await authFetch('https://api.example/profile');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('нечитаемый токен отправляется как есть — решает сервер', async () => {
+    // Не разобрали формат — не подменяем собой сервер: иначе любой незнакомый
+    // токен молча превратился бы в вечное обновление сессии.
+    installStorage({ [ACCESS_KEY]: 'not-a-jwt' });
+    const { authFetch } = await freshClient();
+    const sent = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      if (String(url).endsWith('/auth/refresh')) return jsonResponse(200, { access_token: jwt(900) });
+      sent.push(opts.headers.Authorization);
+      return jsonResponse(200, { ok: true });
+    }));
+
+    await authFetch('https://api.example/profile');
+
+    expect(sent).toEqual(['Bearer not-a-jwt']);
+  });
+
+  it('обновление не удалось — запрос всё равно уходит, решение о сессии не дублируется', async () => {
+    installStorage({ [ACCESS_KEY]: jwt(-60) });
+    const { authFetch, onSessionExpired } = await freshClient();
+    const expired = vi.fn();
+    onSessionExpired(expired);
+    vi.stubGlobal('fetch', vi.fn(async (url) => (
+      String(url).endsWith('/auth/refresh')
+        ? jsonResponse(503, {})
+        : jsonResponse(401, {})
+    )));
+
+    const resp = await authFetch('https://api.example/profile');
+
+    expect(resp.status).toBe(401);
+    expect(expired).not.toHaveBeenCalled();
+  });
+});
+
 describe('пауза после неудачного обновления', () => {
   // Дефект холодного старта 07.09.2026. Все три экрана монтируются разом
   // (TabShell), каждый шлёт свои запросы с протухшим токеном — и каждый залп
