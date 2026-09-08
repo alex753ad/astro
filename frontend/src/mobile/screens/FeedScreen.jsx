@@ -83,7 +83,7 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
   );
 }
 
-export default function FeedScreen({ active = true, onHintsToggle, scrollRef }) {
+export default function FeedScreen({ active = true, onHintsToggle, scrollRef, chartsVersion = 0 }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
@@ -146,6 +146,28 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef }) 
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  /**
+   * Перезагрузка после того, как на вкладке «Карта» построили новую карту
+   * (SPEC_CHART_CREATE.md §6). Счётчик приходит из TabShell — экраны друг о
+   * друге не знают, а связать их размонтированием нельзя: `load()` выше
+   * зовётся только на монтировании, а вкладки смонтированы всегда.
+   *
+   * ⚠️ Обычный путь, НЕ `silent`, в отличие от жеста: карта сменилась
+   * целиком, и сохранять прокрутку тут не только незачем, но и вредно —
+   * позиция относилась к событиям другой карты. Скелет здесь честен.
+   *
+   * ⚠️ Первое значение счётчика пропускается: без этого эффект сработал бы
+   * на монтировании и продублировал бы первую загрузку — тот самый лишний
+   * запрос в залпе холодного старта, от которого лечили гейтом по сроку
+   * токена.
+   */
+  const seenChartsVersion = useRef(chartsVersion);
+  useEffect(() => {
+    if (seenChartsVersion.current === chartsVersion) return;
+    seenChartsVersion.current = chartsVersion;
+    load();
+  }, [chartsVersion, load]);
 
   // Как только человек сам тронул ленту — перестаём её двигать. Иначе
   // до-прокрутка после подгрузки шрифта дёрнула бы экран из-под пальца.

@@ -46,3 +46,25 @@ export const updatePushSettings = (patch) => patchJson('/push/settings', patch, 
 
 export const fetchProfileSettings = () => getJson('/profile/settings', 'Не удалось загрузить настройки.');
 export const updateProfileSettings = (patch) => patchJson('/profile/settings', patch, 'Не удалось сохранить настройки.');
+
+/**
+ * Удаление карты — `DELETE /profile/charts/{id}` (`profile/router.py:157`).
+ *
+ * Возврата нет: список правится на месте тем, кто вызвал. Перезапрашивать
+ * `/profile/charts` не нужно — состав известен, а лишний запрос на экране,
+ * который и так делает три при открытии, ничего не уточняет.
+ *
+ * ⚠️ Если удалена основная карта, `primary_chart_id` сбрасывает САМ БЭКЕНД
+ * (там же, строки 180-181) — клиенту чинить состояние не нужно и нельзя:
+ * своя «догадка» о новой основной разошлась бы с серверной.
+ */
+export async function deleteChart(chartId) {
+  const resp = await authFetchWithTimeout(`${API_BASE}/profile/charts/${chartId}`, { method: 'DELETE' });
+  if (!resp.ok) {
+    throw new Error(await responseErrorText(resp, 'Не удалось удалить карту.'));
+  }
+}
+
+/** Закрепление основной карты — `PATCH /profile/primary-chart`. */
+export const setPrimaryChart = (chartId) =>
+  patchJson('/profile/primary-chart', { chart_id: chartId }, 'Не удалось сделать карту основной.');

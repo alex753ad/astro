@@ -51,7 +51,20 @@ export async function resolvePrimaryChartId() {
   if (!resp.ok) {
     throw new Error(await responseErrorText(resp, 'Не удалось получить список карт.'));
   }
-  const charts = (await resp.json())?.charts;
+  return pickPrimaryChartId((await resp.json())?.charts);
+}
+
+/**
+ * Та же выборка, но по уже загруженному списку — без своего запроса.
+ *
+ * ⚠️ Вынесена отдельной функцией, а не скопирована во второе место:
+ * правило «основная, иначе первая» обязано быть ОДНИМ на приложение (тот
+ * же довод, по которому chartApi.js берёт resolvePrimaryChartId отсюда, а
+ * не пишет её у себя). Второй потребитель — «Ещё»: там список карт уже
+ * загружен, и ссылка на веб-отчёт обязана вести на ту же карту, которую
+ * показывают «Лента» и «Карта».
+ */
+export function pickPrimaryChartId(charts) {
   if (!Array.isArray(charts) || charts.length === 0) return null;
   return (charts.find((c) => c.is_primary) || charts[0]).id;
 }

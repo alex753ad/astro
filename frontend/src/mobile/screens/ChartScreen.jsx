@@ -18,7 +18,9 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NatalChart from '../../components/NatalChart';
+import ChartCreateView from '../components/ChartCreateView';
 import ChartSheet from '../components/ChartSheet';
+import ChartShareSheet from '../components/ChartShareSheet';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
 import useTheme from '../useTheme.jsx';
@@ -82,11 +84,39 @@ function ChartLoading() {
   );
 }
 
-export default function ChartScreen({ active = true, onHintsToggle }) {
+export default function ChartScreen({ active = true, onHintsToggle, onChartCreated, chartsVersion = 0 }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
   const [error, setError] = useState('');
+  // 'chart' | 'create' — форма построения живёт подэкраном этой вкладки,
+  // не отдельным маршрутом (SPEC_CHART_CREATE.md §3), тем же приёмом, что
+  // разделы MoreScreen.
+  const [view, setView] = useState('chart');
+  // Лист «Поделиться». Ссылка создаётся не здесь, а по действию внутри
+  // листа — см. шапку ChartShareSheet.jsx.
+  const [shareOpen, setShareOpen] = useState(false);
+
+  /**
+   * Какую карту показывать, если это решил не сервер, а сам человек прямо
+   * сейчас — построив новую (SPEC_CHART_CREATE.md §6).
+   *
+   * ⚠️ Почему НЕ `PATCH /profile/primary-chart`: закрепление основной карты
+   * — отдельное решение, сделанное руками, и оно определяет ещё и то, какая
+   * карта уходит в письма, планер и на сайт. «Я построил ещё одну карту»
+   * его не отменяет.
+   *
+   * ⚠️ Почему ref, а не состояние: значение читает `load`, а он не должен
+   * пересоздаваться при смене показанной карты — на нём висит
+   * `useEffect(..., [load])` первой загрузки, и новая ссылка запустила бы
+   * его заново. В ref выбор к тому же переживает обновление жестом — иначе
+   * первый же жест вернул бы человека на основную карту.
+   */
+  const forcedChartIdRef = useRef(null);
+
+  // Толчок, поднятый этим же экраном: чтобы отличить его от толчка «Ещё»
+  // (см. эффект по chartsVersion ниже).
+  const ownBumpRef = useRef(false);
   const { logout } = useAuth();
   const { dark } = useTheme();
 
@@ -134,12 +164,29 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
       setError('');
     }
     try {
-      const chartId = await resolvePrimaryChartId();
+      const forced = forcedChartIdRef.current;
+      const chartId = forced || await resolvePrimaryChartId();
       if (!chartId) {
         setStatus('no-chart');
         return;
       }
-      setChart(await fetchChart(chartId));
+      try {
+        setChart(await fetchChart(chartId));
+      } catch (err) {
+        // ⚠️ Показанной карты больше нет — её удалили в «Ещё», пока она
+        // стояла переопределением. Снимаем переопределение и показываем
+        // обычную карту аккаунта. Без этого экран остался бы с «Карта не
+        // найдена» до перезапуска приложения: ref переживает и жест
+        // обновления, и переключение вкладок.
+        if (!(forced && err?.status === 404)) throw err;
+        forcedChartIdRef.current = null;
+        const fallback = await resolvePrimaryChartId();
+        if (!fallback) {
+          setStatus('no-chart');
+          return;
+        }
+        setChart(await fetchChart(fallback));
+      }
       setStatus('ready');
     } catch (err) {
       if (silent) throw err;
@@ -152,9 +199,71 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
 
   useEffect(() => { load(); }, [load]);
 
+  /**
+   * Состав карт изменился на вкладке «Ещё» — удалили карту или сменили
+   * основную (SPEC_CHART_CREATE.md §6).
+   *
+   * ⚠️ Любой толчок ИЗВНЕ снимает переопределение. Правило одно: показанную
+   * карту задаёт только построение, а любой явный выбор человека в «Ещё» его
+   * отменяет. Иначе после «сделать основной» эта вкладка продолжала бы
+   * показывать построенную ранее — то есть игнорировать только что сделанный
+   * выбор.
+   *
+   * ⚠️ Собственный толчок (после построения) пропускается: `load()` там уже
+   * вызван, и второй заход не добавил бы ничего, кроме лишнего запроса и
+   * мигания скелетом.
+   */
+  const seenChartsVersion = useRef(chartsVersion);
+  useEffect(() => {
+    if (seenChartsVersion.current === chartsVersion) return;
+    seenChartsVersion.current = chartsVersion;
+    if (ownBumpRef.current) {
+      ownBumpRef.current = false;
+      return;
+    }
+    forcedChartIdRef.current = null;
+    load();
+  }, [chartsVersion, load]);
+
   // Обработчик для жеста в шторке. `silent` обязателен — см. комментарий
   // у load выше: обычный путь размонтировал бы колесо и сбросил зум.
   const refresh = useCallback(() => load({ silent: true }), [load]);
+
+  /**
+   * Карта построена. Показываем ИМЕННО её и толкаем «Ленту».
+   *
+   * ⚠️ Толчок нужен потому, что `load()` у ленты зовётся только на
+   * монтировании, а `TabShell` экраны не размонтирует (§14
+   * SPEC_FEED_SCREEN.md): без него человек, построив первую карту, вернулся
+   * бы на ленту и увидел «Постройте её на вкладке «Карта»» — при уже
+   * построенной карте. Это не нарушает «жест, а не автообновление»:
+   * перезагружается один экран, один раз и по явному действию человека.
+   */
+  const handleCreated = useCallback((chartId) => {
+    // ⚠️ Пустой id — отказ, а не «показать основную». Молчаливый откат на
+    // `resolvePrimaryChartId` (ветка `||` внутри load) показал бы СТАРУЮ
+    // карту под видом только что построенной, и человек этого не отличил
+    // бы никак. Сегодня сервер id отдаёт всегда (`main.py:812`), но в схеме
+    // ответа поле объявлено необязательным — то есть тихая подмена ждала бы
+    // первой же правки на бэкенде.
+    if (!chartId) {
+      setView('chart');
+      setError('Карта построена, но сервер не вернул её идентификатор. Обновите ленту жестом или откройте карту на сайте.');
+      setStatus('error');
+      return;
+    }
+    forcedChartIdRef.current = chartId;
+    setView('chart');
+    load();
+    // Свой же толчок ленте: эффект ниже обязан его пропустить, иначе
+    // «Карта» перезагрузится вторым разом на ровном месте.
+    ownBumpRef.current = true;
+    onChartCreated?.();
+  }, [load, onChartCreated]);
+
+  if (view === 'create') {
+    return <ChartCreateView onCancel={() => setView('chart')} onCreated={handleCreated} />;
+  }
 
   if (status === 'loading') return <ChartLoading />;
 
@@ -175,7 +284,9 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
     return (
       <CenteredNotice
         title="Пока нет ни одной карты"
-        text="Карта строится по дате, времени и месту рождения. Постройте её на сайте — здесь она появится сразу."
+        text="Карта строится по дате, времени и месту рождения — это займёт минуту."
+        action="Построить карту"
+        onAction={() => setView('create')}
       />
     );
   }
@@ -195,6 +306,42 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
           {/* Кнопка «?» есть только в готовом состоянии: на loading/error/
               no-chart объяснять нечего (SPEC_ONBOARDING.md §9). Здесь это
               выходит само — ветки выше возвращаются раньше. */}
+          {/* «+» рядом с «?»: второй вход в форму для тех, у кого карта уже
+              есть (первый — кнопка в состоянии «нет карты»).
+
+              Кнопок в шапке стало три, и это её предел: заголовок ужимается
+              (minWidth: 0 выше), а четвёртой здесь места нет — следующее
+              действие пойдёт внутрь листа, а не рядом. */}
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            aria-label="Поделиться картой"
+            style={{
+              width: 32, height: 32, flexShrink: 0, borderRadius: '50%',
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-secondary)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', padding: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="2.6" />
+              <circle cx="6" cy="12" r="2.6" />
+              <circle cx="18" cy="19" r="2.6" />
+              <path d="M8.4 10.8 15.6 6.4M8.4 13.2l7.2 4.4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('create')}
+            aria-label="Построить новую карту"
+            style={{
+              width: 32, height: 32, flexShrink: 0, borderRadius: '50%',
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-secondary)', fontSize: 20, lineHeight: 1,
+            }}
+          >
+            +
+          </button>
           <HintButton onClick={hints.show} />
         </div>
         <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -297,6 +444,10 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
 
       {hints.open && (
         <HintOverlay steps={CHART_HINTS} anchors={hintAnchors} onClose={hints.close} />
+      )}
+
+      {shareOpen && (
+        <ChartShareSheet chartId={chart.id} onClose={() => setShareOpen(false)} />
       )}
     </div>
   );
