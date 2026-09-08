@@ -64,6 +64,7 @@ async def list_charts(
         "charts": [
             {
                 "id": c.id,
+                "name": c.name,
                 "birth_date": c.birth_date,
                 "birth_time": c.birth_time,
                 "birth_place": c.birth_place,
