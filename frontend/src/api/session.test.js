@@ -24,15 +24,19 @@ const ACCESS_KEY = 'astro_access_token';
 
 // Нативное хранилище refresh — подменяется целиком: настоящее тянет
 // @capacitor/preferences, которого в тестовой среде нет.
-const native = { token: null };
+const native = { token: null, hang: false };
 vi.mock('./authTransport', () => ({
   IS_MOBILE: true,
   AUTH_CREDENTIALS: 'omit',
   MOBILE_CLIENT_HEADER: 'X-Client-Platform',
   clientHeaders: () => ({ 'X-Client-Platform': 'mobile' }),
-  authRequestBody: async () => JSON.stringify(
-    native.token ? { refresh_token: native.token } : {},
-  ),
+  authRequestBody: async () => {
+    // native.hang воспроизводит дефект 08.09.2026: ожидание ПЕРЕД запросом,
+    // которое не разрешается и не отклоняется. Именно так вёл себя await над
+    // объектом плагина Capacitor — не отказом, а тишиной.
+    if (native.hang) await new Promise(() => {});
+    return JSON.stringify(native.token ? { refresh_token: native.token } : {});
+  },
   readRefreshToken: async () => native.token,
   rememberRefreshToken: async (data) => {
     if (data?.refresh_token) native.token = data.refresh_token;
@@ -66,10 +70,12 @@ function jsonResponse(status, body) {
 
 beforeEach(() => {
   native.token = 'refresh-1';
+  native.hang = false;
   installStorage({ [ACCESS_KEY]: 'access-old' });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -410,6 +416,44 @@ describe('authFetch — поведение экранов', () => {
 
     await authFetch('https://api.example/profile');
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('зависание внутри обновления не заклинивает контур навсегда', () => {
+  /**
+   * Дефект, ради которого написано (найден на устройстве 08.09.2026):
+   * ожидание ПЕРЕД запросом не разрешалось и не отклонялось, поэтому
+   * `refreshInFlight` не освобождался ни через catch, ни через finally —
+   * они выполняются только на завершении промиса. Одно зависание выключало
+   * обновление сессии целиком: молчали и таймер, и возврат из фона, и
+   * повтор по 401.
+   *
+   * Причина устранена в api/authTransport.js, здесь проверяется СТРАХОВКА:
+   * что бы ни повисло внутри, наружу уходит результат, а контур
+   * освобождается. Тест держится за наблюдаемое поведение, не за реализацию
+   * — переписать гонку можно как угодно, пока эти два свойства целы.
+   */
+  it('отдаёт network по пределу и освобождает контур для следующей попытки', async () => {
+    vi.useFakeTimers();
+    const { refreshSession } = await freshClient();
+    const fetchMock = vi.fn(async () => jsonResponse(200, {
+      access_token: 'access-new', refresh_token: 'refresh-2',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    native.hang = true;
+    const first = refreshSession();
+    await vi.advanceTimersByTimeAsync(15000);
+
+    await expect(first).resolves.toEqual({ ok: false, reason: 'network' });
+    // До сети дело не дошло — висело раньше. Ровно как в боевом случае.
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // Главное: следующий вызов НЕ получает тот же зависший промис.
+    native.hang = false;
+    await vi.advanceTimersByTimeAsync(5000); // пауза после неудачи
+    await expect(refreshSession()).resolves.toMatchObject({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
