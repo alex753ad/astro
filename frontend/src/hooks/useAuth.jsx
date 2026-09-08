@@ -34,6 +34,7 @@ import {
   rememberRefreshToken,
 } from '../api/authTransport';
 import { API_BASE as CONFIG_API_BASE } from '../config';
+import { diag } from '../lib/authDiag';
 import { isTokenExpired, tokenExpiresAt } from '../lib/jwt';
 import { REFRESH_BUFFER_MS, nextRefresh, retryDelay } from '../lib/refreshSchedule';
 import { getRefCode } from '../utils/refCode';
@@ -243,7 +244,9 @@ function useAuthInternal() {
   // консоль, ни второй попытки. Сессия после этого доживала ровно до конца
   // текущего access-токена.
   const doRefresh = useCallback(async () => {
+    diag('doRefresh:start');
     const result = await attemptRefresh();
+    diag('doRefresh:end', result.ok ? 'ok' : `fail:${result.reason}`);
 
     // Успех сам поставит следующий таймер (applyTokenResponse → scheduleRefresh).
     // Отказ аутентификации повторять бессмысленно: сессии больше нет, разлогин
@@ -254,6 +257,7 @@ function useAuthInternal() {
     }
 
     const delay = retryDelay(retriesRef.current);
+    diag('doRefresh:retry-scheduled', `через ${delay}мс, попытка ${retriesRef.current + 1}`);
     retriesRef.current += 1;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => doRefreshRef.current?.(), delay);
@@ -271,12 +275,19 @@ function useAuthInternal() {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
     const next = nextRefresh(token);
+    diag('schedule', next.kind === 'later' ? `later ${next.delay}мс` : next.kind);
     if (next.kind === 'never') return;
     if (next.kind === 'now') {
       doRefresh();
       return;
     }
-    refreshTimerRef.current = setTimeout(doRefresh, next.delay);
+    refreshTimerRef.current = setTimeout(() => {
+      // Отметка стоит ВНУТРИ колбэка, а не рядом с setTimeout: вопрос замера
+      // именно в том, выстреливает ли просроченный таймер после разморозки
+      // webview, — а это видно только отсюда.
+      diag('timer:fired');
+      doRefresh();
+    }, next.delay);
   }, [doRefresh]);
 
   // Schedule refresh on mount if token already in storage
@@ -299,12 +310,21 @@ function useAuthInternal() {
   // состояние проверяем срок токена по факту и обновляем, только если он
   // истёк или почти истёк — не дёргаем refresh на каждый фокус.
   useEffect(() => {
-    function checkOnReturn() {
+    function checkOnReturn(ev) {
+      // Имя события в отметке обязательно: три слушателя ведут в одну
+      // функцию, и вопрос замера — доставляет ли webview хоть одно из них
+      // после разморозки. Отметка стоит ДО всех условий, иначе «событие не
+      // пришло» и «пришло, но обновление не потребовалось» неотличимы.
+      diag('resume', `${ev?.type ?? 'unknown'} visibility=${document.visibilityState}`);
       if (document.visibilityState !== 'visible') return;
       if (!accessToken) return;
       const expiresAt = tokenExpiresAt(accessToken);
+      const left = Math.round((expiresAt - Date.now()) / 1000);
       if (Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
+        diag('resume:refresh', `до истечения ${left}с`);
         doRefresh();
+      } else {
+        diag('resume:skip', `до истечения ${left}с`);
       }
     }
     document.addEventListener('visibilitychange', checkOnReturn);

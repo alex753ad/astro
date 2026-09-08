@@ -17,6 +17,7 @@ import {
   forgetRefreshToken,
   rememberRefreshToken,
 } from './authTransport';
+import { diag } from '../lib/authDiag';
 
 class ApiError extends Error {
   constructor(message, status, detail) {
@@ -117,6 +118,29 @@ let refreshInFlight = null;
 //
 // Окно короткое: оно гасит именно ЗАЛП, а не осмысленный повтор через паузу.
 const REFRESH_COOLDOWN_MS = 5000;
+
+/**
+ * Предел ожидания одного обновления сессии.
+ *
+ * До 08.09.2026 его не было вовсе: у fetch к /auth/refresh не стояло ни
+ * таймаута, ни AbortController. Зависший запрос (мёртвый сокет после долгого
+ * фона — тот же случай, что описан в шапке mobile/lib/authFetchTimeout.js) не
+ * отклонялся никогда, а значит `refreshInFlight` ниже оставался заполненным
+ * навсегда: КАЖДЫЙ следующий вызов получал тот же неразрешающийся промис и
+ * молчал. Один зависший запрос выключал обновление сессии целиком — и таймер,
+ * и возврат из фона, и повтор по 401.
+ *
+ * ⚠️ Abort закрывает сам сетевой запрос, но НЕ чтение refresh-токена из
+ * нативного хранилища: оно уходит через мост Capacitor до начала fetch, и
+ * прервать его сигналом нечем. Зависание там даст ровно тот же симптом, а
+ * лечится иначе — поэтому оно отдельно размечено отметками
+ * 'storage:read' / 'storage:read:done' в api/authTransport.js.
+ *
+ * 15 с — столько же, сколько экранный таймаут (REQUEST_TIMEOUT_MS): меньше
+ * значило бы обрывать обновления, которые ещё могли успеть, больше — экран
+ * всё равно сдастся раньше и число здесь ни на что не повлияет.
+ */
+const REFRESH_TIMEOUT_MS = 15000;
 let lastRefreshFailure = null; // { at, result }
 
 // Подписчики на события сессии. Нужны, чтобы client.js (модуль без React) мог
@@ -179,9 +203,13 @@ export async function refreshSession() {
   }
 
   const attempt = (async () => {
+    diag('refresh:start');
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
     let resp;
     try {
       resp = await fetch(`${API_BASE}/auth/refresh`, {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...clientHeaders() },
         // credentials: кука astro_refresh едет только явно — по умолчанию
@@ -195,10 +223,16 @@ export async function refreshSession() {
       // ⚠️ Хранилище НЕ трогаем: сессия могла остаться живой, а стереть
       // refresh здесь — это ровно тот дефект, из-за которого приложение
       // застревало с мёртвым токеном (см. шапку раздела).
+      diag('refresh:end', 'network — обрыв, недоступное хранилище или таймаут');
       return rememberFailure({ ok: false, reason: 'network' });
+    } finally {
+      // Таймер снимается в любом исходе: иначе он держал бы приложение
+      // разбуженным на 15 с после каждого успешного обновления.
+      clearTimeout(abortTimer);
     }
 
     if (!resp.ok) {
+      diag('refresh:end', `HTTP ${resp.status}`);
       if (resp.status !== 401 && resp.status !== 403) {
         // 429 от лимитера, 5xx — сервер жив, но сейчас не отвечает по делу.
         // Сессию не хороним: следующая попытка может пройти.
@@ -216,8 +250,10 @@ export async function refreshSession() {
     try {
       data = await resp.json();
     } catch {
+      diag('refresh:end', 'ответ 200, но тело не разобрано');
       return rememberFailure({ ok: false, reason: 'server' });
     }
+    diag('refresh:end', 'ok');
 
     lastRefreshFailure = null;
 
@@ -233,6 +269,10 @@ export async function refreshSession() {
   })();
 
   refreshInFlight = attempt;
+  // Освобождение — в finally, а не в ветках выше: у промиса выше семь путей
+  // выхода, и достаточно одного, где обновление забыли бы снять, чтобы
+  // контур замолчал навсегда. finally покрывает и исключение, которого
+  // сегодня нет, но может появиться при следующей правке.
   attempt.finally(() => {
     if (refreshInFlight === attempt) refreshInFlight = null;
   });
@@ -273,6 +313,7 @@ export async function authFetch(url, options = {}) {
   // нет: параллельные вызовы сходятся в один refreshSession, ждут его и
   // уходят уже с живым токеном.
   if (token && isTokenExpired(token)) {
+    diag('gate:expired', url);
     const ahead = await refreshSession();
     if (ahead.ok) token = ahead.data.access_token;
     // Не вышло — отправляем как есть. Сервер скажет своё 401, а решение о
@@ -282,6 +323,7 @@ export async function authFetch(url, options = {}) {
   let resp = await send(token);
 
   if (resp.status === 401 && token) {
+    diag('401', url);
     const result = await refreshSession();
     if (result.ok) resp = await send(result.data.access_token);
     // Отдельной ветки на result.reason === 'auth' здесь нет намеренно:
