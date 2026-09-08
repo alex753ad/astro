@@ -19,7 +19,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { ApiError, getSubscription, saveAnonymousChart } from '../api/client';
+import {
+  ApiError,
+  getSubscription,
+  onSessionExpired,
+  refreshSession,
+  saveAnonymousChart,
+} from '../api/client';
 import {
   AUTH_CREDENTIALS,
   authRequestBody,
@@ -28,6 +34,8 @@ import {
   rememberRefreshToken,
 } from '../api/authTransport';
 import { API_BASE as CONFIG_API_BASE } from '../config';
+import { isTokenExpired, tokenExpiresAt } from '../lib/jwt';
+import { REFRESH_BUFFER_MS, nextRefresh, retryDelay } from '../lib/refreshSchedule';
 import { getRefCode } from '../utils/refCode';
 
 const API_BASE = `${CONFIG_API_BASE}/auth`;
@@ -39,26 +47,10 @@ const USER_KEY          = 'astro_user';
 // отзовёт при первой ротации), но подчистить у вернувшихся пользователей стоит.
 const LEGACY_REFRESH_KEY = 'astro_refresh_token';
 
-// Refresh 2 minutes before access token expires (token lifetime = 15 min)
-const REFRESH_BUFFER_MS = 2 * 60 * 1000;
-
 // ── Context ───────────────────────────────────────────────
 const AuthContext = createContext(null);
 
 // ── Internal helpers ──────────────────────────────────────
-
-function parseJwtPayload(token) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
-}
-
-function tokenExpiresAt(token) {
-  const payload = parseJwtPayload(token);
-  return payload?.exp ? payload.exp * 1000 : 0;
-}
 
 function loadStored() {
   try {
@@ -142,6 +134,13 @@ function useAuthInternal() {
   const [error,        setError]        = useState(null);
 
   const refreshTimerRef = useRef(null);
+  // Сколько неудачных обновлений подряд — от этого зависит пауза перед
+  // следующей попыткой. Обнуляется успехом и разлогином.
+  const retriesRef = useRef(0);
+  // doRefresh планирует ПОВТОР САМОГО СЕБЯ, а сослаться на себя внутри
+  // useCallback нельзя. Ссылка через ref — не хитрость, а единственный
+  // способ не разорвать цепочку на первой же неудаче.
+  const doRefreshRef = useRef(null);
 
   const isAuthenticated = Boolean(accessToken && user);
 
@@ -212,55 +211,83 @@ function useAuthInternal() {
   // Дедуп: несколько запросов, упавших в 401 одновременно (или таймер +
   // ручной вызов), не должны бить /refresh параллельно — ротация делает
   // использованный refresh недействительным, второй запрос разлогинил бы юзера.
-  const refreshInFlightRef = useRef(null);
-
-  const attemptRefresh = useCallback(() => {
-    if (refreshInFlightRef.current) return refreshInFlightRef.current;
-    refreshInFlightRef.current = (async () => {
-      try {
-        const data = await apiFetch('/refresh', {
-          method: 'POST',
-          // В вебе `{}` — сервер возьмёт refresh из куки. На устройстве сюда
-          // попадёт сохранённый токен: куки там нет.
-          body: await authRequestBody(),
-        });
-        await applyTokenResponse(data);
-        return data.access_token;
-      } catch {
-        return null;
-      } finally {
-        refreshInFlightRef.current = null;
-      }
-    })();
-    return refreshInFlightRef.current;
+  // ⚠️ Своего контура обновления здесь больше НЕТ — он единственный и живёт в
+  // api/client.js (refreshSession). Раньше их было два, с независимыми
+  // «идёт обновление»-флагами: они могли отправить один и тот же refresh
+  // параллельно, сервер по reuse-detection отвечал 401 второму, и тот стирал
+  // свежий токен, только что записанный первым. Приложение оставалось с
+  // формально живым access и без refresh — то есть навсегда в состоянии
+  // «вошёл», где не проходит ни один запрос. Разбор — в шапке того раздела
+  // client.js.
+  //
+  // Возвращает результат целиком, а не токен: вызывающим важна ПРИЧИНА
+  // неуспеха — от неё зависит, повторять ли попытку.
+  const attemptRefresh = useCallback(async () => {
+    const result = await refreshSession();
+    if (result.ok) await applyTokenResponse(result.data);
+    return result;
   }, [applyTokenResponse]);
 
+  // ⚠️ Разлогин ТОЛЬКО по явному отказу аутентификации, и решение об этом
+  // принимает не эта функция: refreshSession сама уведомляет подписчиков
+  // (см. эффект с onSessionExpired ниже), а здесь остаётся молчание.
+  // Потеря связи (самолётный режим, обрыв) и 429/5xx не должны выкидывать
+  // человека на экран входа — там верное поведение «покажи ошибку и дай
+  // повторить», а не «потеряй сессию».
+  //
+  // ⚠️ Неуспех ОБЯЗАН запланировать повтор. До 07.09.2026 эта функция
+  // результат не читала вовсе, а следующий таймер ставило только успешное
+  // обновление — то есть первая же временная ошибка (обрыв связи на секунду,
+  // 429 от лимитера, заснувший на минуту webview) выключала автоматическое
+  // обновление до перезапуска приложения. Молча: ни экрана, ни записи в
+  // консоль, ни второй попытки. Сессия после этого доживала ровно до конца
+  // текущего access-токена.
   const doRefresh = useCallback(async () => {
-    const token = await attemptRefresh();
-    if (!token) logout();
-  }, [attemptRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
+    const result = await attemptRefresh();
 
+    // Успех сам поставит следующий таймер (applyTokenResponse → scheduleRefresh).
+    // Отказ аутентификации повторять бессмысленно: сессии больше нет, разлогин
+    // уже произошёл внутри refreshSession.
+    if (result.ok || result.reason === 'auth') {
+      retriesRef.current = 0;
+      return;
+    }
+
+    const delay = retryDelay(retriesRef.current);
+    retriesRef.current += 1;
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => doRefreshRef.current?.(), delay);
+  }, [attemptRefresh]);
+
+  useEffect(() => { doRefreshRef.current = doRefresh; }, [doRefresh]);
+
+  // ⚠️ Протухший токен обновляется НЕМЕДЛЕННО, а не игнорируется. Раньше здесь
+  // стояло `if (delay > 0)` без else: при отрицательной задержке не ставилось
+  // ничего и никто об этом не узнавал — «обновить прямо сейчас» превращалось
+  // в «не делать ничего никогда». Само расписание — в lib/refreshSchedule.js,
+  // там же тесты: внутри хука проверить его нечем, DOM-окружения для тестов в
+  // проекте нет.
   const scheduleRefresh = useCallback((token) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
-    const expiresAt = tokenExpiresAt(token);
-    const delay     = expiresAt - Date.now() - REFRESH_BUFFER_MS;
-
-    if (delay > 0) {
-      refreshTimerRef.current = setTimeout(doRefresh, delay);
+    const next = nextRefresh(token);
+    if (next.kind === 'never') return;
+    if (next.kind === 'now') {
+      doRefresh();
+      return;
     }
+    refreshTimerRef.current = setTimeout(doRefresh, next.delay);
   }, [doRefresh]);
 
   // Schedule refresh on mount if token already in storage
   useEffect(() => {
     if (accessToken) {
-      const expiresAt = tokenExpiresAt(accessToken);
-      if (Date.now() >= expiresAt) {
-        doRefresh();
-      } else {
-        scheduleRefresh(accessToken);
-        loadFeatures(accessToken);
-      }
+      // Решение «сейчас / потом / никогда» принимает scheduleRefresh — одно
+      // место на весь хук. Флаги тарифа тянем только живым токеном: с
+      // протухшим запрос всё равно вернёт 401, а после успешного обновления
+      // их подтянет applyTokenResponse.
+      scheduleRefresh(accessToken);
+      if (!isTokenExpired(accessToken)) loadFeatures(accessToken);
     }
     return () => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -289,6 +316,7 @@ function useAuthInternal() {
       window.removeEventListener('pageshow', checkOnReturn);
     };
   }, [accessToken, doRefresh]);
+
 
   // ── Auth actions ────────────────────────────────────────
 
@@ -324,6 +352,49 @@ function useAuthInternal() {
     } finally {
       setLoading(false);
     }
+  }, [applyTokenResponse]);
+
+  // ── Регистрация по OTP (шаг 1 и шаг 2) ──────────────────
+  //
+  // ⚠️ Обе ходят через apiFetch, а НЕ голым fetch, как это делает
+  // AuthModal.jsx на вебе. apiFetch подмешивает clientHeaders(), то есть
+  // X-Client-Platform: mobile — от этого заголовка зависит, придёт ли
+  // refresh_token в теле ответа (_build_token_response, backend/auth/router.py).
+  // Без него всё выглядит исправно: аккаунт создан, в приложение пустило, —
+  // а через час истекает access, обновить его нечем (куку webview не
+  // получает), и приложение молча разлогинивается. Разбор —
+  // REGISTER_API_RECON.md §3.1-3.2.
+  //
+  // Здесь же apiFetch срезает у 422 префикс «Value error, » и склеивает
+  // список ошибок pydantic в одну строку — поэтому экрану достаётся
+  // готовый человеческий текст.
+  //
+  // setError/setLoading общего состояния хука эти две НЕ трогают, в отличие
+  // от login/register: у двухшагового экрана свои состояния на каждый шаг
+  // (ошибка ввода кода не должна выглядеть как ошибка формы и наоборот).
+  const sendRegisterCode = useCallback(({ email, password, name, consent }) => (
+    apiFetch('/register/email/send-code', {
+      method: 'POST',
+      // ref_code не отправляется вовсе (решение владельца 07.09.2026):
+      // реферальные ссылки приходят на веб, в приложении его взять неоткуда.
+      body: JSON.stringify({
+        email,
+        password,
+        name: name || undefined,
+        consent,
+      }),
+    })
+  ), []);
+
+  // Возвращает то же, что login: applyTokenResponse сохраняет access и
+  // профиль, а на устройстве ещё и refresh в нативное хранилище. Раскладывать
+  // токены руками нельзя — rememberRefreshToken живёт внутри неё.
+  const verifyRegisterCode = useCallback(async ({ email, code }) => {
+    const data = await apiFetch('/register/email/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+    return applyTokenResponse(data);
   }, [applyTokenResponse]);
 
   const loginWithGoogle = useCallback(async (code, redirectUri) => {
@@ -381,6 +452,21 @@ function useAuthInternal() {
     clearStorage();
   }, []);
 
+  // ⚠️ ЕДИНСТВЕННАЯ точка, где приложение решает, что сессии больше нет.
+  //
+  // Сигнал приходит из refreshSession (api/client.js) и только по ЯВНОМУ
+  // отказу сервера в аутентификации — не по сетевому сбою. Подписка нужна
+  // потому, что запросы экранов идут через authFetch ТОГО ЖЕ МОДУЛЯ, минуя
+  // этот хук: до 07.09.2026 отказ сервера там не приводил вообще ни к чему,
+  // и приложение застревало в состоянии «вошёл» с мёртвым токеном — таб-бар
+  // на месте, а на каждом экране «Не удалось загрузить…» и бесполезная
+  // кнопка «Повторить». В mobile/ не было ни одного вызова logout(), и выйти
+  // из этого состояния человек не мог даже перезапуском приложения.
+  //
+  // Стоит ПОСЛЕ объявления logout намеренно: `const` в TDZ, и подписка,
+  // размещённая выше по файлу, падала бы с ReferenceError на первом рендере.
+  useEffect(() => onSessionExpired(logout), [logout]);
+
   const clearError = useCallback(() => setError(null), []);
 
   // ── Authenticated fetch wrapper ─────────────────────────
@@ -399,18 +485,21 @@ function useAuthInternal() {
     let resp = await send(accessToken);
     if (resp.status === 401) {
       // Access-токен истёк (напр. приложение долго было свёрнуто) — одна
-      // попытка обновиться и повторить запрос, прежде чем разлогинивать.
+      // попытка обновиться и повторить запрос.
+      //
+      // ⚠️ logout() здесь больше НЕ вызывается: разлогин — одна точка, и она
+      // подписана на refreshSession (см. onSessionExpired выше). Раньше
+      // решение принималось и здесь тоже, причём по признаку «обновиться не
+      // вышло», без различения причины — то есть обрыв связи выкидывал на
+      // экран входа наравне с настоящим отказом сервера.
       const fresh = await attemptRefresh();
-      if (!fresh) {
-        logout();
-        throw new ApiError('Session expired', 401, {});
-      }
-      resp = await send(fresh);
+      if (!fresh.ok) throw new ApiError('Session expired', 401, {});
+      resp = await send(fresh.data.access_token);
     }
     const body = await resp.json().catch(() => ({ detail: resp.statusText }));
     if (!resp.ok) throw new ApiError(body.detail || resp.statusText, resp.status, body);
     return body;
-  }, [accessToken, attemptRefresh, logout]);
+  }, [accessToken, attemptRefresh]);
 
   // Точечное обновление полей пользователя (напр. имени) без повторного
   // логина — persist в localStorage делает уже существующий useEffect выше
@@ -431,6 +520,8 @@ function useAuthInternal() {
     // Actions
     register,
     login,
+    sendRegisterCode,
+    verifyRegisterCode,
     loginWithGoogle,
     applyTokenResponse,
     logout,

@@ -26,8 +26,9 @@ import { fetchChart, resolvePrimaryChartId } from '../lib/chartApi';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
 import { CHART_HINTS } from '../lib/onboardingCopy';
 import useHints from '../lib/useHints';
+import useAuth from '../../hooks/useAuth.jsx';
 
-function CenteredNotice({ title, text, action, onAction }) {
+function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
   return (
     <div
       style={{
@@ -48,6 +49,16 @@ function CenteredNotice({ title, text, action, onAction }) {
       {action && (
         <button type="button" className="mobile-link" onClick={onAction} style={{ marginTop: 4 }}>
           {action}
+        </button>
+      )}
+      {secondary && (
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={onSecondary}
+          style={{ marginTop: 2, fontSize: 13, color: 'var(--text-secondary)' }}
+        >
+          {secondary}
         </button>
       )}
     </div>
@@ -76,6 +87,7 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
   const [error, setError] = useState('');
+  const { logout } = useAuth();
   const { dark } = useTheme();
 
   // Якоря подсветки подсказок (SPEC_ONBOARDING.md §10).
@@ -126,7 +138,16 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
   if (status === 'loading') return <ChartLoading />;
 
   if (status === 'error') {
-    return <CenteredNotice title="Не удалось загрузить карту" text={error} action="Повторить" onAction={load} />;
+    return (
+      <CenteredNotice
+        title="Не удалось загрузить карту"
+        text={error}
+        action="Повторить"
+        onAction={load}
+        secondary="Войти заново"
+        onSecondary={logout}
+      />
+    );
   }
 
   if (status === 'no-chart') {

@@ -36,10 +36,11 @@ import useHints from '../lib/useHints';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
 import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
+import useAuth from '../../hooks/useAuth.jsx';
 
 const PAGE_PADDING = { padding: '0 16px 24px' };
 
-function CenteredNotice({ title, text, action, onAction }) {
+function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
   return (
     <div
       style={{
@@ -66,6 +67,16 @@ function CenteredNotice({ title, text, action, onAction }) {
           {action}
         </button>
       )}
+      {secondary && (
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={onSecondary}
+          style={{ marginTop: 2, fontSize: 13, color: 'var(--text-secondary)' }}
+        >
+          {secondary}
+        </button>
+      )}
     </div>
   );
 }
@@ -75,6 +86,7 @@ export default function FeedScreen({ active = true, onHintsToggle }) {
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
   const [error, setError] = useState('');
+  const { logout } = useAuth();
   const [selected, setSelected] = useState(null);
   const anchorRef = useRef(null);
   // Якорь подсветки для чипов домов (SPEC_ONBOARDING.md §11). Остальные два
@@ -211,7 +223,16 @@ export default function FeedScreen({ active = true, onHintsToggle }) {
   }
 
   if (status === 'error') {
-    return <CenteredNotice title="Не удалось загрузить ленту" text={error} action="Повторить" onAction={load} />;
+    return (
+      <CenteredNotice
+        title="Не удалось загрузить ленту"
+        text={error}
+        action="Повторить"
+        onAction={load}
+        secondary="Войти заново"
+        onSecondary={logout}
+      />
+    );
   }
 
   if (status === 'no-chart') {

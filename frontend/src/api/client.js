@@ -8,6 +8,7 @@
  */
 
 import { API_BASE } from '../config';
+import { isTokenExpired } from '../lib/jwt';
 import { createSectionParser } from '../lib/sectionStream';
 import {
   AUTH_CREDENTIALS,
@@ -73,16 +74,114 @@ const ACCESS_TOKEN_KEY  = 'astro_access_token';
 // 15 минут и нужен как заголовок в каждом запросе.
 const LEGACY_REFRESH_KEY = 'astro_refresh_token';
 
-// Параллельные 401 не должны обновлять токен наперегонки: ротация делает
-// использованный refresh недействительным, и второй запрос разлогинил бы юзера.
+// ═══════════════════════════════════════════════════════════
+// ОБНОВЛЕНИЕ СЕССИИ — ЕДИНСТВЕННЫЙ КОНТУР НА ВСЁ ПРИЛОЖЕНИЕ
+// ═══════════════════════════════════════════════════════════
+//
+// ⚠️ До 07.09.2026 контуров было ДВА: этот и свой собственный в
+// hooks/useAuth.jsx (attemptRefresh с отдельным refreshInFlightRef). Они не
+// знали друг о друге, и это ломало сессию на устройстве — разбор по следам
+// приёмки регистрации:
+//
+//   1. оба контура берут ОДИН И ТОТ ЖЕ refresh (из нативного хранилища) и
+//      могут отправить его параллельно — таймер useAuth и запрос экрана;
+//   2. сервер ротирует токен: первому выдаёт новую пару, второму отвечает
+//      401 «Refresh token уже использован» (reuse-detection,
+//      backend/auth/router.py);
+//   3. проигравший считал это смертью сессии и вызывал forgetRefreshToken()
+//      — СТИРАЛ свежий refresh, который победитель только что записал;
+//   4. access при этом оставался свежим ещё до 15 минут: приложение
+//      выглядело вошедшим, но обновиться больше не могло никогда.
+//
+// Лечится не «синхронизацией двух контуров», а тем, что контур один: здесь.
+// useAuth.jsx вызывает эту же функцию и на неё же подписывается.
+//
+// Дедуп внутри контура (refreshInFlight) остаётся обязательным по той же
+// причине из п.2: два параллельных 401 не должны слать refresh дважды.
 let refreshInFlight = null;
 
-async function refreshAccessToken() {
-  if (refreshInFlight) return refreshInFlight;
+// Пауза после НЕУДАЧНОГО обновления (кроме отказа в аутентификации — там уже
+// разлогин, повторять нечего).
+//
+// Без неё приложение само себя топит на холодном старте. TabShell монтирует
+// все три экрана разом, каждый шлёт свои запросы с уже протухшим access —
+// значит первый залп 401 сходится в один refresh (дедуп выше), но КАЖДЫЙ
+// следующий залп (повтор экрана, нажатие «Повторить», переход по вкладке)
+// заводит новую попытку. А /api/v1/auth/ на проде стоит за задерживающим
+// лимитом nginx (zone=auth, 1 r/s на адрес, burst=10 БЕЗ nodelay): запросы не
+// отбиваются, а ВЫСТРАИВАЮТСЯ В ОЧЕРЕДЬ по секунде на каждый. Замер
+// 07.09.2026 на боевом сервере: 12 параллельных /auth/refresh ответили через
+// 1.9, 2.9, 3.9 … 11.9 с, один получил 429. То есть чем чаще клиент
+// повторяет, тем дольше отвечает сервер — и экраны упираются в свой
+// 15-секундный таймаут («Сервер не отвечает», mobile/lib/authFetchTimeout.js).
+//
+// Окно короткое: оно гасит именно ЗАЛП, а не осмысленный повтор через паузу.
+const REFRESH_COOLDOWN_MS = 5000;
+let lastRefreshFailure = null; // { at, result }
 
-  refreshInFlight = (async () => {
+// Подписчики на события сессии. Нужны, чтобы client.js (модуль без React) мог
+// сообщить владельцу состояния (useAuth) о том, что сессия кончилась, — и
+// решение о разлогине принималось В ОДНОМ месте, а не в каждой точке вызова.
+const sessionExpiredHandlers = new Set();
+const tokensRefreshedHandlers = new Set();
+
+function notify(handlers, arg) {
+  for (const handler of [...handlers]) {
+    try { handler(arg); } catch { /* подписчик не должен ломать обновление */ }
+  }
+}
+
+/**
+ * Запомнить неудачу, чтобы следующие несколько секунд отвечать ею сразу, без
+ * запроса. Отказ аутентификации сюда НЕ попадает: он уже привёл к разлогину,
+ * а закэшированный 'auth' пережил бы вход и сломал только что выданную пару.
+ */
+function rememberFailure(result) {
+  lastRefreshFailure = { at: Date.now(), result };
+  return result;
+}
+
+/** Сессия кончилась по ЯВНОМУ отказу сервера. Не вызывается при сетевых сбоях. */
+export function onSessionExpired(handler) {
+  sessionExpiredHandlers.add(handler);
+  return () => sessionExpiredHandlers.delete(handler);
+}
+
+/** Токены обновлены — пришла новая пара. */
+export function onTokensRefreshed(handler) {
+  tokensRefreshedHandlers.add(handler);
+  return () => tokensRefreshedHandlers.delete(handler);
+}
+
+/**
+ * Обновить пару токенов.
+ *
+ * Возвращает результат, а не бросает, потому что вызывающим важно РАЗЛИЧАТЬ
+ * причины — от этого зависит, выкидывать ли человека на экран входа:
+ *
+ *   { ok: true, data }               — обновились;
+ *   { ok: false, reason: 'auth' }    — сервер отказал в аутентификации (401/403):
+ *                                      refresh мёртв, отозван или его нет.
+ *                                      Сессии больше нет — это разлогин;
+ *   { ok: false, reason: 'network' } — запрос не дошёл (самолётный режим,
+ *                                      обрыв, таймаут). Сессия, возможно, жива;
+ *   { ok: false, reason: 'server' }  — сервер ответил, но не отказом в доступе
+ *                                      (429 от лимитера, 5xx). Тоже НЕ разлогин.
+ *
+ * ⚠️ Разница между 'auth' и остальными — не косметика. Выкидывать на экран
+ * входа при потере связи нельзя: человек в метро потеряет сессию на ровном
+ * месте, хотя достаточно было показать «Повторить».
+ */
+export async function refreshSession() {
+  if (refreshInFlight) return refreshInFlight;
+  if (lastRefreshFailure && Date.now() - lastRefreshFailure.at < REFRESH_COOLDOWN_MS) {
+    return lastRefreshFailure.result;
+  }
+
+  const attempt = (async () => {
+    let resp;
     try {
-      const resp = await fetch(`${API_BASE}/auth/refresh`, {
+      resp = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...clientHeaders() },
         // credentials: кука astro_refresh едет только явно — по умолчанию
@@ -91,30 +190,53 @@ async function refreshAccessToken() {
         credentials: AUTH_CREDENTIALS,
         body: await authRequestBody(),
       });
-      if (!resp.ok) {
-        // Refresh мёртв (истёк, отозван, сменён пароль) — сессии больше нет.
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(LEGACY_REFRESH_KEY);
-        await forgetRefreshToken();
-        return null;
-      }
-      const data = await resp.json();
-      localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
-      // Сервер ротирует refresh: не сохранив новый, приложение разлогинится на
-      // следующем обновлении. В вебе это no-op — там refresh в куке.
-      await rememberRefreshToken(data);
-      // Подчищаем хвост от прошлой схемы: у вернувшихся пользователей старый
-      // refresh может лежать в localStorage ещё неделю.
-      localStorage.removeItem(LEGACY_REFRESH_KEY);
-      return data.access_token;
     } catch {
-      return null;
-    } finally {
-      refreshInFlight = null;
+      // Сюда попадают и сетевые сбои, и недоступное нативное хранилище.
+      // ⚠️ Хранилище НЕ трогаем: сессия могла остаться живой, а стереть
+      // refresh здесь — это ровно тот дефект, из-за которого приложение
+      // застревало с мёртвым токеном (см. шапку раздела).
+      return rememberFailure({ ok: false, reason: 'network' });
     }
+
+    if (!resp.ok) {
+      if (resp.status !== 401 && resp.status !== 403) {
+        // 429 от лимитера, 5xx — сервер жив, но сейчас не отвечает по делу.
+        // Сессию не хороним: следующая попытка может пройти.
+        return rememberFailure({ ok: false, reason: 'server' });
+      }
+      // Явный отказ аутентификации — refresh мёртв, отозван или не предъявлен.
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(LEGACY_REFRESH_KEY);
+      try { await forgetRefreshToken(); } catch { /* хранилище недоступно */ }
+      notify(sessionExpiredHandlers);
+      return { ok: false, reason: 'auth' };
+    }
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch {
+      return rememberFailure({ ok: false, reason: 'server' });
+    }
+
+    lastRefreshFailure = null;
+
+    localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
+    // Сервер ротирует refresh: не сохранив новый, приложение разлогинится на
+    // следующем обновлении. В вебе это no-op — там refresh в куке.
+    await rememberRefreshToken(data);
+    // Подчищаем хвост от прошлой схемы: у вернувшихся пользователей старый
+    // refresh может лежать в localStorage ещё неделю.
+    localStorage.removeItem(LEGACY_REFRESH_KEY);
+    notify(tokensRefreshedHandlers, data);
+    return { ok: true, data };
   })();
 
-  return refreshInFlight;
+  refreshInFlight = attempt;
+  attempt.finally(() => {
+    if (refreshInFlight === attempt) refreshInFlight = null;
+  });
+  return attempt;
 }
 
 /**
@@ -134,12 +256,41 @@ export async function authFetch(url, options = {}) {
     },
   });
 
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  let token = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+  // Заведомо мёртвый токен не отправляем: обновляемся ДО запроса.
+  //
+  // ⚠️ Это не оптимизация, а лечение залпа на холодном старте. TabShell
+  // монтирует все три экрана разом, и каждый шлёт свои запросы с одним и тем
+  // же протухшим токеном. Без этой ветки старт выглядел так: N обречённых
+  // запросов → N ответов 401 → одно обновление (дедуп refreshInFlight) →
+  // N повторов, то есть 2N+1 запросов вместо N+1, и часть из них — в
+  // задерживающей зоне лимитера (/auth/me). Дедуп и пауза этого не решают:
+  // они схлопывают ПОВТОРНЫЕ обновления, а сам залп создают экраны.
+  // Четвёртый экран удлинил бы залп ровно на столько же.
+  //
+  // Здесь же оно чинится один раз для всех — и для тех экранов, которых ещё
+  // нет: параллельные вызовы сходятся в один refreshSession, ждут его и
+  // уходят уже с живым токеном.
+  if (token && isTokenExpired(token)) {
+    const ahead = await refreshSession();
+    if (ahead.ok) token = ahead.data.access_token;
+    // Не вышло — отправляем как есть. Сервер скажет своё 401, а решение о
+    // судьбе сессии остаётся единственным и лежит в refreshSession.
+  }
+
   let resp = await send(token);
 
   if (resp.status === 401 && token) {
-    const fresh = await refreshAccessToken();
-    if (fresh) resp = await send(fresh);
+    const result = await refreshSession();
+    if (result.ok) resp = await send(result.data.access_token);
+    // Отдельной ветки на result.reason === 'auth' здесь нет намеренно:
+    // разлогин — единственная точка, и она внутри refreshSession
+    // (notify sessionExpiredHandlers → logout в useAuth). Дублировать
+    // решение здесь значило бы завести второе место, где приложение решает
+    // судьбу сессии, — ровно то, из-за чего был весь дефект.
+    // При 'network'/'server' возвращаем исходный 401: экран покажет ошибку
+    // с «Повторить», человек останется в аккаунте.
   }
 
   return resp;

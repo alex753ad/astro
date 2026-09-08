@@ -26,6 +26,7 @@ import MoreReferralView from '../components/MoreReferralView';
 import MoreNotificationsView from '../components/MoreNotificationsView';
 import MoreSettingsView from '../components/MoreSettingsView';
 import { fetchMe, fetchSubscription, fetchCharts } from '../lib/moreApi';
+import useAuth from '../../hooks/useAuth.jsx';
 
 const SUB_TITLES = {
   history: 'История разборов',
@@ -60,6 +61,7 @@ export default function MoreScreen() {
   const [subscription, setSubscription] = useState(null);
   const [charts, setCharts] = useState([]);
   const [error, setError] = useState('');
+  const { logout } = useAuth();
   const [view, setView] = useState('root');
 
   // Подсветка блока тарифа: сюда переключает FAB чата на free/Веге
@@ -108,7 +110,16 @@ export default function MoreScreen() {
   if (status === 'loading') return <MoreLoading />;
 
   if (status === 'error') {
-    return <MoreCenteredNotice title="Не удалось загрузить профиль" text={error} action="Повторить" onAction={load} />;
+    return (
+      <MoreCenteredNotice
+        title="Не удалось загрузить профиль"
+        text={error}
+        action="Повторить"
+        onAction={load}
+        secondary="Войти заново"
+        onSecondary={logout}
+      />
+    );
   }
 
   if (view !== 'root') {

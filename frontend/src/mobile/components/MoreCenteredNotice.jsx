@@ -13,7 +13,7 @@
 
 import React from 'react';
 
-export default function MoreCenteredNotice({ title, text, action, onAction }) {
+export default function MoreCenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
   return (
     <div
       style={{
@@ -38,6 +38,16 @@ export default function MoreCenteredNotice({ title, text, action, onAction }) {
       {action && (
         <button type="button" className="mobile-link" onClick={onAction} style={{ marginTop: 4 }}>
           {action}
+        </button>
+      )}
+      {secondary && (
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={onSecondary}
+          style={{ marginTop: 2, fontSize: 13, color: 'var(--text-secondary)' }}
+        >
+          {secondary}
         </button>
       )}
     </div>
