@@ -723,7 +723,9 @@ class TestSlotsAfterDowngrade:
         # 3. Новый слот не выдаётся.
         resp = self._try_create(client, headers)
         assert resp.status_code == 403, resp.text
-        assert "/pricing" in resp.json()["detail"]
+        # Адреса страницы в тексте больше нет (08.09.2026) — проверяем то,
+        # ради чего он там стоял: человеку названы оба выхода.
+        assert "старший тариф" in resp.json()["detail"]
 
         # 4. Удаление одной карты слота не открывает: 14 всё ещё >= 2.
         db.query(NatalChart).filter(NatalChart.id == chart_ids[0]).delete()

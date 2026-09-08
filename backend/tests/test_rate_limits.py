@@ -371,8 +371,14 @@ class TestTierMonotonicity:
 class TestProfilesLimitEnforcement:
     """До 19.08.2026 profiles_limit только отображался на /pricing и в
     кабинете — реально создание карт им не ограничивалось. Теперь превышение
-    лимита должно давать понятную 403-ошибку со ссылкой на /pricing, а не
-    падать 500 и не притворяться, что лимита нет."""
+    лимита должно давать понятную 403-ошибку, а не падать 500 и не
+    притворяться, что лимита нет.
+
+    ⚠️ Текст отказа НЕ должен называть адрес страницы (было «…на странице
+    /pricing», убрано 08.09.2026). В мобильном приложении такой страницы нет
+    вовсе — там рядом с текстом стоит кнопка «Открыть тарифы», — а на вебе
+    путь руками никто не набирает. Проверяем не адрес, а то, ради чего он
+    писался: названы число слотов, тариф и оба выхода."""
 
     def test_exceeding_profiles_limit_returns_403_not_500(
         self, client, db, mock_calculator, mock_geo, auth_headers_free, user_free
@@ -413,7 +419,11 @@ class TestProfilesLimitEnforcement:
         )
 
         assert resp.status_code == 403, resp.text
-        assert "/pricing" in resp.json()["detail"]
+        detail = resp.json()["detail"]
+        assert str(limit) in detail, "в тексте нет числа слотов"
+        assert "Удалите ненужную карту" in detail
+        assert "старший тариф" in detail
+        assert "/pricing" not in detail, "адрес страницы вернулся в текст отказа"
 
     def test_under_profiles_limit_still_succeeds(
         self, client, mock_calculator, mock_geo, auth_headers_free
