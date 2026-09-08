@@ -18,6 +18,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NatalChart from '../../components/NatalChart';
+import ChartCreateView from '../components/ChartCreateView';
 import ChartSheet from '../components/ChartSheet';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
@@ -82,11 +83,32 @@ function ChartLoading() {
   );
 }
 
-export default function ChartScreen({ active = true, onHintsToggle }) {
+export default function ChartScreen({ active = true, onHintsToggle, onChartCreated }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
   const [error, setError] = useState('');
+  // 'chart' | 'create' — форма построения живёт подэкраном этой вкладки,
+  // не отдельным маршрутом (SPEC_CHART_CREATE.md §3), тем же приёмом, что
+  // разделы MoreScreen.
+  const [view, setView] = useState('chart');
+
+  /**
+   * Какую карту показывать, если это решил не сервер, а сам человек прямо
+   * сейчас — построив новую (SPEC_CHART_CREATE.md §6).
+   *
+   * ⚠️ Почему НЕ `PATCH /profile/primary-chart`: закрепление основной карты
+   * — отдельное решение, сделанное руками, и оно определяет ещё и то, какая
+   * карта уходит в письма, планер и на сайт. «Я построил ещё одну карту»
+   * его не отменяет.
+   *
+   * ⚠️ Почему ref, а не состояние: значение читает `load`, а он не должен
+   * пересоздаваться при смене показанной карты — на нём висит
+   * `useEffect(..., [load])` первой загрузки, и новая ссылка запустила бы
+   * его заново. В ref выбор к тому же переживает обновление жестом — иначе
+   * первый же жест вернул бы человека на основную карту.
+   */
+  const forcedChartIdRef = useRef(null);
   const { logout } = useAuth();
   const { dark } = useTheme();
 
@@ -134,7 +156,7 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
       setError('');
     }
     try {
-      const chartId = await resolvePrimaryChartId();
+      const chartId = forcedChartIdRef.current || await resolvePrimaryChartId();
       if (!chartId) {
         setStatus('no-chart');
         return;
@@ -156,6 +178,27 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
   // у load выше: обычный путь размонтировал бы колесо и сбросил зум.
   const refresh = useCallback(() => load({ silent: true }), [load]);
 
+  /**
+   * Карта построена. Показываем ИМЕННО её и толкаем «Ленту».
+   *
+   * ⚠️ Толчок нужен потому, что `load()` у ленты зовётся только на
+   * монтировании, а `TabShell` экраны не размонтирует (§14
+   * SPEC_FEED_SCREEN.md): без него человек, построив первую карту, вернулся
+   * бы на ленту и увидел «Постройте её на вкладке «Карта»» — при уже
+   * построенной карте. Это не нарушает «жест, а не автообновление»:
+   * перезагружается один экран, один раз и по явному действию человека.
+   */
+  const handleCreated = useCallback((chartId) => {
+    forcedChartIdRef.current = chartId;
+    setView('chart');
+    load();
+    onChartCreated?.();
+  }, [load, onChartCreated]);
+
+  if (view === 'create') {
+    return <ChartCreateView onCancel={() => setView('chart')} onCreated={handleCreated} />;
+  }
+
   if (status === 'loading') return <ChartLoading />;
 
   if (status === 'error') {
@@ -175,7 +218,9 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
     return (
       <CenteredNotice
         title="Пока нет ни одной карты"
-        text="Карта строится по дате, времени и месту рождения. Постройте её на сайте — здесь она появится сразу."
+        text="Карта строится по дате, времени и месту рождения — это займёт минуту."
+        action="Построить карту"
+        onAction={() => setView('create')}
       />
     );
   }
@@ -195,6 +240,20 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
           {/* Кнопка «?» есть только в готовом состоянии: на loading/error/
               no-chart объяснять нечего (SPEC_ONBOARDING.md §9). Здесь это
               выходит само — ветки выше возвращаются раньше. */}
+          {/* «+» рядом с «?»: второй вход в форму для тех, у кого карта уже
+              есть (первый — кнопка в состоянии «нет карты»). */}
+          <button
+            type="button"
+            onClick={() => setView('create')}
+            aria-label="Построить новую карту"
+            style={{
+              width: 32, height: 32, flexShrink: 0, borderRadius: '50%',
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-secondary)', fontSize: 20, lineHeight: 1,
+            }}
+          >
+            +
+          </button>
           <HintButton onClick={hints.show} />
         </div>
         <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>

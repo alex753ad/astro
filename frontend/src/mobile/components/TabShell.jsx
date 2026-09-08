@@ -72,6 +72,22 @@ export default function TabShell() {
   const tabBarRef = useRef(null);
   const [tabBarHeight, setTabBarHeight] = useState(56);
 
+  // Счётчик построенных карт. «Карта» его увеличивает после успеха формы,
+  // «Лента» по нему перезагружается (SPEC_CHART_CREATE.md §6).
+  //
+  // ⚠️ Он живёт здесь, а не внутри экранов, потому что экраны друг о друге
+  // не знают и знать не должны, а размонтированием их не связать: все три
+  // смонтированы одновременно, и `load()` у каждого зовётся только на
+  // монтировании (§14 SPEC_FEED_SCREEN.md). Без этого человек, построив
+  // первую карту, вернулся бы на ленту и увидел «Постройте её на вкладке
+  // «Карта»» — при уже построенной карте.
+  //
+  // ⚠️ «Ещё» по нему НЕ перезагружается намеренно: его список карт не врёт,
+  // а отстаёт на один заход, и ради этого не стоит поднимать третий экран
+  // — у него есть жест обновления.
+  const [chartsVersion, setChartsVersion] = useState(0);
+  const handleChartCreated = useCallback(() => setChartsVersion((v) => v + 1), []);
+
   // ⚠️ Ref на скроллер отдаётся ВНИЗ, только «Ленте», и это не каприз:
   // прокрутка ленты живёт здесь, а не в ней самой — собственный `overflow`
   // у ленты сломал бы `position: sticky` заголовков дней (FeedDayHeader.jsx).
@@ -124,10 +140,19 @@ export default function TabShell() {
             сами в момент загрузки карты — поверх «Ленты», на которой человек
             в этот момент находится. */}
         <div style={{ display: active === 'feed' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <FeedScreen active={active === 'feed'} onHintsToggle={handleHints} scrollRef={scrollRef} />
+          <FeedScreen
+            active={active === 'feed'}
+            onHintsToggle={handleHints}
+            scrollRef={scrollRef}
+            chartsVersion={chartsVersion}
+          />
         </div>
         <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <ChartScreen active={active === 'chart'} onHintsToggle={handleHints} />
+          <ChartScreen
+            active={active === 'chart'}
+            onHintsToggle={handleHints}
+            onChartCreated={handleChartCreated}
+          />
         </div>
         <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
           <MoreScreen />

@@ -34,6 +34,17 @@ function timeout(ms) {
   });
 }
 
-export function authFetchWithTimeout(url, options) {
-  return Promise.race([authFetch(url, options), timeout(REQUEST_TIMEOUT_MS)]);
+/**
+ * @param {number} [timeoutMs] — свой предел для конкретного вызова.
+ *
+ * ⚠️ Умолчание в 15 секунд НЕ поднимаем ради одного долгого запроса: оно
+ * описывает, сколько экран готов ждать зависшую сеть, и терпеливее его
+ * делать значит работать против того, ради чего таймаут заведён. Свой
+ * предел передаёт тот вызов, у которого долгая работа — норма, а не признак
+ * зависания: построение карты ждёт геокодинг (семафор на весь процесс, 1.1 с
+ * между запросами к Nominatim, до двух повторов при 429) и расчёт Swiss
+ * Ephemeris — SPEC_CHART_CREATE.md §9.
+ */
+export function authFetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_MS) {
+  return Promise.race([authFetch(url, options), timeout(timeoutMs)]);
 }

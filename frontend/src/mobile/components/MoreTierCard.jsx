@@ -29,6 +29,7 @@ import React from 'react';
 import { TIERS, TIER_NAMES, tierFeatures } from '../../constants';
 import { tierAccusative } from '../lib/ruDeclension';
 import { openInBrowser } from '../lib/openInBrowser';
+import { PRICING_URL } from '../lib/onboardingCopy';
 
 function nextTierId(currentTier) {
   const idx = TIERS.findIndex((t) => t.id === currentTier);
@@ -87,7 +88,7 @@ export default function MoreTierCard({ tier, highlight }) {
         type="button"
         className="mobile-btn-primary"
         style={{ height: 44, fontSize: 14, marginTop: 4 }}
-        onClick={() => openInBrowser('https://aristeatime.ru/pricing')}
+        onClick={() => openInBrowser(PRICING_URL)}
       >
         Тарифы
       </button>

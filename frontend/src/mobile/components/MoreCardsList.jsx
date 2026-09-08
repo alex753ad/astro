@@ -9,8 +9,6 @@
 
 import React from 'react';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
-import { BIRTH_FORM_URL } from '../lib/onboardingCopy';
-import { openInBrowser } from '../lib/openInBrowser';
 
 function CardRow({ chart }) {
   return (
@@ -61,17 +59,12 @@ export default function MoreCardsList({ charts }) {
         Мои карты
       </p>
       {charts.length === 0 ? (
+        // Ведём на вкладку «Карта», а не на сайт: с 08.09.2026 форма есть в
+        // самом приложении (SPEC_CHART_CREATE.md). Ссылки-кнопки здесь нет —
+        // этот список не умеет переключать вкладки, а заводить ради подписи
+        // проброс навигации через весь экран дороже, чем сказать словами.
         <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-          Пока нет ни одной карты.{' '}
-          <button
-            type="button"
-            className="mobile-link"
-            style={{ padding: 0, fontSize: 13, verticalAlign: 'baseline' }}
-            onClick={() => openInBrowser(BIRTH_FORM_URL)}
-          >
-            Постройте её на сайте
-          </button>{' '}
-          — здесь она появится сразу.
+          Пока нет ни одной карты. Постройте её на вкладке «Карта» — она появится здесь сразу.
         </p>
       ) : (
         charts.map((c) => <CardRow key={c.id} chart={c} />)
