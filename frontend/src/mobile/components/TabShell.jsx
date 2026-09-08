@@ -71,6 +71,15 @@ export default function TabShell() {
   // safe-area или другим масштабом шрифта.
   const tabBarRef = useRef(null);
   const [tabBarHeight, setTabBarHeight] = useState(56);
+
+  // ⚠️ Ref на скроллер отдаётся ВНИЗ, только «Ленте», и это не каприз:
+  // прокрутка ленты живёт здесь, а не в ней самой — собственный `overflow`
+  // у ленты сломал бы `position: sticky` заголовков дней (FeedDayHeader.jsx).
+  // Жест «потянуть, чтобы обновить» обязан слушать тот узел, который
+  // действительно прокручивается, поэтому FeedScreen получает его отсюда.
+  // «Карте» и «Ещё» ref не нужен: у них свои скроллеры (список в
+  // ChartSheet.jsx и корневой div MoreScreen.jsx соответственно).
+  const scrollRef = useRef(null);
   useEffect(() => {
     if (tabBarRef.current) setTabBarHeight(tabBarRef.current.offsetHeight);
   }, []);
@@ -85,6 +94,7 @@ export default function TabShell() {
         нижнего края экрана видимой пустой полосой.
       */}
       <div
+        ref={scrollRef}
         style={{
           flex: 1,
           minHeight: 0,
@@ -114,7 +124,7 @@ export default function TabShell() {
             сами в момент загрузки карты — поверх «Ленты», на которой человек
             в этот момент находится. */}
         <div style={{ display: active === 'feed' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <FeedScreen active={active === 'feed'} onHintsToggle={handleHints} />
+          <FeedScreen active={active === 'feed'} onHintsToggle={handleHints} scrollRef={scrollRef} />
         </div>
         <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
           <ChartScreen active={active === 'chart'} onHintsToggle={handleHints} />

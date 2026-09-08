@@ -114,9 +114,25 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
     onHintsToggle?.('chart', hints.open);
   }, [onHintsToggle, hints.open]);
 
-  const load = useCallback(async () => {
-    setStatus('loading');
-    setError('');
+  /**
+   * `silent` — обновление жестом, без смены состояния на 'loading'.
+   * Полное «почему» — в шапке lib/usePullToRefresh.js; здесь то, что
+   * ломается именно на этой вкладке:
+   *
+   * ⚠️ Ветка `status === 'loading'` возвращает скелет ВМЕСТО экрана, то
+   * есть размонтирует колесо. Зум и поворот — локальное состояние
+   * NatalChart.jsx: после размонтирования они сбросятся, и обновление
+   * данных выглядело бы как «сбросило мне карту».
+   *
+   * Ошибка при `silent` обязана улететь наверх: увести экран в 'error'
+   * нельзя (за полноэкранным отказом спрячется уже показанная карта),
+   * проглотить молча — тем более. Её показывает полоска жеста.
+   */
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setStatus('loading');
+      setError('');
+    }
     try {
       const chartId = await resolvePrimaryChartId();
       if (!chartId) {
@@ -126,6 +142,7 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
       setChart(await fetchChart(chartId));
       setStatus('ready');
     } catch (err) {
+      if (silent) throw err;
       // Текст уже человеческий: chartApi подменяет и «Chart not found»,
       // и сетевой сбой. Сюда попадает то, что можно показать как есть.
       setError(err?.message || 'Не удалось загрузить карту.');
@@ -134,6 +151,10 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Обработчик для жеста в шторке. `silent` обязателен — см. комментарий
+  // у load выше: обычный путь размонтировал бы колесо и сбросил зум.
+  const refresh = useCallback(() => load({ silent: true }), [load]);
 
   if (status === 'loading') return <ChartLoading />;
 
@@ -229,7 +250,9 @@ export default function ChartScreen({ active = true, onHintsToggle }) {
         </p>
       </div>
 
-      <ChartSheet chart={chart} />
+      {/* Обновление жестом тянут за список шторки — единственное, что на
+          этом экране прокручивается (разбор — в ChartSheet.jsx). */}
+      <ChartSheet chart={chart} onRefresh={refresh} />
 
       {hints.open && (
         <HintOverlay steps={CHART_HINTS} anchors={hintAnchors} onClose={hints.close} />

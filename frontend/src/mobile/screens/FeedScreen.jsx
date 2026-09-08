@@ -28,10 +28,12 @@ import FeedEventPanel from '../components/FeedEventPanel';
 import FeedHorizonCard from '../components/FeedHorizonCard';
 import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
 import FeedNowStrip from '../components/FeedNowStrip';
+import PullIndicator from '../components/PullIndicator';
 import FeedSkeleton from '../components/FeedSkeleton';
 import FeedTimelineNode from '../components/FeedTimelineNode';
 import HintOverlay from '../components/HintOverlay';
 import { FEED_HINTS } from '../lib/onboardingCopy';
+import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
 import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
 import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
@@ -81,7 +83,7 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
   );
 }
 
-export default function FeedScreen({ active = true, onHintsToggle }) {
+export default function FeedScreen({ active = true, onHintsToggle, scrollRef }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
@@ -104,9 +106,27 @@ export default function FeedScreen({ active = true, onHintsToggle }) {
   // по полоске дней (§7): второе не заводит свой отдельный набор рефов.
   const dayRefs = useRef(new Map());
 
-  const load = useCallback(async () => {
-    setStatus('loading');
-    setError('');
+  /**
+   * `silent` — обновление жестом, без смены состояния на 'loading'.
+   * Полное «почему» — в шапке lib/usePullToRefresh.js; здесь то, что
+   * ломается именно на этой вкладке:
+   *
+   * ⚠️ Ветка `status === 'loading'` возвращает скелет ВМЕСТО списка, то
+   * есть размонтирует его. Высота скроллера схлопывается, браузер
+   * прижимает прокрутку к нулю — и человек оказывается в начале окна,
+   * месяцем раньше. Якорь на сегодня (§10) обратно НЕ вернёт: он
+   * отменяется флагом userMovedRef, а тот взводится любым касанием — то
+   * есть самим жестом — и никогда не сбрасывается.
+   *
+   * Ошибка при `silent` обязана улететь наверх: увести экран в 'error'
+   * нельзя (за полноэкранным отказом спрячется уже загруженная лента),
+   * проглотить молча — тем более. Её показывает полоска жеста.
+   */
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setStatus('loading');
+      setError('');
+    }
     try {
       const chartId = await resolvePrimaryChartId();
       if (!chartId) {
@@ -117,6 +137,7 @@ export default function FeedScreen({ active = true, onHintsToggle }) {
       setFeed(data);
       setStatus('ready');
     } catch (err) {
+      if (silent) throw err;
       // Текст уже человеческий: feedApi подменяет и «Chart not found»,
       // и сетевой сбой. Сюда попадает то, что можно показать как есть.
       setError(err?.message || 'Не удалось загрузить ленту.');
@@ -149,6 +170,22 @@ export default function FeedScreen({ active = true, onHintsToggle }) {
   const allEvents = feed?.events || [];
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
   const days = groupByDay(events);
+
+  // Жест обновления. Гейт по `active` обязателен: все три экрана
+  // смонтированы одновременно и делят ОДИН скроллер (TabShell.jsx) — без
+  // него потягивание на «Карте» или «Ещё» обновляло бы ленту.
+  //
+  // `days.length` в условии — не перестраховка: на состояниях без списка
+  // (скелет, ошибка, «нет карты», пустое окно) полоска жеста не
+  // отрисована вовсе, и жест сработал бы вслепую — данные обновились бы,
+  // а человек не увидел бы ни ожидания, ни отказа. Там для этого уже есть
+  // свои кнопки «Повторить»/«Обновить».
+  const refresh = useCallback(() => load({ silent: true }), [load]);
+  const pull = usePullToRefresh(
+    scrollRef,
+    refresh,
+    active && status === 'ready' && days.length > 0,
+  );
 
   /**
    * Точки полоски дней (§7) — по дате, до 3 цветов, тем же dotColor(), что и
@@ -255,6 +292,7 @@ export default function FeedScreen({ active = true, onHintsToggle }) {
 
   return (
     <div style={PAGE_PADDING}>
+      <PullIndicator state={pull.state} ready={pull.ready} innerRef={pull.indicatorRef} />
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: собственный overflow здесь сломал бы sticky заголовков
           (см. FeedDayHeader.jsx), а прибивать полосу к верху экрана

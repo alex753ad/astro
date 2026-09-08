@@ -10,7 +10,9 @@
  * то же самое было бы дефектом (см. FeedDayHeader.jsx).
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import PullIndicator from './PullIndicator';
+import usePullToRefresh from '../lib/usePullToRefresh';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
 import {
   aspectRu, degreeInSign, isNodePair, planetRu, romanHouse, signRu, toDMS,
@@ -99,8 +101,18 @@ function AngleRow({ label, angle }) {
   );
 }
 
-export default function ChartSheet({ chart }) {
+export default function ChartSheet({ chart, onRefresh }) {
   const [tab, setTab] = useState('planets');
+
+  // ⚠️ Жест обновления живёт ЗДЕСЬ, а не в ChartScreen.jsx, хотя обновляет
+  // весь экран. Причина в раскладке: у «Карты» собственной прокрутки нет
+  // вовсе — колесо и шторка делят высоту, а прокручивается только этот
+  // список. Тянуть можно лишь то, что скроллится, поэтому слушатели
+  // вешаются на его узел, а экран передаёт сюда готовый обработчик.
+  // Обратный путь (отдать ref наружу через forwardRef) дал бы то же самое,
+  // но лишним звеном.
+  const listRef = useRef(null);
+  const pull = usePullToRefresh(listRef, onRefresh, Boolean(onRefresh));
   const planets = chart?.planets || [];
   const houses = chart?.houses || [];
   const aspects = (chart?.aspects || []).filter((a) => !isNodePair(a));
@@ -169,7 +181,9 @@ export default function ChartSheet({ chart }) {
           собственного скролла шторки, а не общим отступом в TabShell.jsx:
           тот сжал бы всю композицию «колесо + шторка» разом и утопил
           подсказку под колесом (регресс 06.09.2026, см. TabShell.jsx). */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 88 }}>
+      <PullIndicator state={pull.state} ready={pull.ready} innerRef={pull.indicatorRef} />
+
+      <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 88 }}>
         {tab === 'planets' && planets.map((p) => <PlanetRow key={p.name} planet={p} />)}
 
         {tab === 'houses' && (
