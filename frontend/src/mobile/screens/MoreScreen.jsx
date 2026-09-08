@@ -64,6 +64,16 @@ export default function MoreScreen() {
   const { logout } = useAuth();
   const [view, setView] = useState('root');
 
+  // Подтверждение перед выходом — тем же приёмом, что уже принят в проекте
+  // для необратимых действий (AdminPage, CRMPage): системный
+  // window.confirm, не своя модалка (ChartPage.jsx: «Готового диалога
+  // подтверждения в проекте нет»). В Capacitor его показывает
+  // BridgeWebChromeClient.onJsConfirm — нативный AlertDialog, ничего
+  // отдельно ставить не нужно.
+  const handleLogout = useCallback(() => {
+    if (window.confirm('Выйти из аккаунта?')) logout();
+  }, [logout]);
+
   // Подсветка блока тарифа: сюда переключает FAB чата на free/Веге
   // (AristeaFab.jsx), а не своя кнопка апгрейда — вести к оплате должна
   // одна дверь. `location.state.highlightTier` — одноразовый флаг с
@@ -157,6 +167,28 @@ export default function MoreScreen() {
       <MoreMenuList onOpen={setView} />
 
       <ThemeToggle />
+
+      {/* Отдельно от блока тарифа и от пунктов меню выше — это не
+          настройка и не раздел, а необратимое действие (SPEC_MORE_SCREEN.md
+          §6.3). Подтверждение — см. handleLogout. */}
+      <button
+        type="button"
+        onClick={handleLogout}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          background: 'transparent',
+          border: 'none',
+          borderTop: '1px solid var(--border)',
+          padding: '15px 0 4px',
+          marginTop: 4,
+          fontFamily: 'var(--font-body)',
+          fontSize: 15,
+          color: 'var(--color-danger)',
+        }}
+      >
+        Выйти из аккаунта
+      </button>
     </div>
   );
 }
