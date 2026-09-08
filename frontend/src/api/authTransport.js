@@ -68,8 +68,34 @@ export const AUTH_CREDENTIALS = IS_MOBILE ? 'omit' : 'include';
  */
 async function preferences() {
   if (!IS_MOBILE) return null;
-  const { Preferences } = await import('@capacitor/preferences');
-  return Preferences;
+  const mod = await import('@capacitor/preferences');
+  // ⚠️ Возвращается ОБЁРТКА, а не сам объект плагина, и это не стиль.
+  //
+  // `Preferences` — не объект, а Proxy (@capacitor/core, registerPlugin):
+  // его get-ловушка отдаёт вызов моста для ЛЮБОГО имени свойства, кроме
+  // четырёх зашитых ($$typeof, toJSON, addListener, removeListener). Имени
+  // `then` среди исключений нет — значит `Preferences.then` возвращает
+  // функцию, и по правилам языка этот Proxy является thenable.
+  //
+  // Дальше срабатывает механика промисов, а не Capacitor: `return Preferences`
+  // из async-функции (как и `await Preferences`) пропускает значение через
+  // разворачивание thenable, то есть ВЫЗЫВАЕТ `Preferences.then(resolve,
+  // reject)`. Мост принимает это за вызов несуществующего метода плагина:
+  //
+  //   Uncaught (in promise) "Preferences.then()" is not implemented on android
+  //
+  // Хуже самой ошибки то, КАК она выглядит: `resolve`/`reject` мост считает
+  // аргументами вызова и не вызывает никогда, а отказ уходит в промис,
+  // который никто не слушает. Внешний `await` не разрешается и не
+  // отклоняется — он ЗАВИСАЕТ НАВСЕГДА, и ни один catch ниже не срабатывает.
+  // Отсюда замер на устройстве 08.09.2026: `storage:read` без `:done` и без
+  // `:error`, и обновление сессии, которое не стартует ни по одному из
+  // четырёх путей.
+  //
+  // Обёртка `{ plugin }` — обычный объект без свойства `then`. Разворачивать
+  // в нём нечего, до моста дело не доходит. Возвращать `mod` целиком тоже
+  // было бы безопасно, но обёртка говорит явно, зачем она здесь.
+  return { plugin: mod.Preferences };
 }
 
 /**
@@ -98,12 +124,12 @@ export async function readRefreshToken() {
   // Зависание читается как 'storage:read' без 'storage:read:done'.
   diag('storage:read');
   try {
-    const store = await preferences();
-    if (!store) {
+    const prefs = await preferences();
+    if (!prefs) {
       diag('storage:read:done', 'веб — хранилища нет');
       return null;
     }
-    const { value } = await store.get({ key: NATIVE_REFRESH_KEY });
+    const { value } = await prefs.plugin.get({ key: NATIVE_REFRESH_KEY });
     diag('storage:read:done', value ? 'токен есть' : 'пусто');
     return value || null;
   } catch (err) {
@@ -126,12 +152,12 @@ export async function readRefreshToken() {
 export async function rememberRefreshToken(data) {
   diag('storage:write');
   try {
-    const store = await preferences();
-    if (!store || !data?.refresh_token) {
+    const prefs = await preferences();
+    if (!prefs || !data?.refresh_token) {
       diag('storage:write:done', 'нечего писать (веб или пустой refresh)');
       return false;
     }
-    await store.set({ key: NATIVE_REFRESH_KEY, value: data.refresh_token });
+    await prefs.plugin.set({ key: NATIVE_REFRESH_KEY, value: data.refresh_token });
     diag('storage:write:done', 'записан');
     return true;
   } catch (err) {
@@ -146,9 +172,9 @@ export async function rememberRefreshToken(data) {
 
 export async function forgetRefreshToken() {
   try {
-    const store = await preferences();
-    if (!store) return;
-    await store.remove({ key: NATIVE_REFRESH_KEY });
+    const prefs = await preferences();
+    if (!prefs) return;
+    await prefs.plugin.remove({ key: NATIVE_REFRESH_KEY });
   } catch (err) {
     storageFailed('удаление', err);
   }
