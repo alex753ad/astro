@@ -297,9 +297,9 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                 "duration_days": None,
                 # Транзит в ленте не заперт: сам список транзитов открыт всем
                 # тарифам — на free с горизонтом 3 месяца
-                # (FREE_TRANSITS_TEASER_MONTHS, main.py явно НЕ подключает
-                # check_transit_access, чтобы не закрыть витрину). Платный там
-                # только AI-разбор, а его лента не отдаёт вовсе.
+                # (TIER_FLAGS["free"]["transits_months"], main.py явно НЕ
+                # подключает check_transit_access, чтобы не закрыть витрину).
+                # Платный там только AI-разбор, а его лента не отдаёт вовсе.
                 "locked": False,
                 "text": transit_text(e["transit_planet"], e["natal_planet"], e["aspect_type"]),
                 "teaser": transit_teaser(tier, e["free_unlocked"]),

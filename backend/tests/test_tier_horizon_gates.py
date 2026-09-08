@@ -19,7 +19,6 @@ from datetime import date, timedelta
 import pytest
 
 from backend.auth.rate_limits import (
-    FREE_TRANSITS_TEASER_MONTHS,
     PAST_WINDOW_ABUSE_MONTHS,
     TIER_FLAGS,
     planner_offset_window,
@@ -58,7 +57,7 @@ def created_chart_pro(client, mock_calculator, mock_geo, auth_headers_pro):
 
 class TestTransitsWindowArithmetic:
     @pytest.mark.parametrize("tier,expected", [
-        ("free", FREE_TRANSITS_TEASER_MONTHS),
+        ("free", 3),
         ("lite", 6),
         ("pro", 12),
         ("premium", 24),
@@ -66,14 +65,16 @@ class TestTransitsWindowArithmetic:
     def test_horizon_per_tier(self, tier, expected):
         assert transits_horizon_months(tier) == expected
 
-    def test_free_horizon_is_not_the_tier_flag(self):
-        """Витрина free не выводится из transits_months — там 0.
+    def test_free_horizon_is_the_tier_flag(self):
+        """Витрина free выводится из transits_months и только из него.
 
-        Если кто-то «починит» это приравниванием, free перестанет видеть
-        список транзитов, а с ним развалится весь апселл на витрине (E2).
+        Обратная прежней проверке: до 08.09.2026 флаг у free стоял нулём, а
+        длину списка держала отдельная константа FREE_TRANSITS_TEASER_MONTHS
+        мимо флага. Ноль здесь снова означал бы, что free потерял список
+        транзитов, а с ним развалился весь апселл на витрине (E2) — поэтому
+        проверяется и то, что число ненулевое.
         """
-        assert TIER_FLAGS["free"]["transits_months"] == 0
-        assert transits_horizon_months("free") == FREE_TRANSITS_TEASER_MONTHS > 0
+        assert transits_horizon_months("free") == TIER_FLAGS["free"]["transits_months"] > 0
 
     def test_free_teaser_never_beats_a_paid_tier(self):
         """Правило владельца от 31.08.2026: платный тариф не хуже free-витрины.
@@ -84,13 +85,14 @@ class TestTransitsWindowArithmetic:
         хардкодятся — тест обязан ловить ПОВТОРЕНИЕ этой ошибки при любой
         следующей правке сетки, а не фиксировать сегодняшний расклад чисел.
         """
+        free_months = TIER_FLAGS["free"]["transits_months"]
         paid_tiers = ("lite", "pro", "premium")
         violations = [
             t for t in paid_tiers
-            if TIER_FLAGS[t]["transits_months"] < FREE_TRANSITS_TEASER_MONTHS
+            if TIER_FLAGS[t]["transits_months"] < free_months
         ]
         assert not violations, (
-            f"витрина free ({FREE_TRANSITS_TEASER_MONTHS} мес) обгоняет "
+            f"витрина free ({free_months} мес) обгоняет "
             f"платные тарифы: {violations}"
         )
 

@@ -16,7 +16,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 import MotionButton from '../components/MotionButton';
-import { TIER_NAMES, TIERS, FREE_TRANSITS_TEASER_MONTHS } from '../constants';
+import { TIER_NAMES, TIERS } from '../constants';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
@@ -510,9 +510,6 @@ function buildFeatureRows(feat = {}, lim = {}) {
   // проверка на undefined вместо `??`, который принял бы null за отсутствие
   // значения и увёл бы к дефолту 0 (нашли на правке сетки 19.08.2026).
   const lunarMonths = lim.lunar_months !== undefined ? lim.lunar_months : feat.lunar_months;
-  // feat.tier приходит из get_feature_flags (backend/auth/rate_limits.py).
-  const isFreeTier = (feat.tier || 'free') === 'free';
-
   return [
     {
       label: 'Планер',
@@ -520,17 +517,15 @@ function buildFeatureRows(feat = {}, lim = {}) {
       value: PLANNER_LABELS[plannerMonths] ?? (plannerMonths ? `${plannerMonths} мес` : '—'),
     },
     {
-      // У free строка говорила «транзитов нет»: feat.transits приходит с
-      // бэкенда как transits_months > 0, а у free там ноль. Но ноль означает
-      // «AI-разбор не входит в тариф», а не «список закрыт» — free видит
-      // транзиты на FREE_TRANSITS_TEASER_MONTHS месяцев и видел их всегда.
-      // Получалось прямое противоречие: в таймлайне транзиты есть, в профиле
-      // написано, что их нет. Признак берём не из feat.transits, а из тарифа.
+      // До 08.09.2026 здесь стоял обход для free: feat.transits приходил с
+      // бэкенда как transits_months > 0, а у free флаг был нулём при живой
+      // витрине на 3 месяца — строка врала «транзитов нет», хотя в таймлайне
+      // они есть. Обход снят вместе с причиной: у free transits_months = 3,
+      // и признак с сервера стал правдой. Не возвращать его — расхождение
+      // теперь означало бы настоящую поломку, а не известную ложь флага.
       label: 'Транзиты',
-      ok: isFreeTier ? true : !!feat.transits,
-      value: isFreeTier
-        ? `${FREE_TRANSITS_TEASER_MONTHS} мес`
-        : (feat.transits ? `${transitsMonths} мес${feat.transits_ai ? ' + AI' : ''}` : null),
+      ok: !!feat.transits,
+      value: feat.transits ? `${transitsMonths} мес${feat.transits_ai ? ' + AI' : ''}` : null,
     },
     { label: 'Лунный календарь', ok: lunarMonths === null || lunarMonths === undefined || lunarMonths > 0 },
     { label: 'Google Calendar', ok: !!feat.google_calendar },
