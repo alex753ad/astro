@@ -221,7 +221,16 @@ class TestSubscriptionInfo:
         assert resp.status_code == 200
         data = resp.json()
         assert data["tier"] == "free"
-        assert data["features"]["transits"] is False
+        # 08.09.2026: было False. Признак выводится из transits_months, а тот
+        # у free стоял нулём при живой витрине на 3 месяца — то есть ручка
+        # отдавала клиенту неправду, и ProfilePage обходил её вручную. Флаг
+        # поднят до 3, обход снят; False здесь означал бы возврат второго
+        # источника истины (разбор — test_free_transits_single_source.py).
+        # Список транзитов у free открыт и был открыт всегда (решение E2),
+        # платный там только AI-разбор — его проверяет строка ниже.
+        assert data["features"]["transits"] is True
+        assert data["features"]["transits_ai"] is False
+        assert data["limits"]["transits_ai_per_month"] == 0
         assert data["features"]["unlimited_interpretations"] is False
         # 30.08.2026: free снова получил PDF, но с квотой 1 в месяц (было
         # False с 19.08.2026). Флаг pdf_reports отвечает только на вопрос
