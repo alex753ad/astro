@@ -17,7 +17,6 @@ import {
   forgetRefreshToken,
   rememberRefreshToken,
 } from './authTransport';
-import { diag } from '../lib/authDiag';
 
 class ApiError extends Error {
   constructor(message, status, detail) {
@@ -203,7 +202,6 @@ export async function refreshSession() {
   }
 
   const attempt = (async () => {
-    diag('refresh:start');
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
     let resp;
@@ -223,7 +221,6 @@ export async function refreshSession() {
       // ⚠️ Хранилище НЕ трогаем: сессия могла остаться живой, а стереть
       // refresh здесь — это ровно тот дефект, из-за которого приложение
       // застревало с мёртвым токеном (см. шапку раздела).
-      diag('refresh:end', 'network — обрыв, недоступное хранилище или таймаут');
       return rememberFailure({ ok: false, reason: 'network' });
     } finally {
       // Таймер снимается в любом исходе: иначе он держал бы приложение
@@ -232,7 +229,6 @@ export async function refreshSession() {
     }
 
     if (!resp.ok) {
-      diag('refresh:end', `HTTP ${resp.status}`);
       if (resp.status !== 401 && resp.status !== 403) {
         // 429 от лимитера, 5xx — сервер жив, но сейчас не отвечает по делу.
         // Сессию не хороним: следующая попытка может пройти.
@@ -250,10 +246,8 @@ export async function refreshSession() {
     try {
       data = await resp.json();
     } catch {
-      diag('refresh:end', 'ответ 200, но тело не разобрано');
       return rememberFailure({ ok: false, reason: 'server' });
     }
-    diag('refresh:end', 'ok');
 
     lastRefreshFailure = null;
 
@@ -313,7 +307,6 @@ export async function authFetch(url, options = {}) {
   // нет: параллельные вызовы сходятся в один refreshSession, ждут его и
   // уходят уже с живым токеном.
   if (token && isTokenExpired(token)) {
-    diag('gate:expired', url);
     const ahead = await refreshSession();
     if (ahead.ok) token = ahead.data.access_token;
     // Не вышло — отправляем как есть. Сервер скажет своё 401, а решение о
@@ -323,7 +316,6 @@ export async function authFetch(url, options = {}) {
   let resp = await send(token);
 
   if (resp.status === 401 && token) {
-    diag('401', url);
     const result = await refreshSession();
     if (result.ok) resp = await send(result.data.access_token);
     // Отдельной ветки на result.reason === 'auth' здесь нет намеренно:

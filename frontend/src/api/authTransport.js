@@ -25,8 +25,6 @@
  * не дисциплина при чтении кода.
  */
 
-import { diag } from '../lib/authDiag';
-
 export const IS_MOBILE = import.meta.env.VITE_MOBILE === 'true';
 
 export const MOBILE_CLIENT_HEADER = 'X-Client-Platform';
@@ -118,22 +116,12 @@ function storageFailed(action, err) {
 }
 
 export async function readRefreshToken() {
-  // Пара отметок «до/после» вокруг чтения из хранилища. Вызов уходит через
-  // мост Capacitor в нативный код и может не вернуться так же тихо, как
-  // зависший fetch, — а снаружи это неотличимо от «обновление не стартовало».
-  // Зависание читается как 'storage:read' без 'storage:read:done'.
-  diag('storage:read');
   try {
     const prefs = await preferences();
-    if (!prefs) {
-      diag('storage:read:done', 'веб — хранилища нет');
-      return null;
-    }
+    if (!prefs) return null;
     const { value } = await prefs.plugin.get({ key: NATIVE_REFRESH_KEY });
-    diag('storage:read:done', value ? 'токен есть' : 'пусто');
     return value || null;
   } catch (err) {
-    diag('storage:read:error', String(err));
     // Поведение прежнее — ведём себя как «токена нет»: пользователь войдёт
     // заново, а не получит белый экран. Но теперь об этом остаётся запись:
     // «токена нет» и «хранилище отказало» снаружи неразличимы, а чинятся
@@ -150,18 +138,12 @@ export async function readRefreshToken() {
  * следующем обновлении.
  */
 export async function rememberRefreshToken(data) {
-  diag('storage:write');
   try {
     const prefs = await preferences();
-    if (!prefs || !data?.refresh_token) {
-      diag('storage:write:done', 'нечего писать (веб или пустой refresh)');
-      return false;
-    }
+    if (!prefs || !data?.refresh_token) return false;
     await prefs.plugin.set({ key: NATIVE_REFRESH_KEY, value: data.refresh_token });
-    diag('storage:write:done', 'записан');
     return true;
   } catch (err) {
-    diag('storage:write:error', String(err));
     // Возвращаем false, а не бросаем: обновление уже состоялось на сервере,
     // ронять из-за хранилища нечего. Но вызывающий обязан иметь возможность
     // отличить «записали» от «не записали» — до этой правки не мог никто.
@@ -189,6 +171,5 @@ export async function forgetRefreshToken() {
  */
 export async function authRequestBody() {
   const token = await readRefreshToken();
-  diag('body:built', token ? 'с токеном' : 'пустое тело');
   return JSON.stringify(token ? { refresh_token: token } : {});
 }
