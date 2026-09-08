@@ -92,6 +92,11 @@ export const BIRTH_FORM_URL = 'https://aristeatime.ru/home';
  */
 export const PRICING_URL = 'https://aristeatime.ru/pricing';
 
+/** Страница карты на сайте: `/chart/:chartId` (App.jsx:457). Оттуда
+  * работает PDF-отчёт, недоступный из приложения — почему, написано у
+  * самой ссылки в MoreScreen.jsx. */
+export const WEB_CHART_URL = 'https://aristeatime.ru/chart';
+
 /**
  * Подсказки экрана «Карта» (SPEC_ONBOARDING.md §10). Порядок — от общего к
  * частному; жест последним, он бесполезен, пока непонятно, на что смотреть.

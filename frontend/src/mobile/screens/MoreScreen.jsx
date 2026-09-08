@@ -29,6 +29,9 @@ import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import { deleteChart, fetchMe, fetchSubscription, fetchCharts, setPrimaryChart } from '../lib/moreApi';
 import { birthDateWords } from '../lib/chartFormat';
+import { pickPrimaryChartId } from '../lib/feedApi';
+import { openInBrowser } from '../lib/openInBrowser';
+import { BIRTH_FORM_URL, WEB_CHART_URL } from '../lib/onboardingCopy';
 import useAuth from '../../hooks/useAuth.jsx';
 
 const SUB_TITLES = {
@@ -195,6 +198,9 @@ export default function MoreScreen({ onChartsChanged }) {
 
   const chartsById = useMemo(() => new Map(charts.map((c) => [c.id, c])), [charts]);
 
+  // Карта для ссылки на веб-отчёт — см. комментарий у самой ссылки ниже.
+  const pdfChartId = useMemo(() => pickPrimaryChartId(charts), [charts]);
+
   if (status === 'loading') return <MoreLoading />;
 
   if (status === 'error') {
@@ -249,6 +255,48 @@ export default function MoreScreen({ onChartsChanged }) {
       </header>
 
       <MoreTierCard tier={subscription.tier} highlight={highlightTier} />
+
+      {/* PDF-отчёт по карте — ссылкой на сайт, а не своей кнопкой.
+
+          ⚠️ Это дешёвая половина, и она выбрана осознанно. Ручка PDF
+          (`POST /api/v1/chart/{id}/pdf`, backend/main.py:2310) требует
+          заголовок Authorization и отдаёт файл вложением, поэтому
+          `openInBrowser` открыть её НЕ может — Browser.open умеет только
+          GET без заголовков. Полноценный «Скачать PDF» в приложении — это
+          fetch с токеном, запись файла через @capacitor/filesystem и
+          открытие его нативно, то есть новые плагины и пересборка проекта.
+          Отдельная задача; здесь человек уходит на веб, где кнопка уже
+          работает.
+
+          ⚠️ Числа тарифа тут НЕ называем (ни «один в месяц», ни «с Веги») —
+          единственный источник сетки на этом экране статический, а живые
+          лимиты в блок тарифа не подставляются вовсе (MoreTierCard.jsx).
+          Гейт и текст отказа живут на бэкенде (check_pdf_limit) и человек
+          увидит их на сайте.
+
+          Ведёт на КОНКРЕТНУЮ карту — ту же, что показывают «Лента» и
+          «Карта» (pickPrimaryChartId, один на приложение). Списка карт нет
+          (аккаунт без карт — реальное состояние, §8) — уводим на /home,
+          где карту сначала строят. */}
+      <button
+        type="button"
+        onClick={() => openInBrowser(
+          pdfChartId ? `${WEB_CHART_URL}/${pdfChartId}` : BIRTH_FORM_URL,
+        )}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          marginTop: -8,
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        PDF-отчёт по карте — на сайте →
+      </button>
 
       <MoreCardsList
         charts={charts}
