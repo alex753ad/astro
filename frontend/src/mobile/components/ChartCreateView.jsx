@@ -9,8 +9,10 @@
  * ⚠️ Вебовский `BirthForm.jsx` сюда не переносится, и это не «написали
  * заново по невнимательности»: там 500-пиксельная карточка, свои
  * инлайн-стили мимо мобильных токенов, наведение мышью
- * (`onMouseDown`/`onMouseEnter`) и маска даты под клавиатуру. Здесь —
- * нативные `date`/`time`, которые в webview открывают системные пикеры.
+ * (`onMouseDown`/`onMouseEnter`). Маска даты — единственное, что оттуда
+ * повторено по смыслу, и вынесено своим файлом (`lib/dateMask.js`); время
+ * здесь нативное, `input type="time"`, и системный диалог часов открывает
+ * webview.
  *
  * ⚠️ Координат в запросе нет и быть не может: `POST /chart/calculate` их из
  * тела не принимает и геокодирует строку `birth_place` сам (CLAUDE.md,
@@ -23,12 +25,19 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MoreSwitch from './MoreSwitch';
 import { openInBrowser } from '../lib/openInBrowser';
 import { PRICING_URL } from '../lib/onboardingCopy';
+import { displayToIso, maskDateInput } from '../lib/dateMask';
 import { searchPlaces } from '../lib/placeSearch';
 import { createChart } from '../lib/chartApi';
 import { describeCreateError, validateBirthForm } from '../lib/chartCreateRules';
 
 const EMPTY = {
   name: '',
+  // Дата живёт в форме дважды: `birthDateInput` — то, что видно в поле
+  // («28.05.19»), `birthDate` — собранная из него дата в ISO («1996-05-28»)
+  // или пустая строка, пока цифр меньше восьми. Второе поле не дубль:
+  // проверка формы обязана отличать «не трогали» от «не дописали»
+  // (chartCreateRules.js), а из одного ISO этого не видно.
+  birthDateInput: '',
   birthDate: '',
   birthTime: '',
   timeUnknown: false,
@@ -58,11 +67,26 @@ export default function ChartCreateView({ onCancel, onCreated }) {
   const [failure, setFailure] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const debounceRef = useRef(null);
+  /**
+   * Смонтирован ли ещё экран — чтобы не звать setState после размонтирования.
+   *
+   * ⚠️ Флаг ПОДНИМАЕТСЯ при монтировании, а не только гасится при уходе, и
+   * это не перестраховка. React 18 в режиме разработки монтирует, тут же
+   * размонтирует и монтирует снова (StrictMode); версия без подъёма
+   * оставляла флаг опущенным навсегда — и дальше форма молча глотала ЛЮБОЙ
+   * отказ и не разблокировала кнопку: «Строю карту…» навсегда, ни строки
+   * ошибки. В боевой сборке APK этого не происходит (React там боевой,
+   * проверено по бандлу 08.09.2026), поэтому симптом виден только при
+   * отладке — то есть ровно тому, кто будет искать причину чужого отказа.
+   */
   const aliveRef = useRef(true);
 
-  useEffect(() => () => {
-    aliveRef.current = false;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   const set = (key, value) => {
@@ -136,14 +160,26 @@ export default function ChartCreateView({ onCancel, onCreated }) {
           />
         </Field>
 
+        {/* ⚠️ Ввод текстом с маской, НЕ `type="date"`: в календаре Android
+            год выбирается прокруткой, и для даты рождения это самый долгий
+            путь из возможных. Разбор — в шапке lib/dateMask.js. Время рядом
+            осталось нативным намеренно, там прокрутки к нужному году нет. */}
         <Field id="chart-date" label="Дата рождения" error={fieldError('birthDate')}>
           <input
             id="chart-date"
             className={`mobile-input${fieldError('birthDate') ? ' has-error' : ''}`}
-            type="date"
-            min="1900-01-01"
-            value={form.birthDate}
-            onChange={(e) => set('birthDate', e.target.value)}
+            type="text"
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="ДД.ММ.ГГГГ"
+            value={form.birthDateInput}
+            onChange={(e) => {
+              const masked = maskDateInput(e.target.value);
+              // Оба поля меняются одним действием: показываемое и собранное
+              // не должны разъезжаться даже на один рендер.
+              setForm((prev) => ({ ...prev, birthDateInput: masked, birthDate: displayToIso(masked) }));
+              setFailure(null);
+            }}
           />
         </Field>
 

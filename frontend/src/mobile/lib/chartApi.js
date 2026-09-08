@@ -33,7 +33,12 @@ export async function fetchChart(chartId) {
   const resp = await authFetchWithTimeout(`${API_BASE}/chart/${chartId}`);
 
   if (resp.status === 404) {
-    throw new Error('Карта не найдена. Постройте её заново на сайте.');
+    // Статус приклеен намеренно: по нему ChartScreen отличает «нет карты,
+    // которую я сам только что показывал» (её удалили в «Ещё») от общего
+    // отказа и снимает своё переопределение вместо тупика до перезапуска.
+    const err = new Error('Карта не найдена. Возможно, она удалена.');
+    err.status = 404;
+    throw err;
   }
   if (!resp.ok) {
     throw new Error(await responseErrorText(resp, 'Не удалось загрузить карту.'));

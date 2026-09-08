@@ -11,6 +11,7 @@
  * Полный разбор — SPEC_CHART_CREATE.md §2, §4, §7, §8.
  */
 
+import { hasDigits } from './dateMask';
 import { localToday } from './feedTime';
 
 /** Раньше этой даты эфемериды не считают (`validate_date_range`, schemas.py). */
@@ -41,6 +42,13 @@ const MAX_NAME_LENGTH = 100;
  * условными домами (`time_unknown`), то есть человек молча получил бы
  * другую карту вместо той, что просил. Отметить незнание времени он должен
  * сам и явно.
+ *
+ * ⚠️ `birthDateInput` — то, что человек НАБРАЛ в поле («28.05.19»), в
+ * отличие от `birthDate` — собранной даты в ISO. Их два, потому что у
+ * «поле не трогали» и «набрано наполовину» разный текст ошибки, а
+ * `displayToIso` для обоих отдаёт пустую строку. Появилось вместе с
+ * маской: у прежнего системного пикера недособранной даты быть не могло —
+ * он либо отдавал полную, либо ничего.
  */
 export function validateBirthForm(form, today = localToday()) {
   const name = (form?.name ?? '').trim();
@@ -52,7 +60,11 @@ export function validateBirthForm(form, today = localToday()) {
     return { field: 'name', text: `Имя не длиннее ${MAX_NAME_LENGTH} символов` };
   }
 
-  if (!date) return { field: 'birthDate', text: 'Укажите дату рождения' };
+  if (!date) {
+    return hasDigits(form?.birthDateInput)
+      ? { field: 'birthDate', text: 'Дата не дописана — нужны день, месяц и год' }
+      : { field: 'birthDate', text: 'Укажите дату рождения' };
+  }
   if (date < MIN_BIRTH_DATE) {
     return { field: 'birthDate', text: 'Даты до 1900 года не поддерживаются' };
   }

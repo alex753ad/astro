@@ -83,7 +83,7 @@ function ChartLoading() {
   );
 }
 
-export default function ChartScreen({ active = true, onHintsToggle, onChartCreated }) {
+export default function ChartScreen({ active = true, onHintsToggle, onChartCreated, chartsVersion = 0 }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
@@ -109,6 +109,10 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
    * первый же жест вернул бы человека на основную карту.
    */
   const forcedChartIdRef = useRef(null);
+
+  // Толчок, поднятый этим же экраном: чтобы отличить его от толчка «Ещё»
+  // (см. эффект по chartsVersion ниже).
+  const ownBumpRef = useRef(false);
   const { logout } = useAuth();
   const { dark } = useTheme();
 
@@ -156,12 +160,29 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
       setError('');
     }
     try {
-      const chartId = forcedChartIdRef.current || await resolvePrimaryChartId();
+      const forced = forcedChartIdRef.current;
+      const chartId = forced || await resolvePrimaryChartId();
       if (!chartId) {
         setStatus('no-chart');
         return;
       }
-      setChart(await fetchChart(chartId));
+      try {
+        setChart(await fetchChart(chartId));
+      } catch (err) {
+        // ⚠️ Показанной карты больше нет — её удалили в «Ещё», пока она
+        // стояла переопределением. Снимаем переопределение и показываем
+        // обычную карту аккаунта. Без этого экран остался бы с «Карта не
+        // найдена» до перезапуска приложения: ref переживает и жест
+        // обновления, и переключение вкладок.
+        if (!(forced && err?.status === 404)) throw err;
+        forcedChartIdRef.current = null;
+        const fallback = await resolvePrimaryChartId();
+        if (!fallback) {
+          setStatus('no-chart');
+          return;
+        }
+        setChart(await fetchChart(fallback));
+      }
       setStatus('ready');
     } catch (err) {
       if (silent) throw err;
@@ -173,6 +194,32 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  /**
+   * Состав карт изменился на вкладке «Ещё» — удалили карту или сменили
+   * основную (SPEC_CHART_CREATE.md §6).
+   *
+   * ⚠️ Любой толчок ИЗВНЕ снимает переопределение. Правило одно: показанную
+   * карту задаёт только построение, а любой явный выбор человека в «Ещё» его
+   * отменяет. Иначе после «сделать основной» эта вкладка продолжала бы
+   * показывать построенную ранее — то есть игнорировать только что сделанный
+   * выбор.
+   *
+   * ⚠️ Собственный толчок (после построения) пропускается: `load()` там уже
+   * вызван, и второй заход не добавил бы ничего, кроме лишнего запроса и
+   * мигания скелетом.
+   */
+  const seenChartsVersion = useRef(chartsVersion);
+  useEffect(() => {
+    if (seenChartsVersion.current === chartsVersion) return;
+    seenChartsVersion.current = chartsVersion;
+    if (ownBumpRef.current) {
+      ownBumpRef.current = false;
+      return;
+    }
+    forcedChartIdRef.current = null;
+    load();
+  }, [chartsVersion, load]);
 
   // Обработчик для жеста в шторке. `silent` обязателен — см. комментарий
   // у load выше: обычный путь размонтировал бы колесо и сбросил зум.
@@ -189,9 +236,24 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
    * перезагружается один экран, один раз и по явному действию человека.
    */
   const handleCreated = useCallback((chartId) => {
+    // ⚠️ Пустой id — отказ, а не «показать основную». Молчаливый откат на
+    // `resolvePrimaryChartId` (ветка `||` внутри load) показал бы СТАРУЮ
+    // карту под видом только что построенной, и человек этого не отличил
+    // бы никак. Сегодня сервер id отдаёт всегда (`main.py:812`), но в схеме
+    // ответа поле объявлено необязательным — то есть тихая подмена ждала бы
+    // первой же правки на бэкенде.
+    if (!chartId) {
+      setView('chart');
+      setError('Карта построена, но сервер не вернул её идентификатор. Обновите ленту жестом или откройте карту на сайте.');
+      setStatus('error');
+      return;
+    }
     forcedChartIdRef.current = chartId;
     setView('chart');
     load();
+    // Свой же толчок ленте: эффект ниже обязан его пропустить, иначе
+    // «Карта» перезагрузится вторым разом на ровном месте.
+    ownBumpRef.current = true;
     onChartCreated?.();
   }, [load, onChartCreated]);
 

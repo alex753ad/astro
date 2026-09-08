@@ -27,7 +27,8 @@ import MoreNotificationsView from '../components/MoreNotificationsView';
 import MoreSettingsView from '../components/MoreSettingsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
-import { fetchMe, fetchSubscription, fetchCharts } from '../lib/moreApi';
+import { deleteChart, fetchMe, fetchSubscription, fetchCharts, setPrimaryChart } from '../lib/moreApi';
+import { birthDateWords } from '../lib/chartFormat';
 import useAuth from '../../hooks/useAuth.jsx';
 
 const SUB_TITLES = {
@@ -57,12 +58,18 @@ function MoreLoading() {
   );
 }
 
-export default function MoreScreen() {
+export default function MoreScreen({ onChartsChanged }) {
   const [status, setStatus] = useState('loading');
   const [me, setMe] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [charts, setCharts] = useState([]);
   const [error, setError] = useState('');
+  // Какая карта сейчас в работе (удаление или закрепление) — строка на это
+  // время гаснет и её кнопки блокируются. Один идентификатор, не множество:
+  // два действия над списком карт одновременно человеку не нужны, а
+  // множество завело бы состояние, которое нечем проверить.
+  const [chartBusyId, setChartBusyId] = useState(null);
+  const [chartsError, setChartsError] = useState('');
   const { logout } = useAuth();
   const [view, setView] = useState('root');
 
@@ -75,6 +82,51 @@ export default function MoreScreen() {
   const handleLogout = useCallback(() => {
     if (window.confirm('Выйти из аккаунта?')) logout();
   }, [logout]);
+
+  /**
+   * Удаление карты. Подтверждение — тем же системным `window.confirm`, что и
+   * выход выше: действие необратимо, а второго диалога в проекте нет.
+   *
+   * ⚠️ Список правится на месте, без перезапроса `/profile/charts`: состав
+   * после удаления известен точно. Флаг основной карты при этом СНИМАЕТСЯ
+   * локально, если удалили именно её, — бэкенд сбрасывает `primary_chart_id`
+   * сам (`profile/router.py:180-181`), и оставить звезду висеть на пустом
+   * месте значило бы показывать неправду до следующего обновления.
+   *
+   * ⚠️ Толчок соседним вкладкам обязателен и после удаления, и после
+   * закрепления: «Лента» и «Карта» смонтированы всегда и сами о смене
+   * состава не узнают (SPEC_CHART_CREATE.md §6).
+   */
+  const handleDeleteChart = useCallback(async (chart) => {
+    const label = chart.name || birthDateWords(chart.birth_date);
+    if (!window.confirm(`Удалить карту «${label}»? Это действие необратимо.`)) return;
+    setChartBusyId(chart.id);
+    setChartsError('');
+    try {
+      await deleteChart(chart.id);
+      setCharts((prev) => prev.filter((c) => c.id !== chart.id));
+      onChartsChanged?.();
+    } catch (err) {
+      setChartsError(err?.message || 'Не удалось удалить карту.');
+    } finally {
+      setChartBusyId(null);
+    }
+  }, [onChartsChanged]);
+
+  /** Закрепление основной карты. Подтверждения не требует — действие обратимо. */
+  const handleSetPrimary = useCallback(async (chart) => {
+    setChartBusyId(chart.id);
+    setChartsError('');
+    try {
+      await setPrimaryChart(chart.id);
+      setCharts((prev) => prev.map((c) => ({ ...c, is_primary: c.id === chart.id })));
+      onChartsChanged?.();
+    } catch (err) {
+      setChartsError(err?.message || 'Не удалось сделать карту основной.');
+    } finally {
+      setChartBusyId(null);
+    }
+  }, [onChartsChanged]);
 
   // Подсветка блока тарифа: сюда переключает FAB чата на free/Веге
   // (AristeaFab.jsx), а не своя кнопка апгрейда — вести к оплате должна
@@ -198,7 +250,20 @@ export default function MoreScreen() {
 
       <MoreTierCard tier={subscription.tier} highlight={highlightTier} />
 
-      <MoreCardsList charts={charts} />
+      <MoreCardsList
+        charts={charts}
+        busyId={chartBusyId}
+        onSetPrimary={handleSetPrimary}
+        onDelete={handleDeleteChart}
+      />
+      {/* Отказ действия показывается рядом со списком, а не уводит весь
+          экран в состояние ошибки: тариф, профиль и меню рядом исправны и
+          прятать их за полноэкранным отказом нельзя. */}
+      {chartsError && (
+        <p style={{ margin: '-4px 0 0', fontSize: 12.5, color: 'var(--color-danger)' }} role="alert">
+          {chartsError}
+        </p>
+      )}
 
       <MoreMenuList onOpen={setView} />
 

@@ -72,8 +72,9 @@ export default function TabShell() {
   const tabBarRef = useRef(null);
   const [tabBarHeight, setTabBarHeight] = useState(56);
 
-  // Счётчик построенных карт. «Карта» его увеличивает после успеха формы,
-  // «Лента» по нему перезагружается (SPEC_CHART_CREATE.md §6).
+  // Счётчик изменений состава карт. Поднимают «Карта» (построила новую) и
+  // «Ещё» (удалила карту или сменила основную); слушают «Лента» и «Карта»
+  // (SPEC_CHART_CREATE.md §6).
   //
   // ⚠️ Он живёт здесь, а не внутри экранов, потому что экраны друг о друге
   // не знают и знать не должны, а размонтированием их не связать: все три
@@ -82,11 +83,13 @@ export default function TabShell() {
   // первую карту, вернулся бы на ленту и увидел «Постройте её на вкладке
   // «Карта»» — при уже построенной карте.
   //
-  // ⚠️ «Ещё» по нему НЕ перезагружается намеренно: его список карт не врёт,
-  // а отстаёт на один заход, и ради этого не стоит поднимать третий экран
-  // — у него есть жест обновления.
+  // ⚠️ «Ещё» по нему НЕ перезагружается намеренно, хотя теперь и поднимает
+  // его сам: список карт там правит на месте тот же обработчик, что послал
+  // запрос, — он состав знает точно, и перезапрос ничего не уточнил бы. А
+  // после построения карты на другой вкладке список отстаёт на один заход,
+  // и ради этого поднимать третий экран не стоит: у него есть жест.
   const [chartsVersion, setChartsVersion] = useState(0);
-  const handleChartCreated = useCallback(() => setChartsVersion((v) => v + 1), []);
+  const handleChartsChanged = useCallback(() => setChartsVersion((v) => v + 1), []);
 
   // ⚠️ Ref на скроллер отдаётся ВНИЗ, только «Ленте», и это не каприз:
   // прокрутка ленты живёт здесь, а не в ней самой — собственный `overflow`
@@ -151,11 +154,12 @@ export default function TabShell() {
           <ChartScreen
             active={active === 'chart'}
             onHintsToggle={handleHints}
-            onChartCreated={handleChartCreated}
+            onChartCreated={handleChartsChanged}
+            chartsVersion={chartsVersion}
           />
         </div>
         <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <MoreScreen />
+          <MoreScreen onChartsChanged={handleChartsChanged} />
         </div>
       </div>
 

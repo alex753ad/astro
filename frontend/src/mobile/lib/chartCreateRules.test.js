@@ -51,6 +51,16 @@ describe('validateBirthForm', () => {
       .toBe('Дата рождения не может быть в будущем');
   });
 
+  it('различает «дату не трогали» и «дату не дописали»', () => {
+    // Поле с маской отдаёт пустой ISO в обоих случаях, и без birthDateInput
+    // человек с набранным «28.05.19» получил бы «Укажите дату рождения» —
+    // при заполненном на вид поле.
+    expect(validateBirthForm({ ...ok, birthDate: '', birthDateInput: '' }, TODAY).text)
+      .toBe('Укажите дату рождения');
+    expect(validateBirthForm({ ...ok, birthDate: '', birthDateInput: '28.05.19' }, TODAY))
+      .toEqual({ field: 'birthDate', text: 'Дата не дописана — нужны день, месяц и год' });
+  });
+
   it('сегодняшняя дата — не будущее', () => {
     expect(validateBirthForm({ ...ok, birthDate: TODAY }, TODAY)).toBeNull();
   });
