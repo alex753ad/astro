@@ -1324,10 +1324,12 @@ async def get_transits(
     #
     # ⚠️ check_transit_access здесь НАМЕРЕННО не подключена. Она отдаёт 403
     # при transits_months == 0, то есть закрыла бы free сам СПИСОК транзитов,
-    # а решение E2 (комментарий ниже по коду и FREE_TRANSITS_TEASER_MONTHS)
-    # — ровно обратное: список виден всем, монетизируется AI-разбор. Её 403
-    # снёс бы витрину free вместе с FreePlanBanner и PlanComparisonModal.
-    # Гейтим горизонт, а не факт доступа.
+    # а решение E2 — ровно обратное: список виден всем, монетизируется
+    # AI-разбор. Её 403 снёс бы витрину free вместе с FreePlanBanner и
+    # PlanComparisonModal. Гейтим горизонт, а не факт доступа.
+    # (С 08.09.2026 у free transits_months = 3, и та функция не выстрелила бы
+    # даже будучи подключённой — но подключать её всё равно не следует: её
+    # смысл «тариф без транзитов», а такого тарифа в сетке нет.)
     _tier = user.tier if user else "free"
     _win_from, _win_to = transits_date_window(_tier, date_type.today())
     if from_dt < _win_from or to_dt > _win_to:
