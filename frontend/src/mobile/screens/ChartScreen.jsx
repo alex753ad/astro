@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import NatalChart from '../../components/NatalChart';
 import ChartCreateView from '../components/ChartCreateView';
 import ChartSheet from '../components/ChartSheet';
+import ChartShareSheet from '../components/ChartShareSheet';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
 import useTheme from '../useTheme.jsx';
@@ -92,6 +93,9 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   // не отдельным маршрутом (SPEC_CHART_CREATE.md §3), тем же приёмом, что
   // разделы MoreScreen.
   const [view, setView] = useState('chart');
+  // Лист «Поделиться». Ссылка создаётся не здесь, а по действию внутри
+  // листа — см. шапку ChartShareSheet.jsx.
+  const [shareOpen, setShareOpen] = useState(false);
 
   /**
    * Какую карту показывать, если это решил не сервер, а сам человек прямо
@@ -303,7 +307,29 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
               no-chart объяснять нечего (SPEC_ONBOARDING.md §9). Здесь это
               выходит само — ветки выше возвращаются раньше. */}
           {/* «+» рядом с «?»: второй вход в форму для тех, у кого карта уже
-              есть (первый — кнопка в состоянии «нет карты»). */}
+              есть (первый — кнопка в состоянии «нет карты»).
+
+              Кнопок в шапке стало три, и это её предел: заголовок ужимается
+              (minWidth: 0 выше), а четвёртой здесь места нет — следующее
+              действие пойдёт внутрь листа, а не рядом. */}
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            aria-label="Поделиться картой"
+            style={{
+              width: 32, height: 32, flexShrink: 0, borderRadius: '50%',
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-secondary)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', padding: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="2.6" />
+              <circle cx="6" cy="12" r="2.6" />
+              <circle cx="18" cy="19" r="2.6" />
+              <path d="M8.4 10.8 15.6 6.4M8.4 13.2l7.2 4.4" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={() => setView('create')}
@@ -418,6 +444,10 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
 
       {hints.open && (
         <HintOverlay steps={CHART_HINTS} anchors={hintAnchors} onClose={hints.close} />
+      )}
+
+      {shareOpen && (
+        <ChartShareSheet chartId={chart.id} onClose={() => setShareOpen(false)} />
       )}
     </div>
   );

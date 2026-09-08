@@ -89,3 +89,45 @@ export async function createChart(form) {
   err.detail = body;
   throw err;
 }
+
+/**
+ * Публичная ссылка на карту — `POST /api/v1/charts/{id}/share`
+ * (`backend/share_router.py:174`).
+ *
+ * ⚠️ Путь `/charts/` (множественное), а не `/chart/` как у соседей в этом
+ * файле. Это не опечатка: ручка живёт в отдельном роутере со своим
+ * префиксом, и обе формы существуют в API одновременно.
+ *
+ * ⚠️ `card_url` берётся из ответа КАК ЕСТЬ и не собирается из `API_BASE`.
+ * Веб собирает его сам (`ChartPage.jsx:455`), и это работает только потому,
+ * что там API и сайт на одном домене. В приложении origin —
+ * `https://localhost`, и та же сборка дала бы неоткрываемый адрес. Сервер
+ * строит оба URL от своего `APP_URL` (`share_router.py:223-225`), он и
+ * является источником истины.
+ *
+ * Повторный вызов по живому токену возвращает ТУ ЖЕ ссылку и НЕ продлевает
+ * срок (`share_router.py:195-201`) — то есть кнопку можно нажимать сколько
+ * угодно, вечной ссылка от этого не станет.
+ */
+export async function createShareLink(chartId) {
+  const resp = await authFetchWithTimeout(
+    `${API_BASE}/charts/${chartId}/share`,
+    { method: 'POST' },
+  );
+
+  if (!resp.ok) {
+    throw new Error(await responseErrorText(resp, 'Не удалось создать ссылку.'));
+  }
+
+  const data = await resp.json().catch(() => null);
+
+  // ⚠️ Неполный ответ — отказ, а не «поделимся тем, что дали». Пустой
+  // `share_url` уехал бы в буфер обмена как `undefined`, и человек отправил
+  // бы это в чат, ничего не заметив: копирование не показывает, что
+  // скопировано. Тот же довод, что у пустого id в handleCreated.
+  if (!data?.share_url || !data?.card_url) {
+    throw new Error('Сервер не вернул ссылку. Попробуйте ещё раз.');
+  }
+
+  return { shareUrl: data.share_url, cardUrl: data.card_url };
+}
