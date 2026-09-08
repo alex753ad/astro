@@ -117,6 +117,29 @@ let refreshInFlight = null;
 //
 // Окно короткое: оно гасит именно ЗАЛП, а не осмысленный повтор через паузу.
 const REFRESH_COOLDOWN_MS = 5000;
+
+/**
+ * Предел ожидания одного обновления сессии.
+ *
+ * До 08.09.2026 его не было вовсе: у fetch к /auth/refresh не стояло ни
+ * таймаута, ни AbortController. Зависший запрос (мёртвый сокет после долгого
+ * фона — тот же случай, что описан в шапке mobile/lib/authFetchTimeout.js) не
+ * отклонялся никогда, а значит `refreshInFlight` ниже оставался заполненным
+ * навсегда: КАЖДЫЙ следующий вызов получал тот же неразрешающийся промис и
+ * молчал. Один зависший запрос выключал обновление сессии целиком — и таймер,
+ * и возврат из фона, и повтор по 401.
+ *
+ * ⚠️ Abort закрывает сам сетевой запрос, но НЕ чтение refresh-токена из
+ * нативного хранилища: оно уходит через мост Capacitor до начала fetch, и
+ * прервать его сигналом нечем. Зависание там даст ровно тот же симптом, а
+ * лечится иначе — поэтому оно отдельно размечено отметками
+ * 'storage:read' / 'storage:read:done' в api/authTransport.js.
+ *
+ * 15 с — столько же, сколько экранный таймаут (REQUEST_TIMEOUT_MS): меньше
+ * значило бы обрывать обновления, которые ещё могли успеть, больше — экран
+ * всё равно сдастся раньше и число здесь ни на что не повлияет.
+ */
+const REFRESH_TIMEOUT_MS = 15000;
 let lastRefreshFailure = null; // { at, result }
 
 // Подписчики на события сессии. Нужны, чтобы client.js (модуль без React) мог
@@ -179,9 +202,12 @@ export async function refreshSession() {
   }
 
   const attempt = (async () => {
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
     let resp;
     try {
       resp = await fetch(`${API_BASE}/auth/refresh`, {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...clientHeaders() },
         // credentials: кука astro_refresh едет только явно — по умолчанию
@@ -196,6 +222,10 @@ export async function refreshSession() {
       // refresh здесь — это ровно тот дефект, из-за которого приложение
       // застревало с мёртвым токеном (см. шапку раздела).
       return rememberFailure({ ok: false, reason: 'network' });
+    } finally {
+      // Таймер снимается в любом исходе: иначе он держал бы приложение
+      // разбуженным на 15 с после каждого успешного обновления.
+      clearTimeout(abortTimer);
     }
 
     if (!resp.ok) {
@@ -232,11 +262,46 @@ export async function refreshSession() {
     return { ok: true, data };
   })();
 
-  refreshInFlight = attempt;
-  attempt.finally(() => {
-    if (refreshInFlight === attempt) refreshInFlight = null;
+  // ── Страховка: обновление не может зависнуть навсегда ─────────────────
+  //
+  // ⚠️ Одного `finally` мало, и это проверено дефектом, а не рассуждением.
+  // `finally` выполняется на ЗАВЕРШЕНИИ промиса — а 08.09.2026 промис выше не
+  // завершался вовсе: `await` над объектом плагина Capacitor не разрешался и
+  // не отклонялся (разбор — CLAUDE.md, «Объект плагина Capacitor нельзя
+  // возвращать из async-функции и нельзя await-ить»). Ни `catch`, ни
+  // `finally` не срабатывали, `refreshInFlight` оставался заполненным, и
+  // КАЖДЫЙ следующий вызов получал по ранней ветке тот же неразрешающийся
+  // промис. Одно зависание выключало обновление сессии целиком: молчали и
+  // таймер, и возврат из фона, и повтор по 401.
+  //
+  // Сама причина устранена (api/authTransport.js), но класс — нет: любое
+  // будущее ожидание перед запросом вернёт ту же картину. Поэтому гонка с
+  // жёстким пределом: что бы ни повисло внутри, наружу уходит результат, а
+  // `refreshInFlight` освобождается.
+  //
+  // AbortController выше этого НЕ покрывает и не мог: он обрывает сетевой
+  // запрос, а висело ДО `fetch`.
+  //
+  // Совпадение предела с таймаутом запроса безвредно: при сетевом зависании
+  // оба пути дают один и тот же исход 'network', кто из них первым — на
+  // результат не влияет.
+  let hangTimer;
+  const deadline = new Promise((resolve) => {
+    hangTimer = setTimeout(
+      () => resolve(rememberFailure({ ok: false, reason: 'network' })),
+      REFRESH_TIMEOUT_MS,
+    );
   });
-  return attempt;
+
+  // Таймер снимается в любом исходе — иначе он держал бы приложение
+  // разбуженным ещё 15 с после каждого успешного обновления.
+  const guarded = Promise.race([attempt, deadline]).finally(() => {
+    clearTimeout(hangTimer);
+    if (refreshInFlight === guarded) refreshInFlight = null;
+  });
+
+  refreshInFlight = guarded;
+  return guarded;
 }
 
 /**
