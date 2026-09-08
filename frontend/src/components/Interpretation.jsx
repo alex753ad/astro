@@ -12,7 +12,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { streamInterpretation } from '../api/client';
-import { stripSectionTags } from '../lib/sectionStream';
+import { SECTION_TITLES, stripSectionTags } from '../lib/sectionStream';
 import { useToast } from './Toast';
 import { TIER_NAMES } from '../constants';
 
@@ -106,7 +106,8 @@ function renderMarkdown(text) {
     // генерации — утёкшие обрывки тегов склеивались в тексте обратно, и
     // заголовки рисовались отсюда, а не из sec.title (разбор —
     // INTERPRET_SSE_RECON.md §3). Словарь удалён вместе с ним: заголовки
-    // секций берутся ровно из одного места, SECTION_TITLES ниже.
+    // секций берутся ровно из одного места — SECTION_TITLES, который с
+    // 08.09.2026 лежит в lib/sectionStream.js (там же причина переноса).
     const line = stripSectionTags(raw);
     // Строка состояла только из разметки — не рисуем вовсе. Пустую строку
     // ниже ждёт <br>, и без этой ветки на месте тега появился бы разрыв.
@@ -173,15 +174,6 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
 
   const isFree = userTier === 'free' || !userTier;
   const isLite = userTier === 'lite';
-
-  const SECTION_TITLES = {
-    general: 'Личность и характер',
-    career: 'Карьера и призвание',
-    relationships: 'Отношения и партнёрство',
-    health: 'Здоровье и энергия',
-    finance: 'Финансы',
-    spirituality: 'Духовный путь',
-  };
 
   const start = useCallback((retryCount = 0) => {
     if (!chartId) return;
