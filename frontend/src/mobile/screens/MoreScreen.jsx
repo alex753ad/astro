@@ -13,7 +13,7 @@
  * «Скачать мои данные» здесь нет намеренно — SPEC_MORE_SCREEN.md §6.2.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
 import MoreCenteredNotice from '../components/MoreCenteredNotice';
@@ -25,6 +25,8 @@ import MoreHistoryView from '../components/MoreHistoryView';
 import MoreReferralView from '../components/MoreReferralView';
 import MoreNotificationsView from '../components/MoreNotificationsView';
 import MoreSettingsView from '../components/MoreSettingsView';
+import PullIndicator from '../components/PullIndicator';
+import usePullToRefresh from '../lib/usePullToRefresh';
 import { fetchMe, fetchSubscription, fetchCharts } from '../lib/moreApi';
 import useAuth from '../../hooks/useAuth.jsx';
 
@@ -94,9 +96,24 @@ export default function MoreScreen() {
     }
   }, [location.state, location.pathname, navigate]);
 
-  const load = useCallback(async () => {
-    setStatus('loading');
-    setError('');
+  /**
+   * `silent` — обновление жестом, без смены состояния на 'loading'.
+   * Полное «почему» — в шапке lib/usePullToRefresh.js; здесь то, что
+   * ломается именно на этой вкладке:
+   *
+   * ⚠️ Ветка `status === 'loading'` возвращает скелет ВМЕСТО экрана:
+   * тариф, карты и меню мигают на месте уже показанных данных, а
+   * прокрутка длинного экрана сбрасывается к верху.
+   *
+   * Ошибка при `silent` обязана улететь наверх: увести экран в 'error'
+   * нельзя (за полноэкранным отказом спрячется уже загруженный профиль),
+   * проглотить молча — тем более. Её показывает полоска жеста.
+   */
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setStatus('loading');
+      setError('');
+    }
     try {
       const [meData, subData, chartsData] = await Promise.all([
         fetchMe(),
@@ -108,12 +125,21 @@ export default function MoreScreen() {
       setCharts(chartsData.charts || []);
       setStatus('ready');
     } catch (err) {
+      if (silent) throw err;
       setError(err?.message || 'Не удалось загрузить профиль.');
       setStatus('error');
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Жест обновления — на собственном скроллере экрана (в отличие от
+  // «Ленты», которая делит скроллер с TabShell). Только в корневом виде:
+  // под-разделы (История, Друзья, Уведомления, Настройки) монтируются при
+  // каждом заходе и грузят себя сами — устаревать им негде.
+  const scrollRef = useRef(null);
+  const refresh = useCallback(() => load({ silent: true }), [load]);
+  const pull = usePullToRefresh(scrollRef, refresh, status === 'ready' && view === 'root');
 
   const chartsById = useMemo(() => new Map(charts.map((c) => [c.id, c])), [charts]);
 
@@ -145,7 +171,17 @@ export default function MoreScreen() {
   }
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 16px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* ⚠️ Отрицательный отступ гасит `gap: 20` родителя. Полоска в покое
+          нулевой высоты, но флекс-разрыв ей всё равно достаётся — без этого
+          над шапкой «Ещё» постоянно висели бы лишние 20px пустоты. У двух
+          других экранов родитель без gap, там компенсировать нечего. */}
+      <PullIndicator
+        state={pull.state}
+        ready={pull.ready}
+        innerRef={pull.indicatorRef}
+        style={{ marginBottom: -20 }}
+      />
       <header>
         {/* /auth/me.name приходит null, если имя не задано (UserProfileResponse,
             без фолбэка на бэкенде, backend/auth/router.py:713) — выдумывать
