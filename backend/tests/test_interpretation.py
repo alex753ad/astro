@@ -130,15 +130,33 @@ class TestPromptBuilder:
             prompt = build_system_prompt(req)
             assert "не обрывай текст" in prompt, f"tier={tier}"
 
-    def test_word_target_matches_tier_flags(self):
-        """Промпт и TIER_FLAGS.interpretation_word_limit не должны расходиться
-        (были: free просил 800 слов в промпте при лимите 500 в TIER_FLAGS)."""
-        from backend.auth.rate_limits import TIER_FLAGS
+    def test_prompt_asks_exactly_what_the_plan_says(self):
+        """Промпт и план объёма не должны расходиться.
+
+        Раньше тест сверял промпт напрямую с TIER_FLAGS. С 09.09.2026 это
+        неверно для коротких секций: модель систематически перевыполняет
+        объём, и в нижней зоне мы намеренно просим МЕНЬШЕ заявленного, чтобы
+        получить заявленное (см. _volume_plan). Инвариант сместился — теперь
+        сверяем промпт с тем, что он обязан просить, а не с витриной.
+        """
+        from backend.interpretation.prompts import _volume_plan, resolve_word_limit
         for tier in ("free", "lite", "pro", "premium"):
             req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
             prompt = build_system_prompt(req)
-            expected = str(TIER_FLAGS[tier]["interpretation_word_limit"])
-            assert expected in prompt, f"tier={tier} expected {expected} words in prompt"
+            sections, per_section, _, _ = _volume_plan(req, resolve_word_limit(req))
+            assert str(per_section) in prompt, f"tier={tier}: нет объёма на секцию"
+            assert str(per_section * sections) in prompt, f"tier={tier}: нет общего объёма"
+
+    def test_uncorrected_tiers_still_match_the_flag(self):
+        """Поправка бьёт только по нижней зоне: у lite/pro/premium промпт
+        обязан называть ровно тарифное число, иначе поправка расползлась."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        from backend.interpretation.prompts import _volume_plan, resolve_word_limit
+        for tier in ("lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            sections, per_section, _, _ = _volume_plan(req, resolve_word_limit(req))
+            flag = TIER_FLAGS[tier]["interpretation_word_limit"]
+            assert abs(per_section * sections - flag) <= sections, tier
 
     def test_build_prompt_english(self):
         req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, language="en")
@@ -191,7 +209,7 @@ class TestVolumePlanDerivesParagraphs:
         from backend.interpretation.prompts import _WORDS_PER_PARAGRAPH
 
         for tier in ("free", "lite", "pro", "premium"):
-            sections, per_section, paragraphs = self._plan(tier)
+            sections, per_section, paragraphs, _ = self._plan(tier)
             asked_by_paragraphs = paragraphs * _WORDS_PER_PARAGRAPH * sections
             allowed = TIER_FLAGS[tier]["interpretation_word_limit"] * 1.25
             assert asked_by_paragraphs <= allowed, (
@@ -210,10 +228,30 @@ class TestVolumePlanDerivesParagraphs:
         """Требование владельца: старший тариф шире, младший короче."""
         prev_words, prev_paragraphs = 0, 0
         for tier in ("free", "lite", "pro", "premium"):
-            _, per_section, paragraphs = self._plan(tier)
+            _, per_section, paragraphs, _ = self._plan(tier)
             assert per_section > prev_words, f"tier={tier}"
             assert paragraphs >= prev_paragraphs, f"tier={tier}"
             prev_words, prev_paragraphs = per_section, paragraphs
+
+    def test_correction_applies_only_where_it_was_measured(self):
+        """Поправка на перевыполнение — только для коротких секций.
+
+        Замер 09.09.2026: при плане 33/50/75 слов на секцию модель писала
+        54/70/92 (устойчивое +20), а начиная со 133 шла за планом. Применить
+        поправку ко всем тарифам значило бы урезать те, где перебора нет.
+        """
+        from backend.auth.rate_limits import TIER_FLAGS
+        from backend.interpretation.prompts import (
+            _SHORT_SECTION_WORDS, _volume_plan, resolve_word_limit,
+        )
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            sections, per_section, _, _ = _volume_plan(req, resolve_word_limit(req))
+            target = TIER_FLAGS[tier]["interpretation_word_limit"] / sections
+            if target < _SHORT_SECTION_WORDS:
+                assert per_section < target, f"{tier}: поправка не применилась"
+            else:
+                assert per_section == round(target), f"{tier}: поправка залезла не туда"
 
     def test_free_lands_in_the_owners_range(self):
         """Целевой факт задания: free 400–500 слов. Здесь — намерение промпта;
@@ -229,7 +267,7 @@ class TestVolumePlanDerivesParagraphs:
         req = InterpretationRequest(
             natal_profile=SAMPLE_PROFILE, tier="pro", sections=["general", "career"],
         )
-        sections, per_section, _ = _volume_plan(req, 2000)
+        sections, per_section, _, _ = _volume_plan(req, 2000)
         assert sections == 2
         assert per_section == 1000
 
@@ -240,8 +278,7 @@ class TestVolumePlanDerivesParagraphs:
         for tier in ("free", "lite", "pro", "premium"):
             req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
             prompt = build_system_prompt(req)
-            _, per_section, paragraphs = self._plan(tier)
-            assert str(TIER_FLAGS[tier]["interpretation_word_limit"]) in prompt, tier
+            _, per_section, paragraphs, _ = self._plan(tier)
             assert str(per_section) in prompt, f"tier={tier}: нет объёма на секцию"
             assert f"{paragraphs} абзац" in prompt, f"tier={tier}: нет числа абзацев"
 

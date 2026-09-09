@@ -30,16 +30,48 @@ def resolve_word_limit(request: InterpretationRequest) -> int:
     return TIER_FLAGS.get(tier, TIER_FLAGS["free"])["interpretation_word_limit"]
 
 
-# Сколько слов в живом абзаце этого стиля. Не выдумано: замер настоящего
-# разбора с боевого free-аккаунта 09.09.2026 — 1067 слов в 18 абзацах, то есть
-# 59 слов на абзац. Число нужно ровно для одного — перевести целевой объём в
-# число абзацев; отдельной тарифной ручкой оно не является и в TIER_FLAGS ему
-# не место.
-_WORDS_PER_PARAGRAPH = 60
+# Сколько слов в живом абзаце этого стиля. Не выдумано и не оценено — замерено
+# прогоном всех четырёх тарифов на одной карте 09.09.2026 (deepseek-v4-pro,
+# новый промпт):
+#   free     6 абзацев → 69.5 слова
+#   lite    12 абзацев → 74.7
+#   pro     35 абзацев → 81.2
+#   premium 70 абзацев → 69.1
+# Среднее по итоговому прогону — 73.6, то есть 70 попадает в разброс. Все
+# четыре тарифа при этом сошлись в цель (free 417, lite 896, pro 2842,
+# premium 4834 слова, finish_reason=stop, шесть секций закрыты).
+#
+# ⚠️ Первая версия этой константы была 60 — из одного замера (1067 слов в 18
+# абзацах). Замер был верный, но нерепрезентативный: тот разбор шёл по старому
+# промпту с тремя абзацами на секцию. Четыре точки дали настоящее значение.
+#
+# Число нужно ровно для одного — перевести целевой объём в число абзацев;
+# отдельной тарифной ручкой оно не является и в TIER_FLAGS ему не место.
+_WORDS_PER_PARAGRAPH = 70
+
+# Модель систематически перевыполняет объём на КОРОТКИХ секциях: ниже примерно
+# сотни слов она добирает связность и пишет на два десятка слов больше, чем
+# просили. Замер 09.09.2026, одна карта, deepseek-v4-pro, слов на секцию:
+#   просили  33 →  54   (+21)
+#   просили  50 →  70   (+20)
+#   просили  75 →  92   (+17)
+#   просили 133 → 124   (−9)
+#   просили 417 → 487   (+70)
+#   просили 833 → 618   (−215)
+# Первые три точки — устойчивое смещение около +20. С 133 оно исчезает: там
+# модель идёт за планом. Поэтому поправка применяется ТОЛЬКО в нижней зоне,
+# где она измерена, а не ко всем тарифам подряд.
+#
+# ⚠️ Это поправка на поведение МОДЕЛИ, а не второй тарифный лимит. Источник
+# объёма остаётся один — interpretation_word_limit; здесь только пересчёт
+# «сколько попросить, чтобы получить столько, сколько заявлено». Три прогона
+# free подряд без неё дали 596, 549 и 562 слова при заявленных 450.
+_SHORT_SECTION_WORDS = 100
+_SHORT_SECTION_OVERSHOOT = 20
 
 
 def _volume_plan(request: InterpretationRequest, word_limit: int) -> tuple[int, int, int]:
-    """Целевой объём → (секций, слов на секцию, абзацев на секцию).
+    """Целевой объём → (секций, слов на секцию, абзацев, слов в абзаце).
 
     ⚠️ Смысл этой функции — в том, что число абзацев ВЫВОДИТСЯ, а не задаётся
     рядом с числом слов вторым независимым числом. Так было до 09.09.2026, и
@@ -58,9 +90,18 @@ def _volume_plan(request: InterpretationRequest, word_limit: int) -> tuple[int, 
     молча перекосила бы объём.
     """
     section_count = max(1, len(getattr(request, "sections", None) or []))
-    words_per_section = max(1, round(word_limit / section_count))
+    target_per_section = max(1, round(word_limit / section_count))
+
+    # Просим меньше, чем хотим получить, ровно в той зоне, где измерен
+    # систематический перебор (см. _SHORT_SECTION_OVERSHOOT выше).
+    if target_per_section < _SHORT_SECTION_WORDS:
+        words_per_section = max(25, target_per_section - _SHORT_SECTION_OVERSHOOT)
+    else:
+        words_per_section = target_per_section
+
     paragraphs = max(1, round(words_per_section / _WORDS_PER_PARAGRAPH))
-    return section_count, words_per_section, paragraphs
+    words_per_paragraph = max(1, round(words_per_section / paragraphs))
+    return section_count, words_per_section, paragraphs, words_per_paragraph
 
 
 SYSTEM_PROMPT_TEMPLATE = """Тебя зовут Аристея. Ты — навигатор решений, а не предсказатель: разбираешь карту простым живым языком и показываешь, на что опереться.
@@ -93,7 +134,7 @@ SYSTEM_PROMPT_TEMPLATE = """Тебя зовут Аристея. Ты — нав�
 - Без раздувания значимости, клише вроде «твой путь — раскрыть потенциал», нанизанных оборотов и обязательных троек
 - Без страшилок и фатальных формулировок; напряжённое — зона роста, а не приговор
 - Не выделяй жирным каждый термин; чередуй короткие и длинные фразы
-- Каждая секция: {paragraphs_per_section} {paragraph_word} содержательного текста, примерно {words_per_section} слов
+- Каждая секция: {paragraphs_per_section} {paragraph_word} по ~{words_per_paragraph} слов, всего примерно {words_per_section} слов
 
 ## Формат ответа
 Структурируй интерпретацию по секциям. Перед каждой секцией выводи открывающий XML-тег, после — закрывающий:
@@ -158,7 +199,9 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     # max_tokens в gpt4o.py/deepseek.py (раньше free целился в 800 слов
     # здесь, при лимите 500 в TIER_FLAGS — два независимых числа расходились).
     word_limit = resolve_word_limit(request)
-    section_count, words_per_section, paragraphs = _volume_plan(request, word_limit)
+    section_count, words_per_section, paragraphs, words_per_paragraph = _volume_plan(
+        request, word_limit,
+    )
 
     # "Не обрывай предложение" — раньше было только в word_limit-ветке,
     # в тарифных ветках (в т.ч. free) отсутствовало вовсе.
@@ -173,8 +216,13 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     # боевого free-аккаунта 09.09.2026 дал 1067 слов вместо 500 — ровно по три
     # абзаца в каждой из шести секций. Теперь абзацы ВЫВОДЯТСЯ из слов
     # (_volume_plan), поэтому разойтись им не с чем.
+    # ⚠️ Общий объём в инструкции — это words_per_section × секции, а НЕ
+    # word_limit: в нижней зоне мы просим меньше заявленного (см. _volume_plan),
+    # и назвать здесь заявленное число значило бы снова дать модели два
+    # расходящихся ориентира — ровно то, от чего эта правка избавлялась.
+    asked_total = words_per_section * section_count
     word_count_instruction = (
-        f"Общий объём — около {word_limit} слов, это примерно {words_per_section} "
+        f"Общий объём — около {asked_total} слов, это примерно {words_per_section} "
         f"слов на каждую из {section_count} секций. Не превышай этот объём: "
         f"лучше короче и плотнее, чем длиннее и водянистее." + no_cutoff
     )
@@ -189,6 +237,7 @@ def build_system_prompt(request: InterpretationRequest) -> str:
         paragraphs_per_section=paragraphs_per_section,
         paragraph_word=_plural(paragraphs, "абзац", "абзаца", "абзацев"),
         words_per_section=words_per_section,
+        words_per_paragraph=words_per_paragraph,
     )
 
 
