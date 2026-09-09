@@ -239,3 +239,29 @@ class TestFoldRejectsTruncated:
             await rag_router._update_memory(uid, "вопрос", [], {"answer": "ответ"})
 
         assert db.get(AstreaMemory, uid).summary == "Сводка без поля."
+
+
+class TestOffTopicDoesNotTouchMemory:
+    """Ветка чужой темы намеренно не сворачивается в память.
+
+    Закреплено и комментарием в коде, и этим тестом — чтобы следующая разведка
+    не искала заново, задумано так или забыто. Разведка 09.09.2026 нашла эту
+    ветку пятой в списке «где свёртка пропускается молча» и ответить на этот
+    вопрос не смогла.
+    """
+
+    def test_off_topic_response_does_not_fold(self, client: TestClient, db: Session):
+        user = make_pro_user(db, email="memofftopic@example.com")
+        chart = make_chart(db, user.id)
+        fold = AsyncMock()
+
+        with patch.object(rag_router, "_update_memory", fold), \
+             patch.object(rag_router, "_classify_topic", AsyncMock(return_value="money")):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "курс доллара"},
+                headers=auth_headers(user),
+            )
+
+        assert resp.status_code == 200
+        assert fold.call_count == 0
