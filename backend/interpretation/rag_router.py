@@ -377,12 +377,39 @@ def _load_memory(db: Session, user_id: str) -> str:
         return ""
 
 
-async def _update_memory(user_id: str, question: str, history: list[dict]) -> None:
-    """Слой 2: сворачивает текущий диалог в память (фоново, после ответа).
+async def _update_memory(
+    user_id: str, question: str, history: list[dict], turn: dict | None = None,
+) -> None:
+    """Слой 2: сворачивает ЗАВЕРШЁННЫЙ ход диалога в память.
 
     Один дешёвый вызов DeepSeek на реплику. Ошибки не критичны — память
     просто не обновится, чат от этого не страдает.
+
+    ⚠️ **`turn` — держатель, который заполняет `_sse_generator`, и он здесь
+    нужен по существу, а не для удобства.** `BackgroundTask` связывает свои
+    аргументы в момент СОЗДАНИЯ, то есть до того, как ответ модели существует.
+    Пока сюда передавали только `question`, в свёртку уходил вопрос человека
+    без ответа на него: ответ попадал в память лишь ходом позже, когда
+    становился частью `history`, а последний ответ разговора — НИКОГДА.
+    Замерено 09.09.2026: на первом ходу `history` пуста, и свёртка видела ровно
+    одну строку — вопрос.
+
+    Обиднее всего, что промпт свёртки прямо просит запомнить, «что советовала
+    Аристея», — а именно свежего совета в данных и не было. Инструкция и данные
+    расходились.
+
+    Держатель решает это, не ломая жизненный цикл ответа: Starlette исчерпывает
+    генератор и лишь ПОТОМ зовёт background (`stream_response` → `background()`
+    в `starlette/responses.py`), то есть к этому моменту текст уже собран и
+    записан в `turn`. Ждать свёртку внутри самого генератора было нельзя —
+    это отложило бы `[DONE]` клиенту на всё время второго вызова модели.
+
+    ⚠️ Нет ответа — не сворачиваем вовсе. Ход не состоялся: `_persist_turn` его
+    тоже не записал, и памяти нечего запоминать, кроме вопроса в пустоту.
     """
+    answer = (turn or {}).get("answer", "")
+    if not answer:
+        return
     try:
         db = SessionLocal()
         try:
@@ -397,6 +424,7 @@ async def _update_memory(user_id: str, question: str, history: list[dict]) -> No
                 who = "Пользователь" if m.get("role") == "user" else "Аристея"
                 lines.append(f"{who}: {content}")
             lines.append(f"Пользователь: {question}")
+            lines.append(f"Аристея: {answer}")
             dialog = "\n".join(lines)[:4000]
 
             fold_prompt = (
@@ -466,6 +494,7 @@ async def _sse_generator(
     chart_id: str = "",
     question: str = "",
     history: list[dict] | None = None,
+    turn: dict | None = None,
 ):
     """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю.
 
@@ -553,6 +582,13 @@ async def _sse_generator(
             # при их отсутствии track_spend ничего не пишет.
             track_engine_spend("deepseek", stream_tokens, "rag_chat")
             await _persist_turn(user_id, chart_id, question, answer, history)
+            # Держатель для фоновой свёртки памяти. Заполняется РЯДОМ с
+            # _persist_turn и по той же причине: здесь текст впервые существует
+            # целиком. Свёртку запускает background у ответа — она выполнится
+            # после того, как генератор исчерпан, то есть уже увидит это
+            # значение (см. докстринг _update_memory).
+            if turn is not None:
+                turn["answer"] = answer
         yield "data: [DONE]\n\n"
 
     except asyncio.TimeoutError:
@@ -669,6 +705,13 @@ async def rag_chat(
     # История берётся с сервера, а не из тела запроса: клиентская история
     # позволяла подделывать реплики ассистента и переопределять поведение модели.
     history = await _load_history(user.id, chart_id)
+
+    # Держатель завершённого хода: генератор кладёт сюда полный текст ответа,
+    # фоновая свёртка памяти читает. Пустой словарь, а не строка, потому что
+    # BackgroundTask связывает аргументы в момент создания — то есть ДО того,
+    # как ответ существует; передать можно только ссылку на общий объект.
+    turn: dict = {}
+
     messages = (
         [{"role": "system", "content": system}]
         + history
@@ -683,13 +726,14 @@ async def rag_chat(
             chart_id=chart_id,
             question=question,
             history=history,
+            turn=turn,
         ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
-        background=BackgroundTask(_update_memory, user.id, question, history),
+        background=BackgroundTask(_update_memory, user.id, question, history, turn),
     )
 
 
