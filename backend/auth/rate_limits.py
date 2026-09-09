@@ -40,7 +40,13 @@ settings = get_settings()
 
 TIER_FLAGS: dict[str, dict] = {
     "free": {
-        "interpretation_word_limit": 500,
+        # 09.09.2026: было 500. Замер настоящего разбора на боевом
+        # free-аккаунте дал 1067 слов — вдвое больше заявленного, потому
+        # что рядом с числом слов в промпте стояло независимое число
+        # абзацев (см. _volume_plan в interpretation/prompts.py). После
+        # того как абзацы стали производными, целевые 450 попадают в
+        # заявленную владельцем вилку 400–500 слов.
+        "interpretation_word_limit": 450,
         "interpretations_per_month": 0,        # только превью (блюр)
         "first_interpretation_free": True,     # 3.3: одна полная интерпретация навсегда
         "charts_per_day": None,

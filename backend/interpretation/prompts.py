@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import json
 from backend.interpretation.base import InterpretationRequest
+# Склонение числительных в этом рантайме живёт в одном месте — там же,
+# где числа в письмах (CLAUDE.md, раздел про склонение). Второй копии
+# правила «1 абзац / 3 абзаца / 12 абзацев» не заводим.
+from backend.email_service import _plural
 
 
 def resolve_word_limit(request: InterpretationRequest) -> int:
@@ -24,6 +28,39 @@ def resolve_word_limit(request: InterpretationRequest) -> int:
     from backend.auth.rate_limits import TIER_FLAGS
     tier = getattr(request, "tier", "free")
     return TIER_FLAGS.get(tier, TIER_FLAGS["free"])["interpretation_word_limit"]
+
+
+# Сколько слов в живом абзаце этого стиля. Не выдумано: замер настоящего
+# разбора с боевого free-аккаунта 09.09.2026 — 1067 слов в 18 абзацах, то есть
+# 59 слов на абзац. Число нужно ровно для одного — перевести целевой объём в
+# число абзацев; отдельной тарифной ручкой оно не является и в TIER_FLAGS ему
+# не место.
+_WORDS_PER_PARAGRAPH = 60
+
+
+def _volume_plan(request: InterpretationRequest, word_limit: int) -> tuple[int, int, int]:
+    """Целевой объём → (секций, слов на секцию, абзацев на секцию).
+
+    ⚠️ Смысл этой функции — в том, что число абзацев ВЫВОДИТСЯ, а не задаётся
+    рядом с числом слов вторым независимым числом. Так было до 09.09.2026, и
+    два числа противоречили друг другу: free просили «около 500 слов» и тут же
+    «2–3 абзаца» на каждую из шести секций, то есть 12–18 абзацев — минимум
+    вдвое больше, чем влезает в 500 слов. Модель слушала абзацы, а не слова:
+    замер на боевом free-аккаунте дал 1067 слов при заявленных 500.
+
+    Это тот же класс дефекта, что `charts_per_month` рядом с `profiles_limit`
+    и `pdf_per_month` на витрине: два числа, обязанных совпадать, рано или
+    поздно расходятся. Лечение то же — оставить одно и вывести из него второе.
+
+    Число секций берётся из самого запроса, а не из константы: `sections`
+    объявлены полем `InterpretationRequest`, и вызывающая сторона вправе
+    попросить не все шесть (CRM так и делает). Захардкоженная шестёрка тогда
+    молча перекосила бы объём.
+    """
+    section_count = max(1, len(getattr(request, "sections", None) or []))
+    words_per_section = max(1, round(word_limit / section_count))
+    paragraphs = max(1, round(words_per_section / _WORDS_PER_PARAGRAPH))
+    return section_count, words_per_section, paragraphs
 
 
 SYSTEM_PROMPT_TEMPLATE = """Тебя зовут Аристея. Ты — навигатор решений, а не предсказатель: разбираешь карту простым живым языком и показываешь, на что опереться.
@@ -56,7 +93,7 @@ SYSTEM_PROMPT_TEMPLATE = """Тебя зовут Аристея. Ты — нав�
 - Без раздувания значимости, клише вроде «твой путь — раскрыть потенциал», нанизанных оборотов и обязательных троек
 - Без страшилок и фатальных формулировок; напряжённое — зона роста, а не приговор
 - Не выделяй жирным каждый термин; чередуй короткие и длинные фразы
-- Каждая секция: {paragraphs_per_section} абзацев содержательного текста
+- Каждая секция: {paragraphs_per_section} {paragraph_word} содержательного текста, примерно {words_per_section} слов
 
 ## Формат ответа
 Структурируй интерпретацию по секциям. Перед каждой секцией выводи открывающий XML-тег, после — закрывающий:
@@ -120,9 +157,8 @@ def build_system_prompt(request: InterpretationRequest) -> str:
     # Объём — из resolve_word_limit(): один источник и для промпта, и для
     # max_tokens в gpt4o.py/deepseek.py (раньше free целился в 800 слов
     # здесь, при лимите 500 в TIER_FLAGS — два независимых числа расходились).
-    explicit_word_limit = getattr(request, "word_limit", None)
-    tier = getattr(request, "tier", "free")
     word_limit = resolve_word_limit(request)
+    section_count, words_per_section, paragraphs = _volume_plan(request, word_limit)
 
     # "Не обрывай предложение" — раньше было только в word_limit-ветке,
     # в тарифных ветках (в т.ч. free) отсутствовало вовсе.
@@ -131,28 +167,18 @@ def build_system_prompt(request: InterpretationRequest) -> str:
         "предложением — никогда не обрывай текст на полуслове или в середине мысли."
     )
 
-    if explicit_word_limit and isinstance(explicit_word_limit, int) and 1000 <= explicit_word_limit <= 5000:
-        word_count_instruction = (
-            f"Напиши интерпретацию объёмом около {word_limit} слов суммарно по всем секциям. "
-            f"Распредели слова равномерно между секциями." + no_cutoff
-        )
-        paragraphs_per_section = str(max(2, word_limit // 500))
-    elif tier == "premium":
-        word_count_instruction = (
-            f"Напиши ПОДРОБНУЮ интерпретацию объёмом НЕ МЕНЕЕ {word_limit} слов суммарно по всем "
-            f"секциям. Каждая секция должна быть развёрнутой и глубокой." + no_cutoff
-        )
-        paragraphs_per_section = "8–12"
-    elif tier == "pro":
-        word_count_instruction = (
-            f"Напиши интерпретацию объёмом около {word_limit} слов суммарно." + no_cutoff
-        )
-        paragraphs_per_section = "5–7"
-    else:
-        word_count_instruction = (
-            f"Напиши краткую интерпретацию объёмом около {word_limit} слов суммарно." + no_cutoff
-        )
-        paragraphs_per_section = "2–3"
+    # Одна инструкция на все тарифы. Раньше их было четыре, и в каждой рядом с
+    # числом слов стояло НЕЗАВИСИМОЕ число абзацев («2–3» у free при 500 словах
+    # на шесть секций). Модель слушала абзацы: замер настоящего разбора с
+    # боевого free-аккаунта 09.09.2026 дал 1067 слов вместо 500 — ровно по три
+    # абзаца в каждой из шести секций. Теперь абзацы ВЫВОДЯТСЯ из слов
+    # (_volume_plan), поэтому разойтись им не с чем.
+    word_count_instruction = (
+        f"Общий объём — около {word_limit} слов, это примерно {words_per_section} "
+        f"слов на каждую из {section_count} секций. Не превышай этот объём: "
+        f"лучше короче и плотнее, чем длиннее и водянистее." + no_cutoff
+    )
+    paragraphs_per_section = str(paragraphs)
 
     return SYSTEM_PROMPT_TEMPLATE.format(
         sections_list=sections_list,
@@ -161,6 +187,8 @@ def build_system_prompt(request: InterpretationRequest) -> str:
         time_warning=time_warning,
         word_count_instruction=word_count_instruction,
         paragraphs_per_section=paragraphs_per_section,
+        paragraph_word=_plural(paragraphs, "абзац", "абзаца", "абзацев"),
+        words_per_section=words_per_section,
     )
 
 

@@ -161,6 +161,100 @@ class TestPromptBuilder:
             assert deg == round(deg, 1)
 
 
+class TestVolumePlanDerivesParagraphs:
+    """Число абзацев обязано выводиться из числа слов, а не стоять рядом с ним.
+
+    До 09.09.2026 в промпте было два независимых числа: «около 500 слов» и
+    «2–3 абзаца» на каждую из шести секций. Они противоречили друг другу —
+    12–18 абзацев в 500 слов не помещаются, — и модель слушала абзацы. Замер
+    настоящего разбора на боевом free-аккаунте: 1067 слов вместо 500, ровно
+    по три абзаца в каждой из шести секций.
+
+    Тот же класс дефекта, что charts_per_month рядом с profiles_limit. Здесь
+    он закрыт тем, что второе число вычисляется, а тесты ниже стерегут, чтобы
+    его не завели обратно руками.
+    """
+
+    @staticmethod
+    def _plan(tier: str):
+        from backend.interpretation.prompts import _volume_plan, resolve_word_limit
+        req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+        return _volume_plan(req, resolve_word_limit(req))
+
+    def test_paragraph_budget_fits_the_word_budget(self):
+        """Главный инвариант: абзацы не просят больше слов, чем разрешено.
+
+        Именно это раньше и нарушалось — вдвое. Допуск 25% сверху: абзац
+        живой, а не ровно _WORDS_PER_PARAGRAPH.
+        """
+        from backend.auth.rate_limits import TIER_FLAGS
+        from backend.interpretation.prompts import _WORDS_PER_PARAGRAPH
+
+        for tier in ("free", "lite", "pro", "premium"):
+            sections, per_section, paragraphs = self._plan(tier)
+            asked_by_paragraphs = paragraphs * _WORDS_PER_PARAGRAPH * sections
+            allowed = TIER_FLAGS[tier]["interpretation_word_limit"] * 1.25
+            assert asked_by_paragraphs <= allowed, (
+                f"tier={tier}: абзацы просят {asked_by_paragraphs} слов при "
+                f"лимите {TIER_FLAGS[tier]['interpretation_word_limit']}"
+            )
+
+    def test_old_free_config_would_fail_this(self):
+        """Проверка самой проверки: прежняя пара (500 слов, 3 абзаца на 6
+        секций) обязана этот инвариант нарушать — иначе тест выше ничего не
+        стережёт."""
+        from backend.interpretation.prompts import _WORDS_PER_PARAGRAPH
+        assert 3 * _WORDS_PER_PARAGRAPH * 6 > 500 * 1.25
+
+    def test_higher_tier_is_wider(self):
+        """Требование владельца: старший тариф шире, младший короче."""
+        prev_words, prev_paragraphs = 0, 0
+        for tier in ("free", "lite", "pro", "premium"):
+            _, per_section, paragraphs = self._plan(tier)
+            assert per_section > prev_words, f"tier={tier}"
+            assert paragraphs >= prev_paragraphs, f"tier={tier}"
+            prev_words, prev_paragraphs = per_section, paragraphs
+
+    def test_free_lands_in_the_owners_range(self):
+        """Целевой факт задания: free 400–500 слов. Здесь — намерение промпта;
+        фактическую длину живой генерации тест не проверяет и проверить не
+        может (нужен реальный вызов модели)."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        assert 400 <= TIER_FLAGS["free"]["interpretation_word_limit"] <= 500
+
+    def test_section_count_comes_from_the_request(self):
+        """Секций может быть не шесть: CRM просит свой набор. Захардкоженная
+        шестёрка молча перекосила бы объём на каждую секцию."""
+        from backend.interpretation.prompts import _volume_plan
+        req = InterpretationRequest(
+            natal_profile=SAMPLE_PROFILE, tier="pro", sections=["general", "career"],
+        )
+        sections, per_section, _ = _volume_plan(req, 2000)
+        assert sections == 2
+        assert per_section == 1000
+
+    def test_prompt_states_both_numbers_and_they_agree(self):
+        """В тексте промпта обязаны стоять и общий объём, и объём на секцию —
+        иначе у модели снова остаётся один ориентир, и не тот."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            prompt = build_system_prompt(req)
+            _, per_section, paragraphs = self._plan(tier)
+            assert str(TIER_FLAGS[tier]["interpretation_word_limit"]) in prompt, tier
+            assert str(per_section) in prompt, f"tier={tier}: нет объёма на секцию"
+            assert f"{paragraphs} абзац" in prompt, f"tier={tier}: нет числа абзацев"
+
+    def test_single_paragraph_is_declined_correctly(self):
+        """free получает один абзац — «1 абзацев» в промпте выглядело бы так
+        же неряшливо, как в письме."""
+        req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier="free")
+        prompt = build_system_prompt(req)
+        assert "1 абзац " in prompt
+        assert "1 абзацев" not in prompt
+        assert "1 абзаца" not in prompt
+
+
 class TestMaxTokens:
     """max_tokens выводится из TIER_FLAGS.interpretation_word_limit, а не
     задаётся плоским числом на тир (было: free/lite получали одинаковые
