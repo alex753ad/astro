@@ -1056,6 +1056,30 @@ def _save_chart_interpretation(db, chart, profile: dict, chunks: list[str], inte
         logger.exception("Не удалось сохранить разбор карты %s", chart.id)
 
 
+def _finish_event(reason):
+    """Событие с причиной завершения — последнее перед [DONE].
+
+    Заведено 09.09.2026. До него клиент мог узнать «текст полон» только по
+    наличию самого маркера [DONE]: настоящий finish_reason провайдера наружу
+    не выходил, и вывод «пришёл [DONE], значит stop» был рассуждением по
+    коду, а не прочитанным фактом. Рассуждение верное, но оно ломается от
+    любой будущей правки, которая начнёт отдавать [DONE] на новом пути, — и
+    ломается молча.
+
+    ⚠️ Пользователю это поле не показывать: оно про механику стрима, а не
+    про разбор. Никакой текст из него не собирается.
+
+    ⚠️ Поле НЕОБЯЗАТЕЛЬНОЕ, и старые клиенты обязаны его пережить. Они и
+    переживают: в `_connectSSE` (`frontend/src/api/client.js`) событие без
+    `type`, `text` и `error` не попадает ни в одну ветку разбора и молча
+    отбрасывается; мобильный клиент ходит тем же транспортом. Поэтому
+    событие ОТДЕЛЬНОЕ, а не поле внутри [DONE]: [DONE] сравнивается со
+    строкой целиком, и любая добавка в него сломала бы обоих клиентов разом.
+    """
+    payload = json.dumps({"finish_reason": reason}, ensure_ascii=False)
+    return "data: " + payload + '\n\n'
+
+
 @app.get(
     "/api/v1/chart/{chart_id}/interpret",
     tags=["interpretation"],
@@ -1148,6 +1172,10 @@ async def interpret_chart(
         if saved_interpretation is not None:
             payload = {'text': saved_interpretation.content}
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            # Запись в БД делает _save_chart_interpretation, и только после
+            # успешно завершённого цикла, то есть при finish_reason == "stop".
+            # Значит для сохранённого текста "stop" — факт о нём, а не догадка.
+            yield _finish_event("stop")
             yield "data: [DONE]\n\n"
             return
 
@@ -1170,6 +1198,7 @@ async def interpret_chart(
             if produced:
                 _save_chart_interpretation(db, chart, profile, collected, interp_request)
                 tier_limiter.commit_interpretation(user, db, chart=chart)
+            yield _finish_event(getattr(interp_request, "finish_reason", None))
             yield "data: [DONE]\n\n"
         except IncompleteInterpretation:
             # Обрезано по длине или связь оборвалась после части текста —
