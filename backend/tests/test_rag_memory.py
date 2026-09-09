@@ -167,3 +167,75 @@ class TestFoldSeesTheAnswer:
             await rag_router._update_memory(uid, "вопрос", [], None)    # держателя нет
 
         assert calls["n"] == 0
+
+
+class TestFoldRejectsTruncated:
+    """`finish_reason != "stop"` — сводка обрезана на полуслове. Не сохраняем,
+    оставляем прежнюю: тот же приём, что в натальном разборе.
+
+    `MEMORY_MAX_TOKENS = 400` — это ~130-160 русских слов при просимых в
+    промпте 120, то есть модель, перевыполнившая объём, упирается в потолок
+    штатно, а не в исключительном случае.
+    """
+
+    @pytest.mark.asyncio
+    async def test_truncated_summary_does_not_overwrite(self, db: Session):
+        user = make_pro_user(db, email="memtrunc@example.com")
+        uid = user.id   # ⚠️ до вызова: _update_memory закрывает сессию (db.close())
+        db.add(AstreaMemory(user_id=uid, summary="Прежняя сводка."))
+        db.commit()
+        captured = {"answer": "ответ"}
+
+        with patch.object(rag_router, "SessionLocal", lambda: db), \
+             patch.object(rag_router.httpx, "AsyncClient",
+                          _fold_client("Обрывок на полусло", captured, finish_reason="length")):
+            await rag_router._update_memory(uid, "вопрос", [], {"answer": "ответ"})
+
+        row = db.get(AstreaMemory, uid)
+        assert row.summary == "Прежняя сводка.", "обрезанная сводка затёрла прежнюю"
+
+    @pytest.mark.asyncio
+    async def test_truncated_summary_does_not_create_a_row(self, db: Session):
+        """Памяти ещё не было — обрывок не должен стать первой записью."""
+        user = make_pro_user(db, email="memtrunc2@example.com")
+        uid = user.id
+        captured = {"answer": "ответ"}
+
+        with patch.object(rag_router, "SessionLocal", lambda: db), \
+             patch.object(rag_router.httpx, "AsyncClient",
+                          _fold_client("Обрывок", captured, finish_reason="length")):
+            await rag_router._update_memory(uid, "вопрос", [], {"answer": "ответ"})
+
+        assert db.get(AstreaMemory, uid) is None
+
+    @pytest.mark.asyncio
+    async def test_complete_summary_is_saved(self, db: Session):
+        """Штатный путь не сломан."""
+        user = make_pro_user(db, email="memok@example.com")
+        uid = user.id
+        captured = {"answer": "ответ"}
+
+        with patch.object(rag_router, "SessionLocal", lambda: db), \
+             patch.object(rag_router.httpx, "AsyncClient",
+                          _fold_client("Новая сводка.", captured, finish_reason="stop")):
+            await rag_router._update_memory(uid, "вопрос", [], {"answer": "ответ"})
+
+        assert db.get(AstreaMemory, uid).summary == "Новая сводка."
+
+    @pytest.mark.asyncio
+    async def test_missing_finish_reason_is_tolerated(self, db: Session):
+        """Провайдер поля не прислал — не повод терять сводку.
+
+        Раньше его не проверяли вовсе; ломать штатный путь из-за отсутствия
+        поля было бы регрессом, а не защитой.
+        """
+        user = make_pro_user(db, email="memnofr@example.com")
+        uid = user.id
+        captured = {"answer": "ответ"}
+
+        with patch.object(rag_router, "SessionLocal", lambda: db), \
+             patch.object(rag_router.httpx, "AsyncClient",
+                          _fold_client("Сводка без поля.", captured, finish_reason=None)):
+            await rag_router._update_memory(uid, "вопрос", [], {"answer": "ответ"})
+
+        assert db.get(AstreaMemory, uid).summary == "Сводка без поля."

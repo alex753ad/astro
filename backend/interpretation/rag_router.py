@@ -453,10 +453,36 @@ async def _update_memory(
                     },
                 )
                 resp.raise_for_status()
-                new_summary = resp.json()["choices"][0]["message"]["content"].strip()
+                choice = resp.json()["choices"][0]
+                finish_reason = choice.get("finish_reason")
+                new_summary = choice["message"]["content"].strip()
 
             if not new_summary:
                 return
+
+            # ⚠️ Обрезанную сводку НЕ сохраняем, оставляем прежнюю. Тот же
+            # приём, что в натальном разборе (`interpretation/router.py`: при
+            # finish_reason != "stop" результат не кэшируется), и по той же
+            # причине — незаконченный текст хуже отсутствующего.
+            #
+            # Здесь это особенно легко проглядеть: `MEMORY_MAX_TOKENS = 400` —
+            # это примерно 130–160 русских слов, то есть чуть выше просимых в
+            # промпте 120. Модель, перевыполнившая объём (а на коротких
+            # заданиях она это делает устойчиво, см. CLAUDE.md «Объём разбора»),
+            # упирается в потолок, ответ приходит с finish_reason="length" — и
+            # до 09.09.2026 обрывок на полуслове ложился в БД молча и жил там,
+            # подмешиваясь в КАЖДЫЙ следующий запрос чата.
+            #
+            # Прежняя сводка при этом не теряется: пропуск обновления оставляет
+            # её как есть. Худшее последствие — память на один ход устарела.
+            if finish_reason is not None and finish_reason != "stop":
+                logger.warning(
+                    "astrea memory fold ended with finish_reason=%s — сводка не сохранена "
+                    "(user=%s, длина обрывка=%d)",
+                    finish_reason, user_id, len(new_summary),
+                )
+                return
+
             new_summary = new_summary[:2000]
 
             if row:
