@@ -417,3 +417,136 @@ class TestTopicRestriction:
 
         assert resp.status_code == 200
         assert "Ответ по карте" in resp.text
+
+
+# ═══════════════════════════════════════════════════════════
+# GET /rag-chat/history — чтение диалога, который помнит сервер
+# ═══════════════════════════════════════════════════════════
+class TestHistoryEndpoint:
+    """История живёт на сервере и подмешивается в промпт, а прочитать её
+    клиенту было нечем: у чата был ровно один маршрут, POST. В приложении
+    шторку чата закрывают и открывают постоянно — человек видел пустое окно
+    у модели, которая продолжает помнить разговор.
+    """
+
+    def test_returns_persisted_dialogue(self, client: TestClient, db: Session):
+        """Главный кейс: что записал POST — то и отдаёт GET."""
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+        lines = [_sse({"choices": [{"delta": {"content": "Ответ по карте"}}]}), "data: [DONE]"]
+
+        with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="astrology")), \
+             patch.object(rag_router.httpx, "AsyncClient", _fake_async_client(lines, [])):
+            client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": "Что про карьеру?"},
+                headers=auth_headers(user),
+            )
+
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/rag-chat/history",
+            headers=auth_headers(user),
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["messages"] == [
+            {"role": "user", "content": "Что про карьеру?"},
+            {"role": "assistant", "content": "Ответ по карте"},
+        ]
+
+    def test_empty_history_is_empty_list_not_error(self, client: TestClient, db: Session):
+        """Пустой чат — штатное состояние (первый вопрос по карте), а не сбой."""
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/rag-chat/history",
+            headers=auth_headers(user),
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {"messages": []}
+
+    def test_foreign_chart_is_404(self, client: TestClient, db: Session):
+        """Та же проверка владения, что в POST: иначе ручка стала бы оракулом
+        чужих chart_id — 200 с пустым списком там, где карты нет вовсе.
+
+        ⚠️ Владелец на том же URL проверяется здесь же, и это не украшение.
+        Без него тест зелёный и на коде БЕЗ маршрута: 404 отдал бы сам
+        FastAPI, ничего не проверив. Пара «чужой 404 / свой 200» отличает
+        отказ по владению от отсутствия ручки.
+        """
+        owner = make_pro_user(db)
+        other = make_pro_user(db, email="other_hist@example.com")
+        chart = make_chart(db, owner.id)
+        url = f"/api/v1/chart/{chart.id}/rag-chat/history"
+
+        assert client.get(url, headers=auth_headers(other)).status_code == 404
+        assert client.get(url, headers=auth_headers(owner)).status_code == 200
+
+    def test_free_tier_is_403(self, client: TestClient, db: Session, user_free, auth_headers_free):
+        """Тариф — тот же require_tier("pro"), что у самого чата."""
+        chart = make_chart(db, user_free.id)
+
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/rag-chat/history",
+            headers=auth_headers_free,
+        )
+
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_leaks_neither_system_prompt_nor_knowledge_nor_memory(
+        self, client: TestClient, db: Session, fake_redis,
+    ):
+        """⚠️ Главный инвариант ручки, ради него она и написана осторожно.
+
+        Наружу уходят ТОЛЬКО реплики человека и ответы модели. Ровно эти три
+        вещи — системный промпт, база знаний и память Аристеи — уже
+        вытаскивали через поданную клиентом историю с role="assistant" (см.
+        докстринг RagChatRequest), из-за чего история и переехала на сервер.
+
+        Проверка идёт от противного: кладём в Redis запись с ролью system и
+        секретом внутри — такую, какую туда положил бы будущий неосторожный
+        писатель, — и требуем, чтобы ручка её не отдала.
+        """
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+        await fake_redis.set(
+            rag_router._history_key(user.id, chart.id),
+            json.dumps([
+                {"role": "system", "content": "СЕКРЕТНЫЙ СИСТЕМНЫЙ ПРОМПТ"},
+                {"role": "user", "content": "Вопрос"},
+                {"role": "assistant", "content": "Ответ"},
+            ], ensure_ascii=False),
+        )
+
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/rag-chat/history",
+            headers=auth_headers(user),
+        )
+
+        assert resp.status_code == 200
+        messages = resp.json()["messages"]
+        assert {m["role"] for m in messages} <= {"user", "assistant"}
+        assert "СЕКРЕТНЫЙ" not in resp.text
+
+    @pytest.mark.asyncio
+    async def test_caps_at_max_history(self, client: TestClient, db: Session, fake_redis):
+        """Отдаём столько же, сколько уходит в промпт, — не всю ленту Redis."""
+        user = make_pro_user(db)
+        chart = make_chart(db, user.id)
+        await fake_redis.set(
+            rag_router._history_key(user.id, chart.id),
+            json.dumps(
+                [{"role": "user", "content": f"q{i}"} for i in range(rag_router.MAX_HISTORY + 6)],
+                ensure_ascii=False,
+            ),
+        )
+
+        resp = client.get(
+            f"/api/v1/chart/{chart.id}/rag-chat/history",
+            headers=auth_headers(user),
+        )
+
+        assert len(resp.json()["messages"]) == rag_router.MAX_HISTORY

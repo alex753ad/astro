@@ -1,10 +1,13 @@
-"""RAG-чат по натальной карте — эндпоинт для Pro/Premium.
+"""RAG-чат по натальной карте — эндпоинты для Pro/Premium.
 
 POST /api/v1/chart/{chart_id}/rag-chat
   body:  { "question": "...", "history": [{"role":"user","content":"..."}] }
   SSE stream: data: {"text": "..."} ... data: [DONE]
 
-Требует тариф 'pro' или выше.
+GET  /api/v1/chart/{chart_id}/rag-chat/history
+  { "messages": [{"role":"user"|"assistant","content":"..."}] }
+
+Оба требуют тариф 'pro' или выше.
 """
 
 from __future__ import annotations
@@ -605,3 +608,50 @@ async def rag_chat(
         },
         background=BackgroundTask(_update_memory, user.id, question, history),
     )
+
+
+@router.get("/api/v1/chart/{chart_id}/rag-chat/history")
+async def rag_chat_history(
+    chart_id: str,
+    user: User = Depends(require_tier("pro")),
+    db: Session = Depends(get_db),
+):
+    """Диалог, который сервер помнит по этой карте. Только для чтения.
+
+    Зачем нужен: история живёт на сервере (Redis, `rag:hist:{user}:{chart}`,
+    MAX_HISTORY реплик, HISTORY_TTL бездействия) и подмешивается в промпт при
+    каждом вопросе, а прочитать её клиенту было нечем — маршрут у чата был
+    ровно один, POST. На вебе это почти не видно (состояние живёт в React,
+    пока не перезагрузили страницу), а в приложении шторку чата закрывают и
+    открывают постоянно: человек видел пустое окно у модели, которая
+    продолжает помнить разговор. Снаружи это неотличимо от потери данных.
+
+    ⚠️ **Наружу уходят только реплики человека и ответы модели.** Ни
+    системного промпта, ни базы знаний, ни памяти Аристеи (`astrea_memory`)
+    здесь нет и быть не должно: ровно это уже вытаскивали через поданную
+    клиентом историю с role="assistant" (см. докстринг RagChatRequest —
+    из-за того случая история и переехала на сервер). Гарантия структурная,
+    а не по недосмотру: в Redis ложится только то, что кладёт туда
+    `_persist_turn` — пара «вопрос человека / ответ модели», — а `_load_history`
+    вдобавок отбрасывает всё, чья роль не user и не assistant. Собирать ответ
+    из чего-то ещё здесь нечем.
+
+    ⚠️ **Ничего не достраиваем.** Отдаём то, что реально лежит в Redis:
+    истории нет, она истекла по TTL или Redis недоступен — пустой список и
+    200, а не ошибка. Пустой чат — нормальное состояние (первый вопрос по
+    карте), и показывать на нём отказ значило бы ломать штатный путь ради
+    сбоя, от которого чат и так не зависит: `_load_history` при недоступном
+    Redis точно так же отдаёт пустую историю и вопрос всё равно уходит модели.
+
+    Проверка владения картой — та же, что в POST, и по той же причине: без
+    неё ручка стала бы оракулом чужих chart_id (200 с пустым списком там, где
+    карты нет вовсе). Тариф — тот же require_tier("pro").
+    """
+    chart = db.query(NatalChart).filter(
+        NatalChart.id == chart_id,
+        NatalChart.user_id == user.id,
+    ).first()
+    if not chart:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    return {"messages": await _load_history(user.id, chart_id)}

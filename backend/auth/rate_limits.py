@@ -29,6 +29,7 @@ from fastapi import HTTPException, Request, status
 
 from backend.limiter import client_ip
 from backend.config import get_settings
+from backend.auth.jwt import decode_token
 from backend.models import User
 
 settings = get_settings()
@@ -295,20 +296,67 @@ def _base_id(request: Request) -> str:
     return f"ip:{client_ip(request)}"
 
 
-# /interpret — два ключа, два декоратора в main.py
-def interpret_free_key(request: Request) -> str:
-    return f"interp:free:{_base_id(request)}"
+# Здесь до 09.09.2026 стояли interpret_free_key / interpret_pro_key /
+# interpret_premium_key с комментарием «/interpret — два ключа, два декоратора
+# в main.py». Комментарий описывал состояние, которого не было с 27.05.2026:
+# декораторы `@limiter.limit(..., key_func=interpret_free_key)` снял коммит
+# `3041ef1`, а сами функции остались и три с половиной месяца читались как
+# действующий механизм лимита на интерпретации. Вызывающих на момент удаления
+# не было ни одного (grep по backend и frontend).
+#
+# Удалены не только за мёртвость: они считали ключ через `_base_id`, то есть
+# были третьей копией того же дефекта, что чинился в rag_chat_key и export_key
+# (первые 60 символов JWT вместо user_id). Оживить их «как есть» значило бы
+# вернуть склейку аккаунтов по началу UUID. Понадобится лимит на интерпретации
+# снова — писать по образцу rag_chat_key, а не восстанавливать эти три.
 
-def interpret_pro_key(request: Request) -> str:
-    return f"interp:pro:{_base_id(request)}"
 
-def interpret_premium_key(request: Request) -> str:
-    return f"interp:premium:{_base_id(request)}"
+def _token_user_id(request: Request) -> Optional[str]:
+    """user_id из ПОДПИСАННОГО access-токена, иначе None.
+
+    Подпись здесь обязательна, а не для порядка: ключ лимита, который можно
+    назвать самому, позволил бы любому желающему выбрать чужие 20 запросов в
+    час, просто подставив чужой id. `decode_token` проверяет подпись (и срок),
+    поэтому назвать чужой id нельзя — можно только предъявить чужой токен, а
+    это уже не проблема лимитера.
+
+    Любая ошибка разбора — None, а не исключение: ключ считается до
+    обработчика, и падение здесь превратило бы протухший токен в 500 вместо
+    честного 401.
+    """
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    try:
+        return decode_token(auth[7:]).user_id
+    except Exception:  # noqa: BLE001 — см. докстринг: ключ не имеет права падать
+        return None
 
 
 # /rag-chat — счёт по владельцу токена, а не по IP: эндпоинт платный (Pro+),
 # и лимит должен ограничивать аккаунт, а не офис за общим NAT.
+#
+# ⚠️ Ключ — user_id из токена, а НЕ сам токен. Здесь стоял `_base_id`, то есть
+# первые 60 символов JWT; из них на пользователя приходились ровно 8 hex-символов
+# UUID — проверено разбором реального токена: заголовок занимает 36 символов,
+# точка ещё один, и на payload остаётся кусок, декодирующийся как `{"sub":"0f8c1a2b-`.
+# Значит два аккаунта с совпадающим НАЧАЛОМ UUID делили одно ведро на 20 запросов
+# в час: первый выбирал лимит, второй получал 429 за чужую активность.
+#
+# ⚠️ Свойство, которое здесь легко потерять правкой: ключ обязан переживать
+# обновление токена. Прежний вариант это свойство имел случайно — `sub` стоит в
+# payload первым (`create_access_token`), поэтому меняющиеся `jti`/`iat`/`exp` в
+# первые 60 символов не попадали. Достаточно было переставить claim'ы местами,
+# чтобы каждый refresh обнулял лимит и лимита фактически не стало. Теперь
+# свойство прямое: user_id при обновлении не меняется по определению.
+# Закреплено `TestRagChatKeySurvivesRefresh`.
 def rag_chat_key(request: Request) -> str:
+    user_id = _token_user_id(request)
+    if user_id:
+        return f"rag:user:{user_id}"
+    # Токена нет или он нечитаем — до обработчика такой запрос всё равно не
+    # дойдёт (401). Ведро по IP оставлено, чтобы неаутентифицированные запросы
+    # не сходились в один общий ключ на всех.
     return f"rag:{_base_id(request)}"
 
 
@@ -385,7 +433,22 @@ async def check_chart_rate_limit(user: Optional[User], request: Request) -> None
 
 # Экспорт данных (152-ФЗ) — тяжёлый запрос (все карты, интерпретации,
 # платежи), счёт по владельцу токена, чтобы не ограничивать общий NAT/офис.
+#
+# ⚠️ Ключ — user_id, а НЕ строка токена, по той же причине, что у rag_chat_key
+# (разбор — в комментарии над ним): `_base_id` брал первые 60 символов JWT, из
+# которых на пользователя приходились 8 hex-символов UUID, и два аккаунта с
+# совпадающим началом идентификатора делили одно ведро. Здесь ведро — 3 запроса
+# в час, то есть склейка ощутимее, чем у чата: человек, которому по 152-ФЗ
+# положен доступ к своим данным, получал бы 429 из-за чужой выгрузки.
+#
+# Свойство «ключ переживает обновление токена» обязано сохраниться и здесь:
+# выгрузка тяжёлая, и лимит, обнуляемый каждым refresh, не ограничивал бы
+# ничего. Закреплено TestExportKeySurvivesRefresh.
 def export_key(request: Request) -> str:
+    user_id = _token_user_id(request)
+    if user_id:
+        return f"export:user:{user_id}"
+    # Токена нет или он нечитаем — до обработчика такой запрос не дойдёт (401).
     return f"export:{_base_id(request)}"
 
 
