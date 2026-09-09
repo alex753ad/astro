@@ -16,13 +16,75 @@
  * отрисована по спецификации, но неактивна, пока не передан `onUpgrade`.
  */
 
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { eventTitle, signRu, timePart } from '../lib/feedTime';
+import { openInBrowser } from '../lib/openInBrowser';
+import { PRICING_URL } from '../lib/onboardingCopy';
+import {
+  canInterpretTransit,
+  streamTransitInterpretation,
+} from '../lib/transitInterpretApi';
+import {
+  TRANSIT_OUTCOMES,
+  classifyTransitError,
+  transitUpsellFor,
+} from '../lib/transitInterpretRules';
+import useTier from '../lib/useTier';
 
-export default function FeedEventPanel({ event, onClose, onUpgrade }) {
+export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
+  // ⚠️ Хуки объявлены ДО раннего выхода: порядок вызовов обязан быть
+  // одинаковым на каждом рендере, иначе React ломается на первом закрытии
+  // панели. Поэтому проверка на пустое событие живёт ниже, а не первой
+  // строкой, как было до появления разбора.
+  const { tier, known } = useTier();
+  const [text, setText] = useState('');
+  const [status, setStatus] = useState('idle');   // idle | loading | done | failed
+  const [failure, setFailure] = useState(null);
+  const runIdRef = useRef(0);
+
+  // Смена события — сбрасываем всё: панель переиспользуется под разные
+  // транзиты, и текст предыдущего в новом виден быть не должен.
+  useEffect(() => {
+    runIdRef.current += 1;
+    setText('');
+    setStatus('idle');
+    setFailure(null);
+  }, [event?.key]);
+
+  const start = useCallback(async () => {
+    if (!chartId || !event) return;
+    const run = ++runIdRef.current;
+    setText('');
+    setFailure(null);
+    setStatus('loading');
+    try {
+      await streamTransitInterpretation(chartId, event, {
+        onText: (chunk) => {
+          if (runIdRef.current === run) setText((prev) => prev + chunk);
+        },
+      });
+      if (runIdRef.current === run) setStatus('done');
+    } catch (err) {
+      if (runIdRef.current !== run) return;
+      // authenticated: true — панель существует только внутри сессии; ветка
+      // анонима остаётся в правилах ради полноты, но досюда не доходит.
+      setFailure(classifyTransitError({
+        status: err?.status,
+        detail: err?.detail,
+        authenticated: true,
+      }));
+      setStatus('failed');
+    }
+  }, [chartId, event]);
+
   if (!event) return null;
 
   const meta = event.meta || {};
+  const isTransit = event.kind === 'transit';
+  const canAsk = isTransit && !!chartId && canInterpretTransit(event);
+  const upsell = transitUpsellFor({
+    tier, known, finished: status === 'done', failed: status === 'failed',
+  });
   const hasSigns = meta.transit_sign && meta.natal_sign;
   const degree = typeof meta.transit_degree === 'number'
     ? `${meta.transit_degree.toFixed(1)}° `
@@ -106,21 +168,104 @@ export default function FeedEventPanel({ event, onClose, onUpgrade }) {
           )}
         </div>
 
-        {event.teaser && (
+        {/* Тизер прячется, как только пошёл разбор: он подводка к тексту, а
+            не спутник ему. */}
+        {event.teaser && status === 'idle' && (
           <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
             {event.teaser.intro && <p style={{ margin: 0 }}>{event.teaser.intro}</p>}
             {event.teaser.outro && <p style={{ margin: '10px 0 0' }}>{event.teaser.outro}</p>}
           </div>
         )}
 
-        <button
-          type="button"
-          className="mobile-btn-primary"
-          disabled={!onUpgrade}
-          onClick={onUpgrade ? () => onUpgrade(event) : undefined}
-        >
-          Открыть доступ
-        </button>
+        {status === 'loading' && !text && (
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+            Разбор готовится. Первые строки появятся через несколько секунд.
+          </p>
+        )}
+
+        {/* pre-wrap: секций в транзитном тексте нет, разбирать нечего — это
+            проза с переводами строк (см. шапку transitInterpretApi.js). */}
+        {text && (
+          <div style={{ fontSize: 14.5, lineHeight: 1.7, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+            {text}
+          </div>
+        )}
+
+        {/* Отказ — ПОД уже набранным текстом: то, что успело прийти, человек
+            уже прочитал, и убирать это нельзя. */}
+        {failure && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p
+              role="alert"
+              style={{
+                margin: 0, fontSize: 13.5, lineHeight: 1.6,
+                color: failure.outcome === TRANSIT_OUTCOMES.BROKEN
+                  ? 'var(--text-secondary)' : 'var(--color-danger)',
+              }}
+            >
+              {failure.text}
+            </p>
+            {failure.showPricing && (
+              <button
+                type="button"
+                className="mobile-btn-primary"
+                style={{ height: 44, fontSize: 14 }}
+                onClick={() => openInBrowser(PRICING_URL)}
+              >
+                Открыть тарифы
+              </button>
+            )}
+            {failure.canRetry && (
+              <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={start}>
+                Повторить
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Приписка про старший тариф — только на успешно завершённом разборе
+            и только при известном тарифе (transitUpsellFor). */}
+        {upsell?.kind === 'free' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', textAlign: 'center' }}>
+              {upsell.text}
+            </p>
+            <button type="button" className="mobile-link" onClick={() => openInBrowser(PRICING_URL)}>
+              {upsell.cta}
+            </button>
+          </div>
+        )}
+        {upsell?.kind === 'lite' && (
+          <div style={{ padding: '12px 14px', borderRadius: 14, background: 'var(--bg-deeper)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>{upsell.title}</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--text-secondary)' }}>{upsell.subtitle}</p>
+            </div>
+            <button type="button" className="mobile-btn-primary" style={{ height: 42, fontSize: 13 }} onClick={() => openInBrowser(PRICING_URL)}>
+              {upsell.cta}
+            </button>
+          </div>
+        )}
+
+        {/* «Разобрать транзит» — только у транзитов и только пока разбора нет.
+            Доступ решает сервер: своей копии тарифной сетки клиент не держит и
+            заранее ничего не запрещает. */}
+        {canAsk && status === 'idle' && (
+          <button type="button" className="mobile-btn-primary" onClick={start}>
+            Разобрать транзит
+          </button>
+        )}
+
+        {!isTransit && (
+          <button
+            type="button"
+            className="mobile-btn-primary"
+            disabled={!onUpgrade}
+            onClick={onUpgrade ? () => onUpgrade(event) : undefined}
+          >
+            Открыть доступ
+          </button>
+        )}
         <button type="button" className="mobile-link" onClick={onClose} style={{ alignSelf: 'center' }}>
           Закрыть
         </button>

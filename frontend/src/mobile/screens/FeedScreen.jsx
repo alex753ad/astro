@@ -90,6 +90,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   const [error, setError] = useState('');
   const { logout } = useAuth();
   const [selected, setSelected] = useState(null);
+  const [chartId, setChartId] = useState(null);
   const anchorRef = useRef(null);
   // Якорь подсветки для чипов домов (SPEC_ONBOARDING.md §11). Остальные два
   // шага переиспользуют `anchorRef` — секцию сегодняшнего дня.
@@ -128,12 +129,16 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
       setError('');
     }
     try {
-      const chartId = await resolvePrimaryChartId();
-      if (!chartId) {
+      const id = await resolvePrimaryChartId();
+      if (!id) {
         setStatus('no-chart');
         return;
       }
-      const data = await fetchFeed(chartId, feedWindow());
+      // Держим id в состоянии: он нужен панели события для разбора транзита
+      // (POST /chart/{id}/transits/event/interpret). Второго запроса за ним не
+      // делаем — он уже получен здесь.
+      setChartId(id);
+      const data = await fetchFeed(id, feedWindow());
       setFeed(data);
       setStatus('ready');
     } catch (err) {
@@ -391,7 +396,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
 
       <FeedHorizonCard horizon={feed?.horizon} />
 
-      <FeedEventPanel event={selected} onClose={() => setSelected(null)} />
+      <FeedEventPanel event={selected} chartId={chartId} onClose={() => setSelected(null)} />
 
       {hints.open && (
         <HintOverlay
