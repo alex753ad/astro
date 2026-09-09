@@ -3,6 +3,7 @@ import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES, tierPriceLabel, tierFeatures, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
 import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
+import { readSseLines } from "../lib/sseLines";
 import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
 import LyraPaywallModal from "./LyraPaywallModal";
@@ -656,18 +657,21 @@ function InterpretationPanel({ event, chartId, onClose }) {
         // («AI-расшифровка транзитов доступна на Лире и выше»). Ниже .catch
         // кладёт e.message в setError, поэтому текст доезжает до экрана.
         if (!r.ok) throw new Error(await responseErrorText(r, "Не удалось загрузить разбор транзита."));
-        const reader = r.body.getReader();
-        const dec    = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = dec.decode(value);
-          chunk.split("\n").forEach(line => {
-            if (line.startsWith("data: ")) {
-              const d = line.slice(6).trim();
-              if (d !== "[DONE]") { try { const p = JSON.parse(d); if (p.text) setText(prev => prev + p.text); } catch { setText(prev => prev + d); } }
-            }
-          });
+        // Разбор потока — общий файл lib/sseLines.js. Здесь он появился
+        // 09.09.2026 взамен разбора «на месте», у которого было ДВА
+        // независимых дефекта, и оба портили текст молча:
+        //
+        //   1. `dec.decode(value)` без `{ stream: true }`. Русский текст в
+        //      UTF-8 многобайтовый, и символ, разорванный между сетевыми
+        //      чтениями, превращался в «замену» (U+FFFD). Ловилось только
+        //      глазами и только иногда — граница чтений плавает.
+        //   2. Каждое чтение резалось по переводу строки НА МЕСТЕ, без буфера
+        //      между чтениями: SSE-кадр, разорванный посередине, терялся
+        //      целиком. Тот же класс дефекта, что уже ловили с `flushBuffer`
+        //      в разборе натальной карты.
+        for await (const ev of readSseLines(r.body)) {
+          if (ev.type === "done") break;
+          if (ev.type === "text") setText(prev => prev + ev.text);
         }
         setLoading(false);
       })
