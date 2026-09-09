@@ -23,8 +23,9 @@ import {
   OUTCOMES,
   classifyOutcome,
   shouldRefetchOnResume,
+  upsellForTier,
 } from '../lib/interpretRules';
-import { interpretationUpsell } from '../../lib/interpretationUpsell';
+import useTier from '../lib/useTier';
 import { openInBrowser } from '../lib/openInBrowser';
 import { PRICING_URL } from '../lib/onboardingCopy';
 
@@ -64,7 +65,7 @@ function renderLines(text) {
   });
 }
 
-export default function InterpretView({ chartId, tier, onBack }) {
+export default function InterpretView({ chartId, onBack }) {
   const [sections, setSections] = useState([]);   // [{ name, title, text }]
   const [started, setStarted]   = useState(false);
   const [finished, setFinished] = useState(false);
@@ -148,16 +149,17 @@ export default function InterpretView({ chartId, tier, onBack }) {
 
   const hasText = sections.some((s) => s.text.trim());
 
-  // Приписка под готовым разбором. Тексты и правило «кому показывать» —
-  // общий файл с вебом (lib/interpretationUpsell.js): вторая копия продающих
-  // формулировок разошлась бы с первой, как уже было со словарём заголовков
-  // секций. Здесь только разметка под телефон.
+  // Приписка под готовым разбором. Тексты — общий файл с вебом
+  // (lib/interpretationUpsell.js), правило показа — upsellForTier
+  // (lib/interpretRules.js), там же разобрано почему.
   //
-  // ⚠️ Показывается ТОЛЬКО на успешно завершённом разборе: `finished && !failure`.
-  // После отказа по лимиту предложение купить уже стоит выше, в самом отказе,
-  // и второе подряд читалось бы как навязчивость; после обрыва связи оно
-  // неуместно вовсе.
-  const upsell = finished && !failure ? interpretationUpsell(tier) : null;
+  // ⚠️ Тариф берётся из ОБЩЕГО источника (useTier → /profile/subscription), а
+  // не из useAuth. Прежде он приходил пропсом из useAuth, куда попадает лишь
+  // с обновлением токена: пока токен жив, смена тарифа не доезжала, и на Лире
+  // показывалась приписка ветки free. Пока тариф неизвестен (`known: false`)
+  // приписки нет вовсе — незнание не то же самое, что бесплатный тариф.
+  const { tier, known } = useTier();
+  const upsell = upsellForTier({ tier, known, finished, failed: !!failure });
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
