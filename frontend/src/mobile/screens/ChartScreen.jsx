@@ -270,10 +270,10 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   // приёмом, что форма построения выше. Ветка стоит ПОСЛЕ 'create' и ДО
   // состояний загрузки: сюда попадают только с готовой карты, id уже есть.
   if (view === 'interpret') {
-    // Тариф — из useAuth: отдельного запроса ради приписки не делаем,
-    // /auth/me уже прочитан при входе. Отсутствующий тариф
-    // interpretationUpsell считает free — так же, как веб.
-    return <InterpretView chartId={chart?.id} tier={user?.tier} onBack={() => setView('chart')} />;
+    // Тариф сюда НЕ пробрасывается: экран берёт его из общего источника
+    // (mobile/lib/tierSource.js). Проп из useAuth был вторым источником и
+    // устаревал до обновления токена — разбор в шапке tierSource.js.
+    return <InterpretView chartId={chart?.id} onBack={() => setView('chart')} />;
   }
 
   if (status === 'loading') return <ChartLoading />;
