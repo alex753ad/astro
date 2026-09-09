@@ -60,37 +60,6 @@ function StreamingProgress() {
 
 // ── Paywall helpers ────────────────────────────────────────
 
-const CUTOFF_KEYWORDS = [
-  '## Отношения', '### Отношения',
-  '## Любовь', '### Любовь',
-  '## Венера', '### Венера',
-  '## Луна', '### Луна',
-  '## 7 дом', '### 7 дом',
-  '## VII дом', '### VII дом',
-  '## Партнёрство', '### Партнёрство',
-];
-
-function getCutoffText(text) {
-  const lines = text.split('\n');
-  let sectionCount = 0;
-  let cutoffLine = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith('## ') || line.startsWith('### ')) {
-      sectionCount++;
-      const isEmotional = CUTOFF_KEYWORDS.some(k => line.includes(k.replace(/^#+\s/, '')));
-      if (sectionCount >= 3 || (sectionCount >= 2 && isEmotional)) {
-        cutoffLine = i;
-        break;
-      }
-    }
-  }
-
-  if (cutoffLine === -1) return null;
-  return lines.slice(0, cutoffLine).join('\n');
-}
-
 function renderMarkdown(text) {
   const lines = text.split('\n');
   return lines.map((raw, i) => {
@@ -165,7 +134,6 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
   const [error,     setError]     = useState(null);
   const [started,   setStarted]   = useState(false);
 
-  const text = sections.map(s => s.text).join('\n\n'); // для paywall-логики
 
   const scrollRef   = useRef(null);
   const closeSSERef = useRef(null);
@@ -282,20 +250,19 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
     );
   }
 
-  const cutoffText = isFree && done ? getCutoffText(text) : null;
-  const isCut = !!cutoffText;
-  // Для paywall: обрезаем секции
-  const visibleSections = isCut
-    ? (() => {
-        const cutLine = cutoffText.split('\n').length;
-        let total = 0;
-        return sections.filter(s => {
-          if (total >= cutLine) return false;
-          total += s.text.split('\n').length + 2;
-          return true;
-        });
-      })()
-    : sections;
+  // Усечения для free здесь больше нет, и это не потеря функции — она не
+  // работала ни разу. `getCutoffText` искал markdown-заголовки `## `/`### `,
+  // а сервер их не выдаёт: промпт требует `<section name="…">`
+  // (backend/interpretation/prompts.py, «Формат ответа»), и парсер снимает
+  // эти теги до рендера. Проверено на настоящем разборе с боевого аккаунта
+  // 09.09.2026: строк, начинающихся с `## `, — ноль, вхождений `**` — ноль.
+  // Значит getCutoffText всегда возвращал null, isCut всегда был false, а
+  // блок пейволла не рисовался никогда. Тестов у него не было.
+  //
+  // ⚠️ Понадобится усечение снова — делать его по `sections`, которые
+  // парсер уже разобрал, а не поиском разметки в склеенном тексте:
+  // разметки там нет по построению.
+  const visibleSections = sections;
 
   return (
     <div className="solid-card p-6">
@@ -396,43 +363,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         </div>
       )}
 
-      {/* Paywall */}
-      {isCut && (
-        <div style={{ position: 'relative', marginTop: -60 }}>
-          <div style={{
-            height: 80,
-            background: 'linear-gradient(to bottom, transparent, var(--bg-card, var(--bg)))',
-            pointerEvents: 'none',
-          }} />
-          <div style={{
-            padding: '20px 0 4px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-            textAlign: 'center',
-          }}>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary, var(--text-secondary))', margin: 0, lineHeight: 1.6 }}>
-              Это только начало. Расширенная интерпретация раскрывает<br />
-              <strong style={{ color: 'var(--text-primary, var(--border))' }}>Луну, Венеру, 7-й дом и отношения</strong>.
-              Открывается на тарифе {TIER_NAMES.lite}.
-            </p>
-            <button
-              onClick={onUpgrade}
-              style={{
-                padding: '11px 28px', borderRadius: 12, border: 'none',
-                background: 'linear-gradient(135deg, var(--accent), var(--accent))',
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'inherit',
-                boxShadow: '0 4px 16px -4px rgba(124,108,255,0.5)',
-              }}
-            >
-              Читать расширенную интерпретацию
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Приписка для Free: полная интерпретация — на следующем тарифе.
           Lite уже закрыт отдельным баннером ниже (isLite && done) — не дублируем. */}
-      {isFree && done && !isCut && (
+      {isFree && done && (
         <p style={{
           marginTop: 20,
           fontSize: 13,
