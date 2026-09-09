@@ -296,15 +296,19 @@ def _base_id(request: Request) -> str:
     return f"ip:{client_ip(request)}"
 
 
-# /interpret — два ключа, два декоратора в main.py
-def interpret_free_key(request: Request) -> str:
-    return f"interp:free:{_base_id(request)}"
-
-def interpret_pro_key(request: Request) -> str:
-    return f"interp:pro:{_base_id(request)}"
-
-def interpret_premium_key(request: Request) -> str:
-    return f"interp:premium:{_base_id(request)}"
+# Здесь до 09.09.2026 стояли interpret_free_key / interpret_pro_key /
+# interpret_premium_key с комментарием «/interpret — два ключа, два декоратора
+# в main.py». Комментарий описывал состояние, которого не было с 27.05.2026:
+# декораторы `@limiter.limit(..., key_func=interpret_free_key)` снял коммит
+# `3041ef1`, а сами функции остались и три с половиной месяца читались как
+# действующий механизм лимита на интерпретации. Вызывающих на момент удаления
+# не было ни одного (grep по backend и frontend).
+#
+# Удалены не только за мёртвость: они считали ключ через `_base_id`, то есть
+# были третьей копией того же дефекта, что чинился в rag_chat_key и export_key
+# (первые 60 символов JWT вместо user_id). Оживить их «как есть» значило бы
+# вернуть склейку аккаунтов по началу UUID. Понадобится лимит на интерпретации
+# снова — писать по образцу rag_chat_key, а не восстанавливать эти три.
 
 
 def _token_user_id(request: Request) -> Optional[str]:
