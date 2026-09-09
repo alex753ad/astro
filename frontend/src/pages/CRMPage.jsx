@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { useWebTier } from '../lib/webTier';
 import NatalChart from '../components/NatalChart';
 import TransitTimeline from '../components/TransitTimeline';
 import ChartSummary from '../components/ChartSummary';
@@ -2122,8 +2123,14 @@ export default function CRMPage() {
     loadClients().finally(() => setLoading(false));
   }, []);
 
+  // ⚠️ Живой тариф, а не user.tier: тот обновляется только с токеном и до 15
+  // минут показывает старое значение — то есть оплативший Орион эти минуты
+  // видел бы заглушку «оформите тариф» в уже оплаченном кабинете. Пока живой
+  // не приехал, откат на сохранённый: мигать заглушкой хуже.
+  const { tier: effectiveTier } = useWebTier(user?.tier);
+
   useEffect(() => {
-    if (user?.tier !== 'premium') return;
+    if (effectiveTier !== 'premium') return;
     authFetch(`${API}/crm/alerts`)
       .then(d => setAlerts(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -2137,7 +2144,7 @@ export default function CRMPage() {
     setView('card');
   };
 
-  if (user?.tier !== 'premium') {
+  if (effectiveTier !== 'premium') {
     return (
       <div className="crm-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{CRM_THEME_CSS}</style>

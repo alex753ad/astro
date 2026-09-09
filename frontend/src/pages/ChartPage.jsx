@@ -13,6 +13,7 @@ import ChartSummary from '../components/ChartSummary';
 import AspectTableWrapper from '../components/AspectTableWrapper';
 import AspectTable from '../components/AspectTable';
 import Interpretation from '../components/Interpretation';
+import { useWebTier } from '../lib/webTier';
 import TransitTimeline from '../components/TransitTimeline';
 import ExpertModeToggle from '../components/ExpertModeToggle';
 import AspectGrid from '../components/AspectGrid';
@@ -312,11 +313,22 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // ⚠️ Тариф — ЖИВОЙ, из /profile/subscription, а не currentUser.tier.
+  // Тот обновляется только вместе с токеном, то есть до 15 минут показывает
+  // старое значение. Через userTier он уходит не только в приписку под
+  // разбором, но и в TransitTimeline, где от него зависит ВИТРИНА: горизонт
+  // транзитов и то, какие события считаются доступными. Человек, оплативший
+  // Лиру, до четверти часа видел горизонт бесплатного тарифа.
+  //
+  // Пока живой не приехал — откат на сохранённый (см. useWebTier): мигать
+  // витриной хуже, чем долю секунды показывать старое значение. Окно
+  // устаревания сжимается с 15 минут до времени одного запроса.
+  const { tier: effectiveTier } = useWebTier(currentUser?.tier);
+
   const TIER_HIERARCHY = ['free', 'lite', 'pro', 'premium'];
   function tierAllowed(minTier) {
     if (!minTier) return true;
-    const userTier = currentUser?.tier || 'free';
-    return TIER_HIERARCHY.indexOf(userTier) >= TIER_HIERARCHY.indexOf(minTier);
+    return TIER_HIERARCHY.indexOf(effectiveTier) >= TIER_HIERARCHY.indexOf(minTier);
   }
 
   const [chart, setChart]                   = useState(null);
@@ -368,7 +380,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   // текущего тарифа): чат и разбор транзитов требуют pro независимо от того,
   // free пользователь или lite — иначе купив lite, доступа он не получит.
   const _upsellCtx = (required = 'lite') =>
-    getPaywallContext({ error: 'tier_required', current: currentUser?.tier || 'free', required }) || 'free_to_lite';
+    getPaywallContext({ error: 'tier_required', current: effectiveTier, required }) || 'free_to_lite';
   const [pdfLoading, setPdfLoading]   = useState(false);
   const [pdfConfirm, setPdfConfirm]   = useState(false);
   const [copied, setCopied]           = useState(false);
@@ -466,7 +478,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   // приходят с бэкенда (GET /chart/{id}) — вычислить их на клиенте нечем:
   // ни строки interpretations, ни флага карты он не видит.
   const pdfWillSpendInterpretation =
-    (currentUser?.tier || 'free') === 'free' &&
+    effectiveTier === 'free' &&
     chart?.has_interpretation === false &&
     chart?.free_interpretation_used === false;
 
@@ -876,10 +888,10 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                         <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
                       </div>
                     </div>
-                  ) : currentUser?.tier === 'lite' ? (
+                  ) : effectiveTier === 'lite' ? (
                     <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => openPaywall('lite_to_pro', true)} />
                   ) : (
-                    <Interpretation chartId={chartId} userTier={currentUser?.tier || 'free'} onUpgrade={() => openPaywall('free_to_lite', true)} />
+                    <Interpretation chartId={chartId} userTier={effectiveTier} onUpgrade={() => openPaywall('free_to_lite', true)} />
                   )}
                 </div>
               )}
@@ -969,7 +981,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 />
               </section>
               <section style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={currentUser?.tier || 'free'} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx('pro'))} focusEventKey={searchParams.get('event')} />
+                <TransitTimeline chartId={chartId} onDateSelect={handleDateSelect} mockMode={false} userTier={effectiveTier} onUpgrade={(ctx) => openPaywall(ctx || _upsellCtx('pro'))} focusEventKey={searchParams.get('event')} />
               </section>
             </main>
           </div>
