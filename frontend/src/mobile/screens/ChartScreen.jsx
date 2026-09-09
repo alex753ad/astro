@@ -21,6 +21,7 @@ import NatalChart from '../../components/NatalChart';
 import ChartCreateView from '../components/ChartCreateView';
 import ChartSheet from '../components/ChartSheet';
 import ChartShareSheet from '../components/ChartShareSheet';
+import InterpretView from '../components/InterpretView';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
 import useTheme from '../useTheme.jsx';
@@ -117,7 +118,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   // Толчок, поднятый этим же экраном: чтобы отличить его от толчка «Ещё»
   // (см. эффект по chartsVersion ниже).
   const ownBumpRef = useRef(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { dark } = useTheme();
 
   // Якоря подсветки подсказок (SPEC_ONBOARDING.md §10).
@@ -263,6 +264,16 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
 
   if (view === 'create') {
     return <ChartCreateView onCancel={() => setView('chart')} onCreated={handleCreated} />;
+  }
+
+  // Разбор — подэкран этой же вкладки (SPEC_INTERPRETATION.md §2), тем же
+  // приёмом, что форма построения выше. Ветка стоит ПОСЛЕ 'create' и ДО
+  // состояний загрузки: сюда попадают только с готовой карты, id уже есть.
+  if (view === 'interpret') {
+    // Тариф — из useAuth: отдельного запроса ради приписки не делаем,
+    // /auth/me уже прочитан при входе. Отсутствующий тариф
+    // interpretationUpsell считает free — так же, как веб.
+    return <InterpretView chartId={chart?.id} tier={user?.tier} onBack={() => setView('chart')} />;
   }
 
   if (status === 'loading') return <ChartLoading />;
@@ -437,6 +448,17 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
           Сведите пальцы для зума · двойной тап — сброс
         </p>
       </div>
+
+      {/* Вход в разбор. Отдельной строкой под колесом, а не четвёртой кнопкой
+          в шапке: там уже три и место кончилось (см. комментарий у «+»). */}
+      <button
+        type="button"
+        onClick={() => setView('interpret')}
+        className="mobile-link"
+        style={{ flexShrink: 0, alignSelf: 'center', padding: '8px 0 4px', fontSize: 14 }}
+      >
+        Разбор карты →
+      </button>
 
       {/* Обновление жестом тянут за список шторки — единственное, что на
           этом экране прокручивается (разбор — в ChartSheet.jsx). */}
