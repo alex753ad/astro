@@ -13,8 +13,8 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { streamInterpretation } from '../api/client';
 import { stripSectionTags } from '../lib/sectionStream';
+import { interpretationUpsell } from '../lib/interpretationUpsell';
 import { useToast } from './Toast';
-import { TIER_NAMES } from '../constants';
 
 // ── Этапы прогресса ────────────────────────────────────────
 
@@ -141,6 +141,13 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
 
   const isFree = userTier === 'free' || !userTier;
   const isLite = userTier === 'lite';
+
+  // Тексты приписки — общий файл с мобильным клиентом
+  // (lib/interpretationUpsell.js), там же правило «кому показывать».
+  // Здесь остаётся только разметка: у веба это <Link> роутера, у
+  // приложения — кнопка с openInBrowser.
+  const upsell = interpretationUpsell(isFree ? 'free' : userTier);
+  const liteUpsell = interpretationUpsell('lite');
 
   const SECTION_TITLES = {
     general: 'Личность и характер',
@@ -373,9 +380,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           textAlign: 'center',
           lineHeight: 1.6,
         }}>
-          Хотите разбор подробнее? На тарифе {TIER_NAMES.pro} интерпретация глубже и подробнее.{' '}
+          {upsell?.text}{' '}
           <Link to="/pricing" style={{ color: 'var(--accent, var(--accent))', fontWeight: 600, textDecoration: 'none' }}>
-            Тарифы →
+            {upsell?.cta}
           </Link>
         </p>
       )}
@@ -393,8 +400,8 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           cursor: 'pointer',
         }} onClick={onUpgrade}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, gap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Получить расширенную интерпретацию</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Открывается на тарифе {TIER_NAMES.pro}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{liteUpsell?.title}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{liteUpsell?.subtitle}</span>
           </div>
           <button
             onClick={onUpgrade}
@@ -406,7 +413,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
               whiteSpace: 'nowrap',
             }}
           >
-            НА 2500 СЛОВ
+            {liteUpsell?.cta}
           </button>
         </div>
       )}

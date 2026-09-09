@@ -407,6 +407,11 @@ class InterpretationRouter:
                         profile_hash[:8], request.tier, model_id,
                     )
                     request.engine_used = cached.get("engine") or engine.name
+                    # В кэш попадает только текст, дописанный моделью:
+                    # кэширование стоит под условием finish_reason == "stop"
+                    # ниже. Поэтому "stop" здесь — факт о выдаваемом тексте,
+                    # а не догадка.
+                    request.finish_reason = "stop"
                     # Порциями, а не одним yield: вызывающая сторона
                     # (main.py) заворачивает КАЖДЫЙ чанк в отдельное
                     # SSE-событие, а фронт разбирает теги <section> в
@@ -450,6 +455,14 @@ class InterpretationRouter:
                 # либо шаблон, у которого его нет). Только теперь называем
                 # движок: вызывающая сторона по нему решает, что записывать.
                 request.engine_used = engine.name
+                # У шаблона своего finish_reason нет — он детерминирован и
+                # всегда полон, поэтому "stop". У модели берём настоящее
+                # значение: сюда доходим только при "stop" (иначе выше
+                # поднялся бы IncompleteInterpretation), но подставлять
+                # константу там, где есть факт, — способ однажды соврать.
+                request.finish_reason = (
+                    getattr(engine, "_last_finish_reason", None) or "stop"
+                )
                 return  # success
 
             except IncompleteInterpretation:
