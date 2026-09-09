@@ -310,6 +310,26 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                     "natal_planet": e["natal_planet"],
                     "natal_sign": e["natal_sign"],
                     "aspect_type": e["aspect_type"],
+                    # Дата пика в том виде, в каком её ждёт
+                    # POST /chart/{id}/transits/event/interpret: строка
+                    # YYYY-MM-DD, значение прямо из движка.
+                    #
+                    # ⚠️ Вывести её на клиенте из `at` НЕЛЬЗЯ, хотя соблазн
+                    # очевиден. `at` — это ЛОКАЛЬНЫЙ ISO момента `exact_date`
+                    # (см. _naive_utc_to_local_iso выше), а `peak_date` —
+                    # собственная дата пика движка в UTC. У события около
+                    # полуночи они расходятся на сутки: пик 22:30 UTC в
+                    # Москве становится 01:30 следующего дня.
+                    #
+                    # Цена ошибки не косметическая. `peak_date` входит и в
+                    # ключ кэша разбора (`transit_interp:{chart}:{tp}:{np}:
+                    # {aspect}:{peak_date}`, main.py), и в аргумент
+                    # compute_exact_facts. Дата на сутки левее промахивается
+                    # мимо готового кэша, заново платит за генерацию и на
+                    # Веге списывает лишнюю единицу из трёх — при том, что
+                    # текст на экране выглядит нормально. Закреплено тестом
+                    # TestPeakDateIsNotDerivedFromAt.
+                    "peak_date": e["peak_date"],
                     "peak_orb": e["peak_orb"],
                     "applying": e["applying"],
                     "significant": e["significant"],
