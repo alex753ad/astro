@@ -7,10 +7,11 @@ import {
   STICK_THRESHOLD_PX,
   classifyChatError,
   hasScrolledAway,
-  shouldReportInterrupted,
+  shouldReportNoAnswer,
   shouldStickToBottom,
 } from './chatRules';
 import { parseChatLine } from './ragChatApi';
+import { appendToAnswer, dropEmptyAnswer } from '../components/AristeaChat';
 
 describe('classifyChatError — отказы до потока приходят статусом', () => {
   it('403 даёт свой текст, а не текст сервера', () => {
@@ -171,16 +172,56 @@ describe('прокрутка — прилипаем к низу только е�
   });
 });
 
-describe('возврат из фона — сообщаем, но не перезапрашиваем', () => {
-  it('вернулись, а ответ не дошёл — сообщаем', () => {
-    expect(shouldReportInterrupted({ visible: true, streaming: true })).toBe(true);
+describe('«ответ не дошёл» — судим по тексту, а не по флагу выполнения', () => {
+  it('⚠️ живой поток не даёт повода для сообщения НИКОГДА', () => {
+    // Главный кейс. Прежнее правило судило по streaming, а он на возврате из
+    // фона гарантированно true — сообщение показывалось поверх готового
+    // ответа. Теперь пока поток жив, решение не принимается вовсе.
+    expect(shouldReportNoAnswer({ streaming: true, gotText: false, failed: false })).toBe(false);
+    expect(shouldReportNoAnswer({ streaming: true, gotText: true, failed: false })).toBe(false);
   });
 
-  it('ушли в фон — молчим', () => {
-    expect(shouldReportInterrupted({ visible: false, streaming: true })).toBe(false);
+  it('поток кончился, текста нет — вот это и есть «не дошёл»', () => {
+    expect(shouldReportNoAnswer({ streaming: false, gotText: false, failed: false })).toBe(true);
   });
 
-  it('ответ уже пришёл — не сообщаем ни о чём', () => {
-    expect(shouldReportInterrupted({ visible: true, streaming: false })).toBe(false);
+  it('текст пришёл — молчим, даже если ответ оборвался на середине', () => {
+    expect(shouldReportNoAnswer({ streaming: false, gotText: true, failed: false })).toBe(false);
+  });
+
+  it('отказ уже показан своим текстом — вторым сообщением не накрываем', () => {
+    // Иначе под «Слишком много вопросов подряд» встало бы ещё и «не дошёл».
+    expect(shouldReportNoAnswer({ streaming: false, gotText: false, failed: true })).toBe(false);
+  });
+});
+
+describe('пузырёк не трогаем, пока поток жив', () => {
+  it('⚠️ текст не теряется, даже если пузырька в списке нет', () => {
+    // Дефект: обработчик возврата из фона убирал пустой пузырёк на ЖИВОМ
+    // потоке, последним оставалось сообщение человека, и весь пришедший следом
+    // текст выбрасывался молча. Замерено: список оставался [{role:'user'}].
+    const afterDrop = dropEmptyAnswer([
+      { role: 'user', content: 'вопрос' },
+      { role: 'assistant', content: '' },
+    ]);
+    expect(afterDrop).toHaveLength(1);
+
+    const afterText = appendToAnswer(afterDrop, 'Ваш Марс в пятом доме.');
+    expect(afterText).toHaveLength(2);
+    expect(afterText[1]).toEqual({ role: 'assistant', content: 'Ваш Марс в пятом доме.' });
+  });
+
+  it('обычный случай не сломан: дописывает в существующий пузырёк', () => {
+    const out = appendToAnswer(
+      [{ role: 'user', content: 'q' }, { role: 'assistant', content: 'Ваш Марс ' }],
+      'в пятом доме.',
+    );
+    expect(out).toHaveLength(2);
+    expect(out[1].content).toBe('Ваш Марс в пятом доме.');
+  });
+
+  it('частичный ответ переживает обрыв — убирается только пустой пузырёк', () => {
+    const partial = [{ role: 'user', content: 'q' }, { role: 'assistant', content: 'начало' }];
+    expect(dropEmptyAnswer(partial)).toBe(partial);
   });
 });
