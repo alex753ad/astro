@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { PRO_WORDS, interpretationUpsell } from "./interpretationUpsell";
+import { TIER_WORDS, interpretationUpsell } from "./interpretationUpsell";
 
 /**
  * Синхронность обещанного объёма разбора между фронтендом и бэкендом.
@@ -44,28 +44,35 @@ const BACKEND = "backend/auth/rate_limits.py";
 const WEB = "frontend/src/components/Interpretation.jsx";
 const MOBILE = "frontend/src/mobile/components/InterpretView.jsx";
 
-/** Значение TIER_FLAGS["pro"]["interpretation_word_limit"] из rate_limits.py. */
-function backendProWords() {
+/** Границы блока тарифа в rate_limits.py — по порядку объявления TIER_FLAGS. */
+const TIER_BOUNDS = { lite: ['"lite": {', '"pro": {'], pro: ['"pro": {', '"premium": {'] };
+
+/** Значение TIER_FLAGS[tier]["interpretation_word_limit"] из rate_limits.py. */
+function backendWords(tier) {
   const src = read(BACKEND);
-  const pro = src.slice(src.indexOf('"pro": {'), src.indexOf('"premium": {'));
-  const m = pro.match(/"interpretation_word_limit":\s*(\d+)/);
-  expect(m, `в ${BACKEND} не найден interpretation_word_limit у pro`).not.toBeNull();
+  const [from, to] = TIER_BOUNDS[tier];
+  const block = src.slice(src.indexOf(from), src.indexOf(to));
+  const m = block.match(/"interpretation_word_limit":\s*(\d+)/);
+  expect(m, `в ${BACKEND} не найден interpretation_word_limit у ${tier}`).not.toBeNull();
   return Number(m[1]);
 }
 
 describe("объём разбора на Лире: кнопка и сервер обещают одно и то же", () => {
-  it("PRO_WORDS совпадает с interpretation_word_limit у pro на бэкенде", () => {
-    expect(PRO_WORDS).toBe(backendProWords());
+  it("TIER_WORDS совпадает с interpretation_word_limit на бэкенде — оба тарифа", () => {
+    expect(TIER_WORDS.pro).toBe(backendWords("pro"));
+    expect(TIER_WORDS.lite).toBe(backendWords("lite"));
   });
 
-  it("число попадает в текст кнопки, а не теряется по дороге", () => {
+  it("числа попадают в текст, а не теряются по дороге", () => {
     // Без этого равенство выше можно было бы удержать, случайно перестав
     // показывать число человеку, — и тест продолжил бы зеленеть.
-    expect(interpretationUpsell("lite").cta).toContain(String(backendProWords()));
+    expect(interpretationUpsell("lite").cta).toContain(String(backendWords("pro")));
+    expect(interpretationUpsell("free").text).toContain(String(backendWords("lite")));
   });
 
-  it("величина не нулевая — иначе кнопка обещает пустоту", () => {
-    expect(backendProWords()).toBeGreaterThan(0);
+  it("величины не нулевые — иначе текст обещает пустоту", () => {
+    expect(backendWords("pro")).toBeGreaterThan(0);
+    expect(backendWords("lite")).toBeGreaterThan(0);
   });
 
   it("веб берёт текст из общего файла, а не набирает своим литералом", () => {
@@ -91,12 +98,40 @@ describe("объём разбора на Лире: кнопка и сервер 
     expect(src).not.toMatch(/НА\s*\d+\s*СЛОВ/);
   });
 
-  it("на фронте число объявлено один раз", () => {
-    // Ровно один экспорт: вторая константа с тем же смыслом — начало того же
+  it("на фронте числа объявлены один раз", () => {
+    // Ровно один экспорт: вторая таблица с тем же смыслом — начало того же
     // расхождения, только внутри фронтенда.
     const src = read("frontend/src/lib/interpretationUpsell.js");
-    const declarations = src.match(/^export const PRO_WORDS\s*=/gm) || [];
-    expect(declarations).toHaveLength(1);
+    expect(src.match(/^export const TIER_WORDS\s*=/gm) || []).toHaveLength(1);
+  });
+
+  it("ни одно из чисел не набрано в тексте литералом", () => {
+    // Смысл всей конструкции: правка флага на бэкенде обязана менять текст,
+    // а не расходиться с ним молча.
+    const src = read("frontend/src/lib/interpretationUpsell.js");
+    const body = src.slice(src.indexOf("export function interpretationUpsell"));
+    expect(body).not.toMatch(/(800|2500)/);
+  });
+});
+
+describe("зовём в соседний тариф, а не через один", () => {
+  it("free зовут в Вегу, а не сразу в Лиру", () => {
+    // Решение владельца 09.09.2026. До этого free предлагали перепрыгнуть с
+    // 0 ₽ на 2490 ₽ мимо тарифа за 790 ₽ — самый дорогой шаг из возможных и
+    // единственный названный.
+    const free = interpretationUpsell("free");
+    expect(free.text).toContain("Вега");
+    expect(free.text).not.toContain("Лира");
+  });
+
+  it("lite зовут в Лиру", () => {
+    expect(interpretationUpsell("lite").subtitle).toContain("Лира");
+  });
+
+  it("названное в тексте число принадлежит тому тарифу, в который зовут", () => {
+    // Иначе free увидит объём Лиры под именем Веги — обещание чужого тарифа.
+    expect(interpretationUpsell("free").text).toContain(String(backendWords("lite")));
+    expect(interpretationUpsell("free").text).not.toContain(String(backendWords("pro")));
   });
 });
 
