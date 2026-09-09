@@ -274,6 +274,52 @@ class TestMaxTokens:
             assert tokens > prev, f"tier={tier} должен получить больше токенов, чем предыдущий"
             prev = tokens
 
+    def test_relative_headroom_is_the_same_for_every_tier(self):
+        """Форма запаса важнее величины.
+
+        Плоское слагаемое (+1500 токенов) давало тем меньший относительный
+        запас, чем крупнее тариф: free 2.20×, premium 1.12×. То есть в потолок
+        вероятнее всех упирался premium — тариф, которому в том же промпте
+        говорили «НЕ МЕНЕЕ 5000 слов». А упереться значит получить
+        finish_reason=length и ОТКАЗ вместо разбора, у самого дорогого тарифа.
+        """
+        from backend.auth.rate_limits import TIER_FLAGS
+        from backend.interpretation.gpt4o import _calc_max_tokens
+
+        ratios = []
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            words = TIER_FLAGS[tier]["interpretation_word_limit"]
+            ratios.append(_calc_max_tokens(req) / words)
+
+        assert max(ratios) - min(ratios) < 0.01, (
+            f"относительный запас разъехался по тарифам: {ratios}"
+        )
+
+    def test_old_additive_buffer_would_fail_this(self):
+        """Проверка самой проверки: прежняя формула обязана давать разный
+        запас — иначе тест выше ничего не стережёт."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        old = [
+            (int(TIER_FLAGS[t]["interpretation_word_limit"] * 2.5) + 1500)
+            / TIER_FLAGS[t]["interpretation_word_limit"]
+            for t in ("free", "lite", "pro", "premium")
+        ]
+        assert max(old) - min(old) > 1.0, old
+
+    def test_ceiling_leaves_room_for_honest_overshoot(self):
+        """Потолок страхует от разгона, а не режет нормальный текст: при
+        реальных ~2.1 ток/слово любой тариф может перевыполнить объём заметно
+        больше, чем в полтора раза, и остановиться сам."""
+        from backend.auth.rate_limits import TIER_FLAGS
+        from backend.interpretation.gpt4o import _calc_max_tokens
+
+        for tier in ("free", "lite", "pro", "premium"):
+            req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier=tier)
+            words_before_cut = _calc_max_tokens(req) / 2.1
+            target = TIER_FLAGS[tier]["interpretation_word_limit"]
+            assert words_before_cut > target * 1.5, f"tier={tier}"
+
     def test_explicit_word_limit_overrides_tier(self):
         from backend.interpretation.gpt4o import _calc_max_tokens
         req = InterpretationRequest(natal_profile=SAMPLE_PROFILE, tier="free", word_limit=3000)
