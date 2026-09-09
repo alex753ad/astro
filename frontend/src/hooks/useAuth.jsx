@@ -19,10 +19,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
+
+import { mergeUserFromTokens } from '../lib/sessionUser';
 import {
   ApiError,
   getSubscription,
   onSessionExpired,
+  onTokensRefreshed,
   refreshSession,
   saveAnonymousChart,
 } from '../api/client';
@@ -159,6 +162,36 @@ function useAuthInternal() {
       saveTokens({ accessToken, user });
     }
   }, [accessToken, user]);
+
+  // ── Обновление токенов приносит и свежий тариф ──────────────────────────
+  //
+  // ⚠️ Без этой подписки смена тарифа на сервере становилась видна только
+  // после повторного ВХОДА. Причина: обновление сессии идёт через
+  // `refreshSession` (api/client.js), который пишет только токены и
+  // `astro_user` не трогает, а `user.tier` перезаписывался единственным
+  // местом — `applyTokenResponse`. Ответ `/auth/refresh` при этом `tier`
+  // СОДЕРЖИТ (`_build_token_response`), и поле просто выбрасывалось:
+  // `onTokensRefreshed` не имел ни одного подписчика.
+  //
+  // Это настоящий механизм известного симптома «оплаченный тариф не
+  // применяется до перезапуска приложения». Прежнее объяснение — зависание
+  // объекта плагина Capacitor — описывало другой, тоже настоящий и уже
+  // починенный дефект; этот путь оно не задевало.
+  //
+  // ⚠️ Ни одного нового запроса здесь нет: тариф уже приехал в ответе
+  // обновления. Ходить за ним отдельно значило бы удлинить залп на холодном
+  // старте — тот самый, из-за которого писались гейт по сроку токена и пауза
+  // после неудачного обновления.
+  //
+  // ⚠️ Не вошли — ничего не делаем: `mergeUserFromTokens` возвращает prev при
+  // пустом `user`. Обновление может прийти в момент, когда сессия уже
+  // погашена, и собирать из него вошедшего нельзя.
+  useEffect(
+    () => onTokensRefreshed((data) => {
+      setUser((prev) => mergeUserFromTokens(prev, data));
+    }),
+    [],
+  );
 
   // ── Apply token data from API response ──────────────────
   const applyTokenResponse = useCallback(async (data) => {
