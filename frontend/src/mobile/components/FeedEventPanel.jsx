@@ -18,12 +18,15 @@
 
 import React from 'react';
 import { eventTitle, signRu, timePart } from '../lib/feedTime';
+import { transitTeaserText } from '../lib/transitTeaser';
 
 export default function FeedEventPanel({ event, onClose, onUpgrade }) {
   if (!event) return null;
 
   const meta = event.meta || {};
   const hasSigns = meta.transit_sign && meta.natal_sign;
+  // null, если данных в meta не хватило — тогда покажется серверный текст.
+  const composedTeaser = transitTeaserText(event);
   const degree = typeof meta.transit_degree === 'number'
     ? `${meta.transit_degree.toFixed(1)}° `
     : '';
@@ -106,10 +109,26 @@ export default function FeedEventPanel({ event, onClose, onUpgrade }) {
           )}
         </div>
 
-        {event.teaser && (
+        {/* ⚠️ Строка собирается из meta КОНКРЕТНОГО события
+            (transitTeaser.js). Прежде сервер отдавал одну и ту же фразу на
+            все транзиты подряд («Это активный период по одной из ключевых
+            тем вашей карты…»), и десять открытых карточек читались
+            одинаково — продать такое нельзя.
+
+            Серверный текст остаётся запасным путём: не хватило данных на
+            осмысленную строку — показываем общую правду, а не частное
+            правдоподобие. Он же остаётся у периодов планера, где своей
+            сборки нет. */}
+        {(composedTeaser || event.teaser) && (
           <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-            {event.teaser.intro && <p style={{ margin: 0 }}>{event.teaser.intro}</p>}
-            {event.teaser.outro && <p style={{ margin: '10px 0 0' }}>{event.teaser.outro}</p>}
+            {composedTeaser
+              ? <p style={{ margin: 0 }}>{composedTeaser}</p>
+              : (
+                <>
+                  {event.teaser.intro && <p style={{ margin: 0 }}>{event.teaser.intro}</p>}
+                  {event.teaser.outro && <p style={{ margin: '10px 0 0' }}>{event.teaser.outro}</p>}
+                </>
+              )}
           </div>
         )}
 
