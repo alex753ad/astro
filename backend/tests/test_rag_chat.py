@@ -550,3 +550,100 @@ class TestHistoryEndpoint:
         )
 
         assert len(resp.json()["messages"]) == rag_router.MAX_HISTORY
+
+
+# ═══════════════════════════════════════════════════════════
+# Чужая тема: предложить, а не отбить (09.09.2026)
+# ═══════════════════════════════════════════════════════════
+class TestOffTopicOffersInstead:
+    """До 09.09.2026 на любую чужую тему уходил ОДИН текст «Это не моя тема…
+    Спроси что-нибудь о карте». Он закрывает разговор, ничего не открывая:
+    человек уже спросил, ему ответили «спроси другое», а что именно — неясно.
+    """
+
+    def test_each_label_has_its_own_reply(self, client: TestClient, db: Session):
+        """Ответ зависит от РАЗНОВИДНОСТИ темы, а не один на все."""
+        texts = set(rag_router.OFF_TOPIC_REPLIES.values())
+        assert len(texts) == len(rag_router.OFF_TOPIC_REPLIES) >= 3
+
+    def test_every_reply_offers_a_choice(self):
+        """⚠️ Инвариант, ради которого правка и делалась: каждый ответ обязан
+        не только отказать, но и предложить — и закончиться вопросом, чтобы
+        человеку было что выбрать. Отказ без предложения этот тест роняет."""
+        for label, reply in rag_router.OFF_TOPIC_REPLIES.items():
+            assert reply.rstrip().endswith("?"), f"{label}: не предлагает выбрать"
+            assert "карт" in reply.lower(), f"{label}: не сказано, что она может"
+
+    def test_reply_never_echoes_the_question(self, client: TestClient, db: Session):
+        """Тексты фиксированные: пользовательская строка в ответ не попадает
+        ни при каком входе. Иначе через отказ можно было бы печатать в чат
+        что угодно."""
+        user = make_pro_user(db, email="offtopic_echo@example.com")
+        chart = make_chart(db, user.id)
+        marker = "МАРКЕР-ЭХА-12345"
+
+        with patch.object(rag_router, "_classify_topic", AsyncMock(return_value="money")):
+            resp = client.post(
+                f"/api/v1/chart/{chart.id}/rag-chat",
+                json={"question": f"Курс доллара {marker}?"},
+                headers=auth_headers(user),
+            )
+
+        assert resp.status_code == 200
+        assert marker not in resp.text
+        assert rag_router.OFF_TOPIC_REPLIES["money"] in resp.text
+
+    def test_money_and_world_give_different_answers(self, client: TestClient, db: Session):
+        """Метка доезжает до текста, а не теряется по дороге."""
+        user = make_pro_user(db, email="offtopic_labels@example.com")
+        chart = make_chart(db, user.id)
+        seen = {}
+        for label in ("money", "world", "life"):
+            with patch.object(rag_router, "_classify_topic", AsyncMock(return_value=label)):
+                resp = client.post(
+                    f"/api/v1/chart/{chart.id}/rag-chat",
+                    json={"question": "вопрос"},
+                    headers=auth_headers(user),
+                )
+            seen[label] = resp.text
+        assert len(set(seen.values())) == 3
+
+
+class TestClassifierIsNotTooStrict:
+    """«Дом» в астрологии — это дом карты, и отбивать его нельзя. Классификатор
+    отбивал: правила для неоднозначного слова у него не было вовсе, а off_topic
+    был описан как «любые темы вне астрологии», то есть как catch-all.
+
+    ⚠️ Это проверки ПРОМПТА, а не поведения модели: боевого ключа в тестах нет,
+    и что модель послушается, отсюда не следует. Они держат правило от
+    молчаливого удаления при следующей правке текста — не больше и не меньше.
+    """
+
+    def test_prompt_has_a_tie_breaker(self):
+        prompt = rag_router._TOPIC_CLASSIFIER_PROMPT
+        assert "Сомневаешься" in prompt, "нет правила для неоднозначного случая"
+        assert "astrology" in prompt.split("Сомневаешься")[1][:40]
+
+    def test_prompt_names_the_word_that_broke_it(self):
+        # Именно «дом» — тот вход, на котором дефект нашли.
+        assert "«дом»" in rag_router._TOPIC_CLASSIFIER_PROMPT
+
+    def test_prompt_covers_single_word_input(self):
+        """Одно слово без пояснения — просьба рассказать по карте, а не вопрос
+        о внешнем мире. Раньше классификатору об этом не говорили ничего."""
+        assert "ОДНО СЛОВО" in rag_router._TOPIC_CLASSIFIER_PROMPT
+
+    def test_unknown_label_falls_open_to_astrology(self):
+        """Модель ответила не тем словом — пропускаем к модели, а не отбиваем.
+        Цена ошибки несимметрична: лишний вопрос стоит копейки, отбитый
+        настоящий вопрос — ушедшего человека."""
+        for raw in ("непонятно", "", "   ", "OFF_TOPIC", "не знаю"):
+            assert rag_router._label_from_reply(raw) == "astrology", repr(raw)
+
+    def test_known_labels_are_recognised(self):
+        for label in rag_router.OFF_TOPIC_REPLIES:
+            assert rag_router._label_from_reply(label) == label
+            assert rag_router._label_from_reply(f"  {label.upper()}  ") == label
+
+    def test_astrology_answer_passes_through(self):
+        assert rag_router._label_from_reply("astrology") == "astrology"
