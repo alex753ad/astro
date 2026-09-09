@@ -85,7 +85,7 @@ function ChartLoading() {
   );
 }
 
-export default function ChartScreen({ active = true, onHintsToggle, onChartCreated, chartsVersion = 0 }) {
+export default function ChartScreen({ active = true, onHintsToggle, onChartCreated, chartsVersion = 0, onChartResolved }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
@@ -199,6 +199,15 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Наверх, в TabShell: кнопка чата открывает диалог по карте ТОЙ вкладки, с
+  // которой её нажали. Здесь это отдельный эффект по уже загруженной карте, а
+  // не строка внутри load(), потому что карту на этом экране ставят два пути —
+  // обычная загрузка и подмена после локального переопределения (см. ветку
+  // 404 выше). Эффект накрывает оба разом; строка в load() накрыла бы один.
+  useEffect(() => {
+    onChartResolved?.(chart ? { id: chart.id, name: chart.name } : null);
+  }, [chart, onChartResolved]);
 
   /**
    * Состав карт изменился на вкладке «Ещё» — удалили карту или сменили

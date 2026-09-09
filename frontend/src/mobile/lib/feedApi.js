@@ -45,13 +45,23 @@ export function feedWindow(today = localToday()) {
 /**
  * Карта, чью ленту показываем: помеченная основной, иначе первая по списку.
  * `null` — у аккаунта нет ни одной карты (состояние «нет карты», §11).
+ *
+ * Отдаёт карту целиком, а не один идентификатор: шапке чата нужно ещё и имя
+ * (SPEC_CHAT.md §3), а второй запрос ради поля, которое уже приехало в этом
+ * же ответе, был бы лишним — тем более на холодном старте, где залп запросов
+ * и так был причиной отдельного разбора (CLAUDE.md, «Холодный старт»).
  */
-export async function resolvePrimaryChartId() {
+export async function resolvePrimaryChart() {
   const resp = await authFetchWithTimeout(`${API_BASE}/profile/charts`);
   if (!resp.ok) {
     throw new Error(await responseErrorText(resp, 'Не удалось получить список карт.'));
   }
-  return pickPrimaryChartId((await resp.json())?.charts);
+  return pickPrimaryChart((await resp.json())?.charts);
+}
+
+/** Тот же запрос, когда нужен только идентификатор. */
+export async function resolvePrimaryChartId() {
+  return (await resolvePrimaryChart())?.id ?? null;
 }
 
 /**
@@ -64,9 +74,14 @@ export async function resolvePrimaryChartId() {
  * загружен, и ссылка на веб-отчёт обязана вести на ту же карту, которую
  * показывают «Лента» и «Карта».
  */
-export function pickPrimaryChartId(charts) {
+export function pickPrimaryChart(charts) {
   if (!Array.isArray(charts) || charts.length === 0) return null;
-  return (charts.find((c) => c.is_primary) || charts[0]).id;
+  return charts.find((c) => c.is_primary) || charts[0];
+}
+
+/** То же правило, когда нужен только идентификатор. */
+export function pickPrimaryChartId(charts) {
+  return pickPrimaryChart(charts)?.id ?? null;
 }
 
 /**
