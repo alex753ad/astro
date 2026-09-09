@@ -880,3 +880,101 @@ class TestFeedShape:
         feed = _feed(date(2026, 8, 1), date(2026, 9, 30))
         keys = [e["key"] for e in feed["events"]]
         assert len(keys) == len(set(keys))
+
+
+# ═══════════════════════════════════════════════════════════
+# 8. peak_date в meta — из движка, а не из at
+# ═══════════════════════════════════════════════════════════
+
+class TestPeakDateIsNotDerivedFromAt:
+    """`meta.peak_date` нужен клиенту, чтобы попросить AI-разбор транзита:
+    POST /chart/{id}/transits/event/interpret без него отвечает 422, а сама
+    дата входит и в ключ кэша разбора, и в аргумент compute_exact_facts.
+
+    ⚠️ Смысл этих тестов — доказать, что вывести дату из `at` нельзя, хотя
+    в большинстве событий они совпадают и соблазн очевиден. `at` — локальный
+    ISO момента `exact_date`, `peak_date` — дата пика в UTC от движка; у
+    события около полуночи они расходятся на сутки. Клиент, посчитавший
+    `at[:10]`, промахнулся бы мимо готового кэша, оплатил бы генерацию заново
+    и на Веге списал бы лишнюю единицу из трёх — при внешне исправном экране.
+    """
+
+    @staticmethod
+    def _one_event(exact_date_utc: str, peak_date: str, tz_name: str = "Europe/Moscow"):
+        """Один синтетический транзит через _transit_events.
+
+        Патчим `_transit_chunk` на самом модуле: `_transit_events` зовёт его
+        по имени модуля, а не через аргумент. Живой движок здесь не нужен и
+        вреден — воспроизвести пик ровно у полуночи его средствами нельзя.
+        """
+        import pytz
+
+        import backend.feed.builder as builder
+
+        chunk = [{
+            "transit_planet": "Saturn",
+            "transit_sign": "Aries",
+            "transit_degree": 12.3,
+            "natal_planet": "Sun",
+            "natal_sign": "Cancer",
+            "aspect_type": "square",
+            "peak_date": peak_date,
+            "exact_date": exact_date_utc,
+            "peak_orb": 0.4,
+            "applying": True,
+            "significant": True,
+            "free_unlocked": True,
+        }]
+
+        orig = builder._transit_chunk
+        builder._transit_chunk = lambda chart_id, natal_planets, year, month: chunk
+        try:
+            peak = date.fromisoformat(peak_date)
+            return builder._transit_events(
+                "chart-1", [], peak, peak, pytz.timezone(tz_name), "free",
+            )
+        finally:
+            builder._transit_chunk = orig
+
+    def test_near_midnight_peak_date_differs_from_date_in_at(self):
+        """Пик 22:30 UTC в Москве (UTC+3) — это 01:30 СЛЕДУЮЩИХ суток.
+
+        Ровно тот случай, ради которого поле и заведено: возьми клиент
+        `at[:10]`, он отправил бы на сервер дату на сутки правее.
+        """
+        events = self._one_event("2026-06-15T22:30:00", "2026-06-15")
+        assert len(events) == 1
+        ev = events[0]
+
+        assert ev["meta"]["peak_date"] == "2026-06-15"
+        assert ev["at"][:10] == "2026-06-16", ev["at"]
+        assert ev["meta"]["peak_date"] != ev["at"][:10], (
+            "дата пика совпала с датой из at — синтетика перестала "
+            "воспроизводить полуночный случай, тест ничего не доказывает"
+        )
+
+    def test_ordinary_event_they_do_coincide(self):
+        """Днём они совпадают — иначе первый тест доказывал бы лишь то, что
+        поля разные всегда, а не то, что на них нельзя полагаться."""
+        events = self._one_event("2026-06-15T12:00:00", "2026-06-15")
+        ev = events[0]
+        assert ev["meta"]["peak_date"] == ev["at"][:10] == "2026-06-15"
+
+    def test_format_is_exactly_what_the_endpoint_accepts(self):
+        """Ручка режет строку до 10 символов и зовёт date.fromisoformat —
+        значит формат обязан быть YYYY-MM-DD без времени и без смещения."""
+        ev = self._one_event("2026-06-15T12:00:00", "2026-06-15")[0]
+        value = ev["meta"]["peak_date"]
+        assert isinstance(value, str)
+        assert len(value) == 10, value
+        assert date.fromisoformat(value[:10]) == date(2026, 6, 15)
+
+    def test_present_on_every_transit_of_a_live_feed(self):
+        """Синтетика синтетикой, а на настоящей ленте поле обязано быть у
+        каждого транзита: клиент не должен гадать, есть оно или нет."""
+        feed = _feed(date(2026, 9, 1), date(2026, 9, 30))
+        transits = [e for e in feed["events"] if e["kind"] == "transit"]
+        assert transits, "в ленте нет транзитов — проверять нечего"
+        for e in transits:
+            assert e["meta"].get("peak_date"), e["meta"]
+            assert date.fromisoformat(e["meta"]["peak_date"])
