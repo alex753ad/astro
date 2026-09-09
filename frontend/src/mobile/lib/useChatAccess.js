@@ -12,17 +12,20 @@
  */
 
 import { useEffect, useState } from 'react';
-import { fetchSubscription } from './moreApi';
+import { getSubscription, onSubscription, peekSubscription } from './tierSource';
 
 export default function useChatAccess() {
-  const [hasAccess, setHasAccess] = useState(false);
+  const [hasAccess, setHasAccess] = useState(
+    () => !!peekSubscription()?.features?.rag_chat,
+  );
 
   useEffect(() => {
-    let alive = true;
-    fetchSubscription()
-      .then((data) => { if (alive) setHasAccess(!!data?.features?.rag_chat); })
-      .catch(() => {}); // остаётся false — см. докстринг
-    return () => { alive = false; };
+    const off = onSubscription((data) => setHasAccess(!!data?.features?.rag_chat));
+    // Свой запрос отсюда убран 09.09.2026: подписка теперь общая
+    // (tierSource.js), и на холодном старте уходит ОДИН запрос на всех
+    // потребителей вместо прежних двух.
+    getSubscription().catch(() => {}); // остаётся false — см. докстринг
+    return off;
   }, []);
 
   return hasAccess;

@@ -27,7 +27,8 @@ import MoreNotificationsView from '../components/MoreNotificationsView';
 import MoreSettingsView from '../components/MoreSettingsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
-import { deleteChart, fetchMe, fetchSubscription, fetchCharts, setPrimaryChart } from '../lib/moreApi';
+import { deleteChart, fetchMe, fetchCharts, setPrimaryChart } from '../lib/moreApi';
+import { getSubscription } from '../lib/tierSource';
 import { birthDateWords } from '../lib/chartFormat';
 import { pickPrimaryChartId } from '../lib/feedApi';
 import { openInBrowser } from '../lib/openInBrowser';
@@ -172,7 +173,10 @@ export default function MoreScreen({ onChartsChanged }) {
     try {
       const [meData, subData, chartsData] = await Promise.all([
         fetchMe(),
-        fetchSubscription(),
+        // Общий источник тарифа (mobile/lib/tierSource.js), а не свой запрос:
+        // на холодном старте он один на все экраны. Жест обновления форсит —
+        // человек тянет экран именно чтобы увидеть новое.
+        getSubscription({ force: silent }),
         fetchCharts(),
       ]);
       setMe(meData);

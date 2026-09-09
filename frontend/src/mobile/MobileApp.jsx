@@ -20,10 +20,11 @@
  * /login — без этого пользователь застрял бы на пустом таб-баре без сети.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../hooks/useAuth.jsx';
 import useAuth from '../hooks/useAuth.jsx';
+import { resetSubscription } from './lib/tierSource';
 import { ThemeProvider } from './useTheme.jsx';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -34,6 +35,17 @@ import './mobile.css';
 
 function RequireAuth({ children }) {
   const { isAuthenticated } = useAuth();
+
+  // ⚠️ Общий кэш тарифа (mobile/lib/tierSource.js) чистится ровно здесь, при
+  // потере сессии, и одним местом на всё приложение. Оставить его значило бы
+  // показать следующему вошедшему тариф предыдущего — а он живёт в памяти
+  // процесса и переживает разлогин. Разлогин ловим по признаку, а не по
+  // вызову logout(): выходов несколько (кнопка на трёх экранах, отказ
+  // аутентификации), и любой пропущенный дал бы ровно тот же дефект.
+  useEffect(() => {
+    if (!isAuthenticated) resetSubscription();
+  }, [isAuthenticated]);
+
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 }
 
