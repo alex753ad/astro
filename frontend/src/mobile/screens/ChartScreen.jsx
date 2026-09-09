@@ -118,7 +118,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   // Толчок, поднятый этим же экраном: чтобы отличить его от толчка «Ещё»
   // (см. эффект по chartsVersion ниже).
   const ownBumpRef = useRef(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { dark } = useTheme();
 
   // Якоря подсветки подсказок (SPEC_ONBOARDING.md §10).
@@ -270,7 +270,10 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   // приёмом, что форма построения выше. Ветка стоит ПОСЛЕ 'create' и ДО
   // состояний загрузки: сюда попадают только с готовой карты, id уже есть.
   if (view === 'interpret') {
-    return <InterpretView chartId={chart?.id} onBack={() => setView('chart')} />;
+    // Тариф — из useAuth: отдельного запроса ради приписки не делаем,
+    // /auth/me уже прочитан при входе. Отсутствующий тариф
+    // interpretationUpsell считает free — так же, как веб.
+    return <InterpretView chartId={chart?.id} tier={user?.tier} onBack={() => setView('chart')} />;
   }
 
   if (status === 'loading') return <ChartLoading />;

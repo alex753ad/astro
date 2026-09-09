@@ -24,6 +24,7 @@ import {
   classifyOutcome,
   shouldRefetchOnResume,
 } from '../lib/interpretRules';
+import { interpretationUpsell } from '../../lib/interpretationUpsell';
 import { openInBrowser } from '../lib/openInBrowser';
 import { PRICING_URL } from '../lib/onboardingCopy';
 
@@ -63,7 +64,7 @@ function renderLines(text) {
   });
 }
 
-export default function InterpretView({ chartId, onBack }) {
+export default function InterpretView({ chartId, tier, onBack }) {
   const [sections, setSections] = useState([]);   // [{ name, title, text }]
   const [started, setStarted]   = useState(false);
   const [finished, setFinished] = useState(false);
@@ -147,6 +148,17 @@ export default function InterpretView({ chartId, onBack }) {
 
   const hasText = sections.some((s) => s.text.trim());
 
+  // Приписка под готовым разбором. Тексты и правило «кому показывать» —
+  // общий файл с вебом (lib/interpretationUpsell.js): вторая копия продающих
+  // формулировок разошлась бы с первой, как уже было со словарём заголовков
+  // секций. Здесь только разметка под телефон.
+  //
+  // ⚠️ Показывается ТОЛЬКО на успешно завершённом разборе: `finished && !failure`.
+  // После отказа по лимиту предложение купить уже стоит выше, в самом отказе,
+  // и второе подряд читалось бы как навязчивость; после обрыва связи оно
+  // неуместно вовсе.
+  const upsell = finished && !failure ? interpretationUpsell(tier) : null;
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <header style={{ padding: '12px 16px 8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -194,6 +206,45 @@ export default function InterpretView({ chartId, onBack }) {
             {renderLines(s.text)}
           </section>
         ))}
+
+        {/* Pro и premium не получают ничего — interpretationUpsell отдаёт им
+            null. Предлагать более глубокий разбор тому, у кого он самый
+            глубокий, незачем. */}
+        {upsell?.kind === 'free' && (
+          <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', textAlign: 'center' }}>
+              {upsell.text}
+            </p>
+            <button
+              type="button"
+              className="mobile-link"
+              onClick={() => openInBrowser(PRICING_URL)}
+            >
+              {upsell.cta}
+            </button>
+          </div>
+        )}
+
+        {upsell?.kind === 'lite' && (
+          <div style={{ marginTop: 22, padding: '14px 16px', borderRadius: 16, background: 'var(--bg-card)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {upsell.title}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                {upsell.subtitle}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="mobile-btn-primary"
+              style={{ height: 44, fontSize: 13.5 }}
+              onClick={() => openInBrowser(PRICING_URL)}
+            >
+              {upsell.cta}
+            </button>
+          </div>
+        )}
 
         {/* Отказ показывается ПОД уже набранным текстом, а не вместо него:
             то, что пришло, человек уже получил — на free ценой единственного
