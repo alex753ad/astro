@@ -98,14 +98,42 @@ const TRANSIT_WINDOW = {
 };
 
 /**
- * Тема пары. Одинаковые темы не удваиваем: «тема ясности и ясности» — брак,
- * а Солнце к натальному Солнцу событие частое.
+ * Где планета находится относительно СВОЕЙ натальной точки.
+ *
+ * ⚠️ Нужно потому, что фраза построена на паре тем, а когда транзитная и
+ * натальная планета совпадают, пара схлопывается и остаётся половина
+ * конструкции: «Луна к вашей Луне: тема чувств» читается обрублено. На боевых
+ * лентах таких событий около 8% (64–71 из ~800 на карту, замер по пяти
+ * картам) — не редкость, которой можно пренебречь.
+ *
+ * ⚠️ «Возвращение» подходит ТОЛЬКО соединению, и это главное, что здесь легко
+ * сделать неправильно. Тот же замер: у совпадающих пар встречаются все пять
+ * аспектов, и соединений среди них меньшинство (6–7 из ~65). Луна в квадрате
+ * к своей натальной Луне никуда не возвращается — она проходит четверть
+ * собственного круга. Назвать это возвращением значило бы соврать в трети
+ * случаев.
+ *
+ * Формулировки описывают механику, а не последствия: где планета в своём
+ * круге. Что это значит для человека — остаётся платному разбору.
+ */
+const SELF_CYCLE_PHASE = {
+  conjunction: 'начало',
+  opposition: 'середина',
+  square: 'четверть',
+  trine: 'промежуточная точка',
+  sextile: 'промежуточная точка',
+};
+
+/**
+ * Тема пары. `null`, если планеты совпали — такому случаю нужен свой хвост
+ * (см. `SELF_CYCLE_PHASE`), а не половина парной конструкции.
  */
 function pairTheme(transitPlanet, natalPlanet) {
   const a = PLANET_THEME[transitPlanet];
   const b = PLANET_THEME[natalPlanet];
   if (!a || !b) return null;
-  return a === b ? a : `${a} и ${b}`;
+  if (a === b) return null;
+  return `${a} и ${b}`;
 }
 
 /**
@@ -120,15 +148,26 @@ export function transitTeaserText(event) {
 
   const subject = planetRu(meta.transit_planet);
   const target = planetDativeRu(meta.natal_planet);
-  const theme = pairTheme(meta.transit_planet, meta.natal_planet);
   const kind = ASPECT_KIND[meta.aspect_type];
   const window = TRANSIT_WINDOW[meta.transit_planet];
+  const own = meta.transit_planet === meta.natal_planet;
+  const theme = own
+    ? PLANET_THEME[meta.transit_planet]
+    : pairTheme(meta.transit_planet, meta.natal_planet);
+  const phase = own ? SELF_CYCLE_PHASE[meta.aspect_type] : null;
 
   // Любая недостающая часть — отказ целиком. Строка без темы или без
   // характера аспекта хуже прежней общей фразы: она выглядит осмысленной и
   // при этом ничего не сообщает.
   if (!subject || !target || !theme || !kind || !window) return null;
+  if (own && !phase) return null;
   if (subject === meta.transit_planet) return null;   // planetRu вернул ключ — имени нет
+
+  // Планета пришла к своей же точке: пары тем нет, есть положение в
+  // собственном круге. Форма та же, слот темы занят фазой цикла.
+  if (own) {
+    return `${subject} к ${target}: ${phase} собственного цикла, тема ${theme}. ${kind}, ${window}.`;
+  }
 
   return `${subject} к ${target}: тема ${theme}. ${kind}, ${window}.`;
 }

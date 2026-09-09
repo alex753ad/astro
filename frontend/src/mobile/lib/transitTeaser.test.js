@@ -51,6 +51,62 @@ describe('строка собирается из данных события', (
   });
 });
 
+describe('планета к своей же точке', () => {
+  const own = (planet, aspect) => ev(planet, planet, aspect);
+
+  it('фраза не обрывается на половине конструкции', () => {
+    // Было: «Луна к вашей Луне: тема чувств.» — пара тем схлопнулась, и от
+    // конструкции осталась половина.
+    expect(transitTeaserText(own('Moon', 'conjunction')))
+      .toBe('Луна к вашей Луне: начало собственного цикла, тема чувств. Соединение, окно несколько часов.');
+  });
+
+  it('возвращением называется ТОЛЬКО соединение', () => {
+    // Главное, что здесь легко сделать неправильно. На боевых лентах у
+    // совпадающих пар встречаются все пять аспектов, и соединений среди них
+    // меньшинство (6-7 из ~65 на карту). Луна в квадрате к своей натальной
+    // Луне никуда не возвращается — она проходит четверть круга.
+    expect(transitTeaserText(own('Moon', 'conjunction'))).toContain('начало собственного цикла');
+    expect(transitTeaserText(own('Moon', 'square'))).toContain('четверть собственного цикла');
+    expect(transitTeaserText(own('Moon', 'opposition'))).toContain('середина собственного цикла');
+  });
+
+  it('все пять аспектов дают осмысленную фразу', () => {
+    // Ни один не должен провалиться в запасной путь: они все встречаются.
+    for (const a of ['conjunction', 'opposition', 'square', 'trine', 'sextile']) {
+      const s = transitTeaserText(own('Sun', a));
+      expect(s, a).toBeTruthy();
+      expect(s, a).toContain('собственного цикла');
+    }
+  });
+
+  it('фаза цикла различает строки, а характер аспекта остаётся', () => {
+    const square = transitTeaserText(own('Venus', 'square'));
+    const opposition = transitTeaserText(own('Venus', 'opposition'));
+    expect(square).not.toBe(opposition);
+    // Оба напряжённые — характер аспекта из фразы не пропал.
+    expect(square).toContain('Напряжённый аспект');
+    expect(opposition).toContain('Напряжённый аспект');
+  });
+
+  it('тема планеты называется один раз, а не дважды', () => {
+    const s = transitTeaserText(own('Sun', 'trine'));
+    expect(s).toContain('тема ясности.');
+    expect(s).not.toContain('ясности и ясности');
+  });
+
+  it('незнакомый аспект у своей же точки — запасной путь', () => {
+    expect(transitTeaserText(own('Moon', 'quincunx'))).toBeNull();
+  });
+
+  it('трактовки нет и здесь', () => {
+    const forbidden = /стоит|лучше|избегай|осторожн|удач|опасн|повезёт|получится|нужно/i;
+    for (const a of ['conjunction', 'opposition', 'square', 'trine', 'sextile']) {
+      expect(transitTeaserText(own('Saturn', a))).not.toMatch(forbidden);
+    }
+  });
+});
+
 describe('разные транзиты — разные строки', () => {
   it('смена любой из трёх частей меняет строку', () => {
     const base = transitTeaserText(ev('Sun', 'Neptune', 'square'));
