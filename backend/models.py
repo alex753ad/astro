@@ -71,6 +71,12 @@ class User(Base):
     push_planner        = Column(Boolean, nullable=False, default=True, server_default="true")
     push_key_transits   = Column(Boolean, nullable=False, default=True, server_default="true")
     push_moon_phases    = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Верхняя граница окна отправки, парная к push_daily_time. До 10.09.2026
+    # границы не было вовсе: планировщик проверял только "локальное время уже
+    # наступило", то есть тик в 23:45 условие проходил. Значение читается той
+    # же парой (см. backend/push/cron.py, in_send_window) и планировщиком, и
+    # ручкой /push/upcoming — правило одно на оба пути.
+    push_quiet_from     = Column(String(5), nullable=False, default="22:00", server_default="22:00")
 
     # Primary chart (018) — карта относительно которой строятся письма, планер, натальная карта
     primary_chart_id = Column(
