@@ -377,12 +377,39 @@ def _load_memory(db: Session, user_id: str) -> str:
         return ""
 
 
-async def _update_memory(user_id: str, question: str, history: list[dict]) -> None:
-    """Слой 2: сворачивает текущий диалог в память (фоново, после ответа).
+async def _update_memory(
+    user_id: str, question: str, history: list[dict], turn: dict | None = None,
+) -> None:
+    """Слой 2: сворачивает ЗАВЕРШЁННЫЙ ход диалога в память.
 
     Один дешёвый вызов DeepSeek на реплику. Ошибки не критичны — память
     просто не обновится, чат от этого не страдает.
+
+    ⚠️ **`turn` — держатель, который заполняет `_sse_generator`, и он здесь
+    нужен по существу, а не для удобства.** `BackgroundTask` связывает свои
+    аргументы в момент СОЗДАНИЯ, то есть до того, как ответ модели существует.
+    Пока сюда передавали только `question`, в свёртку уходил вопрос человека
+    без ответа на него: ответ попадал в память лишь ходом позже, когда
+    становился частью `history`, а последний ответ разговора — НИКОГДА.
+    Замерено 09.09.2026: на первом ходу `history` пуста, и свёртка видела ровно
+    одну строку — вопрос.
+
+    Обиднее всего, что промпт свёртки прямо просит запомнить, «что советовала
+    Аристея», — а именно свежего совета в данных и не было. Инструкция и данные
+    расходились.
+
+    Держатель решает это, не ломая жизненный цикл ответа: Starlette исчерпывает
+    генератор и лишь ПОТОМ зовёт background (`stream_response` → `background()`
+    в `starlette/responses.py`), то есть к этому моменту текст уже собран и
+    записан в `turn`. Ждать свёртку внутри самого генератора было нельзя —
+    это отложило бы `[DONE]` клиенту на всё время второго вызова модели.
+
+    ⚠️ Нет ответа — не сворачиваем вовсе. Ход не состоялся: `_persist_turn` его
+    тоже не записал, и памяти нечего запоминать, кроме вопроса в пустоту.
     """
+    answer = (turn or {}).get("answer", "")
+    if not answer:
+        return
     try:
         db = SessionLocal()
         try:
@@ -397,6 +424,7 @@ async def _update_memory(user_id: str, question: str, history: list[dict]) -> No
                 who = "Пользователь" if m.get("role") == "user" else "Аристея"
                 lines.append(f"{who}: {content}")
             lines.append(f"Пользователь: {question}")
+            lines.append(f"Аристея: {answer}")
             dialog = "\n".join(lines)[:4000]
 
             fold_prompt = (
@@ -425,10 +453,36 @@ async def _update_memory(user_id: str, question: str, history: list[dict]) -> No
                     },
                 )
                 resp.raise_for_status()
-                new_summary = resp.json()["choices"][0]["message"]["content"].strip()
+                choice = resp.json()["choices"][0]
+                finish_reason = choice.get("finish_reason")
+                new_summary = choice["message"]["content"].strip()
 
             if not new_summary:
                 return
+
+            # ⚠️ Обрезанную сводку НЕ сохраняем, оставляем прежнюю. Тот же
+            # приём, что в натальном разборе (`interpretation/router.py`: при
+            # finish_reason != "stop" результат не кэшируется), и по той же
+            # причине — незаконченный текст хуже отсутствующего.
+            #
+            # Здесь это особенно легко проглядеть: `MEMORY_MAX_TOKENS = 400` —
+            # это примерно 130–160 русских слов, то есть чуть выше просимых в
+            # промпте 120. Модель, перевыполнившая объём (а на коротких
+            # заданиях она это делает устойчиво, см. CLAUDE.md «Объём разбора»),
+            # упирается в потолок, ответ приходит с finish_reason="length" — и
+            # до 09.09.2026 обрывок на полуслове ложился в БД молча и жил там,
+            # подмешиваясь в КАЖДЫЙ следующий запрос чата.
+            #
+            # Прежняя сводка при этом не теряется: пропуск обновления оставляет
+            # её как есть. Худшее последствие — память на один ход устарела.
+            if finish_reason is not None and finish_reason != "stop":
+                logger.warning(
+                    "astrea memory fold ended with finish_reason=%s — сводка не сохранена "
+                    "(user=%s, длина обрывка=%d)",
+                    finish_reason, user_id, len(new_summary),
+                )
+                return
+
             new_summary = new_summary[:2000]
 
             if row:
@@ -466,6 +520,7 @@ async def _sse_generator(
     chart_id: str = "",
     question: str = "",
     history: list[dict] | None = None,
+    turn: dict | None = None,
 ):
     """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю.
 
@@ -553,6 +608,13 @@ async def _sse_generator(
             # при их отсутствии track_spend ничего не пишет.
             track_engine_spend("deepseek", stream_tokens, "rag_chat")
             await _persist_turn(user_id, chart_id, question, answer, history)
+            # Держатель для фоновой свёртки памяти. Заполняется РЯДОМ с
+            # _persist_turn и по той же причине: здесь текст впервые существует
+            # целиком. Свёртку запускает background у ответа — она выполнится
+            # после того, как генератор исчерпан, то есть уже увидит это
+            # значение (см. докстринг _update_memory).
+            if turn is not None:
+                turn["answer"] = answer
         yield "data: [DONE]\n\n"
 
     except asyncio.TimeoutError:
@@ -639,6 +701,23 @@ async def rag_chat(
     topic = await _classify_topic(question)
     if topic != "astrology":
         history = await _load_history(user.id, chart_id)
+        # ⚠️ У этого ответа НЕТ `background=`, то есть память здесь намеренно не
+        # обновляется — это решение, а не забытый провод. Разведка 09.09.2026
+        # искала «где свёртка пропускается молча» и нашла эту ветку пятой, уже
+        # не зная, задумано так или нет; комментарий закрывает вопрос.
+        #
+        # Причина: сворачивать нечего. В памяти лежат «устойчивые факты о
+        # человеке — его цели, решения, что советовала Аристея» (см. промпт в
+        # _update_memory), а здесь человек спросил про то, о чём Аристея не
+        # говорит, и получил фиксированный текст, который она не сочиняла.
+        # Свернуть это значило бы записать в долговременную память, что человек
+        # интересовался курсом доллара, — и потом подмешивать этот факт в каждый
+        # запрос про его карту.
+        #
+        # В историю диалога (Redis) отказ при этом ПИШЕТСЯ, и это не
+        # противоречие: там нужен связный разговор, чтобы модель понимала «про
+        # это я уже отвечала отказом» и не повторялась. Разные хранилища —
+        # разные задачи.
         return StreamingResponse(
             _off_topic_sse(user.id, chart_id, question, history, topic),
             media_type="text/event-stream",
@@ -669,6 +748,13 @@ async def rag_chat(
     # История берётся с сервера, а не из тела запроса: клиентская история
     # позволяла подделывать реплики ассистента и переопределять поведение модели.
     history = await _load_history(user.id, chart_id)
+
+    # Держатель завершённого хода: генератор кладёт сюда полный текст ответа,
+    # фоновая свёртка памяти читает. Пустой словарь, а не строка, потому что
+    # BackgroundTask связывает аргументы в момент создания — то есть ДО того,
+    # как ответ существует; передать можно только ссылку на общий объект.
+    turn: dict = {}
+
     messages = (
         [{"role": "system", "content": system}]
         + history
@@ -683,13 +769,14 @@ async def rag_chat(
             chart_id=chart_id,
             question=question,
             history=history,
+            turn=turn,
         ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
-        background=BackgroundTask(_update_memory, user.id, question, history),
+        background=BackgroundTask(_update_memory, user.id, question, history, turn),
     )
 
 
