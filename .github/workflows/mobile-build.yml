@@ -90,6 +90,32 @@ jobs:
           fi
           npx cap sync android
 
+      # Иконка лаунчера. Шаблон Capacitor кладёт свою (проверено побайтово), и
+      # без этого шага в APK уезжает именно она.
+      #
+      # Стоит ПОСЛЕ cap add/sync (до них каталога android/ ещё нет) и ДО сборки.
+      # Порядок относительно cap sync проверен исполнением 10.09.2026: sync
+      # трогает только assets/public, capacitor.config.json и список плагинов,
+      # ресурсы в res/ не переписывает — то есть шаг можно было бы поставить и
+      # после него. Здесь он раньше патчей манифеста по другой причине:
+      # генератор ПЕРЕПИСЫВАЕТ AndroidManifest.xml (проставляет android:icon и
+      # roundIcon и заодно переформатирует файл целиком). Атрибуты патчей это
+      # переживают, но правильный порядок — генератор, а потом патчи и их
+      # проверка, чтобы гарантией была последняя операция, а не первая.
+      #
+      # Режим «один логотип»: из assets/logo.png собираются и adaptive-иконка
+      # (Android 8+), и legacy-PNG (API 23-25), и сплэш. Отключить сплэш нечем
+      # — у генератора нет флага «только иконки»; сплэш до этого был дефолтным
+      # шаблонным, замена согласована владельцем 10.09.2026.
+      #
+      # Цвет фона виден только там, где у исходника прозрачность; наш PNG
+      # непрозрачен и заполняет видимую область целиком, так что флаг работает
+      # страховкой на случай замены исходника на вариант с альфа-каналом.
+      - name: Иконка приложения
+        working-directory: frontend
+        run: |
+          npx @capacitor/assets generate --android --iconBackgroundColor '#CDBBE6' --iconBackgroundColorDark '#CDBBE6'
+
       # Правки нативного проекта, который генерируется заново каждым прогоном.
       # Падает, если якорь не найден: молчаливый пропуск дал бы APK без
       # настройки, о наличии которой все уверены.
@@ -111,6 +137,42 @@ jobs:
           grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:screenOrientation="portrait"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:windowSoftInputMode="adjustResize"' android/app/src/main/AndroidManifest.xml
+
+      # Проверка результата генератора — по ФАКТУ в res/, а не по успеху шага
+      # выше. Мимо неё прошёл бы отказ, который ничего не роняет: генератор
+      # ничего не нашёл в assets/ и честно отработал вхолостую, а APK уехал с
+      # шаблонной иконкой Capacitor. Ровно этот класс отказа тут и ловится.
+      #
+      # Эталон берётся из самого шаблона (tarball внутри @capacitor/cli), а не
+      # прибитой хеш-строкой: при апгрейде Capacitor шаблонная иконка может
+      # смениться, и прибитый хеш начал бы сравнивать с несуществующим больше
+      # состоянием, то есть проходить всегда.
+      #
+      # Проверяются ОБА пути: adaptive-иконка (её и видно на Android 8+) и
+      # legacy-PNG (API 23-25, у нас minSdkVersion 23). Только legacy было бы
+      # недостаточно: система на 8+ берёт mipmap-anydpi-v26 и на PNG не смотрит.
+      - name: Проверить, что иконка не шаблонная
+        working-directory: frontend
+        run: |
+          res=android/app/src/main/res
+          tpl=$(mktemp -d)
+          tar xzf node_modules/@capacitor/cli/assets/android-template.tar.gz -C "$tpl"
+          tplres="$tpl/app/src/main/res"
+
+          if cmp -s "$tplres/mipmap-xxxhdpi/ic_launcher.png" "$res/mipmap-xxxhdpi/ic_launcher.png"; then
+            echo "ic_launcher.png побайтово равен шаблону Capacitor — генератор иконки не отработал"
+            exit 1
+          fi
+          if cmp -s "$tplres/mipmap-xxxhdpi/ic_launcher_foreground.png" "$res/mipmap-xxxhdpi/ic_launcher_foreground.png"; then
+            echo "ic_launcher_foreground.png шаблонный — adaptive-иконка осталась дефолтной,"
+            echo "и на Android 8+ в лаунчере будет иконка Capacitor, а не логотип."
+            exit 1
+          fi
+          # Этого файла в шаблоне нет вовсе: там фон adaptive-иконки — цвет в
+          # values/, а не картинка в mipmap-. Значит его наличие само по себе
+          # означает, что слои переписаны генератором.
+          test -f "$res/mipmap-xxxhdpi/ic_launcher_background.png"
+          grep -q 'ic_launcher_foreground' "$res/mipmap-anydpi-v26/ic_launcher.xml"
 
       # SDK на образе runner'а уже стоит, но состав платформ меняется от
       # образа к образу. sdkmanager идемпотентен: если пакет есть, шаг
