@@ -20,7 +20,6 @@ import AspectGrid from '../components/AspectGrid';
 import { useExpertMode } from '../hooks/useExpertMode.js';
 import useIsMobile from '../hooks/useIsMobile';
 import { TIER_NAMES } from '../constants';
-import { enablePush, pushSupported } from '../push';
 import { todayLocalISO } from '../utils/dateISO';
 import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
@@ -394,21 +393,21 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const { streak, isNew } = useStreak();
   const isMobile = useIsMobile(900);
 
-  // D5: запросить разрешение на уведомления, подписаться на push и напомнить
+  // ⚠️ Разрешение на уведомления здесь НЕ запрашивается, и это решение.
+  //
+  // До 10.09.2026 этот эффект через 5 секунд после открытия карты сам звал
+  // `enablePush`, то есть показывал системный диалог браузера без единого
+  // слова о том, что и зачем будет приходить. Отказ в этом диалоге в
+  // браузере необратим обычными средствами: вернуть его человек может только
+  // через настройки сайта, куда никто не идёт. То есть один автоматический
+  // вопрос в неудачный момент закрывал канал уведомлений навсегда.
+  //
+  // Спрашиваем теперь там, где человек сам выразил намерение: тумблер в
+  // «Профиль → Уведомления» зовёт `enablePush` при включении, там же кнопка
+  // «Отправить тест». Подписок станет меньше — но каждая будет осознанной, а
+  // сожжённых разрешений не будет вовсе.
   useEffect(() => {
     if (!chart) return;
-    if (pushSupported() && Notification.permission === 'default') {
-      // Запрашиваем через 5 сек после взаимодействия, не сразу
-      const t = setTimeout(() => {
-        enablePush(authFetch)
-          .then(() => schedulePushReminder())
-          .catch(() => {
-            // Пользователь отказал или браузер не поддерживает — не критично
-            schedulePushReminder();
-          });
-      }, 5000);
-      return () => clearTimeout(t);
-    }
     schedulePushReminder();
   }, [chart]);
 
