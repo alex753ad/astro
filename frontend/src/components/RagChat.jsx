@@ -9,14 +9,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { API_BASE } from '../config';
+import { CHAT_SUGGESTIONS as SUGGESTIONS } from '../lib/chatSuggestions';
 
-const SUGGESTIONS = [
-  'Что говорит моя карта о карьере?',
-  'Как Сатурн влияет на мои отношения?',
-  'Какой период сейчас для финансовых решений?',
-  'Почему мне сложно с дисциплиной?',
-  'Что означает мой Асцендент?',
-];
+// Фразы переехали в общий файл 09.09.2026, когда чат появился и в приложении:
+// две копии одних и тех же вопросов разошлись бы при первой же правке текста.
+// Слой проактивности ниже (decodeTopic) НЕ переехал — он про веб-пуши, которых
+// в приложении нет.
 
 // ── Слой 3: проактивность ──
 // Декодирует ?astrea=<topic> из пуша в открывающую реплику Аристеи

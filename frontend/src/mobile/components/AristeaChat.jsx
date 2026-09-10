@@ -24,9 +24,10 @@ import { fetchChatHistory, streamChatAnswer, ChatError } from '../lib/ragChatApi
 import {
   classifyChatError,
   hasScrolledAway,
-  shouldReportInterrupted,
+  shouldReportNoAnswer,
   shouldStickToBottom,
 } from '../lib/chatRules';
+import { CHAT_GREETING, CHAT_SUGGESTIONS } from '../../lib/chatSuggestions';
 import { openInBrowser } from '../lib/openInBrowser';
 import { PRICING_URL } from '../lib/onboardingCopy';
 
@@ -46,11 +47,9 @@ export default function AristeaChat({ chart, onClose }) {
   // Ушёл ли человек от низа сам. Ref, а не state: читается из обработчика
   // прокрутки и из эффекта дописывания, а перерисовка от него не нужна.
   const scrolledAwayRef = useRef(false);
-  // Состояние для обработчика видимости читается из ref: обработчик вешается
-  // один раз и иначе видел бы значения на момент подписки (тот же приём, что
-  // в InterpretView.jsx).
-  const streamingRef = useRef(false);
-  streamingRef.current = streaming;
+  // Пришёл ли хоть один кусок текста в ТЕКУЩЕМ ответе. Ref, а не state:
+  // читается синхронно сразу после завершения потока, до перерисовки.
+  const gotTextRef = useRef(false);
 
   // ── История ───────────────────────────────────────────────────────────
   // Копии на клиенте нет: единственный источник — сервер. Пустой ответ здесь
@@ -112,31 +111,36 @@ export default function AristeaChat({ chart, onClose }) {
     return () => { alive = false; };
   }, [stickToBottom]);
 
-  // ── Возврат из фона ───────────────────────────────────────────────────
-  // Поток НЕ перезапрашиваем: повтор это новый вызов модели, ещё одна попытка
-  // из двадцати в час и вторая пара «вопрос-ответ» в серверной истории. Вместо
-  // этого честно говорим, что ответ не дошёл (см. shouldReportInterrupted).
-  useEffect(() => {
-    const onVisible = () => {
-      if (!shouldReportInterrupted({
-        visible: document.visibilityState === 'visible',
-        streaming: streamingRef.current,
-      })) return;
-      setStreaming(false);
-      setFailure(classifyChatError({}));
-      setMessages((prev) => dropEmptyAnswer(prev));
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  // ── Возврата из фона здесь БОЛЬШЕ НЕТ, и это правка, а не пропуск ──────
+  //
+  // ⚠️ Обработчик `visibilitychange` стоял здесь до 09.09.2026 и показывал
+  // «Ответ не дошёл» ВСЕГДА: он судил по флагу `streaming`, а тот означает
+  // «промис не разрешён», а не «текста нет». На возврате из фона он
+  // гарантированно `true` — заморозить WebView можно ровно тогда, когда
+  // запрос в полёте. Человек видел готовый ответ и под ним сообщение, что
+  // ответ не дошёл.
+  //
+  // Уточнить условие нельзя: на возврате ещё не разобраны уже пришедшие
+  // байты, поэтому и «пришёл ли текст» там даст `false`. Момент возврата в
+  // принципе не годится как точка решения — оно перенесено на завершение
+  // потока (см. ниже, shouldReportNoAnswer).
+  //
+  // ⚠️ Тот обработчик вдобавок звал `dropEmptyAnswer` на живом потоке: пузырёк
+  // ассистента исчезал, а приходивший следом текст `appendToAnswer` выбрасывал
+  // молча — он дописывает, только если последний в списке ассистент. На
+  // возврате из фона это был самый вероятный случай: ответ терялся целиком.
+  // Поэтому правило теперь простое — **пузырёк не трогаем, пока поток жив**.
 
   // ── Отправка ──────────────────────────────────────────────────────────
-  const send = useCallback(async () => {
-    const question = input.trim().slice(0, MAX_QUESTION_LEN);
+  const send = useCallback(async (asked) => {
+    // Аргумент — для подсказок в пустом чате; без него берём поле ввода.
+    const raw = typeof asked === 'string' ? asked : input;
+    const question = raw.trim().slice(0, MAX_QUESTION_LEN);
     if (!question || streaming || !chartId) return;
 
     setInput('');
     setFailure(null);
+    gotTextRef.current = false;
     scrolledAwayRef.current = false;   // свой вопрос всегда показываем целиком
     setMessages((prev) => [
       ...prev,
@@ -145,22 +149,33 @@ export default function AristeaChat({ chart, onClose }) {
     ]);
     setStreaming(true);
 
+    let failed = null;
     try {
       await streamChatAnswer(chartId, question, {
-        onText: (chunk) => setMessages((prev) => appendToAnswer(prev, chunk)),
+        onText: (chunk) => {
+          gotTextRef.current = true;
+          setMessages((prev) => appendToAnswer(prev, chunk));
+        },
       });
     } catch (err) {
-      setFailure(classifyChatError({
+      failed = classifyChatError({
         status: err instanceof ChatError ? err.status : undefined,
         detail: err instanceof ChatError ? err.detail : '',
-      }));
-      // ⚠️ Уже пришедший текст оставляем видимым — убираем только пустой
-      // пузырёк. Обрыв на середине ответа не повод стирать то, что человек
-      // уже прочитал; и сервер эту пару, скорее всего, уже записал.
-      setMessages((prev) => dropEmptyAnswer(prev));
+      });
+      setFailure(failed);
     } finally {
       setStreaming(false);
     }
+
+    // ⚠️ Решение о «не дошёл» принимается ЗДЕСЬ, после завершения потока, а не
+    // на возврате из фона: раньше там оно было заведомо ложным (см. блок выше).
+    // Судим по тому, пришёл ли текст.
+    if (shouldReportNoAnswer({ streaming: false, gotText: gotTextRef.current, failed: !!failed })) {
+      setFailure(classifyChatError({}));
+    }
+    // Пузырёк трогаем только теперь, когда поток точно кончился: пустой
+    // убираем, с текстом — оставляем как есть, даже если ответ оборвался.
+    setMessages((prev) => dropEmptyAnswer(prev));
   }, [input, streaming, chartId]);
 
   const disabled = streaming || !input.trim() || !chartId;
@@ -238,10 +253,48 @@ export default function AristeaChat({ chart, onClose }) {
             <div className="mobile-skeleton" style={{ height: 56, borderRadius: 12 }} />
           )}
 
+          {/* Пустая шторка человека теряет: он не знает, что тут спрашивать и
+              какими словами. Поэтому приветствие и готовые вопросы тапом —
+              показываются, только пока разговора нет. Фразы общие с вебом
+              (lib/chatSuggestions.js), второй копии здесь нет.
+
+              ⚠️ Приветствие — не сообщение диалога: на сервер не уходит, в
+              историю не пишется. Иначе оно съедало бы одну из десяти позиций
+              серверной истории, ничего не добавляя модели. */}
           {status === 'ready' && messages.length === 0 && !historyError && (
-            <div style={{ margin: 'auto', textAlign: 'center', maxWidth: 260, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>
-              Аристея знает эту карту. Спросите про период, аспект или сферу
-              жизни — она ответит по вашей карте, а не вообще.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 'auto', marginBottom: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div style={{
+                  maxWidth: '90%', padding: '12px 14px', borderRadius: 16, borderBottomLeftRadius: 4,
+                  background: 'var(--border)', color: 'var(--text-primary)',
+                  fontSize: 14.5, lineHeight: 1.7,
+                }}>
+                  {CHAT_GREETING}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+                {CHAT_SUGGESTIONS.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => send(q)}
+                    disabled={streaming || !chartId}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 14,
+                      border: '1px solid var(--accent)',
+                      background: 'transparent',
+                      color: 'var(--accent)',
+                      fontSize: 13,
+                      lineHeight: 1.4,
+                      textAlign: 'left',
+                      maxWidth: '100%',
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -300,13 +353,29 @@ export default function AristeaChat({ chart, onClose }) {
   );
 }
 
-/** Дописать чанк в последний пузырёк ассистента. */
+/**
+ * Дописать чанк в последний пузырёк ассистента.
+ *
+ * ⚠️ Если последний в списке НЕ ассистент, заводим новый пузырёк, а не
+ * выбрасываем чанк. Раньше здесь стоял молчаливый пропуск, и он терял ответ
+ * целиком: обработчик возврата из фона успевал убрать пустой пузырёк
+ * (`dropEmptyAnswer`), последним оставалось сообщение человека — и весь
+ * пришедший следом текст исчезал. Замерено: после «первая часть » список
+ * оставался `[{role:'user'}]`, и дописывать было некуда.
+ *
+ * Причина той гонки убрана (пузырёк не трогаем, пока поток жив), но
+ * молчаливая потеря текста — слишком дорогой способ узнать о следующей такой
+ * правке. Здесь закрыт КЛАСС: что бы ни случилось со списком, пришедший от
+ * модели текст остаётся на экране.
+ */
 export function appendToAnswer(messages, chunk) {
   const next = [...messages];
   const last = next[next.length - 1];
   if (last?.role === 'assistant') {
     next[next.length - 1] = { ...last, content: last.content + chunk };
+    return next;
   }
+  next.push({ role: 'assistant', content: chunk });
   return next;
 }
 
