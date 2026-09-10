@@ -54,6 +54,64 @@ ADVANCE_MONTH_DAYS = 30   # упреждение «большого период
 ADVANCE_WEEK_DAYS = 7     # упреждение среднего периода (Венера/Марс/Меркурий)
 
 
+# ── Окно отправки ──
+# Нижняя граница — push_daily_time, верхняя — push_quiet_from. Обе читаются
+# ЗДЕСЬ и больше нигде: правило одно на планировщик веб-пушей
+# (_process_user) и на выдачу будущих событий мобильному клиенту
+# (collect_upcoming). Вторая реализация этой проверки — тот класс дефекта,
+# из-за которого в проекте уже расходились письма с флагами тарифов.
+DEFAULT_DAILY_TIME = "08:00"
+DEFAULT_QUIET_FROM = "22:00"
+
+
+def _parse_hm(value, fallback: tuple[int, int]) -> tuple[int, int]:
+    """"HH:MM" -> (h, m). Мусор и None дают fallback, а не исключение:
+    настройка приходит из БД, и кривое значение не должно ронять тик для
+    всех остальных пользователей."""
+    try:
+        h_s, m_s = str(value).split(":")
+        h, m = int(h_s), int(m_s)
+        if 0 <= h <= 23 and 0 <= m <= 59:
+            return h, m
+    except Exception:
+        pass
+    return fallback
+
+
+def _daily_time_of(user) -> str:
+    return str(getattr(user, "push_daily_time", DEFAULT_DAILY_TIME) or DEFAULT_DAILY_TIME)
+
+
+def _quiet_from_of(user) -> str:
+    return str(getattr(user, "push_quiet_from", DEFAULT_QUIET_FROM) or DEFAULT_QUIET_FROM)
+
+
+def in_send_window(moment_local: datetime, daily_time, quiet_from) -> bool:
+    """Попадает ли локальный момент в окно, когда человека можно беспокоить.
+
+    ⚠️ До 10.09.2026 верхней границы не существовало: проверялось только
+    «локальное время уже наступило». Тик в 23:45 это условие проходил.
+    Ночью не будило лишь потому, что дневное событие к тому моменту обычно
+    уже отправлено и отсеяно дедупом, — то есть держалось на побочном
+    эффекте, а не на правиле. Подписавшийся вечером получал пуш сразу.
+
+    ⚠️ Бессмысленная пара (верх не позже низа) трактуется как «верхней
+    границы нет», а не как пустое окно. Пустое окно означало бы, что кривая
+    настройка молча выключает уведомления совсем, и снаружи это неотличимо
+    от сломанного планировщика. Поздний пуш заметен и лечится, тишина —
+    нет. Ввод при этом проверяется на входе (PATCH /push/settings), так что
+    состояние это аварийное, а не рабочее.
+    """
+    start = _parse_hm(daily_time, _parse_hm(DEFAULT_DAILY_TIME, (8, 0)))
+    end = _parse_hm(quiet_from, _parse_hm(DEFAULT_QUIET_FROM, (22, 0)))
+    hm = (moment_local.hour, moment_local.minute)
+    if hm < start:
+        return False
+    if end <= start:
+        return True
+    return hm < end
+
+
 # ── Дедупликация ──
 def _already_sent(db: Session, user_id: str, kind: str, ref_key: str) -> bool:
     return db.query(PushSentLog).filter(
@@ -506,14 +564,14 @@ def _process_user(db: Session, user: User) -> int:
     now_local = datetime.now(pytz.utc).astimezone(tz)
     today = now_local.date()
 
-    target = str(getattr(user, "push_daily_time", "08:00") or "08:00")
-    try:
-        th, tm = (int(x) for x in target.split(":"))
-    except Exception:
-        th, tm = 8, 0
-    # Утреннее окно: работаем только когда локальное время уже наступило.
-    if (now_local.hour, now_local.minute) < (th, tm):
-        logger.info("push skip user=%s: before daily time %s", user.id, target)
+    # Окно отправки целиком — обе границы считает in_send_window (см. её
+    # докстринг: до 10.09.2026 верхней границы не было вовсе).
+    if not in_send_window(now_local, _daily_time_of(user), _quiet_from_of(user)):
+        logger.info(
+            "push skip user=%s: вне окна %s-%s (локально %s)",
+            user.id, _daily_time_of(user), _quiet_from_of(user),
+            now_local.strftime("%H:%M"),
+        )
         return 0
 
     # Сбор + отсев уже отправленного
@@ -568,6 +626,113 @@ def _process_user(db: Session, user: User) -> int:
         return n
     logger.info("push skip user=%s: send_to_user delivered 0 (no active subscriptions or all sends failed)", user.id)
     return 0
+
+
+# ── Будущие события для локальных уведомлений на устройстве ──
+UPCOMING_DEFAULT_DAYS = 7
+UPCOMING_MAX_DAYS = 14
+
+
+def collect_upcoming(db: Session, user: User, days: int) -> dict:
+    """События ближайших `days` дней, уже с готовым текстом уведомления.
+
+    Зачем ручка вообще. Локальные уведомления в мобильном приложении
+    планируются НА УСТРОЙСТВЕ заранее — планировщик в main.py до него не
+    достаёт (телефон может быть офлайн, приложение выгружено). Значит клиенту
+    нужен список будущих событий. Единственное, чего делать нельзя, — считать
+    их на клиенте: отбор (какое событие достойно уведомления) и формулировки
+    существуют в одном экземпляре, здесь.
+
+    Поэтому функция НЕ содержит ни одного собственного критерия отбора и ни
+    одной своей строки текста: она вызывает тот же `_collect_candidates`,
+    что и планировщик, по одному разу на каждый день окна, и отдаёт его
+    `title`/`body`/`url` как есть.
+
+    Что здесь СОЗНАТЕЛЬНО не переиспользуется:
+
+    * `push_sent_log` — дедуп отправленного. Он про прошлое («этот пуш уже
+      ушёл с сервера»), а тут будущее: сервер ничего не отправлял и отмечать
+      ему нечего. Различать уже показанное — задача клиента, для этого в
+      ответе есть `key` (см. ниже).
+    * склейка нескольких событий одного дня в один пуш (`_process_user`) и
+      потолок мягких 1/48ч. Оба зависят от состояния сервера: склейка — от
+      того, что события совпали в ОДНОМ тике, потолок — от истории
+      отправок. Для прогноза на неделю вперёд ни того, ни другого нет.
+      Практическое следствие, которое надо знать: день с тремя событиями
+      даст клиенту ТРИ записи, тогда как веб отправил бы один пуш. Как их
+      показать — решает клиент; собирать из них свой текст он не должен.
+
+    `key` — это `kind:ref`, ровно та пара, по которой сервер дедуплицирует
+    отправленное (`push_sent_log`, уникальный индекс `user_id, kind,
+    ref_key`). Взят именно он, а не порядковый номер и не хеш текста:
+    - он устойчив между запросами — собран из планеты, дома, аспекта и ДАТЫ
+      САМОГО СОБЫТИЯ, а не даты запроса; тот же транзит в понедельник и в
+      среду даёт один и тот же `key`;
+    - он устойчив к правке формулировок — перепишем шаблон, клиент не
+      покажет событие заново;
+    - он совпадает с серверным, поэтому если однажды понадобится гасить на
+      сервере уже показанное на устройстве, сопоставлять будет по чему.
+
+    ⚠️ Гейта по тарифу здесь нет намеренно (решение владельца 10.09.2026:
+    уведомления доступны всем тарифам). В веб-пушах его тоже нет ни в одном
+    месте — не «забыли», а так решено; добавлять сюда, не трогая веб,
+    означало бы два разных ответа на один вопрос.
+    """
+    days = max(1, min(int(days), UPCOMING_MAX_DAYS))
+
+    chart = get_primary_chart(db, user)
+    if not chart:
+        # Тот же критерий, что у планировщика: без главной карты уведомлять
+        # не по чему. Отдаём пустой список, а не 404 — «пока нечего
+        # планировать» это нормальное состояние, а не ошибка запроса.
+        return {"timezone": DEFAULT_TZ, "days": days, "events": []}
+
+    tzname = getattr(chart, "timezone", None) or DEFAULT_TZ
+    try:
+        tz = pytz.timezone(tzname)
+    except Exception:
+        tz = pytz.timezone(DEFAULT_TZ)
+        tzname = DEFAULT_TZ
+
+    now_local = datetime.now(pytz.utc).astimezone(tz)
+    daily_time = _daily_time_of(user)
+    quiet_from = _quiet_from_of(user)
+    th, tm = _parse_hm(daily_time, (8, 0))
+
+    events: list[dict] = []
+    seen_keys: set[str] = set()
+
+    for offset in range(days):
+        day = now_local.date() + timedelta(days=offset)
+        # Время показа — то же, что у веб-пуша: начало окна в день события.
+        naive = datetime(day.year, day.month, day.day, th, tm)
+        at = tz.localize(naive) if hasattr(tz, "localize") else naive.replace(tzinfo=tz)
+
+        # Прошедшее не планируют: сегодняшнее окно могло уже закрыться.
+        if at <= now_local:
+            continue
+        # Та же граница тишины, что у планировщика. Сегодня отсечь тут может
+        # только заведомо кривую пару настроек (нижняя граница позже верхней),
+        # потому что `at` и есть нижняя граница окна, — но правило одно на оба
+        # пути намеренно: разъехаться им негде.
+        if not in_send_window(at, daily_time, quiet_from):
+            continue
+
+        for cand in _collect_candidates(db, user, chart, day):
+            key = f"{cand['kind']}:{cand['ref']}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            events.append({
+                "key": key,
+                "kind": cand["kind"],
+                "at": at.isoformat(),
+                "title": cand["title"],
+                "body": cand["body"],
+                "url": cand["url"],
+            })
+
+    return {"timezone": tzname, "days": days, "events": events}
 
 
 async def run_push_tick(db: Session) -> dict:
