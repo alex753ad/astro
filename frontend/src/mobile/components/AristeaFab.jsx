@@ -5,10 +5,16 @@
  * (видимостью управляет TabShell через проп `visible`).
  *
  * Гейт по тарифу — `useChatAccess()`, источник сервер. На Лире/Орионе тап
- * открывает заглушку (AristeaChatStub — сам чат не подключён). На
- * free/Веге кнопка визуально приглушена и несёт значок замка вместо ✦; тап
- * не ведёт на оплату — переключает на вкладку «Ещё» с подсветкой блока
- * тарифа (там уже есть кнопка «Тарифы»).
+ * открывает чат (AristeaChat.jsx). На free/Веге кнопка визуально приглушена
+ * и несёт значок замка вместо ✦; тап не ведёт на оплату — переключает на
+ * вкладку «Ещё» с подсветкой блока тарифа (там уже есть кнопка «Тарифы»).
+ * Это поведение free/Веги оставлено как было, решение владельца 09.09.2026.
+ *
+ * ⚠️ `chart` приходит СВЕРХУ, от TabShell, а не берётся здесь основной
+ * картой: чат обязан открыться по той карте, которую человек видит на
+ * экране, с которого нажал кнопку. У «Ленты» и «Карты» они могут быть
+ * разными (SPEC_CHART_CREATE.md §11), и своя `resolvePrimaryChartId` здесь
+ * дала бы «Ленте» правильную карту, а «Карте» — чужую.
  *
  * ⚠️ `position: fixed`, не `absolute`. Первая версия была `absolute`
  * внутри дополнительной `position:relative` обёртки вокруг скроллера —
@@ -23,18 +29,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useChatAccess from '../lib/useChatAccess';
-import AristeaChatStub from './AristeaChatStub';
+import AristeaChat from './AristeaChat';
 
-export default function AristeaFab({ visible, bottomOffset }) {
+export default function AristeaFab({ visible, bottomOffset, chart }) {
   const hasAccess = useChatAccess();
   const navigate = useNavigate();
-  const [stubOpen, setStubOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   if (!visible) return null;
 
   const onClick = () => {
     if (hasAccess) {
-      setStubOpen(true);
+      setChatOpen(true);
     } else {
       navigate('/app/more', { replace: true, state: { highlightTier: true } });
     }
@@ -74,7 +80,7 @@ export default function AristeaFab({ visible, bottomOffset }) {
         )}
       </button>
 
-      {stubOpen && <AristeaChatStub onClose={() => setStubOpen(false)} />}
+      {chatOpen && <AristeaChat chart={chart} onClose={() => setChatOpen(false)} />}
     </>
   );
 }

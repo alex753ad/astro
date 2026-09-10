@@ -91,6 +91,27 @@ export default function TabShell() {
   const [chartsVersion, setChartsVersion] = useState(0);
   const handleChartsChanged = useCallback(() => setChartsVersion((v) => v + 1), []);
 
+  // Какую карту показывает каждая вкладка — для чата: он открывается по той
+  // карте, которую человек видит, а не по основной (решение владельца
+  // 09.09.2026).
+  //
+  // ⚠️ Хранится ПО ВКЛАДКАМ, а не одним значением, и это не перестраховка:
+  // «Лента» и «Карта» смонтированы одновременно и сообщают свою карту каждая
+  // в своё время. Общее поле последний ответ затирал бы первым — человек на
+  // «Ленте» открыл бы чат по карте, которую показывает соседняя вкладка.
+  // Разойтись они реально могут: после построения новой карты «Карта» держит
+  // локальное переопределение, а «Лента» остаётся на закреплённой
+  // (SPEC_CHART_CREATE.md §11).
+  const [tabCharts, setTabCharts] = useState({ feed: null, chart: null });
+  const handleFeedChart = useCallback(
+    (c) => setTabCharts((prev) => (prev.feed?.id === c?.id ? prev : { ...prev, feed: c })),
+    [],
+  );
+  const handleChartChart = useCallback(
+    (c) => setTabCharts((prev) => (prev.chart?.id === c?.id ? prev : { ...prev, chart: c })),
+    [],
+  );
+
   // ⚠️ Ref на скроллер отдаётся ВНИЗ, только «Ленте», и это не каприз:
   // прокрутка ленты живёт здесь, а не в ней самой — собственный `overflow`
   // у ленты сломал бы `position: sticky` заголовков дней (FeedDayHeader.jsx).
@@ -148,6 +169,7 @@ export default function TabShell() {
             onHintsToggle={handleHints}
             scrollRef={scrollRef}
             chartsVersion={chartsVersion}
+            onChartResolved={handleFeedChart}
           />
         </div>
         <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
@@ -156,6 +178,7 @@ export default function TabShell() {
             onHintsToggle={handleHints}
             onChartCreated={handleChartsChanged}
             chartsVersion={chartsVersion}
+            onChartResolved={handleChartChart}
           />
         </div>
         <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
@@ -166,7 +189,11 @@ export default function TabShell() {
       {/* На время подсказок кнопку чата прячем, а не просто перекрываем
           затемнением: она уводит в чат посреди объяснения
           (SPEC_ONBOARDING.md §8). */}
-      <AristeaFab visible={showFab && hintsOwner === null} bottomOffset={tabBarHeight + 16} />
+      <AristeaFab
+        visible={showFab && hintsOwner === null}
+        bottomOffset={tabBarHeight + 16}
+        chart={active === 'chart' ? tabCharts.chart : tabCharts.feed}
+      />
 
       <TabBar ref={tabBarRef} active={active} />
     </div>

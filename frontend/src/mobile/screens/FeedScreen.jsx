@@ -35,7 +35,7 @@ import HintOverlay from '../components/HintOverlay';
 import { FEED_HINTS } from '../lib/onboardingCopy';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
-import { feedWindow, fetchFeed, resolvePrimaryChartId } from '../lib/feedApi';
+import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
@@ -83,7 +83,7 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
   );
 }
 
-export default function FeedScreen({ active = true, onHintsToggle, scrollRef, chartsVersion = 0 }) {
+export default function FeedScreen({ active = true, onHintsToggle, scrollRef, chartsVersion = 0, onChartResolved }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
@@ -129,15 +129,22 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
       setError('');
     }
     try {
-      const id = await resolvePrimaryChartId();
+      // Карта целиком, а не один id: имя нужно шапке чата, и оно уже приехало
+      // в этом же ответе — второй запрос за ним был бы лишним.
+      const chart = await resolvePrimaryChart();
+      const id = chart?.id || null;
       if (!id) {
         setStatus('no-chart');
+        onChartResolved?.(null);
         return;
       }
       // Держим id в состоянии: он нужен панели события для разбора транзита
       // (POST /chart/{id}/transits/event/interpret). Второго запроса за ним не
       // делаем — он уже получен здесь.
       setChartId(id);
+      // Наверх, в TabShell: кнопка чата открывает диалог по карте ТОЙ вкладки,
+      // с которой её нажали, а не по основной.
+      onChartResolved?.({ id, name: chart.name });
       const data = await fetchFeed(id, feedWindow());
       setFeed(data);
       setStatus('ready');
@@ -148,7 +155,11 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
       setError(err?.message || 'Не удалось загрузить ленту.');
       setStatus('error');
     }
-  }, []);
+    // ⚠️ onChartResolved обязан быть стабильным у вызывающего (в TabShell он
+    // useCallback с пустыми зависимостями): иначе смена его identity меняет
+    // identity load, а на неё завязан useEffect ниже — лента перезагружалась
+    // бы на каждом рендере родителя.
+  }, [onChartResolved]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -100,6 +100,39 @@ patch({
   doneWhen: (t) => t.includes('android:screenOrientation="portrait"'),
 });
 
+/**
+ * windowSoftInputMode=adjustResize на MainActivity.
+ *
+ * Шаблон Capacitor этот атрибут не ставит вовсе — проверено грепом по всему
+ * @capacitor/*, там его нет ни в одном шаблоне. Значит применяется умолчание
+ * Android (SOFT_INPUT_ADJUST_UNSPECIFIED), где режим выбирает система, и
+ * выбор её от устройства к устройству не гарантирован.
+ *
+ * Приложению это стало важно с появлением чата: у него поле ввода прижато к
+ * низу шторки (`position: fixed; bottom: 0`, AristeaChat.jsx). При
+ * adjustResize окно ужимается по высоте, viewport вместе с ним, и поле
+ * поднимается над клавиатурой само. При adjustPan окно не ужимается, а
+ * сдвигается — `position: fixed` считается от НЕсдвинутого viewport, и поле
+ * ввода остаётся под клавиатурой: человек печатает вслепую.
+ *
+ * ⚠️ Это первая мера, а не гарантия. Поведение WebView с клавиатурой
+ * проверяется только на устройстве (ACCEPTANCE_CHAT.md §5). Если adjustResize
+ * окажется недостаточно — следующим шагом @capacitor/keyboard, но это
+ * ЧЕТВЁРТЫЙ нативный плагин, и ставится он только отдельным решением
+ * владельца, а не походя.
+ *
+ * Якорь — тот же launchMode, что у портретной ориентации: оба атрибута
+ * висят на одной activity. Порядок правок при этом значения не имеет, каждая
+ * ищет свой якорь заново и обе идемпотентны.
+ */
+patch({
+  file: MANIFEST,
+  name: 'windowSoftInputMode=adjustResize',
+  anchor: 'android:launchMode="singleTask"',
+  replacement: 'android:launchMode="singleTask"\n            android:windowSoftInputMode="adjustResize"',
+  doneWhen: (t) => t.includes('android:windowSoftInputMode="adjustResize"'),
+});
+
 if (failed) {
   console.error('patch-android: правки не применены — сборка остановлена');
   process.exit(1);
