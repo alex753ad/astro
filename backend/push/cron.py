@@ -373,6 +373,100 @@ _TRANSIT_TONE_FALLBACK = {
 }
 
 
+def _transit_entry_candidates(chart: NatalChart, today: date_type, planner_url: str) -> list[dict]:
+    """Значимый транзит ВОШЁЛ в орб сегодня: вчера орб был больше предела,
+    сегодня — не больше.
+
+    ⚠️ Здесь нельзя спрашивать у движка дату начала транзита, и это главное,
+    что надо знать про этот блок. `calculate_transits` ОБРЕЗАЕТ `start_date`
+    окном запроса: скан начинается с `from_date`, и уже открытое к этому
+    моменту окно получает `start_date == from_date`. Проверено исполнением
+    10.09.2026 — Сатурн в квадрате к Нептуну отдаёт `start=2026-09-11` в окне
+    того дня и `start=2026-09-12` в окне следующего, будучи одним и тем же
+    транзитом.
+
+    До 10.09.2026 отбор был устроен как `e.start_date == today.isoformat()`,
+    поэтому под условие «начался сегодня» попадал ЛЮБОЙ идущий транзит.
+    Дата внутри ключа дедупа при этом менялась каждый день, `push_sent_log`
+    его не гасил — и человек получал одно и то же уведомление КАЖДОЕ УТРО всё
+    время действия транзита. У медленных планет это недели и месяцы.
+
+    ⚠️ Расширить окно запроса вместо этого нельзя: глубина должна покрывать
+    всю длительность транзита, а коридор орба в 4° (`TRANSIT_ORBS`, 2° на
+    соединение) Нептун проходит примерно за два года. Замер 10.09.2026: окно
+    в один день — 0.05 с, окно в год — 5.18 с, при том что тик крутится каждые
+    15 минут по всем подписанным. Годового окна Нептуну всё равно мало.
+
+    Сравнение двух дней и дешевле нынешнего скана (восемь обращений к
+    эфемеридам против сканирования четырёх суток шагом 4 часа), и даёт
+    НАСТОЯЩУЮ дату входа — а значит устойчивый ключ дедупа. Приём не новый:
+    ровно так устроены `_four_degree_candidates` и `_triple_touch_candidates`
+    ниже, это распространение существующего решения на четвёртый блок.
+
+    ⚠️ Ретроградность даёт законные повторные входы: планета выходит из орба
+    и возвращается — будет второе уведомление за период. Это верно по сути
+    (транзит действительно возобновился) и согласуется с отдельным видом
+    `triple`, который считает заходы явно.
+
+    Тексты, вес и формат `ref` не менялись — только момент срабатывания.
+    """
+    from backend.transit.engine import (
+        ASPECTS, TRANSIT_ORBS, ALERT_PLANETS, ASPECT_TONE, NATAL_SPHERE,
+        _angular_distance,
+    )
+
+    yday = today - timedelta(days=1)
+    natal = {
+        p["name"]: p["longitude"]
+        for p in (chart.planets or [])
+        if p.get("name") and p.get("longitude") is not None
+    }
+
+    # Не больше одного кандидата на транзитную планету в день — иначе
+    # несколько аспектов одной планеты дают несколько одинаковых фрагментов
+    # в склейке («Юпитер · Юпитер · Юпитер»). Из группы берём самый точный
+    # орб — самое значимое событие. Правило перенесено из прежнего блока
+    # без изменений.
+    best: dict[str, tuple[float, str, str]] = {}
+
+    for tp in sorted(ALERT_PLANETS):
+        try:
+            lon_t = _lon_on(tp, today)
+            lon_y = _lon_on(tp, yday)
+        except Exception:
+            continue
+        for npl, nlon in natal.items():
+            for aspect, exact in ASPECTS.items():
+                limit = TRANSIT_ORBS[aspect]
+                orb_t = abs(_angular_distance(lon_t, nlon) - exact)
+                orb_y = abs(_angular_distance(lon_y, nlon) - exact)
+                if orb_t <= limit < orb_y:  # вошёл в орб именно сегодня
+                    cur = best.get(tp)
+                    if cur is None or orb_t < cur[0]:
+                        best[tp] = (orb_t, npl, aspect)
+
+    out: list[dict] = []
+    for tp, (_orb, npl, aspect) in best.items():
+        pr = PLANET_RU.get(tp, tp)
+        tone = ASPECT_TONE.get(aspect, "tense")
+        sphere = _sphere_short(NATAL_SPHERE.get((tp, npl)))
+        if sphere:
+            frag = f"{pr}: {sphere}"
+            body = _TRANSIT_TONE_BODY[tone].format(planet=pr, sphere=sphere)
+        else:
+            frag = f"{pr} активен в карте"
+            body = _TRANSIT_TONE_FALLBACK[tone].format(planet=pr)
+        out.append({
+            "kind": "transit",
+            "ref": f"{tp}:{npl}:{aspect}:{today.isoformat()}",
+            "priority": "significant", "weight": 90, "frag": frag,
+            "title": _TRANSIT_TONE_TITLE[tone],
+            "body": body,
+            "url": _with_topic(planner_url, _topic_key("transit", planet=tp, aspect=aspect, natal=npl)),
+        })
+    return out
+
+
 # ── Слой 3: тема для проактивного чата ──
 # Компактный ключ темы, который прокидывается в URL пуша как ?astrea=<topic>.
 # ChartPage/PlannerPage читают его и просят RagChat начать разговор первой репликой.
@@ -475,42 +569,10 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
         except Exception as e:
             logger.warning("planner candidates failed user=%s: %s", user.id, e)
 
-    # 5) Важные транзиты — старт значимого транзита сегодня (significant)
+    # 5) Важные транзиты — вход значимого транзита в орб сегодня (significant)
     if getattr(user, "push_key_transits", True):
         try:
-            from backend.transit.engine import calculate_transits, ALERT_PLANETS, ASPECT_TONE, NATAL_SPHERE
-            events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today)
-            todays = [
-                e for e in events
-                if e.transit_planet in ALERT_PLANETS and e.start_date == today.isoformat()
-            ]
-            # Не больше одного кандидата на транзитную планету в день — иначе
-            # несколько аспектов одной планеты дают несколько одинаковых
-            # фрагментов в склейке («Юпитер · Юпитер · Юпитер»). Из группы
-            # берём самый точный орб — самое значимое событие.
-            best_by_planet: dict[str, object] = {}
-            for e in todays:
-                cur = best_by_planet.get(e.transit_planet)
-                if cur is None or e.peak_orb < cur.peak_orb:
-                    best_by_planet[e.transit_planet] = e
-            for e in best_by_planet.values():
-                pr = PLANET_RU.get(e.transit_planet, e.transit_planet)
-                tone = ASPECT_TONE.get(e.aspect_type, "tense")
-                sphere = _sphere_short(NATAL_SPHERE.get((e.transit_planet, e.natal_planet)))
-                if sphere:
-                    frag = f"{pr}: {sphere}"
-                    body = _TRANSIT_TONE_BODY[tone].format(planet=pr, sphere=sphere)
-                else:
-                    frag = f"{pr} активен в карте"
-                    body = _TRANSIT_TONE_FALLBACK[tone].format(planet=pr)
-                cands.append({
-                    "kind": "transit",
-                    "ref": f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.start_date}",
-                    "priority": "significant", "weight": 90, "frag": frag,
-                    "title": _TRANSIT_TONE_TITLE[tone],
-                    "body": body,
-                    "url": _with_topic(planner_url, _topic_key("transit", planet=e.transit_planet, aspect=e.aspect_type, natal=e.natal_planet)),
-                })
+            cands.extend(_transit_entry_candidates(chart, today, planner_url))
         except Exception as e:
             logger.warning("transit candidates failed user=%s: %s", user.id, e)
 

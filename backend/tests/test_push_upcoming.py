@@ -21,6 +21,7 @@ import pytz
 from backend.models import NatalChart, User
 from backend.push.cron import (
     _collect_candidates,
+    _transit_entry_candidates,
     _process_user,
     collect_upcoming,
     in_send_window,
@@ -167,7 +168,12 @@ class TestNoDatesInNotificationText:
     def test_candidates_never_print_a_date(self, db, user_free, chart):
         """Прямо по `_collect_candidates` — источник текста для обоих путей."""
         seen_kinds = set()
-        start = date(2026, 9, 10)
+        # Окно выбрано так, чтобы в него попал ВХОД транзита в орб
+        # (Юпитер в секстиле к Солнцу, 21.10.2026 на этой карте). После
+        # правки отбора 10.09.2026 транзит перестал попадать в выдачу каждый
+        # день — теперь это редкое событие, восемь раз за двести дней, — и
+        # произвольное окно транзитного текста уже не содержит.
+        start = date(2026, 10, 18)
         for offset in range(10):
             for cand in _collect_candidates(db, user_free, chart, start + timedelta(days=offset)):
                 seen_kinds.add(cand["kind"])
@@ -261,6 +267,93 @@ class TestUpcoming:
     def test_days_is_clamped(self, db, user_free, chart):
         assert collect_upcoming(db, user_free, days=999)["days"] == UPCOMING_MAX_DAYS
         assert collect_upcoming(db, user_free, days=0)["days"] == 1
+
+
+class TestTransitEntry:
+    """Транзит попадает в уведомления один раз — в день входа в орб."""
+
+    def _entries(self, chart, start, days):
+        """Длинные окна — прямо по функции отбора: она стоит 8 обращений к
+        эфемеридам на день, тогда как полный `_collect_candidates` считает
+        ещё планер, луну и две ретро-фазы."""
+        out = []
+        for offset in range(days):
+            day = start + timedelta(days=offset)
+            for cand in _transit_entry_candidates(chart, day, "/planner/x"):
+                planet, natal, aspect, _d = cand["ref"].split(":")
+                out.append(((planet, natal, aspect), day))
+        return out
+
+    def _entries_via_collect(self, db, user, chart, start, days):
+        """Короткие окна — через реальный путь, чтобы проверялась и проводка
+        функции в `_collect_candidates`, а не только она сама."""
+        out = []
+        for offset in range(days):
+            day = start + timedelta(days=offset)
+            for cand in _collect_candidates(db, user, chart, day):
+                if cand["kind"] == "transit":
+                    planet, natal, aspect, _d = cand["ref"].split(":")
+                    out.append(((planet, natal, aspect), day))
+        return out
+
+    def test_ongoing_transit_does_not_repeat_next_day(self, chart):
+        """⚠️ Регрессия на настоящий дефект, найденный 10.09.2026 глазами по
+        выдаче ручки.
+
+        `calculate_transits` ОБРЕЗАЕТ `start_date` окном запроса (проверено
+        исполнением: Сатурн в квадрате к Нептуну отдаёт `start=2026-09-11` в
+        окне того дня и `start=2026-09-12` в окне следующего — один и тот же
+        транзит). Отбор же был устроен как `e.start_date == today`, поэтому
+        под «начался сегодня» попадал ЛЮБОЙ идущий транзит, дата внутри ключа
+        дедупа менялась каждый день, `push_sent_log` его не гасил — и человек
+        получал одно и то же уведомление каждое утро неделями.
+
+        Дефект был в веб-пушах; ручка лишь воспроизводила его точно.
+
+        Порог 7 дней, а не «не в соседний день»: повторный вход после
+        ретроградной петли законен, но случается через месяцы — на этой карте
+        Юпитер в секстиле к Солнцу входит 21.10.2026 и снова 10.01.2027,
+        через 81 день. Идущий транзит при дефекте давал попадание КАЖДЫЙ день.
+        """
+        hits = self._entries(chart, date(2026, 9, 10), 200)
+        assert hits, "за 200 дней нет ни одного входа в орб — проверять нечего"
+
+        by_triple: dict[tuple, list] = {}
+        for triple, day in hits:
+            by_triple.setdefault(triple, []).append(day)
+        for triple, days in by_triple.items():
+            days.sort()
+            for prev, nxt in zip(days, days[1:]):
+                assert (nxt - prev).days > 7, (
+                    f"транзит {triple} попал в уведомления дважды за неделю: "
+                    f"{prev} и {nxt} — это обрезка start_date окном запроса, "
+                    f"а не два разных события"
+                )
+
+    def test_retrograde_reentry_is_allowed(self, chart):
+        """Повторный вход после ретроградной петли — не дефект, а событие.
+        Проверяется, чтобы будущая «починка» не задавила его дедупом."""
+        hits = self._entries(chart, date(2026, 9, 10), 200)
+        by_triple: dict[tuple, list] = {}
+        for triple, day in hits:
+            by_triple.setdefault(triple, []).append(day)
+        repeated = {k: v for k, v in by_triple.items() if len(v) > 1}
+        assert repeated, "на этой карте ожидался хотя бы один повторный вход"
+
+    def test_entries_are_rare_on_the_real_path(self, db, user_free, chart):
+        """Прямая мера дефекта через `_collect_candidates`: до правки транзит
+        попадал в выдачу КАЖДЫЙ день, то есть здесь было бы ~30 попаданий."""
+        hits = self._entries_via_collect(db, user_free, chart, date(2026, 10, 18), 30)
+        assert len(hits) <= 5, (
+            f"за 30 дней {len(hits)} транзитных уведомлений — похоже, снова "
+            f"срабатывает на каждый идущий транзит, а не на вход в орб"
+        )
+
+    def test_entry_day_is_the_real_one(self, db, user_free, chart):
+        """Ключ дедупа содержит настоящую дату входа в орб, а не дату
+        запроса: именно на этом держится обещание про устойчивость `key`."""
+        hits = self._entries_via_collect(db, user_free, chart, date(2026, 10, 18), 10)
+        assert [d.isoformat() for _t, d in hits] == ["2026-10-21"]
 
 
 class TestUpcomingHttp:
