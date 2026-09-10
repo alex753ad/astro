@@ -942,19 +942,33 @@ function TabNotifications({ authFetch }) {
     authFetch(`${API_BASE}/push/settings`)
       .then(setSettings)
       .catch(() => setSettings({
-        daily_forecast: true, daily_time: '08:00', planner: true, key_transits: true,
+        daily_forecast: true, daily_time: '08:00', quiet_from: '22:00',
+        planner: true, key_transits: true, moon_phases: false,
       }));
   }, [authFetch]);
 
+  // ⚠️ Отказ сервера обязан откатывать оптимистичное значение.
+  //
+  // Раньше здесь стояло `catch (_) { /* тихо */ }`: значение ставилось до
+  // запроса и при ошибке ОСТАВАЛОСЬ на экране. Пока сервер принимал любое
+  // время, это было почти незаметно. С 10.09.2026 у границ окна появилась
+  // парная проверка (`quiet_from` не раньше `daily_time`, 422), и молчаливый
+  // вариант стал прямой ложью: человек видел бы выставленное им время, а на
+  // сервере лежало прежнее.
   const patch = async (partial) => {
+    const before = settings;
     setSettings(prev => ({ ...prev, ...partial }));
+    setMsg('');
     try {
       const saved = await authFetch(`${API_BASE}/push/settings`, {
         method: 'PATCH',
         body: JSON.stringify(partial),
       });
       setSettings(saved);
-    } catch (_) { /* тихо */ }
+    } catch (e) {
+      setSettings(before);
+      setMsg(e?.message || 'Не удалось сохранить настройку');
+    }
   };
 
   const toggle = async (key) => {
@@ -980,8 +994,11 @@ function TabNotifications({ authFetch }) {
     );
   }
 
+  const quietFrom = settings.quiet_from || '22:00';
+  const dailyTime = settings.daily_time || '08:00';
+
   const items = [
-    { key: 'daily_forecast', label: 'Ежедневный прогноз', desc: `Каждый день в ${settings.daily_time || '08:00'}`, time: true },
+    { key: 'daily_forecast', label: 'Ежедневный прогноз', desc: `Каждый день в ${dailyTime}`, time: true },
     { key: 'planner',        label: 'Планер',             desc: 'При старте нового периода планеты' },
     { key: 'key_transits',   label: 'Важные транзиты',    desc: 'Когда начинается значимый транзит' },
     { key: 'moon_phases',    label: 'Новолуние и полнолуние', desc: 'Напоминание за день' },
@@ -1019,6 +1036,25 @@ function TabNotifications({ authFetch }) {
             <div style={{ borderBottom: '1px solid var(--border)' }} />
           </div>
         ))}
+      </div>
+
+      {/* Верхняя граница окна. Нижняя — это время ежедневного прогноза выше:
+          две границы одной пары, поэтому и живут рядом, а не в разных местах.
+          Сервер отбивает 422, если верхняя оказывается не позже нижней. */}
+      <div style={{ ...S.row, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>Не беспокоить после</div>
+          <div style={S.muted}>{`Уведомления приходят с ${dailyTime} до ${quietFrom}`}</div>
+        </div>
+        <input
+          type="time"
+          value={quietFrom}
+          onChange={(e) => patch({ quiet_from: e.target.value })}
+          style={{
+            background: 'var(--bg-deeper)', color: 'var(--text-primary)',
+            border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', fontSize: 14,
+          }}
+        />
       </div>
 
       {permStatus === 'denied' && (
