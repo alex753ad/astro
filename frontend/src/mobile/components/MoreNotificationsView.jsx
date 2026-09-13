@@ -22,7 +22,6 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
-import MoreNotificationsDebug from './MoreNotificationsDebug'; // ОТЛАДКА: снять перед вливанием в main
 import MoreDeviceChannel from './MoreDeviceChannel';
 import { DEVICE_PUSH_SUPPORTED } from '../lib/devicePush';
 import MoreSwitch from './MoreSwitch';
@@ -156,7 +155,6 @@ export default function MoreNotificationsView() {
       <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
         Уведомления приходят с {settings.daily_time} до {settings.quiet_from || '22:00'}
       </p>
-      <MoreNotificationsDebug settings={settings} />{/* ОТЛАДКА: снять перед вливанием в main */}
       {/* Строка «Настройки общие с сайтом — уведомления приходят туда» стояла
           здесь с 10.09.2026 как честная подпись к тумблерам, которые на
           устройстве ничего не включали. Теперь включают: тумблер выше
