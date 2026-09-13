@@ -576,6 +576,34 @@ class PushSubscription(Base):
     created_at = Column(DateTime, default=utcnow)
 
 
+class DeviceToken(Base):
+    """Токен FCM мобильного приложения (миграция 053).
+
+    ⚠️ Отдельно от `PushSubscription`, а не полем в ней. У той все три поля
+    транспорта объявлены NOT NULL, и FCM-токен пришлось бы класть в `endpoint`
+    с фиктивными ключами — после чего `send_web_push` попытался бы отправить
+    его через pywebpush. Получился бы отказ, снаружи неотличимый от мёртвой
+    подписки: тот самый класс молчаливой поломки, которого в пушах уже хватает.
+
+    Общим у двух транспортов остаётся ровно то, что должно быть общим, —
+    отбор событий, тексты и `push_sent_log`. Разводятся они в `send_to_user`.
+    """
+
+    __tablename__ = "device_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Уникален сам токен, а не пара с пользователем: один телефон — один токен,
+    # и при смене аккаунта запись обязана ПЕРЕЕХАТЬ, а не удвоиться. Иначе
+    # прежний владелец телефона продолжал бы получать уведомления по чужой карте.
+    token = Column(Text, nullable=False, unique=True)
+    platform = Column(String(16), nullable=False, default="android", server_default="android")
+    created_at = Column(DateTime, default=utcnow)
+    last_seen_at = Column(DateTime, default=utcnow)
+
+
 # Журнал отправленных пушей — дедупликация (один пуш на событие).
 #   kind:    "daily" | "planner" | "transit"
 #   ref_key: уникальный ключ события (дата дня / planet:house:start / tp:np:aspect:start)

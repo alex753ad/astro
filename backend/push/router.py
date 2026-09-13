@@ -4,6 +4,8 @@ Endpoints:
   GET   /api/v1/push/vapid-public-key   — публичный VAPID-ключ для фронта (без авторизации)
   POST  /api/v1/push/subscribe          — сохранить подписку устройства (auth)
   POST  /api/v1/push/unsubscribe        — удалить подписку по endpoint (auth)
+  POST  /api/v1/push/device             — зарегистрировать токен FCM (auth)
+  DELETE /api/v1/push/device            — забыть токен FCM (auth)
   GET   /api/v1/push/settings           — настройки уведомлений (auth)
   PATCH /api/v1/push/settings           — обновить настройки (auth)
   GET   /api/v1/push/upcoming           — будущие события с готовым текстом (auth)
@@ -23,9 +25,10 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import User, PushSubscription
+from backend.models import User, PushSubscription, DeviceToken, utcnow
 from backend.auth.dependencies import get_current_user
 from backend.push.sender import vapid_public_key, send_to_user
+from backend.push.fcm import configured as fcm_configured
 from backend.push.cron import (
     collect_upcoming,
     UPCOMING_DEFAULT_DAYS,
@@ -52,6 +55,11 @@ class SubscribeRequest(BaseModel):
 
 class UnsubscribeRequest(BaseModel):
     endpoint: str
+
+
+class DeviceTokenRequest(BaseModel):
+    token: str
+    platform: str = "android" 
 
 
 class PushSettings(BaseModel):
@@ -129,6 +137,68 @@ async def unsubscribe(
     db.query(PushSubscription).filter(
         PushSubscription.endpoint == payload.endpoint,
         PushSubscription.user_id == user.id,
+    ).delete()
+    db.commit()
+    return {"status": "ok"}
+
+
+# ── Токен устройства (FCM) ──
+@router.post("/device", summary="Register this device's FCM token")
+async def register_device(
+    payload: DeviceTokenRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Запомнить токен FCM этого устройства.
+
+    ⚠️ Запись ПЕРЕЕЗЖАЕТ к текущему пользователю, а не добавляется второй, и
+    это не оптимизация. Токен принадлежит установленному приложению, а не
+    аккаунту: после выхода и входа под другим пользователем на том же телефоне
+    прежний владелец продолжал бы получать уведомления по чужой карте. Тем же
+    приёмом устроен `/subscribe` для браузера.
+
+    Клиент присылает токен при каждом запуске, а не только при первом: FCM
+    ротирует его сам (переустановка, очистка данных, миграция на новый
+    телефон), и «зарегистрировались один раз» означало бы копить мёртвые
+    записи. Поэтому у повторного вызова нет побочных эффектов, кроме
+    `last_seen_at`.
+    """
+    token = (payload.token or "").strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="token must not be empty",
+        )
+
+    row = db.query(DeviceToken).filter(DeviceToken.token == token).first()
+    if row:
+        row.user_id = user.id
+        row.platform = payload.platform or "android"
+        row.last_seen_at = utcnow()
+    else:
+        db.add(DeviceToken(
+            user_id=user.id,
+            token=token,
+            platform=payload.platform or "android",
+        ))
+    db.commit()
+
+    # Клиенту важно знать, доедет ли что-нибудь по этому каналу: от этого
+    # зависит, оставлять ли ему локальные уведомления запасным вариантом.
+    # Отвечаем фактом настройки сервера, а не обещанием доставки.
+    return {"status": "ok", "delivery": "fcm" if fcm_configured() else "unconfigured"}
+
+
+@router.delete("/device", summary="Forget this device's FCM token")
+async def forget_device(
+    payload: DeviceTokenRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Убрать токен. Зовётся при выходе из аккаунта и при выключении тумблера."""
+    db.query(DeviceToken).filter(
+        DeviceToken.token == payload.token,
+        DeviceToken.user_id == user.id,
     ).delete()
     db.commit()
     return {"status": "ok"}
