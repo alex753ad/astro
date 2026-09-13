@@ -30,6 +30,16 @@ async function patchJson(path, body, fallback) {
   return resp.json();
 }
 
+async function postJson(path, body, fallback) {
+  const resp = await authFetchWithTimeout(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(await responseErrorText(resp, fallback));
+  return resp.json();
+}
+
 export const fetchMe = () => getJson('/auth/me', 'Не удалось загрузить профиль.');
 
 export const fetchSubscription = () => getJson('/profile/subscription', 'Не удалось загрузить тариф.');
@@ -54,6 +64,25 @@ export const updatePushSettings = (patch) => patchJson('/push/settings', patch, 
  */
 export const fetchUpcomingNotifications = () =>
   getJson('/push/upcoming', 'Не удалось загрузить будущие события.');
+
+/**
+ * Токен устройства для мобильных пушей — `POST/DELETE /push/device`.
+ *
+ * Токен шлётся при каждом запуске, а не однократно: FCM ротирует его сам, и
+ * сервер обязан узнать новый, иначе уведомления тихо перестанут приходить.
+ * Повторный вызов с тем же токеном ничего не меняет, кроме отметки времени.
+ */
+export const registerDeviceToken = (token) =>
+  postJson('/push/device', { token, platform: 'android' }, 'Не удалось зарегистрировать устройство.');
+
+export async function forgetDeviceToken(token) {
+  const resp = await authFetchWithTimeout(`${API_BASE}/push/device`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, platform: 'android' }),
+  });
+  if (!resp.ok) throw new Error(await responseErrorText(resp, 'Не удалось отвязать устройство.'));
+}
 
 export const fetchProfileSettings = () => getJson('/profile/settings', 'Не удалось загрузить настройки.');
 export const updateProfileSettings = (patch) => patchJson('/profile/settings', patch, 'Не удалось сохранить настройки.');

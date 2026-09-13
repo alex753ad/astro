@@ -90,6 +90,58 @@ jobs:
           fi
           npx cap sync android
 
+      # ── google-services.json: конфигурация Firebase для клиента ──
+      #
+      # Кладётся ПОСЛЕ генерации проекта (до неё каталога нет) и ДО сборки.
+      # Gradle-плагин google-services прочитает его и развернёт в ресурсы, из
+      # которых SDK узнаёт, к какому проекту Firebase подключаться. Правок в
+      # Gradle не требуется: шаблон Capacitor уже содержит и classpath
+      # (android/build.gradle:11), и условное подключение плагина
+      # (android/app/build.gradle:47-53).
+      #
+      # ⚠️ Секретом файл назван не потому, что он секрет: он лежит внутри
+      # каждого APK и достаётся любым, кто скачал приложение. Причина другая —
+      # gitleaks в CI принимает поле current_key за утёкший ключ API, и
+      # альтернативой был бы вечный список исключений в сканере секретов.
+      # Настоящий секрет тут один и он на сервере: ключ сервис-аккаунта.
+      - name: Конфигурация Firebase
+        working-directory: frontend
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      # ⚠️ Проверка обязательна, и вот ровно почему. Подключение плагина в
+      # шаблоне Capacitor обёрнуто в try/catch, а в catch стоит
+      # logger.info("... Push Notifications won't work") — не ошибка, не
+      # предупреждение, а info. То есть при отсутствующем или пустом файле
+      # СБОРКА ПРОХОДИТ ЗЕЛЁНОЙ, APK уезжает на устройство, и пуши молча не
+      # работают. Отличить такой APK от рабочего можно только по тому, что
+      # уведомления не приходят, — то есть через приёмку и через день.
+      #
+      # Проверяется ФАКТ, а не успех шага выше, по образцу проверки иконки:
+      # файл непустой, это валидный JSON, и внутри тот же package, что у
+      # приложения. Несовпадение package — отдельный молчаливый отказ:
+      # приложение соберётся, зарегистрируется в чужом проекте и не получит
+      # ничего.
+      - name: Проверить, что конфигурация Firebase доехала
+        working-directory: frontend
+        run: |
+          f=android/app/google-services.json
+          if [ ! -s "$f" ]; then
+            echo "google-services.json пуст или отсутствует."
+            echo "Секрет GOOGLE_SERVICES_JSON не задан в репозитории —"
+            echo "без него APK соберётся, но пуши работать не будут, и ошибки не будет."
+            exit 1
+          fi
+          python3 -c "import json,sys; json.load(open('$f'))" || {
+            echo "google-services.json не разбирается как JSON"; exit 1; }
+          if ! grep -q '"package_name": *"ru.aristeatime.app"' "$f"; then
+            echo "В google-services.json нет клиента с package ru.aristeatime.app."
+            echo "Файл от другого приложения Firebase — пуши не придут."
+            exit 1
+          fi
+
       # Иконка лаунчера. Шаблон Capacitor кладёт свою (проверено побайтово), и
       # без этого шага в APK уезжает именно она.
       #
@@ -205,6 +257,29 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # Доказательство, что плагин google-services РЕАЛЬНО отработал, а не был
+      # пропущен тем самым try/catch. Он разворачивает конфигурацию в ресурсы;
+      # нет их — значит подключения не было, каким бы зелёным ни был лог сборки.
+      #
+      # ⚠️ Ищем по СОДЕРЖИМОМУ, а не по имени каталога, и это не придирка:
+      # первая версия проверки искала путь по маске '*google-services*' и дала
+      # ложное падение — каталог у плагина называется по имени задачи,
+      # `processDebugGoogleServices`, без дефиса и в другом регистре. Имя
+      # каталога принадлежит плагину и меняется между версиями, а `google_app_id`
+      # — это то, ради чего шаг существует.
+      - name: Проверить, что плагин Firebase отработал
+        working-directory: frontend/android
+        run: |
+          res=$(grep -rl 'google_app_id' app/build/generated/res 2>/dev/null | head -1)
+          if [ -z "$res" ]; then
+            echo "Конфигурация Firebase не развернулась в ресурсы — плагин не подключился."
+            echo "Это тот самый молчаливый пропуск: сборка зелёная, пушей нет."
+            echo "Что есть в generated/res:"
+            find app/build/generated/res -maxdepth 2 -type d 2>/dev/null | head -20
+            exit 1
+          fi
+          echo "google-services отработал: $res"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
