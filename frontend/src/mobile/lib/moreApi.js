@@ -44,6 +44,17 @@ export const fetchReferral = () => getJson('/profile/referral', 'Не удало
 export const fetchPushSettings = () => getJson('/push/settings', 'Не удалось загрузить настройки уведомлений.');
 export const updatePushSettings = (patch) => patchJson('/push/settings', patch, 'Не удалось сохранить настройки уведомлений.');
 
+/**
+ * Будущие события для локальных уведомлений — `GET /push/upcoming`.
+ *
+ * Отдаёт `{ timezone, days, events: [{ key, kind, at, title, body, url }] }`
+ * с ГОТОВЫМИ формулировками: критерий отбора и тексты живут на бэкенде в одном
+ * экземпляре (backend/push/cron.py, collect_upcoming). Клиенту остаётся
+ * склеить список и поставить — сочинять свой текст нельзя.
+ */
+export const fetchUpcomingNotifications = () =>
+  getJson('/push/upcoming', 'Не удалось загрузить будущие события.');
+
 export const fetchProfileSettings = () => getJson('/profile/settings', 'Не удалось загрузить настройки.');
 export const updateProfileSettings = (patch) => patchJson('/profile/settings', patch, 'Не удалось сохранить настройки.');
 

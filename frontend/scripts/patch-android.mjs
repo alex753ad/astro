@@ -133,6 +133,56 @@ patch({
   doneWhen: (t) => t.includes('android:windowSoftInputMode="adjustResize"'),
 });
 
+/**
+ * Разрешения локальных уведомлений в манифесте приложения.
+ *
+ * POST_NOTIFICATIONS нужен на Android 13+ (API 33): без него
+ * `LocalNotifications.schedule` отработает без ошибки, а в шторке не появится
+ * ничего — тот самый молчаливый отказ, ради которого этот скрипт и падает при
+ * ненайденном якоре. На API 23-32 разрешения не существует, и там уведомления
+ * управляются системным переключателем приложения; ветвление по версии делает
+ * сам плагин в нативном коде (см. localNotifications.js, там же почему не мы).
+ *
+ * RECEIVE_BOOT_COMPLETED нужен, чтобы уведомления пережили перезагрузку
+ * телефона. AlarmManager теряет все будильники при выключении; плагин хранит
+ * поставленное у себя и восстанавливает по BOOT_COMPLETED
+ * (`LocalNotificationRestoreReceiver`), но без этого разрешения его приёмник
+ * события просто не получит — и человек перестанет получать уведомления после
+ * первой же перезагрузки, ничего об этом не узнав.
+ *
+ * ⚠️ Это ДУБЛЬ того, что и так приезжает из манифеста самого плагина
+ * (`node_modules/@capacitor/local-notifications/android/src/main/AndroidManifest.xml`
+ * объявляет POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED и WAKE_LOCK, и
+ * манифесты библиотек сливаются с манифестом приложения при сборке). Дубль
+ * оставлен намеренно, по двум причинам:
+ *
+ *   1. Разрешение, от которого зависит вся функция, объявлено там, где его
+ *      будут искать, — в манифесте приложения, а не в чужом node_modules.
+ *   2. Слияние манифестов — это то, что можно потерять при апгрейде плагина,
+ *      не заметив: APK соберётся, уведомления перестанут показываться на
+ *      Android 13+, и никакой ошибки при этом не будет. Здесь же стоит
+ *      grep-проверка в mobile-build.yml, которой без явной строки не на что
+ *      было бы смотреть.
+ *
+ * Якорь — закрывающий </manifest>, а не строка INTERNET-разрешения: генератор
+ * иконки (@capacitor/assets) переформатирует манифест целиком и на расстановку
+ * пробелов внутри тега полагаться нельзя, а закрывающий тег в файле ровно один
+ * при любом форматировании.
+ */
+const NOTIFICATION_PERMISSIONS = `    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+</manifest>`;
+
+patch({
+  file: MANIFEST,
+  name: 'разрешения уведомлений',
+  anchor: '</manifest>',
+  replacement: NOTIFICATION_PERMISSIONS,
+  doneWhen: (t) =>
+    t.includes('android.permission.POST_NOTIFICATIONS') &&
+    t.includes('android.permission.RECEIVE_BOOT_COMPLETED'),
+});
+
 if (failed) {
   console.error('patch-android: правки не применены — сборка остановлена');
   process.exit(1);

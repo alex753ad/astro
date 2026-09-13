@@ -1,19 +1,40 @@
 /**
  * MoreNotificationsView.jsx — «Уведомления» (SPEC_MORE_SCREEN.md §7).
  *
- * ⚠️ Работает ли Web Push (`navigator.serviceWorker` + `PushManager` +
- * `Notification`) внутри Android WebView Capacitor — не проверено разведкой
- * и не проверяется без устройства (MORE_API_RECON.md §3). Если хоть один
- * из трёх API отсутствует — состояние «недоступно», а не рабочие на вид
- * тумблеры, которые сохраняются на сервере, но никогда не приводят к
- * уведомлению: это хуже честного отказа, человек будет уверен, что
- * подписался.
+ * Экран сводит ДВА разных механизма, и их не надо путать:
+ *
+ * 1. **Тумблер «Уведомления на этом устройстве»** — локальные уведомления
+ *    Android (`@capacitor/local-notifications`). Их планирует само приложение
+ *    из выдачи `GET /push/upcoming`, поэтому они работают и без сети в момент
+ *    показа. Только в приложении; в вебе этого тумблера нет вовсе.
+ * 2. **Тумблеры видов событий, время и тихие часы** — НАСТРОЙКИ НА СЕРВЕРЕ
+ *    (`/push/settings`), общие с сайтом. Они определяют, что попадёт в выдачу,
+ *    то есть управляют обоими механизмами сразу — и веб-пушами, и локальными
+ *    уведомлениями.
+ *
+ * ⚠️ Поэтому серверные настройки БОЛЬШЕ НЕ СПРЯТАНЫ за проверкой Web Push.
+ * До 13.09.2026 весь экран закрывался условием «есть serviceWorker +
+ * PushManager + Notification», и в Android WebView, где PushManager может
+ * отсутствовать, человек видел бы «недоступно» — включая настройки, от Web
+ * Push никак не зависящие. Проверка осталась ровно там, где она про дело: в
+ * подписи о том, куда приходят уведомления в вебе.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
 import MoreSwitch from './MoreSwitch';
 import { fetchPushSettings, updatePushSettings } from '../lib/moreApi';
+import {
+  LOCAL_NOTIFICATIONS_SUPPORTED,
+  cancelAllScheduled,
+  permissionState,
+  requestPermission,
+} from '../lib/localNotifications';
+import {
+  localNotificationsEnabled,
+  setLocalNotificationsEnabled,
+  syncLocalNotifications,
+} from '../lib/localNotificationsSync';
 
 const PUSH_SUPPORTED =
   typeof navigator !== 'undefined' &&
@@ -29,7 +50,7 @@ const TOGGLES = [
   { key: 'moon_phases', label: 'Фазы Луны' },
 ];
 
-function ToggleRow({ label, on, onToggle }) {
+function ToggleRow({ label, hint, on, onToggle }) {
   return (
     <button
       type="button"
@@ -39,6 +60,7 @@ function ToggleRow({ label, on, onToggle }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: 12,
         padding: '13px 15px',
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
@@ -46,11 +68,177 @@ function ToggleRow({ label, on, onToggle }) {
         color: 'var(--text-primary)',
         fontFamily: 'var(--font-body)',
         fontSize: 14.5,
+        textAlign: 'left',
       }}
     >
-      <span>{label}</span>
+      <span>
+        {label}
+        {hint ? (
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            {hint}
+          </span>
+        ) : null}
+      </span>
       <MoreSwitch on={on} />
     </button>
+  );
+}
+
+/**
+ * Экран-предисловие перед системным диалогом.
+ *
+ * ⚠️ Это не украшение и не «хорошая практика вообще»: на Android отказ в
+ * системном диалоге ОКОНЧАТЕЛЕН — обычными средствами человек его не вернёт,
+ * только через настройки приложения, куда никто не идёт. То есть один вопрос,
+ * заданный не вовремя и без объяснения, закрывает канал навсегда. Ровно по
+ * этой причине 10.09.2026 из ChartPage убрали автоматический вызов
+ * `enablePush` через 5 секунд после открытия карты (docs/HISTORY-push.md).
+ *
+ * Поэтому диалог вызывается ТОЛЬКО отсюда, только после тапа на тумблер и
+ * только по кнопке «Разрешить». Кнопка «Не сейчас» ничего не спрашивает и
+ * ничего не запоминает — спросить можно будет ещё раз, потому что системного
+ * вопроса не было.
+ */
+function PermissionIntro({ onAllow, onCancel, busy }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        padding: 16,
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 14,
+        marginTop: 8,
+      }}
+    >
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 17, color: 'var(--text-primary)' }}>
+        Уведомления по вашей карте
+      </div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+        Приложение напомнит о важных транзитах, подходящих днях из планера и фазах Луны —
+        одним уведомлением в день, в выбранное вами время. Что именно приходит, вы настроите
+        ниже, и отключить можно в любой момент.
+      </div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+        Дальше Android спросит разрешение. Если отказать, вернуть его получится только через
+        настройки телефона.
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+        <button
+          type="button"
+          onClick={onAllow}
+          disabled={busy}
+          style={{
+            flex: 1,
+            padding: '12px 14px',
+            borderRadius: 12,
+            border: 'none',
+            background: 'var(--accent)',
+            color: '#ffffff',
+            fontFamily: 'var(--font-body)',
+            fontSize: 14.5,
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          Разрешить
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          style={{
+            flex: 1,
+            padding: '12px 14px',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 14.5,
+          }}
+        >
+          Не сейчас
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Локальные уведомления: тумблер + предисловие + честный текст про отказ. */
+function LocalNotificationsBlock() {
+  const [on, setOn] = useState(localNotificationsEnabled());
+  const [intro, setIntro] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [denied, setDenied] = useState(false);
+
+  // Разрешение могли отозвать в настройках телефона, пока приложение не
+  // работало. Тумблер обязан показывать положение дел, а не своё воспоминание
+  // о нём: иначе он стоит «включено», а в шторке ничего не появляется.
+  useEffect(() => {
+    let alive = true;
+    if (!localNotificationsEnabled()) return undefined;
+    permissionState().then((state) => {
+      if (!alive) return;
+      if (state !== 'granted') {
+        setLocalNotificationsEnabled(false);
+        setOn(false);
+        setDenied(state === 'denied');
+      }
+    });
+    return () => { alive = false; };
+  }, []);
+
+  async function enable() {
+    setBusy(true);
+    const state = await requestPermission();
+    setBusy(false);
+    setIntro(false);
+    if (state !== 'granted') {
+      setDenied(state === 'denied');
+      return;
+    }
+    setDenied(false);
+    setLocalNotificationsEnabled(true);
+    setOn(true);
+    syncLocalNotifications();
+  }
+
+  async function handleToggle() {
+    if (on) {
+      setLocalNotificationsEnabled(false);
+      setOn(false);
+      await cancelAllScheduled();
+      return;
+    }
+    // Разрешение уже есть — второй раз спрашивать нечего и незачем.
+    if ((await permissionState()) === 'granted') {
+      setDenied(false);
+      setLocalNotificationsEnabled(true);
+      setOn(true);
+      syncLocalNotifications();
+      return;
+    }
+    setIntro(true);
+  }
+
+  return (
+    <>
+      <ToggleRow
+        label="Уведомления на этом устройстве"
+        hint="Приложение напомнит о событиях по вашей карте"
+        on={on}
+        onToggle={handleToggle}
+      />
+      {intro ? <PermissionIntro onAllow={enable} onCancel={() => setIntro(false)} busy={busy} /> : null}
+      {denied && !intro ? (
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+          Уведомления запрещены в настройках телефона. Включить их можно только там:
+          «Настройки → Приложения → Aristea → Уведомления».
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -71,11 +259,9 @@ export default function MoreNotificationsView() {
     }
   }, []);
 
-  useEffect(() => {
-    if (PUSH_SUPPORTED) load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  if (!PUSH_SUPPORTED) {
+  if (!PUSH_SUPPORTED && !LOCAL_NOTIFICATIONS_SUPPORTED) {
     return <MoreCenteredNotice title="Push-уведомления недоступны на этом устройстве" />;
   }
 
@@ -98,6 +284,10 @@ export default function MoreNotificationsView() {
     setSettings(next); // оптимистично — своя ошибка не должна откатывать весь экран в скелет
     try {
       await updatePushSettings({ [key]: next[key] });
+      // Состав уведомлений изменился — план на устройстве обязан пересобраться
+      // сразу, а не при следующем заходе: иначе выключенный вид событий ещё
+      // неделю приходил бы по уже поставленному плану.
+      syncLocalNotifications();
     } catch {
       setSettings(settings); // откат конкретного тумблера при неудаче
     }
@@ -105,21 +295,12 @@ export default function MoreNotificationsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
+      {LOCAL_NOTIFICATIONS_SUPPORTED ? <LocalNotificationsBlock /> : null}
       {TOGGLES.map(({ key, label }) => (
         <ToggleRow key={key} label={label} on={settings[key]} onToggle={() => toggle(key)} />
       ))}
       <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
         Уведомления приходят с {settings.daily_time} до {settings.quiet_from || '22:00'}
-      </p>
-      {/* ⚠️ Честная строка про то, что эти тумблеры делают СЕГОДНЯ.
-          Экран сохраняет настройки на сервер, но приложение не создаёт
-          push-подписку нигде и никогда: ни `enablePush`, ни `pushManager`
-          в mobile/ не вызываются (проверено грепом 10.09.2026). То есть сами
-          уведомления по этим настройкам приходят в браузер, а не сюда.
-          Без этой строки тумблеры выглядят рабочими и человек уверен, что
-          подписался, — ровно то, о чём предупреждает докстринг файла. */}
-      <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-        Настройки общие с сайтом — уведомления приходят туда.
       </p>
     </div>
   );

@@ -131,12 +131,22 @@ jobs:
       # ввода прижато к низу шторки, и при adjustPan клавиатура накрыла бы его
       # целиком. Шаблон Capacitor этот атрибут не ставит вовсе, то есть без
       # патча режим выбирает система — и выбор не гарантирован.
-      - name: Проверить allowBackup, ориентацию и режим клавиатуры
+      #
+      # Разрешения уведомлений добавлены 13.09.2026 вместе с локальными
+      # уведомлениями. Проверка тут особенно к месту — оба отказа молчаливые:
+      # без POST_NOTIFICATIONS на Android 13+ `LocalNotifications.schedule`
+      # отрабатывает БЕЗ ОШИБКИ, а в шторке не появляется ничего; без
+      # RECEIVE_BOOT_COMPLETED уведомления просто перестают приходить после
+      # первой перезагрузки телефона. Ни то, ни другое не видно иначе как на
+      # устройстве, причём второе — только на следующий день.
+      - name: Проверить allowBackup, ориентацию, клавиатуру и разрешения уведомлений
         working-directory: frontend
         run: |
           grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:screenOrientation="portrait"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:windowSoftInputMode="adjustResize"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.POST_NOTIFICATIONS' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' android/app/src/main/AndroidManifest.xml
 
       # Проверка результата генератора — по ФАКТУ в res/, а не по успеху шага
       # выше. Мимо неё прошёл бы отказ, который ничего не роняет: генератор
