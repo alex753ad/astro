@@ -42,6 +42,10 @@ dependencies = [
     "Pillow>=10.3.0",
     "reportlab>=4.0.0",
     "pywebpush>=1.14.0",
+    # Только подпись JWT сервис-аккаунта и обмен его на access-token для
+    # FCM HTTP v1 (backend/push/fcm.py). Намеренно не firebase-admin: тот
+    # тянет половину google-cloud ради одного POST.
+    "google-auth>=2.30.0",
     "python-multipart>=0.0.9",
     "aiogram>=3.4",
     "sentry-sdk[fastapi]>=2.0.0",

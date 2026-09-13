@@ -12,6 +12,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
+import MoreDeviceChannel from './MoreDeviceChannel';
+import { DEVICE_PUSH_SUPPORTED } from '../lib/devicePush';
 import MoreSwitch from './MoreSwitch';
 import { fetchPushSettings, updatePushSettings } from '../lib/moreApi';
 
@@ -71,11 +73,15 @@ export default function MoreNotificationsView() {
     }
   }, []);
 
-  useEffect(() => {
-    if (PUSH_SUPPORTED) load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  if (!PUSH_SUPPORTED) {
+  // ⚠️ Серверные настройки больше НЕ спрятаны за проверкой Web Push.
+  // Виды событий, время и тихие часы живут на сервере и от `PushManager`
+  // не зависят вовсе — больше того, именно они определяют, что уйдёт в
+  // мобильный пуш. В Android WebView, где `PushManager` может отсутствовать,
+  // прежнее условие показывало «недоступно» на экране, который работает,
+  // и заодно прятало тумблер канала доставки.
+  if (!PUSH_SUPPORTED && !DEVICE_PUSH_SUPPORTED) {
     return <MoreCenteredNotice title="Push-уведомления недоступны на этом устройстве" />;
   }
 
@@ -105,22 +111,18 @@ export default function MoreNotificationsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
+      <MoreDeviceChannel />
       {TOGGLES.map(({ key, label }) => (
         <ToggleRow key={key} label={label} on={settings[key]} onToggle={() => toggle(key)} />
       ))}
       <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
         Уведомления приходят с {settings.daily_time} до {settings.quiet_from || '22:00'}
       </p>
-      {/* ⚠️ Честная строка про то, что эти тумблеры делают СЕГОДНЯ.
-          Экран сохраняет настройки на сервер, но приложение не создаёт
-          push-подписку нигде и никогда: ни `enablePush`, ни `pushManager`
-          в mobile/ не вызываются (проверено грепом 10.09.2026). То есть сами
-          уведомления по этим настройкам приходят в браузер, а не сюда.
-          Без этой строки тумблеры выглядят рабочими и человек уверен, что
-          подписался, — ровно то, о чём предупреждает докстринг файла. */}
-      <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-        Настройки общие с сайтом — уведомления приходят туда.
-      </p>
+      {/* Строка «Настройки общие с сайтом — уведомления приходят туда» стояла
+          здесь с 10.09.2026 как честная подпись к тумблерам, которые на
+          устройстве ничего не включали. Теперь включают: тумблер выше
+          регистрирует устройство, и уведомления приходят сюда. Строка стала бы
+          неправдой, поэтому убрана вместе с появлением канала. */}
     </div>
   );
 }
