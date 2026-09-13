@@ -68,31 +68,3 @@ export default function useStreak() {
 
   return { streak, isNew };
 }
-
-// ── Push-уведомление через Service Worker ─────────────────
-// Планирует локальный будильник через postMessage в SW,
-// если пользователь не заходил >2 дней.
-
-export function schedulePushReminder() {
-  if (!('serviceWorker' in navigator)) return;
-  const lastStr = localStorage.getItem(KEY_LAST) || '';
-  if (!lastStr) return;
-
-  const last = new Date(lastStr);
-  const now  = new Date();
-  const daysSince = (now - last) / (1000 * 60 * 60 * 24);
-
-  if (daysSince < 2) return; // заходил недавно — не беспокоим
-
-  navigator.serviceWorker.ready.then(reg => {
-    if (!reg.active) return;
-    // SW получит сообщение и покажет уведомление через 5 сек (демо)
-    // В продакшн заменить на реальный Push API
-    reg.active.postMessage({
-      type: 'SCHEDULE_REMINDER',
-      title: '✦ Aristea Timeline',
-      body: `Вы не заглядывали в карту ${Math.floor(daysSince)} дн. Посмотрите, что происходит сейчас!`,
-      delayMs: 5000,
-    });
-  }).catch(() => {});
-}

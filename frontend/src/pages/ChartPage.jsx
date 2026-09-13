@@ -25,7 +25,7 @@ import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
 import OnboardingTooltips from '../components/OnboardingTooltips';
 import StreakBadge from '../components/StreakBadge';
-import useStreak, { schedulePushReminder } from '../hooks/useStreak';
+import useStreak from '../hooks/useStreak';
 import RagChat from '../components/RagChat';
 import {
   createCheckoutSession,
@@ -393,23 +393,23 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const { streak, isNew } = useStreak();
   const isMobile = useIsMobile(900);
 
-  // ⚠️ Разрешение на уведомления здесь НЕ запрашивается, и это решение.
+  // ⚠️ Никаких уведомлений этот экран не показывает и разрешения не
+  // спрашивает — оба раза это решение, а не пропуск.
   //
-  // До 10.09.2026 этот эффект через 5 секунд после открытия карты сам звал
-  // `enablePush`, то есть показывал системный диалог браузера без единого
-  // слова о том, что и зачем будет приходить. Отказ в этом диалоге в
-  // браузере необратим обычными средствами: вернуть его человек может только
-  // через настройки сайта, куда никто не идёт. То есть один автоматический
-  // вопрос в неудачный момент закрывал канал уведомлений навсегда.
+  // До 10.09.2026 здесь стоял эффект, который через 5 секунд после открытия
+  // карты звал `enablePush`, то есть показывал системный диалог браузера без
+  // единого слова о том, что и зачем будет приходить. Отказ в нём необратим
+  // обычными средствами, так что один вопрос в неудачный момент закрывал
+  // канал навсегда. Спрашивают теперь там, где намерение выражено: тумблер в
+  // «Профиль → Уведомления» и тумблер устройства в приложении.
   //
-  // Спрашиваем теперь там, где человек сам выразил намерение: тумблер в
-  // «Профиль → Уведомления» зовёт `enablePush` при включении, там же кнопка
-  // «Отправить тест». Подписок станет меньше — но каждая будет осознанной, а
-  // сожжённых разрешений не будет вовсе.
-  useEffect(() => {
-    if (!chart) return;
-    schedulePushReminder();
-  }, [chart]);
+  // До 13.09.2026 на его месте оставался `schedulePushReminder` — он слал
+  // service worker'у просьбу показать через 5 секунд «Вы не заглядывали в
+  // карту N дней», то есть ровно в тот момент, когда человек уже заглянул и
+  // смотрит на страницу. Демо-заглушка с пометкой «в продакшн заменить на
+  // реальный Push API», которую вытеснили настоящие уведомления: работают оба
+  // канала, серверный и локальный. Удалена вместе со слушателем
+  // `SCHEDULE_REMINDER` в `public/sw.js`, существовавшим только ради неё.
 
   async function handleShare() {
     const token = localStorage.getItem('astro_access_token');
