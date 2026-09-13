@@ -22,6 +22,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
+import MoreNotificationsDebug from './MoreNotificationsDebug'; // ОТЛАДКА: снять перед вливанием в main
 import MoreSwitch from './MoreSwitch';
 import { fetchPushSettings, updatePushSettings } from '../lib/moreApi';
 import {
@@ -305,6 +306,7 @@ export default function MoreNotificationsView() {
       <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
         Уведомления приходят с {settings.daily_time} до {settings.quiet_from || '22:00'}
       </p>
+      <MoreNotificationsDebug settings={settings} />{/* ОТЛАДКА: снять перед вливанием в main */}
     </div>
   );
 }
