@@ -42,7 +42,7 @@ cd android && ./gradlew assembleDebug
 | `.env.mobile` | `VITE_API_URL` — абсолютный адрес боевого API, читается только при `--mode mobile` |
 | `capacitor.config.json` | appId `ru.aristeatime.app`, webDir `dist-mobile` |
 
-Веб-сборка, SSR (`server.js`, `src/entry-server.jsx`) и локальная разработка
+Веб-сборка и локальная разработка
 не затронуты: у мобильной сборки отдельный конфиг и отдельный режим Vite.
 
 ## Refresh-токен: почему на устройстве он ездит иначе
