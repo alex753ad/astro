@@ -41,6 +41,7 @@ import ChartScreen from '../screens/ChartScreen';
 import MoreScreen from '../screens/MoreScreen';
 import TabBar from './TabBar';
 import AristeaFab from './AristeaFab';
+import { syncLocalNotifications } from '../lib/localNotificationsSync';
 
 const TAB_KEYS = ['feed', 'chart', 'more'];
 
@@ -62,6 +63,28 @@ export default function TabShell() {
   const [hintsOwner, setHintsOwner] = useState(null);
   const handleHints = useCallback((key, open) => {
     setHintsOwner((prev) => (open ? key : (prev === key ? null : prev)));
+  }, []);
+
+  // Локальные уведомления перепланируются при каждом заходе в приложение и
+  // при каждом возврате из фона — здесь, потому что TabShell монтируется
+  // только вошедшему (RequireAuth), а ручка /push/upcoming требует токен.
+  //
+  // ⚠️ Момент выбран не «на всякий случай». План лежит в системе Android, а
+  // не в приложении, и расходится с реальностью сам собой: транзиты
+  // пересчитаны, основная карта сменилась, окно выдачи в 7 дней просто
+  // кончилось. Заход в приложение — единственный момент, когда приложение
+  // вообще выполняется и может это исправить.
+  //
+  // Условия («тумблер включён», «разрешение есть») проверяет сама
+  // syncLocalNotifications; разрешение она не спрашивает никогда — его
+  // спрашивают только по тапу на тумблер в «Ещё → Уведомления».
+  useEffect(() => {
+    syncLocalNotifications();
+    function onVisible() {
+      if (document.visibilityState === 'visible') syncLocalNotifications();
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   // Высота таб-бара — измеряется, а не захардкожена: она уже включает его

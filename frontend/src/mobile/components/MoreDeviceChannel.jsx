@@ -18,12 +18,25 @@
  * автоматический вызов `enablePush` через 5 секунд после открытия карты
  * (docs/HISTORY-push.md).
  *
- * ⚠️ Что здесь ЕЩЁ НЕ сделано и почему это не забывчивость: при слиянии с
- * `local-notifications` сюда добавляется вторая половина решения — неудачная
- * регистрация (нет сервисов Google) должна включать локальные уведомления
- * запасным каналом, а удачная — снимать их. Кода локальных уведомлений на
- * этой ветке нет вовсе, поэтому здесь только серверный канал, а место для
- * развилки отмечено ниже.
+ * ⚠️ ЗДЕСЬ ЖЕ ВЫБИРАЕТСЯ КАНАЛ, и в этом весь дедуп между ними.
+ *
+ * Каналов два, и они решают одну задачу разными средствами:
+ *   • серверный пуш (FCM) — будит устройство, но требует сервисов Google;
+ *   • локальные уведомления — работают везде, но НЕ будят телефон: без
+ *     разрешения на точный будильник Android ставит неточный, и тот ждёт, пока
+ *     человек сам возьмёт телефон (docs/HISTORY-push.md).
+ *
+ * Правило простое: получили токен FCM — работаем им и локальных не планируем,
+ * а уже поставленные снимаем. Не получили (нет сервисов Google, отказ моста) —
+ * включаем локальные запасным каналом.
+ *
+ * ⚠️ Оба конца опираются на ОДИН И ТОТ ЖЕ факт — «токен есть». Сервер шлёт
+ * FCM, потому что у пользователя есть запись в `device_tokens`; устройство не
+ * планирует локальных, потому что токен у него на руках. Разъехаться им негде,
+ * и поэтому один и тот же `key` не может прийти дважды. Серверный вариант
+ * («пусть `/push/upcoming` отдаёт пустую выдачу, когда токен есть») рассмотрен
+ * и отклонён решением владельца: он лишает устройство запасного канала в
+ * случае, когда доставка молча сломается.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -34,6 +47,12 @@ import {
   registerDevice,
   unregisterDevice,
 } from '../lib/devicePush';
+import { cancelOwnedPlan, permissionState } from '../lib/localNotifications';
+import { CHANNEL_DEVICE, CHANNEL_SERVER, decideChannel } from '../lib/channelChoice';
+import {
+  setLocalNotificationsEnabled,
+  syncLocalNotifications,
+} from '../lib/localNotificationsSync';
 
 /** Намерение человека — отдельно от системного разрешения и от наличия токена. */
 const ENABLED_KEY = 'aristea_device_push';
@@ -125,35 +144,76 @@ export default function MoreDeviceChannel() {
   const [intro, setIntro] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
+  // Каким каналом работаем: 'server' (FCM) или 'device' (локальные). Хранится
+  // ради подписи под тумблером — человек должен понимать, почему у него
+  // уведомления приходят иначе, чем обещано, а не гадать.
+  const [channel, setChannel] = useState(null);
+
+  /**
+   * Включить канал: сначала серверный, при неудаче — локальный.
+   *
+   * ⚠️ Порядок обязателен и не взаимозаменяем. Серверный будит устройство,
+   * локальный нет; выбрать локальный там, где работает серверный, значит
+   * сознательно отдать человеку худший канал. Поэтому локальный включается
+   * ТОЛЬКО как ответ на неудачу регистрации.
+   */
+  const chooseChannel = useCallback(async () => {
+    const token = await registerDevice();
+    // ⚠️ Решение — в `channelChoice.js`, отдельной чистой функцией, и это не
+    // церемония: инвариант «активен ровно один канал» внутри обработчика
+    // нечем закрепить, кроме рендера, а цена его нарушения — дубли в шторке.
+    // Здесь остаются только последствия решения.
+    const chosen = decideChannel(token, await permissionState());
+
+    if (chosen === CHANNEL_SERVER) {
+      // Серверный канал работает. Локальные обязаны замолчать — иначе одно и
+      // то же событие придёт дважды: пушем и своим уведомлением.
+      setLocalNotificationsEnabled(false);
+      await cancelOwnedPlan();
+      return chosen;
+    }
+
+    if (chosen === CHANNEL_DEVICE) {
+      // ⚠️ Сюда приходит устройство БЕЗ сервисов Google: у него регистрация не
+      // удастся никогда, и локальные уведомления — единственное, что у него
+      // вообще может работать. Разрешение уже выдано (его спрашивает
+      // registerDevice до обращения к серверу), второй раз не спрашиваем.
+      setLocalNotificationsEnabled(true);
+      await syncLocalNotifications();
+      return chosen;
+    }
+    return null;
+  }, []);
 
   // Токен мог протухнуть или быть отозван, пока приложение не работало.
-  // Перерегистрация при открытии экрана — самый дешёвый момент это заметить.
+  // Перерегистрация при открытии экрана — самый дешёвый момент это заметить,
+  // и заодно момент, когда канал может смениться в обе стороны.
   const refresh = useCallback(async () => {
     if (!devicePushEnabled()) return;
-    const token = await registerDevice();
-    if (!token) {
-      setProblem('device');
+    const chosen = await chooseChannel();
+    if (!chosen) {
+      setProblem('none');
       setOn(false);
       setEnabled(false);
+      return;
     }
-  }, []);
+    setChannel(chosen);
+  }, [chooseChannel]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
   async function enable() {
     setBusy(true);
-    const token = await registerDevice();
+    const chosen = await chooseChannel();
     setBusy(false);
     setIntro(false);
 
-    if (!token) {
-      // ⚠️ Сюда же приходит устройство БЕЗ сервисов Google: у него регистрация
-      // не удастся никогда. При слиянии с `local-notifications` в этой ветке
-      // включается запасной канал — локальные уведомления.
-      setProblem('device');
+    if (!chosen) {
+      setProblem('none');
       return;
     }
     setProblem('');
+    setChannel(chosen);
     setEnabled(true);
     setOn(true);
   }
@@ -162,11 +222,18 @@ export default function MoreDeviceChannel() {
     if (on) {
       setEnabled(false);
       setOn(false);
-      await unregisterDevice();
+      // Гасим ОБА канала: какой из них был активен, человека не касается —
+      // он выключил уведомления, а не «серверные уведомления».
+      setLocalNotificationsEnabled(false);
+      await Promise.all([unregisterDevice(), cancelOwnedPlan()]);
+      setChannel(null);
       return;
     }
-    // Токен уже есть — второй раз спрашивать нечего.
+    // Токен уже есть — второй раз разрешение не спрашиваем.
     if (currentDeviceToken()) {
+      setLocalNotificationsEnabled(false);
+      await cancelOwnedPlan();
+      setChannel('server');
       setEnabled(true);
       setOn(true);
       return;
@@ -188,9 +255,17 @@ export default function MoreDeviceChannel() {
 
       {intro ? <Intro onAllow={enable} onCancel={() => setIntro(false)} busy={busy} /> : null}
 
-      {problem === 'device' && !intro ? (
+      {on && channel === 'device' ? (
         <p style={note}>
-          Не удалось подключить уведомления на этом устройстве. Проверьте, что уведомления
+          На этом телефоне уведомления работают в упрощённом режиме: они появятся, когда вы
+          возьмёте телефон в руки, а не в тот же момент. Так бывает на устройствах без
+          сервисов Google.
+        </p>
+      ) : null}
+
+      {problem === 'none' && !intro ? (
+        <p style={note}>
+          Не удалось включить уведомления на этом устройстве. Проверьте, что уведомления
           разрешены приложению в настройках телефона.
         </p>
       ) : null}

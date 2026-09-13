@@ -55,6 +55,17 @@ export const fetchPushSettings = () => getJson('/push/settings', 'Не удал�
 export const updatePushSettings = (patch) => patchJson('/push/settings', patch, 'Не удалось сохранить настройки уведомлений.');
 
 /**
+ * Будущие события для локальных уведомлений — `GET /push/upcoming`.
+ *
+ * Отдаёт `{ timezone, days, events: [{ key, kind, at, title, body, url }] }`
+ * с ГОТОВЫМИ формулировками: критерий отбора и тексты живут на бэкенде в одном
+ * экземпляре (backend/push/cron.py, collect_upcoming). Клиенту остаётся
+ * склеить список и поставить — сочинять свой текст нельзя.
+ */
+export const fetchUpcomingNotifications = () =>
+  getJson('/push/upcoming', 'Не удалось загрузить будущие события.');
+
+/**
  * Токен устройства для мобильных пушей — `POST/DELETE /push/device`.
  *
  * Токен шлётся при каждом запуске, а не однократно: FCM ротирует его сам, и
