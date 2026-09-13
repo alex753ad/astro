@@ -95,6 +95,14 @@ celerybeat-schedule*
 # причине и рядом, чтобы их git-судьба не разъехалась.
 /send_apk.py
 
+# google-services.json — конфигурация Firebase для клиента. Секретом не является
+# (лежит внутри каждого APK), но в репозиторий не идёт: gitleaks в CI принимает
+# его поле current_key за утёкший ключ API, а заводить исключение в сканере
+# секретов ради несекретного файла — плохой размен. В сборку он попадает из
+# секрета GOOGLE_SERVICES_JSON (.github/workflows/mobile-build.yml).
+/google-services.json
+frontend/android/app/google-services.json
+
 # ── Мобильная сборка (Capacitor / Android) ─────────────────────────────────
 # dist-mobile — артефакт 
 pm run build:mobile, пересобирается каждой сборкой.
