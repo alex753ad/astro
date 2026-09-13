@@ -26,7 +26,7 @@ import MoreSwitch from './MoreSwitch';
 import { fetchPushSettings, updatePushSettings } from '../lib/moreApi';
 import {
   LOCAL_NOTIFICATIONS_SUPPORTED,
-  cancelAllScheduled,
+  cancelOwnedPlan,
   permissionState,
   requestPermission,
 } from '../lib/localNotifications';
@@ -209,7 +209,10 @@ function LocalNotificationsBlock() {
     if (on) {
       setLocalNotificationsEnabled(false);
       setOn(false);
-      await cancelAllScheduled();
+      // Снимается ПЛАН, а не всё подряд: пересборка и выключение трогают ровно
+      // своё множество id (localNotifications.js). Проверочное уведомление из
+      // отладочной панели планом не является и здесь не отменяется.
+      await cancelOwnedPlan();
       return;
     }
     // Разрешение уже есть — второй раз спрашивать нечего и незачем.
