@@ -249,20 +249,26 @@ jobs:
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       # Доказательство, что плагин google-services РЕАЛЬНО отработал, а не был
-      # пропущен тем самым try/catch. Он генерирует ресурсы с идентификаторами
-      # проекта; нет их — значит подключения не было, каким бы зелёным ни был
-      # лог сборки.
+      # пропущен тем самым try/catch. Он разворачивает конфигурацию в ресурсы;
+      # нет их — значит подключения не было, каким бы зелёным ни был лог сборки.
+      #
+      # ⚠️ Ищем по СОДЕРЖИМОМУ, а не по имени каталога, и это не придирка:
+      # первая версия проверки искала путь по маске '*google-services*' и дала
+      # ложное падение — каталог у плагина называется по имени задачи,
+      # `processDebugGoogleServices`, без дефиса и в другом регистре. Имя
+      # каталога принадлежит плагину и меняется между версиями, а `google_app_id`
+      # — это то, ради чего шаг существует.
       - name: Проверить, что плагин Firebase отработал
         working-directory: frontend/android
         run: |
-          res=$(find app/build/generated/res -name values.xml -path '*google-services*' | head -1)
+          res=$(grep -rl 'google_app_id' app/build/generated/res 2>/dev/null | head -1)
           if [ -z "$res" ]; then
-            echo "Ресурсы google-services не сгенерированы — плагин не подключился."
+            echo "Конфигурация Firebase не развернулась в ресурсы — плагин не подключился."
             echo "Это тот самый молчаливый пропуск: сборка зелёная, пушей нет."
+            echo "Что есть в generated/res:"
+            find app/build/generated/res -maxdepth 2 -type d 2>/dev/null | head -20
             exit 1
           fi
-          grep -q 'google_app_id' "$res" || {
-            echo "В $res нет google_app_id — конфигурация не развернулась"; exit 1; }
           echo "google-services отработал: $res"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
