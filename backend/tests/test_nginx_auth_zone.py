@@ -23,10 +23,19 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-CONF = (
-    Path(__file__).resolve().parents[2]
-    / "deploy" / "opt-astro" / "nginx" / "astreatime.conf"
-)
+_NGINX = Path(__file__).resolve().parents[2] / "deploy" / "opt-astro" / "nginx"
+
+# ⚠️ Блоки проксирования переехали 14.09.2026 из astreatime.conf в сниппет.
+# Причина — разделение на канонический и редиректный server: в nginx location
+# между server-блоками не наследуются, и без сниппета эти 219 строк пришлось бы
+# держать в файле дважды (разбор — CLAUDE.md, «/api/ исключён из редиректа»).
+#
+# Тест ходит СЮДА, а не в astreatime.conf. Если блоки когда-нибудь вернут
+# обратно, правильная реакция — поменять путь здесь, а не ослабить проверки:
+# они закрывают отказ, который виден только на устройстве и только на холодном
+# старте.
+CONF = _NGINX / "snippets" / "backend-locations.conf"
+SITE = _NGINX / "astreatime.conf"
 
 SESSION_PATHS = ("refresh", "me", "sse-ticket")
 
@@ -46,6 +55,34 @@ def _blocks(text: str) -> dict[str, str]:
             i += 1
         out[match.group(1)] = text[start:i]
     return out
+
+
+class TestSnippetIsWiredIntoBothServers:
+    """Сниппет обязан быть подключён в оба https-сервера.
+
+    ⚠️ Иначе проверки ниже станут вакуумными: они прочитают правильный файл и
+    останутся зелёными, хотя на неканонических хостах (www, старый бренд) ручек
+    /auth/ не будет вовсе. На www ходит мобильное приложение — отказ проявился
+    бы только у пользователей APK.
+    """
+
+    def test_included_twice(self):
+        site = SITE.read_text(encoding="utf-8")
+        include = "include /etc/nginx/snippets/backend-locations.conf;"
+        assert site.count(include) == 2, (
+            f"сниппет подключён {site.count(include)} раз(а), ожидалось 2 — "
+            "канонический сервер и редиректный"
+        )
+
+    def test_redirect_server_does_not_swallow_api(self):
+        """В редиректном сервере 301 обязан стоять ПОСЛЕ include.
+
+        Порядок в файле для nginx не важен (префиксные location выбираются по
+        длине совпадения), но `location /` с `return 301` и include рядом —
+        место, где легко потерять одно из двух при правке.
+        """
+        site = SITE.read_text(encoding="utf-8")
+        assert "return 301 https://aristeatime.ru$request_uri;" in site
 
 
 class TestAuthZoneStaysStrict:
