@@ -15,7 +15,6 @@ from datetime import date
 
 from backend.calendar.lunar_engine import get_eclipses
 
-
 # (месяц запроса, дата и время в UTC, дата и время в GMT+3, тип, вид)
 NEAR_MIDNIGHT = [
     ((2027, 2),  "2027-02-20", "23:12", "2027-02-21", "02:12", "lunar", "penumbral"),
@@ -56,8 +55,11 @@ class TestEclipseTimezone:
         под ярлыком UTC и вернул бы дубли одного момента.
         """
         import swisseph as swe
+
         from backend.calendar.lunar_engine import (
-            _jd, _scan_eclipses, _LUNAR_KIND_FLAGS,
+            _LUNAR_KIND_FLAGS,
+            _jd,
+            _scan_eclipses,
         )
 
         events = _scan_eclipses(_jd(date(2027, 2, 1), 0), _jd(date(2027, 2, 28), 24),

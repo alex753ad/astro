@@ -76,8 +76,8 @@ class TestLockIsRequested:
     """
 
     def test_claim_asks_to_lock_the_token_row(self, db, user_free, monkeypatch):
-        from datetime import timedelta as _td
         import asyncio
+        from datetime import timedelta as _td
 
         from sqlalchemy.orm import Query
 
@@ -106,7 +106,7 @@ class TestLockIsRequested:
 
 
 @pytest.fixture
-def pg():  # noqa: D401 — фикстура используется только тестом гонки ниже
+def pg():
     """Движок и схема на живом Postgres. Созданные строки убираются за собой."""
     from backend.models import Base
 
@@ -128,10 +128,11 @@ def _make_user(Session, email: str):
 
 @requires_postgres
 def test_two_concurrent_claims_give_premium_to_exactly_one(pg):
+    import asyncio
+
     from backend.models import PilotToken, User
     from backend.pilot.router import ClaimIn, claim_pilot
     from backend.time_utils import utcnow
-    import asyncio
 
     token = f"race-{uuid.uuid4().hex[:16]}"
     tg_id = f"tg{uuid.uuid4().hex[:10]}"
