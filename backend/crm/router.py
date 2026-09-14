@@ -906,8 +906,24 @@ async def set_portal(
             expires_at=utcnow() + timedelta(days=PORTAL_TTL_DAYS),
         )
         db.add(portal)
+    elif not payload.enabled:
+        # Отключение ОТЗЫВАЕТ ссылку: токен ротируется, старый исчезает из БД
+        # насовсем (строка одна на клиента). Без этого повторное включение
+        # оживляло бы ссылку у того, у кого доступ отобрали — находка аудита
+        # 2.6 от 23.08.2026.
+        #
+        # ⚠️ Правка бесплатна ровно потому, что CRM ещё не запущена и живых
+        # порталов нет. После запуска отключение будет РВАТЬ уже разосланные
+        # клиентам ссылки безвозвратно, восстановить их нечем — сказать об
+        # этом владельцу до запуска CRM.
+        portal.token = secrets.token_urlsafe(24)
+        portal.enabled = False
     else:
-        portal.enabled = payload.enabled
+        # Срок считается от включения, а не от создания записи: иначе портал,
+        # пролежавший выключенным дольше PORTAL_TTL_DAYS, включился бы уже
+        # просроченным — кнопка сработала, ссылка мертва.
+        portal.expires_at = utcnow() + timedelta(days=PORTAL_TTL_DAYS)
+        portal.enabled = True
     db.commit()
     db.refresh(portal)
     return _portal_out(portal)
