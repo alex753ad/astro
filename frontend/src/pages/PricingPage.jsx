@@ -123,7 +123,7 @@ const s = {
     left: 20,
     background: 'var(--accent)',
     color: '#fff',
-    fontFamily: DISPLAY,
+    fontFamily: BODY,
     fontSize: 11,
     fontWeight: 700,
     padding: '3px 10px',
@@ -138,7 +138,8 @@ const s = {
     marginBottom: 6,
   },
   price: {
-    fontFamily: DISPLAY,
+    fontFamily: BODY,
+    fontVariantNumeric: 'tabular-nums',
     fontSize: 26,
     fontWeight: 700,
     marginBottom: 10,

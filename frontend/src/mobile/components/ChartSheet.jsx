@@ -48,7 +48,7 @@ const HOUSE_LABEL_WIDTH = 66;
 const degreeStyle = {
   marginLeft: 'auto',
   flexShrink: 0,
-  fontFamily: 'var(--font-display)',
+  fontFamily: 'var(--font-body)',
   fontVariantNumeric: 'tabular-nums',
   fontSize: 13,
   color: 'var(--text-secondary)',
@@ -72,7 +72,7 @@ function PlanetRow({ planet }) {
             fontSize: 11,
             fontWeight: 700,
             color: 'var(--color-danger)',
-            fontFamily: 'var(--font-display)',
+            fontFamily: 'var(--font-body)',
           }}
         >
           R
@@ -92,7 +92,7 @@ function AngleRow({ label, angle }) {
   if (!angle) return null;
   return (
     <div style={rowStyle}>
-      <span style={{ width: HOUSE_LABEL_WIDTH, flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+      <span style={{ width: HOUSE_LABEL_WIDTH, flexShrink: 0, fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
         {label}
       </span>
       <span style={{ ...secondary }}>{signRu(angle.sign)}</span>
@@ -163,7 +163,7 @@ export default function ChartSheet({ chart, onRefresh }) {
                 border: 'none',
                 background: active ? 'var(--accent-muted)' : 'transparent',
                 color: active ? 'var(--accent)' : 'var(--text-secondary)',
-                fontFamily: 'var(--font-display)',
+                fontFamily: 'var(--font-body)',
                 fontSize: 13,
                 fontWeight: 600,
               }}
@@ -195,7 +195,7 @@ export default function ChartSheet({ chart, onRefresh }) {
                 {/* Римскими, как дома подписаны в самом колесе — список и
                     колесо читаются одинаково. Арабской цифры рядом нет: это
                     было бы одно и то же число дважды. */}
-                <span style={{ width: HOUSE_LABEL_WIDTH, flexShrink: 0, whiteSpace: 'nowrap', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                <span style={{ width: HOUSE_LABEL_WIDTH, flexShrink: 0, whiteSpace: 'nowrap', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
                   {romanHouse(h.number)} дом
                 </span>
                 <span style={{ ...secondary, flexShrink: 0 }}>{signRu(h.sign)}</span>

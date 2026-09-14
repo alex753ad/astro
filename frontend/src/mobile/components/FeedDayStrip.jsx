@@ -108,7 +108,7 @@ export default function FeedDayStrip({ from, to, today, dotsByDay, onSelectDay }
             <span style={{ fontSize: 10, color: isToday ? '#fff' : 'var(--text-secondary)' }}>
               {weekdayShort(date)}
             </span>
-            <span style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
+            <span style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-body)', fontVariantNumeric: 'tabular-nums' }}>
               {Number(date.slice(8, 10))}
             </span>
             <span style={{ display: 'flex', gap: 2, height: 4 }}>

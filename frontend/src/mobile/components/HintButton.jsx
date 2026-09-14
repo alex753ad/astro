@@ -30,7 +30,7 @@ export default function HintButton({ onClick, style }) {
         border: '1px solid var(--border)',
         background: 'var(--bg-card)',
         color: 'var(--text-secondary)',
-        fontFamily: 'var(--font-display)',
+        fontFamily: 'var(--font-body)',
         fontSize: 14,
         fontWeight: 600,
         lineHeight: 1,

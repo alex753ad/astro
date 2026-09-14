@@ -146,7 +146,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.09em',
-              fontFamily: 'var(--font-display)',
+              fontFamily: 'var(--font-body)',
               color: 'var(--text-secondary)',
             }}
           >

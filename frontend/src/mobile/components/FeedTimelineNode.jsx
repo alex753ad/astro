@@ -72,7 +72,7 @@ export default function FeedTimelineNode({ time, bold, color, size, children, ga
             flexShrink: 0,
             textAlign: 'right',
             paddingRight: 14,
-            fontFamily: 'var(--font-display)',
+            fontFamily: 'var(--font-body)',
             fontVariantNumeric: 'tabular-nums',
             fontSize: bold ? 12 : 11,
             fontWeight: bold ? 700 : 400,

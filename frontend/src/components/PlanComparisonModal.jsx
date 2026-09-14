@@ -10,7 +10,7 @@ import { tierPriceLabel, tierFeatures } from "../constants";
   (одиночный апселл на Лиру).
 
   Построено по DESIGN_SYSTEM.md (v1.2): только CSS-переменные, инлайн-стили,
-  шрифты Space Grotesk / Inter, токены Modal/Button/Card/Badge.
+  шрифты Literata (заголовки) / Golos Text (интерфейс), токены Modal/Button/Card/Badge.
 
   Контент по умолчанию — общий. Для контекста вкладки можно передать свои
   vega.features / lyra.features (напр. в Транзитах — про AI-разбор).
@@ -116,7 +116,7 @@ function PlanCard({ plan, cta, onChoose, recommended, reduce }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
-        <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700, color: "var(--text-primary)" }}>
+        <span style={{ fontFamily: BODY, fontVariantNumeric: "tabular-nums", fontSize: 20, fontWeight: 700, color: "var(--text-primary)" }}>
           {plan.price}
         </span>
         <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>/мес</span>

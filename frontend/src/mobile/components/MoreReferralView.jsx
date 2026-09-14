@@ -67,13 +67,13 @@ export default function MoreReferralView() {
 
       <div style={{ display: 'flex', gap: 12 }}>
         <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+          <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
             {data.referrals_count}
           </p>
           <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>приглашено</p>
         </div>
         <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px', textAlign: 'center' }}>
-          <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+          <p style={{ margin: 0, fontFamily: 'var(--font-body)', fontVariantNumeric: 'tabular-nums', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
             {data.reward_weeks_earned}
           </p>
           <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>недель награды</p>

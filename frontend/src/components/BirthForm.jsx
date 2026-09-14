@@ -63,7 +63,7 @@ const S = {
     color: 'var(--text-primary)',
     fontSize: 15,
     outline: 'none',
-    fontFamily: 'var(--font-display)',
+    fontFamily: 'var(--font-body)',
     boxSizing: 'border-box',
     transition: 'border-color 0.18s',
   },

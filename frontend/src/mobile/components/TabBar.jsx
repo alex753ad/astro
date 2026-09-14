@@ -81,7 +81,7 @@ const TabBar = React.forwardRef(function TabBar({ active }, ref) {
             }}
           >
             {ICONS[tab.key]}
-            <span style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 600 }}>
+            <span style={{ fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600 }}>
               {tab.label}
             </span>
           </button>

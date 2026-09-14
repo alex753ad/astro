@@ -21,7 +21,7 @@ const S = {
     width: '100%', padding: '13px 16px', borderRadius: 'var(--radius-md)',
     border: '1.5px solid var(--border)', background: 'var(--bg-deeper)',
     color: 'var(--text-primary)', fontSize: 15, outline: 'none',
-    fontFamily: 'var(--font-display)',
+    fontFamily: 'var(--font-body)',
     boxSizing: 'border-box', transition: 'border-color 0.18s',
   },
   field: { marginBottom: 18 },

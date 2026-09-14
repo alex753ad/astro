@@ -108,7 +108,7 @@ function CardRow({ chart, busy, onSetPrimary, onDelete }) {
 export default function MoreCardsList({ charts, busyId, onSetPrimary, onDelete }) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <p style={{ margin: '0 0 2px', fontFamily: 'var(--font-display)', fontSize: 12.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+      <p style={{ margin: '0 0 2px', fontFamily: 'var(--font-body)', fontSize: 12.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
         Мои карты
       </p>
       {charts.length === 0 ? (

@@ -1181,7 +1181,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   return (
-    <div className="tt-scope" style={{ fontFamily: "var(--font-display)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
+    <div className="tt-scope" style={{ fontFamily: "var(--font-body)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
       <style>{`
         .tt-scope {
           --tt-card: var(--bg-card); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);

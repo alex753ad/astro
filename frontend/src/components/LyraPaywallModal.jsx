@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 /*
   LyraPaywallModal — единое окно апселла тарифа «Лира».
   Построено по DESIGN_SYSTEM.md (v1.2): только CSS-переменные, инлайн-стили
-  (без Tailwind-классов — §10), шрифты Space Grotesk / Inter, токены Modal/Button/Badge.
+  (без Tailwind-классов — §10), шрифты Literata (заголовки) / Golos Text (интерфейс), токены Modal/Button/Badge.
 
   Используется в двух местах:
     • Планер, кнопка «Открыть доступ»
@@ -258,7 +258,7 @@ export default function LyraPaywallModal({
                 borderTop: "1px solid var(--border)",
               }}
             >
-              <span style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700 }}>{price}</span>
+              <span style={{ fontFamily: BODY, fontVariantNumeric: "tabular-nums", fontSize: 22, fontWeight: 700 }}>{price}</span>
               <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>в месяц</span>
             </div>
 

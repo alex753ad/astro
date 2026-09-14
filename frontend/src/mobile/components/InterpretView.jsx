@@ -58,7 +58,8 @@ function renderLines(text) {
     // **жирный** — единственная инлайновая разметка, которую шлёт модель.
     const parts = line.split(/\*\*(.+?)\*\*/g);
     return (
-      <p key={i} style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.65, color: 'var(--text-primary)' }}>
+      // Тело интерпретации — антиква (DESIGN_SYSTEM.md §3): это чтение, а не интерфейс.
+      <p key={i} style={{ margin: '0 0 8px', fontFamily: 'var(--font-display)', fontSize: 15, lineHeight: 1.65, color: 'var(--text-primary)' }}>
         {parts.map((p, j) => (j % 2 ? <strong key={j}>{p}</strong> : p))}
       </p>
     );
