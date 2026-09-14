@@ -239,6 +239,20 @@ function findHiddenText() {
   return out;
 }
 
+/**
+ * Текст экрана «страница не найдена». Снимается ПЕРВЫМ и служит эталоном.
+ *
+ * ⚠️ Зачем: маршрут, который есть в routes.js, но отсутствует в роутере
+ * App.jsx, отрисует catch-all NotFoundPage — и без этой сверки уедет на прод
+ * как нормальная страница. Проверено обратным прогоном 14.09.2026: битый
+ * маршрут дал 378 символов текста, прошёл порог в 80, получил свой title и
+ * canonical и записался в dist. То есть в выдачу ушла бы страница «не
+ * найдено» под видом тарифов — хуже, чем пустая.
+ *
+ * Сверяем ТЕКСТ, а не формулировку в коде: привязываться к самой фразе нельзя,
+ * её правят. Совпадение с эталоном означает «роутер не знает этого адреса»
+ * независимо от того, что там написано.
+ */
 async function capture(page, path, meta) {
   const res = await page.goto(`http://127.0.0.1:${PORT}${path}`, {
     waitUntil: 'networkidle2',
@@ -276,7 +290,7 @@ async function capture(page, path, meta) {
     );
   }
 
-  return { html, textLength: text.length };
+  return { html, textLength: text.length, text };
 }
 
 async function write(path, html) {
@@ -310,27 +324,46 @@ async function main() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 900 });
 
-    const targets = publicUrls();
-    for (const { path, seo } of targets) {
-      const canonical = `${CANONICAL_ORIGIN}${path === '/' ? '/' : path}`;
-      const { html, textLength } = await capture(page, path, {
-        title: seo.title,
-        description: seo.description,
-        canonical,
-      });
-      const target = await write(path, html);
-      console.log(`  ${path.padEnd(26)} ${String(textLength).padStart(6)} симв. → ${target.replace(DIST, 'dist')}`);
-    }
-
-    // Страница 404. Адрес заведомо несуществующий: React-роутер отдаёт на него
-    // NotFoundPage по маршруту '*'. Её же nginx отдаёт через error_page, поэтому
-    // canonical ей не нужен, а noindex — нужен.
-    const { html: notFound } = await capture(page, '/__prerender_404__', {
+    // Страница 404 снимается ПЕРВОЙ — её текст нужен как эталон для сверки
+    // ниже. Адрес заведомо несуществующий: React-роутер отдаёт на него
+    // NotFoundPage по маршруту '*'. Её же nginx отдаёт через error_page,
+    // поэтому canonical ей не нужен, а noindex — нужен.
+    const { html: notFound, text: notFoundText } = await capture(page, '/__prerender_404__', {
       title: 'Страница не найдена — Aristea Timeline',
       description: 'Такого адреса на сайте нет.',
       canonical: `${CANONICAL_ORIGIN}/`,
       robots: 'noindex, follow',
     });
+
+    const targets = publicUrls();
+    // Пустая выдача — тоже отказ, и молчаливый: цикл ниже просто не выполнился
+    // бы, скрипт отчитался бы «0 страниц» с кодом 0, а на прод уехал бы сайт из
+    // одних шеллов. Тот же мотив, что у проверки «разобрано больше двадцати
+    // путей» в routes.test.js.
+    if (targets.length === 0) {
+      throw new Error('publicUrls() не вернул ни одного адреса — пререндерить нечего');
+    }
+
+    for (const { path, seo } of targets) {
+      const canonical = `${CANONICAL_ORIGIN}${path === '/' ? '/' : path}`;
+      const { html, textLength, text } = await capture(page, path, {
+        title: seo.title,
+        description: seo.description,
+        canonical,
+      });
+
+      if (text === notFoundText) {
+        throw new Error(
+          `${path}: роутер отдал экран «страница не найдена».\n` +
+          '      Маршрут есть в routes.js, но его нет в App.jsx — без этой проверки\n' +
+          '      он уехал бы на прод как нормальная страница, со своим title и canonical.',
+        );
+      }
+
+      const target = await write(path, html);
+      console.log(`  ${path.padEnd(26)} ${String(textLength).padStart(6)} симв. → ${target.replace(DIST, 'dist')}`);
+    }
+
     // canonical на главную с 404-страницы — ложь; убираем то, что проставили
     // ради переиспользования общей функции.
     await writeFile(
@@ -339,7 +372,6 @@ async function main() {
       'utf-8',
     );
     console.log(`  404                                  → dist/404.html`);
-
     console.log(`✅ пререндер: ${targets.length} страниц + 404`);
   } finally {
     await browser.close();
