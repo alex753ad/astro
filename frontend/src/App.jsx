@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
 import { API_BASE } from './config';
+import { seoForPath } from './routes';
 import { captureRefCode } from './utils/refCode';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
@@ -36,60 +37,59 @@ import { ToastProvider } from './components/Toast';
 import ThemeToggle from './components/ThemeToggle';
 import NebulaBackground from './components/NebulaBackground';
 
-// ─── OG meta updater ─────────────────────────────────────────────────────────
+// ─── Метаданные страницы ──────────────────────────────────────────────────────
+//
+// ⚠️ Текстов здесь НЕТ и быть не должно: title и description объявлены ровно в
+// одном месте — src/routes.js, оттуда же их берёт пререндер
+// (scripts/prerender.mjs).
+//
+// До 14.09.2026 в этом файле лежали собственные литералы на три группы
+// маршрутов, и они молча ПЕРЕЗАПИСЫВАЛИ значения, записанные пререндером, —
+// как только выполнялся JS. Замерено сравнением документа без JS и после: на
+// «/» и «/zodiac/*» расходились title и og:*, на /pricing и /terms не
+// расходилось ничего, потому что веток для них тут просто не было. То есть
+// объявленное в routes.js не было тем, что видит поисковик, и заметить это
+// можно было только таким замером.
+//
+// ⚠️ Функция ниже почти повторяет applyMeta в scripts/prerender.mjs, и свести
+// их в одну нельзя: та уезжает в браузер через page.evaluate, то есть
+// сериализуется в строку и теряет любые импорты. Дублируется механика
+// (какие теги проставить), но НЕ тексты — они приходят из общего routes.js.
 
-const ZODIAC_SIGNS = {
-  aries: 'Овен', taurus: 'Телец', gemini: 'Близнецы', cancer: 'Рак',
-  leo: 'Лев', virgo: 'Дева', libra: 'Весы', scorpio: 'Скорпион',
-  sagittarius: 'Стрелец', capricorn: 'Козерог', aquarius: 'Водолей', pisces: 'Рыбы',
-};
-
-function setMeta(property, content) {
-  let el = document.querySelector(`meta[property="${property}"]`);
+function setMetaTag(attr, key, content) {
+  let el = document.head.querySelector(`meta[${attr}="${key}"]`);
   if (!el) {
     el = document.createElement('meta');
-    el.setAttribute('property', property);
+    el.setAttribute(attr, key);
     document.head.appendChild(el);
   }
   el.setAttribute('content', content);
 }
 
-function updateOG({ title, description, url }) {
+function applySeo({ title, description, canonical }) {
   document.title = title;
-  setMeta('og:title', title);
-  setMeta('og:description', description);
-  setMeta('og:url', url || window.location.href);
+  setMetaTag('name', 'description', description);
+  setMetaTag('property', 'og:title', title);
+  setMetaTag('property', 'og:description', description);
+  setMetaTag('property', 'og:url', canonical);
+
+  let link = document.head.querySelector('link[rel="canonical"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.setAttribute('rel', 'canonical');
+    document.head.appendChild(link);
+  }
+  link.setAttribute('href', canonical);
 }
 
 function useOGMeta() {
   const location = useLocation();
 
   useEffect(() => {
-    const path = location.pathname;
-    const base = 'https://aristeatime.ru';
-
-    if (path === '/' || path === '/home') {
-      updateOG({
-        title: 'Aristea Timeline — Натальные карты и AI-астрология',
-        description: 'Постройте натальную карту, получите AI-интерпретацию транзитов и персональный астро-планер.',
-        url: `${base}${path}`,
-      });
-    } else if (path.startsWith('/zodiac/')) {
-      const sign = path.split('/zodiac/')[1]?.toLowerCase();
-      const signRu = ZODIAC_SIGNS[sign] || sign;
-      updateOG({
-        title: `${signRu} — характеристика знака зодиака | Aristea`,
-        description: `Подробная характеристика знака ${signRu}: личность, карьера, отношения. AI-астрология на Aristea Timeline.`,
-        url: `${base}${path}`,
-      });
-    } else if (path === '/lunar' || path.startsWith('/calendar/lunar')) {
-      updateOG({
-        title: 'Лунный календарь 2026 | Aristea Timeline',
-        description: 'Фазы Луны, знак Луны на каждый день, благоприятные дни. Персональный лунный календарь.',
-        url: `${base}${path}`,
-      });
-    }
-    // Авторизованная зона — OG не обновляем
+    // null у страниц приложения — намеренно: <head> не трогаем вовсе, там уже
+    // стоит либо результат пререндера, либо метаданные предыдущей страницы.
+    const seo = seoForPath(location.pathname);
+    if (seo) applySeo(seo);
   }, [location.pathname]);
 }
 

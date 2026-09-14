@@ -20,7 +20,7 @@ import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { ROUTES, ZODIAC_SLUGS, expandRoute, publicUrls } from './routes.js';
+import { ROUTES, ZODIAC_SLUGS, expandRoute, publicUrls, seoForPath } from './routes.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appSource = readFileSync(resolve(here, 'App.jsx'), 'utf-8');
@@ -97,10 +97,62 @@ describe('метаданные публичных страниц', () => {
     expect(new Set(titles).size).toBe(titles.length);
   });
 
+  it('в App.jsx не осталось собственных текстов метаданных', () => {
+    // ⚠️ Суть правки 14.09.2026: до неё useOGMeta держала свои литералы и
+    // ПЕРЕЗАПИСЫВАЛА ими то, что проставил пререндер, как только выполнялся JS.
+    // Замер сравнением документа без JS и после показывал расхождение title и
+    // og:* на «/» и «/zodiac/*». Если литералы вернутся, расхождение вернётся
+    // вместе с ними — и снова будет невидимым при обычной проверке глазами.
+    expect(appSource, 'в App.jsx снова появился свой заголовок страницы')
+      .not.toMatch(/document\.title\s*=\s*['"`]/);
+    expect(appSource, 'в App.jsx снова появился свой список знаков зодиака')
+      .not.toMatch(/ZODIAC_SIGNS/);
+    expect(appSource, 'метаданные должны приходить из routes.js')
+      .toContain('seoForPath');
+  });
+
   it('description укладывается в то, что показывает выдача', () => {
     for (const { path, seo } of urls) {
       expect(seo.description.length, `слишком коротко у ${path}`).toBeGreaterThan(50);
       expect(seo.description.length, `слишком длинно у ${path}`).toBeLessThan(300);
     }
+  });
+});
+
+describe('seoForPath — подбор метаданных по адресу', () => {
+  it('каждая пререндеренная страница находится по своему адресу', () => {
+    // Иначе пререндер запишет в HTML одно, а useOGMeta при переходе внутри
+    // приложения — ничего или другое.
+    for (const { path, seo } of publicUrls()) {
+      const found = seoForPath(path);
+      expect(found, `не нашлось метаданных для ${path}`).toBeTruthy();
+      expect(found.title).toBe(seo.title);
+      expect(found.canonical).toBe(`https://aristeatime.ru${path}`);
+    }
+  });
+
+  it('завершающий слеш не мешает', () => {
+    expect(seoForPath('/pricing/')?.title).toBe(seoForPath('/pricing')?.title);
+    expect(seoForPath('/')?.title).toBeTruthy();
+  });
+
+  it('страницы приложения метаданных не получают', () => {
+    // null означает «не трогать <head>». Подставить сюда заголовок значило бы
+    // описывать страницу, которую поисковик всё равно не увидит: вся эта зона
+    // закрыта в robots.txt.
+    for (const path of ['/profile', '/admin', '/chart/123', '/dashboard/clients']) {
+      expect(seoForPath(path), `у ${path} не должно быть метаданных`).toBeNull();
+    }
+  });
+
+  it('лунный календарь метаданные имеет, хотя не пререндерится', () => {
+    // kind: 'app' + seo — намеренное сочетание, см. комментарий в routes.js.
+    expect(seoForPath('/lunar')?.title).toContain('Лунный календарь');
+    expect(publicUrls().map(u => u.path)).not.toContain('/lunar');
+  });
+
+  it('несуществующий адрес не выдаёт чужие метаданные', () => {
+    expect(seoForPath('/zodiac/абракадабра')).toBeNull();
+    expect(seoForPath('/nope')).toBeNull();
   });
 });
