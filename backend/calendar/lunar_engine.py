@@ -374,13 +374,11 @@ def _eclipse_kind(retflag: int, flags: list[tuple[int, str]]) -> str:
 
 @dataclass
 class EclipseEvent:
-    date: str
-    time: str
+    date: str      # UTC — сканер отдаёт момент как есть, без пересчёта зоны
+    time: str      # "HH:MM UTC"
     type: str  # solar | lunar
     kind: str  # total | partial | annular | penumbral
-
-    def to_dict(self) -> dict:
-        return {"date": self.date, "time": self.time, "type": self.type, "kind": self.kind}
+    jd: float  # момент как число — из него get_eclipses считает GMT+3
 
 
 def _scan_eclipses(jd_start: float, jd_end: float, finder, flags, etype: str) -> list[EclipseEvent]:
@@ -399,21 +397,57 @@ def _scan_eclipses(jd_start: float, jd_end: float, finder, flags, etype: str) ->
             break
         dt, tm = _jd_to_dt(tret[0])
         events.append(EclipseEvent(date=dt, time=f"{tm} UTC", type=etype,
-                                    kind=_eclipse_kind(retflag, flags)))
+                                    kind=_eclipse_kind(retflag, flags), jd=tret[0]))
         jd = tret[0] + 1
     return events
 
 
 def get_eclipses(start: date, end: date) -> list[dict]:
-    """Солнечные и лунные затмения в диапазоне [start, end] (включительно)."""
-    jd_start = _jd(start, 0)
-    jd_end = _jd(end, 24)
+    """Солнечные и лунные затмения, чья дата ПО GMT+3 попадает в [start, end].
+
+    Зона — та же, что у фаз Луны (main.py, _compute_lunar_calendar) и у
+    равноденствий (_jd_to_gmt3 выше): все события /calendar/lunar обязаны лечь
+    в одну сетку. До 14.09.2026 затмения были единственным видом, уезжавшим
+    отсюда в UTC, а фронт метку "UTC" молча срезал и подписывал результат
+    GMT+3 (fmtPhaseTime, LunarCalendarPage.jsx) — ошибка до трёх часов, а у
+    события около полуночи вместе со временем уезжала и ДАТА, то есть значок
+    вставал в соседнюю клетку месяца. Проверено исполнением: лунное затмение
+    20.02.2027 23:12 UTC — это 21.02 02:12 по Москве, и показывать его надо
+    21-го (ещё два таких случая: 20.12.2029 22:42 UTC и 09.12.2030 22:27 UTC).
+
+    ⚠️ Сдвиг сделан ЗДЕСЬ, на выходе, а не в _scan_eclipses, где момент
+    форматируется. Сканер общий: им пользуется ещё и лента
+    (feed/builder.py), которая разбирает его строку обратно и штампует
+    результат как UTC (`.replace(tzinfo=pytz.UTC)`). Сдвинув зону в сканере,
+    мы отдали бы ленте время GMT+3 под ярлыком UTC — та же трёхчасовая
+    ошибка, но в месте, где её никто не ищет. Хуже того, там же стоит
+    склейка затмения с фазой того же рода по порогу ровно в 3 часа
+    (_ECLIPSE_PHASE_MERGE_HOURS), а реальное расхождение момента затмения и
+    момента фазы доходит до 19 минут: сдвиг вытолкнул бы пару за порог, и в
+    ленту вернулись бы дубли одного момента под двумя подписями — ровно то,
+    что закрывали 05.09.2026.
+
+    Окно сканирования шире запрошенного на сутки с каждой стороны, а фильтр —
+    по уже пересчитанной дате: тот же приём, что у get_solar_events. Без него
+    затмение в 23:00 UTC последнего дня месяца пропало бы из календаря совсем
+    — в своём месяце оно вернулось бы с датой следующего (сетка не нашла бы
+    клетку), а в следующем не попало бы в окно сканирования. На 2000–2060 таких
+    случаев нет ни одного, но диапазон у функции произвольный.
+    """
+    jd_start = _jd(start, 0) - 1
+    jd_end = _jd(end, 24) + 1
     events = (
         _scan_eclipses(jd_start, jd_end, swe.sol_eclipse_when_glob, _SOLAR_KIND_FLAGS, "solar")
         + _scan_eclipses(jd_start, jd_end, swe.lun_eclipse_when, _LUNAR_KIND_FLAGS, "lunar")
     )
-    events.sort(key=lambda e: (e.date, e.time))
-    return [e.to_dict() for e in events]
+    lo, hi = start.isoformat(), end.isoformat()
+    out = []
+    for e in events:
+        dt, tm = _jd_to_gmt3(e.jd)
+        if lo <= dt <= hi:
+            out.append({"date": dt, "time": f"{tm} GMT+3", "type": e.type, "kind": e.kind})
+    out.sort(key=lambda x: (x["date"], x["time"]))
+    return out
 
 
 # ── Равноденствия и солнцестояния ──────────────────────────────

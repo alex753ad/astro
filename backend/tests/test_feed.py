@@ -322,7 +322,11 @@ class TestEclipseAbsorbsPhase:
             if etype != "solar":
                 return []
             dt, tm = engine._jd_to_dt(eclipse_jd)
-            return [EclipseEvent(date=dt, time=f"{tm} UTC", type="solar", kind="total")]
+            # jd обязателен с 14.09.2026: из него get_eclipses считает GMT+3.
+            # Лента им не пользуется (разбирает строку), но подделка должна
+            # повторять настоящий контракт, иначе перестанет его проверять.
+            return [EclipseEvent(date=dt, time=f"{tm} UTC", type="solar",
+                                 kind="total", jd=eclipse_jd)]
 
         engine._find_phase = fake_find_phase
         engine._scan_eclipses = fake_scan
