@@ -65,13 +65,25 @@ jobs:
       # Прямая проверка того, ради чего заведён отдельный режим сборки.
       # Без неё дефект «в бандле остался относительный /api/v1» доехал бы до
       # APK и проявился уже на устройстве пустым экраном без объяснений.
+      #
+      # ⚠️ Адрес БЕРЁТСЯ ИЗ .env.mobile, а не пишется здесь литералом. Литерал
+      # уже разошёлся один раз: 14.09.2026 коммит 9f29776 перевёл .env.mobile
+      # с www на apex, а эта строка осталась на www — и сборка APK падала на
+      # ней начиная с того коммита. Отказ при этом выглядел как «.env.mobile не
+      # подхватился», то есть указывал ровно не туда, где была причина.
       - name: Проверить, что в бандле абсолютный URL API
         working-directory: frontend
         run: |
-          if ! grep -rq "https://www.aristeatime.ru/api/v1" dist-mobile/assets/; then
-            echo "В dist-mobile нет абсолютного адреса API — .env.mobile не подхватился"
+          API_URL=$(grep -E "^VITE_API_URL=" .env.mobile | cut -d= -f2-)
+          if [ -z "$API_URL" ]; then
+            echo "В .env.mobile нет VITE_API_URL — проверять нечего"
             exit 1
           fi
+          if ! grep -rqF "$API_URL" dist-mobile/assets/; then
+            echo "В dist-mobile нет адреса $API_URL — .env.mobile не подхватился"
+            exit 1
+          fi
+          echo "адрес API в бандле: $API_URL"
           if ! grep -rq "X-Client-Platform" dist-mobile/assets/; then
             echo "В dist-mobile нет заголовка мобильного клиента — VITE_MOBILE не подхватился"
             echo "Без него refresh придёт кукой, которую webview не получит,"
