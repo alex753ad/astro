@@ -129,6 +129,16 @@ if ! $NGINX_CHECK_ONLY; then
     # а не в CI: в HTML запекается имя бандла с хешем, а хеш рождается ровно в
     # этой сборке, — снимок с другой сборки сослался бы на несуществующий файл.
     # Отсюда требование к серверу: chromium должен быть установлен.
+    #
+    # На этом сервере (проверено 14.09.2026) стоит snap-сборка:
+    # /snap/bin/chromium, версия 152.0.7977.64. Путь в списке ниже последним —
+    # какой именно выбран, печатается строкой ниже, смотреть туда.
+    #
+    # ⚠️ Snap-сборка при запуске сыплет в stderr штатный шум: AppArmor и DBus
+    # (ListActivatableNames, UPower), строки "mojo ... rejected by interface".
+    # Это НОРМА, гасить не нужно. Признак отказа — код возврата, а не непустой
+    # stderr: здесь он никуда не перехватывается и ни на что не влияет. Добавив
+    # сюда проверку "stderr пустой", получим падающий деплой на здоровой сборке.
     for candidate in /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/google-chrome /snap/bin/chromium; do
       if [[ -x "$candidate" ]]; then
         export PUPPETEER_EXECUTABLE_PATH="$candidate"
