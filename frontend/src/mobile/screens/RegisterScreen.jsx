@@ -25,6 +25,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth.jsx';
+import PasswordInput from '../../components/PasswordInput.jsx';
 import {
   RU_EMAIL_DOMAINS_HINT,
   describeSendCodeError,
@@ -205,10 +206,9 @@ export default function RegisterScreen() {
               </Field>
 
               <Field id="mobile-reg-password" label="Пароль" hint="Минимум 8 символов, не только цифры.">
-                <input
+                <PasswordInput
                   id="mobile-reg-password"
                   className={`mobile-input${formError ? ' has-error' : ''}`}
-                  type="password"
                   autoComplete="new-password"
                   placeholder="••••••••"
                   value={password}
@@ -218,10 +218,9 @@ export default function RegisterScreen() {
               </Field>
 
               <Field id="mobile-reg-password2" label="Пароль ещё раз">
-                <input
+                <PasswordInput
                   id="mobile-reg-password2"
                   className={`mobile-input${formError ? ' has-error' : ''}`}
-                  type="password"
                   autoComplete="new-password"
                   placeholder="••••••••"
                   value={password2}

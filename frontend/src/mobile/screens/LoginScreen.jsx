@@ -14,6 +14,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth.jsx';
+import PasswordInput from '../../components/PasswordInput.jsx';
 
 export default function LoginScreen() {
   const { login, loading, error, clearError } = useAuth();
@@ -77,10 +78,9 @@ export default function LoginScreen() {
 
           <div>
             <label className="mobile-label" htmlFor="mobile-login-password">Пароль</label>
-            <input
+            <PasswordInput
               id="mobile-login-password"
               className={`mobile-input${error ? ' has-error' : ''}`}
-              type="password"
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}

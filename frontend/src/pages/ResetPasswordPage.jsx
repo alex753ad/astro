@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../config';
+import PasswordInput from '../components/PasswordInput.jsx';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -8,7 +9,6 @@ export default function ResetPasswordPage() {
   const token = searchParams.get('token') || '';
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
-  const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
@@ -67,16 +67,11 @@ export default function ResetPasswordPage() {
             )}
 
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:14 }}>
-              <div style={{ position:'relative' }}>
-                <input type={showPass ? 'text' : 'password'}
-                  placeholder="Новый пароль"
-                  value={password} onChange={e => setPassword(e.target.value)}
-                  style={{ ...inp, paddingRight:40 }} />
-                <button onClick={() => setShowPass(p => !p)} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', fontSize:16, padding:0 }} tabIndex={-1}>
-                  {showPass ? '🙈' : '👁'}
-                </button>
-              </div>
-              <input type="password" placeholder="Повторите пароль"
+              <PasswordInput
+                placeholder="Новый пароль"
+                value={password} onChange={e => setPassword(e.target.value)}
+                style={inp} />
+              <PasswordInput placeholder="Повторите пароль"
                 value={password2} onChange={e => setPassword2(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                 style={{ ...inp, borderColor: password2 && password !== password2 ? 'var(--color-danger)' : 'var(--text-primary)' }} />
