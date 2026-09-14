@@ -55,6 +55,15 @@ frontend/dist/
 # фиксированный список маршрутов + сегодняшняя дата.
 frontend/public/sitemap.xml
 
+# Список маршрутов для nginx (map $uri $is_app_route). Генерируется сборкой из
+# frontend/src/routes.js (scripts/generate-nginx-routes.mjs), доставляется
+# скриптом 04-frontend-deploy.sh в /etc/nginx/conf.d/10-astro-routes.conf.
+#
+# В репозитории лежать не должен по той же причине, что и sitemap.xml: каталог
+# app/ на сервере — рабочая копия git, и файл, который сборка переписывает
+# внутри неё, ломает следующий git pull и роняет деплой.
+frontend/nginx-routes.conf
+
 # ── Логи и мусор ─────────────────────────────────────────────────────────────
 *.log
 log.json

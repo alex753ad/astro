@@ -20,6 +20,12 @@ NGINX_SNIPPETS_DST="/etc/nginx/snippets"
 # server{} их положить нельзя, отсюда отдельный файл в conf.d.
 NGINX_CONFD_SRC="${NGINX_DIR_SRC}/conf.d/00-astro-hardening.conf"
 NGINX_CONFD_DST="/etc/nginx/conf.d/00-astro-hardening.conf"
+# Список маршрутов для nginx (map $uri $is_app_route). НЕ лежит в репозитории:
+# генерируется сборкой из frontend/src/routes.js, см. scripts/generate-nginx-routes.mjs.
+# Кладётся в conf.d, а не в snippets, потому что map объявляется только на
+# уровне http, а snippets подключаются внутрь server{}.
+NGINX_ROUTES_SRC="${FRONTEND_SRC_DIR}/nginx-routes.conf"
+NGINX_ROUTES_DST="/etc/nginx/conf.d/10-astro-routes.conf"
 NODE_MIN_MAJOR=20
 # Куда складывать копии конфигов перед перезаписью. Один каталог на запуск,
 # имя — временная метка, чтобы прогоны не затирали друг друга.
@@ -117,6 +123,25 @@ if ! $NGINX_CHECK_ONLY; then
   (
     cd "$FRONTEND_SRC_DIR"
     npm ci
+
+    # Пререндер публичных страниц (scripts/prerender.mjs) — часть npm run build.
+    # Он поднимает headless-хром и снимает готовый HTML. Почему это живёт здесь,
+    # а не в CI: в HTML запекается имя бандла с хешем, а хеш рождается ровно в
+    # этой сборке, — снимок с другой сборки сослался бы на несуществующий файл.
+    # Отсюда требование к серверу: chromium должен быть установлен.
+    for candidate in /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/google-chrome /snap/bin/chromium; do
+      if [[ -x "$candidate" ]]; then
+        export PUPPETEER_EXECUTABLE_PATH="$candidate"
+        break
+      fi
+    done
+    if [[ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ]]; then
+      echo "ERROR: chromium не найден. Пререндер без браузера невозможен." >&2
+      echo "  sudo apt-get install -y chromium" >&2
+      exit 1
+    fi
+    echo "  браузер для пререндера: $PUPPETEER_EXECUTABLE_PATH"
+
     npm run build
     # Сборка, из которой вырезана фича, не должна доехать до nginx. Vite
     # подставляет VITE_* как константы времени сборки: при пустом значении
@@ -174,6 +199,7 @@ sudo mkdir -p "$BACKUP_DIR"
 declare -a NGINX_TARGETS=()
 NGINX_TARGETS+=("$NGINX_SITE_DST")
 NGINX_TARGETS+=("$NGINX_CONFD_DST")
+NGINX_TARGETS+=("$NGINX_ROUTES_DST")
 for f in "$NGINX_SNIPPETS_SRC"/*.conf; do
   NGINX_TARGETS+=("$NGINX_SNIPPETS_DST/$(basename "$f")")
 done
@@ -239,6 +265,19 @@ rollback_nginx() {
 sudo mkdir -p "$NGINX_SNIPPETS_DST"
 sudo cp "$NGINX_SNIPPETS_SRC"/*.conf "$NGINX_SNIPPETS_DST/"
 sudo cp "$NGINX_CONFD_SRC" "$NGINX_CONFD_DST"
+
+# Список маршрутов. В режиме --nginx-check сборки не было, и файла может не
+# быть вовсе — тогда просто не трогаем то, что уже стоит на сервере. Если же
+# его нет и там, nginx -t упадёт на неразрешённой переменной $is_app_route,
+# откат отработает штатно, и это правильный исход: конфиг без списка маршрутов
+# отдавал бы 404 на КАЖДЫЙ адрес приложения.
+if [[ -f "$NGINX_ROUTES_SRC" ]]; then
+  sudo cp "$NGINX_ROUTES_SRC" "$NGINX_ROUTES_DST"
+  echo "  список маршрутов: $(grep -c '^    ~' "$NGINX_ROUTES_SRC") шт. -> $NGINX_ROUTES_DST"
+else
+  echo "  ВНИМАНИЕ: $NGINX_ROUTES_SRC не найден (сборки не было?) — оставляю прежний $NGINX_ROUTES_DST"
+fi
+
 sudo cp "$NGINX_SITE_SRC" "$NGINX_SITE_DST"
 sudo ln -sf "$NGINX_SITE_DST" "$NGINX_SITE_LINK"
 

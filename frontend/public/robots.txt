@@ -1,12 +1,26 @@
 User-agent: *
 Allow: /
-Allow: /zodiac/
-Allow: /calendar/
-Allow: /blog/
-Allow: /calculator/
-Disallow: /app/
+
+# Зона приложения: за входом, с персональными данными либо с одноразовыми
+# токенами в адресе. Индексировать нечего.
 Disallow: /api/
-Disallow: /chart/
 Disallow: /profile
+Disallow: /home
 Disallow: /dashboard/
+Disallow: /admin
+Disallow: /chart/
+Disallow: /planner/
+Disallow: /solar-return/
+Disallow: /synastry/
+Disallow: /relocation/
+Disallow: /portal/
+Disallow: /intake/
+Disallow: /reset-password
+Disallow: /exit-survey
+
+# Убрано 14.09.2026: строки Allow для /calendar/, /blog/ и /calculator/.
+# Маршрутов с такими путями в приложении нет вовсе (единственный источник
+# списка — frontend/src/routes.js), то есть они разрешали несуществующее.
+# Allow: / выше и так открывает всё, что не запрещено явно.
+
 Sitemap: https://aristeatime.ru/sitemap.xml

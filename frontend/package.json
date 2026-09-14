@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node generate-sitemap.js && vite build",
+    "build": "node generate-sitemap.js && vite build && node scripts/prerender.mjs && node scripts/generate-nginx-routes.mjs",
     "build:mobile": "vite build --config vite.config.mobile.js --mode mobile",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx",
     "sitemap": "node generate-sitemap.js",
     "test": "TZ=UTC vitest run && TZ=Europe/Moscow vitest run",
-    "assert-bundle": "node scripts/assert-bundle.mjs"
+    "assert-bundle": "node scripts/assert-bundle.mjs",
+    "prerender": "node scripts/prerender.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",
@@ -35,6 +36,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
+    "puppeteer-core": "^23.11.1",
     "tailwindcss": "^3.4.4",
     "vite": "^5.3.0",
     "vitest": "^4.1.10"
