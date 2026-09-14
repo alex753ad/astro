@@ -698,7 +698,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
         )}
         {error && <div style={{ color: "var(--color-danger)", fontSize: 13 }}>{error}</div>}
         {text && (
-          <div style={{ fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
             {text}
             {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "var(--accent-glow)", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
           </div>

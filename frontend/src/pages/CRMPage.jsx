@@ -659,7 +659,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           {briefLoading && !briefText && <div style={S.muted}>Готовлю бриф…</div>}
           {briefText && (
             <>
-              <div style={{ fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
                 {briefText}
               </div>
               <MotionButton level="primary" style={S.btn('primary')} onClick={saveBriefToConsultation} disabled={briefSaving || briefLoading}>
@@ -681,7 +681,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           </div>
           {summaryLoading && !summaryText && <div style={S.muted}>Генерирую…</div>}
           {summaryText && (
-            <div style={{ fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
               {summaryText}
             </div>
           )}
@@ -766,7 +766,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                 initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
-                style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}
+                style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}
               >
                 {cleaned}
               </motion.div>

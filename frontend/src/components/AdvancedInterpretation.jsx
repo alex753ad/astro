@@ -52,6 +52,8 @@ export default function AdvancedInterpretation({ start, buttonLabel = 'Полу�
           marginTop: 16, padding: '20px 22px',
           background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)', whiteSpace: 'pre-wrap',
+          // Проза модели, читаемая подряд — антиква (DESIGN_SYSTEM.md §3).
+          fontFamily: 'var(--font-display)',
           fontSize: 15, lineHeight: 1.7, color: 'var(--text-primary)',
         }}>
           {text || (streaming ? 'Готовим разбор…' : '')}
