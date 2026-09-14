@@ -181,7 +181,7 @@ const s = {
   badge: {
     background: 'rgba(112,80,200,0.12)',
     border: '1px solid rgba(112,80,200,0.25)',
-    borderRadius: '10px',
+    borderRadius: 'var(--radius-md)',
     padding: '10px 16px',
     minWidth: '120px',
   },
@@ -190,27 +190,27 @@ const s = {
   badgeValue: { fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' },
   chartWrap: {
     background: 'rgba(255,255,255,0.03)',
-    borderRadius: '20px',
+    borderRadius: 'var(--radius-xl)',
     border: '1px solid rgba(112,80,200,0.2)',
     padding: '16px',
     display: 'flex', justifyContent: 'center',
   },
   actions: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
   btnPrimary: {
-    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
-    color: '#fff', border: 'none', borderRadius: '12px',
+    background: 'var(--accent)',
+    color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
     padding: '12px 24px', fontSize: '15px', fontWeight: '700',
     cursor: 'pointer', fontFamily: 'inherit',
   },
   btnSecondary: {
     background: 'rgba(112,80,200,0.15)',
     color: 'var(--accent-glow)', border: '1px solid rgba(112,80,200,0.3)',
-    borderRadius: '12px', padding: '12px 20px',
+    borderRadius: 'var(--radius-md)', padding: '12px 20px',
     fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
   },
   btn: {
     background: 'var(--accent)', color: '#fff', border: 'none',
-    borderRadius: '10px', padding: '10px 20px', cursor: 'pointer',
+    borderRadius: 'var(--radius-md)', padding: '10px 20px', cursor: 'pointer',
   },
   promo: { fontSize: '13px', color: 'var(--accent)', textAlign: 'center', marginTop: '8px' },
 };

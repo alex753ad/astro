@@ -66,7 +66,7 @@ export default function AristeaFab({ visible, bottomOffset, chart }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: hasAccess ? '0 8px 24px rgba(139,92,246,0.32)' : 'none',
+          boxShadow: hasAccess ? '0 8px 24px rgba(var(--accent-rgb), 0.32)' : 'none',
           zIndex: 5,
         }}
       >

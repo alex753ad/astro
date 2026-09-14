@@ -36,7 +36,7 @@ export default function StreakBadge({ streak, isNew }) {
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '6px 14px', borderRadius: 20,
+      padding: '6px 14px', borderRadius: 'var(--radius-xl)',
       background: animate
         ? 'linear-gradient(135deg, rgba(255,140,0,0.18), rgba(255,80,80,0.18))'
         : 'rgba(255,140,0,0.08)',

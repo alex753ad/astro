@@ -185,13 +185,13 @@ const s = {
   },
   modal: {
     background: 'var(--bg-card)',
-    borderRadius: '20px',
+    borderRadius: 'var(--radius-xl)',
     border: '0.5px solid var(--border)',
     padding: '32px 28px 24px',
     maxWidth: '420px',
     width: '100%',
     position: 'relative',
-    boxShadow: '0 20px 60px rgba(112, 96, 160, 0.15)',
+    boxShadow: '0 20px 60px rgba(112, 96, 160, 0.15)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
   },
   close: {
     position: 'absolute', top: '16px', right: '16px',
@@ -212,7 +212,7 @@ const s = {
     fontWeight: '600',
     letterSpacing: '0.08em',
     padding: '3px 10px',
-    borderRadius: '20px',
+    borderRadius: 'var(--radius-xl)',
     marginBottom: '12px',
     textTransform: 'uppercase',
   },
@@ -257,7 +257,7 @@ const s = {
     background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
     color: '#fff',
     border: 'none',
-    borderRadius: '12px',
+    borderRadius: 'var(--radius-md)',
     fontSize: '15px',
     fontWeight: '600',
     cursor: 'pointer',

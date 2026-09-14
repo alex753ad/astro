@@ -136,7 +136,7 @@ const xsStyles = `
 }
 .xs-card, .xs-page{
   width:100%; max-width:380px; background:var(--bg-card); border:1px solid var(--bg-deeper);
-  border-radius:16px; padding:22px; box-shadow:0 12px 40px rgba(0,0,0,.5);
+  border-radius:16px; padding:22px; box-shadow:var(--shadow-overlay);
 }
 .xs-page{ margin:48px auto; }
 .xs-title{ color:var(--accent-muted); font-size:17px; font-weight:700; margin-bottom:16px; }

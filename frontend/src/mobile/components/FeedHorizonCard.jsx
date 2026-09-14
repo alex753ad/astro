@@ -30,7 +30,7 @@ export default function FeedHorizonCard({ horizon }) {
       style={{
         marginTop: 8,
         padding: 16,
-        borderRadius: 20,
+        borderRadius: 'var(--radius-xl)',
         border: '1px dashed var(--border)',
         background: 'var(--bg-deeper)',
         display: 'flex',

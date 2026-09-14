@@ -95,7 +95,7 @@ function Badge({ plan }) {
 
 function MetricCard({ label, value, sub, subColor }) {
   return (
-    <div className="bg-[var(--color-background-secondary,var(--bg-card))] rounded-xl p-4">
+    <div className="bg-[var(--bg-card)] rounded-xl p-4">
       <div className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{label}</div>
       <div className="text-[22px] font-medium text-gray-900 leading-none">{value}</div>
       {sub && <div className={`text-[11px] mt-1 ${subColor ?? "text-gray-400"}`}>{sub}</div>}

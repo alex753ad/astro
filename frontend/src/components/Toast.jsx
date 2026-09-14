@@ -50,7 +50,7 @@ export function ToastProvider({ children }) {
 const STYLES = {
   error:   { icon: '✕', color: 'var(--color-danger)', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
   success: { icon: '✓', color: 'var(--color-success)', bg: 'rgba(74,222,128,0.10)', border: 'rgba(74,222,128,0.3)' },
-  info:    { icon: 'ℹ', color: 'var(--accent)', bg: 'rgba(124,108,255,0.10)', border: 'rgba(124,108,255,0.3)' },
+  info:    { icon: 'ℹ', color: 'var(--accent)', bg: 'rgba(var(--accent-rgb), 0.10)', border: 'rgba(var(--accent-rgb), 0.3)' },
 };
 
 function ToastContainer({ toasts, dismiss }) {
@@ -90,11 +90,11 @@ function ToastItem({ toast, dismiss }) {
       style={{
         pointerEvents: 'auto',
         display: 'flex', alignItems: 'center', gap: 10,
-        padding: '12px 14px', borderRadius: 12, minWidth: 260, maxWidth: 360,
+        padding: '12px 14px', borderRadius: 'var(--radius-md)', minWidth: 260, maxWidth: 360,
         background: s.bg,
         backdropFilter: 'blur(12px)',
         border: `1px solid ${s.border}`,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        boxShadow: 'var(--shadow-raised)',
         fontSize: 13,
         color: 'var(--border)',
       }}

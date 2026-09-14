@@ -134,7 +134,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             alignSelf: 'center',
             width: 36,
             height: 4,
-            borderRadius: 999,
+            borderRadius: 'var(--radius-full)',
             background: 'var(--border)',
             marginBottom: 4,
           }}
@@ -256,7 +256,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
           </div>
         )}
         {upsell?.kind === 'lite' && (
-          <div style={{ padding: '12px 14px', borderRadius: 14, background: 'var(--bg-deeper)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
               <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>{upsell.title}</p>
               <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--text-secondary)' }}>{upsell.subtitle}</p>

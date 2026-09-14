@@ -97,17 +97,17 @@ const s = {
   },
   card: {
     background: 'var(--bg-card)',
-    borderRadius: 20,
+    borderRadius: 'var(--radius-xl)',
     border: '0.5px solid var(--border)',
     padding: '28px 24px 20px',
     maxWidth: 360, width: '100%',
-    boxShadow: '0 16px 48px rgba(112,96,160,0.18)',
+    boxShadow: '0 16px 48px rgba(112,96,160,0.18)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
     display: 'flex', flexDirection: 'column', gap: 12,
   },
   icon: {
-    width: 48, height: 48, borderRadius: 14,
-    background: 'linear-gradient(135deg, rgba(124,108,255,0.15), rgba(192,96,160,0.15))',
-    border: '1px solid rgba(124,108,255,0.25)',
+    width: 48, height: 48, borderRadius: 'var(--radius-lg)',
+    background: 'linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(192,96,160,0.15))',
+    border: '1px solid rgba(var(--accent-rgb), 0.25)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 22, color: 'var(--accent)',
     fontWeight: 700,
@@ -140,8 +140,8 @@ const s = {
     fontFamily: 'inherit', padding: '6px 10px',
   },
   next: {
-    padding: '8px 18px', borderRadius: 10, border: 'none',
-    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
+    padding: '8px 18px', borderRadius: 'var(--radius-md)', border: 'none',
+    background: 'var(--accent)',
     color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },

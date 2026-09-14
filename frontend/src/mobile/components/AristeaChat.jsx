@@ -208,7 +208,7 @@ export default function AristeaChat({ chart, onClose }) {
         {/* Шапка: имя карты — чтобы смена диалога при переключении вкладки не
             читалась как пропажа истории. */}
         <div style={{ padding: '8px 20px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)', margin: '0 auto 10px' }} />
+          <div style={{ width: 36, height: 4, borderRadius: 'var(--radius-full)', background: 'var(--border)', margin: '0 auto 10px' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span
               aria-hidden="true"
@@ -250,7 +250,7 @@ export default function AristeaChat({ chart, onClose }) {
           )}
 
           {status === 'loading' && (
-            <div className="mobile-skeleton" style={{ height: 56, borderRadius: 12 }} />
+            <div className="mobile-skeleton" style={{ height: 56, borderRadius: 'var(--radius-md)' }} />
           )}
 
           {/* Пустая шторка человека теряет: он не знает, что тут спрашивать и
@@ -265,7 +265,7 @@ export default function AristeaChat({ chart, onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 'auto', marginBottom: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                 <div style={{
-                  maxWidth: '90%', padding: '12px 14px', borderRadius: 16, borderBottomLeftRadius: 4,
+                  maxWidth: '90%', padding: '12px 14px', borderRadius: 'var(--radius-lg)', borderBottomLeftRadius: 4,
                   background: 'var(--border)', color: 'var(--text-primary)',
                   fontSize: 14.5, lineHeight: 1.7,
                 }}>
@@ -281,7 +281,7 @@ export default function AristeaChat({ chart, onClose }) {
                     disabled={streaming || !chartId}
                     style={{
                       padding: '8px 12px',
-                      borderRadius: 14,
+                      borderRadius: 'var(--radius-lg)',
                       border: '1px solid var(--accent)',
                       background: 'transparent',
                       color: 'var(--accent)',
@@ -393,7 +393,7 @@ function Bubble({ role, content }) {
       <div style={{
         maxWidth: '86%',
         padding: '10px 14px',
-        borderRadius: 16,
+        borderRadius: 'var(--radius-lg)',
         borderBottomRightRadius: mine ? 4 : 16,
         borderBottomLeftRadius: mine ? 16 : 4,
         // --border, а не --bg-deeper: тот почти неотличим от --bg-card в

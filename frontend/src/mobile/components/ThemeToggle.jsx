@@ -55,7 +55,7 @@ export default function ThemeToggle() {
         padding: '14px 16px',
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: 16,
+        borderRadius: 'var(--radius-lg)',
         color: 'var(--text-primary)',
       }}
     >

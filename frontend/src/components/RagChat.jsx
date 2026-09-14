@@ -296,8 +296,8 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
           --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
         }
         .dark .rc-scope {
-          --rc-bg: transparent; --rc-border: rgba(139,92,246,0.16); --rc-title: var(--text-primary); --rc-sub: var(--text-secondary);
-          --rc-empty: var(--text-secondary); --rc-chip-bg: rgba(139,92,246,0.14); --rc-chip-fg: var(--accent-glow); --rc-ai: var(--accent-glow);
+          --rc-bg: transparent; --rc-border: rgba(var(--accent-rgb), 0.16); --rc-title: var(--text-primary); --rc-sub: var(--text-secondary);
+          --rc-empty: var(--text-secondary); --rc-chip-bg: rgba(var(--accent-rgb), 0.14); --rc-chip-fg: var(--accent-glow); --rc-ai: var(--accent-glow);
           --rc-assist-fg: var(--text-primary); --rc-input-bg: rgba(35,28,56,0.60); --rc-input-fg: var(--text-primary);
           --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
         }
@@ -406,7 +406,7 @@ const s = {
   wrap: {
     display: 'flex', flexDirection: 'column',
     height: '100%', minHeight: 480,
-    background: 'var(--rc-bg)', borderRadius: 16,
+    background: 'var(--rc-bg)', borderRadius: 'var(--radius-lg)',
     border: '0.5px solid var(--rc-border)',
     overflow: 'hidden',
   },
@@ -436,7 +436,7 @@ const s = {
   suggestion: {
     padding: '8px 14px', fontSize: 13,
     background: 'var(--rc-chip-bg)', color: 'var(--rc-chip-fg)',
-    border: '0.5px solid var(--rc-border)', borderRadius: 20,
+    border: '0.5px solid var(--rc-border)', borderRadius: 'var(--radius-xl)',
     cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s',
     textAlign: 'left',
@@ -451,14 +451,14 @@ const s = {
   aiLabel: { fontSize: 11, fontWeight: 700, color: 'var(--rc-ai)', letterSpacing: '0.05em' },
   bubbleUser: {
     maxWidth: '75%', padding: '10px 14px',
-    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
-    color: '#fff', borderRadius: '16px 16px 4px 16px',
+    background: 'var(--accent)',
+    color: '#fff', borderRadius: 'var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)',
     fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
   },
   bubbleAssistant: {
     maxWidth: '90%', padding: '12px 16px',
     background: 'var(--rc-chip-bg)',
-    color: 'var(--rc-assist-fg)', borderRadius: '4px 16px 16px 16px',
+    color: 'var(--rc-assist-fg)', borderRadius: '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
     fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap',
   },
   error: { color: 'var(--rc-err)', fontSize: 13, textAlign: 'center', margin: 0 },
@@ -470,14 +470,14 @@ const s = {
   textarea: {
     flex: 1, resize: 'none',
     padding: '10px 14px', fontSize: 14,
-    border: '1px solid var(--rc-border)', borderRadius: 12,
+    border: '1px solid var(--rc-border)', borderRadius: 'var(--radius-md)',
     fontFamily: 'inherit', color: 'var(--rc-input-fg)',
     background: 'var(--rc-input-bg)', outline: 'none',
     lineHeight: 1.5,
   },
   sendBtn: {
-    width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
+    width: 40, height: 40, borderRadius: 'var(--radius-md)', flexShrink: 0,
+    background: 'var(--accent)',
     color: '#fff', border: 'none', fontSize: 18,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -16,7 +16,7 @@ export default function ExpertModeToggle({ enabled, onToggle }) {
         alignItems: 'center',
         gap: '7px',
         padding: '7px 14px',
-        borderRadius: '20px',
+        borderRadius: 'var(--radius-xl)',
         border: `1.5px solid ${enabled ? 'var(--color-border-info)' : 'var(--color-border-secondary)'}`,
         background: enabled ? 'var(--color-background-info)' : 'transparent',
         color: enabled ? 'var(--color-text-info)' : 'var(--color-text-secondary)',

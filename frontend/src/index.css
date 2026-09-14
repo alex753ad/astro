@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --accent-rgb / --accent-glow-rgb — те же цвета, что --accent/--accent-glow,
+   но компонентами, чтобы прозрачность бралась от токена: rgba(var(--accent-rgb), .15).
+   Почему не color-mix(in srgb, var(--accent) 15%, transparent): он требует Chrome 111+,
+   а minSdkVersion 23 и устройства без сервисов Google живут на необновляемом WebView —
+   там объявление молча отбрасывается и цвет пропадает, причём на десктопе этого не видно.
+   rgba(var(--x), a) работает с 2016 года.
+   ⚠️ Пара обязана совпадать со своим hex — держит тест accentTokens.test.js. */
 /* ── CSS-переменные DS v1.1 ────────────────────────────────── */
 /* Светлая тема */
 :root {
@@ -13,7 +20,55 @@
   --border:          #EDE8F5;
   --accent:          #7C6CFF;
   --accent-glow:     #8B5CF6;
-  --accent-muted:    rgba(139,92,246,0.08);
+  --accent-rgb:      124, 108, 255;
+  --accent-glow-rgb: 139, 92, 246;
+  --accent-muted:    rgba(var(--accent-rgb), 0.08);
+  /* Радиусы — пять ступеней, имена и значения совпадают с DESIGN_SYSTEM.md §4.
+     До 14.09.2026 переменных не существовало вовсе: документ их объявлял, а код
+     писал числа инлайном, и по факту в ходу было ШЕСТЬ значений — 8/10/12/14/16/20.
+     10 и 14 (73 вхождения) сведены в 12 и 16 и отдельного имени не получили.
+     ⚠️ Разница в 2px у этих мест — НЕ ошибка округления, а сознательное сведение:
+     шесть ступеней на диапазоне 8–20 — это не шкала, а шум; различимой роли у 10 и
+     14 не было, они разошлись копипастой так же, как литералы цвета рядом.
+     Имена не придумывались заново намеренно: расхождение кода и DESIGN_SYSTEM.md —
+     корень всей уборки, заводить его второй раз (своей шкалой имён) нельзя.
+     ⚠️ Радиус, записанный как ПОЛОВИНА высоты элемента (тумблеры, точки, полосы
+     прогресса, скелетоны), к этим токенам не сводится и оставлен числом — это
+     не значение из шкалы, а приём «сделать полностью круглым»; см. --radius-full.
+     Две мигающие каретки SSE-стрима (radius 2 на узкой высокой полоске) тоже
+     оставлены: 8 превратил бы каретку в лепесток. */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+  /* Тени — три ступени высоты, значения подобраны от СВЕТЛОЙ темы (она основная).
+     Прежняя тройка из DESIGN_SYSTEM.md §6 была тёмной по происхождению: её
+     «модал» rgba(0,0,0,0.40) роняет светлый фон #FDFBF9 на 36 L* — это чёрный
+     ореол, а не тень. Здесь модал даёт 22%, что на светлом читается ступенью.
+     Цвет — #1E1A2E (--text-primary), не чистый чёрный: на тёплом белом чёрный
+     даёт серый налёт.
+     ⚠️ --shadow-accent — ТОЛЬКО под hover кнопок (§5 B2, моторный отклик).
+     Ограничение владельца 14.09.2026: на карточки и баннеры не расползается.
+     Акцентная тень на большой поверхности — это тот же ореол, ради устранения
+     которого всё и делалось, только заведённый через токен и потому незаметный
+     при код-ревью. Покоящиеся кнопки берут --shadow-raised, не этот. */
+  --shadow-card:    0 4px 20px rgba(30,26,46,0.10);
+  --shadow-raised:  0 8px 24px rgba(30,26,46,0.14);
+  --shadow-overlay: 0 24px 60px rgba(30,26,46,0.22);
+  --shadow-accent:  0 8px 24px rgba(var(--accent-rgb), 0.32);
+  /* Шрифтовая пара. До 14.09.2026 на вебе она объявлялась ЧЕТЫРЬМЯ способами:
+     классы Tailwind font-display/font-body, `const DISPLAY/BODY` (скопирован в
+     шесть файлов), инлайн-литералы в четырнадцати и @layer components ниже.
+     Теперь источник один — эти два токена; всё остальное на них ссылается.
+     ⚠️ Стек НАМЕРЕННО не такой, как в mobile/mobile.css. У Space Grotesk нет
+     кириллицы вовсе (src/assets/fonts/README.md), поэтому русский текст всегда
+     проваливается на следующий шрифт стека — и на вебе это system-ui, а в
+     приложении Inter. Сведение стеков ПОМЕНЯЛО БЫ начертание всего русского
+     текста на сайте, а эта уборка обязана быть внешне пустой. Выбор шрифта —
+     следующий заход (TASKS.md, «Визуальный язык выглядит сгенерированным ИИ»). */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
   --color-success:   #059669;
   --color-warning:   #D97706;
   --color-danger:    #DC2626;
@@ -31,7 +86,13 @@
   --border:          #2A2245;
   --accent:          #8B5CF6;
   --accent-glow:     #A78BFA;
-  --accent-muted:    rgba(139,92,246,0.15);
+  --accent-rgb:      139, 92, 246;
+  --accent-glow-rgb: 167, 139, 250;
+  --accent-muted:    rgba(var(--accent-rgb), 0.15);
+  --shadow-card:    0 4px 20px rgba(0,0,0,0.35);
+  --shadow-raised:  0 8px 24px rgba(0,0,0,0.45);
+  --shadow-overlay: 0 24px 60px rgba(0,0,0,0.50);
+  --shadow-accent:  0 8px 24px rgba(var(--accent-rgb), 0.32);
   --color-success:   #34D399;
   --color-warning:   #FBBF24;
   --color-danger:    #F87171;
@@ -47,18 +108,18 @@
     min-height: 100vh;
     background-color: var(--bg);
     color: var(--text-primary);
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-body);
     transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   ::selection {
-    background-color: rgba(139,92,246,0.30);
+    background-color: rgba(var(--accent-rgb), 0.30);
   }
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track  { background: var(--bg); }
-  ::-webkit-scrollbar-thumb  { background: rgba(139,92,246,0.40); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb  { background: rgba(var(--accent-rgb), 0.40); border-radius: var(--radius-full); }
 }
 
 @layer components {
@@ -66,55 +127,25 @@
   .solid-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: var(--radius-lg);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
   .solid-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    box-shadow: var(--shadow-raised);
   }
-  /* Стекло — для оверлеев/модалок */
-  .glass-card {
-    background: color-mix(in srgb, var(--bg-card) 60%, transparent);
-    backdrop-filter: blur(12px);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-  }
-
   .btn-primary {
     display: inline-flex; align-items: center; justify-content: center;
     height: 44px; padding: 0 16px;
     background: var(--accent); color: #fff;
-    font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 700;
-    border-radius: 12px;
+    font-family: var(--font-display); font-weight: 700;
+    border-radius: var(--radius-md);
     transition: background-color .2s ease;
   }
   .btn-primary:hover    { background: var(--accent-glow); }
   .btn-primary:active   { transform: scale(.98); }
   .btn-primary:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 
-  .btn-secondary {
-    display: inline-flex; align-items: center; justify-content: center;
-    height: 44px; padding: 0 16px;
-    background: var(--bg-card); color: var(--text-primary);
-    border: 1.5px solid var(--border); border-radius: 12px;
-    font-family: 'Space Grotesk', system-ui, sans-serif; font-weight: 600;
-    transition: border-color .2s ease;
-  }
-  .btn-secondary:hover  { border-color: var(--accent); }
-  .btn-secondary:active { transform: scale(.98); }
-
-  .input-field {
-    width: 100%; padding: 13px 16px;
-    background: var(--bg-deeper); color: var(--text-primary);
-    border: 1.5px solid var(--border); border-radius: 12px;
-    font-size: 16px; transition: border-color .2s ease, box-shadow .2s ease;
-  }
-  .input-field::placeholder { color: var(--text-secondary); }
-  .input-field:focus {
-    outline: none; border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(139,92,246,.15);
-  }
 }
 
 /* Zodiac wheel animations */

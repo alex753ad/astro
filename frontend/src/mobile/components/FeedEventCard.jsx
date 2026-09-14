@@ -242,7 +242,7 @@ export default function FeedEventCard({ event, onOpen }) {
                   style={{
                     padding: '2px 7px',
                     border: `1px solid ${precision === 'точный' ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 7,
+                    borderRadius: 'var(--radius-sm)',
                     fontSize: 10.5,
                     fontWeight: precision === 'точный' ? 700 : 400,
                     fontFamily: 'var(--font-body)',

@@ -140,7 +140,7 @@ const s = {
   card: {
     background: 'rgba(255,255,255,0.03)',
     border: '1px solid rgba(112,80,200,0.2)',
-    borderRadius: 20,
+    borderRadius: 'var(--radius-xl)',
     padding: '28px 24px',
     display: 'flex', flexDirection: 'column',
   },
@@ -150,14 +150,14 @@ const s = {
   input: {
     background: 'rgba(255,255,255,0.05)',
     border: '1px solid rgba(112,80,200,0.3)',
-    borderRadius: 10, padding: '11px 14px',
+    borderRadius: 'var(--radius-md)', padding: '11px 14px',
     color: '#fff', fontSize: 15, fontFamily: 'inherit', outline: 'none',
   },
   check: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', margin: '8px 0' },
   btn: {
     marginTop: 20,
-    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
-    color: '#fff', border: 'none', borderRadius: 12,
+    background: 'var(--accent)',
+    color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
     padding: '14px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
   },
 };

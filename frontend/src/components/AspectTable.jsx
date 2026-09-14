@@ -52,7 +52,7 @@ function ImportanceBadge({ aspect }) {
   return (
     <span style={{
       fontSize: 10, fontWeight: 600,
-      padding: '2px 7px', borderRadius: 8,
+      padding: '2px 7px', borderRadius: 'var(--radius-sm)',
       color, background: bg,
       border: `1px solid ${border}`,
       whiteSpace: 'nowrap',

@@ -228,7 +228,7 @@ export default function InterpretView({ chartId, onBack }) {
         )}
 
         {upsell?.kind === 'lite' && (
-          <div style={{ marginTop: 22, padding: '14px 16px', borderRadius: 16, background: 'var(--bg-card)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ marginTop: 22, padding: '14px 16px', borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
                 {upsell.title}

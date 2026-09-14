@@ -82,7 +82,7 @@ const row = {
   padding: '13px 15px',
   background: 'var(--bg-card)',
   border: '1px solid var(--border)',
-  borderRadius: 14,
+  borderRadius: 'var(--radius-lg)',
   color: 'var(--text-primary)',
   fontFamily: 'var(--font-body)',
   fontSize: 14.5,
@@ -98,7 +98,7 @@ function Intro({ onAllow, onCancel, busy }) {
       style={{
         display: 'flex', flexDirection: 'column', gap: 12, padding: 16,
         background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 14, marginTop: 8,
+        borderRadius: 'var(--radius-lg)', marginTop: 8,
       }}
     >
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 17, color: 'var(--text-primary)' }}>
@@ -117,7 +117,7 @@ function Intro({ onAllow, onCancel, busy }) {
         <button
           type="button" onClick={onAllow} disabled={busy}
           style={{
-            flex: 1, padding: '12px 14px', borderRadius: 12, border: 'none',
+            flex: 1, padding: '12px 14px', borderRadius: 'var(--radius-md)', border: 'none',
             background: 'var(--accent)', color: '#ffffff',
             fontFamily: 'var(--font-body)', fontSize: 14.5, opacity: busy ? 0.6 : 1,
           }}
@@ -127,7 +127,7 @@ function Intro({ onAllow, onCancel, busy }) {
         <button
           type="button" onClick={onCancel} disabled={busy}
           style={{
-            flex: 1, padding: '12px 14px', borderRadius: 12,
+            flex: 1, padding: '12px 14px', borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border)', background: 'transparent',
             color: 'var(--text-primary)', fontFamily: 'var(--font-body)', fontSize: 14.5,
           }}

@@ -27,7 +27,7 @@ function SkeletonCard() {
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: 20,
+        borderRadius: 'var(--radius-xl)',
         padding: 16,
         display: 'flex',
         flexDirection: 'column',

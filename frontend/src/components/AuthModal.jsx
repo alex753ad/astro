@@ -188,7 +188,7 @@ export default function AuthModal({ onClose, returnTo }) {
 
   // ── Styles ──────────────────────────────────────────────
   const inp = {
-    width: '100%', padding: '11px 14px', borderRadius: 8,
+    width: '100%', padding: '11px 14px', borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--border)', background: 'var(--bg-deeper)',
     color: 'var(--text-primary)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
@@ -199,9 +199,9 @@ export default function AuthModal({ onClose, returnTo }) {
     border: 'none', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1,
   };
   const btn = (disabled) => ({
-    width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+    width: '100%', padding: '12px', borderRadius: 'var(--radius-md)', border: 'none',
     background: disabled
-      ? 'rgba(124,108,255,0.35)'
+      ? 'rgba(var(--accent-rgb), 0.35)'
       : 'var(--accent)',
     color: '#fff', fontWeight: 700, fontSize: 14,
     cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
@@ -213,7 +213,7 @@ export default function AuthModal({ onClose, returnTo }) {
       style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       <motion.div
         variants={dialogVariants} initial="hidden" animate="visible" exit="exit"
-        onClick={e => e.stopPropagation()} style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif", position:'relative' }}>
+        onClick={e => e.stopPropagation()} style={{ background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"var(--font-body)", position:'relative' }}>
 
         <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'var(--text-secondary)', fontSize:22, cursor:'pointer' }}>×</button>
 

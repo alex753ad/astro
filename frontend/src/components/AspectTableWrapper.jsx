@@ -55,7 +55,7 @@ export default function AspectTableWrapper({ expertMode, ...props }) {
           </span>
           <div style={{ flex: 1, height: '1px', background: 'var(--color-border-tertiary)' }} />
           <span style={{
-            fontSize: '11px', padding: '2px 9px', borderRadius: '10px',
+            fontSize: '11px', padding: '2px 9px', borderRadius: 'var(--radius-md)',
             background: 'var(--color-background-info)', color: 'var(--color-text-info)',
           }}>
             эксперт

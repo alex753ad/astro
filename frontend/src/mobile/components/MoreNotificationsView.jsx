@@ -56,7 +56,7 @@ function ToggleRow({ label, hint, on, onToggle }) {
         padding: '13px 15px',
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: 14,
+        borderRadius: 'var(--radius-lg)',
         color: 'var(--text-primary)',
         fontFamily: 'var(--font-body)',
         fontSize: 14.5,
@@ -98,7 +98,7 @@ const timeRow = {
   padding: '13px 15px',
   background: 'var(--bg-card)',
   border: '1px solid var(--border)',
-  borderRadius: 14,
+  borderRadius: 'var(--radius-lg)',
   color: 'var(--text-primary)',
   fontFamily: 'var(--font-body)',
   fontSize: 14.5,
@@ -109,7 +109,7 @@ const timeInput = {
   background: 'var(--bg-deeper)',
   color: 'var(--text-primary)',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 'var(--radius-sm)',
   padding: '6px 10px',
   fontSize: 14,
   fontFamily: 'inherit',
@@ -149,7 +149,7 @@ export default function MoreNotificationsView() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="mobile-skeleton" style={{ height: 48, borderRadius: 14, background: 'var(--bg-deeper)' }} />
+          <div key={i} className="mobile-skeleton" style={{ height: 48, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)' }} />
         ))}
       </div>
     );

@@ -108,7 +108,7 @@ const pcStyles = `
 .pc-card{
   width:100%; max-width:360px; background:var(--bg-card); border:1px solid var(--bg-deeper);
   border-radius:16px; padding:32px 24px; text-align:center;
-  box-shadow:0 12px 40px rgba(0,0,0,.4);
+  box-shadow:var(--shadow-overlay);
 }
 .pc-title{ color:var(--accent-muted); font-size:18px; font-weight:700; margin-top:14px; }
 .pc-sub{ color:var(--accent-glow); font-size:14px; line-height:1.6; margin-top:10px; }

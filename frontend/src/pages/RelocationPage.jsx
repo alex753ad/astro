@@ -18,10 +18,10 @@ const S = {
     color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 7,
   },
   input: {
-    width: '100%', padding: '13px 16px', borderRadius: 10,
+    width: '100%', padding: '13px 16px', borderRadius: 'var(--radius-md)',
     border: '1.5px solid var(--border)', background: 'var(--bg-deeper)',
     color: 'var(--text-primary)', fontSize: 15, outline: 'none',
-    fontFamily: '"Space Grotesk", system-ui, sans-serif',
+    fontFamily: 'var(--font-display)',
     boxSizing: 'border-box', transition: 'border-color 0.18s',
   },
   field: { marginBottom: 18 },
@@ -108,7 +108,7 @@ function PlaceInput({ onChange, placeholder }) {
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
           margin: '4px 0 0', padding: 0, listStyle: 'none',
           background: 'var(--bg-card)', border: '1.5px solid var(--border)',
-          borderRadius: 12, boxShadow: '0 8px 24px rgba(139,92,246,0.12)',
+          borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-card)',
           maxHeight: 220, overflowY: 'auto',
         }}>
           {suggestions.map((s, i) => (

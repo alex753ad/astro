@@ -38,8 +38,8 @@ async function nominatimSearch(query) {
 const S = {
   wrap: {
     background: 'var(--bg-card)',
-    borderRadius: 20,
-    boxShadow: '0 8px 40px rgba(139,92,246,0.10)',
+    borderRadius: 'var(--radius-xl)',
+    boxShadow: 'var(--shadow-card)',
     padding: '40px 44px 36px',
     maxWidth: 500,
     margin: '0 auto',
@@ -57,13 +57,13 @@ const S = {
   input: {
     width: '100%',
     padding: '13px 16px',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-md)',
     border: '1.5px solid var(--border)',
     background: 'var(--bg-deeper)',
     color: 'var(--text-primary)',
     fontSize: 15,
     outline: 'none',
-    fontFamily: '"Space Grotesk", system-ui, sans-serif',
+    fontFamily: 'var(--font-display)',
     boxSizing: 'border-box',
     transition: 'border-color 0.18s',
   },
@@ -214,7 +214,7 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
           margin: '4px 0 0', padding: 0, listStyle: 'none',
           background: 'var(--bg-card)', border: '1.5px solid var(--border)',
-          borderRadius: 12, boxShadow: '0 8px 24px rgba(139,92,246,0.12)',
+          borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-card)',
           maxHeight: 220, overflowY: 'auto',
         }}>
           {suggestions.map((s, i) => (
@@ -308,7 +308,7 @@ export default function BirthForm({ onSubmit, loading }) {
         padding: '12px 16px',
         background: 'var(--accent-muted)',
         border: '1px solid var(--color-success)',
-        borderRadius: 12,
+        borderRadius: 'var(--radius-md)',
       }}>
         <p style={{ fontSize: 12, color: 'var(--color-success)', margin: '0 0 10px', lineHeight: 1.5 }}>
           ⚠️ Эти данные необходимы исключительно для расчёта математических координат планет по эфемеридам (pyswisseph). Для ознакомления с интерфейсом вы можете использовать демо-данные.
@@ -319,14 +319,14 @@ export default function BirthForm({ onSubmit, loading }) {
           onClick={fillDemo}
           style={{
             padding: '7px 18px',
-            borderRadius: 20,
+            borderRadius: 'var(--radius-xl)',
             border: '1.5px solid var(--color-success)',
             background: 'transparent',
             color: 'var(--color-success)',
             fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
-            fontFamily: '"Space Grotesk", system-ui, sans-serif',
+            fontFamily: 'var(--font-display)',
             transition: 'background 0.15s',
           }}
           onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-muted)'}
@@ -396,16 +396,16 @@ export default function BirthForm({ onSubmit, loading }) {
           style={{
             width: '100%',
             padding: '15px',
-            borderRadius: 50,
+            borderRadius: 'var(--radius-full)',
             border: 'none',
             background: loading
-              ? 'rgba(139,92,246,0.5)'
+              ? 'rgba(var(--accent-rgb), 0.5)'
               : 'var(--accent)',
             color: '#fff',
             fontSize: 16,
             fontWeight: 700,
             cursor: loading ? 'not-allowed' : 'pointer',
-            fontFamily: '"Space Grotesk", system-ui, sans-serif',
+            fontFamily: 'var(--font-display)',
             letterSpacing: '0.01em',
             marginTop: 8,
             transition: 'opacity 0.2s, transform 0.2s',
@@ -432,7 +432,7 @@ export default function BirthForm({ onSubmit, loading }) {
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 8,
           marginTop: 18, padding: '12px 14px',
-          background: 'var(--accent-muted)', borderRadius: 10,
+          background: 'var(--accent-muted)', borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border)',
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2"

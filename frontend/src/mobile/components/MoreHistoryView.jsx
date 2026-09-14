@@ -43,7 +43,7 @@ export default function MoreHistoryView({ chartsById }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
         {[0, 1, 2].map((i) => (
-          <div key={i} className="mobile-skeleton" style={{ height: 64, borderRadius: 14, background: 'var(--bg-deeper)' }} />
+          <div key={i} className="mobile-skeleton" style={{ height: 64, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)' }} />
         ))}
       </div>
     );
@@ -64,7 +64,7 @@ export default function MoreHistoryView({ chartsById }) {
         return (
           <div
             key={h.id}
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px' }}
           >
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)' }}>
               {chart ? `${birthDateWords(chart.birth_date)} · ${shortPlace(chart.birth_place)}` : 'Карта'}

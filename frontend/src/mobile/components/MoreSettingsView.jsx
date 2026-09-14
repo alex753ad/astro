@@ -34,7 +34,7 @@ export default function MoreSettingsView() {
   useEffect(() => { load(); }, [load]);
 
   if (status === 'loading') {
-    return <div className="mobile-skeleton" style={{ height: 140, borderRadius: 16, background: 'var(--bg-deeper)', marginTop: 8 }} />;
+    return <div className="mobile-skeleton" style={{ height: 140, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)', marginTop: 8 }} />;
   }
 
   if (status === 'error') {
@@ -74,7 +74,7 @@ export default function MoreSettingsView() {
           padding: '13px 15px',
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderRadius: 14,
+          borderRadius: 'var(--radius-lg)',
           color: 'var(--text-primary)',
           fontFamily: 'var(--font-body)',
           fontSize: 14.5,
@@ -95,7 +95,7 @@ export default function MoreSettingsView() {
               style={{
                 flex: 1,
                 height: 40,
-                borderRadius: 10,
+                borderRadius: 'var(--radius-md)',
                 border: `1px solid ${settings.digest_day_of_week === i ? 'var(--accent)' : 'var(--border)'}`,
                 background: settings.digest_day_of_week === i ? 'var(--accent)' : 'transparent',
                 color: settings.digest_day_of_week === i ? '#fff' : 'var(--text-primary)',

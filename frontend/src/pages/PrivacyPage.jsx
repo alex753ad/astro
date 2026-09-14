@@ -8,7 +8,7 @@
 import { Link } from 'react-router-dom';
 
 const s = {
-  page:     { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", padding: '48px 20px' },
+  page:     { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--text-primary)', fontFamily: "var(--font-body)", padding: '48px 20px' },
   inner:    { maxWidth: 760, margin: '0 auto' },
   h1:       { fontSize: 28, fontWeight: 800, color: 'var(--accent-glow)', marginBottom: 6, lineHeight: 1.3 },
   subtitle: { fontSize: 15, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 },
@@ -21,7 +21,7 @@ const s = {
   p:        { fontSize: 15, lineHeight: 1.8, color: 'var(--text-primary)', margin: '0 0 12px' },
   ul:       { margin: '0 0 16px', paddingLeft: 22, fontSize: 15, lineHeight: 1.8, color: 'var(--text-primary)' },
   li:       { marginBottom: 4 },
-  card:     { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 },
+  card:     { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '18px 20px', marginBottom: 16 },
   // text-primary + подчёркивание, не accent-glow — см. TermsPage.jsx.
   link:     { color: 'var(--text-primary)', textDecoration: 'underline' },
   footer:   { marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', gap: 20, fontSize: 13 },

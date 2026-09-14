@@ -212,7 +212,7 @@ export default function ChartCreateView({ onCancel, onCreated }) {
               padding: '10px 14px',
               background: 'var(--bg-card)',
               border: '1px solid var(--border)',
-              borderRadius: 12,
+              borderRadius: 'var(--radius-md)',
               color: 'var(--text-primary)',
               fontSize: 14,
             }}
@@ -243,7 +243,7 @@ export default function ChartCreateView({ onCancel, onCreated }) {
               style={{
                 margin: '8px 0 0', padding: 0, listStyle: 'none',
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
-                borderRadius: 12, overflow: 'hidden',
+                borderRadius: 'var(--radius-md)', overflow: 'hidden',
               }}
             >
               {suggestions.map((s, i) => (
@@ -277,7 +277,7 @@ export default function ChartCreateView({ onCancel, onCreated }) {
               padding: '14px 16px',
               background: 'var(--bg-card)',
               border: '1px solid var(--color-warning)',
-              borderRadius: 14,
+              borderRadius: 'var(--radius-lg)',
               display: 'flex', flexDirection: 'column', gap: 10,
             }}
           >
@@ -298,7 +298,7 @@ export default function ChartCreateView({ onCancel, onCreated }) {
                   // «Построить карту» ничего к его ответу не добавляет.
                   onClick={() => { set('birthTime', option); submit({ birthTime: option }); }}
                   style={{
-                    padding: '9px 16px', borderRadius: 10,
+                    padding: '9px 16px', borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--accent)', background: 'transparent',
                     color: 'var(--accent)', fontSize: 14, fontWeight: 600,
                   }}

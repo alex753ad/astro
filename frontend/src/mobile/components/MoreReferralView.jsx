@@ -46,7 +46,7 @@ export default function MoreReferralView() {
   }, [data]);
 
   if (status === 'loading') {
-    return <div className="mobile-skeleton" style={{ height: 140, borderRadius: 16, background: 'var(--bg-deeper)', marginTop: 8 }} />;
+    return <div className="mobile-skeleton" style={{ height: 140, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)', marginTop: 8 }} />;
   }
 
   if (status === 'error') {
@@ -55,7 +55,7 @@ export default function MoreReferralView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px' }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px' }}>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>Ваша ссылка</p>
         <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-body)', fontSize: 14, wordBreak: 'break-all', color: 'var(--text-primary)' }}>
           {data.ref_url}
@@ -66,13 +66,13 @@ export default function MoreReferralView() {
       </div>
 
       <div style={{ display: 'flex', gap: 12 }}>
-        <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px', textAlign: 'center' }}>
+        <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
             {data.referrals_count}
           </p>
           <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>приглашено</p>
         </div>
-        <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px', textAlign: 'center' }}>
+        <div style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
             {data.reward_weeks_earned}
           </p>

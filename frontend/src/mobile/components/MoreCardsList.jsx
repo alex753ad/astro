@@ -48,7 +48,7 @@ function CardRow({ chart, busy, onSetPrimary, onDelete }) {
         padding: '13px 15px',
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: 14,
+        borderRadius: 'var(--radius-lg)',
         opacity: busy ? 0.5 : 1,
       }}
     >

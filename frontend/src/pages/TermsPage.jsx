@@ -8,7 +8,7 @@
 import { Link } from 'react-router-dom';
 
 const s = {
-  page:     { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", padding: '48px 20px' },
+  page:     { minHeight: '100vh', background: 'var(--bg-deeper)', color: 'var(--text-primary)', fontFamily: "var(--font-body)", padding: '48px 20px' },
   inner:    { maxWidth: 760, margin: '0 auto' },
   h1:       { fontSize: 28, fontWeight: 800, color: 'var(--accent-glow)', marginBottom: 6, lineHeight: 1.3 },
   subtitle: { fontSize: 15, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 },
@@ -23,7 +23,7 @@ const s = {
   p:        { fontSize: 15, lineHeight: 1.8, color: 'var(--text-primary)', margin: '0 0 12px' },
   ul:       { margin: '0 0 16px', paddingLeft: 22, fontSize: 15, lineHeight: 1.8, color: 'var(--text-primary)' },
   li:       { marginBottom: 4 },
-  card:     { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '18px 20px', marginBottom: 16 },
+  card:     { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '18px 20px', marginBottom: 16 },
   // text-primary + подчёркивание, не accent-glow: на 15px тексте accent-glow
   // в светлой теме ниже 4.5:1. text-primary даёт тот же контраст, что и
   // основной текст (>12:1 в обеих темах), подчёркивание — обозначение ссылки

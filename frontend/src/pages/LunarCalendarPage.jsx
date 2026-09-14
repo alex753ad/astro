@@ -386,7 +386,7 @@ export default function LunarCalendarPage() {
           --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope {
-          --lc-bg: transparent; --lc-card: rgba(26,18,48,0.60); --lc-border: rgba(139,92,246,0.16);
+          --lc-bg: transparent; --lc-card: rgba(26,18,48,0.60); --lc-border: rgba(var(--accent-rgb), 0.16);
           --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope .lc-blob { display: none; }
@@ -474,7 +474,7 @@ function SkeletonRow() {
     <div style={{ display: 'flex', gap: 10, margin: '8px 0' }}>
       {[1,2,3].map(i => (
         <div key={i} style={{
-          flex: 1, height: 52, borderRadius: 12,
+          flex: 1, height: 52, borderRadius: 'var(--radius-md)',
           background: 'linear-gradient(90deg,var(--bg-deeper) 25%,var(--bg-card) 50%,var(--bg-deeper) 75%)',
           backgroundSize: '200% 100%',
           animation: 'shimmer 1.6s ease-in-out infinite',
@@ -577,6 +577,12 @@ const pg = {
     position: 'relative', minHeight: '100vh', background: 'var(--lc-bg)',
     overflow: 'hidden', display: 'flex', justifyContent: 'center',
     padding: '28px 16px 48px',
+    // ⚠️ НЕ сведено к var(--font-display) намеренно: здесь стек с Inter вторым,
+    // как в мобильном приложении, а веб-токен падает в system-ui. У Space Grotesk
+    // нет кириллицы, поэтому вся русская типографика этой страницы рисуется Inter,
+    // а на остальном сайте — системным шрифтом. Расхождение настоящее и видимое;
+    // сведение поменяло бы начертание, а уборка обязана быть внешне пустой.
+    // Решать вместе с выбором шрифтов (TASKS.md, «Визуальный язык…»).
     fontFamily: "'Space Grotesk','Inter',system-ui,sans-serif",
   },
   blob1: {
@@ -593,9 +599,9 @@ const pg = {
   },
   wrap: { position:'relative', zIndex:1, width:'100%', maxWidth:500 },
   card: {
-    background:'var(--lc-card)', borderRadius:24,
+    background:'var(--lc-card)', borderRadius:'var(--radius-xl)',
     padding:'20px 18px 16px',
-    boxShadow:'0 12px 40px -8px rgba(224,195,252,0.28),0 2px 8px rgba(0,0,0,0.04)',
+    boxShadow:'0 12px 40px -8px rgba(224,195,252,0.28),0 2px 8px rgba(0,0,0,0.04)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
     border:'1px solid var(--lc-border)',
   },
   cardHead:  { display:'flex', alignItems:'center', gap:7, marginBottom:12 },
@@ -636,7 +642,7 @@ const ph = {
   block: { flex:'1 1 120px', display:'flex', flexDirection:'column', gap:3 },
   label: { fontSize:8, fontWeight:700, color:'var(--lc-text3)', letterSpacing:'0.08em', textTransform:'uppercase' },
   inner: { display:'flex', alignItems:'center', gap:6 },
-  icon:  { width:32, height:32, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  icon:  { width:32, height:32, borderRadius:'var(--radius-md)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
   name:  { fontSize:13, fontWeight:700, color:'var(--lc-title)', lineHeight:1.2 },
   extra: { fontSize:9, color:'var(--lc-text2)', marginTop:1 },
 };
@@ -652,7 +658,7 @@ const dc = {
     fontSize:11, lineHeight:1,
   },
   icon: {
-    width:26, height:26, borderRadius:8,
+    width:26, height:26, borderRadius:'var(--radius-sm)',
     display:'flex', alignItems:'center', justifyContent:'center',
   },
   name: {

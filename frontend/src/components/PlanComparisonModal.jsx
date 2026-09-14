@@ -26,8 +26,8 @@ import { tierPriceLabel, tierFeatures } from "../constants";
     />
 */
 
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
-const BODY = "'Inter', system-ui, sans-serif";
+const DISPLAY = "var(--font-display)";
+const BODY = "var(--font-body)";
 
 const DEFAULT_VEGA = {
   name: "Вега",
@@ -85,8 +85,8 @@ function PlanCard({ plan, cta, onChoose, recommended, reduce }) {
         flexDirection: "column",
         background: "var(--bg-deeper)",
         border: recommended ? "1.5px solid var(--accent)" : "1px solid var(--border)",
-        borderRadius: 16,
-        boxShadow: recommended ? "0 0 15px rgba(139,92,246,0.10)" : "none",
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: recommended ? "0 0 15px rgba(var(--accent-rgb), 0.10)" : "none",
         padding: 16,
       }}
     >
@@ -102,7 +102,7 @@ function PlanCard({ plan, cta, onChoose, recommended, reduce }) {
               gap: 4,
               background: "var(--accent-muted)",
               color: "var(--accent-glow)",
-              borderRadius: 8,
+              borderRadius: 'var(--radius-sm)',
               padding: "2px 8px",
               fontFamily: DISPLAY,
               fontSize: 11,
@@ -140,15 +140,15 @@ function PlanCard({ plan, cta, onChoose, recommended, reduce }) {
           reduce
             ? undefined
             : recommended
-            ? { y: -3, background: "var(--accent-glow)", boxShadow: "0 8px 24px rgba(139,92,246,0.32)" }
-            : { y: -1, borderColor: "var(--accent-muted)", boxShadow: "0 4px 12px rgba(0,0,0,0.12)" }
+            ? { y: -3, background: "var(--accent-glow)", boxShadow: "var(--shadow-accent)" }
+            : { y: -1, borderColor: "var(--accent-muted)", boxShadow: "var(--shadow-card)" }
         }
         whileTap={{ scale: recommended ? 0.95 : 0.97 }}
         transition={{ type: "spring", stiffness: 90 }}
         style={{
           height: 44,
           width: "100%",
-          borderRadius: 16,
+          borderRadius: 'var(--radius-lg)',
           fontFamily: DISPLAY,
           fontSize: 14,
           fontWeight: 700,
@@ -217,9 +217,9 @@ export default function PlanComparisonModal({
               maxWidth: 480,
               background: "var(--bg-card)",
               border: "1px solid var(--border)",
-              borderRadius: 20,
+              borderRadius: 'var(--radius-xl)',
               padding: "26px 24px 20px",
-              boxShadow: "0 24px 60px rgba(0,0,0,0.40)",
+              boxShadow: "var(--shadow-overlay)",
               fontFamily: BODY,
               color: "var(--text-primary)",
             }}

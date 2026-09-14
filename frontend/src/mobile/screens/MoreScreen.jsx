@@ -46,11 +46,11 @@ const SUB_TITLES = {
 function MoreLoading() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20, padding: '20px 16px 0' }}>
-      <div className="mobile-skeleton" style={{ height: 40, width: '60%', borderRadius: 8, background: 'var(--bg-deeper)' }} />
-      <div className="mobile-skeleton" style={{ height: 130, borderRadius: 16, background: 'var(--bg-deeper)' }} />
+      <div className="mobile-skeleton" style={{ height: 40, width: '60%', borderRadius: 'var(--radius-sm)', background: 'var(--bg-deeper)' }} />
+      <div className="mobile-skeleton" style={{ height: 130, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)' }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[0, 1].map((i) => (
-          <div key={i} className="mobile-skeleton" style={{ height: 60, borderRadius: 14, background: 'var(--bg-deeper)' }} />
+          <div key={i} className="mobile-skeleton" style={{ height: 60, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)' }} />
         ))}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

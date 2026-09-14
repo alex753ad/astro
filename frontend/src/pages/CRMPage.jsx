@@ -131,17 +131,17 @@ const PLANETS      = ['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn','
 const HOUSES       = [1,2,3,4,5,6,7,8,9,10,11,12];
 
 const S = {
-  page: { minHeight: '100vh', background: 'transparent', color: 'var(--crm-text)', fontFamily: "'Inter', system-ui, sans-serif", padding: '24px 16px' },
+  page: { minHeight: '100vh', background: 'transparent', color: 'var(--crm-text)', fontFamily: "var(--font-body)", padding: '24px 16px' },
   inner: { maxWidth: 900, margin: '0 auto' },
-  card: { background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '20px 24px', marginBottom: 16 },
+  card: { background: 'var(--crm-card)', border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: '20px 24px', marginBottom: 16 },
   title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--crm-title)', textTransform: 'uppercase', letterSpacing: '0.06em' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   btn: (v = 'ghost') => ({
-    padding: '8px 16px', borderRadius: 8, border: v === 'ghost' ? '1px solid rgba(139,92,246,0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
+    padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: v === 'ghost' ? '1px solid rgba(var(--accent-rgb), 0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
     background: v === 'primary' ? 'linear-gradient(135deg,var(--accent),var(--accent-glow))' : v === 'danger' ? 'var(--color-danger)' : 'transparent',
     color: v === 'ghost' ? 'var(--crm-title)' : '#fff', fontWeight: 600, fontSize: 13,
   }),
-  input: { width: '100%', background: 'var(--crm-input)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8, padding: '8px 12px', color: 'var(--crm-text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
+  input: { width: '100%', background: 'var(--crm-input)', border: '1px solid rgba(var(--accent-rgb), 0.25)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: 'var(--crm-text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
   muted: { fontSize: 12, color: 'var(--crm-muted)' },
   label: { fontSize: 12, color: 'var(--crm-title)', marginBottom: 4, display: 'block' },
 };
@@ -178,7 +178,7 @@ function StatusBadge({ status }) {
   const m = STATUS_META[status];
   if (!m || status === 'lead') return null;
   return (
-    <span style={{ fontSize: 11, fontWeight: 600, color: m[1], background: m[1] + '22', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 11, fontWeight: 600, color: m[1], background: m[1] + '22', padding: '2px 8px', borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>
       {m[0]}
     </span>
   );
@@ -189,7 +189,7 @@ const parseTags = (str) => (str || '').split(',').map(t => t.trim().replace(/^#/
 function TagChips({ tags }) {
   if (!tags || !tags.length) return null;
   return <>{tags.map((t, i) => (
-    <span key={i} style={{ fontSize: 11, color: 'var(--color-air)', background: 'var(--accent-muted)', padding: '2px 7px', borderRadius: 6, marginRight: 4 }}>#{t}</span>
+    <span key={i} style={{ fontSize: 11, color: 'var(--color-air)', background: 'var(--accent-muted)', padding: '2px 7px', borderRadius: 'var(--radius-sm)', marginRight: 4 }}>#{t}</span>
   ))}</>;
 }
 
@@ -207,7 +207,7 @@ function BirthdayBadge({ birthDate }) {
   const n = daysToBirthday(birthDate);
   if (n === null || n > 14) return null;
   const label = n === 0 ? 'ДР сегодня' : `ДР через ${n} дн.`;
-  return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-muted)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>{label}</span>;
+  return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-muted)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', whiteSpace: 'nowrap' }}>{label}</span>;
 }
 
 function AddClientForm({ onSave, onCancel, authFetch }) {
@@ -605,7 +605,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         </div>
 
         {editing && (
-          <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+          <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={S.label}>Имя</label>
@@ -704,14 +704,14 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
       </div>
 
       {/* Вкладки */}
-      <div style={{ display: 'flex', gap: 4, background: 'rgba(139,92,246,0.08)', borderRadius: 10, padding: 4, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 4, background: 'rgba(var(--accent-rgb), 0.08)', borderRadius: 'var(--radius-md)', padding: 4, marginBottom: 16 }}>
         {tabs.map(t => (
           <button key={t} onClick={() => {
             setTab(t);
             if (t === 'ai' && !aiText) loadAI();
             if (t === 'consultations') loadConsultations();
           }}
-            style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+            style={{ flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
               background: tab === t ? 'var(--crm-card)' : 'transparent', color: tab === t ? 'var(--crm-title)' : 'var(--crm-muted)' }}>
             {tabLabels[t]}
           </button>
@@ -723,13 +723,13 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           {chart ? (
             <>
               <NatalChart planets={chart.planets} houses={chart.houses} aspects={chart.aspects} ascendant={chart.ascendant} midheaven={chart.midheaven} compact={false} dark={dark} forExport={chartForExport} />
-              <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 16, paddingTop: 8 }}>
+              <div style={{ borderTop: '1px solid rgba(var(--accent-rgb), 0.1)', marginTop: 16, paddingTop: 8 }}>
                 <ChartSummary planets={chart.planets} ascendant={chart.ascendant} midheaven={chart.midheaven} houses={chart.houses} timeUnknown={!client.birth_time} plain dark={dark} />
               </div>
-              <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
+              <div style={{ borderTop: '1px solid rgba(var(--accent-rgb), 0.1)', marginTop: 8 }}>
                 <AspectTable aspects={chart.aspects} />
               </div>
-              <div style={{ borderTop: '1px solid rgba(139,92,246,0.1)', marginTop: 8 }}>
+              <div style={{ borderTop: '1px solid rgba(var(--accent-rgb), 0.1)', marginTop: 8 }}>
                 <AspectGrid aspects={chart.aspects} planets={chart.planets} />
               </div>
             </>
@@ -788,7 +788,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               {showTemplateDropdown && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, zIndex: 100,
-                  background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8,
+                  background: 'var(--crm-card)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-sm)',
                   minWidth: 220, padding: 4, marginTop: 4,
                 }}>
                   {templates.length === 0 && (
@@ -799,7 +799,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                       key={tpl.id}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '6px 12px', borderRadius: 6,
+                        padding: '6px 12px', borderRadius: 'var(--radius-sm)',
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-deeper)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -842,7 +842,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
 
           {/* Форма нового шаблона */}
           {showNewTemplateForm && (
-            <div style={{ background: 'var(--accent-muted)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+            <div style={{ background: 'var(--accent-muted)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-sm)', padding: 12, marginBottom: 10 }}>
               <input
                 style={{ ...S.input, marginBottom: 8 }}
                 placeholder="Название шаблона"
@@ -912,7 +912,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           </div>
 
           {showConsForm && (
-            <div style={{ borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 12, marginBottom: 16 }}>
+            <div style={{ borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 12, marginBottom: 16 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={S.label}>Дата</label>
@@ -947,7 +947,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                 onChange={e => setCF('notes', e.target.value)}
               />
               {consForm.topic === 'хорар' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12, padding: 12, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12, padding: 12, border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-sm)' }}>
                   <div>
                     <label style={S.label}>Момент вопроса</label>
                     <input style={S.input} type="datetime-local" value={consForm.question_moment} onChange={e => setCF('question_moment', e.target.value)} />
@@ -984,12 +984,12 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                   canceled: ['Отменена', 'var(--color-danger)'],
                 })[c.status] || [c.status, 'var(--text-secondary)'];
                 return (
-                  <div key={c.id} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div key={c.id} style={{ border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
                     <div style={{ ...S.row, marginBottom: c.notes ? 8 : 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{(c.date || '').slice(0, 10)}</span>
                         {c.topic && <span style={S.muted}>{c.topic}</span>}
-                        <span style={{ fontSize: 11, fontWeight: 600, color: badge[1], background: badge[1] + '22', padding: '2px 8px', borderRadius: 6 }}>{badge[0]}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: badge[1], background: badge[1] + '22', padding: '2px 8px', borderRadius: 'var(--radius-sm)' }}>{badge[0]}</span>
                         {c.price != null && <span style={S.muted}>{c.price} ₽</span>}
                         {c.horary_chart_id && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-air)' }}>хорар-карта</span>}
                       </div>
@@ -1209,7 +1209,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
               {client.natal_chart_id && (
                 <Link
                   to={`/planner/${client.natal_chart_id}`}
-                  style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: 'var(--accent-glow)', border: '1px solid rgba(167,139,250,0.25)' }}
+                  style={{ ...S.btn('ghost'), textDecoration: 'none', fontSize: 12, padding: '6px 12px', color: 'var(--accent-glow)', border: '1px solid rgba(var(--accent-glow-rgb), 0.25)' }}
                 >
                   Планер
                 </Link>
@@ -1310,7 +1310,7 @@ function BroadcastPanel({ authFetch, clients }) {
       </div>
 
       {open && (
-        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
             Каждый клиент с указанным email получит персональный прогноз на месяц под вашим именем.
           </div>
@@ -1374,7 +1374,7 @@ function BroadcastPanel({ authFetch, clients }) {
                 <iframe
                   title="preview"
                   srcDoc={previewHtml}
-                  style={{ width: '100%', height: 420, border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8, background: 'var(--bg-deeper)' }}
+                  style={{ width: '100%', height: 420, border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-deeper)' }}
                 />
               )}
             </div>
@@ -1466,7 +1466,7 @@ function IntakePanel({ authFetch, onConverted }) {
       </div>
 
       {open && (
-        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
             Отправьте клиенту ссылку — он сам заполнит данные рождения, и анкета появится здесь.
           </div>
@@ -1489,7 +1489,7 @@ function IntakePanel({ authFetch, onConverted }) {
               {submitted.map(i => {
                 const d = i.submitted_data || {};
                 return (
-                  <div key={i.id} style={{ border: '1px solid rgba(139,92,246,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div key={i.id} style={{ border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-md)', padding: '12px 14px' }}>
                     <div style={{ ...S.row, marginBottom: 8 }}>
                       <div>
                         <span style={{ fontWeight: 600, fontSize: 14 }}>{d.name || '—'}</span>
@@ -1648,7 +1648,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
       </div>
 
       {open && (
-        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           {!loaded ? (
             <div style={S.muted}>Загрузка…</div>
           ) : (
@@ -1687,9 +1687,9 @@ function StatsPanel({ authFetch, onOpenClient }) {
                     key={key}
                     onClick={() => setChartMode(key)}
                     style={{
-                      padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer',
                       fontSize: 12, fontWeight: chartMode === key ? 700 : 400,
-                      background: chartMode === key ? 'rgba(124,108,255,0.25)' : 'rgba(139,92,246,0.08)',
+                      background: chartMode === key ? 'rgba(var(--accent-rgb), 0.25)' : 'rgba(var(--accent-rgb), 0.08)',
                       color: chartMode === key ? 'var(--accent-glow)' : 'var(--crm-muted)',
                       transition: 'all 0.15s',
                     }}
@@ -1721,8 +1721,8 @@ function StatsPanel({ authFetch, onOpenClient }) {
                       key={i}
                       onClick={() => onOpenClient && onOpenClient(r.client_id)}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                        background: r.reason ? 'rgba(139,92,246,0.08)' : 'rgba(148,163,184,0.06)' }}
+                        padding: '10px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                        background: r.reason ? 'rgba(var(--accent-rgb), 0.08)' : 'rgba(148,163,184,0.06)' }}
                     >
                       <div>
                         <span style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</span>
@@ -1785,7 +1785,7 @@ function AuthorLibraryPanel({ authFetch }) {
       </div>
 
       {open && (
-        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
             Ваши формулировки подмешиваются в ИИ-разборы (отчёт, бриф, резюме) по совпадению ключей.
             Ключи: <b>planet_sign</b> (sun_taurus), <b>planet_house_N</b> (saturn_house_7), <b>asc_sign</b> (asc_leo). Планеты — по-английски строчными.
@@ -1805,7 +1805,7 @@ function AuthorLibraryPanel({ authFetch }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map(it => (
-                <div key={it.id} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+                <div key={it.id} style={{ border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
                   <div style={{ ...S.row, marginBottom: 6 }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{it.key}</span>
                     <span style={{ display: 'flex', gap: 6 }}>
@@ -1855,7 +1855,7 @@ function GroupForecastPanel({ authFetch, clients }) {
       </div>
 
       {open && (
-        <div style={{ marginTop: 16, borderTop: '1px solid rgba(139,92,246,0.12)', paddingTop: 16 }}>
+        <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
             Отметьте клиентов (для групп/марафонов) — покажу, у кого значимый транзит в ближайший месяц.
           </div>
@@ -1871,7 +1871,7 @@ function GroupForecastPanel({ authFetch, clients }) {
             <MotionButton level="secondary" style={S.btn()} onClick={() => setSelected({})}>Сброс</MotionButton>
           </div>
 
-          <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid rgba(139,92,246,0.12)', borderRadius: 8, padding: 8, marginBottom: 12 }}>
+          <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid rgba(var(--accent-rgb), 0.12)', borderRadius: 'var(--radius-sm)', padding: 8, marginBottom: 12 }}>
             {withChart.length === 0 ? (
               <div style={S.muted}>Нет клиентов с рассчитанной картой.</div>
             ) : withChart.map(c => (
@@ -1888,7 +1888,7 @@ function GroupForecastPanel({ authFetch, clients }) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {results.map((r, i) => (
-                  <div key={i} style={{ border: '1px solid rgba(139,92,246,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div key={i} style={{ border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-sm)', padding: '10px 12px' }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{r.name}</div>
                     {r.events.map((e, j) => (
                       <div key={j} style={S.muted}>{ruEvent(e.event)}{e.date ? ` · ${e.date}` : ''}{e.orb != null ? ` · орб ${e.orb}°` : ''}</div>
@@ -1909,11 +1909,11 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
   const [openIds, setOpenIds] = useState({});
   const toggle = (id) => setOpenIds(p => ({ ...p, [id]: !p[id] }));
   return (
-    <div style={{ ...S.card, border: '1px solid rgba(139,92,246,0.35)' }}>
+    <div style={{ ...S.card, border: '1px solid rgba(var(--accent-rgb), 0.35)' }}>
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Важные периоды у клиентов</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {grouped.map(g => (
-          <div key={g.client_id} style={{ borderRadius: 8, background: 'rgba(139,92,246,0.06)', overflow: 'hidden' }}>
+          <div key={g.client_id} style={{ borderRadius: 'var(--radius-sm)', background: 'rgba(var(--accent-rgb), 0.06)', overflow: 'hidden' }}>
             <div
               onClick={() => toggle(g.client_id)}
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1928,7 +1928,7 @@ function AlertsBlock({ grouped, fmtDate, openClientTransits }) {
                 onClick={() => openClientTransits(a.client_id)}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
                   padding: '7px 12px', cursor: 'pointer',
-                  borderTop: '1px solid rgba(139,92,246,0.10)' }}
+                  borderTop: '1px solid rgba(var(--accent-rgb), 0.10)' }}
               >
                 <span style={S.muted}>{ruEvent(a.event)}</span>
                 <span style={{ ...S.muted, whiteSpace: 'nowrap' }}>
@@ -1959,13 +1959,13 @@ const SL = {
     flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 16 : 24, alignItems: isMobile ? 'stretch' : 'flex-start' }),
   sidebar: (isMobile) => ({ flex: isMobile ? 'none' : '0 0 240px', width: isMobile ? '100%' : undefined,
     position: isMobile ? 'static' : 'sticky', top: 24, alignSelf: 'flex-start',
-    background: 'var(--crm-card)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: 16,
+    background: 'var(--crm-card)', border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: 16,
     display: 'flex', flexDirection: 'column', gap: 4, minHeight: isMobile ? 'auto' : 'calc(100vh - 48px)' }),
   navWrap: (isMobile) => isMobile
     ? { display: 'flex', flexDirection: 'row', overflowX: 'auto', gap: 8, paddingBottom: 4 }
     : { display: 'flex', flexDirection: 'column', gap: 4 },
   brand: { display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', fontWeight: 700, color: 'var(--crm-title)' },
-  navBtn: (active, isMobile) => ({ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8,
+  navBtn: (active, isMobile) => ({ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 'var(--radius-sm)',
     border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, textAlign: 'left',
     width: isMobile ? 'auto' : '100%', whiteSpace: isMobile ? 'nowrap' : 'normal', flexShrink: 0,
     fontWeight: active ? 700 : 500,
@@ -1974,7 +1974,7 @@ const SL = {
   content: { flex: 1, minWidth: 0, width: '100%' },
   bar: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginTop: 8 },
   widget: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--crm-card)',
-    border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '14px 16px' },
+    border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: '14px 16px' },
 };
 
 // Профиль астролога с загрузкой аватара (сохраняется в браузере) и
@@ -2015,7 +2015,7 @@ function AvatarProfile({ user, authFetch, updateUser }) {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', marginBottom: 8, borderBottom: '1px solid rgba(139,92,246,0.15)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', marginBottom: 8, borderBottom: '1px solid rgba(var(--accent-rgb), 0.15)' }}>
       <button
         onClick={() => inputRef.current?.click()}
         title="Загрузить аватар"
@@ -2038,7 +2038,7 @@ function AvatarProfile({ user, authFetch, updateUser }) {
               else if (e.key === 'Escape') { e.preventDefault(); setEditingName(false); }
             }}
             style={{ fontWeight: 600, fontSize: 13, width: '100%', background: 'var(--crm-card)',
-              border: '1px solid var(--accent-muted)', borderRadius: 6, padding: '2px 6px', color: 'inherit' }}
+              border: '1px solid var(--accent-muted)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: 'inherit' }}
           />
         ) : (
           <div

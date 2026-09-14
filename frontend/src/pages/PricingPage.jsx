@@ -7,8 +7,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import MotionButton from '../components/MotionButton';
 import { TIERS } from '../constants';
 
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
-const BODY = "'Inter', system-ui, sans-serif";
+const DISPLAY = "var(--font-display)";
+const BODY = "var(--font-body)";
 
 export default function PricingPage({ currentUser, onShowAuth }) {
   const navigate = useNavigate();
@@ -113,8 +113,8 @@ const s = {
     flexDirection: 'column',
     background: 'var(--bg-card)',
     border: recommended ? '1.5px solid var(--accent)' : '1px solid var(--border)',
-    borderRadius: 20,
-    boxShadow: recommended ? '0 0 15px rgba(139,92,246,0.10)' : 'none',
+    borderRadius: 'var(--radius-xl)',
+    boxShadow: recommended ? '0 0 15px rgba(var(--accent-rgb), 0.10)' : 'none',
     padding: '24px 20px',
   }),
   badge: {
@@ -127,7 +127,7 @@ const s = {
     fontSize: 11,
     fontWeight: 700,
     padding: '3px 10px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-sm)',
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
   },
@@ -170,7 +170,7 @@ const s = {
     width: '100%',
     height: 44,
     border: 'none',
-    borderRadius: 16,
+    borderRadius: 'var(--radius-lg)',
     background: 'var(--accent)',
     color: '#fff',
     fontFamily: DISPLAY,
@@ -182,7 +182,7 @@ const s = {
     width: '100%',
     height: 44,
     border: '1.5px solid var(--border)',
-    borderRadius: 16,
+    borderRadius: 'var(--radius-lg)',
     background: 'var(--bg-card)',
     color: 'var(--text-primary)',
     fontFamily: DISPLAY,
@@ -200,7 +200,7 @@ const s = {
   accessBlock: {
     background: 'var(--bg-card)',
     border: '1px solid var(--border)',
-    borderRadius: 16,
+    borderRadius: 'var(--radius-lg)',
     padding: '20px 24px',
     marginBottom: 24,
     maxWidth: 620,

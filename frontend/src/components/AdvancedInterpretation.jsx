@@ -51,7 +51,7 @@ export default function AdvancedInterpretation({ start, buttonLabel = 'Полу�
         <div style={{
           marginTop: 16, padding: '20px 22px',
           background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: 16, whiteSpace: 'pre-wrap',
+          borderRadius: 'var(--radius-lg)', whiteSpace: 'pre-wrap',
           fontSize: 15, lineHeight: 1.7, color: 'var(--text-primary)',
         }}>
           {text || (streaming ? 'Готовим разбор…' : '')}

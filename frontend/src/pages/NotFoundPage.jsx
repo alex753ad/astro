@@ -7,8 +7,8 @@ import { Link } from 'react-router-dom';
  * до настоящего 404 от сервера).
  */
 
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
-const BODY = "'Inter', system-ui, sans-serif";
+const DISPLAY = "var(--font-display)";
+const BODY = "var(--font-body)";
 
 export default function NotFoundPage() {
   return (
@@ -61,7 +61,7 @@ const s = {
     fontSize: 14,
     fontWeight: 600,
     padding: '10px 20px',
-    borderRadius: 12,
+    borderRadius: 'var(--radius-md)',
     textDecoration: 'none',
   },
 };

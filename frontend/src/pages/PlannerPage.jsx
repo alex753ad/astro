@@ -385,7 +385,7 @@ const styles = `
     min-height: 100vh;
     background: transparent;
     color: var(--text-primary);
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-body);
   }
   .planner-inner {
     max-width: 680px;
@@ -437,7 +437,7 @@ const styles = `
   .tab-btn {
     flex: 1; padding: 9px 12px; border-radius: 10px; border: none;
     cursor: pointer; font-size: 13px; font-weight: 600;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-body);
     transition: all 0.15s; background: transparent; color: var(--accent);
   }
   .tab-btn.active {
@@ -509,7 +509,7 @@ const styles = `
   .upgrade-btn {
     padding: 11px 28px; border-radius: 12px; border: none;
     background: var(--accent); color: #fff; font-size: 14px; font-weight: 700;
-    cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
+    cursor: pointer; font-family: var(--font-body);
     transition: background-color 0.15s;
   }
   .upgrade-btn:hover { background: var(--accent-glow); }
@@ -538,7 +538,7 @@ const styles = `
   .retry-btn {
     margin-top: 10px; background: var(--color-danger); color: #fff; border: none;
     border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
-    font-family: 'Inter', system-ui, sans-serif; font-weight: 600;
+    font-family: var(--font-body); font-weight: 600;
   }
 
   .loading-box {
@@ -561,7 +561,7 @@ const styles = `
   .refresh-btn {
     width: 100%; padding: 11px; background: var(--accent); border: none;
     border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700;
-    cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
+    cursor: pointer; font-family: var(--font-body);
     transition: background-color 0.15s;
   }
   .refresh-btn:hover { background: var(--accent-glow); }
@@ -570,7 +570,7 @@ const styles = `
     width: 100%; padding: 11px; background: var(--bg-card);
     border: 1.5px solid var(--border); border-radius: 12px;
     color: var(--accent); font-size: 14px; font-weight: 700;
-    cursor: pointer; font-family: 'Inter', system-ui, sans-serif;
+    cursor: pointer; font-family: var(--font-body);
     transition: border-color 0.15s, background-color 0.15s;
   }
   .gcal-btn:hover:not(:disabled) { background: var(--accent-muted); border-color: var(--accent-glow); }
@@ -647,7 +647,7 @@ const styles = `
   }
   .tl-pop {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 6px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    border-radius: 12px; padding: 6px; box-shadow: var(--shadow-raised);
     display: flex; flex-direction: column; gap: 2px;
   }
   .tl-pop-day {
@@ -934,7 +934,7 @@ function LockedGroupHint({ children, onUpgrade }) {
         <MotionButton
           level="secondary"
           onClick={onUpgrade}
-          style={{ marginTop: 10, padding: "6px 16px", fontSize: 12.5, borderRadius: 8 }}
+          style={{ marginTop: 10, padding: "6px 16px", fontSize: 12.5, borderRadius: 'var(--radius-sm)' }}
         >
           Открыть доступ
         </MotionButton>

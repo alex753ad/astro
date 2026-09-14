@@ -159,7 +159,7 @@ export default function ChartSheet({ chart, onRefresh }) {
               style={{
                 flex: 1,
                 padding: '8px 0',
-                borderRadius: 10,
+                borderRadius: 'var(--radius-md)',
                 border: 'none',
                 background: active ? 'var(--accent-muted)' : 'transparent',
                 color: active ? 'var(--accent)' : 'var(--text-secondary)',

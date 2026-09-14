@@ -20,8 +20,8 @@ import { TIER_NAMES, TIERS } from '../constants';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
-  .prof-scope { --prof-text:var(--text-primary); --prof-card:rgba(255,255,255,0.85); --prof-title:var(--accent); --prof-muted:var(--text-secondary); --prof-tab-active:var(--bg-card); --prof-tab-color:var(--accent); --prof-tab-muted:var(--text-secondary); --prof-input:var(--accent-muted); --prof-divider:rgba(139,92,246,0.12); --prof-toggle-off:var(--border); --prof-sub:var(--text-secondary); --prof-bar-bg:rgba(139,92,246,0.1); }
-  .dark .prof-scope { --prof-card:rgba(26,18,48,0.55); --prof-tab-active:rgba(139,92,246,0.2); --prof-divider:rgba(139,92,246,0.2); --prof-toggle-off:rgba(148,163,184,0.15); }
+  .prof-scope { --prof-text:var(--text-primary); --prof-card:rgba(255,255,255,0.85); --prof-title:var(--accent); --prof-muted:var(--text-secondary); --prof-tab-active:var(--bg-card); --prof-tab-color:var(--accent); --prof-tab-muted:var(--text-secondary); --prof-input:var(--accent-muted); --prof-divider:rgba(var(--accent-rgb), 0.12); --prof-toggle-off:var(--border); --prof-sub:var(--text-secondary); --prof-bar-bg:rgba(var(--accent-rgb), 0.1); }
+  .dark .prof-scope { --prof-card:rgba(26,18,48,0.55); --prof-tab-active:rgba(var(--accent-rgb), 0.2); --prof-divider:rgba(var(--accent-rgb), 0.2); --prof-toggle-off:rgba(148,163,184,0.15); }
 `;
 
 // ─── Мини-превью натальной карты ─────────────────────────────────────────────
@@ -90,14 +90,14 @@ const S = {
     minHeight: '100vh',
     background: 'transparent',
     color: 'var(--prof-text)',
-    fontFamily: "'Inter', system-ui, sans-serif",
+    fontFamily: "var(--font-body)",
     padding: '24px 16px',
   },
   inner: { maxWidth: 680, margin: '0 auto' },
   card: {
     background: 'var(--prof-card)',
-    border: '1px solid rgba(139,92,246,0.15)',
-    borderRadius: 12,
+    border: '1px solid rgba(var(--accent-rgb), 0.15)',
+    borderRadius: 'var(--radius-md)',
     padding: '20px 24px',
     marginBottom: 16,
   },
@@ -106,7 +106,7 @@ const S = {
     display: 'flex',
     gap: 2,
     background: 'var(--prof-input)',
-    borderRadius: 10,
+    borderRadius: 'var(--radius-md)',
     padding: 4,
     marginBottom: 24,
     overflowX: 'auto',
@@ -114,7 +114,7 @@ const S = {
   tabBtn: (active) => ({
     flex: '1 0 auto',
     padding: '8px 14px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-sm)',
     border: 'none',
     cursor: 'pointer',
     fontSize: 13,
@@ -127,7 +127,7 @@ const S = {
   }),
   btn: (variant = 'ghost') => ({
     padding: '8px 16px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-sm)',
     border: variant === 'ghost' ? '1px solid var(--border)' : 'none',
     background: variant === 'primary' ? 'var(--accent)'
               : variant === 'danger'  ? 'var(--color-danger)'
@@ -143,7 +143,7 @@ const S = {
   badge: (tier) => ({
     display: 'inline-block',
     padding: '3px 12px',
-    borderRadius: 20,
+    borderRadius: 'var(--radius-xl)',
     background: `${TIER_COLORS[tier] || 'var(--text-secondary)'}18`,
     color: TIER_COLORS[tier] || 'var(--text-secondary)',
     fontSize: 12,
@@ -336,9 +336,9 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
 
   const LimitBanner = () => isFree && chartsLeft !== null ? (
     <div style={{
-      padding: '12px 16px', borderRadius: 12,
+      padding: '12px 16px', borderRadius: 'var(--radius-md)',
       background: chartsLeft === 0 ? 'rgba(220,38,38,0.08)' : 'var(--accent-muted)',
-      border: `1px solid ${chartsLeft === 0 ? 'rgba(220,38,38,0.2)' : 'rgba(139,92,246,0.2)'}`,
+      border: `1px solid ${chartsLeft === 0 ? 'rgba(220,38,38,0.2)' : 'rgba(var(--accent-rgb), 0.2)'}`,
       fontSize: 13, color: chartsLeft === 0 ? 'var(--color-danger)' : 'var(--accent)', fontWeight: 600,
       display: 'flex', alignItems: 'center', gap: 8,
     }}>
@@ -373,8 +373,8 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
             style={{
               ...S.card,
               border: isPrimary
-                ? '1px solid rgba(124,108,255,0.5)'
-                : '1px solid rgba(139,92,246,0.15)',
+                ? '1px solid rgba(var(--accent-rgb), 0.5)'
+                : '1px solid rgba(var(--accent-rgb), 0.15)',
             }}
           >
             {/* Шапка карточки: булавка у главной */}
@@ -613,7 +613,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             )}
           </div>
           {subscription?.status && subscription.status !== 'free' && (
-            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: 'rgba(52,211,153,0.12)', color: 'var(--color-success)' }}>
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 'var(--radius-md)', background: 'rgba(52,211,153,0.12)', color: 'var(--color-success)' }}>
               {subscription.status === 'active' ? 'Активна' : subscription.status}
             </span>
           )}
@@ -625,7 +625,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
         <p style={S.cardTitle}>Что включено</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
           {features.map(f => (
-            <div key={f.label} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', textAlign: 'center', opacity: f.ok ? 1 : 0.5 }}>
+            <div key={f.label} style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', textAlign: 'center', opacity: f.ok ? 1 : 0.5 }}>
               <div style={{ fontSize: 16, marginBottom: 4 }}>{f.ok ? '✓' : '✗'}</div>
               <div style={{ fontSize: 11, color: f.ok ? 'var(--accent-glow)' : 'var(--text-secondary)' }}>{f.label}</div>
               {f.value && (
@@ -719,7 +719,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             {availableTiers.map(t => (
               <div key={t.id} style={{
                 display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
-                padding: '14px 16px', borderRadius: 8,
+                padding: '14px 16px', borderRadius: 'var(--radius-sm)',
                 border: `1px solid ${TIER_COLORS[t.id]}${t.recommended ? '60' : '30'}`,
                 background: `${TIER_COLORS[t.id]}08`,
               }}>
@@ -803,7 +803,7 @@ function TabReferral({ authFetch }) {
             <input
               readOnly
               value={data.ref_url || '—'}
-              style={{ flex: 1, background: 'var(--bg-deeper)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit' }}
+              style={{ flex: 1, background: 'var(--bg-deeper)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit' }}
             />
             <MotionButton level="primary" style={S.btn('primary')} onClick={copy}>
               {copied ? '✓ Скопировано' : 'Копировать'}
@@ -812,11 +812,11 @@ function TabReferral({ authFetch }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={{ background: 'var(--bg-deeper)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+          <div style={{ background: 'var(--bg-deeper)', borderRadius: 'var(--radius-md)', padding: '14px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent-glow)' }}>{data.referrals_count ?? 0}</div>
             <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Приглашено</div>
           </div>
-          <div style={{ background: 'var(--bg-deeper)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+          <div style={{ background: 'var(--bg-deeper)', borderRadius: 'var(--radius-md)', padding: '14px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-success)' }}>{data.reward_weeks_earned ?? 0} нед.</div>
             <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Бонус получено</div>
           </div>
@@ -866,12 +866,12 @@ function TabPartner({ authFetch }) {
         <p style={S.cardTitle}>Партнёрская программа</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
           {stats.map(s => (
-            <div key={s.label} style={{ background: 'var(--bg-deeper)', borderRadius: 10, padding: '14px 16px' }}>
+            <div key={s.label} style={{ background: 'var(--bg-deeper)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
               <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>{s.label}</div>
             </div>
           ))}
-          <div style={{ background: 'var(--accent-muted)', borderRadius: 10, padding: '14px 16px' }}>
+          <div style={{ background: 'var(--accent-muted)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-glow)' }}>{money(totals.owed)}</div>
             <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>К выплате</div>
           </div>
@@ -883,7 +883,7 @@ function TabPartner({ authFetch }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {Object.entries(totals.by_tier).map(([tier, count]) => (
                 <span key={tier} style={{
-                  fontSize: 12, padding: '4px 10px', borderRadius: 999,
+                  fontSize: 12, padding: '4px 10px', borderRadius: 'var(--radius-full)',
                   background: 'var(--bg-deeper)', color: 'var(--text-primary)',
                 }}>
                   {TIER_NAMES[tier] || tier}: {count}
@@ -1026,7 +1026,7 @@ function TabNotifications({ authFetch }) {
                     onChange={(e) => patch({ daily_time: e.target.value })}
                     style={{
                       marginTop: 8, background: 'var(--bg-deeper)', color: 'var(--text-primary)',
-                      border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', fontSize: 14,
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', fontSize: 14,
                     }}
                   />
                 )}
@@ -1052,7 +1052,7 @@ function TabNotifications({ authFetch }) {
           onChange={(e) => patch({ quiet_from: e.target.value })}
           style={{
             background: 'var(--bg-deeper)', color: 'var(--text-primary)',
-            border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', fontSize: 14,
+            border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', fontSize: 14,
           }}
         />
       </div>
@@ -1076,7 +1076,7 @@ function TabNotifications({ authFetch }) {
               setMsg(e.message || 'Не удалось отправить тест');
             }
           }}
-          style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+          style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
         >
           Отправить тест
         </MotionButton>

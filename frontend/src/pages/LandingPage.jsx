@@ -31,7 +31,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
   const gridContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
 
   const cardHover = prefersReduced ? undefined : { y: -3 };
-  const previewShadow = '0 12px 40px rgba(0,0,0,0.10)';
+  const previewShadow = 'var(--shadow-raised)';
 
   const handleActivate = () => {
     if (currentUser) {
@@ -45,7 +45,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
-      fontFamily: '"Space Grotesk", system-ui, sans-serif',
+      fontFamily: 'var(--font-display)',
       color: '#1a1230',
     }}>
 
@@ -118,7 +118,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               alignItems: 'center',
               gap: 10,
               padding: '16px 36px',
-              borderRadius: 14,
+              borderRadius: 'var(--radius-lg)',
               border: 'none',
               background: '#1a1230',
               color: '#fff',
@@ -128,15 +128,15 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               fontFamily: 'inherit',
               letterSpacing: '0.01em',
               transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+              boxShadow: 'var(--shadow-card)',
             }}
             onMouseEnter={e => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-raised)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-card)';
             }}
           >
             Собрать мой Timeline
@@ -159,8 +159,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           style={{
             background: 'rgba(255,255,255,0.7)',
             backdropFilter: 'blur(16px)',
-            borderRadius: 20,
-            border: '1px solid rgba(139,92,246,0.15)',
+            borderRadius: 'var(--radius-xl)',
+            border: '1px solid rgba(var(--accent-rgb), 0.15)',
             overflow: 'hidden',
           }}
         >
@@ -251,10 +251,10 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             whileHover={cardHover}
             style={{
               flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
-              background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
+              background: f.highlight ? 'rgba(var(--accent-rgb), 0.08)' : 'rgba(255,255,255,0.6)',
               backdropFilter: 'blur(8px)',
-              borderRadius: 16,
-              border: `1px solid ${f.highlight ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.1)'}`,
+              borderRadius: 'var(--radius-lg)',
+              border: `1px solid ${f.highlight ? 'rgba(var(--accent-rgb), 0.2)' : 'rgba(var(--accent-rgb), 0.1)'}`,
               padding: '24px 20px',
             }}
           >
@@ -289,7 +289,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             alignItems: 'center',
             gap: 10,
             padding: '16px 36px',
-            borderRadius: 14,
+            borderRadius: 'var(--radius-lg)',
             border: 'none',
             background: '#1a1230',
             color: '#fff',
@@ -299,15 +299,15 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             fontFamily: 'inherit',
             letterSpacing: '0.01em',
             transition: 'transform 0.2s, box-shadow 0.2s',
-            boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+            boxShadow: 'var(--shadow-card)',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-raised)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+            e.currentTarget.style.boxShadow = 'var(--shadow-card)';
           }}
         >
           Собрать мой Timeline
@@ -351,12 +351,12 @@ function ZodiacWheelSVG() {
       `}</style>
       <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: 'zodiacWheelRotate 40s linear infinite' }}>
         {/* Outer circle */}
-        <circle cx={cx} cy={cy} r={r} stroke="rgba(139,92,246,0.25)" strokeWidth="1" fill="rgba(139,92,246,0.04)" />
+        <circle cx={cx} cy={cy} r={r} strokeWidth="1" style={{ stroke: 'rgba(var(--accent-rgb),0.25)', fill: 'rgba(var(--accent-rgb),0.04)' }} />
         {/* Inner circle */}
-        <circle cx={cx} cy={cy} r={rInner} stroke="rgba(139,92,246,0.15)" strokeWidth="1" fill="none" />
+        <circle cx={cx} cy={cy} r={rInner} strokeWidth="1" fill="none" style={{ stroke: 'rgba(var(--accent-rgb),0.15)' }} />
         {/* Segment lines */}
         {lines.map((l, i) => (
-          <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="rgba(139,92,246,0.2)" strokeWidth="1" />
+          <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} strokeWidth="1" style={{ stroke: 'rgba(var(--accent-rgb),0.2)' }} />
         ))}
         {/* Cross lines */}
         {crossAngles.map((a, i) => {
@@ -366,12 +366,12 @@ function ZodiacWheelSVG() {
               key={i}
               x1={cx + 8 * Math.cos(rad)} y1={cy + 8 * Math.sin(rad)}
               x2={cx + r * Math.cos(rad)} y2={cy + r * Math.sin(rad)}
-              stroke="rgba(139,92,246,0.5)" strokeWidth="1.5"
+              strokeWidth="1.5" style={{ stroke: 'rgba(var(--accent-rgb),0.5)' }}
             />
           );
         })}
         {/* Center dot */}
-        <circle cx={cx} cy={cy} r={3} fill="rgba(139,92,246,0.5)" />
+        <circle cx={cx} cy={cy} r={3} style={{ fill: 'rgba(var(--accent-rgb),0.5)' }} />
         {/* Planet dots */}
         {[
           { angle: 30, dist: 42, c: '#8B5CF6' },

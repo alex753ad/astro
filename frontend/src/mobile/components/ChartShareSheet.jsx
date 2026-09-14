@@ -36,7 +36,7 @@ import {
 const ACTION_STYLE = {
   width: '100%',
   height: 46,
-  borderRadius: 12,
+  borderRadius: 'var(--radius-md)',
   border: '1px solid var(--border)',
   background: 'var(--bg-card)',
   color: 'var(--text-primary)',

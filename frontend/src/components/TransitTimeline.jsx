@@ -235,7 +235,7 @@ function Skeleton({ width = "100%", height = 16, radius = 8, style = {} }) {
 function EventCardSkeleton() {
   return (
     <div style={{
-      padding: "16px 18px", borderRadius: 16,
+      padding: "16px 18px", borderRadius: 'var(--radius-lg)',
       border: "1px solid var(--tt-border)", background: "var(--tt-card)",
       display: "flex", flexDirection: "column", gap: 8,
       borderLeft: "4px solid var(--tt-border2)",
@@ -259,7 +259,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
   const toggle = (s) => setExpandedSection(prev => prev === s ? null : s);
 
   const chipStyle = (active) => ({
-    padding: "5px 13px", borderRadius: 20,
+    padding: "5px 13px", borderRadius: 'var(--radius-xl)',
     border: `1.5px solid ${active ? "var(--tt-acc-br)" : "var(--tt-border2)"}`,
     background: active ? "var(--tt-acc-bg)" : "transparent",
     color: active ? "var(--tt-acc-fg)" : "var(--tt-text2)",
@@ -272,15 +272,15 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
       padding: "14px 16px", background: "var(--tt-card)",
-      borderRadius: 16, border: "1px solid var(--tt-border)",
-      boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)",
+      borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border)",
+      boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
     }}>
       <div>
         <button onClick={() => toggle("planets")} style={filterLabelStyle}>
           <span>Планеты</span>
           <span style={{ fontSize: 10, transform: expandedSection === "planets" ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
           {planetFilter.length > 0 && planetFilter.length < ALL_PLANETS.length && (
-            <span style={{ background: "var(--accent-glow)", color: "var(--bg-card)", borderRadius: 10, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{planetFilter.length}</span>
+            <span style={{ background: "var(--accent-glow)", color: "var(--bg-card)", borderRadius: 'var(--radius-md)', padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>{planetFilter.length}</span>
           )}
         </button>
         {expandedSection === "planets" && (
@@ -326,7 +326,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
         <button onClick={() => { setPlanetFilter([]); setAspectFilter([]); setOrbFilter(2.0); }} style={{
           alignSelf: "flex-start", background: "none",
           border: "1px solid var(--tt-border2)", color: "var(--tt-text2)",
-          borderRadius: 10, padding: "4px 12px", fontSize: 12,
+          borderRadius: 'var(--radius-md)', padding: "4px 12px", fontSize: 12,
           cursor: "pointer", fontFamily: "inherit",
         }}>Сбросить фильтры</button>
       )}
@@ -426,7 +426,7 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate, viewMonth, 
           <button key={d} onClick={() => onDateClick(d)} style={{
             minWidth: 48, flexShrink: 0,
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-            padding: "8px 6px", borderRadius: 12,
+            padding: "8px 6px", borderRadius: 'var(--radius-md)',
             border: `1.5px solid ${active ? "var(--tt-acc-br)" : "var(--tt-border2)"}`,
             background: active ? "var(--tt-acc-bg)" : "var(--tt-card)",
             color: active ? "var(--tt-acc-fg)" : "var(--tt-text2)",
@@ -456,7 +456,7 @@ function StatsSummary({ events }) {
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {stats.map(({ label, value, color, bg }) => (
-        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 14, border: "1px solid var(--tt-border)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
+        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
           <span style={{ fontSize: 11, color: "var(--tt-text2)" }}>{label}</span>
         </div>
@@ -486,7 +486,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
 
   return (
     <div style={{
-      margin: "8px 0", padding: "16px 20px", borderRadius: 16,
+      margin: "8px 0", padding: "16px 20px", borderRadius: 'var(--radius-lg)',
       background: "var(--accent-muted)",
       border: "1.5px solid var(--border)",
       display: "flex", flexDirection: "column", gap: 10,
@@ -501,11 +501,11 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
           </div>
         </div>
         <button onClick={onUpgrade} style={{
-          padding: "9px 20px", borderRadius: 12, border: "none",
+          padding: "9px 20px", borderRadius: 'var(--radius-md)', border: "none",
           background: "var(--accent)",
           color: "#fff", fontSize: 13, fontWeight: 700,
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
-          boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
+          boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
         }}>
           Открыть {TIER_NAMES.pro}
         </button>
@@ -532,10 +532,10 @@ function EventCard({ event, index, isSelected, onClick }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         padding: "13px 16px",
-        borderBottom: "1px solid rgba(139,92,246,0.1)",
+        borderBottom: "1px solid rgba(var(--accent-rgb), 0.1)",
         background: isSelected
-          ? "rgba(139,92,246,0.08)"
-          : (hovered ? "rgba(139,92,246,0.06)" : "transparent"),
+          ? "rgba(var(--accent-rgb), 0.08)"
+          : (hovered ? "rgba(var(--accent-rgb), 0.06)" : "transparent"),
         transition: "background 0.2s ease",
         animation: `fadeSlideIn 0.3s ease ${index * 0.04}s both`,
         // Список транзитов всегда виден и выглядит одинаково на всех тарифах;
@@ -551,7 +551,7 @@ function EventCard({ event, index, isSelected, onClick }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {event.applying !== undefined && (
-            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 8, border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "var(--tt-border2)"}`, color: event.applying ? "#3068B0" : "var(--tt-text2)", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
+            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 'var(--radius-sm)', border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "var(--tt-border2)"}`, color: event.applying ? "#3068B0" : "var(--tt-text2)", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
               {event.applying ? "→ точный" : "← отходит"}
             </span>
           )}
@@ -575,7 +575,7 @@ function EventCard({ event, index, isSelected, onClick }) {
           onClick={(e) => { e.stopPropagation(); onClick(); }}
           style={{
             padding: "5px 14px",
-            borderRadius: 10,
+            borderRadius: 'var(--radius-md)',
             border: `1.5px solid ${isSelected ? aspectColor : "var(--tt-border2)"}`,
             background: isSelected ? aspectColor : "transparent",
             color: isSelected ? "#fff" : aspectColor,
@@ -685,10 +685,10 @@ function InterpretationPanel({ event, chartId, onClose }) {
   }, [text]);
 
   return (
-    <div style={{ background: "var(--tt-card)", borderRadius: 18, border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
+    <div style={{ background: "var(--tt-card)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
       </div>
       <div ref={scrollRef} style={{ padding: 16, maxHeight: 400, overflowY: "auto" }}>
         {loading && !text && (
@@ -739,18 +739,18 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
     : "Полный разбор этого транзита — на Веге и Лире.";
 
   return (
-    <div style={{ background: "var(--tt-card)", borderRadius: 18, border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", animation: "fadeSlideIn 0.3s ease" }}>
+    <div style={{ background: "var(--tt-card)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 8, fontFamily: "inherit" }}>✕</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
       </div>
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
         <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tt-text2)", margin: 0 }}>{intro}</p>
         <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tt-text2)", margin: 0 }}>{outro}</p>
         <MotionButton level="primary" onClick={onOpenAccess} style={{
-          alignSelf: "flex-start", padding: "9px 20px", borderRadius: 12, border: "none",
+          alignSelf: "flex-start", padding: "9px 20px", borderRadius: 'var(--radius-md)', border: "none",
           background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700,
-          cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)",
+          cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
         }}>Открыть доступ</MotionButton>
       </div>
     </div>
@@ -1181,7 +1181,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   return (
-    <div className="tt-scope" style={{ fontFamily: "'Space Grotesk', 'DM Sans', system-ui, sans-serif", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
+    <div className="tt-scope" style={{ fontFamily: "var(--font-display)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
       <style>{`
         .tt-scope {
           --tt-card: var(--bg-card); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
@@ -1194,9 +1194,9 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         }
         .dark .tt-scope {
           --tt-card: rgba(26,18,48,0.60); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
-          --tt-text3: var(--text-secondary); --tt-border: rgba(139,92,246,0.14); --tt-border2: rgba(139,92,246,0.20);
-          --tt-acc-bg: rgba(139,92,246,0.22); --tt-acc-fg: var(--accent-glow); --tt-acc-br: rgba(139,92,246,0.55); --tt-dot: rgba(139,92,246,0.45);
-          --tt-s1-bg: rgba(139,92,246,0.14); --tt-s1-fg: var(--accent-glow);
+          --tt-text3: var(--text-secondary); --tt-border: rgba(var(--accent-rgb), 0.14); --tt-border2: rgba(var(--accent-rgb), 0.20);
+          --tt-acc-bg: rgba(var(--accent-rgb), 0.22); --tt-acc-fg: var(--accent-glow); --tt-acc-br: rgba(var(--accent-rgb), 0.55); --tt-dot: rgba(var(--accent-rgb), 0.45);
+          --tt-s1-bg: rgba(var(--accent-rgb), 0.14); --tt-s1-fg: var(--accent-glow);
           --tt-s2-bg: rgba(52,152,219,0.16); --tt-s2-fg: var(--color-air);
           --tt-s3-bg: rgba(248,113,113,0.15); --tt-s3-fg: var(--color-danger);
           --tt-s4-bg: rgba(251,191,36,0.15); --tt-s4-fg: var(--color-warning);
@@ -1205,7 +1205,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes blink       { 50% { opacity: 0; } }
         .tt-event-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .tt-event-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+        .tt-event-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-raised); }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1255,12 +1255,12 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : loadError ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--color-danger)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--color-danger)", fontSize: 14, borderRadius: 'var(--radius-lg)', border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
               Не удалось загрузить транзиты.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте обновить страницу.</span>
             </div>
           ) : filteredEvents.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 16, border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 'var(--radius-lg)', border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
               Нет транзитов с текущими фильтрами.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте увеличить орб или сбросить фильтры.</span>
             </div>

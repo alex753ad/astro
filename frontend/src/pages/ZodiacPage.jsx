@@ -122,7 +122,7 @@ export default function ZodiacPage() {
         <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--accent)', marginBottom: 16 }}>Часто задаваемые вопросы</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {faq.map((item, i) => (
-            <div key={i} style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', border: '1px solid var(--accent-muted)' }}>
+            <div key={i} style={{ background: '#fff', borderRadius: 'var(--radius-md)', padding: '20px 24px', border: '1px solid var(--accent-muted)' }}>
               <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>{item.q}</h3>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0 }}>{item.a}</p>
             </div>

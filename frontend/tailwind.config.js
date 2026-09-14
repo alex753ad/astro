@@ -27,9 +27,11 @@ export default {
           glow:   'var(--accent-glow)',
         },
       },
+      // Источник — токены в src/index.css (--font-display/--font-body), а не
+      // список здесь: до 14.09.2026 стек был записан в четырёх местах сразу.
       fontFamily: {
-        display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
-        body:    ['Inter', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)'],
+        body:    ['var(--font-body)'],
       },
     },
   },

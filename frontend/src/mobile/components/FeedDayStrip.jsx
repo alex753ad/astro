@@ -99,7 +99,7 @@ export default function FeedDayStrip({ from, to, today, dotsByDay, onSelectDay }
               alignItems: 'center',
               gap: 3,
               padding: '6px 0',
-              borderRadius: 12,
+              borderRadius: 'var(--radius-md)',
               border: 'none',
               background: isToday ? 'var(--accent)' : 'transparent',
               color: isToday ? '#fff' : 'var(--text-primary)',

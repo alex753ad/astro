@@ -39,7 +39,7 @@ function theme(dark) {
     fg:      'var(--text-primary)',
     accent:  dark ? 'var(--accent-glow)'             : 'var(--accent)',
     muted:   dark ? 'var(--text-secondary)'             : 'var(--text-secondary)',
-    border:  dark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.1)',
+    border:  dark ? 'rgba(var(--accent-rgb), 0.15)' : 'rgba(var(--accent-rgb), 0.1)',
   };
 }
 
@@ -47,7 +47,7 @@ export default function ChartSummary({ planets, ascendant, midheaven, houses, ti
   const t = theme(dark);
 
   const wrapStyle = plain
-    ? { background: t.bg, color: t.fg, borderRadius: 8, padding: '16px 20px' }
+    ? { background: t.bg, color: t.fg, borderRadius: 'var(--radius-sm)', padding: '16px 20px' }
     : { padding: '24px' };
 
   const headStyle = {

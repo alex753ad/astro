@@ -4,8 +4,8 @@
  * Требование ЮKassa («Контакты и реквизиты») и ст. 9 ЗоЗПП.
  */
 
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
-const BODY = "'Inter', system-ui, sans-serif";
+const DISPLAY = "var(--font-display)";
+const BODY = "var(--font-body)";
 
 const ROWS = [
   { label: 'Продавец', value: 'Оносова Наталья Юрьевна' },
@@ -54,7 +54,7 @@ const s = {
   card: {
     background: 'var(--bg-card)',
     border: '1px solid var(--border)',
-    borderRadius: 20,
+    borderRadius: 'var(--radius-xl)',
     padding: '8px 24px',
   },
   row: {

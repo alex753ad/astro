@@ -20,8 +20,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
     />
 */
 
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
-const BODY = "'Inter', system-ui, sans-serif";
+const DISPLAY = "var(--font-display)";
+const BODY = "var(--font-body)";
 
 const DEFAULT_FEATURES = [
   { icon: "telescope", text: "Безлимитный AI-разбор транзитов" },
@@ -147,9 +147,9 @@ export default function LyraPaywallModal({
               maxWidth: 400,
               background: "var(--bg-card)",
               border: "1px solid var(--border)",
-              borderRadius: 20,
+              borderRadius: 'var(--radius-xl)',
               padding: "28px 28px 22px",
-              boxShadow: "0 24px 60px rgba(0,0,0,0.40)",
+              boxShadow: "var(--shadow-overlay)",
               fontFamily: BODY,
               color: "var(--text-primary)",
             }}
@@ -186,7 +186,7 @@ export default function LyraPaywallModal({
                 gap: 6,
                 background: "var(--accent-muted)",
                 color: "var(--accent-glow)",
-                borderRadius: 8,
+                borderRadius: 'var(--radius-sm)',
                 padding: "4px 10px",
                 fontFamily: DISPLAY,
                 fontSize: 12,
@@ -268,7 +268,7 @@ export default function LyraPaywallModal({
               whileHover={
                 reduce
                   ? undefined
-                  : { y: -3, background: "var(--accent-glow)", boxShadow: "0 8px 24px rgba(139,92,246,0.32)" }
+                  : { y: -3, background: "var(--accent-glow)", boxShadow: "var(--shadow-accent)" }
               }
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 90 }}
@@ -277,7 +277,7 @@ export default function LyraPaywallModal({
                 height: 44,
                 margin: "6px 0 12px",
                 border: "none",
-                borderRadius: 16,
+                borderRadius: 'var(--radius-lg)',
                 background: "var(--accent)",
                 color: "#ffffff",
                 fontFamily: DISPLAY,

@@ -134,7 +134,7 @@ function ChartSkeleton() {
         }
       `}</style>
       <div style={{
-        width: '100%', aspectRatio: '1', borderRadius: 16,
+        width: '100%', aspectRatio: '1', borderRadius: 'var(--radius-lg)',
         background: 'linear-gradient(90deg,var(--bg-deeper) 25%,var(--bg-card) 50%,var(--bg-deeper) 75%)',
         backgroundSize: '200% 100%',
         animation: 'chart-shimmer 1.8s ease-in-out infinite',
@@ -244,7 +244,7 @@ function NatalChartInner({
   // намерение не видит и продолжает брать текущую тему документа.
   const discBase        = dark ? 'rgba(26,18,48,0.55)'    : '#FDFBF9';
   const discInner       = dark ? 'rgba(26,18,48,0.60)'    : '#FFFFFF';
-  const discInnerStroke = dark ? 'rgba(139,92,246,0.25)'  : '#EDE8F5';
+  const discInnerStroke = dark ? 'rgba(var(--accent-rgb),0.25)'  : '#EDE8F5';
 
   // ── Палитра кольца/штрихов/домов: тёмные варианты для тёмной темы ──
   const EL_FILL = dark
@@ -414,7 +414,7 @@ function NatalChartInner({
         );
       })}
 
-      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill={discInner} stroke={discInnerStroke} strokeWidth={0.75} />
+      <circle cx={cx} cy={cy} r={R_HOUSE_IN} fill={discInner} strokeWidth={0.75} style={{ stroke: discInnerStroke }} />
       </motion.g>
 
       <motion.g variants={introAspectsV}>
@@ -482,7 +482,7 @@ function NatalChartInner({
           <motion.g
             style={{
               transformBox: 'fill-box', transformOrigin: 'center',
-              filter: isActive ? 'brightness(1.3) drop-shadow(0 0 5px rgba(139,92,246,0.75))' : 'none',
+              filter: isActive ? 'brightness(1.3) drop-shadow(0 0 5px rgba(var(--accent-rgb), 0.75))' : 'none',
               opacity: isDimmed ? 0.3 : 1,
               transition: 'filter 0.2s ease, opacity 0.2s ease',
               cursor: 'pointer',
@@ -769,7 +769,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
           transform: 'translateX(-50%)',
           background: 'var(--bg-card)',
           border: '1.5px solid var(--border)',
-          borderRadius: 16,
+          borderRadius: 'var(--radius-lg)',
           padding: '14px 20px',
           maxWidth: 320,
           width: '90%',
@@ -782,7 +782,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{
               background: 'var(--accent)',
-              color: '#fff', borderRadius: 8, padding: '2px 8px',
+              color: '#fff', borderRadius: 'var(--radius-sm)', padding: '2px 8px',
               fontSize: 11, fontWeight: 700,
             }}>
               {TOOLTIPS[activeTooltip].label}
@@ -803,7 +803,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
             </button>
             <button onClick={nextTooltip} style={{
               background: 'var(--accent)',
-              border: 'none', color: '#fff', borderRadius: 10,
+              border: 'none', color: '#fff', borderRadius: 'var(--radius-md)',
               padding: '6px 16px', fontSize: 12, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
             }}>

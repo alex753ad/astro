@@ -57,7 +57,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, var(--accent-muted) 0%, var(--accent-muted) 20%, var(--accent-muted) 45%, var(--accent-muted) 70%, var(--accent-muted) 100%)',
-      fontFamily: '"Space Grotesk", system-ui, sans-serif',
+      fontFamily: 'var(--font-display)',
       padding: '32px 24px 60px',
     }}>
       <script
@@ -90,7 +90,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
       {error && (
         <div style={{
           maxWidth: 500, margin: '16px auto 0',
-          padding: '14px 18px', borderRadius: 12,
+          padding: '14px 18px', borderRadius: 'var(--radius-md)',
           background: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.2)',
           color: 'var(--color-danger)', fontSize: 13,

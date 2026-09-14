@@ -7,11 +7,11 @@ import { motion, useReducedMotion } from 'framer-motion';
 
 const LEVELS = {
   primary: {
-    hover: { y: -3, boxShadow: '0 8px 24px rgba(139,92,246,0.32)' },
+    hover: { y: -3, boxShadow: 'var(--shadow-accent)' },
     tap: { scale: 0.95 },
   },
   secondary: {
-    hover: { y: -1, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+    hover: { y: -1, boxShadow: 'var(--shadow-card)' },
     tap: { scale: 0.97 },
   },
   ghost: {

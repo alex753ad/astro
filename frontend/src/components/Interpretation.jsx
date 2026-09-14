@@ -41,16 +41,16 @@ function StreamingProgress() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 13, color: 'var(--text-secondary, var(--text-secondary))', minHeight: 18 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary)', minHeight: 18 }}>
         {STAGES[stageIdx]}
       </div>
       <div style={{
         width: '100%', height: 4, borderRadius: 2,
-        background: 'var(--border, var(--bg-card))', overflow: 'hidden',
+        background: 'var(--border)', overflow: 'hidden',
       }}>
         <div style={{
           height: '100%', width: `${progress}%`, borderRadius: 2,
-          background: 'linear-gradient(90deg, var(--accent, var(--accent)), var(--accent))',
+          background: 'linear-gradient(90deg, var(--accent), var(--accent))',
           transition: 'width 1s cubic-bezier(0.4,0,0.2,1)',
         }} />
       </div>
@@ -86,9 +86,9 @@ function renderMarkdown(text) {
       return (
         <h3 key={i} style={{
           fontSize: 15, fontWeight: 700,
-          color: 'var(--text-primary, var(--border))',
+          color: 'var(--text-primary)',
           margin: '20px 0 8px',
-          borderBottom: '1px solid var(--border, var(--bg-card))',
+          borderBottom: '1px solid var(--border)',
           paddingBottom: 6,
         }}>
           {line.slice(4)}
@@ -99,7 +99,7 @@ function renderMarkdown(text) {
       return (
         <h2 key={i} style={{
           fontSize: 17, fontWeight: 700,
-          color: 'var(--accent, var(--accent))',
+          color: 'var(--accent)',
           margin: '24px 0 10px',
         }}>
           {line.slice(3)}
@@ -223,21 +223,21 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       <div className="solid-card p-6">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--accent, var(--accent))' }}>✦</span>
+            <span style={{ color: 'var(--accent)' }}>✦</span>
             AI-интерпретация
           </h2>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--color-text-secondary, var(--text-secondary))', margin: '0 0 16px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Персональный разбор натальной карты — характер, таланты, жизненные темы.
         </p>
         <button
           onClick={() => start()}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 20px', borderRadius: 10,
-            border: '1px solid rgba(124,108,255,0.5)',
-            background: 'linear-gradient(135deg, rgba(124,108,255,0.12), rgba(167,139,250,0.12))',
-            color: 'var(--accent, var(--accent))', fontSize: 14, fontWeight: 600,
+            padding: '10px 20px', borderRadius: 'var(--radius-md)',
+            border: '1px solid rgba(var(--accent-rgb), 0.5)',
+            background: 'linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--accent-glow-rgb), 0.12))',
+            color: 'var(--accent)', fontSize: 14, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
             transition: 'all 0.2s',
           }}
@@ -267,7 +267,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--accent, var(--accent))' }}>✦</span>
+          <span style={{ color: 'var(--accent)' }}>✦</span>
           AI-интерпретация
         </h2>
         
@@ -277,11 +277,11 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       {streaming && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
-          fontSize: 12, color: 'var(--text-secondary, var(--text-secondary))',
+          fontSize: 12, color: 'var(--text-secondary)',
         }}>
           <span style={{
             width: 8, height: 8, borderRadius: 4,
-            background: 'var(--accent, var(--accent))',
+            background: 'var(--accent)',
             animation: 'pulse 1.2s ease infinite',
           }} />
           Генерирую интерпретацию…
@@ -295,7 +295,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       {/* Error */}
       {error && (
         <div style={{
-          padding: '16px', borderRadius: 10,
+          padding: '16px', borderRadius: 'var(--radius-md)',
           background: 'rgba(239,68,68,0.08)',
           border: '1px solid rgba(239,68,68,0.2)', marginBottom: 12,
         }}>
@@ -303,7 +303,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             {error}
           </p>
           <button onClick={() => start()} style={{
-            marginTop: 10, padding: '6px 16px', borderRadius: 8,
+            marginTop: 10, padding: '6px 16px', borderRadius: 'var(--radius-sm)',
             border: '1px solid rgba(239,68,68,0.4)', background: 'transparent',
             color: 'var(--color-danger)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
@@ -317,7 +317,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <div
           ref={scrollRef}
           style={{
-            fontSize: 14, color: 'var(--text-primary, var(--border))',
+            fontSize: 14, color: 'var(--text-primary)',
             lineHeight: 1.75,
             maxHeight: 'none',
             overflowY: 'visible',
@@ -336,9 +336,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
                 {sec.title && (
                   <h2 style={{
                     fontSize: 17, fontWeight: 700,
-                    color: 'var(--accent, var(--accent))',
+                    color: 'var(--accent)',
                     margin: '0 0 10px',
-                    borderBottom: '1px solid var(--border, var(--bg-card))',
+                    borderBottom: '1px solid var(--border)',
                     paddingBottom: 6,
                   }}>
                     {sec.title}
@@ -351,7 +351,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           {streaming && (
             <span style={{
               display: 'inline-block', width: 7, height: 17,
-              background: 'var(--accent, var(--accent))',
+              background: 'var(--accent)',
               marginLeft: 2, borderRadius: 2,
               animation: 'blink 0.8s step-end infinite',
               verticalAlign: 'text-bottom',
@@ -367,12 +367,12 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <p style={{
           marginTop: 20,
           fontSize: 13,
-          color: 'var(--text-secondary, var(--text-secondary))',
+          color: 'var(--text-secondary)',
           textAlign: 'center',
           lineHeight: 1.6,
         }}>
           {upsell?.text}{' '}
-          <Link to="/pricing" style={{ color: 'var(--accent, var(--accent))', fontWeight: 600, textDecoration: 'none' }}>
+          <Link to="/pricing" style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>
             {upsell?.cta}
           </Link>
         </p>
@@ -384,9 +384,9 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           display: 'flex', alignItems: 'center', gap: 12,
           marginTop: 24,
           padding: '10px 10px 10px 20px',
-          borderRadius: 50,
-          background: 'linear-gradient(135deg, var(--accent), var(--accent))',
-          boxShadow: '0 8px 32px rgba(124,108,255,0.45)',
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--accent)',
+          boxShadow: '0 8px 32px rgba(var(--accent-rgb), 0.45)',
           whiteSpace: 'nowrap',
           cursor: 'pointer',
         }} onClick={onUpgrade}>
@@ -397,7 +397,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           <button
             onClick={onUpgrade}
             style={{
-              padding: '8px 16px', borderRadius: 50, border: 'none',
+              padding: '8px 16px', borderRadius: 'var(--radius-full)', border: 'none',
               background: '#fff', color: 'var(--accent)',
               fontSize: 12, fontWeight: 800,
               cursor: 'pointer', fontFamily: 'inherit',

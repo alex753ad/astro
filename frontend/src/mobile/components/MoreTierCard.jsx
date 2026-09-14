@@ -51,7 +51,7 @@ export default function MoreTierCard({ tier, highlight }) {
         background: 'var(--bg-card)',
         border: `1px solid ${highlight ? 'var(--accent)' : 'var(--border)'}`,
         boxShadow: highlight ? '0 0 0 3px var(--accent-muted)' : 'none',
-        borderRadius: 16,
+        borderRadius: 'var(--radius-lg)',
         padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',

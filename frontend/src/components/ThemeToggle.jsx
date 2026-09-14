@@ -8,7 +8,7 @@ export default function ThemeToggle({ dark, onToggle }) {
       aria-label={dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        width: 36, height: 36, borderRadius: 'var(--radius-md)', flexShrink: 0,
         border: '1px solid var(--border)',
         background: 'var(--bg-deeper)',
         cursor: 'pointer',

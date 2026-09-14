@@ -8,8 +8,8 @@ import { TIER_NAMES } from '../constants';
 
 const VIEWPORT_ONCE = { once: true, margin: '-80px' };
 
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
-const BODY = "'Inter', system-ui, sans-serif";
+const DISPLAY = "var(--font-display)";
+const BODY = "var(--font-body)";
 
 const PRACTICE_FEATURES = [
   'Кабинет астролога: все клиенты, их карты, заметки и история разговоров — в одном месте',
@@ -109,9 +109,9 @@ function OrionOfferModal({ onClose, onActivate }) {
           overflowY: 'auto',
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderRadius: 20,
+          borderRadius: 'var(--radius-xl)',
           padding: 32,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.40)',
+          boxShadow: 'var(--shadow-overlay)',
           fontFamily: BODY,
           color: 'var(--text-primary)',
         }}
@@ -142,7 +142,7 @@ function OrionOfferModal({ onClose, onActivate }) {
           fontWeight: 600,
           letterSpacing: '0.08em',
           padding: '3px 10px',
-          borderRadius: 20,
+          borderRadius: 'var(--radius-xl)',
           marginBottom: 12,
           textTransform: 'uppercase',
           fontFamily: DISPLAY,
@@ -182,7 +182,7 @@ function OrionOfferModal({ onClose, onActivate }) {
             width: '100%',
             padding: 14,
             border: 'none',
-            borderRadius: 12,
+            borderRadius: 'var(--radius-md)',
             background: 'var(--accent)',
             color: '#fff',
             fontSize: 15,
@@ -248,7 +248,7 @@ export default function OrionPage({ currentUser }) {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
-      fontFamily: '"Space Grotesk", system-ui, sans-serif',
+      fontFamily: 'var(--font-display)',
       color: '#1a1230',
     }}>
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 24px 0' }}>
@@ -309,9 +309,9 @@ export default function OrionPage({ currentUser }) {
           whileInView="visible"
           viewport={VIEWPORT_ONCE}
           style={{
-            borderRadius: 20,
-            border: '1px solid rgba(139,92,246,0.15)',
-            boxShadow: '0 12px 40px rgba(0,0,0,0.10)',
+            borderRadius: 'var(--radius-xl)',
+            border: '1px solid rgba(var(--accent-rgb), 0.15)',
+            boxShadow: 'var(--shadow-raised)',
             overflow: 'hidden',
             marginBottom: 20,
           }}
@@ -372,10 +372,10 @@ export default function OrionPage({ currentUser }) {
               whileHover={cardHover}
               style={{
                 flex: isMobile ? '1 1 100%' : '0 1 calc((100% - 32px) / 3)',
-                background: f.highlight ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.6)',
+                background: f.highlight ? 'rgba(var(--accent-rgb), 0.08)' : 'rgba(255,255,255,0.6)',
                 backdropFilter: 'blur(8px)',
-                borderRadius: 16,
-                border: `1px solid ${f.highlight ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.1)'}`,
+                borderRadius: 'var(--radius-lg)',
+                border: `1px solid ${f.highlight ? 'rgba(var(--accent-rgb), 0.2)' : 'rgba(var(--accent-rgb), 0.1)'}`,
                 padding: '24px 20px',
               }}
             >
@@ -400,7 +400,7 @@ export default function OrionPage({ currentUser }) {
               alignItems: 'center',
               gap: 10,
               padding: '16px 36px',
-              borderRadius: 14,
+              borderRadius: 'var(--radius-lg)',
               border: 'none',
               background: '#1a1230',
               color: '#fff',
@@ -410,15 +410,15 @@ export default function OrionPage({ currentUser }) {
               fontFamily: 'inherit',
               letterSpacing: '0.01em',
               transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: '0 4px 20px rgba(26,18,48,0.2)',
+              boxShadow: 'var(--shadow-card)',
             }}
             onMouseEnter={e => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 28px rgba(26,18,48,0.28)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-raised)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(26,18,48,0.2)';
+              e.currentTarget.style.boxShadow = 'var(--shadow-card)';
             }}
           >
             Открыть пространство Аристеи

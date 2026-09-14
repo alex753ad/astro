@@ -37,7 +37,7 @@ export default function ResetPasswordPage() {
   };
 
   const inp = {
-    width: '100%', padding: '11px 14px', borderRadius: 8,
+    width: '100%', padding: '11px 14px', borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--text-primary)', background: 'var(--bg-deeper)',
     color: 'var(--border)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
@@ -45,7 +45,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div style={{ minHeight:'100vh', background:'var(--bg-deeper)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-      <div style={{ background:'var(--bg-card)', border:'1px solid var(--text-primary)', borderRadius:16, padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"'Inter',system-ui,sans-serif" }}>
+      <div style={{ background:'var(--bg-card)', border:'1px solid var(--text-primary)', borderRadius:'var(--radius-lg)', padding:'32px 28px', width:'100%', maxWidth:380, fontFamily:"var(--font-body)" }}>
         {done ? (
           <div style={{ textAlign:'center' }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
 
             {err && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{err}</div>}
 
-            <button onClick={handleSubmit} disabled={loading || !token} style={{ width:'100%', padding:'12px', borderRadius:10, border:'none', background:'linear-gradient(135deg,var(--accent),var(--accent-glow))', color:'#fff', fontWeight:700, fontSize:14, cursor: loading ? 'not-allowed':'pointer', opacity: (loading || !token) ? 0.6:1, fontFamily:'inherit' }}>
+            <button onClick={handleSubmit} disabled={loading || !token} style={{ width:'100%', padding:'12px', borderRadius:'var(--radius-md)', border:'none', background:'linear-gradient(135deg,var(--accent),var(--accent-glow))', color:'#fff', fontWeight:700, fontSize:14, cursor: loading ? 'not-allowed':'pointer', opacity: (loading || !token) ? 0.6:1, fontFamily:'inherit' }}>
               {loading ? 'Сохраняем…' : 'Сохранить пароль'}
             </button>
           </>

@@ -147,7 +147,7 @@ const fbStyles = `
   position:fixed; right:16px; bottom:16px; z-index:9999;
   background:rgba(30,22,50,.92); color:#fff; border:1px solid var(--bg-deeper);
   border-radius:22px; padding:9px 15px; font-size:13px; font-weight:600;
-  cursor:pointer; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.3);
+  cursor:pointer; backdrop-filter:blur(6px); box-shadow:var(--shadow-card);
   bottom:calc(16px + env(safe-area-inset-bottom, 0px));
 }
 .fb-fab:hover{ background:rgba(45,33,74,.98); }
@@ -168,7 +168,7 @@ const fbStyles = `
   position:fixed; right:16px; bottom:16px; z-index:9999; width:300px;
   max-width:calc(100vw - 32px);
   background:var(--bg-card); border:1px solid var(--bg-deeper); border-radius:14px;
-  padding:16px; box-shadow:0 8px 32px rgba(0,0,0,.45);
+  padding:16px; box-shadow:var(--shadow-overlay);
   bottom:calc(16px + env(safe-area-inset-bottom, 0px));
 }
 @media (max-width: 640px){
