@@ -94,7 +94,23 @@ async def claim_pilot(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    row = db.query(PilotToken).filter(PilotToken.token == payload.token).first()
+    # with_for_update() — против гонки двух одновременных claim одного токена
+    # (находка 2.4 аудита 23.08.2026). Без блокировки строки оба запроса читали
+    # used=False, оба проходили проверку ниже и оба выдавали premium: токен
+    # одноразовый по смыслу, но не по исполнению. Блокировка держится до
+    # db.commit() в конце функции — того самого, которым пишется used=True, —
+    # поэтому второй запрос ждёт на этой строке и читает уже used=True.
+    #
+    # ⚠️ На SQLite это НЕ работает и работать не может: диалект FOR UPDATE не
+    # поддерживает и молча его не выдаёт. Тесты проекта ходят в SQLite
+    # (conftest.py), то есть защита проверяется только на Postgres — см.
+    # test_pilot_claim_race.py, он на SQLite пропускается, а не выдаёт зелёное.
+    row = (
+        db.query(PilotToken)
+        .filter(PilotToken.token == payload.token)
+        .with_for_update()
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="invalid_token")
     if row.used:
