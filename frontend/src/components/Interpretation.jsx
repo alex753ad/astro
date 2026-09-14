@@ -317,6 +317,10 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <div
           ref={scrollRef}
           style={{
+            // Тело разбора — антиква (DESIGN_SYSTEM.md §3): это чтение, а не
+            // интерфейс. Стоит на контейнере, а не на каждом абзаце — внутри
+            // рендерятся ещё заголовки секций, и им нужна та же гарнитура.
+            fontFamily: 'var(--font-display)',
             fontSize: 14, color: 'var(--text-primary)',
             lineHeight: 1.75,
             maxHeight: 'none',

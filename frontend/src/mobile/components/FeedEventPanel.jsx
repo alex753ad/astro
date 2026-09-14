@@ -146,7 +146,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.09em',
-              fontFamily: 'var(--font-display)',
+              fontFamily: 'var(--font-body)',
               color: 'var(--text-secondary)',
             }}
           >
@@ -206,7 +206,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
         {/* pre-wrap: секций в транзитном тексте нет, разбирать нечего — это
             проза с переводами строк (см. шапку transitInterpretApi.js). */}
         {text && (
-          <div style={{ fontSize: 14.5, lineHeight: 1.7, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 14.5, lineHeight: 1.7, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
             {text}
           </div>
         )}

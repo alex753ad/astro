@@ -45,7 +45,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
-      fontFamily: 'var(--font-display)',
+      fontFamily: 'var(--font-body)',
       color: '#1a1230',
     }}>
 
@@ -74,6 +74,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         </motion.div>
 
         <motion.h1 variants={heroItem} style={{
+          fontFamily: 'var(--font-display)',
           fontSize: 'clamp(36px, 5vw, 58px)',
           fontWeight: 700,
           lineHeight: 1.15,
@@ -202,6 +203,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         whileInView="visible"
         viewport={VIEWPORT_ONCE}
         style={{
+          fontFamily: 'var(--font-display)',
           fontSize: 'clamp(26px, 3.5vw, 36px)',
           fontWeight: 700,
           lineHeight: 1.2,
@@ -259,6 +261,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             }}
           >
             <div style={{
+              fontFamily: 'var(--font-display)',
               fontWeight: 700,
               fontSize: 15,
               color: '#1a1230',

@@ -698,7 +698,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
         )}
         {error && <div style={{ color: "var(--color-danger)", fontSize: 13 }}>{error}</div>}
         {text && (
-          <div style={{ fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
             {text}
             {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "var(--accent-glow)", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
           </div>
@@ -1181,7 +1181,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   return (
-    <div className="tt-scope" style={{ fontFamily: "var(--font-display)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
+    <div className="tt-scope" style={{ fontFamily: "var(--font-body)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
       <style>{`
         .tt-scope {
           --tt-card: var(--bg-card); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);

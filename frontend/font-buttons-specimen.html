@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кнопки: антиква или Golos Text</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..700&family=Literata:opsz,wght@7..72,400..700&display=swap">
+<style>
+:root{
+  --bg:#FDFBF9; --bg-card:#FFFFFF; --text-primary:#1E1A2E; --text-secondary:#6B6885;
+  --border:#EDE8F5; --accent:#7C6CFF; --accent-rgb:124,108,255;
+  --accent-muted:rgba(var(--accent-rgb),0.08);
+  --radius-md:12px; --radius-lg:16px; --radius-full:9999px;
+  --shadow-card:0 4px 20px rgba(30,26,46,0.10);
+  --display:'Literata',Georgia,serif;
+  --body:'Golos Text',system-ui,sans-serif;
+}
+body{background:var(--bg);color:var(--text-primary);font-family:var(--body);margin:0;}
+.wrap{max-width:1100px;margin:0 auto;padding-block:28px;padding-left:20px;padding-right:20px;}
+h1{font-family:var(--display);font-size:24px;font-weight:600;margin:0 0 6px;}
+.lede{font-size:13.5px;color:var(--text-secondary);line-height:1.55;max-width:66ch;margin:0 0 22px;}
+.pair{display:grid;gap:20px;grid-template-columns:1fr;margin:0 0 26px;}
+@media(min-width:860px){.pair{grid-template-columns:1fr 1fr;}}
+.col{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
+     padding:18px;box-shadow:var(--shadow-card);min-width:0;}
+.col h2{font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:.07em;
+        text-transform:uppercase;color:var(--text-secondary);margin:0 0 4px;}
+.col .note{font-size:12px;color:var(--text-secondary);margin:0 0 16px;line-height:1.5;}
+.a .tag{color:var(--accent);font-weight:600;}
+
+/* кнопки — единственное, что различается между колонками */
+.a .btn,.a .btn-sec,.a .btn-ghost,.a .chip-btn{font-family:var(--display);font-weight:700;}
+.b .btn,.b .btn-sec,.b .btn-ghost,.b .chip-btn{font-family:var(--body);font-weight:600;}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;
+     border:0;border-radius:var(--radius-full);background:var(--accent);color:#fff;font-size:15px;cursor:pointer;}
+.btn-sec{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;
+     border:1.5px solid var(--accent);border-radius:var(--radius-full);background:transparent;
+     color:var(--accent);font-size:15px;cursor:pointer;}
+.btn-ghost{border:0;background:transparent;color:var(--accent);font-size:14px;cursor:pointer;padding:8px 4px;}
+.chip-btn{height:36px;padding:0 14px;border:1px solid var(--border);border-radius:var(--radius-full);
+     background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;}
+.sect{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-secondary);
+      margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.sect:first-of-type{margin-top:0;}
+
+/* контекст: кнопка внутри карточки, рядом с заголовком-антиквой */
+.card{border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;}
+.card .title{font-family:var(--display);font-size:18px;font-weight:600;margin:0 0 4px;line-height:1.25;}
+.card .sub{font-size:12.5px;color:var(--text-secondary);margin:0 0 12px;}
+.tabbar{display:flex;border-top:1px solid var(--border);margin-top:14px;padding-top:10px;gap:4px;}
+.tabbar span{flex:1;text-align:center;font-family:var(--body);font-size:11px;font-weight:600;color:var(--text-secondary);}
+.tabbar span.on{color:var(--accent);}
+.foot{font-size:12.5px;color:var(--text-secondary);line-height:1.6;max-width:80ch;margin:26px 0 0;}
+.foot b{color:var(--text-primary);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Кнопки: антиква или Golos Text</h1>
+<p class="lede">Слева — как сейчас в коде: кнопки берут <code>--font-display</code>, и после смены пары это Literata, вес 700. Справа — то, чего требует §3 дизайн-системы: кнопки уходят в Golos Text, вес 600. Различаются ТОЛЬКО кнопки; заголовки, подписи и таб-бар в обеих колонках одинаковые.</p>
+
+<div class="pair">
+
+  <div class="col a">
+    <h2>До — <span class="tag">антиква, вес 700</span></h2>
+    <p class="note">Ничего не меняем. Кнопка набрана тем же шрифтом, что и заголовок карточки.</p>
+
+    <p class="sect">Основные</p>
+    <div class="row">
+      <button class="btn">Построить карту</button>
+      <button class="btn-sec">Открыть разбор</button>
+    </div>
+    <div class="row">
+      <button class="btn-ghost">Показать ещё</button>
+      <button class="chip-btn">Планеты</button>
+      <button class="chip-btn">Дома</button>
+      <button class="chip-btn">Аспекты</button>
+    </div>
+
+    <p class="sect">В контексте карточки</p>
+    <div class="card">
+      <p class="title">Сатурн входит в четвёртый дом</p>
+      <p class="sub">окно около недели · убывающая Луна</p>
+      <button class="btn">Открыть разбор</button>
+      <div class="tabbar"><span class="on">Лента</span><span>Карта</span><span>Ещё</span></div>
+    </div>
+  </div>
+
+  <div class="col b">
+    <h2>После — <span class="tag">Golos Text, вес 600</span></h2>
+    <p class="note">Кнопка читается как интерфейс, а не как продолжение заголовка.</p>
+
+    <p class="sect">Основные</p>
+    <div class="row">
+      <button class="btn">Построить карту</button>
+      <button class="btn-sec">Открыть разбор</button>
+    </div>
+    <div class="row">
+      <button class="btn-ghost">Показать ещё</button>
+      <button class="chip-btn">Планеты</button>
+      <button class="chip-btn">Дома</button>
+      <button class="chip-btn">Аспекты</button>
+    </div>
+
+    <p class="sect">В контексте карточки</p>
+    <div class="card">
+      <p class="title">Сатурн входит в четвёртый дом</p>
+      <p class="sub">окно около недели · убывающая Луна</p>
+      <button class="btn">Открыть разбор</button>
+      <div class="tabbar"><span class="on">Лента</span><span>Карта</span><span>Ещё</span></div>
+    </div>
+  </div>
+
+</div>
+
+<p class="foot">
+<b>Что тут решается.</b> Не «какой шрифт красивее», а где проходит граница между чтением и управлением. В левой колонке заголовок карточки и кнопка под ним набраны одинаково — карточка выглядит цельной, но кнопка перестаёт выделяться как то, что можно нажать. В правой кнопка отделена от заголовка гарнитурой, и таб-бар внизу с ней согласован: он уже Golos Text в обеих колонках, потому что навигация — это интерфейс без вариантов.<br><br>
+<b>Вес тоже меняется, и это часть вопроса.</b> 700 у антиквы и 600 у гротеска — не произвол: у Literata на 15px вес 600 выглядит бледно для кнопки, а у Golos Text 700 на плашке уже перетяжелён. Сравнивать надо пары целиком, а не шрифт при одинаковом весе.<br><br>
+<b>Правая колонка — единственный вариант, при котором §3 выполняется буквально.</b> Левая оставляет одно сознательное исключение из правила «антиква только заголовки и тело интерпретаций»; исключение допустимо, но его придётся записать, иначе следующая правка «приведёт кнопки в соответствие» и сотрёт решение.
+</p>
+
+</div>
+</body>
+</html>

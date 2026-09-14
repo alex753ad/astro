@@ -125,70 +125,117 @@ import astroSymbols2Src from '../assets/fonts/NotoSansSymbols2-subset.woff2?inli
 
 ---
 
-# UI-шрифты мобильной сборки — Space Grotesk / Inter (сабсет по начертаниям)
+# UI-шрифты — Literata / Golos Text (переменные, сабсет по языку)
 
-`SpaceGrotesk-600.woff2`, `SpaceGrotesk-700.woff2`,
-`Inter-{400,500,600}-{cyrillic,latin}.woff2` — используются
-`frontend/src/mobile/` (Capacitor-приложение) через `@font-face` в
-`frontend/src/mobile/fonts.css`.
+`Literata-{cyrillic,latin}.woff2`, `GolosText-{cyrillic,latin}.woff2` —
+подключаются `@font-face` в `frontend/src/mobile/mobile.css` (приложение).
+Веб те же гарнитуры тянет с `fonts.googleapis.com` через `<link>` в
+`index.html`.
+
+**Четыре файла, а не восемь.** Обе гарнитуры переменные по весу, поэтому на
+семейство нужен один файл на языковой сабсет. Прежняя пара занимала восемь
+файлов (Inter в трёх начертаниях × два сабсета + Space Grotesk в двух).
 
 ## Зачем локально, а не как в вебе
 
-Веб (`index.html`) подключает оба шрифта с `fonts.googleapis.com` —
-`<link rel="preconnect">` + `<link rel="stylesheet" href="...css2?family=...">`.
-Мобильное приложение открывается из `file://`/`https://localhost` и обязано
-работать без сети сразу после установки (см. `CAPACITOR.md`) — внешний
-`<link>` на Google Fonts недопустим тем же способом, каким недопустим
-инлайновый `<script>` в `index.html` (см. комментарий там же). Поэтому здесь
-— не ссылка, а сами файлы, byte-for-byte из официального источника, тем же
-способом, каким уже собраны сабсеты Noto Sans Symbols выше.
+Приложение открывается из `file://`/`https://localhost` и обязано работать
+без сети сразу после установки (`CAPACITOR.md`) — внешний `<link>` на Google
+Fonts недопустим тем же способом, каким недопустим инлайновый `<script>` в
+`index.html`. Поэтому здесь не ссылка, а сами файлы — как и сабсеты Noto Sans
+Symbols выше.
+
+## Почему Literata и почему не две другие
+
+Решение владельца 14.09.2026 по образцу на реальном тексте приложения
+(`frontend/font-specimen.html` — открыть в браузере; снимки не
+коммитились). Полная запись — `DESIGN_SYSTEM.md` §3,
+здесь коротко, потому что спрашивают обычно у файлов шрифтов:
+
+* **Literata** держит заголовок дня ленты на **13px** — сегодняшнем размере
+  из `FeedDayHeader.jsx` — не теряя читаемости, и даёт плотную ровную строку
+  на длинном русском абзаце.
+* **Cormorant отклонён:** низкий рост строчных. При равном кегле мельче
+  примерно на два пункта — абзац на 16px читается как 14px. Принять его
+  значило бы поднимать кегли по всей ленте, то есть менять вёрстку ради
+  шрифта. ⚠️ Это тот отказ, который тянет пересмотреть словами «он же
+  красивее»: красивее он на витрине, а не на 13px в плотном списке.
+* **Source Serif 4 отклонён:** ширина строки. Тот же абзац занимает заметно
+  больше строк — на ширине телефона это лишняя прокрутка на каждой
+  интерпретации.
+
+⚠️ **Space Grotesk ушёл не по вкусу.** Кириллицы у него нет вовсе — Google
+отдаёт три сабсета (`latin`, `latin-ext`, `vietnamese`). Русский заголовок
+всегда проваливался на следующий шрифт стека: на вебе в системный, в
+приложении в Inter. То есть выбранного display-шрифта русский пользователь
+не видел никогда. **Требование к любому будущему кандидату на display:
+кириллица проверяется до всего остального.**
+
+## ⚠️ Ось `opsz` у Literata удалена физически — это намеренно
+
+У исходной Literata **две** переменные оси: `wght` 400–900 и `opsz`
+(оптический размер) 7–72. В лежащих здесь файлах оси `opsz` НЕТ — она
+инстансирована в значение **14** при подготовке (команда ниже).
+
+Причина: поведение `font-optical-sizing` в Android WebView проверить на
+устройстве не удалось, а цена ошибки несимметрична. Ось, молча ушедшая в
+крайнее значение (7 или 72), меняет рисунок шрифта **на всех экранах
+разом** — и выглядит это не как поломка, а как «шрифт какой-то не такой».
+Искать причину в оси оптического размера никто не станет.
+
+Поэтому ось не настроена, а **удалена**: значения, которого нет в файле,
+не может выбрать ни браузер, ни WebView, ни будущая правка CSS. Это сильнее
+`font-optical-sizing: none`, который полагается на то, что движок его
+уважает.
+
+Значение 14 выбрано по нашим кеглям: display-шрифт работает на 13–28px
+(на вебе ещё hero до 58px), 14 — середина основного диапазона. Если
+понадобится другое — переинстансировать файл, а не добавлять CSS-правило.
 
 ## Источник и как перекачать заново
 
-Файлы взяты из npm-пакетов `@fontsource/space-grotesk@5.3.0` и
-`@fontsource/inter@5.3.0` (`node_modules/@fontsource/*/files/*.woff2` после
-`npm install @fontsource/space-grotesk @fontsource/inter`, пакеты после
-копирования удалены — они нужны были только как источник файлов, не как
-зависимость времени сборки). Fontsource публикует те же файлы, что отдаёт
-`fonts.gstatic.com`, с тем же байткодом — распаковка их npm-пакета проще и
-воспроизводимее, чем ручной `curl` по `fonts.googleapis.com/css2`.
+Файлы — сабсеты `cyrillic` и `latin` с `fonts.gstatic.com`, после чего
+`opsz` инстансирована, а `wght` обрезана до 400–700 (веса выше 700 в
+проекте не используются, а диапазон 400–900 весит больше).
 
-## Почему не все начертания и не все сабсеты Google-версии
+```bash
+python - <<'EOF'
+import re, urllib.request
+from fontTools.ttLib import TTFont
+from fontTools.varLib import instancer
 
-Google Fonts на вебе грузит Space Grotesk `400;500;600;700` и Inter
-`400;500;600` — калька с `index.html`. Мобильный экран входа использует
-только то, что реально требует DESIGN_SYSTEM.md для заголовков/кнопок
-(`text-lg`+, `font-weight: 600–700`) и текста (`text-base`, `400`; подписи
-полей, `text-xs` — тоже 700, но уже покрыто); `500` для Inter взят с запасом
-под будущие экраны, не используется сегодняшним экраном входа впрямую.
-Тянуть весь набор весов ради двух экранов — лишний вес в офлайн-бандл без
-видимого эффекта.
+UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                    'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'}
+URL = ("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..600"
+       "&family=Literata:opsz,wght@7..72,400..600&display=swap")
+css = urllib.request.urlopen(urllib.request.Request(URL, headers=UA)).read().decode()
+names = {'Golos Text': 'GolosText', 'Literata': 'Literata'}
 
-Сабсеты — по языку глифов, а не «как у Google»: **Inter** взят в
-`cyrillic` + `latin` (UI полностью на русском, плюс email/версия — латиница).
-**Space Grotesk** взят только в `latin` — **у него нет кириллического
-покрытия вовсе** (`metadata.json` пакета: `"subsets": ["latin", "latin-ext",
-"vietnamese"]`). Это не ограничение сабсетирования, а факт исходного шрифта:
-то же самое уже происходит и в вебе — `font-family: 'Space Grotesk', ...` на
-русском тексте молча не находит ни одного кириллического глифа и рендерится
-шрифтом, стоящим в стеке следующим. Стек в `mobile/fonts.css` — намеренно
-`'Space Grotesk', 'Inter', system-ui, sans-serif` (не как в `index.css`,
-где после Space Grotesk сразу `system-ui`): для кириллицы это даёт
-последовательный Inter вместо шрифта ОС, ближе по рисунку к дизайн-системе.
-Латиница (сам бренд «Aristea Timeline», версия сборки) рендерится Space
-Grotesk по-настоящему.
+for sub, block in re.findall(r"/\* ([a-z-]+) \*/\s*@font-face \{(.*?)\}", css, re.S):
+    if sub not in ('cyrillic', 'latin'):
+        continue
+    fam = re.search(r"font-family: '([^']+)'", block).group(1)
+    url = re.search(r'url\((https://[^)]+)\)', block).group(1)
+    data = urllib.request.urlopen(urllib.request.Request(url, headers=UA)).read()
+    path = f"{names[fam]}-{sub}.woff2"
+    open(path, 'wb').write(data)
+
+    f = TTFont(path)
+    limits = {'wght': (400, 700)}
+    if any(a.axisTag == 'opsz' for a in f['fvar'].axes):
+        limits['opsz'] = 14           # см. раздел про opsz выше
+    f = instancer.instantiateVariableFont(f, limits, inplace=False)
+    f.flavor = 'woff2'
+    f.save(path)
+EOF
+```
+
+Нужен `fontTools` с поддержкой brotli (`pip install fonttools brotli`).
+После перекачки сверить `unicode-range` в `mobile/mobile.css` с теми, что
+отдаёт CSS Google: они задают, какой файл когда скачивается, и разъехавшись,
+заставят тянуть латинский сабсет на русской странице.
 
 ## Лицензия
 
-SIL Open Font License 1.1 для обоих — `OFL-SpaceGrotesk.txt` (Copyright 2020
-The Space Grotesk Project Authors) и `OFL-Inter.txt` (Copyright 2020 The
-Inter Project Authors). Тексты — из тех же npm-пакетов.
-
-## Пересборка (другие веса/сабсеты)
-
-```bash
-npm install @fontsource/space-grotesk@5 @fontsource/inter@5
-# нужные файлы лежат в node_modules/@fontsource/<name>/files/
-#   <name>-<subset>-<weight>-normal.woff2
-npm uninstall @fontsource/space-grotesk @fontsource/inter
-```
+SIL Open Font License 1.1 для обеих — `OFL-Literata.txt` (Copyright 2017 The
+Literata Project Authors) и `OFL-GolosText.txt` (Copyright 2019 The Golos
+Text Project Authors). Тексты — из репозитория `google/fonts`.

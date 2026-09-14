@@ -248,7 +248,7 @@ export default function OrionPage({ currentUser }) {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
-      fontFamily: 'var(--font-display)',
+      fontFamily: 'var(--font-body)',
       color: '#1a1230',
     }}>
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 24px 0' }}>

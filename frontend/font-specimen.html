@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Образец: антиква + Golos Text</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;600&family=Golos+Text:wght@400;500;600&family=Inter:wght@400;500;600&family=Literata:opsz,wght@7..72,400;7..72,600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Space+Grotesk:wght@600;700&display=swap">
+<style>
+:root{
+  --bg:#FDFBF9; --bg-card:#FFFFFF; --text-primary:#1E1A2E; --text-secondary:#6B6885;
+  --border:#EDE8F5; --accent:#7C6CFF; --accent-rgb:124,108,255;
+  --accent-muted:rgba(var(--accent-rgb),0.08);
+  --radius-md:12px; --radius-lg:16px; --radius-full:9999px;
+  --shadow-card:0 4px 20px rgba(30,26,46,0.10);
+  --ui:'Golos Text',system-ui,sans-serif;
+}
+body{background:var(--bg);color:var(--text-primary);font-family:var(--ui);margin:0;}
+.wrap{max-width:1400px;margin:0 auto;padding-block:28px;padding-left:20px;padding-right:20px;}
+h1{font-family:var(--ui);font-size:20px;font-weight:600;margin:0 0 6px;}
+.lede{font-size:13.5px;color:var(--text-secondary);line-height:1.55;max-width:60ch;margin:0 0 18px;}
+.rule{border:1px solid var(--border);border-left:3px solid var(--accent);background:var(--bg-card);
+      border-radius:var(--radius-md);padding:12px 14px;font-size:13px;line-height:1.55;
+      max-width:72ch;margin:0 0 26px;}
+.rule b{font-weight:600;}
+.grid{display:grid;gap:22px;grid-template-columns:1fr;}
+@media(min-width:920px){.grid{grid-template-columns:repeat(4,minmax(0,1fr));}}
+.col{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
+     padding:16px 16px 20px;box-shadow:var(--shadow-card);min-width:0;}
+.col.control{background:#FAF8F6;box-shadow:none;}
+.name{font-family:var(--ui);font-size:15px;font-weight:600;margin:0 0 2px;}
+.meta{font-family:var(--ui);font-size:11.5px;color:var(--text-secondary);margin:0 0 16px;line-height:1.45;}
+.sect{font-family:var(--ui);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--text-secondary);margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.sect:first-of-type{margin-top:0;}
+
+/* ---- антиква назначается ТОЛЬКО этим ролям ---- */
+.serif-head{font-weight:600;margin:0;line-height:1.25;}
+.serif-body{font-weight:400;font-size:16px;line-height:1.62;margin:0 0 12px;}
+.c-lit .serif-head,.c-lit .serif-body{font-family:'Literata',Georgia,serif;}
+.c-src .serif-head,.c-src .serif-body{font-family:'Source Serif 4',Georgia,serif;}
+.c-cor .serif-head,.c-cor .serif-body{font-family:'Cormorant',Georgia,serif;}
+.control .serif-head{font-family:'Space Grotesk',system-ui,sans-serif;font-weight:700;}
+.control .serif-body{font-family:'Inter',system-ui,sans-serif;}
+.control .tbl,.control .chip,.control .btn,.control .evt-sub,.control .day-note,
+.control .axis,.control .sect,.control .name,.control .meta{font-family:'Inter',system-ui,sans-serif;}
+
+/* ---- заголовок дня в ленте: три кегля ---- */
+.day{color:var(--text-secondary);padding:9px 0 7px;border-bottom:1px solid var(--border);}
+.day.s13{font-size:13px;} .day.s15{font-size:15px;} .day.s16{font-size:16px;}
+.day-note{font-family:var(--ui);font-size:10px;color:var(--accent);margin:2px 0 10px;letter-spacing:.02em;}
+
+/* ---- карточка события ленты ---- */
+.evt{border:1px solid var(--border);border-radius:var(--radius-md);padding:11px 12px;margin:0 0 9px;}
+.evt-title{font-size:18px;font-weight:600;line-height:1.25;margin:0 0 3px;}
+.evt-sub{font-family:var(--ui);font-size:12px;color:var(--text-secondary);margin:0;}
+
+/* ---- таблица градусов: всегда Golos Text, табличные цифры ---- */
+.tbl{font-family:var(--ui);width:100%;border-collapse:collapse;font-size:13px;
+     font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;}
+.tbl th{font-weight:500;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+        color:var(--text-secondary);text-align:left;padding:0 6px 6px 0;border-bottom:1px solid var(--border);}
+.tbl td{padding:6px 6px 6px 0;border-bottom:1px solid var(--border);white-space:nowrap;}
+.tbl .r{color:var(--accent);font-size:11px;font-weight:600;}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
+.chip{font-family:var(--ui);font-size:12px;font-weight:500;padding:4px 10px;border-radius:var(--radius-full);
+      background:var(--accent-muted);color:var(--accent);}
+.chip.plain{background:#F3F1F7;color:var(--text-secondary);}
+.btn{font-family:var(--ui);font-size:14px;font-weight:600;color:#fff;background:var(--accent);
+     border:0;border-radius:var(--radius-full);padding:10px 18px;cursor:pointer;}
+.axis{font-family:var(--ui);display:flex;justify-content:space-between;font-size:10.5px;
+      color:var(--text-secondary);margin-top:8px;font-variant-numeric:tabular-nums;}
+.foot{font-size:12.5px;color:var(--text-secondary);line-height:1.6;max-width:78ch;margin:30px 0 0;}
+.foot b{color:var(--text-primary);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Образец шрифтовой пары — путь B</h1>
+<p class="lede">Один и тот же реальный текст приложения в трёх антиквах плюс контрольная колонка с тем, что стоит сегодня. Интерфейсная часть везде — Golos Text (кириллица 21,5 КБ). Числа набраны табличными цифрами. Вес кириллических сабсетов замерен скачиванием с серверов Google, не оценён.</p>
+
+<div class="rule">
+<b>Ограничение образца.</b> Антиква — только заголовок дня, заголовок события и тело интерпретации. Чипы, подписи осей, таблица градусов, кнопки и навигация везде Golos Text. Если антиква уедет туда, станет хуже, чем сейчас.<br>
+<b>Астрологические значки</b> (♃ ♄ ☉ ☽) в образце намеренно не показаны: их рисует отдельный сабсет Noto Sans Symbols, и он остаётся при любом выборе.
+</div>
+
+<div class="grid">
+
+<!-- ============ LITERATA ============ -->
+<div class="col c-lit">
+  <p class="name">Literata</p>
+  <p class="meta">TypeTogether · OFL · переменная, opsz 7–72 · <b>кириллица 46,9 КБ</b> одним файлом на все начертания</p>
+
+  <p class="sect">Заголовок дня — 13 / 15 / 16px</p>
+  <div class="serif-head day s13">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">13px — как сейчас в FeedDayHeader.jsx</p>
+  <div class="serif-head day s15">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">15px</p>
+  <div class="serif-head day s16">16 сентября, вторник</div>
+  <p class="day-note">16px</p>
+
+  <p class="sect">Карточка события</p>
+  <div class="evt">
+    <p class="serif-head evt-title">Сатурн входит в четвёртый дом</p>
+    <p class="evt-sub">окно около недели · убывающая Луна</p>
+  </div>
+
+  <p class="sect">Тело интерпретации — 16px</p>
+  <p class="serif-body">Солнце в Деве наделяет вас аналитическим умом и стремлением к совершенству. Вы замечаете детали, которые другие упускают, и обладаете природным даром служения. Эта позиция даёт редкое сочетание практичности и внутренней требовательности к себе: вы редко довольствуетесь приблизительным результатом и почти всегда видите, где работу можно было сделать чище.</p>
+  <p class="serif-body">Луна в Рыбах смягчает эту строгость. Там, где Солнце требует порядка, Луна просит сочувствия — и внутренний спор между «сделать правильно» и «пожалеть» будет сопровождать вас в близких отношениях. Транзит Сатурна по четвёртому дому усилит вопрос о доме и опоре: это не про жильё, а про то, на что вы опираетесь, когда опереться не на кого.</p>
+
+  <p class="sect">Таблица градусов — Golos Text</p>
+  <table class="tbl">
+    <tr><th>Планета</th><th>Знак</th><th>Градус</th><th>Дом</th></tr>
+    <tr><td>Солнце</td><td>Дева</td><td>21° 47′ 03″</td><td>10</td></tr>
+    <tr><td>Луна</td><td>Рыбы</td><td>4° 12′ 58″</td><td>4</td></tr>
+    <tr><td>Меркурий</td><td>Весы</td><td>8° 05′ 21″</td><td>11</td></tr>
+    <tr><td>Венера</td><td>Лев</td><td>26° 33′ 10″</td><td>9</td></tr>
+    <tr><td>Сатурн <span class="r">R</span></td><td>Рыбы</td><td>17° 58′ 36″</td><td>4</td></tr>
+  </table>
+  <div class="axis"><span>13.09 вс 20:41</span><span>16.09 ср 15:42</span></div>
+
+  <p class="sect">Чипы и кнопка — Golos Text</p>
+  <div class="chips"><span class="chip">Дева</span><span class="chip">4 дом</span><span class="chip plain">точный</span><span class="chip plain">убывающая</span><span class="chip plain">6 мес</span></div>
+  <button class="btn">Открыть разбор</button>
+</div>
+
+<!-- ============ SOURCE SERIF 4 ============ -->
+<div class="col c-src">
+  <p class="name">Source Serif 4</p>
+  <p class="meta">Adobe · OFL · переменная, opsz 8–60 · <b>кириллица 91,2 КБ</b> — две оси, отсюда вес</p>
+
+  <p class="sect">Заголовок дня — 13 / 15 / 16px</p>
+  <div class="serif-head day s13">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">13px — как сейчас в FeedDayHeader.jsx</p>
+  <div class="serif-head day s15">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">15px</p>
+  <div class="serif-head day s16">16 сентября, вторник</div>
+  <p class="day-note">16px</p>
+
+  <p class="sect">Карточка события</p>
+  <div class="evt">
+    <p class="serif-head evt-title">Сатурн входит в четвёртый дом</p>
+    <p class="evt-sub">окно около недели · убывающая Луна</p>
+  </div>
+
+  <p class="sect">Тело интерпретации — 16px</p>
+  <p class="serif-body">Солнце в Деве наделяет вас аналитическим умом и стремлением к совершенству. Вы замечаете детали, которые другие упускают, и обладаете природным даром служения. Эта позиция даёт редкое сочетание практичности и внутренней требовательности к себе: вы редко довольствуетесь приблизительным результатом и почти всегда видите, где работу можно было сделать чище.</p>
+  <p class="serif-body">Луна в Рыбах смягчает эту строгость. Там, где Солнце требует порядка, Луна просит сочувствия — и внутренний спор между «сделать правильно» и «пожалеть» будет сопровождать вас в близких отношениях. Транзит Сатурна по четвёртому дому усилит вопрос о доме и опоре: это не про жильё, а про то, на что вы опираетесь, когда опереться не на кого.</p>
+
+  <p class="sect">Таблица градусов — Golos Text</p>
+  <table class="tbl">
+    <tr><th>Планета</th><th>Знак</th><th>Градус</th><th>Дом</th></tr>
+    <tr><td>Солнце</td><td>Дева</td><td>21° 47′ 03″</td><td>10</td></tr>
+    <tr><td>Луна</td><td>Рыбы</td><td>4° 12′ 58″</td><td>4</td></tr>
+    <tr><td>Меркурий</td><td>Весы</td><td>8° 05′ 21″</td><td>11</td></tr>
+    <tr><td>Венера</td><td>Лев</td><td>26° 33′ 10″</td><td>9</td></tr>
+    <tr><td>Сатурн <span class="r">R</span></td><td>Рыбы</td><td>17° 58′ 36″</td><td>4</td></tr>
+  </table>
+  <div class="axis"><span>13.09 вс 20:41</span><span>16.09 ср 15:42</span></div>
+
+  <p class="sect">Чипы и кнопка — Golos Text</p>
+  <div class="chips"><span class="chip">Дева</span><span class="chip">4 дом</span><span class="chip plain">точный</span><span class="chip plain">убывающая</span><span class="chip plain">6 мес</span></div>
+  <button class="btn">Открыть разбор</button>
+</div>
+
+<!-- ============ CORMORANT ============ -->
+<div class="col c-cor">
+  <p class="name">Cormorant</p>
+  <p class="meta">Christian Thalmann · OFL · переменная по весу · <b>кириллица 21,5 КБ</b></p>
+
+  <p class="sect">Заголовок дня — 13 / 15 / 16px</p>
+  <div class="serif-head day s13">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">13px — как сейчас в FeedDayHeader.jsx</p>
+  <div class="serif-head day s15">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">15px</p>
+  <div class="serif-head day s16">16 сентября, вторник</div>
+  <p class="day-note">16px</p>
+
+  <p class="sect">Карточка события</p>
+  <div class="evt">
+    <p class="serif-head evt-title">Сатурн входит в четвёртый дом</p>
+    <p class="evt-sub">окно около недели · убывающая Луна</p>
+  </div>
+
+  <p class="sect">Тело интерпретации — 16px</p>
+  <p class="serif-body">Солнце в Деве наделяет вас аналитическим умом и стремлением к совершенству. Вы замечаете детали, которые другие упускают, и обладаете природным даром служения. Эта позиция даёт редкое сочетание практичности и внутренней требовательности к себе: вы редко довольствуетесь приблизительным результатом и почти всегда видите, где работу можно было сделать чище.</p>
+  <p class="serif-body">Луна в Рыбах смягчает эту строгость. Там, где Солнце требует порядка, Луна просит сочувствия — и внутренний спор между «сделать правильно» и «пожалеть» будет сопровождать вас в близких отношениях. Транзит Сатурна по четвёртому дому усилит вопрос о доме и опоре: это не про жильё, а про то, на что вы опираетесь, когда опереться не на кого.</p>
+
+  <p class="sect">Таблица градусов — Golos Text</p>
+  <table class="tbl">
+    <tr><th>Планета</th><th>Знак</th><th>Градус</th><th>Дом</th></tr>
+    <tr><td>Солнце</td><td>Дева</td><td>21° 47′ 03″</td><td>10</td></tr>
+    <tr><td>Луна</td><td>Рыбы</td><td>4° 12′ 58″</td><td>4</td></tr>
+    <tr><td>Меркурий</td><td>Весы</td><td>8° 05′ 21″</td><td>11</td></tr>
+    <tr><td>Венера</td><td>Лев</td><td>26° 33′ 10″</td><td>9</td></tr>
+    <tr><td>Сатурн <span class="r">R</span></td><td>Рыбы</td><td>17° 58′ 36″</td><td>4</td></tr>
+  </table>
+  <div class="axis"><span>13.09 вс 20:41</span><span>16.09 ср 15:42</span></div>
+
+  <p class="sect">Чипы и кнопка — Golos Text</p>
+  <div class="chips"><span class="chip">Дева</span><span class="chip">4 дом</span><span class="chip plain">точный</span><span class="chip plain">убывающая</span><span class="chip plain">6 мес</span></div>
+  <button class="btn">Открыть разбор</button>
+</div>
+
+<!-- ============ КОНТРОЛЬ ============ -->
+<div class="col control">
+  <p class="name">Контроль — как сейчас</p>
+  <p class="meta">Space Grotesk без кириллицы → системный шрифт · тело Inter (кириллица 18,3 КБ). Ровно то, что видит русский пользователь сегодня.</p>
+
+  <p class="sect">Заголовок дня — 13 / 15 / 16px</p>
+  <div class="serif-head day s13">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">13px — как сейчас в FeedDayHeader.jsx</p>
+  <div class="serif-head day s15">Сегодня · 14 сентября, воскресенье</div>
+  <p class="day-note">15px</p>
+  <div class="serif-head day s16">16 сентября, вторник</div>
+  <p class="day-note">16px</p>
+
+  <p class="sect">Карточка события</p>
+  <div class="evt">
+    <p class="serif-head evt-title">Сатурн входит в четвёртый дом</p>
+    <p class="evt-sub">окно около недели · убывающая Луна</p>
+  </div>
+
+  <p class="sect">Тело интерпретации — 16px</p>
+  <p class="serif-body">Солнце в Деве наделяет вас аналитическим умом и стремлением к совершенству. Вы замечаете детали, которые другие упускают, и обладаете природным даром служения. Эта позиция даёт редкое сочетание практичности и внутренней требовательности к себе: вы редко довольствуетесь приблизительным результатом и почти всегда видите, где работу можно было сделать чище.</p>
+  <p class="serif-body">Луна в Рыбах смягчает эту строгость. Там, где Солнце требует порядка, Луна просит сочувствия — и внутренний спор между «сделать правильно» и «пожалеть» будет сопровождать вас в близких отношениях. Транзит Сатурна по четвёртому дому усилит вопрос о доме и опоре: это не про жильё, а про то, на что вы опираетесь, когда опереться не на кого.</p>
+
+  <p class="sect">Таблица градусов — Inter</p>
+  <table class="tbl">
+    <tr><th>Планета</th><th>Знак</th><th>Градус</th><th>Дом</th></tr>
+    <tr><td>Солнце</td><td>Дева</td><td>21° 47′ 03″</td><td>10</td></tr>
+    <tr><td>Луна</td><td>Рыбы</td><td>4° 12′ 58″</td><td>4</td></tr>
+    <tr><td>Меркурий</td><td>Весы</td><td>8° 05′ 21″</td><td>11</td></tr>
+    <tr><td>Венера</td><td>Лев</td><td>26° 33′ 10″</td><td>9</td></tr>
+    <tr><td>Сатурн <span class="r">R</span></td><td>Рыбы</td><td>17° 58′ 36″</td><td>4</td></tr>
+  </table>
+  <div class="axis"><span>13.09 вс 20:41</span><span>16.09 ср 15:42</span></div>
+
+  <p class="sect">Чипы и кнопка — Inter</p>
+  <div class="chips"><span class="chip">Дева</span><span class="chip">4 дом</span><span class="chip plain">точный</span><span class="chip plain">убывающая</span><span class="chip plain">6 мес</span></div>
+  <button class="btn">Открыть разбор</button>
+</div>
+
+</div>
+
+<p class="foot">
+<b>На что смотреть.</b> Заголовок дня на 13px — это сегодняшний размер; вопрос в том, читается ли на нём антиква вообще, или её придётся поднимать до 15–16px, а это уже правка вёрстки ленты, а не только шрифта. Длинный абзац смотреть на цвет строки: не рябит ли, не слишком ли светлая для светлой темы. Заголовок события на 18px внутри плотного списка — единственное место, где ограничение «антиква только заголовки» спорно: формально это заголовок, фактически он стоит в потоке карточек.<br><br>
+<b>Контрольная колонка</b> набрана системным шрифтом там, где в коде стоит Space Grotesk — это не приближение, а точное воспроизведение: кириллицы у него нет, и текст проваливается на системный. Поэтому контроль выглядит так же, как приложение сегодня.
+</p>
+
+</div>
+</body>
+</html>

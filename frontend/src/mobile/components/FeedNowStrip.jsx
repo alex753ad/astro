@@ -128,7 +128,7 @@ function Chip({ event, active, onClick }) {
       <span style={{ ...glyphStyle, fontSize: 17 }}>{glyph(meta.planet)}</span>
       {/* «11 дом», без слова «дом» во второй строке места не хватает на
           узком экране — пять чипов делят ширину поровну (§12.3). */}
-      <span style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600, whiteSpace: 'nowrap' }}>
         {meta.house} дом
       </span>
     </button>
@@ -265,7 +265,7 @@ export default function FeedNowStrip({ events, today, onUpgrade, onHelp, chipsRe
               fontWeight: 700,
               letterSpacing: '0.09em',
               textTransform: 'uppercase',
-              fontFamily: 'var(--font-display)',
+              fontFamily: 'var(--font-body)',
               color: 'var(--text-secondary)',
             }}
           >

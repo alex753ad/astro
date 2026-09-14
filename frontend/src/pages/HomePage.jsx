@@ -57,7 +57,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, var(--accent-muted) 0%, var(--accent-muted) 20%, var(--accent-muted) 45%, var(--accent-muted) 70%, var(--accent-muted) 100%)',
-      fontFamily: 'var(--font-display)',
+      fontFamily: 'var(--font-body)',
       padding: '32px 24px 60px',
     }}>
       <script
