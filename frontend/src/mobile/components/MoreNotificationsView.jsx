@@ -89,6 +89,33 @@ function ToggleRow({ label, hint, on, onToggle }) {
  * настройки, общие с сайтом.
  */
 
+const timeRow = {
+  width: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '13px 15px',
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 14,
+  color: 'var(--text-primary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 14.5,
+  textAlign: 'left',
+};
+
+const timeInput = {
+  background: 'var(--bg-deeper)',
+  color: 'var(--text-primary)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '6px 10px',
+  fontSize: 14,
+  fontFamily: 'inherit',
+};
+
+
 export default function MoreNotificationsView() {
   const [status, setStatus] = useState('loading');
   const [settings, setSettings] = useState(null);
@@ -146,14 +173,52 @@ export default function MoreNotificationsView() {
     }
   };
 
+  // Время — тот же `daily_time` и тот же PATCH /push/settings, что на вебе
+  // (ProfilePage.jsx). Отдельный обработчик, а не toggle(): после смены окна
+  // план локальных уведомлений обязан пересобраться ровно так же, как после
+  // смены состава — иначе он останется собранным по старому времени
+  // (localNotificationsSync.js читает daily_time при сборке), и расхождение
+  // будет молчаливым.
+  const setDailyTime = async (value) => {
+    const prev = settings;
+    setSettings({ ...settings, daily_time: value });
+    try {
+      await updatePushSettings({ daily_time: value });
+      syncLocalNotifications();
+    } catch {
+      setSettings(prev);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
       <MoreDeviceChannel />
       {TOGGLES.map(({ key, label }) => (
         <ToggleRow key={key} label={label} on={settings[key]} onToggle={() => toggle(key)} />
       ))}
+      {/* ⚠️ Показывается ВСЕГДА, в отличие от веба, где поле спрятано за
+          включённым «Ежедневным прогнозом». daily_time — нижняя граница окна
+          отправки для ВСЕХ видов уведомлений (in_send_window, push/cron.py),
+          а не время одного только прогноза: спрятав его вместе с прогнозом,
+          мы спрятали бы настройку, которая продолжает управлять остальными
+          тремя. */}
+      <div style={timeRow}>
+        <span>
+          Начинать с
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            Раньше этого времени уведомления не приходят
+          </span>
+        </span>
+        <input
+          type="time"
+          value={settings.daily_time || '08:00'}
+          onChange={(e) => setDailyTime(e.target.value)}
+          style={timeInput}
+        />
+      </div>
       <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-        Уведомления приходят с {settings.daily_time} до {settings.quiet_from || '22:00'}
+        Уведомления приходят начиная с {settings.daily_time || '08:00'} и не позже{' '}
+        {settings.quiet_from || '22:00'}
       </p>
       {/* Строка «Настройки общие с сайтом — уведомления приходят туда» стояла
           здесь с 10.09.2026 как честная подпись к тумблерам, которые на
