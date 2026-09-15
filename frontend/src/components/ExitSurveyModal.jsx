@@ -135,31 +135,31 @@ const xsStyles = `
   backdrop-filter:blur(4px);
 }
 .xs-card, .xs-page{
-  width:100%; max-width:380px; background:var(--bg-card); border:1px solid var(--bg-deeper);
-  border-radius:16px; padding:22px; box-shadow:var(--shadow-overlay);
+  width:100%; max-width:380px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:22px; box-shadow:var(--shadow-overlay);
 }
 .xs-page{ margin:48px auto; }
-.xs-title{ color:var(--accent-muted); font-size:17px; font-weight:700; margin-bottom:16px; }
+.xs-title{ color:var(--text-primary); font-size:17px; font-weight:700; margin-bottom:16px; }
 .xs-list{ display:flex; flex-direction:column; gap:8px; }
 .xs-opt{
-  text-align:left; background:var(--bg); color:var(--accent-glow); border:1px solid var(--bg-deeper);
-  border-radius:10px; padding:11px 13px; font-size:14px; cursor:pointer;
+  text-align:left; background:var(--bg); color:var(--accent-glow); border:1px solid var(--border);
+  border-radius:var(--radius-md); padding:11px 13px; font-size:14px; cursor:pointer;
 }
 .xs-opt:hover{ border-color:var(--accent); }
-.xs-opt-on{ background:var(--bg-deeper); border-color:var(--accent); color:#fff; }
+.xs-opt-on{ background:var(--accent); border-color:var(--accent); color:#fff; }
 .xs-text{
   width:100%; box-sizing:border-box; margin-top:10px; background:var(--bg);
-  color:var(--accent-muted); border:1px solid var(--bg-deeper); border-radius:10px; padding:10px;
+  color:var(--text-primary); border:1px solid var(--border); border-radius:var(--radius-md); padding:10px;
   font-size:13px; resize:vertical; font-family:inherit;
 }
 .xs-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 .xs-skip{ background:transparent; color:var(--text-secondary); border:none; padding:9px 12px;
   font-size:13px; cursor:pointer; }
 .xs-send{
-  background:linear-gradient(135deg,var(--accent),var(--accent)); color:#fff; border:none;
-  border-radius:10px; padding:9px 18px; font-size:14px; font-weight:700; cursor:pointer;
+  background:var(--accent); color:#fff; border:none;
+  border-radius:var(--radius-md); padding:9px 18px; font-size:14px; font-weight:700; cursor:pointer;
 }
 .xs-send:disabled{ opacity:.5; cursor:default; }
-.xs-thanks{ color:var(--accent-muted); font-size:15px; line-height:1.6; text-align:center; padding:12px; }
+.xs-thanks{ color:var(--text-primary); font-size:15px; line-height:1.6; text-align:center; padding:12px; }
 .xs-sub{ color:var(--text-secondary); font-size:13px; margin-top:8px; }
 `;

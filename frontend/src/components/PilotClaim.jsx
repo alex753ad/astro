@@ -106,17 +106,17 @@ export default function PilotClaim({ onShowAuth }) {
 const pcStyles = `
 .pc-wrap{ min-height:70vh; display:flex; align-items:center; justify-content:center; padding:24px; }
 .pc-card{
-  width:100%; max-width:360px; background:var(--bg-card); border:1px solid var(--bg-deeper);
-  border-radius:16px; padding:32px 24px; text-align:center;
+  width:100%; max-width:360px; background:var(--bg-card); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:32px 24px; text-align:center;
   box-shadow:var(--shadow-overlay);
 }
-.pc-title{ color:var(--accent-muted); font-size:18px; font-weight:700; margin-top:14px; }
+.pc-title{ color:var(--text-primary); font-size:18px; font-weight:700; margin-top:14px; }
 .pc-sub{ color:var(--accent-glow); font-size:14px; line-height:1.6; margin-top:10px; }
 .pc-badge{ font-size:34px; color:var(--accent); }
 .pc-err-ico{ font-size:34px; color:var(--color-danger); line-height:1; }
 .pc-spin{
   width:34px; height:34px; margin:0 auto; border-radius:50%;
-  border:3px solid var(--bg-deeper); border-top-color:var(--accent); animation:pcspin .8s linear infinite;
+  border:3px solid var(--border); border-top-color:var(--accent); animation:pcspin .8s linear infinite;
 }
 @keyframes pcspin{ to{ transform:rotate(360deg); } }
 `;

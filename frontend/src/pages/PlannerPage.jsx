@@ -412,7 +412,7 @@ const styles = `
 
   .month-nav { display: flex; align-items: center; gap: 6px; }
   .month-nav-btn {
-    width: 34px; height: 34px; border-radius: 10px; border: none;
+    width: 34px; height: 34px; border-radius: var(--radius-md); border: none;
     background: var(--accent); color: #fff; font-size: 16px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.15s;
@@ -421,7 +421,7 @@ const styles = `
   .month-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .month-nav-label {
     font-size: 12px; color: var(--text-secondary); background: var(--bg-deeper);
-    border: 1px solid var(--border); border-radius: 10px;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
     padding: 6px 14px; font-weight: 600; min-width: 100px; text-align: center;
   }
   .week-header-row {
@@ -432,10 +432,10 @@ const styles = `
   .tab-bar {
     display: flex; gap: 4px;
     background: var(--bg-deeper);
-    border-radius: 14px; padding: 4px; margin-bottom: 28px;
+    border-radius: var(--radius-lg); padding: 4px; margin-bottom: 28px;
   }
   .tab-btn {
-    flex: 1; padding: 9px 12px; border-radius: 10px; border: none;
+    flex: 1; padding: 9px 12px; border-radius: var(--radius-md); border: none;
     cursor: pointer; font-size: 13px; font-weight: 600;
     font-family: var(--font-body);
     transition: all 0.15s; background: transparent; color: var(--accent);
@@ -463,7 +463,7 @@ const styles = `
     position: relative;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
+    border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 10px;
     border-left: 3px solid transparent;
     transition: border-color 0.2s ease;
   }
@@ -501,13 +501,13 @@ const styles = `
 
   .locked-box {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 16px; padding: 40px 24px; text-align: center;
+    border-radius: var(--radius-lg); padding: 40px 24px; text-align: center;
   }
   .locked-box .lock-icon { font-size: 38px; margin-bottom: 14px; }
   .locked-box h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: var(--text-primary); }
   .locked-box p { font-size: 13px; color: var(--text-secondary); margin: 0 0 20px; }
   .upgrade-btn {
-    padding: 11px 28px; border-radius: 12px; border: none;
+    padding: 11px 28px; border-radius: var(--radius-md); border: none;
     background: var(--accent); color: #fff; font-size: 14px; font-weight: 700;
     cursor: pointer; font-family: var(--font-body);
     transition: background-color 0.15s;
@@ -517,7 +517,7 @@ const styles = `
   .free-hint {
     background: var(--accent-muted);
     border: 1px solid var(--border);
-    border-radius: 12px; padding: 10px 32px 10px 14px;
+    border-radius: var(--radius-md); padding: 10px 32px 10px 14px;
     font-size: 12.5px; color: var(--accent); margin-bottom: 16px; line-height: 1.5;
   }
   .locked-teaser { position: relative; margin-top: 4px; }
@@ -533,11 +533,11 @@ const styles = `
 
   .error-box {
     background: var(--bg-card); border: 1px solid var(--color-danger);
-    border-radius: 10px; padding: 18px; color: var(--color-danger); font-size: 14px;
+    border-radius: var(--radius-md); padding: 18px; color: var(--color-danger); font-size: 14px;
   }
   .retry-btn {
     margin-top: 10px; background: var(--color-danger); color: #fff; border: none;
-    border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+    border-radius: var(--radius-sm); padding: 7px 16px; font-size: 13px; cursor: pointer;
     font-family: var(--font-body); font-weight: 600;
   }
 
@@ -560,7 +560,7 @@ const styles = `
   }
   .refresh-btn {
     width: 100%; padding: 11px; background: var(--accent); border: none;
-    border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700;
+    border-radius: var(--radius-md); color: #fff; font-size: 14px; font-weight: 700;
     cursor: pointer; font-family: var(--font-body);
     transition: background-color 0.15s;
   }
@@ -568,7 +568,7 @@ const styles = `
 
   .gcal-btn {
     width: 100%; padding: 11px; background: var(--bg-card);
-    border: 1.5px solid var(--border); border-radius: 12px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-md);
     color: var(--accent); font-size: 14px; font-weight: 700;
     cursor: pointer; font-family: var(--font-body);
     transition: border-color 0.15s, background-color 0.15s;
@@ -582,7 +582,7 @@ const styles = `
   .tl-section { margin-bottom: 24px; }
   .tl-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 20px; padding: 20px 20px 16px;
+    border-radius: var(--radius-xl); padding: 20px 20px 16px;
   }
   .tl-title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
   .tl-scroll { position: relative; overflow-x: auto; overflow-y: visible; padding: 8px 48px 44px; scrollbar-width: none; -ms-overflow-style: none; }
@@ -595,7 +595,7 @@ const styles = `
   .tl-node {
     position: absolute; top: 0; transform: translateX(-50%);
     display: flex; flex-direction: column; align-items: center; width: 60px;
-    border-radius: 14px; padding-bottom: 6px; transition: background 0.15s ease;
+    border-radius: var(--radius-lg); padding-bottom: 6px; transition: background 0.15s ease;
   }
   .tl-node:hover, .tl-node:focus-within { background: var(--accent-muted); }
   .tl-dot {
@@ -615,7 +615,7 @@ const styles = `
   .tl-tip {
     position: absolute; top: calc(100% + 12px);
     background: var(--bg-card); color: var(--text-primary); font-size: 11px; font-weight: 600; white-space: nowrap;
-    padding: 7px 11px; border-radius: 10px; border: 1px solid var(--border); opacity: 0; pointer-events: none;
+    padding: 7px 11px; border-radius: var(--radius-md); border: 1px solid var(--border); opacity: 0; pointer-events: none;
     transition: opacity 0.15s; z-index: 30;
   }
   .tl-tip--right { left: 50%; }
@@ -640,14 +640,14 @@ const styles = `
   .tl-count {
     position: absolute; top: -6px; right: -9px; z-index: 2;
     min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box;
-    border-radius: 8px; background: var(--accent); color: #fff;
+    border-radius: var(--radius-sm); background: var(--accent); color: #fff;
     font-size: 9px; font-weight: 700; line-height: 1;
     display: flex; align-items: center; justify-content: center;
     border: 1.5px solid var(--bg-card);
   }
   .tl-pop {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 6px; box-shadow: var(--shadow-raised);
+    border-radius: var(--radius-md); padding: 6px; box-shadow: var(--shadow-raised);
     display: flex; flex-direction: column; gap: 2px;
   }
   .tl-pop-day {
@@ -657,7 +657,7 @@ const styles = `
   .tl-pop-item {
     display: flex; align-items: center; gap: 8px; width: 100%;
     background: none; border: none; text-align: left; font-family: inherit;
-    padding: 7px 8px; border-radius: 8px; cursor: pointer;
+    padding: 7px 8px; border-radius: var(--radius-sm); cursor: pointer;
     font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.3;
   }
   .tl-pop-item:hover:not(:disabled), .tl-pop-item:focus-visible:not(:disabled) { background: var(--accent-muted); }
