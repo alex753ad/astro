@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Лента — ритм. Четыре варианта на ширине 390</title>
+<style>
+/* Шрифты и токены — копии из frontend/src/mobile/mobile.css (:root, светлая тема).
+   Образец ничего не импортирует из кода приложения: он обязан пережить правку
+   компонентов, иначе перестанет быть снимком «как сейчас». */
+@font-face{font-family:'Golos Text';font-style:normal;font-weight:400 700;font-display:block;
+  src:url('src/assets/fonts/GolosText-cyrillic.woff2') format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;}
+@font-face{font-family:'Golos Text';font-style:normal;font-weight:400 700;font-display:block;
+  src:url('src/assets/fonts/GolosText-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2122,U+2212;}
+@font-face{font-family:'Literata';font-style:normal;font-weight:400 700;font-display:block;
+  src:url('src/assets/fonts/Literata-cyrillic.woff2') format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;}
+@font-face{font-family:'Literata';font-style:normal;font-weight:400 700;font-display:block;
+  src:url('src/assets/fonts/Literata-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2122,U+2212;}
+@font-face{font-family:'AstroSymbols';font-style:normal;font-weight:400;font-display:block;
+  src:url('src/assets/fonts/NotoSansSymbols-subset.woff2') format('woff2');}
+@font-face{font-family:'AstroSymbols';font-style:normal;font-weight:400;font-display:block;
+  src:url('src/assets/fonts/NotoSansSymbols2-subset.woff2') format('woff2');
+  unicode-range:U+2609;}
+
+:root{
+  --bg:#FDFBF9; --bg-card:#FFFFFF; --bg-deeper:#FDFBFF;
+  --text-primary:#1E1A2E; --text-secondary:#6B6885; --border:#EDE8F5;
+  --accent:#7C6CFF; --accent-glow:#8B5CF6;
+  --accent-rgb:124,108,255; --accent-muted:rgba(var(--accent-rgb),0.08);
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:20px; --radius-full:9999px;
+  --shadow-card:0 4px 20px rgba(30,26,46,0.10);
+  --shadow-raised:0 8px 24px rgba(30,26,46,0.14);
+  --color-danger:#DC2626; --color-success:#059669; --color-warning:#D97706;
+  --color-air:#3498DB; --color-earth:#27AE60;
+  --font-display:'Literata',Georgia,serif;
+  --font-body:'Golos Text',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#EFEDF3;font-family:var(--font-body);color:var(--text-primary)}
+.sheet{padding:28px 24px 40px}
+h1.t{font-family:var(--font-display);font-size:26px;margin:0 0 6px}
+p.lead{margin:0 0 22px;font-size:13.5px;line-height:1.6;color:#4a4760;max-width:1560px}
+.cols{display:flex;gap:26px;align-items:flex-start}
+.col{width:390px;flex:0 0 390px}
+.cap{margin:0 0 4px;font-family:var(--font-display);font-size:17px;font-weight:700}
+.cap span{font-family:var(--font-body);font-size:12px;font-weight:600;color:#6B6885}
+.why{margin:0 0 12px;font-size:12px;line-height:1.5;color:#55516e;min-height:52px}
+.phone{width:390px;background:var(--bg);border:1px solid #d8d4e4;border-radius:12px;overflow:hidden}
+.feed{padding:0 16px 24px}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1 class="t">Ритм ленты — четыре варианта, ширина 390</h1>
+  <p class="lead">
+    Данные настоящие: боевая выдача <code>GET /chart/{id}/feed</code> (фикстура стенда приёмки,
+    тариф free), окно <b>10–16 сентября 2026</b>, семь дней подряд, «сегодня» — 15 сентября.
+    В окне есть всё, что просили: аспекты, начало ретро Урана, новолуние в Деве, свёртка
+    «ещё N лунных», блок планера (Меркурий, закрыт — витрина под блюром) и, отдельным блоком
+    внизу каждой колонки, карточка с открытым разбором.
+    Палитра, фон и токены — сегодняшние, ни одного нового цвета. Шрифты — Literata + Golos Text.
+    Верхние полосы экрана («сейчас» и полоска дней) не показаны: они одинаковы во всех четырёх
+    вариантах и к ритму потока отношения не имеют.
+  </p>
+  <div class="cols">
+    <div class="col">
+      <p class="cap">1 · Как сейчас <span>контроль</span></p>
+      <p class="why">Заголовок дня — строка 13px того же кегля и цвета, что подписи внутри карточек. Границы суток в потоке нет.</p>
+      <div class="phone"><div class="feed" id="c1"></div></div>
+    </div>
+    <div class="col">
+      <p class="cap">2 · День как разделитель</p>
+      <p class="why">Дата — антиквой 22px, линия и воздух до и после. Сегодняшний день помечен акцентом и подписью.</p>
+      <div class="phone"><div class="feed" id="c2"></div></div>
+    </div>
+    <div class="col">
+      <p class="cap">3 · Иерархия по важности</p>
+      <p class="why">То же разделение дней плюс три ступени: крупное — антиквой 21px, рядовое — гротеском 15px, лунный фон уходит в одну приглушённую строку.</p>
+      <div class="phone"><div class="feed" id="c3"></div></div>
+    </div>
+    <div class="col">
+      <p class="cap">4 · День — блок, раскрыт только сегодня <span>свой</span></p>
+      <p class="why">Ритм задаёт объём, а не кегль: рядовое в прошлых и будущих днях сжато до одной строки, карточкой остаётся только крупное, и полностью раскрыт единственный день — сегодняшний. Хронология и линия времени сохранены.</p>
+      <div class="phone"><div class="feed" id="c4"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const EVENTS = /*DATA*/[{"key": "t:3ec27dc4e85199d3", "kind": "transit", "importance": "low", "at": "2026-09-10T08:09:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Меркурий", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 4.9, "natal_planet": "Mercury", "natal_sign": "Gemini", "aspect_type": "square", "peak_orb": 0.6771, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:693aada67ce82c03", "kind": "transit", "importance": "low", "at": "2026-09-10T12:37:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Уран", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 7.2, "natal_planet": "Uranus", "natal_sign": "Capricorn", "aspect_type": "trine", "peak_orb": 0.9383, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "r:d15ac79bbf1d84c6", "kind": "retrograde", "importance": "medium", "at": "2026-09-10T15:00:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Начало ретро Уран", "teaser": null, "meta": {"planet": "uranus", "planet_name": "Уран", "status": "start"}, "started_before": false}, {"key": "t:275ee4c7cb8e8913", "kind": "transit", "importance": "low", "at": "2026-09-10T22:14:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Нептун", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 14.2, "natal_planet": "Neptune", "natal_sign": "Capricorn", "aspect_type": "trine", "peak_orb": 0.4413, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:51e1a1f819b35f3c", "kind": "transit", "importance": "low", "at": "2026-09-10T23:38:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Оппозиция Луна", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 14.2, "natal_planet": "Moon", "natal_sign": "Pisces", "aspect_type": "opposition", "peak_orb": 0.3635, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:fee4bc37f3d17c38", "kind": "transit", "importance": "low", "at": "2026-09-11T01:09:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Секстиль Плутон", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 16.5, "natal_planet": "Pluto", "natal_sign": "Scorpio", "aspect_type": "sextile", "peak_orb": 1.0538, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:48219c5ee96a28a3", "kind": "transit", "importance": "low", "at": "2026-09-11T01:59:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Секстиль Юпитер", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 16.5, "natal_planet": "Jupiter", "natal_sign": "Cancer", "aspect_type": "sextile", "peak_orb": 0.5807, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "l:ac6bd198e66a8a72", "kind": "moon_phase", "importance": "medium", "at": "2026-09-11T06:27:01+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Новолуние в Дева", "teaser": null, "meta": {"type": "new_moon", "emoji": "🌑", "sign": "Дева"}, "started_before": false}, {"key": "t:3245dc105cccf6ae", "kind": "transit", "importance": "low", "at": "2026-09-11T06:55:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Венера", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 18.7, "natal_planet": "Venus", "natal_sign": "Taurus", "aspect_type": "trine", "peak_orb": 0.0419, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:3f3f1d125d46f6cf", "kind": "transit", "importance": "medium", "at": "2026-09-11T13:10:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Солнце Трин Венера", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Sun", "transit_sign": "Virgo", "transit_degree": 18.8, "natal_planet": "Venus", "natal_sign": "Taurus", "aspect_type": "trine", "peak_orb": 0.0742, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:a66c148a8a111c60", "kind": "transit", "importance": "low", "at": "2026-09-11T16:17:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Сатурн", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 23.3, "natal_planet": "Saturn", "natal_sign": "Capricorn", "aspect_type": "trine", "peak_orb": 0.7334, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:22632be24b9571ad", "kind": "transit", "importance": "low", "at": "2026-09-11T16:21:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Солнце", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Virgo", "transit_degree": 23.3, "natal_planet": "Sun", "natal_sign": "Gemini", "aspect_type": "square", "peak_orb": 0.7677, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:6656ba6e60b0bf09", "kind": "transit", "importance": "low", "at": "2026-09-12T12:51:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Меркурий", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 4.6, "natal_planet": "Mercury", "natal_sign": "Gemini", "aspect_type": "trine", "peak_orb": 1.0304, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:fc739b27f459d47f", "kind": "transit", "importance": "low", "at": "2026-09-12T17:30:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Уран", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 9.0, "natal_planet": "Uranus", "natal_sign": "Capricorn", "aspect_type": "square", "peak_orb": 0.8268, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:8b1eeef4fec9a523", "kind": "transit", "importance": "low", "at": "2026-09-12T20:16:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Секстиль Юж. Узел", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 9.0, "natal_planet": "South Node", "natal_sign": "Leo", "aspect_type": "sextile", "peak_orb": 0.7067, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:a9871e679a1c3a06", "kind": "transit", "importance": "low", "at": "2026-09-12T20:16:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Сев. Узел", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 9.0, "natal_planet": "North Node", "natal_sign": "Aquarius", "aspect_type": "trine", "peak_orb": 0.7067, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:bbd2873749ae5740", "kind": "transit", "importance": "low", "at": "2026-09-12T22:37:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Оппозиция Марс", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 11.2, "natal_planet": "Mars", "natal_sign": "Aries", "aspect_type": "opposition", "peak_orb": 0.2058, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:74d67af584e05704", "kind": "transit", "importance": "low", "at": "2026-09-13T03:34:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Нептун", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 13.4, "natal_planet": "Neptune", "natal_sign": "Capricorn", "aspect_type": "square", "peak_orb": 0.3177, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:9539ea1873eb34e1", "kind": "transit", "importance": "low", "at": "2026-09-13T07:31:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Юпитер", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 15.6, "natal_planet": "Jupiter", "natal_sign": "Cancer", "aspect_type": "square", "peak_orb": 0.2848, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:f1f92f230015dc79", "kind": "transit", "importance": "low", "at": "2026-09-13T22:34:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Сатурн", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 24.3, "natal_planet": "Saturn", "natal_sign": "Capricorn", "aspect_type": "square", "peak_orb": 0.2271, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:1bdbf2254b1a0c1f", "kind": "transit", "importance": "low", "at": "2026-09-13T22:38:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Солнце", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Libra", "transit_degree": 24.3, "natal_planet": "Sun", "natal_sign": "Gemini", "aspect_type": "trine", "peak_orb": 0.1928, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:98f313df8b1afa5a", "kind": "transit", "importance": "medium", "at": "2026-09-14T04:03:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Меркурий Трин Меркурий", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Mercury", "transit_sign": "Libra", "transit_degree": 5.5, "natal_planet": "Mercury", "natal_sign": "Gemini", "aspect_type": "trine", "peak_orb": 0.0718, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "p:70f2c59ec238e247", "kind": "planner_period", "importance": "medium", "at": "2026-09-14T05:52:28+03:00", "ends_at": "2026-09-30T03:07:24+03:00", "duration_days": 16, "locked": true, "text": null, "teaser": null, "meta": {"planet": "mercury", "planet_name": "Меркурий", "emoji": "⚕️", "house": 1, "theme": "", "groups": []}, "started_before": false}, {"key": "t:46b3a9ba2a8af6f7", "kind": "transit", "importance": "low", "at": "2026-09-15T01:12:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Секстиль Уран", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 9.1, "natal_planet": "Uranus", "natal_sign": "Capricorn", "aspect_type": "sextile", "peak_orb": 0.9368, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:9bba03db5e61128c", "kind": "transit", "importance": "low", "at": "2026-09-15T04:08:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Сев. Узел", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 9.1, "natal_planet": "North Node", "natal_sign": "Aquarius", "aspect_type": "square", "peak_orb": 0.5967, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:c679ff39e97e53a1", "kind": "transit", "importance": "low", "at": "2026-09-15T04:08:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Квадрат Юж. Узел", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 9.1, "natal_planet": "South Node", "natal_sign": "Leo", "aspect_type": "square", "peak_orb": 0.5967, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:4cb4cfd6a283e9b2", "kind": "transit", "importance": "low", "at": "2026-09-15T11:51:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Секстиль Нептун", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 13.3, "natal_planet": "Neptune", "natal_sign": "Capricorn", "aspect_type": "sextile", "peak_orb": 0.4476, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:a6e00941fa4ac7f2", "kind": "transit", "importance": "low", "at": "2026-09-15T13:24:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Луна", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 15.3, "natal_planet": "Moon", "natal_sign": "Pisces", "aspect_type": "trine", "peak_orb": 0.8194, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:368b15229f7a006d", "kind": "transit", "importance": "low", "at": "2026-09-15T15:06:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Соединение Плутон", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 15.3, "natal_planet": "Pluto", "natal_sign": "Scorpio", "aspect_type": "conjunction", "peak_orb": 0.0599, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:64fc53808c262348", "kind": "transit", "importance": "low", "at": "2026-09-15T16:01:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Трин Юпитер", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 15.3, "natal_planet": "Jupiter", "natal_sign": "Cancer", "aspect_type": "trine", "peak_orb": 0.533, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:4869fb3c0109f496", "kind": "transit", "importance": "medium", "at": "2026-09-15T18:27:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Меркурий Квадрат Уран", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Mercury", "transit_sign": "Libra", "transit_degree": 8.2, "natal_planet": "Uranus", "natal_sign": "Capricorn", "aspect_type": "square", "peak_orb": 0.0359, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:3562b1cd9fde9942", "kind": "transit", "importance": "low", "at": "2026-09-15T21:31:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Оппозиция Венера", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 19.5, "natal_planet": "Venus", "natal_sign": "Taurus", "aspect_type": "opposition", "peak_orb": 0.7606, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:87f1b02f7f9adcd3", "kind": "transit", "importance": "low", "at": "2026-09-16T07:56:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Луна Секстиль Сатурн", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Moon", "transit_sign": "Scorpio", "transit_degree": 23.6, "natal_planet": "Saturn", "natal_sign": "Capricorn", "aspect_type": "sextile", "peak_orb": 0.4769, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:8ca77c6cb9fef889", "kind": "transit", "importance": "medium", "at": "2026-09-16T17:34:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Меркурий Секстиль Юж. Узел", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Mercury", "transit_sign": "Libra", "transit_degree": 9.8, "natal_planet": "South Node", "natal_sign": "Leo", "aspect_type": "sextile", "peak_orb": 0.0938, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}, {"key": "t:db6473831dd20aed", "kind": "transit", "importance": "medium", "at": "2026-09-16T17:34:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Меркурий Трин Сев. Узел", "teaser": {"intro": "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.", "outro": "Полный разбор этого транзита — на Веге и Лире."}, "meta": {"transit_planet": "Mercury", "transit_sign": "Libra", "transit_degree": 9.8, "natal_planet": "North Node", "natal_sign": "Aquarius", "aspect_type": "trine", "peak_orb": 0.0938, "applying": true, "significant": false, "free_unlocked": false}, "started_before": false}]/*ENDDATA*/;
+const BONUS = /*BONUS*/[{"key": "t:1de7c7dee2a09f97", "kind": "transit", "importance": "high", "at": "2026-09-27T07:54:00+03:00", "ends_at": null, "duration_days": null, "locked": false, "text": "Уран Соединение Меркурий", "teaser": null, "meta": {"transit_planet": "Uranus", "transit_sign": "Gemini", "transit_degree": 5.6, "natal_planet": "Mercury", "natal_sign": "Gemini", "aspect_type": "conjunction", "peak_orb": 0.0005, "applying": false, "significant": true, "free_unlocked": true}, "started_before": false}]/*ENDBONUS*/;
+const TODAY = '2026-09-15';
+
+/* ── словари и помощники: копии из frontend/src/mobile/lib/* ── */
+const MONTHS=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const WEEKDAYS=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const SIGN_RU={Aries:'Овен',Taurus:'Телец',Gemini:'Близнецы',Cancer:'Рак',Leo:'Лев',Virgo:'Дева',Libra:'Весы',Scorpio:'Скорпион',Sagittarius:'Стрелец',Capricorn:'Козерог',Aquarius:'Водолей',Pisces:'Рыбы'};
+const PLANET_RU={Sun:'Солнце',Moon:'Луна',Mercury:'Меркурий',Venus:'Венера',Mars:'Марс',Jupiter:'Юпитер',Saturn:'Сатурн',Uranus:'Уран',Neptune:'Нептун',Pluto:'Плутон','North Node':'Сев. Узел','South Node':'Юж. Узел'};
+const GLYPHS={sun:'☉',moon:'☽',mercury:'☿',venus:'♀',mars:'♂',jupiter:'♃',saturn:'♄',uranus:'♅',neptune:'♆',pluto:'♇','north node':'☊','south node':'☋'};
+const ASPECTS={conjunction:'☌',opposition:'☍',square:'□',trine:'△',sextile:'✶'};
+const G="font-family:AstroSymbols,system-ui,sans-serif;line-height:1;";
+
+const datePart=a=>a.slice(0,10), timePart=a=>a.slice(11,16);
+const dateShort=a=>a.slice(8,10)+'.'+a.slice(5,7);
+const rangeShort=(a,b)=>dateShort(a)+' — '+dateShort(b);
+const signRu=s=>SIGN_RU[s]||s||'';
+const planetRu=p=>PLANET_RU[p]||p||'';
+const glyph=p=>p?(GLYPHS[String(p).toLowerCase()]||''):'';
+const aspectSymbol=t=>ASPECTS[t]||'·';
+const aspectColor=t=>(t==='trine'||t==='sextile')?'var(--color-success)':((t==='square'||t==='opposition')?'var(--color-danger)':'var(--text-primary)');
+function dayParts(d){const[y,m,dd]=d.split('-').map(Number);
+  return{date:dd+' '+MONTHS[m-1],weekday:WEEKDAYS[new Date(Date.UTC(y,m-1,dd)).getUTCDay()]};}
+function dayLabel(d){const p=dayParts(d);const base=p.date+', '+p.weekday;return d===TODAY?'Сегодня · '+base:base;}
+function eventTitle(e){if(e.text)return e.text;const m=e.meta||{};
+  return (m.planet_name&&m.house)?(m.planet_name+' в '+m.house+' доме'):'—';}
+function daysBetween(a,b){const[ay,am,ad]=a.split('-').map(Number),[by,bm,bd]=b.split('-').map(Number);
+  return Math.round((Date.UTC(by,bm-1,bd)-Date.UTC(ay,am-1,ad))/86400000);}
+function planetDotColor(k){switch(k){case'sun':return'var(--color-warning)';case'mercury':return'var(--color-air)';
+  case'venus':return'var(--accent-glow)';case'mars':return'var(--color-danger)';case'moon':return'var(--text-secondary)';
+  default:return'var(--color-earth)';}}
+const isLunarEvent=e=>e.kind==='moon_phase'||e.kind==='eclipse';
+function dotColor(e){const m=e.meta||{};switch(e.kind){case'transit':return'var(--text-secondary)';
+  case'retrograde':return'var(--color-danger)';case'solar_event':return'var(--accent-glow)';
+  case'planner_period':case'planner_moon_house':return planetDotColor(m.planet);
+  default:return isLunarEvent(e)?'var(--color-warning)':'var(--text-secondary)';}}
+const dotSize=e=>(e.importance==='high'||isLunarEvent(e))?13:9;
+const isLunarBackground=e=>e.importance==='low'||e.kind==='planner_moon_house';
+const isLocked=e=>Boolean(e.teaser||e.locked);
+function pluralLunar(n){const m10=n%10,m100=n%100;return(m10===1&&m100!==11)?'лунное':'лунных';}
+function groupByDay(events){const days=[];let cur=null;
+  for(const e of events){const d=datePart(e.at);if(!cur||cur.date!==d){cur={date:d,events:[]};days.push(cur);}cur.events.push(e);}
+  return days;}
+
+/* ── общие куски карточки (одинаковы во всех колонках, кроме кегля заголовка) ── */
+function orbChip(m){
+  if(typeof m.peak_orb!=='number')return'';
+  const exact=m.applying===true&&m.peak_orb<0.2;
+  return '<span style="padding:2px 7px;border:1px solid '+(exact?'var(--accent)':'var(--border)')+
+    ';border-radius:var(--radius-sm);font-size:10.5px;font-weight:'+(exact?700:400)+
+    ';font-family:var(--font-body);background:'+(exact?'var(--accent)':'transparent')+
+    ';color:'+(exact?'#fff':'var(--text-secondary)')+'">'+m.peak_orb.toFixed(1)+'°</span>';
+}
+function openDot(){return '<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block"></span>';}
+function formulaRow(e,titleSize,noWords){
+  const m=e.meta;
+  const open=e.kind==='transit'&&!isLocked(e);
+  return '<div style="display:flex;align-items:center;gap:8px">'
+    +'<span style="'+G+'font-size:'+titleSize+'px">'+glyph(m.transit_planet)+'</span>'
+    +'<span style="'+G+'font-size:'+titleSize+'px;color:'+aspectColor(m.aspect_type)+'">'+aspectSymbol(m.aspect_type)+'</span>'
+    +'<span style="'+G+'font-size:'+titleSize+'px">'+glyph(m.natal_planet)+'</span>'
+    +(noWords?'':'<span style="font-size:13px;font-family:var(--font-body);color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      +planetRu(m.transit_planet)+' — '+planetRu(m.natal_planet)+'</span>')
+    +'<span style="margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px">'
+      +(open?openDot():'')+orbChip(m)+'</span></div>';
+}
+function signsRow(m){
+  if(!(m.transit_sign&&m.natal_sign))return'';
+  const deg=typeof m.transit_degree==='number'?(m.transit_degree.toFixed(1)+'° '):'';
+  return '<div style="font-size:13px;font-family:var(--font-body);color:var(--text-secondary);line-height:1.5">'
+    +deg+signRu(m.transit_sign)+' → '+signRu(m.natal_sign)+'</div>';
+}
+function blurred(){
+  const lines=['Ставьте цели на будущее и корректируйте курс','Расширяйте круг общения','Работайте с технологиями'];
+  return '<div style="filter:blur(4px);opacity:.5">'+lines.map(l=>
+    '<p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:var(--text-secondary)">'+l+'</p>').join('')+'</div>';
+}
+/* Карточка события. titleSize/titleFamily — единственное, что меняют варианты. */
+function card(e,opt){
+  opt=opt||{};
+  const m=e.meta||{};
+  const locked=isLocked(e);
+  const isPeriod=e.kind==='planner_period';
+  const extra=(e.ends_at&&e.duration_days)?Math.round(e.duration_days*2.5):0;
+  const showFiller=locked&&Boolean(extra);
+  const boxed=isPeriod||showFiller;
+  const openInterp=e.kind==='transit'&&!locked;
+  const periodColor=isPeriod?planetDotColor(m.planet):null;
+  const ts=opt.titleSize||18;
+  const hasFormula=e.kind==='transit'&&m.transit_planet&&m.natal_planet&&m.aspect_type;
+  let head;
+  if(hasFormula&&opt.majorTransit){
+    head='<h3 style="margin:0 0 2px;font-size:'+ts+'px;font-weight:600;font-family:var(--font-display);color:var(--text-primary);line-height:1.25">'+eventTitle(e)+'</h3>'+formulaRow(e,15,true);
+  }
+  else if(hasFormula){ head=formulaRow(e,Math.max(15,ts-3)); }
+  else if(isPeriod){
+    head='<div style="display:flex;align-items:baseline;gap:8px">'
+      +'<span style="'+G+'font-size:'+(ts-1)+'px;color:'+periodColor+';flex-shrink:0">'+glyph(m.planet)+'</span>'
+      +'<h3 style="margin:0;font-size:'+ts+'px;font-weight:600;font-family:var(--font-display);color:var(--text-primary);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.planet_name+'</h3>'
+      +(e.ends_at?'<span style="margin-left:auto;flex-shrink:0;font-size:12px;color:var(--text-secondary);font-family:var(--font-body)">'+rangeShort(e.at,e.ends_at)+'</span>':'')
+      +'</div>';
+  } else {
+    head='<h3 style="margin:0;font-size:'+ts+'px;font-weight:600;font-family:'+(opt.titleFamily||'var(--font-display)')
+      +';color:var(--text-primary);line-height:1.3">'+eventTitle(e)+'</h3>';
+  }
+  const progress=(isPeriod&&e.ends_at)?Math.min(100,Math.max(0,Math.round(
+      daysBetween(datePart(e.at),TODAY)/Math.max(1,daysBetween(datePart(e.at),datePart(e.ends_at)))*100))):null;
+  return '<article style="position:relative;background:'+(boxed?'var(--bg-card)':'transparent')
+    +';border:'+(boxed?('1px solid '+(openInterp?'var(--accent)':'var(--border)')):'none')
+    +';border-radius:'+(boxed?'20px':'0')+';padding:'+(boxed?'16px':'0')
+    +';overflow:hidden;display:flex;flex-direction:column;gap:6px'
+    +(showFiller?(';min-height:'+(64+extra)+'px'):'')+'">'
+    +(periodColor?'<span style="position:absolute;left:0;top:0;bottom:0;width:3px;background:'+periodColor+'"></span>':'')
+    +head
+    +(m.theme?('<div style="font-size:13px;color:var(--text-secondary);line-height:1.5">'+m.theme+'</div>'):'')
+    +(hasFormula?signsRow(m):'')
+    +(opt.body?('<div style="font-family:var(--font-display);font-size:15px;line-height:1.62;color:var(--text-primary);margin-top:2px">'+opt.body+'</div>'):'')
+    +(showFiller?('<div style="flex:1;min-height:0;overflow:hidden">'+blurred()+'</div>'):'')
+    +(progress!==null?('<div style="margin:4px -16px -16px;height:3px;background:var(--border)"><div style="width:'
+        +progress+'%;height:100%;background:'+periodColor+'"></div></div>'):'')
+    +'</article>';
+}
+/* Узел линии времени — общий для всех вариантов (структура экрана не меняется). */
+function node(time,bold,color,size,inner,gap){
+  const hasDot=typeof size==='number';
+  gap=(gap===undefined)?12:gap;
+  return '<div style="position:relative;padding-bottom:'+gap+'px">'
+    +'<span style="position:absolute;left:63px;top:0;bottom:0;width:1px;background:var(--border)"></span>'
+    +(hasDot?('<span style="position:absolute;left:63px;top:6px;width:'+size+'px;height:'+size
+        +'px;border-radius:50%;background:var(--bg);border:'+(size>=13?2:1.5)+'px solid '+color
+        +';transform:translate(-50%,0)"></span>'):'')
+    +'<div style="display:flex;'+(hasDot?'min-height:44px':'')+'">'
+      +'<div style="width:64px;flex-shrink:0;text-align:right;padding-right:14px;font-family:var(--font-body);'
+      +'font-variant-numeric:tabular-nums;font-size:'+(bold?12:11)+'px;font-weight:'+(bold?700:400)
+      +';color:'+(bold?'var(--text-primary)':'var(--text-secondary)')+';padding-top:2px">'+time+'</div>'
+      +'<div style="flex:1;min-width:0;padding-left:16px">'+inner+'</div>'
+    +'</div></div>';
+}
+function lunarFold(events,opt){
+  opt=opt||{};
+  const points=[];
+  for(const e of events){const g=glyph((e.meta||{}).natal_planet);if(g&&points.indexOf(g)<0)points.push(g);}
+  const dim=opt.dim?';opacity:.62':'';
+  return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;color:var(--text-secondary);'
+    +'font-family:var(--font-body);font-size:'+(opt.size||13)+'px'+dim+'">'
+    +'<span>ещё <span style="text-decoration:underline">'+events.length+'</span> '+pluralLunar(events.length)+'</span>'
+    +(points.length?('<span style="'+G+'font-size:14px;letter-spacing:.14em;opacity:.75">'+points.join(' ')+'</span>'):'')
+    +'</div>';
+}
+
+/* ── ранжирование для вариантов 3 и 4 ── */
+function rank(e){
+  if(e.kind==='moon_phase'||e.kind==='eclipse'||e.kind==='retrograde'||e.kind==='solar_event')return'major';
+  if(e.kind==='planner_period')return'major';
+  const m=e.meta||{};
+  if(e.kind==='transit'&&e.importance!=='low'&&m.applying&&typeof m.peak_orb==='number'&&m.peak_orb<0.05)return'major';
+  return'regular';
+}
+
+/* ── 1. Как сейчас ── */
+function renderCurrent(days){
+  let out='';
+  for(const day of days){
+    const bg=day.events.filter(isLunarBackground), fg=day.events.filter(e=>!isLunarBackground(e));
+    out+='<section>'
+      +'<h2 style="margin:0;padding:10px 0 8px;background:var(--bg);color:var(--text-secondary);'
+      +'font-family:var(--font-display);font-size:13px;font-weight:600">'+dayLabel(day.date)+'</h2>';
+    for(const e of fg){
+      const isPeriod=Boolean(e.ends_at&&e.duration_days);
+      out+=node(isPeriod?dateShort(e.at):timePart(e.at),isPeriod,dotColor(e),dotSize(e),card(e));
+    }
+    if(bg.length===1)out+=node(timePart(bg[0].at),false,dotColor(bg[0]),dotSize(bg[0]),card(bg[0]));
+    if(bg.length>1)out+=node('',false,null,null,lunarFold(bg),16);
+    out+='</section>';
+  }
+  return out;
+}
+
+/* ── заголовок-разделитель (варианты 2, 3, 4) ── */
+function dayDivider(date,first){
+  const p=dayParts(date), today=date===TODAY;
+  return '<div style="margin-top:'+(first?10:(today?30:28))+'px;padding-bottom:'+(today?14:12)+'px">'
+    +'<div style="height:'+(today?2:1)+'px;background:'+(today?'var(--accent)':'var(--border)')+';margin-bottom:10px"></div>'
+    +(today?'<div style="font-family:var(--font-body);font-size:10.5px;font-weight:700;letter-spacing:.12em;'
+        +'text-transform:uppercase;color:var(--accent);margin-bottom:2px">Сегодня</div>':'')
+    +'<div style="display:flex;align-items:baseline;gap:10px">'
+      +'<h2 style="margin:0;font-family:var(--font-display);font-size:22px;font-weight:700;line-height:1.15;color:'
+        +(today?'var(--text-primary)':'var(--text-primary)')+'">'+p.date+'</h2>'
+      +'<span style="font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:.09em;'
+        +'text-transform:uppercase;color:var(--text-secondary)">'+p.weekday+'</span>'
+    +'</div></div>';
+}
+
+/* ── 2. День как разделитель ── */
+function renderDivider(days){
+  let out='';
+  days.forEach((day,i)=>{
+    const bg=day.events.filter(isLunarBackground), fg=day.events.filter(e=>!isLunarBackground(e));
+    out+='<section>'+dayDivider(day.date,i===0);
+    for(const e of fg){
+      const isPeriod=Boolean(e.ends_at&&e.duration_days);
+      out+=node(isPeriod?dateShort(e.at):timePart(e.at),isPeriod,dotColor(e),dotSize(e),card(e));
+    }
+    if(bg.length===1)out+=node(timePart(bg[0].at),false,dotColor(bg[0]),dotSize(bg[0]),card(bg[0]));
+    if(bg.length>1)out+=node('',false,null,null,lunarFold(bg),16);
+    out+='</section>';
+  });
+  return out;
+}
+
+/* ── 3. Иерархия по важности ── */
+function renderHierarchy(days){
+  let out='';
+  days.forEach((day,i)=>{
+    const bg=day.events.filter(isLunarBackground), fg=day.events.filter(e=>!isLunarBackground(e));
+    out+='<section>'+dayDivider(day.date,i===0);
+    for(const e of fg){
+      const isPeriod=Boolean(e.ends_at&&e.duration_days);
+      const major=rank(e)==='major';
+      const inner=major
+        ? card(e,{titleSize:22,majorTransit:true})
+        : card(e,{titleSize:15,titleFamily:'var(--font-body)'});
+      out+=node(isPeriod?dateShort(e.at):timePart(e.at),isPeriod||major,dotColor(e),
+                major?13:dotSize(e),inner,major?20:12);
+    }
+    if(bg.length===1)out+=node(timePart(bg[0].at),false,dotColor(bg[0]),dotSize(bg[0]),
+                               card(bg[0],{titleSize:15,titleFamily:'var(--font-body)'}));
+    if(bg.length>1)out+=node('',false,null,null,lunarFold(bg,{dim:true,size:12}),16);
+    out+='</section>';
+  });
+  return out;
+}
+
+/* ── 4. День — блок, раскрыт только сегодня ── */
+function compactRow(e){
+  const m=e.meta||{};
+  const label=(e.kind==='transit'&&m.transit_planet&&m.natal_planet&&m.aspect_type)
+    ? ('<span style="'+G+'font-size:13px">'+glyph(m.transit_planet)+'</span>'
+      +'<span style="'+G+'font-size:13px;color:'+aspectColor(m.aspect_type)+'">'+aspectSymbol(m.aspect_type)+'</span>'
+      +'<span style="'+G+'font-size:13px">'+glyph(m.natal_planet)+'</span>'
+      +'<span style="font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      +planetRu(m.transit_planet)+' — '+planetRu(m.natal_planet)+'</span>')
+    : ('<span style="font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+      +eventTitle(e)+'</span>');
+  return '<div style="display:flex;align-items:center;gap:7px;padding:2px 0;font-family:var(--font-body)">'
+    +label+'<span style="margin-left:auto;flex-shrink:0">'+orbChip(m)+'</span></div>';
+}
+function renderOwn(days){
+  let out='';
+  days.forEach((day,i)=>{
+    const today=day.date===TODAY;
+    const bg=day.events.filter(isLunarBackground), fg=day.events.filter(e=>!isLunarBackground(e));
+    const major=fg.filter(e=>rank(e)==='major'), regular=fg.filter(e=>rank(e)!=='major');
+    const p=dayParts(day.date);
+    if(today){
+      out+='<section style="margin-top:26px;background:var(--bg-card);border:1px solid var(--border);'
+        +'border-radius:var(--radius-xl);box-shadow:var(--shadow-card);padding:16px 14px 8px">'
+        +'<div style="font-family:var(--font-body);font-size:10.5px;font-weight:700;letter-spacing:.12em;'
+        +'text-transform:uppercase;color:var(--accent);margin-bottom:3px">Сегодня</div>'
+        +'<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">'
+        +'<h2 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:700;line-height:1.1">'+p.date+'</h2>'
+        +'<span style="font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:.09em;'
+        +'text-transform:uppercase;color:var(--text-secondary)">'+p.weekday+'</span></div>';
+      for(const e of fg){
+        const isPeriod=Boolean(e.ends_at&&e.duration_days);
+        const isMaj=rank(e)==='major';
+        out+=node(isPeriod?dateShort(e.at):timePart(e.at),isPeriod||isMaj,dotColor(e),isMaj?13:dotSize(e),
+          isMaj?card(e,{titleSize:22,majorTransit:true}):card(e,{titleSize:15,titleFamily:'var(--font-body)'}),isMaj?20:12);
+      }
+      if(bg.length===1)out+=node(timePart(bg[0].at),false,dotColor(bg[0]),dotSize(bg[0]),
+                                 card(bg[0],{titleSize:15,titleFamily:'var(--font-body)'}));
+      if(bg.length>1)out+=node('',false,null,null,lunarFold(bg,{dim:true,size:12}),12);
+      out+='</section>';
+      return;
+    }
+    out+='<section style="margin-top:'+(i===0?10:24)+'px">'
+      +'<div style="display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px">'
+      +'<h2 style="margin:0;font-family:var(--font-display);font-size:19px;font-weight:700;line-height:1.15;color:var(--text-primary)">'+p.date+'</h2>'
+      +'<span style="font-family:var(--font-body);font-size:11px;font-weight:700;letter-spacing:.09em;'
+      +'text-transform:uppercase;color:var(--text-secondary)">'+p.weekday+'</span></div>';
+    for(const e of fg){
+      const isPeriod=Boolean(e.ends_at&&e.duration_days);
+      const time=isPeriod?dateShort(e.at):timePart(e.at);
+      out+=rank(e)==='major'
+        ? node(time,true,dotColor(e),13,card(e,{titleSize:22,majorTransit:true}),16)
+        : node(time,false,dotColor(e),9,compactRow(e),6);
+    }
+    if(bg.length){
+      const points=[];for(const e of bg){const g=glyph((e.meta||{}).natal_planet);if(g&&points.indexOf(g)<0)points.push(g);}
+      out+='<div style="display:flex;align-items:center;gap:8px;padding:5px 0 0 80px;font-family:var(--font-body);'
+        +'font-size:12px;color:var(--text-secondary);opacity:.62">'
+        +'<span>'+bg.length+' '+pluralLunar(bg.length)+'</span>'
+        +(points.length?('<span style="'+G+'font-size:13px;letter-spacing:.14em">'+points.join(' ')+'</span>'):'')
+        +'</div>';
+    }
+    out+='</section>';
+  });
+  return out;
+}
+
+/* ── отдельный блок внизу: карточка с открытым разбором ── */
+const BONUS_TEXT='Уран у натального Меркурия — это внезапные мысли и разговоры, которые меняют планы. '
+  +'Держите записную книжку под рукой: то, что придёт в голову в эти дни, стоит записать, а не решать сразу.';
+function bonusBlock(opt){
+  if(!BONUS.length)return'';
+  const e=BONUS[0];
+  const head='<div style="font-family:var(--font-body);font-size:10.5px;font-weight:700;letter-spacing:.1em;'
+    +'text-transform:uppercase;color:var(--text-secondary);margin:26px 0 8px">'
+    +'вне недели · 27 сентября — открытый разбор</div>';
+  return head+node(timePart(e.at),opt&&opt.strong,dotColor(e),opt&&opt.strong?13:dotSize(e),
+    card(e,{titleSize:(opt&&opt.strong)?22:18,majorTransit:Boolean(opt&&opt.strong),body:BONUS_TEXT}),16);
+}
+
+const days=groupByDay(EVENTS.filter(e=>e.kind!=='planner_longterm'));
+document.getElementById('c1').innerHTML=renderCurrent(days)+bonusBlock();
+document.getElementById('c2').innerHTML=renderDivider(days)+bonusBlock();
+document.getElementById('c3').innerHTML=renderHierarchy(days)+bonusBlock({strong:true});
+document.getElementById('c4').innerHTML=renderOwn(days)+bonusBlock({strong:true});
+</script>
+</body>
+</html>

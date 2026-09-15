@@ -3,8 +3,16 @@
  * SPEC_FEED_VISUAL.md, «Заход А»: скелет структуры, карточки не трогаем).
  *
  * Колонка времени слева (64 px) + линия + точка + содержимое справа.
+ *
  * Содержимое — это ЦЕЛИКОМ существующий children (FeedEventCard как есть,
  * либо FeedLunarFold без своей точки — см. `dot={null}` у вызывающего).
+ *
+ * ⚠️ `fill` — цвет СЕРДЦЕВИНЫ точки, а не обводки: точка это кольцо, и
+ * внутри него лежит фон той поверхности, на которой она стоит. По умолчанию
+ * это фон страницы; раскрытый день ленты лежит на поднятой поверхности
+ * (`--bg-card`) и передаёт её сюда. В светлой теме разница почти не видна
+ * (#FDFBF9 против #FFFFFF), в ТЁМНОЙ видна сразу (#0F0A1A против #1A1230):
+ * сердцевина оказалась бы темнее карточки, то есть дыркой в ней.
  *
  * ⚠️ Линия — не один элемент на весь экран, а сегмент на каждый узел
  * (`position:absolute; top:0; bottom:0` внутри `position:relative`-обёртки,
@@ -29,7 +37,9 @@ import React from 'react';
 const TIME_COL_WIDTH = 64;
 const LINE_LEFT = TIME_COL_WIDTH - 1; // 63px от левого края контейнера ленты
 
-export default function FeedTimelineNode({ time, bold, color, size, children, gap = 12 }) {
+export default function FeedTimelineNode({
+  time, bold, color, size, children, gap = 12, fill = 'var(--bg)', dense = false,
+}) {
   const hasDot = typeof size === 'number';
   return (
     <div style={{ position: 'relative', paddingBottom: gap }}>
@@ -52,20 +62,25 @@ export default function FeedTimelineNode({ time, bold, color, size, children, ga
             width: size,
             height: size,
             borderRadius: '50%',
-            background: 'var(--bg)',
+            background: fill,
             border: `${size >= 13 ? 2 : 1.5}px solid ${color}`,
             transform: 'translate(-50%, 0)',
           }}
         />
       )}
       {/* minHeight:44 — только когда есть точка на линии, под которую эта
-          высота и подобрана (§3): она держит первую строку карточки вровень
-          с точкой. У безточечного узла (свёртка лунных, dot={null}/time="")
+          высота и подобрана (§3): она держит первую строку КАРТОЧКИ вровень
+          с точкой.
+
+          ⚠️ `dense` снимает её у сжатой строки дня (FeedEventRow.jsx): та
+          высотой около 22px, и 44 превращались в 20px пустоты под КАЖДОЙ
+          строкой. Заметно это именно в прошлом и будущем, где сжатых дней
+          подряд идут десятки, — то есть там, где ритм и проверяется. У безточечного узла (свёртка лунных, dot={null}/time="")
           она была чистым принудительным зазором — растягивала flex-строку
           с align-items:stretch по умолчанию до 44px, хотя сама кнопка
           свёртки высотой ~28px, и это 16px пустоты плюс paddingBottom узла
           читались как двойной отступ. */}
-      <div style={{ display: 'flex', minHeight: hasDot ? 44 : undefined }}>
+      <div style={{ display: 'flex', minHeight: (hasDot && !dense) ? 44 : undefined }}>
         <div
           style={{
             width: TIME_COL_WIDTH,

@@ -28,6 +28,7 @@
 
 import React from 'react';
 import BlurredHint from './BlurredHint';
+import FeedOrbChip from './FeedOrbChip';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
 import { dateRangeShort, daysBetween, eventTitle, localToday, planetRu, signRu } from '../lib/feedTime';
 import { planetDotColor } from '../lib/feedTimelineDot';
@@ -78,7 +79,7 @@ const rowStyle = {
   lineHeight: 1.5,
 };
 
-export default function FeedEventCard({ event, onOpen }) {
+export default function FeedEventCard({ event, onOpen, major = false }) {
   const meta = event.meta || {};
   const locked = isLocked(event);
   const extraHeight = durationHeight(event);
@@ -100,11 +101,10 @@ export default function FeedEventCard({ event, onOpen }) {
     ? `${meta.transit_degree.toFixed(1)}° `
     : '';
 
-  // Орб и точность приходят вместе и только у транзита.
+  // Орб приходит только у транзита; вид чипа (и правило «точный») живут в
+  // FeedOrbChip.jsx — он же рисует этот чип в сжатой строке дня
+  // (FeedEventRow.jsx), поэтому правило здесь не повторяется.
   const hasOrb = typeof meta.peak_orb === 'number';
-  const precision = typeof meta.applying === 'boolean'
-    ? (meta.applying ? 'точный' : 'отходит')
-    : null;
 
   // Формула («☽ △ ♆   Луна — Нептун», §4 SPEC_FEED_VISUAL.md) заменяет
   // словесный заголовок только у транзита и только когда есть чем её
@@ -113,6 +113,15 @@ export default function FeedEventCard({ event, onOpen }) {
   const formula = event.kind === 'transit' && meta.transit_planet && meta.natal_planet && meta.aspect_type
     ? meta
     : null;
+
+  // ⚠️ У транзита нет словесного заголовка — заголовок это формула, и поднять
+  // его «важность» кеглем h3 нельзя, потому что h3 у него нет вовсе. Крупный
+  // транзит (feedRank.js) отличается от рядового РАЗМЕРОМ САМОЙ ФОРМУЛЫ, а не
+  // новой строкой текста: выдать ему `event.text` словами — это уже правка
+  // содержимого, и ровно по этой причине владелец 15.09.2026 отклонил
+  // соответствующий вариант ритма. Не «улучшать» это подстановкой заголовка.
+  const glyphSize = major ? 18 : 15;
+  const wordSize = major ? 14.5 : 13;
 
   // Открытый разбор помечается только у транзитов: у фазы, затмения,
   // равноденствия и станции разбора нет в принципе, и «открыто» на них
@@ -192,14 +201,15 @@ export default function FeedEventCard({ event, onOpen }) {
       )}
       {formula ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ ...glyphStyle, fontSize: 15 }}>{glyph(formula.transit_planet)}</span>
-          <span style={{ ...glyphStyle, fontSize: 15, color: aspectColor(formula.aspect_type) }}>
+          <span style={{ ...glyphStyle, fontSize: glyphSize }}>{glyph(formula.transit_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: glyphSize, color: aspectColor(formula.aspect_type) }}>
             {aspectSymbol(formula.aspect_type)}
           </span>
-          <span style={{ ...glyphStyle, fontSize: 15 }}>{glyph(formula.natal_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: glyphSize }}>{glyph(formula.natal_planet)}</span>
           <span
             style={{
-              fontSize: 13,
+              fontSize: wordSize,
+              fontWeight: major ? 600 : 400,
               fontFamily: 'var(--font-body)',
               color: 'var(--text-secondary)',
               minWidth: 0,
@@ -222,37 +232,7 @@ export default function FeedEventCard({ event, onOpen }) {
                   style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}
                 />
               )}
-              {/* Точность — заливкой чипа, не отдельной строкой «точный» под
-                  каждым транзитом (при 700+ событиях это была треть высоты
-                  ленты на одно слово). Не точкой: точка акцентом уже занята
-                  под «разбор открыт» — два одинаковых значка с разным
-                  смыслом в одной строке было бы неотличимо одно от другого.
-                  ⚠️ Заливка var(--accent-muted) (8% альфы) сначала стояла
-                  здесь и оказалась неразличима на скриншоте — тон почти не
-                  отличался от фона карточки. Сплошной var(--accent) с белым
-                  текстом — тот же приём, что уже даёт контраст в других
-                  местах приложения (.mobile-btn-primary, «сегодня» в
-                  FeedDayStrip.jsx): текст на акценте — белый, не токеном
-                  (см. проверку токенов, §9 предыдущего захода — литерал
-                  здесь совпадает с уже принятым по всему приложению
-                  исключением, не новый). */}
-              {hasOrb && (
-                <span
-                  title={precision || undefined}
-                  style={{
-                    padding: '2px 7px',
-                    border: `1px solid ${precision === 'точный' ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: 10.5,
-                    fontWeight: precision === 'точный' ? 700 : 400,
-                    fontFamily: 'var(--font-body)',
-                    background: precision === 'точный' ? 'var(--accent)' : 'transparent',
-                    color: precision === 'точный' ? '#fff' : 'var(--text-secondary)',
-                  }}
-                >
-                  {meta.peak_orb.toFixed(1)}°
-                </span>
-              )}
+              {hasOrb && <FeedOrbChip meta={meta} />}
             </span>
           )}
         </div>

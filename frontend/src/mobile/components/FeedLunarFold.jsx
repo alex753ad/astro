@@ -42,7 +42,7 @@ function plural(n) {
   return 'лунных';
 }
 
-export default function FeedLunarFold({ events, onOpen }) {
+export default function FeedLunarFold({ events, onOpen, quiet = false }) {
   const [open, setOpen] = useState(false);
   if (!events || events.length === 0) return null;
 
@@ -97,7 +97,11 @@ export default function FeedLunarFold({ events, onOpen }) {
           border: 'none',
           color: 'var(--text-secondary)',
           fontFamily: 'var(--font-body)',
-          fontSize: 13,
+          // `quiet` — сжатый день (DESIGN_SYSTEM.md §5): лунный фон уходит в
+          // фон и там. Сама свёртка при этом остаётся РАБОЧЕЙ кнопкой со своим
+          // состоянием: сжатие дня меняет объём, а не доступ к событиям.
+          fontSize: quiet ? 12 : 13,
+          opacity: quiet ? 0.62 : 1,
           textAlign: 'left',
         }}
       >

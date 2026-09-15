@@ -15,6 +15,21 @@
  * в потоке не остаётся ни одного события с `started_before` — единственный
  * вид, который его давал, только что убран.
  *
+ * Третий заход (15.09.2026, DESIGN_SYSTEM.md §5) сделал день БЛОКОМ: ритм
+ * ленты задаёт ОБЪЁМ, а не кегль. Рядовое событие в нераскрытом дне сжато в
+ * одну строку (FeedEventRow.jsx), карточкой остаётся только крупное
+ * (feedRank.js), лунный фон приглушён, а раскрыт ровно один день — тот, на
+ * котором лента открывается, и он же единственная поднятая поверхность.
+ *
+ * ⚠️ Раскрытый день привязан к `anchorDate`, а НЕ к `today`. Это не то же
+ * самое: дни строятся из событий, и дня без событий в списке нет вовсе —
+ * значит при пустом сегодня раскрывать было бы нечего, лента открылась бы на
+ * сжатом дне, и обещание «сегодняшний день раскрыт» не выполнялось бы. По
+ * боевой выдаче это не редкость: 68 дней из 148 не содержат ни одной карточки.
+ * Пометку «Сегодня» при этом рисует заголовок и только настоящему сегодня —
+ * раскрытый день и сегодняшний день могут не совпадать, и врать об этом
+ * нельзя.
+ *
  * Прокрутка живёт в TabShell.jsx, одна на все вкладки, и здесь её заводить
  * нельзя: собственный `overflow` на любом предке заголовка сломал бы
  * `position: sticky` (подробности — в FeedDayHeader.jsx).
@@ -24,6 +39,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import FeedDayHeader from '../components/FeedDayHeader';
 import FeedDayStrip from '../components/FeedDayStrip';
 import FeedEventCard from '../components/FeedEventCard';
+import FeedEventRow from '../components/FeedEventRow';
 import FeedEventPanel from '../components/FeedEventPanel';
 import FeedHorizonCard from '../components/FeedHorizonCard';
 import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
@@ -36,7 +52,8 @@ import { FEED_HINTS } from '../lib/onboardingCopy';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
-import { dateShort, dayLabel, groupByDay, localToday, timePart } from '../lib/feedTime';
+import { dateShort, groupByDay, localToday, timePart } from '../lib/feedTime';
+import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
 
@@ -349,7 +366,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         onSelectDay={scrollToDay}
       />
 
-      {days.map((day) => {
+      {days.map((day, dayIndex) => {
         // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
         // проходы Луны по домам, но не фазы и не затмения — у тех своя
         // важность, и они остаются в потоке как события.
@@ -360,6 +377,41 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         // как обычный узел линии; сворачиваем только от двух и больше.
         const soloLunar = background.length === 1 ? background[0] : null;
         const foldedLunar = background.length > 1 ? background : [];
+        // Раскрыт ровно ОДИН день, и это тот же день, на котором лента
+        // открывается (§10). Обычно это сегодня; если событий сегодня нет —
+        // ближайший следующий, иначе экран открылся бы на сжатом дне и
+        // обещание «раскрыт сегодняшний» не выполнялось бы ни для кого, у
+        // кого сегодня пусто (68 дней из 148 в боевой выдаче — без карточек).
+        const expanded = day.date === anchorDate;
+        // Блок пропорционален содержанию: у дня, где кроме лунного фона
+        // ничего нет, заголовок не тянет за собой пустой отступ.
+        const quiet = !expanded && foreground.length === 0;
+        const surface = expanded ? 'var(--bg-card)' : 'var(--bg)';
+
+        const eventNode = (event, { compact }) => {
+          const major = isMajorEvent(event);
+          // Период (planner_period) метится датой начала, точка —
+          // временем (§3). Оба признака — те же, что задают высоту
+          // карточки в FeedEventCard.jsx (durationHeight), не выдумка.
+          const isPeriod = Boolean(event.ends_at && event.duration_days);
+          return (
+            <FeedTimelineNode
+              key={event.key}
+              time={isPeriod ? dateShort(event.at) : timePart(event.at)}
+              bold={isPeriod || !compact}
+              color={dotColor(event)}
+              size={compact ? 9 : dotSize(event)}
+              gap={compact ? 6 : 12}
+              dense={compact}
+              fill={surface}
+            >
+              {compact
+                ? <FeedEventRow event={event} onOpen={setSelected} />
+                : <FeedEventCard event={event} onOpen={setSelected} major={major} />}
+            </FeedTimelineNode>
+          );
+        };
+
         return (
           <section
             key={day.date}
@@ -367,38 +419,35 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               if (el) dayRefs.current.set(day.date, el); else dayRefs.current.delete(day.date);
               if (day.date === anchorDate) anchorRef.current = el;
             }}
+            style={expanded ? {
+              // Раскрытый день — единственная поднятая поверхность ленты:
+              // по ней его и находят глазами, не вчитываясь в даты.
+              marginTop: 26,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-xl)',
+              boxShadow: 'var(--shadow-card)',
+              padding: '16px 14px 8px',
+            } : undefined}
           >
-            <FeedDayHeader label={dayLabel(day.date, today)} />
-            {foreground.map((event) => {
-              // Период (planner_period) метится датой начала, точка —
-              // временем (§3). Оба признака — те же, что задают высоту
-              // карточки в FeedEventCard.jsx (durationHeight), не выдумка.
-              const isPeriod = Boolean(event.ends_at && event.duration_days);
-              return (
-                <FeedTimelineNode
-                  key={event.key}
-                  time={isPeriod ? dateShort(event.at) : timePart(event.at)}
-                  bold={isPeriod}
-                  color={dotColor(event)}
-                  size={dotSize(event)}
-                >
-                  <FeedEventCard event={event} onOpen={setSelected} />
-                </FeedTimelineNode>
-              );
-            })}
-            {soloLunar && (
-              <FeedTimelineNode
-                key={soloLunar.key}
-                time={timePart(soloLunar.at)}
-                color={dotColor(soloLunar)}
-                size={dotSize(soloLunar)}
-              >
-                <FeedEventCard event={soloLunar} onOpen={setSelected} />
-              </FeedTimelineNode>
-            )}
+            <FeedDayHeader
+              date={day.date}
+              today={today}
+              first={dayIndex === 0}
+              quiet={quiet}
+              sticky={!expanded}
+            />
+            {/* Сжатый день меняет ОБЪЁМ события, а не доступ к нему: строка
+                открывает ту же панель, что и карточка. Крупное (feedRank.js)
+                карточкой остаётся всегда — в том числе открытый разбор, ради
+                которого на free ленту и открывают. */}
+            {foreground.map((event) => eventNode(event, {
+              compact: !expanded && !isMajorEvent(event),
+            }))}
+            {soloLunar && eventNode(soloLunar, { compact: !expanded })}
             {foldedLunar.length > 0 && (
-              <FeedTimelineNode time="" gap={16}>
-                <FeedLunarFold events={foldedLunar} onOpen={setSelected} />
+              <FeedTimelineNode time="" gap={16} fill={surface}>
+                <FeedLunarFold events={foldedLunar} onOpen={setSelected} quiet={!expanded} />
               </FeedTimelineNode>
             )}
           </section>

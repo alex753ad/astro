@@ -166,6 +166,43 @@ export function dayLabel(dateStr, todayStr) {
 }
 
 /**
+ * Дата без дня недели — «15 сентября». Главная строка заголовка дня
+ * (FeedDayHeader.jsx): после того как день стал БЛОКОМ, дата и день недели
+ * набираются по-разному (антиква и капитель гротеска) и потому собираются
+ * порознь. dayLabel() выше при этом остался и продолжает работать — им
+ * подписан заголовок для читалки, чтобы та по-прежнему читала одну связную
+ * строку, включая пометку «Сегодня».
+ */
+export function dayDate(dateStr) {
+  const [, m, d] = dateStr.split('-').map(Number);
+  return `${d} ${MONTHS_GENITIVE[m - 1] || ''}`;
+}
+
+/** «2026-09-15» → «вторник». Вторая половина заголовка дня. */
+export function weekdayLong(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+/** Первое число месяца — ступень выше дня (DESIGN_SYSTEM.md §5). */
+export function isMonthStart(dateStr) {
+  return dateStr.slice(8, 10) === '01';
+}
+
+/**
+ * Название месяца для этой ступени: «октябрь», а при смене года — «январь
+ * 2027». Год добавляется только когда он не совпадает с годом «сегодня»:
+ * в пределах текущего года он ничего не сообщает, а на горизонте в 334 дня
+ * (feedWindow) переход через год случается обязательно, и без года две
+ * одноимённые ступени были бы неотличимы.
+ */
+export function monthTitle(dateStr, todayStr) {
+  const [y, m] = dateStr.split('-').map(Number);
+  const name = MONTHS_NOMINATIVE[m - 1] || '';
+  return y === Number(todayStr.slice(0, 4)) ? name : `${name} ${y}`;
+}
+
+/**
  * Заголовок карточки.
  *
  * У транзитов, фаз, затмений, станций и равноденствий заголовок приходит
