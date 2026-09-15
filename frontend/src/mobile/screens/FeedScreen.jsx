@@ -388,7 +388,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         const quiet = !expanded && foreground.length === 0;
         const surface = expanded ? 'var(--bg-card)' : 'var(--bg)';
 
-        const eventNode = (event, { compact }) => {
+        const eventNode = (event, { compact, quiet: quietRow = false }) => {
           const major = isMajorEvent(event);
           // Период (planner_period) метится датой начала, точка —
           // временем (§3). Оба признака — те же, что задают высоту
@@ -406,7 +406,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               fill={surface}
             >
               {compact
-                ? <FeedEventRow event={event} onOpen={setSelected} />
+                ? <FeedEventRow event={event} onOpen={setSelected} quiet={quietRow} />
                 : <FeedEventCard event={event} onOpen={setSelected} major={major} />}
             </FeedTimelineNode>
           );
@@ -444,7 +444,11 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
             {foreground.map((event) => eventNode(event, {
               compact: !expanded && !isMajorEvent(event),
             }))}
-            {soloLunar && eventNode(soloLunar, { compact: !expanded })}
+            {/* Одиночное лунное — тот же ФОН, что и свёртка, а не событие
+                (решение владельца 15.09.2026): карточкой оно не рисуется
+                никогда, приглушается вместе со своим днём и остаётся внизу.
+                Разбор, почему не по времени, — в шапке FeedEventRow.jsx. */}
+            {soloLunar && eventNode(soloLunar, { compact: true, quiet: !expanded })}
             {foldedLunar.length > 0 && (
               <FeedTimelineNode time="" gap={16} fill={surface}>
                 <FeedLunarFold events={foldedLunar} onOpen={setSelected} quiet={!expanded} />

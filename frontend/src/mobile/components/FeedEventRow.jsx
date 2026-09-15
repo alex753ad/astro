@@ -17,6 +17,20 @@
  * своими 10 строками: у него внутри пороговое правило («точный» — заливка
  * акцентом), и вторая копия этого правила разъехалась бы с первой при первой
  * же правке порога.
+ *
+ * ⚠️ `quiet` — ЛУННЫЙ ФОН, а не просто «помельче». Решение владельца
+ * 15.09.2026: одиночное лунное событие дня (то, которое не сворачивается,
+ * потому что «ещё 1 лунное» ничего не сокращает) рисуется тем же
+ * приглушённым видом, что и строка свёртки, — и остаётся ВНИЗУ дня, а не
+ * встаёт по времени.
+ *
+ * Почему не по времени, хотя в сжатом дне «07:56 после 17:34» читается как
+ * сбой сортировки: положение фона перестало бы быть предсказуемым — одно
+ * лунное стояло бы в потоке, два и больше уезжали бы вниз под свёртку, то
+ * есть место события зависело бы от того, сколько их сегодня. Плюс
+ * развёрнутая свёртка показывает лунные списком внизу — внутри одного дня
+ * появилось бы два разных порядка. Набранная фоном строка внизу дня стоит
+ * там законно и сбоем не читается.
  */
 
 import React from 'react';
@@ -25,7 +39,7 @@ import { isOpenable } from './FeedEventCard';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
 import { eventTitle, planetRu } from '../lib/feedTime';
 
-export default function FeedEventRow({ event, onOpen }) {
+export default function FeedEventRow({ event, onOpen, quiet = false }) {
   const meta = event.meta || {};
   const openable = isOpenable(event) && typeof onOpen === 'function';
   const formula = event.kind === 'transit' && meta.transit_planet && meta.natal_planet && meta.aspect_type
@@ -41,20 +55,21 @@ export default function FeedEventRow({ event, onOpen }) {
         gap: 7,
         padding: '2px 0',
         fontFamily: 'var(--font-body)',
+        opacity: quiet ? 0.62 : 1,
         cursor: openable ? 'pointer' : 'default',
       }}
     >
       {formula ? (
         <>
-          <span style={{ ...glyphStyle, fontSize: 13 }}>{glyph(formula.transit_planet)}</span>
-          <span style={{ ...glyphStyle, fontSize: 13, color: aspectColor(formula.aspect_type) }}>
+          <span style={{ ...glyphStyle, fontSize: quiet ? 12 : 13 }}>{glyph(formula.transit_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: quiet ? 12 : 13, color: aspectColor(formula.aspect_type) }}>
             {aspectSymbol(formula.aspect_type)}
           </span>
-          <span style={{ ...glyphStyle, fontSize: 13 }}>{glyph(formula.natal_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: quiet ? 12 : 13 }}>{glyph(formula.natal_planet)}</span>
           <span
             style={{
-              fontSize: 13,
-              color: 'var(--text-primary)',
+              fontSize: quiet ? 12 : 13,
+              color: quiet ? 'var(--text-secondary)' : 'var(--text-primary)',
               minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -67,8 +82,8 @@ export default function FeedEventRow({ event, onOpen }) {
       ) : (
         <span
           style={{
-            fontSize: 13,
-            color: 'var(--text-primary)',
+            fontSize: quiet ? 12 : 13,
+            color: quiet ? 'var(--text-secondary)' : 'var(--text-primary)',
             minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
