@@ -56,14 +56,21 @@ import { FEED_HINTS } from '../lib/onboardingCopy';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
 import useCompactNow from '../lib/useCompactNow';
-import useTopDay from '../lib/useTopDay';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
 
-const PAGE_PADDING = { padding: '0 16px 24px' };
+// ⚠️ Нижний запас — ЗДЕСЬ, а не только на скроллере (TabShell.jsx). Приёмка
+// 15.09.2026: последние строки ленты уходили под кнопку чата. Замер при
+// точной геометрии (скроллер 788, кнопка 52 при bottom = таб-бар + 16):
+// низ последнего элемента 764 против верха кнопки 720 — 44 px содержимого
+// под кнопкой. Паддинг скроллера до содержимого не доезжал; отступ в самом
+// потоке от этого не зависит вовсе.
+//
+// 96 = 52 (кнопка) + 16 (её отступ снизу) + 16 запаса + 12 на тень.
+const PAGE_PADDING = { padding: '0 16px 96px' };
 
 function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
   return (
@@ -128,11 +135,12 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   // Один узел на дату — используется и для якоря открытия (§10), и для тапа
   // по полоске дней (§7): второе не заводит свой отдельный набор рефов.
   const dayRefs = useRef(new Map());
+  // День, на который лента открывается (§10). Держим в ref: обработчик
+  // кнопки «Сегодня» создаётся раньше, чем считается anchorDate, и
+  // пересоздавать его на каждый рендер ради одного значения незачем.
+  const anchorDateRef = useRef(null);
   // Развёрнутая полоса «сейчас»: за её уходом с экрана следит хук ниже.
   const nowStripRef = useRef(null);
-  // Место под дату дня у кромки в компактной полосе. Строка пишется сюда
-  // напрямую, минуя состояние React, — см. lib/useTopDay.js.
-  const topDateRef = useRef(null);
 
   /**
    * `silent` — обновление жестом, без смены состояния на 'loading'.
@@ -291,20 +299,14 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
     nowStripRef,
     active && status === 'ready' && days.length > 0,
   );
-  // Дата дня у кромки: «Сегодня» для сегодняшнего, иначе «15.09 вт» — тот же
-  // формат, что в полоске дней (FeedDayStrip.jsx), а не третий свой.
-  const showTopDay = useCallback((date) => {
-    const node = topDateRef.current;
-    if (!node || !date) return;
-    node.textContent = date === today ? 'Сегодня' : `${dateShort(date)} ${weekdayShort(date)}`;
-  }, [today]);
-
-  useTopDay(scrollRef, dayRefs, status === 'ready', showTopDay);
-
-  const goTop = useCallback(() => {
+  // Кнопка «Сегодня» в компактной полосе. Ведёт к тому же дню, на котором
+  // лента открывается (§10): к сегодняшнему, а если событий сегодня нет — к
+  // ближайшему следующему. Второго правила «что такое сегодня» здесь не
+  // заводится — берётся тот же anchorDate, что и при открытии.
+  const goToday = useCallback(() => {
     userMovedRef.current = true;
-    scrollRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [scrollRef]);
+    dayRefs.current.get(anchorDateRef.current)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     onHintsToggle?.('feed', hints.open);
@@ -378,6 +380,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   // день после сегодняшнего (§10). Ищется один раз на список, а не в цикле
   // отрисовки, чтобы ref достался ровно одному заголовку.
   const anchorDate = (days.find((d) => d.date >= today) || days[days.length - 1]).date;
+  anchorDateRef.current = anchorDate;
 
   return (
     <div style={PAGE_PADDING}>
@@ -392,8 +395,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         events={allEvents}
         today={today}
         visible={compactNow}
-        onGoTop={goTop}
-        dateRef={topDateRef}
+        onGoToday={goToday}
       />
       <div ref={nowStripRef}>
         <FeedNowStrip

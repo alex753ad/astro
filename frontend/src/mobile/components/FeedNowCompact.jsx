@@ -19,24 +19,30 @@
  * Сегодня липнет РОВНО ОДНА строка в 44 px: заголовки дней с 15.09.2026 не
  * липкие вовсе (разбор — в шапке FeedDayHeader.jsx).
  *
- * ⚠️ Отсюда вторая обязанность этой строки: она показывает ДЕНЬ У КРОМКИ —
- * тот, чьи события сейчас на экране. Пока заголовки липли, на вопрос «какой
- * день я смотрю» отвечали они; сняв липкость, ответ надо было вернуть, иначе
- * при прокрутке на месяц назад человек видит события без даты.
+ * ⚠️ ДАТЫ ДНЯ У КРОМКИ ЗДЕСЬ БОЛЬШЕ НЕТ — снята на приёмке 15.09.2026, и
+ * возвращать её не надо. Она дублировала метку «Сегодня» на карточке в паре
+ * сантиметров ниже, отставала от прокрутки (обновлялась по границам суток) и
+ * съедала 74 px строки, которых не хватало знаку Луны и пятому чипу дома.
+ * Вместе с ней ушёл и хук lib/useTopDay.js.
  *
- * ⚠️ Дата пишется ПРЯМО В DOM (`dateRef`), в обход состояния React. День у
- * кромки меняется на каждой границе суток — при быстрой прокрутке это десятки
- * раз в секунду, и `setState` перерисовывал бы весь список из 148 секций.
- * Подробности — в шапке lib/useTopDay.js.
+ * ⚠️ На её месте — кнопка возврата к сегодняшнему дню. Это и есть отложенный
+ * пункт «кнопка Сегодня» из TASKS.md: плавающей она не нужна (вторым
+ * плавающим элементом рядом с кнопкой чата), её место здесь.
+ *
+ * ⚠️ Вся полоса больше НЕ кнопка. До приёмки `onClick` висел на всём блоке, и
+ * тап по чипу дома уводил ленту в начало списка — то есть на месяц назад.
+ * Нажимается только кнопка «Сегодня»; чипы домов не нажимаются вовсе.
  *
  * ⚠️ Свой safe-area отступ обязателен: `position: fixed` считается от окна, а
  * не от скроллера, и верхний отступ TabShell.jsx на него не распространяется.
  * Без этого полоска уедет под статус-бар на edge-to-edge (targetSdk 35).
  *
- * Тап уводит к началу ленты — туда, где стоит развёрнутая полоса с чипами
- * домов и раскрытием периода. Компактная строка показывает состояние, но
- * раскрывать его у себя не умеет: второй набор раскрытий был бы вторым видом
- * одного и того же, а этого в ленте уже избегали (см. §7 про свёртку).
+ * ⚠️ Солнце показано ДОМОМ, а не остатком периода («☉ 5» вместо «☉ 13 дней»).
+ * На приёмке 15.09.2026: число без подлежащего не читается — в развёрнутом
+ * блоке рядом стоит «Период Солнца», а здесь оставался голый остаток. Дом
+ * возвращает смысл, не занимая места: Солнце встаёт в тот же ряд, что и пять
+ * медленных планет, и вся строка читается одним правилом «планета — дом».
+ * Остаток периода словами остаётся в развёрнутой полосе.
  */
 
 import React from 'react';
@@ -51,21 +57,23 @@ import { SIGN_RU } from '../lib/feedTime';
 /** Высота самой строки, без safe-area. Заголовки дней липнут ровно под неё. */
 export const COMPACT_HEIGHT = 44;
 
-export default function FeedNowCompact({ events, today, visible, onGoTop, dateRef }) {
+export default function FeedNowCompact({ events, today, visible, onGoToday }) {
   const all = events || [];
   const sunPeriod = findSunPeriod(all, today);
   const moonState = findMoonState(all, today);
-  const chips = longtermChips(all);
+  // Солнце идёт первым в том же ряду, что медленные планеты: один ряд —
+  // одно правило «планета — дом».
+  const chips = [
+    ...(sunPeriod ? [sunPeriod] : []),
+    ...longtermChips(all),
+  ];
 
   // Нечего показать — нечего и прилеплять: пустая полоска отъедала бы
   // 44 px экрана, не сообщая ничего.
   if (!sunPeriod && !moonState && chips.length === 0) return null;
 
-  const sunLeft = sunPeriod ? daysBetween(today, sunPeriod.ends_at.slice(0, 10)) : null;
-
   return (
     <div
-      onClick={onGoTop}
       aria-hidden={!visible}
       style={{
         position: 'fixed',
@@ -103,27 +111,24 @@ export default function FeedNowCompact({ events, today, visible, onGoTop, dateRe
           overflow: 'hidden',
         }}
       >
-        {/* Дата дня у кромки. Ширина фиксирована (tabular-nums + запас), чтобы
-            смена дня не двигала соседние блоки строки на каждой границе
-            суток — дёрганье было бы заметнее самой даты. */}
-        <span
-          ref={dateRef}
+        {/* Единственное нажимаемое место полосы. */}
+        <button
+          type="button"
+          onClick={onGoToday}
           style={{
             flexShrink: 0,
-            minWidth: 74,
+            border: '1px solid var(--accent)',
+            background: 'transparent',
+            color: 'var(--accent)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '4px 9px',
+            fontFamily: 'var(--font-body)',
+            fontSize: 11.5,
             fontWeight: 700,
-            fontSize: 12.5,
-            color: 'var(--text-primary)',
-            fontVariantNumeric: 'tabular-nums',
           }}
-        />
-        {sunLeft !== null && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-            <span style={{ ...glyphStyle, fontSize: 14, color: 'var(--color-warning)' }}>☉</span>
-            <span style={{ color: 'var(--text-primary)' }}>{sunLeft}</span>
-            {pluralDays(sunLeft)}
-          </span>
-        )}
+        >
+          Сегодня
+        </button>
         {moonState && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
             <span style={{ ...glyphStyle, fontSize: 14 }}>☽</span>
@@ -133,7 +138,7 @@ export default function FeedNowCompact({ events, today, visible, onGoTop, dateRe
           </span>
         )}
         {/* Дома — значком планеты и номером, без слова «дом»: в развёрнутой
-            полосе оно помещается, здесь пять пар делят остаток строки. */}
+            полосе оно помещается, здесь шесть пар делят остаток строки. */}
         {chips.length > 0 && (
           <span style={{
             marginLeft: 'auto',
@@ -144,8 +149,11 @@ export default function FeedNowCompact({ events, today, visible, onGoTop, dateRe
             // а дата и остаток периода меняются — им место нужнее.
             minWidth: 0,
             overflow: 'hidden',
-            maskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)',
-            WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)',
+            // 8px, а не 16: при обычном системном шрифте ряд влезает целиком
+            // (замер: 357 из 390), и широкая растушёвка зря гасила последний
+            // чип. Своё дело она делает только при увеличенном шрифте.
+            maskImage: 'linear-gradient(to right, black calc(100% - 8px), transparent)',
+            WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 8px), transparent)',
           }}>
             {chips.map((e) => (
               <span key={e.key} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

@@ -70,6 +70,11 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
             style={{
               fontSize: quiet ? 12 : 13,
               color: quiet ? 'var(--text-secondary)' : 'var(--text-primary)',
+              // ⚠️ flex: 1 обязателен. Без него свободное место строки уходило
+              // в `margin-left: auto` правого блока, а заголовок сжимался до
+              // многоточия при пустом месте справа — ровно то, что поймали на
+              // приёмке 15.09.2026 («Меркурий — Ю…» и зазор до чипа).
+              flex: '1 1 auto',
               minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -93,7 +98,9 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
           {eventTitle(event)}
         </span>
       )}
-      <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+      {/* Без `margin-left: auto`: место отдаёт заголовок (flex выше), а не
+          пустой отступ. Чип не сжимается — «0.1°» не бывает длиннее. */}
+      <span style={{ flexShrink: 0 }}>
         <FeedOrbChip meta={meta} />
       </span>
     </div>

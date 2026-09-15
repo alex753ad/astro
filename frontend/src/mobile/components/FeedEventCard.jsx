@@ -212,6 +212,10 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
               fontWeight: major ? 600 : 400,
               fontFamily: 'var(--font-body)',
               color: 'var(--text-secondary)',
+              // ⚠️ Свободное место строки принадлежит ЗАГОЛОВКУ, а не отступу
+              // перед чипом (приёмка 15.09.2026). Подробнее — тот же разбор в
+              // FeedEventRow.jsx.
+              flex: '1 1 auto',
               minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',

@@ -103,9 +103,14 @@ export default function FeedLunarFold({ events, onOpen, quiet = false }) {
           fontSize: quiet ? 12 : 13,
           opacity: quiet ? 0.62 : 1,
           textAlign: 'left',
+          // ⚠️ Строка не переносится: при увеличенном системном шрифте
+          // (Android масштабирует ВЕСЬ текст WebView) «ещё 8 лунных» уезжало
+          // на вторую строку, а ряд значков — на третью, с одиноким
+          // последним. Уступает место список значков, а не сам счётчик.
+          whiteSpace: 'nowrap',
         }}
       >
-        <span>
+        <span style={{ flexShrink: 0 }}>
           {open ? 'скрыть' : (
             <>ещё <span style={{ textDecoration: 'underline' }}>{events.length}</span> {plural(events.length)}</>
           )}
