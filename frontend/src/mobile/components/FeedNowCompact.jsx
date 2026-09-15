@@ -16,8 +16,18 @@
  * ⚠️ Бюджет высоты — не украшение, а ограничение экрана. Прилипнуть могли бы
  * три слоя сразу: полоса «сейчас» (143 px), полоска дней (68) и заголовок дня
  * (39) — вместе 250 px из 788 доступных, треть экрана до первой карточки.
- * Поэтому липнет ОДНА строка в 44 px, а заголовки дней липнут под ней
- * (`stickyTop` у FeedDayHeader): 44 + 39 = 83 px, около десятой части.
+ * Сегодня липнет РОВНО ОДНА строка в 44 px: заголовки дней с 15.09.2026 не
+ * липкие вовсе (разбор — в шапке FeedDayHeader.jsx).
+ *
+ * ⚠️ Отсюда вторая обязанность этой строки: она показывает ДЕНЬ У КРОМКИ —
+ * тот, чьи события сейчас на экране. Пока заголовки липли, на вопрос «какой
+ * день я смотрю» отвечали они; сняв липкость, ответ надо было вернуть, иначе
+ * при прокрутке на месяц назад человек видит события без даты.
+ *
+ * ⚠️ Дата пишется ПРЯМО В DOM (`dateRef`), в обход состояния React. День у
+ * кромки меняется на каждой границе суток — при быстрой прокрутке это десятки
+ * раз в секунду, и `setState` перерисовывал бы весь список из 148 секций.
+ * Подробности — в шапке lib/useTopDay.js.
  *
  * ⚠️ Свой safe-area отступ обязателен: `position: fixed` считается от окна, а
  * не от скроллера, и верхний отступ TabShell.jsx на него не распространяется.
@@ -33,12 +43,15 @@ import React from 'react';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
 import { findMoonState, findSunPeriod, longtermChips, pluralDays } from '../lib/feedNow';
 import { daysBetween } from '../lib/feedTime';
-import { signInRu } from '../lib/ruDeclension';
+// Именительный падеж, а не предложный: предлога «в» рядом со значком Луны
+// здесь нет — он съедал место, которого в 44px строке нет ни на что
+// лишнее. В развёрнутой полосе предлог остаётся (там фраза целиком).
+import { SIGN_RU } from '../lib/feedTime';
 
 /** Высота самой строки, без safe-area. Заголовки дней липнут ровно под неё. */
 export const COMPACT_HEIGHT = 44;
 
-export default function FeedNowCompact({ events, today, visible, onGoTop }) {
+export default function FeedNowCompact({ events, today, visible, onGoTop, dateRef }) {
   const all = events || [];
   const sunPeriod = findSunPeriod(all, today);
   const moonState = findMoonState(all, today);
@@ -90,6 +103,20 @@ export default function FeedNowCompact({ events, today, visible, onGoTop }) {
           overflow: 'hidden',
         }}
       >
+        {/* Дата дня у кромки. Ширина фиксирована (tabular-nums + запас), чтобы
+            смена дня не двигала соседние блоки строки на каждой границе
+            суток — дёрганье было бы заметнее самой даты. */}
+        <span
+          ref={dateRef}
+          style={{
+            flexShrink: 0,
+            minWidth: 74,
+            fontWeight: 700,
+            fontSize: 12.5,
+            color: 'var(--text-primary)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        />
         {sunLeft !== null && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
             <span style={{ ...glyphStyle, fontSize: 14, color: 'var(--color-warning)' }}>☉</span>
@@ -100,15 +127,26 @@ export default function FeedNowCompact({ events, today, visible, onGoTop }) {
         {moonState && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
             <span style={{ ...glyphStyle, fontSize: 14 }}>☽</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              в <span style={{ color: 'var(--text-primary)' }}>{signInRu(moonState.currentSign)}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
+              {SIGN_RU[moonState.currentSign] || moonState.currentSign}
             </span>
           </span>
         )}
         {/* Дома — значком планеты и номером, без слова «дом»: в развёрнутой
             полосе оно помещается, здесь пять пар делят остаток строки. */}
         {chips.length > 0 && (
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{
+            marginLeft: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            // Сжимаются и обрезаются первыми: дома при прокрутке не меняются,
+            // а дата и остаток периода меняются — им место нужнее.
+            minWidth: 0,
+            overflow: 'hidden',
+            maskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)',
+            WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)',
+          }}>
             {chips.map((e) => (
               <span key={e.key} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <span style={{ ...glyphStyle, fontSize: 13, color: 'var(--text-primary)' }}>

@@ -30,9 +30,12 @@
  * раскрытый день и сегодняшний день могут не совпадать, и врать об этом
  * нельзя.
  *
- * Прокрутка живёт в TabShell.jsx, одна на все вкладки, и здесь её заводить
- * нельзя: собственный `overflow` на любом предке заголовка сломал бы
- * `position: sticky` (подробности — в FeedDayHeader.jsx).
+ * Прокрутка живёт в TabShell.jsx, одна на все вкладки. Прежний довод «свой
+ * `overflow` сломает липкие заголовки» с 15.09.2026 недействителен —
+ * липкости у заголовков дня больше нет (FeedDayHeader.jsx). Но заводить
+ * собственный скроллер здесь всё равно нельзя: на него завязаны жест
+ * обновления, открытие на сегодняшнем дне, компактная полоса и дата дня у
+ * кромки — все они получают скроллер снаружи, из TabShell.
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -44,7 +47,7 @@ import FeedEventPanel from '../components/FeedEventPanel';
 import FeedHorizonCard from '../components/FeedHorizonCard';
 import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
 import FeedNowStrip from '../components/FeedNowStrip';
-import FeedNowCompact, { COMPACT_HEIGHT } from '../components/FeedNowCompact';
+import FeedNowCompact from '../components/FeedNowCompact';
 import PullIndicator from '../components/PullIndicator';
 import FeedSkeleton from '../components/FeedSkeleton';
 import FeedTimelineNode from '../components/FeedTimelineNode';
@@ -53,8 +56,9 @@ import { FEED_HINTS } from '../lib/onboardingCopy';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
 import useCompactNow from '../lib/useCompactNow';
+import useTopDay from '../lib/useTopDay';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
-import { dateShort, groupByDay, localToday, timePart } from '../lib/feedTime';
+import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
@@ -116,10 +120,9 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   //
   // ⚠️ Своей обёртки вокруг списка дней ради якоря «поток» здесь НЕТ
   // намеренно. Лишний уровень DOM вокруг секций — ровно тот класс правки,
-  // которым на этом экране уже ломали раскладку: заголовки дней липкие
-  // (`position: sticky`, FeedDayHeader.jsx), а прокрутка общая и живёт в
-  // TabShell.jsx. Ради подсветки трогать структуру принятого экрана дороже,
-  // чем подсветить сегодняшний день дважды с разным текстом.
+  // которым на этом экране уже ломали раскладку. Ради подсветки трогать
+  // структуру принятого экрана дороже, чем подсветить сегодняшний день
+  // дважды с разным текстом.
   const chipsRef = useRef(null);
   const userMovedRef = useRef(false);
   // Один узел на дату — используется и для якоря открытия (§10), и для тапа
@@ -127,6 +130,9 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   const dayRefs = useRef(new Map());
   // Развёрнутая полоса «сейчас»: за её уходом с экрана следит хук ниже.
   const nowStripRef = useRef(null);
+  // Место под дату дня у кромки в компактной полосе. Строка пишется сюда
+  // напрямую, минуя состояние React, — см. lib/useTopDay.js.
+  const topDateRef = useRef(null);
 
   /**
    * `silent` — обновление жестом, без смены состояния на 'loading'.
@@ -285,6 +291,16 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
     nowStripRef,
     active && status === 'ready' && days.length > 0,
   );
+  // Дата дня у кромки: «Сегодня» для сегодняшнего, иначе «15.09 вт» — тот же
+  // формат, что в полоске дней (FeedDayStrip.jsx), а не третий свой.
+  const showTopDay = useCallback((date) => {
+    const node = topDateRef.current;
+    if (!node || !date) return;
+    node.textContent = date === today ? 'Сегодня' : `${dateShort(date)} ${weekdayShort(date)}`;
+  }, [today]);
+
+  useTopDay(scrollRef, dayRefs, status === 'ready', showTopDay);
+
   const goTop = useCallback(() => {
     userMovedRef.current = true;
     scrollRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -367,9 +383,8 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
     <div style={PAGE_PADDING}>
       <PullIndicator state={pull.state} ready={pull.ready} innerRef={pull.indicatorRef} />
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
-          скроллера: собственный overflow здесь сломал бы sticky заголовков
-          (см. FeedDayHeader.jsx), а прибивать полосу к верху экрана
-          спецификация не просит. */}
+          скроллера: прибивать её к верху экрана спецификация не просит, а
+          за состоянием «сейчас» при прокрутке следит компактная строка. */}
       {/* Полоска поверх потока — вне прокрутки (position: fixed), поэтому
           стоит рядом с полосой, а не внутри неё: она ничего не занимает в
           раскладке и её появление не двигает содержимое. */}
@@ -378,6 +393,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         today={today}
         visible={compactNow}
         onGoTop={goTop}
+        dateRef={topDateRef}
       />
       <div ref={nowStripRef}>
         <FeedNowStrip
@@ -465,8 +481,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               today={today}
               first={dayIndex === 0}
               quiet={quiet}
-              sticky={!expanded}
-              stickyTop={compactNow ? `calc(env(safe-area-inset-top) + ${COMPACT_HEIGHT}px)` : 0}
+              boundary={!expanded}
             />
             {/* Сжатый день меняет ОБЪЁМ события, а не доступ к нему: строка
                 открывает ту же панель, что и карточка. Крупное (feedRank.js)
