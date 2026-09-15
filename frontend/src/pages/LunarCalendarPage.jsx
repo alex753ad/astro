@@ -354,7 +354,7 @@ export default function LunarCalendarPage() {
               .map(kind => (
                 <div key={kind} style={{ display:'flex', alignItems:'center', gap:5 }}>
                   <span style={{ fontSize: 12 }}>{ECLIPSE_LABELS[kind].emoji}</span>
-                  <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>{ECLIPSE_LABELS[kind].title}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{ECLIPSE_LABELS[kind].title}</span>
                 </div>
               ))}
             {SOLAR_EVENT_ORDER
@@ -362,7 +362,7 @@ export default function LunarCalendarPage() {
               .map(key => (
                 <div key={key} style={{ display:'flex', alignItems:'center', gap:5 }}>
                   <span style={{ fontSize: 12 }}>{SOLAR_EVENT_LABELS[key].emoji}</span>
-                  <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>{SOLAR_EVENT_LABELS[key].title}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{SOLAR_EVENT_LABELS[key].title}</span>
                 </div>
               ))}
           </div>
@@ -380,14 +380,6 @@ export default function LunarCalendarPage() {
         @keyframes shimmer {
           0%   { background-position: 200% 0; }
           100% { background-position: -200% 0; }
-        }
-        .lc-scope {
-          --lc-bg: transparent; --lc-card: var(--bg-card); --lc-border: var(--border);
-          --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
-        }
-        .dark .lc-scope {
-          --lc-bg: transparent; --lc-card: rgba(26,18,48,0.60); --lc-border: rgba(var(--accent-rgb), 0.16);
-          --lc-title: var(--text-primary); --lc-text2: var(--text-secondary); --lc-text3: var(--text-secondary); --lc-daynum: var(--text-primary);
         }
         .dark .lc-scope .lc-blob { display: none; }
       `}</style>
@@ -494,7 +486,7 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse, so
   const numColor = isToday    ? '#1A2D90'
                  : isNewMoon  ? '#FFFFFF'
                  : isFullMoon ? '#7A5400'
-                 : 'var(--lc-daynum)';
+                 : 'var(--text-primary)';
   const iconBg   = isNewMoon  ? '#3A3A50'
                  : isFullMoon ? '#FFF3C0'
                  : signData.bg;
@@ -539,12 +531,12 @@ function DayCell({ dayNum, isToday, isNewMoon, isFullMoon, signData, eclipse, so
       </div>
       <div style={dc.name}>{signData.name}</div>
       {eclipse && (
-        <div style={{ fontSize: 8, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
+        <div style={{ fontSize: 8, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.2 }}>
           {ECLIPSE_KIND_RU[eclipse.kind] || eclipse.kind} затмение
         </div>
       )}
       {solarEvent && SOLAR_EVENT_LABELS[solarEvent.type] && (
-        <div style={{ fontSize: 8, color: 'var(--lc-text2)', textAlign: 'center', lineHeight: 1.2 }}>
+        <div style={{ fontSize: 8, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.2 }}>
           {SOLAR_EVENT_LABELS[solarEvent.type].short}
         </div>
       )}
@@ -563,7 +555,7 @@ function LegendDot({ fill, border, label }) {
         border: border !== 'none' ? `1.5px solid ${border}` : 'none',
         flexShrink: 0,
       }} />
-      <span style={{ fontSize: 11, color: 'var(--lc-text2)' }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{label}</span>
     </div>
   );
 }
@@ -574,7 +566,7 @@ function LegendDot({ fill, border, label }) {
 
 const pg = {
   page: {
-    position: 'relative', minHeight: '100vh', background: 'var(--lc-bg)',
+    position: 'relative', minHeight: '100vh', background: 'transparent',
     overflow: 'hidden', display: 'flex', justifyContent: 'center',
     padding: '28px 16px 48px',
     // Контейнер страницы — интерфейс, поэтому body (Golos Text), а не антиква.
@@ -598,27 +590,27 @@ const pg = {
   },
   wrap: { position:'relative', zIndex:1, width:'100%', maxWidth:500 },
   card: {
-    background:'var(--lc-card)', borderRadius:'var(--radius-xl)',
+    background:'var(--bg-card-veil)', borderRadius:'var(--radius-xl)',
     padding:'20px 18px 16px',
     boxShadow:'0 12px 40px -8px rgba(224,195,252,0.28),0 2px 8px rgba(0,0,0,0.04)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
-    border:'1px solid var(--lc-border)',
+    border:'1px solid var(--accent-hairline)',
   },
   cardHead:  { display:'flex', alignItems:'center', gap:7, marginBottom:12 },
-  cardTitle: { fontSize:16, fontWeight:700, color:'var(--lc-title)' },
-  hr:        { height:1, background:'var(--lc-border)', margin:'10px 0 0' },
+  cardTitle: { fontSize:16, fontWeight:700, color:'var(--text-primary)' },
+  hr:        { height:1, background:'var(--accent-hairline)', margin:'10px 0 0' },
   nav: {
     display:'flex', alignItems:'center', justifyContent:'center',
     gap:12, margin:'10px 0 12px',
   },
-  navBtn:   { background:'none', border:'none', fontSize:22, color:'var(--lc-text3)', cursor:'pointer', padding:'0 4px', lineHeight:1 },
-  navMonth: { fontSize:14, fontWeight:600, color:'var(--lc-title)', minWidth:110, textAlign:'center' },
+  navBtn:   { background:'none', border:'none', fontSize:22, color:'var(--text-secondary)', cursor:'pointer', padding:'0 4px', lineHeight:1 },
+  navMonth: { fontSize:14, fontWeight:600, color:'var(--text-primary)', minWidth:110, textAlign:'center' },
   grid: {
     display:'grid', gridTemplateColumns:'repeat(7,1fr)',
     gap:'1px 0',
   },
   dow: {
     textAlign:'center', fontSize:10, fontWeight:600,
-    color:'var(--lc-text3)', paddingBottom:6,
+    color:'var(--text-secondary)', paddingBottom:6,
     letterSpacing:'0.02em',
   },
   legend: {
@@ -639,11 +631,11 @@ const pg = {
 const ph = {
   row:   { display:'flex', gap:6, flexWrap:'wrap' },
   block: { flex:'1 1 120px', display:'flex', flexDirection:'column', gap:3 },
-  label: { fontSize:8, fontWeight:700, color:'var(--lc-text3)', letterSpacing:'0.08em', textTransform:'uppercase' },
+  label: { fontSize:8, fontWeight:700, color:'var(--text-secondary)', letterSpacing:'0.08em', textTransform:'uppercase' },
   inner: { display:'flex', alignItems:'center', gap:6 },
   icon:  { width:32, height:32, borderRadius:'var(--radius-md)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
-  name:  { fontSize:13, fontWeight:700, color:'var(--lc-title)', lineHeight:1.2 },
-  extra: { fontSize:9, color:'var(--lc-text2)', marginTop:1 },
+  name:  { fontSize:13, fontWeight:700, color:'var(--text-primary)', lineHeight:1.2 },
+  extra: { fontSize:9, color:'var(--text-secondary)', marginTop:1 },
 };
 
 const dc = {
@@ -661,7 +653,7 @@ const dc = {
     display:'flex', alignItems:'center', justifyContent:'center',
   },
   name: {
-    fontSize:7.5, color:'var(--lc-text2)',
+    fontSize:7.5, color:'var(--text-secondary)',
     textAlign:'center', lineHeight:1.2,
     maxWidth:38, wordBreak:'break-word',
   },

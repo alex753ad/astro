@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aristea — образец фонов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..700&family=Literata:opsz,wght@7..72,400..700&display=swap" rel="stylesheet">
+<style>
+/*
+  bg-specimen.html — образец ФОНОВ, по образцу font-specimen.html.
+  Код проекта не трогает и никуда не импортируется: открыть и посмотреть.
+
+  Вёрстка тарифов взята из src/pages/PricingPage.jsx (три тарифа из четырёх,
+  подсвеченный — Лира, recommended: true), блок полупрозрачных карточек —
+  из src/pages/LandingPage.jsx (белый 0.6 у карточек возможностей, белый 0.7
+  у карточки превью, оба со своим backdrop-filter).
+
+  Условия, заданные владельцем 15.09.2026:
+   - шрифты новые: Literata (display) + Golos Text (body);
+   - тени только из вычищенного набора --shadow-card/raised/overlay;
+   - налёт #E0C3FC не используется нигде;
+   - акцент остаётся фиолетовым во всех четырёх вариантах;
+   - тёмная тема не трогается вовсе.
+*/
+
+:root{
+  --accent:#7C6CFF;
+  --accent-rgb:124,108,255;
+  --accent-glow:#8B5CF6;
+  --text-primary:#1E1A2E;
+  --text-secondary:#6B6885;
+  --border:#EDE8F5;
+  --bg-card:#FFFFFF;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:20px;
+  --shadow-card:0 4px 20px rgba(30,26,46,0.10);
+  --shadow-raised:0 8px 24px rgba(30,26,46,0.14);
+  --shadow-overlay:0 24px 60px rgba(30,26,46,0.22);
+  --font-display:"Literata",Georgia,serif;
+  --font-body:"Golos Text",system-ui,sans-serif;
+}
+
+*{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased}
+body{
+  margin:0; background:#2A2540; color:#E8E5F2;
+  font-family:var(--font-body); font-size:14px;
+}
+
+.page-head{padding:28px 24px 20px;max-width:1400px;margin:0 auto}
+.page-head h1{
+  font-family:var(--font-display); font-size:26px; font-weight:700;
+  margin:0 0 8px; color:#fff;
+}
+.page-head p{margin:0 0 6px;color:#B9B3D0;font-size:13px;line-height:1.6;max-width:840px}
+.page-head code{font-size:12px;background:rgba(255,255,255,0.10);padding:1px 5px;border-radius:5px}
+
+.grid{
+  display:grid; gap:20px; padding:0 20px 40px; max-width:1400px; margin:0 auto;
+  grid-template-columns:1fr;
+}
+@media (min-width:1100px){ .grid{grid-template-columns:1fr 1fr} }
+
+/* ── оболочка варианта ─────────────────────────────────────── */
+.variant{border-radius:14px;overflow:hidden;background:#1F1B33}
+.v-head{padding:12px 16px;background:#1F1B33;border-bottom:1px solid #332C52}
+.v-name{
+  font-family:var(--font-display);font-size:15px;font-weight:700;color:#fff;
+  margin:0 0 6px;
+}
+.v-spec{font-size:11px;color:#9A94B8;line-height:1.5;margin:0 0 8px;font-variant-numeric:tabular-nums}
+.v-spec b{color:#D6D1EA;font-weight:600}
+.metrics{display:flex;flex-wrap:wrap;gap:5px}
+.m{
+  font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums;
+  padding:2.5px 7px;border-radius:6px;background:rgba(255,255,255,0.07);color:#C3BDDC;
+}
+.m.good{background:rgba(52,211,153,0.16);color:#6EE7B7}
+.m.warn{background:rgba(251,191,36,0.16);color:#FCD34D}
+.m.bad{background:rgba(248,113,113,0.16);color:#FCA5A5}
+
+/* ── сама страница внутри варианта ─────────────────────────── */
+.stage{
+  padding:28px 18px 30px;
+  color:var(--text-primary);
+  font-family:var(--font-body);
+}
+
+/* заголовок тарифов — PricingPage s.h1 / s.sub */
+.h1{
+  font-family:var(--font-display);font-size:32px;font-weight:700;
+  margin:0 0 12px;text-align:center;
+}
+.sub{
+  font-size:15px;line-height:1.6;color:var(--text-secondary);
+  text-align:center;max-width:620px;margin:0 auto 32px;
+}
+
+/* сетка тарифов — PricingPage s.grid */
+.tiers{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));
+  gap:16px;margin-bottom:34px;
+}
+.tier{
+  position:relative;display:flex;flex-direction:column;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:22px 18px;
+}
+.tier.rec{border:1.5px solid var(--accent);box-shadow:0 0 15px rgba(var(--accent-rgb),0.10)}
+.badge{
+  position:absolute;top:-12px;left:18px;background:var(--accent);color:#fff;
+  font-family:var(--font-body);font-size:11px;font-weight:700;padding:3px 10px;
+  border-radius:var(--radius-sm);text-transform:uppercase;letter-spacing:0.04em;
+}
+.tier-name{font-family:var(--font-display);font-size:18px;font-weight:600;margin-bottom:6px}
+.price{font-variant-numeric:tabular-nums;font-size:26px;font-weight:700;margin-bottom:10px}
+.upsell{font-size:12px;font-weight:600;color:var(--accent-glow);margin-bottom:10px}
+.feats{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:9px;flex-grow:1}
+.feats li{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.45}
+.chk{color:var(--accent);flex-shrink:0}
+.cta{
+  width:100%;height:44px;border-radius:var(--radius-lg);
+  font-family:var(--font-display);font-size:14px;font-weight:700;cursor:pointer;
+  border:1.5px solid var(--border);background:var(--bg-card);color:var(--text-primary);
+}
+.cta.primary{border:none;background:var(--accent);color:#fff}
+
+/* блок «как получить доступ» — PricingPage s.accessBlock */
+.access{
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:18px 22px;margin:0 auto 26px;
+  max-width:620px;text-align:center;
+}
+.access h2{font-family:var(--font-display);font-size:16px;font-weight:600;margin:0 0 8px}
+.access p{font-size:14px;line-height:1.6;color:var(--text-secondary);margin:0}
+
+/* ── разделитель и блок лендинга ───────────────────────────── */
+.seam{
+  display:flex;align-items:center;gap:10px;margin:0 0 20px;
+  font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;
+  color:var(--text-secondary);
+}
+.seam::before,.seam::after{content:"";height:1px;flex:1;background:var(--border);opacity:0.8}
+
+/* карточка превью — LandingPage, rgba(255,255,255,0.7) + blur(16px) */
+.preview{
+  max-width:560px;margin:0 auto 22px;
+  background:rgba(255,255,255,0.7);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  border-radius:var(--radius-xl);
+  border:1px solid rgba(var(--accent-rgb),0.15);
+  box-shadow:var(--shadow-raised);
+  overflow:hidden;
+}
+.preview img{display:block;width:100%;height:auto}
+.preview .cap{
+  padding:9px 14px;font-size:11.5px;color:var(--text-secondary);
+  border-top:1px solid rgba(var(--accent-rgb),0.12);
+}
+
+/* карточки возможностей — LandingPage, rgba(255,255,255,0.6) + blur(8px) */
+.feat-row{display:flex;flex-wrap:wrap;gap:14px}
+.feat{
+  flex:1 1 100%;
+  background:rgba(255,255,255,0.6);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border-radius:var(--radius-lg);
+  border:1px solid rgba(var(--accent-rgb),0.1);
+  padding:20px 18px;
+}
+@media (min-width:520px){ .feat{flex:1 1 calc((100% - 28px)/3)} }
+.feat.hl{
+  background:rgba(var(--accent-rgb),0.08);
+  border:1px solid rgba(var(--accent-rgb),0.2);
+}
+.feat-t{font-family:var(--font-display);font-weight:700;font-size:15px;margin-bottom:8px}
+.feat-d{font-size:13px;color:var(--text-secondary);line-height:1.6}
+
+/* подпись-замер прямо в макете */
+.note{
+  margin:16px auto 0;max-width:620px;font-size:11.5px;line-height:1.55;
+  color:var(--text-secondary);text-align:center;font-variant-numeric:tabular-nums;
+}
+.note code{font-size:11px;background:rgba(30,26,46,0.06);padding:1px 4px;border-radius:4px}
+
+/* ── лестница границ, только вариант B ─────────────────────── */
+.ladder{margin:0 0 30px}
+.ladder-h{
+  font-size:10.5px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;
+  color:var(--text-secondary);margin:0 0 10px;
+}
+.ladder-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:12px}
+.lcard{
+  background:var(--bg-card);border-radius:var(--radius-lg);
+  padding:14px 12px;min-height:88px;display:flex;flex-direction:column;
+  justify-content:space-between;gap:8px;
+}
+.lcard .lt{font-family:var(--font-display);font-size:13px;font-weight:700}
+.lcard .lm{font-size:10.5px;color:var(--text-secondary);font-variant-numeric:tabular-nums;line-height:1.45}
+
+/* ── ЧЕТЫРЕ ФОНА ───────────────────────────────────────────── */
+
+/* A — как сейчас: пятистоповый градиент, литерал из App.jsx:431 */
+.vA .stage{
+  background:linear-gradient(135deg,#f8f0ff 0%,#f0e8ff 20%,#fce8f4 45%,#e8f0ff 70%,#f0f8ff 100%);
+}
+
+/* B — чистый белый; карточка отличается ТОЛЬКО границей */
+.vB .stage{background:#FFFFFF}
+.vB .lcard.s1{border:1px solid #EDE8F5}
+.vB .lcard.s2{border:1px solid #DED7EA}
+.vB .lcard.s3{border:1px solid #CBC2DB}
+.vB .lcard.s4{border:1px solid #9A92A6}
+
+/* C — тёплый плотный фон; карточки белые, БЕЗ границ и БЕЗ свечения */
+.vC .stage{background:#F2EDE4}
+.vC .tier{border:none;box-shadow:var(--shadow-card)}
+.vC .tier.rec{border:none;box-shadow:var(--shadow-raised)}
+.vC .access{border:none;box-shadow:var(--shadow-card)}
+.vC .cta{border:none;box-shadow:var(--shadow-card)}
+.vC .preview{border:none}
+.vC .preview .cap{border-top:1px solid rgba(30,26,46,0.08)}
+.vC .feat{border:none;box-shadow:var(--shadow-card)}
+.vC .feat.hl{border:none}
+
+/* D — едва заметная растяжка ОДНОГО тона, без перехода между цветами */
+.vD .stage{background:linear-gradient(170deg,#FBF8F2 0%,#F4EFE5 100%)}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Образец фонов — четыре варианта, одна страница</h1>
+  <p>Вёрстка настоящая: тарифы из <code>PricingPage.jsx</code> (три тарифа, подсвечена Лира), ниже — блок лендинга с полупрозрачными карточками <code>rgba(255,255,255,0.6)</code> и <code>0.7</code> вместе с их <code>backdrop-filter</code>. Шрифты Literata + Golos Text, тени только <code>--shadow-card/raised/overlay</code>, налёта <code>#E0C3FC</code> нет нигде, акцент фиолетовый во всех четырёх.</p>
+  <p>Числа в шапке каждого варианта — разница по светлоте (ΔL*) между фоном и поверхностью. У градиентов указан диапазон по стопам: одна и та же карточка на разной высоте страницы видна по-разному.</p>
+</div>
+
+<div class="grid">
+
+  <!-- ══════════ A ══════════ -->
+  <section class="variant vA">
+    <div class="v-head">
+      <p class="v-name">A · Как сейчас — контрольная колонка</p>
+      <p class="v-spec"><b>linear-gradient(135deg, #f8f0ff, #f0e8ff, #fce8f4, #e8f0ff, #f0f8ff)</b> · фон L* 93.21–97.18</p>
+      <div class="metrics">
+        <span class="m">белая карточка ΔL* 2.82…6.79</span>
+        <span class="m warn">превью .70 ΔL* 1.97…4.75</span>
+        <span class="m warn">карточки .60 ΔL* 1.69…4.07</span>
+      </div>
+    </div>
+    <div class="stage">
+      <h2 class="h1">Тарифы</h2>
+      <p class="sub">Разовая оплата за один месяц доступа. Автопродления нет — по окончании месяца доступ закрывается, продлить можно новой оплатой.</p>
+      <div class="tiers">
+        <div class="tier">
+          <div class="tier-name">Бесплатный</div>
+          <div class="price">0 ₽/мес</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>2 сохранённые карты</span></li>
+            <li><span class="chk">✓</span><span>1 бесплатная интерпретация навсегда</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь текущего месяца</span></li>
+          </ul>
+          <button class="cta">Начать бесплатно</button>
+        </div>
+        <div class="tier">
+          <div class="tier-name">Вега</div>
+          <div class="price">790 ₽/мес</div>
+          <div class="upsell">Всё из Бесплатного, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 5 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>5 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь на год</span></li>
+          </ul>
+          <button class="cta">Выбрать «Вега»</button>
+        </div>
+        <div class="tier rec">
+          <span class="badge">Рекомендуем</span>
+          <div class="tier-name">Лира</div>
+          <div class="price">2490 ₽/мес</div>
+          <div class="upsell">Всё из Веги, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 15 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>15 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Чат с Аристеей</span></li>
+          </ul>
+          <button class="cta primary">Выбрать «Лира»</button>
+        </div>
+      </div>
+      <div class="access">
+        <h2>Как получить доступ</h2>
+        <p>Доступ открывается автоматически сразу после оплаты, в личном кабинете на aristeatime.ru. Ничего скачивать и ждать не нужно.</p>
+      </div>
+      <div class="seam">блок лендинга · полупрозрачные карточки</div>
+      <div class="preview">
+        <img src="src/assets/%D0%BD%D0%B0_%D0%BB%D0%B5%D0%BD%D0%B4%D0%B8%D0%BD%D0%B3.png" alt="Превью таймлайна">
+        <div class="cap">rgba(255,255,255,0.7) + backdrop-filter: blur(16px)</div>
+      </div>
+      <div class="feat-row">
+        <div class="feat"><div class="feat-t">Транзитный Timeline</div><div class="feat-d">Линия времени, где отображается движение транзитных планет по твоей натальной карте.</div></div>
+        <div class="feat hl"><div class="feat-t">Timeline Планер</div><div class="feat-d">Поможет сориентироваться по каждому периоду и встроить нужные действия в расписание.</div></div>
+        <div class="feat"><div class="feat-t">Астролог Аристея</div><div class="feat-d">Спроси о своей карте — ответит по ней и текущим транзитам сразу.</div></div>
+      </div>
+      <p class="note">Тонировка фона — единственное, что отделяет полупрозрачные карточки: заливка даёт до ΔL* 4.75, а <code>backdrop-filter</code> размывает под собой сам градиент. Белые карточки тарифов держатся и на заливке, и на границе.</p>
+    </div>
+  </section>
+
+  <!-- ══════════ B ══════════ -->
+  <section class="variant vB">
+    <div class="v-head">
+      <p class="v-name">B · Чистый белый — карточка только за счёт границы</p>
+      <p class="v-spec"><b>#FFFFFF</b> · фон L* 100.00</p>
+      <div class="metrics">
+        <span class="m bad">белая карточка ΔL* 0.00</span>
+        <span class="m bad">превью .70 ΔL* 0.00</span>
+        <span class="m bad">карточки .60 ΔL* 0.00</span>
+      </div>
+    </div>
+    <div class="stage">
+      <h2 class="h1">Тарифы</h2>
+      <p class="sub">Разовая оплата за один месяц доступа. Автопродления нет — по окончании месяца доступ закрывается, продлить можно новой оплатой.</p>
+      <div class="tiers">
+        <div class="tier">
+          <div class="tier-name">Бесплатный</div>
+          <div class="price">0 ₽/мес</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>2 сохранённые карты</span></li>
+            <li><span class="chk">✓</span><span>1 бесплатная интерпретация навсегда</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь текущего месяца</span></li>
+          </ul>
+          <button class="cta">Начать бесплатно</button>
+        </div>
+        <div class="tier">
+          <div class="tier-name">Вега</div>
+          <div class="price">790 ₽/мес</div>
+          <div class="upsell">Всё из Бесплатного, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 5 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>5 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь на год</span></li>
+          </ul>
+          <button class="cta">Выбрать «Вега»</button>
+        </div>
+        <div class="tier rec">
+          <span class="badge">Рекомендуем</span>
+          <div class="tier-name">Лира</div>
+          <div class="price">2490 ₽/мес</div>
+          <div class="upsell">Всё из Веги, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 15 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>15 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Чат с Аристеей</span></li>
+          </ul>
+          <button class="cta primary">Выбрать «Лира»</button>
+        </div>
+      </div>
+
+      <div class="ladder">
+        <p class="ladder-h">Насколько приходится усиливать границу на белом</p>
+        <div class="ladder-row">
+          <div class="lcard s1"><span class="lt">#EDE8F5</span><span class="lm">сегодняшний --border<br>ΔL* 7.29 · 1.20:1</span></div>
+          <div class="lcard s2"><span class="lt">#DED7EA</span><span class="lm">заметно темнее<br>ΔL* 12.97 · 1.40:1</span></div>
+          <div class="lcard s3"><span class="lt">#CBC2DB</span><span class="lm">видна уверенно<br>ΔL* 20.16 · 1.71:1</span></div>
+          <div class="lcard s4"><span class="lt">#9A92A6</span><span class="lm">порог WCAG 3:1<br>ΔL* 38.2 · 2.98:1</span></div>
+        </div>
+      </div>
+
+      <div class="access">
+        <h2>Как получить доступ</h2>
+        <p>Доступ открывается автоматически сразу после оплаты, в личном кабинете на aristeatime.ru. Ничего скачивать и ждать не нужно.</p>
+      </div>
+      <div class="seam">блок лендинга · полупрозрачные карточки</div>
+      <div class="preview">
+        <img src="src/assets/%D0%BD%D0%B0_%D0%BB%D0%B5%D0%BD%D0%B4%D0%B8%D0%BD%D0%B3.png" alt="Превью таймлайна">
+        <div class="cap">rgba(255,255,255,0.7) + backdrop-filter: blur(16px)</div>
+      </div>
+      <div class="feat-row">
+        <div class="feat"><div class="feat-t">Транзитный Timeline</div><div class="feat-d">Линия времени, где отображается движение транзитных планет по твоей натальной карте.</div></div>
+        <div class="feat hl"><div class="feat-t">Timeline Планер</div><div class="feat-d">Поможет сориентироваться по каждому периоду и встроить нужные действия в расписание.</div></div>
+        <div class="feat"><div class="feat-t">Астролог Аристея</div><div class="feat-d">Спроси о своей карте — ответит по ней и текущим транзитам сразу.</div></div>
+      </div>
+      <p class="note">Белое на белом даёт ΔL* ровно 0.00: заливка полупрозрачных карточек исчезает целиком, остаётся одна граница. <code>backdrop-filter</code> над однотонной заливкой не делает ничего — размывать нечего. Подсвеченная средняя карточка возможностей выживает только потому, что залита акцентом, а не белым.</p>
+    </div>
+  </section>
+
+  <!-- ══════════ C ══════════ -->
+  <section class="variant vC">
+    <div class="v-head">
+      <p class="v-name">C · Тёплый плотный фон — карточки всплывают сами</p>
+      <p class="v-spec"><b>#F2EDE4</b> · фон L* 93.90 · без границ и без свечения</p>
+      <div class="metrics">
+        <span class="m good">белая карточка ΔL* 6.10</span>
+        <span class="m good">превью .70 ΔL* 4.27</span>
+        <span class="m good">карточки .60 ΔL* 3.67</span>
+      </div>
+    </div>
+    <div class="stage">
+      <h2 class="h1">Тарифы</h2>
+      <p class="sub">Разовая оплата за один месяц доступа. Автопродления нет — по окончании месяца доступ закрывается, продлить можно новой оплатой.</p>
+      <div class="tiers">
+        <div class="tier">
+          <div class="tier-name">Бесплатный</div>
+          <div class="price">0 ₽/мес</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>2 сохранённые карты</span></li>
+            <li><span class="chk">✓</span><span>1 бесплатная интерпретация навсегда</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь текущего месяца</span></li>
+          </ul>
+          <button class="cta">Начать бесплатно</button>
+        </div>
+        <div class="tier">
+          <div class="tier-name">Вега</div>
+          <div class="price">790 ₽/мес</div>
+          <div class="upsell">Всё из Бесплатного, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 5 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>5 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь на год</span></li>
+          </ul>
+          <button class="cta">Выбрать «Вега»</button>
+        </div>
+        <div class="tier rec">
+          <span class="badge">Рекомендуем</span>
+          <div class="tier-name">Лира</div>
+          <div class="price">2490 ₽/мес</div>
+          <div class="upsell">Всё из Веги, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 15 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>15 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Чат с Аристеей</span></li>
+          </ul>
+          <button class="cta primary">Выбрать «Лира»</button>
+        </div>
+      </div>
+      <div class="access">
+        <h2>Как получить доступ</h2>
+        <p>Доступ открывается автоматически сразу после оплаты, в личном кабинете на aristeatime.ru. Ничего скачивать и ждать не нужно.</p>
+      </div>
+      <div class="seam">блок лендинга · полупрозрачные карточки</div>
+      <div class="preview">
+        <img src="src/assets/%D0%BD%D0%B0_%D0%BB%D0%B5%D0%BD%D0%B4%D0%B8%D0%BD%D0%B3.png" alt="Превью таймлайна">
+        <div class="cap">rgba(255,255,255,0.7) + backdrop-filter: blur(16px)</div>
+      </div>
+      <div class="feat-row">
+        <div class="feat"><div class="feat-t">Транзитный Timeline</div><div class="feat-d">Линия времени, где отображается движение транзитных планет по твоей натальной карте.</div></div>
+        <div class="feat hl"><div class="feat-t">Timeline Планер</div><div class="feat-d">Поможет сориентироваться по каждому периоду и встроить нужные действия в расписание.</div></div>
+        <div class="feat"><div class="feat-t">Астролог Аристея</div><div class="feat-d">Спроси о своей карте — ответит по ней и текущим транзитам сразу.</div></div>
+      </div>
+      <p class="note">Ни у одной карточки здесь нет границы. Подсветка Лиры держится на бейдже и высоте (<code>--shadow-raised</code> против <code>--shadow-card</code>), а не на рамке. #F2EDE4 — самый плотный тёплый тон, при котором <code>--text-secondary</code> ещё держит 4.57:1 на фоне; темнее — подзаголовок уходит ниже AA.</p>
+    </div>
+  </section>
+
+  <!-- ══════════ D ══════════ -->
+  <section class="variant vD">
+    <div class="v-head">
+      <p class="v-name">D · Растяжка одного тона — мягкость без приёма</p>
+      <p class="v-spec"><b>linear-gradient(170deg, #FBF8F2, #F4EFE5)</b> · фон L* 94.58–97.65, размах 3.07</p>
+      <div class="metrics">
+        <span class="m">белая карточка ΔL* 2.35…5.42</span>
+        <span class="m warn">превью .70 ΔL* 1.64…3.80</span>
+        <span class="m warn">карточки .60 ΔL* 1.41…3.26</span>
+      </div>
+    </div>
+    <div class="stage">
+      <h2 class="h1">Тарифы</h2>
+      <p class="sub">Разовая оплата за один месяц доступа. Автопродления нет — по окончании месяца доступ закрывается, продлить можно новой оплатой.</p>
+      <div class="tiers">
+        <div class="tier">
+          <div class="tier-name">Бесплатный</div>
+          <div class="price">0 ₽/мес</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>2 сохранённые карты</span></li>
+            <li><span class="chk">✓</span><span>1 бесплатная интерпретация навсегда</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь текущего месяца</span></li>
+          </ul>
+          <button class="cta">Начать бесплатно</button>
+        </div>
+        <div class="tier">
+          <div class="tier-name">Вега</div>
+          <div class="price">790 ₽/мес</div>
+          <div class="upsell">Всё из Бесплатного, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 5 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>5 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Лунный календарь на год</span></li>
+          </ul>
+          <button class="cta">Выбрать «Вега»</button>
+        </div>
+        <div class="tier rec">
+          <span class="badge">Рекомендуем</span>
+          <div class="tier-name">Лира</div>
+          <div class="price">2490 ₽/мес</div>
+          <div class="upsell">Всё из Веги, плюс:</div>
+          <ul class="feats">
+            <li><span class="chk">✓</span><span>До 15 сохранённых карт</span></li>
+            <li><span class="chk">✓</span><span>15 AI-интерпретаций в месяц</span></li>
+            <li><span class="chk">✓</span><span>Чат с Аристеей</span></li>
+          </ul>
+          <button class="cta primary">Выбрать «Лира»</button>
+        </div>
+      </div>
+      <div class="access">
+        <h2>Как получить доступ</h2>
+        <p>Доступ открывается автоматически сразу после оплаты, в личном кабинете на aristeatime.ru. Ничего скачивать и ждать не нужно.</p>
+      </div>
+      <div class="seam">блок лендинга · полупрозрачные карточки</div>
+      <div class="preview">
+        <img src="src/assets/%D0%BD%D0%B0_%D0%BB%D0%B5%D0%BD%D0%B4%D0%B8%D0%BD%D0%B3.png" alt="Превью таймлайна">
+        <div class="cap">rgba(255,255,255,0.7) + backdrop-filter: blur(16px)</div>
+      </div>
+      <div class="feat-row">
+        <div class="feat"><div class="feat-t">Транзитный Timeline</div><div class="feat-d">Линия времени, где отображается движение транзитных планет по твоей натальной карте.</div></div>
+        <div class="feat hl"><div class="feat-t">Timeline Планер</div><div class="feat-d">Поможет сориентироваться по каждому периоду и встроить нужные действия в расписание.</div></div>
+        <div class="feat"><div class="feat-t">Астролог Аристея</div><div class="feat-d">Спроси о своей карте — ответит по ней и текущим транзитам сразу.</div></div>
+      </div>
+      <p class="note">Одна и та же тёплая нота от края до края — переход читается как освещение, а не как цвет. Верх страницы ведёт себя почти как B (ΔL* 2.35), низ — почти как C (ΔL* 5.42): полупрозрачные карточки видны неодинаково в зависимости от того, куда на странице попали.</p>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

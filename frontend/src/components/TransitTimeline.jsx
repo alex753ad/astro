@@ -224,7 +224,7 @@ function Skeleton({ width = "100%", height = 16, radius = 8, style = {} }) {
   return (
     <div style={{
       width, height, borderRadius: radius,
-      background: "linear-gradient(90deg, var(--tt-border) 25%, var(--bg-card) 50%, var(--tt-border) 75%)",
+      background: "linear-gradient(90deg, var(--accent-hairline) 25%, var(--bg-card) 50%, var(--accent-hairline) 75%)",
       backgroundSize: "200% 100%",
       animation: "shimmer 1.8s ease-in-out infinite",
       ...style,
@@ -236,9 +236,11 @@ function EventCardSkeleton() {
   return (
     <div style={{
       padding: "16px 18px", borderRadius: 'var(--radius-lg)',
-      border: "1px solid var(--tt-border)", background: "var(--tt-card)",
+      border: "1px solid var(--accent-hairline)", background: "var(--bg-card-veil)",
       display: "flex", flexDirection: "column", gap: 8,
-      borderLeft: "4px solid var(--tt-border2)",
+      /* Левой полосы тут НЕТ намеренно (снята 15.09.2026, решение владельца):
+         у загруженной карточки события её не бывает, и заглушка обещала
+         элемент, который потом исчезает. */
     }}>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Skeleton width={80} height={12} />
@@ -260,9 +262,9 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
 
   const chipStyle = (active) => ({
     padding: "5px 13px", borderRadius: 'var(--radius-xl)',
-    border: `1.5px solid ${active ? "var(--tt-acc-br)" : "var(--tt-border2)"}`,
-    background: active ? "var(--tt-acc-bg)" : "transparent",
-    color: active ? "var(--tt-acc-fg)" : "var(--tt-text2)",
+    border: `1.5px solid ${active ? "var(--accent-edge)" : "var(--accent-hairline)"}`,
+    background: active ? "var(--accent-fill)" : "transparent",
+    color: active ? "var(--accent-fg)" : "var(--text-secondary)",
     fontSize: 13, fontWeight: active ? 600 : 400,
     cursor: "pointer", transition: "all 0.2s ease",
     whiteSpace: "nowrap", userSelect: "none", fontFamily: "inherit",
@@ -271,8 +273,8 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
-      padding: "14px 16px", background: "var(--tt-card)",
-      borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border)",
+      padding: "14px 16px", background: "var(--bg-card-veil)",
+      borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)",
       boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
     }}>
       <div>
@@ -325,7 +327,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
       {(planetFilter.length > 0 || aspectFilter.length > 0 || orbFilter !== 2.0) && (
         <button onClick={() => { setPlanetFilter([]); setAspectFilter([]); setOrbFilter(2.0); }} style={{
           alignSelf: "flex-start", background: "none",
-          border: "1px solid var(--tt-border2)", color: "var(--tt-text2)",
+          border: "1px solid var(--accent-hairline)", color: "var(--text-secondary)",
           borderRadius: 'var(--radius-md)', padding: "4px 12px", fontSize: 12,
           cursor: "pointer", fontFamily: "inherit",
         }}>Сбросить фильтры</button>
@@ -335,7 +337,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
 }
 
 const filterLabelStyle = {
-  background: "none", border: "none", color: "var(--tt-text2)",
+  background: "none", border: "none", color: "var(--text-secondary)",
   fontSize: 12, fontWeight: 600, letterSpacing: "0.05em",
   textTransform: "uppercase", cursor: "pointer", padding: 0,
   display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit",
@@ -427,14 +429,14 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate, viewMonth, 
             minWidth: 48, flexShrink: 0,
             display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
             padding: "8px 6px", borderRadius: 'var(--radius-md)',
-            border: `1.5px solid ${active ? "var(--tt-acc-br)" : "var(--tt-border2)"}`,
-            background: active ? "var(--tt-acc-bg)" : "var(--tt-card)",
-            color: active ? "var(--tt-acc-fg)" : "var(--tt-text2)",
+            border: `1.5px solid ${active ? "var(--accent-edge)" : "var(--accent-hairline)"}`,
+            background: active ? "var(--accent-fill)" : "var(--bg-card-veil)",
+            color: active ? "var(--accent-fg)" : "var(--text-secondary)",
             cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
           }}>
             <span style={{ fontSize: 11, opacity: 0.7 }}>{dt.toLocaleDateString("ru-RU", { weekday: "short" })}</span>
             <span style={{ fontSize: 15, fontWeight: active ? 700 : 500 }}>{dt.getDate()}</span>
-            {count > 0 && <span style={{ width: 6, height: 6, borderRadius: 3, background: active ? "var(--tt-acc-br)" : "var(--tt-dot)" }} />}
+            {count > 0 && <span style={{ width: 6, height: 6, borderRadius: 3, background: active ? "var(--accent-edge)" : "var(--accent-mark)" }} />}
           </button>
         );
       })}
@@ -456,9 +458,9 @@ function StatsSummary({ events }) {
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {stats.map(({ label, value, color, bg }) => (
-        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
+        <div key={label} style={{ flex: "1 1 80px", padding: "12px 14px", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", background: bg, display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ fontSize: 22, fontWeight: 800, color }}>{value}</span>
-          <span style={{ fontSize: 11, color: "var(--tt-text2)" }}>{label}</span>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{label}</span>
         </div>
       ))}
     </div>
@@ -546,28 +548,28 @@ function EventCard({ event, index, isSelected, onClick }) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tt-text2)" }}>{displayDate ? formatDate(displayDate) : ""}</span>
-          {event.exact_date && <span style={{ fontSize: 10, color: "var(--tt-text3)", opacity: 0.7 }}>{formatExactTime(event.exact_date)}</span>}
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>{displayDate ? formatDate(displayDate) : ""}</span>
+          {event.exact_date && <span style={{ fontSize: 10, color: "var(--text-secondary)", opacity: 0.7 }}>{formatExactTime(event.exact_date)}</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {event.applying !== undefined && (
-            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 'var(--radius-sm)', border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "var(--tt-border2)"}`, color: event.applying ? "#3068B0" : "var(--tt-text2)", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
+            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 'var(--radius-sm)', border: `1px solid ${event.applying ? "rgba(48,104,176,0.3)" : "var(--accent-hairline)"}`, color: event.applying ? "#3068B0" : "var(--text-secondary)", background: event.applying ? "rgba(48,104,176,0.06)" : "transparent" }}>
               {event.applying ? "→ точный" : "← отходит"}
             </span>
           )}
-          <span style={{ fontSize: 11, color: "var(--tt-text3)", opacity: 0.7 }}>орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°</span>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)", opacity: 0.7 }}>орб {(event.peak_orb ?? event.orb ?? 0).toFixed(1)}°</span>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 20, color: planetAccent }}>{PLANET_GLYPHS[event.transit_planet] || "★"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tt-text)" }}>{PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{PLANET_LABELS_RU[event.transit_planet] || event.transit_planet}</span>
         <span style={{ fontSize: 16, color: aspectColor, fontWeight: 700 }}>{ASPECT_SYMBOLS[event.aspect_type] || "·"}</span>
-        <span style={{ fontSize: 13, color: "var(--tt-text2)" }}>{ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}</span>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type}</span>
         <span style={{ fontSize: 20 }}>{PLANET_GLYPHS[event.natal_planet] || "☽"}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tt-text)" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}</span>
       </div>
       {(event.transit_sign || event.natal_sign) && (
-        <div style={{ marginTop: 5, fontSize: 12, color: "var(--tt-text3)" }}>{event.transit_degree != null ? `${event.transit_degree.toFixed(1)}° ` : ""}{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
+        <div style={{ marginTop: 5, fontSize: 12, color: "var(--text-secondary)" }}>{event.transit_degree != null ? `${event.transit_degree.toFixed(1)}° ` : ""}{SIGN_RU[event.transit_sign] || event.transit_sign} → {SIGN_RU[event.natal_sign] || event.natal_sign}</div>
       )}
       <div style={{ marginTop: 10 }}>
         <MotionButton
@@ -576,7 +578,7 @@ function EventCard({ event, index, isSelected, onClick }) {
           style={{
             padding: "5px 14px",
             borderRadius: 'var(--radius-md)',
-            border: `1.5px solid ${isSelected ? aspectColor : "var(--tt-border2)"}`,
+            border: `1.5px solid ${isSelected ? aspectColor : "var(--accent-hairline)"}`,
             background: isSelected ? aspectColor : "transparent",
             color: isSelected ? "#fff" : aspectColor,
             fontSize: 12,
@@ -685,10 +687,10 @@ function InterpretationPanel({ event, chartId, onClose }) {
   }, [text]);
 
   return (
-    <div style={{ background: "var(--tt-card)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
+    <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--accent-hairline)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{key}</div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
       </div>
       <div ref={scrollRef} style={{ padding: 16, maxHeight: 400, overflowY: "auto" }}>
         {loading && !text && (
@@ -698,7 +700,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
         )}
         {error && <div style={{ color: "var(--color-danger)", fontSize: 13 }}>{error}</div>}
         {text && (
-          <div style={{ fontFamily: "var(--font-display)", fontSize: 13, lineHeight: 1.75, color: "var(--tt-text)", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 13, lineHeight: 1.75, color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
             {text}
             {loading && <span style={{ display: "inline-block", width: 6, height: 14, background: "var(--accent-glow)", marginLeft: 2, borderRadius: 2, animation: "blink 0.8s step-end infinite", verticalAlign: "text-bottom" }} />}
           </div>
@@ -739,14 +741,14 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
     : "Полный разбор этого транзита — на Веге и Лире.";
 
   return (
-    <div style={{ background: "var(--tt-card)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--tt-border2)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--tt-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tt-text)" }}>{key}</div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--tt-text3)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
+    <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--accent-hairline)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{key}</div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
       </div>
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-        <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tt-text2)", margin: 0 }}>{intro}</p>
-        <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--tt-text2)", margin: 0 }}>{outro}</p>
+        <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-secondary)", margin: 0 }}>{intro}</p>
+        <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-secondary)", margin: 0 }}>{outro}</p>
         <MotionButton level="primary" onClick={onOpenAccess} style={{
           alignSelf: "flex-start", padding: "9px 20px", borderRadius: 'var(--radius-md)', border: "none",
           background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700,
@@ -1181,21 +1183,25 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [activeDate, events, onDateSelect, chartId, mockMode]);
 
   return (
-    <div className="tt-scope" style={{ fontFamily: "var(--font-body)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--tt-text)" }}>
+    <div className="tt-scope" style={{ fontFamily: "var(--font-body)", maxWidth: 900, margin: "0 auto", padding: "24px 16px", color: "var(--text-primary)" }}>
       <style>{`
+        /* Осталась ТОЛЬКО шкала аспектов s1–s4. Десять остальных токенов были
+           псевдонимами глобальных либо разошедшимися ступенями плотности
+           акцента и сняты 15.09.2026 (см. --accent-* в index.css).
+
+           ⚠️ s1–s4 не трогать без решения по палитре: это ДАННЫЕ (типы
+           аспектов), а не оформление, и светлые литералы #3068B0 / #C08020
+           существуют ради контраста — это затемнённые версии --color-air и
+           --color-warning, которые подобраны под тёмный фон и на светлом не
+           дотягивают. Подстановка глобального токена уронит читаемость, и
+           заметно это будет только в светлой теме. Разбор — TASKS.md. */
         .tt-scope {
-          --tt-card: var(--bg-card); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
-          --tt-text3: var(--text-secondary); --tt-border: var(--border); --tt-border2: var(--border);
-          --tt-acc-bg: var(--accent-muted); --tt-acc-fg: var(--accent); --tt-acc-br: var(--accent-glow); --tt-dot: var(--border);
           --tt-s1-bg: var(--accent-muted); --tt-s1-fg: var(--accent);
           --tt-s2-bg: rgba(48,104,176,0.08); --tt-s2-fg: #3068B0;
           --tt-s3-bg: rgba(192,48,48,0.08); --tt-s3-fg: var(--color-danger);
           --tt-s4-bg: rgba(192,128,32,0.08); --tt-s4-fg: #C08020;
         }
         .dark .tt-scope {
-          --tt-card: rgba(26,18,48,0.60); --tt-text: var(--text-primary); --tt-text2: var(--text-secondary);
-          --tt-text3: var(--text-secondary); --tt-border: rgba(var(--accent-rgb), 0.14); --tt-border2: rgba(var(--accent-rgb), 0.20);
-          --tt-acc-bg: rgba(var(--accent-rgb), 0.22); --tt-acc-fg: var(--accent-glow); --tt-acc-br: rgba(var(--accent-rgb), 0.55); --tt-dot: rgba(var(--accent-rgb), 0.45);
           --tt-s1-bg: rgba(var(--accent-rgb), 0.14); --tt-s1-fg: var(--accent-glow);
           --tt-s2-bg: rgba(52,152,219,0.16); --tt-s2-fg: var(--color-air);
           --tt-s3-bg: rgba(248,113,113,0.15); --tt-s3-fg: var(--color-danger);
@@ -1209,7 +1215,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--tt-border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--accent-hairline); border-radius: 3px; }
         button:focus-visible { outline: 2px solid var(--accent-glow); outline-offset: 2px; }
         input[type="range"] { height: 4px; border-radius: 2px; }
       `}</style>
@@ -1218,17 +1224,17 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: "var(--accent)", letterSpacing: "-0.02em" }}>
           Транзиты
         </h1>
-        <p style={{ fontSize: 14, color: "var(--tt-text2)", margin: "6px 0 0", display: "flex", alignItems: "center", gap: 8 }}>
+        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "6px 0 0", display: "flex", alignItems: "center", gap: 8 }}>
           {canPage && (
             <button onClick={goPrevMonth} disabled={loadingPrev} aria-label="Предыдущий месяц" style={{
-              background: "none", border: "none", color: "var(--tt-text2)", fontSize: 16, lineHeight: 1,
+              background: "none", border: "none", color: "var(--text-secondary)", fontSize: 16, lineHeight: 1,
               cursor: loadingPrev ? "default" : "pointer", padding: "0 2px", opacity: loadingPrev ? 0.5 : 1,
             }}>‹</button>
           )}
           <span>{loadingPrev || loadingMore ? "Загрузка…" : focusLabel}</span>
           {canPage && (
             <button onClick={goNextMonth} disabled={!canGoNext || loadingMore} aria-label="Следующий месяц" style={{
-              background: "none", border: "none", color: "var(--tt-text2)", fontSize: 16, lineHeight: 1,
+              background: "none", border: "none", color: "var(--text-secondary)", fontSize: 16, lineHeight: 1,
               cursor: (!canGoNext || loadingMore) ? "default" : "pointer", padding: "0 2px", opacity: (!canGoNext || loadingMore) ? 0.35 : 1,
             }}>›</button>
           )}
@@ -1255,12 +1261,12 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
           ) : loadError ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--color-danger)", fontSize: 14, borderRadius: 'var(--radius-lg)', border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--color-danger)", fontSize: 14, borderRadius: 'var(--radius-lg)', border: "1.5px dashed var(--accent-hairline)", background: "var(--bg)" }}>
               Не удалось загрузить транзиты.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте обновить страницу.</span>
             </div>
           ) : filteredEvents.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--tt-text2)", fontSize: 14, borderRadius: 'var(--radius-lg)', border: "1.5px dashed var(--tt-border2)", background: "var(--bg)" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)", fontSize: 14, borderRadius: 'var(--radius-lg)', border: "1.5px dashed var(--accent-hairline)", background: "var(--bg)" }}>
               Нет транзитов с текущими фильтрами.<br />
               <span style={{ fontSize: 12, opacity: 0.7 }}>Попробуйте увеличить орб или сбросить фильтры.</span>
             </div>
@@ -1321,7 +1327,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       )}
 
       {!loading && (
-        <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid var(--tt-border)", fontSize: 12, color: "var(--tt-text3)", textAlign: "center", opacity: 0.8 }}>
+        <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid var(--accent-hairline)", fontSize: 12, color: "var(--text-secondary)", textAlign: "center", opacity: 0.8 }}>
           Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°<br />
           Нажмите на транзит для AI-интерпретации
         </div>

@@ -20,7 +20,21 @@ import { TIER_NAMES, TIERS } from '../constants';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
-  .prof-scope { --prof-text:var(--text-primary); --prof-card:rgba(255,255,255,0.85); --prof-title:var(--accent); --prof-muted:var(--text-secondary); --prof-tab-active:var(--bg-card); --prof-tab-color:var(--accent); --prof-tab-muted:var(--text-secondary); --prof-input:var(--accent-muted); --prof-divider:rgba(var(--accent-rgb), 0.12); --prof-toggle-off:var(--border); --prof-sub:var(--text-secondary); --prof-bar-bg:rgba(var(--accent-rgb), 0.1); }
+  /* Осталось четыре: остальные восемь были псевдонимами глобальных токенов
+     и сняты 15.09.2026.
+
+     --prof-card ПОЛУПРОЗРАЧНА В СВЕТЛОЙ ТЕМЕ НАМЕРЕННО, это не отклонение.
+     Значение rgba(255,255,255,0.85) появилось 05.06.2026 коммитом 3348462
+     (fix: ProfilePage light theme to match app style) — ТЕМ ЖЕ коммитом фон
+     страницы стал transparent, то есть карточку сделали прозрачной ровно
+     тогда, когда поставили её на сиренево-розовый градиент App.jsx.
+     85% белого пропускают градиент снизу; это ответ на фон, а не случайность.
+     ⚠️ Приём остался ЕДИНСТВЕННЫМ в вебе — больше ни одна карточка так не
+     сделана, поэтому выглядит как забытый эксперимент и просится к сведению
+     в --bg-card. Не сводить: пока градиент на месте, основание живое.
+     ⚠️ При отказе от градиента основание исчезает — тогда пересмотреть
+     вместе с фоном, а не раньше и не отдельно. */
+  .prof-scope { --prof-card:rgba(255,255,255,0.85); --prof-tab-active:var(--bg-card); --prof-divider:rgba(var(--accent-rgb), 0.12); --prof-toggle-off:var(--border); }
   .dark .prof-scope { --prof-card:rgba(26,18,48,0.55); --prof-tab-active:rgba(var(--accent-rgb), 0.2); --prof-divider:rgba(var(--accent-rgb), 0.2); --prof-toggle-off:rgba(148,163,184,0.15); }
 `;
 
@@ -89,7 +103,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: 'transparent',
-    color: 'var(--prof-text)',
+    color: 'var(--text-primary)',
     fontFamily: "var(--font-body)",
     padding: '24px 16px',
   },
@@ -101,11 +115,11 @@ const S = {
     padding: '20px 24px',
     marginBottom: 16,
   },
-  cardTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--prof-title)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  cardTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em' },
   tabBar: {
     display: 'flex',
     gap: 2,
-    background: 'var(--prof-input)',
+    background: 'var(--accent-muted)',
     borderRadius: 'var(--radius-md)',
     padding: 4,
     marginBottom: 24,
@@ -123,7 +137,7 @@ const S = {
     fontFamily: 'inherit',
     transition: 'all 0.15s',
     background: active ? 'var(--prof-tab-active)' : 'transparent',
-    color: active ? 'var(--prof-tab-color)' : 'var(--prof-tab-muted)',
+    color: active ? 'var(--accent)' : 'var(--text-secondary)',
   }),
   btn: (variant = 'ghost') => ({
     padding: '8px 16px',
@@ -139,7 +153,7 @@ const S = {
     fontFamily: 'inherit',
   }),
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
-  muted: { fontSize: 12, color: 'var(--prof-muted)' },
+  muted: { fontSize: 12, color: 'var(--text-secondary)' },
   badge: (tier) => ({
     display: 'inline-block',
     padding: '3px 12px',
@@ -239,7 +253,7 @@ function TabProfile({ user, logout, authFetch }) {
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{user?.email}</div>
           <span style={S.badge(user?.tier)}>{TIER_LABELS[user?.tier] || user?.tier}</span>
           {user?.google_sub && (
-            <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--prof-muted)' }}>Google</span>
+            <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-secondary)' }}>Google</span>
           )}
         </div>
         <MotionButton level="ghost" style={S.btn('ghost')} onClick={logout}>Выйти</MotionButton>
@@ -247,7 +261,7 @@ function TabProfile({ user, logout, authFetch }) {
 
       {isAdmin && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--prof-divider)' }}>
-          <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginBottom: 8 }}>🔧 Тестовый тариф</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>🔧 Тестовый тариф</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['free', 'lite', 'pro', 'premium'].map(t => (
               <MotionButton
@@ -349,13 +363,13 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
     </div>
   ) : null;
 
-  if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
+  if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Загрузка…</div>;
   if (!charts.length) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <LimitBanner />
-      <div style={{ ...S.card, textAlign: 'center', color: 'var(--prof-muted)', fontSize: 13 }}>
+      <div style={{ ...S.card, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
         Нет сохранённых карт.<br />
-        <Link to="/home" style={{ color: 'var(--prof-title)', marginTop: 8, display: 'inline-block' }}>
+        <Link to="/home" style={{ color: 'var(--accent)', marginTop: 8, display: 'inline-block' }}>
           Создать карту →
         </Link>
       </div>
@@ -383,7 +397,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                 display: 'flex', alignItems: 'center', gap: 6,
                 marginBottom: 10,
                 fontSize: 11, fontWeight: 700,
-                color: 'var(--prof-title)', letterSpacing: '0.05em', textTransform: 'uppercase',
+                color: 'var(--accent)', letterSpacing: '0.05em', textTransform: 'uppercase',
               }}>
                 <span style={{ fontSize: 14 }}>📌</span> Главная карта
               </div>
@@ -437,7 +451,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
                       ...S.btn('ghost'),
                       fontSize: 11,
                       padding: '4px 10px',
-                      color: 'var(--prof-muted)',
+                      color: 'var(--text-secondary)',
                       border: '1px solid rgba(148,163,184,0.25)',
                       opacity: settingPrimary === chart.id ? 0.6 : 1,
                     }}
@@ -456,9 +470,9 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
 
 // ─── Вкладка: История ─────────────────────────────────────────────────────────
 function TabHistory({ history, loading }) {
-  if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
+  if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Загрузка…</div>;
   if (!history.length) return (
-    <div style={{ ...S.card, color: 'var(--prof-muted)', fontSize: 13, textAlign: 'center' }}>
+    <div style={{ ...S.card, color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center' }}>
       История пуста — прогнозы появятся здесь после генерации.
     </div>
   );
@@ -471,7 +485,7 @@ function TabHistory({ history, loading }) {
         <div key={item.id} style={S.card}>
           <div style={S.row}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: 'var(--prof-sub)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {cleanPreview(item.preview) || '—'}
               </div>
               <div style={S.muted}>
@@ -481,7 +495,7 @@ function TabHistory({ history, loading }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <Link
                 to={`/chart/${item.chart_id}`}
-                style={{ fontSize: 12, color: 'var(--prof-title)', textDecoration: 'none' }}
+                style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}
               >
                 К карте →
               </Link>
@@ -556,7 +570,7 @@ function UsageBar({ label, used, limit, tierColor = 'var(--accent)' }) {
           {unlimited ? `${used} · безлимит` : `${used} / ${limit}`}
         </span>
       </div>
-      <div style={{ height: 6, borderRadius: 4, background: 'var(--prof-bar-bg)', overflow: 'hidden' }}>
+      <div style={{ height: 6, borderRadius: 4, background: 'rgba(var(--accent-rgb), 0.1)', overflow: 'hidden' }}>
         <div style={{
           height: '100%', width: unlimited ? '100%' : `${pct}%`,
           background: unlimited ? `${tierColor}40` : barColor,
@@ -593,7 +607,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
 
   const features = buildFeatureRows(subscription?.features, subscription?.limits);
 
-  if (loading) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
+  if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Загрузка…</div>;
 
   const currentTierIdx = TIER_ORDER.indexOf(user?.tier || 'free');
   const availableTiers = TIERS.filter(t => TIER_ORDER.indexOf(t.id) > currentTierIdx);
@@ -629,7 +643,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
               <div style={{ fontSize: 16, marginBottom: 4 }}>{f.ok ? '✓' : '✗'}</div>
               <div style={{ fontSize: 11, color: f.ok ? 'var(--accent-glow)' : 'var(--text-secondary)' }}>{f.label}</div>
               {f.value && (
-                <div style={{ fontSize: 10, color: 'var(--prof-muted)', marginTop: 2 }}>{f.value}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>{f.value}</div>
               )}
             </div>
           ))}
@@ -726,7 +740,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                     <span style={S.badge(t.id)}>{t.label}</span>
-                    <span style={{ fontSize: 13, color: 'var(--prof-muted)' }}>{t.price}</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t.price}</span>
                     {t.recommended && (
                       <span style={{ fontSize: 10, fontWeight: 700, color: TIER_COLORS[t.id], letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                         Рекомендуем
@@ -734,11 +748,11 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                     )}
                   </div>
                   {t.upsellFrom && (
-                    <div style={{ fontSize: 11, color: 'var(--prof-muted)', marginBottom: 4 }}>{t.upsellFrom}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{t.upsellFrom}</div>
                   )}
                   <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
                     {t.features.map((f, i) => (
-                      <li key={i} style={{ display: 'flex', gap: 6, fontSize: 11.5, lineHeight: 1.4, color: 'var(--prof-muted)' }}>
+                      <li key={i} style={{ display: 'flex', gap: 6, fontSize: 11.5, lineHeight: 1.4, color: 'var(--text-secondary)' }}>
                         <span style={{ color: TIER_COLORS[t.id], flexShrink: 0 }}>·</span>{f}
                       </li>
                     ))}
@@ -787,18 +801,18 @@ function TabReferral({ authFetch }) {
     });
   };
 
-  if (!data) return <div style={{ color: 'var(--prof-muted)', fontSize: 13 }}>Загрузка…</div>;
+  if (!data) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Загрузка…</div>;
 
   return (
     <div>
       <div style={S.card}>
         <p style={S.cardTitle}>Пригласи друга</p>
-        <p style={{ fontSize: 13, color: 'var(--prof-muted)', marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
           Когда приглашённый оплатит подписку — ты получишь <strong style={{ color: 'var(--accent-glow)' }}>2 недели {TIER_NAMES.pro} бесплатно</strong>.
         </p>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginBottom: 6 }}>Твоя реферальная ссылка</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>Твоя реферальная ссылка</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               readOnly
@@ -814,11 +828,11 @@ function TabReferral({ authFetch }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ background: 'var(--bg-deeper)', borderRadius: 'var(--radius-md)', padding: '14px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent-glow)' }}>{data.referrals_count ?? 0}</div>
-            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Приглашено</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Приглашено</div>
           </div>
           <div style={{ background: 'var(--bg-deeper)', borderRadius: 'var(--radius-md)', padding: '14px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-success)' }}>{data.reward_weeks_earned ?? 0} нед.</div>
-            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>Бонус получено</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Бонус получено</div>
           </div>
         </div>
       </div>
@@ -868,18 +882,18 @@ function TabPartner({ authFetch }) {
           {stats.map(s => (
             <div key={s.label} style={{ background: 'var(--bg-deeper)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{s.label}</div>
             </div>
           ))}
           <div style={{ background: 'var(--accent-muted)', borderRadius: 'var(--radius-md)', padding: '14px 16px' }}>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-glow)' }}>{money(totals.owed)}</div>
-            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginTop: 4 }}>К выплате</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>К выплате</div>
           </div>
         </div>
 
         {Object.keys(totals.by_tier).length > 0 && (
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: 'var(--prof-muted)', marginBottom: 6 }}>Оплатившие по тарифам</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>Оплатившие по тарифам</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {Object.entries(totals.by_tier).map(([tier, count]) => (
                 <span key={tier} style={{
@@ -904,7 +918,7 @@ function TabPartner({ authFetch }) {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['Месяц', 'Переходов', 'Регистр.', 'Оплатило', 'Платежи', 'Комиссия'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--prof-muted)', fontWeight: 500 }}>{h}</th>
+                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>{h}</th>
                   ))}
                 </tr>
               </thead>

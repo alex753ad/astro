@@ -86,11 +86,6 @@ function useIsDark() {
   return dark;
 }
 
-const CRM_THEME_CSS = `
-  .crm-scope { --crm-text:var(--text-primary); --crm-card:var(--bg-card); --crm-title:var(--accent); --crm-input:var(--bg-deeper); --crm-muted:var(--text-secondary); }
-  .dark .crm-scope { --crm-text:var(--text-primary); --crm-card:rgba(26,18,48,0.55); --crm-title:var(--accent-glow); --crm-input:rgba(35,28,56,0.60); --crm-muted:var(--text-secondary); }
-`;
-
 // ─── Мини-превью карты ────────────────────────────────────────────────────────
 function MiniChartPreview({ clientId, authFetch }) {
   const dark = useIsDark();
@@ -131,19 +126,19 @@ const PLANETS      = ['Sun','Moon','Mercury','Venus','Mars','Jupiter','Saturn','
 const HOUSES       = [1,2,3,4,5,6,7,8,9,10,11,12];
 
 const S = {
-  page: { minHeight: '100vh', background: 'transparent', color: 'var(--crm-text)', fontFamily: "var(--font-body)", padding: '24px 16px' },
+  page: { minHeight: '100vh', background: 'transparent', color: 'var(--text-primary)', fontFamily: "var(--font-body)", padding: '24px 16px' },
   inner: { maxWidth: 900, margin: '0 auto' },
-  card: { background: 'var(--crm-card)', border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: '20px 24px', marginBottom: 16 },
-  title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--crm-title)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  card: { background: 'var(--bg-card-veil)', border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: '20px 24px', marginBottom: 16 },
+  title: { fontSize: 14, fontWeight: 700, margin: '0 0 16px', color: 'var(--accent-fg)', textTransform: 'uppercase', letterSpacing: '0.06em' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   btn: (v = 'ghost') => ({
     padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: v === 'ghost' ? '1px solid rgba(var(--accent-rgb), 0.25)' : 'none', cursor: 'pointer', fontFamily: 'inherit',
     background: v === 'primary' ? 'linear-gradient(135deg,var(--accent),var(--accent-glow))' : v === 'danger' ? 'var(--color-danger)' : 'transparent',
-    color: v === 'ghost' ? 'var(--crm-title)' : '#fff', fontWeight: 600, fontSize: 13,
+    color: v === 'ghost' ? 'var(--accent-fg)' : '#fff', fontWeight: 600, fontSize: 13,
   }),
-  input: { width: '100%', background: 'var(--crm-input)', border: '1px solid rgba(var(--accent-rgb), 0.25)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: 'var(--crm-text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
-  muted: { fontSize: 12, color: 'var(--crm-muted)' },
-  label: { fontSize: 12, color: 'var(--crm-title)', marginBottom: 4, display: 'block' },
+  input: { width: '100%', background: 'var(--bg-deeper-veil)', border: '1px solid rgba(var(--accent-rgb), 0.25)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' },
+  muted: { fontSize: 12, color: 'var(--text-secondary)' },
+  label: { fontSize: 12, color: 'var(--accent-fg)', marginBottom: 4, display: 'block' },
 };
 
 // ─── Форма добавления клиента ─────────────────────────────────────────────────
@@ -659,7 +654,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           {briefLoading && !briefText && <div style={S.muted}>Готовлю бриф…</div>}
           {briefText && (
             <>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
                 {briefText}
               </div>
               <MotionButton level="primary" style={S.btn('primary')} onClick={saveBriefToConsultation} disabled={briefSaving || briefLoading}>
@@ -681,7 +676,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
           </div>
           {summaryLoading && !summaryText && <div style={S.muted}>Генерирую…</div>}
           {summaryText && (
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--crm-text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
               {summaryText}
             </div>
           )}
@@ -712,7 +707,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
             if (t === 'consultations') loadConsultations();
           }}
             style={{ flex: 1, padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-              background: tab === t ? 'var(--crm-card)' : 'transparent', color: tab === t ? 'var(--crm-title)' : 'var(--crm-muted)' }}>
+              background: tab === t ? 'var(--bg-card-veil)' : 'transparent', color: tab === t ? 'var(--accent-fg)' : 'var(--text-secondary)' }}>
             {tabLabels[t]}
           </button>
         ))}
@@ -788,7 +783,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
               {showTemplateDropdown && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, zIndex: 100,
-                  background: 'var(--crm-card)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--bg-card-veil)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: 'var(--radius-sm)',
                   minWidth: 220, padding: 4, marginTop: 4,
                 }}>
                   {templates.length === 0 && (
@@ -995,9 +990,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
                       </div>
                       <MotionButton level="primary" style={S.btn('danger')} onClick={() => deleteConsultation(c.id)}>Удалить</MotionButton>
                     </div>
-                    {c.notes && <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes}</div>}
+                    {c.notes && <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes}</div>}
                     {c.assignment && (
-                      <div style={{ marginTop: 8, borderLeft: '3px solid var(--accent)', paddingLeft: 10, fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ marginTop: 8, borderLeft: '3px solid var(--accent)', paddingLeft: 10, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>ЗАДАНИЕ · </span>{c.assignment}
                       </div>
                     )}
@@ -1497,7 +1492,7 @@ function IntakePanel({ authFetch, onConverted }) {
                       </div>
                       <span style={S.muted}>{(i.submitted_at || '').slice(0, 10)}</span>
                     </div>
-                    {d.question && <div style={{ fontSize: 13, color: 'var(--crm-text)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{d.question}</div>}
+                    {d.question && <div style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 8, whiteSpace: 'pre-wrap' }}>{d.question}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <MotionButton level="primary" style={S.btn('primary')} onClick={() => convert(i.id)} disabled={busyId === i.id}>
                         {busyId === i.id ? 'Добавляю…' : 'Добавить в клиенты'}
@@ -1537,7 +1532,7 @@ function IntakePanel({ authFetch, onConverted }) {
 const MONTH_SHORT_CRM = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
 
 function PracticeChart({ data, valueKey, formatValue }) {
-  if (!data?.length) return <div style={{ color: 'var(--crm-muted)', fontSize: 12 }}>Нет данных</div>;
+  if (!data?.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Нет данных</div>;
 
   const W = 340, H = 90, PAD = 12;
   const values = data.map(d => d[valueKey] ?? 0);
@@ -1579,7 +1574,7 @@ function PracticeChart({ data, valueKey, formatValue }) {
       {points.map((p, i) => {
         const mo = parseInt(p.month.split('-')[1], 10) - 1;
         return (
-          <text key={i} x={p.x} y={H - 2} textAnchor="middle" fontSize="9" fill="var(--crm-muted)">
+          <text key={i} x={p.x} y={H - 2} textAnchor="middle" fontSize="9" fill="var(--text-secondary)">
             {MONTH_SHORT_CRM[mo]}
           </text>
         );
@@ -1631,7 +1626,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
 
   const stat = (label, value) => (
     <div style={{ flex: 1, minWidth: 90 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--crm-text)' }}>{value}</div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{value}</div>
       <div style={S.muted}>{label}</div>
     </div>
   );
@@ -1690,7 +1685,7 @@ function StatsPanel({ authFetch, onOpenClient }) {
                       padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer',
                       fontSize: 12, fontWeight: chartMode === key ? 700 : 400,
                       background: chartMode === key ? 'rgba(var(--accent-rgb), 0.25)' : 'rgba(var(--accent-rgb), 0.08)',
-                      color: chartMode === key ? 'var(--accent-glow)' : 'var(--crm-muted)',
+                      color: chartMode === key ? 'var(--accent-glow)' : 'var(--text-secondary)',
                       transition: 'all 0.15s',
                     }}
                   >{label}</button>
@@ -1813,7 +1808,7 @@ function AuthorLibraryPanel({ authFetch }) {
                       <button style={S.btn('danger')} onClick={() => remove(it.id)}>×</button>
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--crm-text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{it.content}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{it.content}</div>
                 </div>
               ))}
             </div>
@@ -1959,21 +1954,21 @@ const SL = {
     flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 16 : 24, alignItems: isMobile ? 'stretch' : 'flex-start' }),
   sidebar: (isMobile) => ({ flex: isMobile ? 'none' : '0 0 240px', width: isMobile ? '100%' : undefined,
     position: isMobile ? 'static' : 'sticky', top: 24, alignSelf: 'flex-start',
-    background: 'var(--crm-card)', border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: 16,
+    background: 'var(--bg-card-veil)', border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: 16,
     display: 'flex', flexDirection: 'column', gap: 4, minHeight: isMobile ? 'auto' : 'calc(100vh - 48px)' }),
   navWrap: (isMobile) => isMobile
     ? { display: 'flex', flexDirection: 'row', overflowX: 'auto', gap: 8, paddingBottom: 4 }
     : { display: 'flex', flexDirection: 'column', gap: 4 },
-  brand: { display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', fontWeight: 700, color: 'var(--crm-title)' },
+  brand: { display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px 16px', fontWeight: 700, color: 'var(--accent-fg)' },
   navBtn: (active, isMobile) => ({ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 'var(--radius-sm)',
     border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, textAlign: 'left',
     width: isMobile ? 'auto' : '100%', whiteSpace: isMobile ? 'nowrap' : 'normal', flexShrink: 0,
     fontWeight: active ? 700 : 500,
-    color: active ? 'var(--crm-title)' : 'var(--crm-text)',
+    color: active ? 'var(--accent-fg)' : 'var(--text-primary)',
     background: active ? 'var(--accent-muted)' : 'transparent' }),
   content: { flex: 1, minWidth: 0, width: '100%' },
   bar: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginTop: 8 },
-  widget: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--crm-card)',
+  widget: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card-veil)',
     border: '1px solid rgba(var(--accent-rgb), 0.15)', borderRadius: 'var(--radius-md)', padding: '14px 16px' },
 };
 
@@ -2020,7 +2015,7 @@ function AvatarProfile({ user, authFetch, updateUser }) {
         onClick={() => inputRef.current?.click()}
         title="Загрузить аватар"
         style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, overflow: 'hidden',
-          background: 'var(--accent-muted)', color: 'var(--crm-title)', fontWeight: 700,
+          background: 'var(--accent-muted)', color: 'var(--accent-fg)', fontWeight: 700,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
       >
         {src ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
@@ -2037,7 +2032,7 @@ function AvatarProfile({ user, authFetch, updateUser }) {
               if (e.key === 'Enter') { e.preventDefault(); nameInputRef.current?.blur(); }
               else if (e.key === 'Escape') { e.preventDefault(); setEditingName(false); }
             }}
-            style={{ fontWeight: 600, fontSize: 13, width: '100%', background: 'var(--crm-card)',
+            style={{ fontWeight: 600, fontSize: 13, width: '100%', background: 'var(--bg-card-veil)',
               border: '1px solid var(--accent-muted)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: 'inherit' }}
           />
         ) : (
@@ -2146,9 +2141,8 @@ export default function CRMPage() {
 
   if (effectiveTier !== 'premium') {
     return (
-      <div className="crm-scope" style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <style>{CRM_THEME_CSS}</style>
-        <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
+      <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты</div>
           <div style={{ ...S.muted, marginBottom: 16 }}>Всё в одном месте. Открывается на тарифе {TIER_NAMES.premium}.</div>
           <Link to="/upgrade" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}>
@@ -2214,8 +2208,7 @@ export default function CRMPage() {
   };
 
   return (
-    <div className="crm-scope" style={S.page}>
-      <style>{CRM_THEME_CSS}</style>
+    <div style={S.page}>
       <div style={SL.shell(isMobile)}>
         <aside style={SL.sidebar(isMobile)}>
           <div style={SL.brand}><span>Рабочий кабинет<br/>Aristea</span></div>

@@ -308,17 +308,17 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
   return (
     <div className="rc-scope" style={s.wrap}>
       <style>{`
+        /* Осталось три: остальные десять были псевдонимами глобальных
+           токенов и сняты 15.09.2026.
+           --rc-chip-bg НЕ сведён в --accent-fill: в тёмной теме это 0.14
+           против 0.22, а 0.07 на заливке чипа различима (решение владельца).
+           --rc-chip-fg НЕ сведён в --accent-fg: у того в светлой теме
+           --accent, здесь --text-primary; совпадает только тёмная. */
         .rc-scope {
-          --rc-bg: var(--bg-card); --rc-border: var(--border); --rc-title: var(--text-primary); --rc-sub: var(--text-secondary);
-          --rc-empty: var(--text-secondary); --rc-chip-bg: var(--accent-muted); --rc-chip-fg: var(--text-primary); --rc-ai: var(--accent);
-          --rc-assist-fg: var(--text-primary); --rc-input-bg: var(--bg-deeper); --rc-input-fg: var(--text-primary);
-          --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
+          --rc-bg: var(--bg-card); --rc-chip-bg: var(--accent-muted); --rc-chip-fg: var(--text-primary);
         }
         .dark .rc-scope {
-          --rc-bg: transparent; --rc-border: rgba(var(--accent-rgb), 0.16); --rc-title: var(--text-primary); --rc-sub: var(--text-secondary);
-          --rc-empty: var(--text-secondary); --rc-chip-bg: rgba(var(--accent-rgb), 0.14); --rc-chip-fg: var(--accent-glow); --rc-ai: var(--accent-glow);
-          --rc-assist-fg: var(--text-primary); --rc-input-bg: rgba(35,28,56,0.60); --rc-input-fg: var(--text-primary);
-          --rc-hint: var(--text-secondary); --rc-err: var(--color-danger);
+          --rc-bg: transparent; --rc-chip-bg: rgba(var(--accent-rgb), 0.14); --rc-chip-fg: var(--accent-glow);
         }
         .dark .rc-scope textarea::placeholder { color: var(--text-secondary); }
       `}</style>
@@ -405,7 +405,7 @@ function TypingDots() {
       {[0, 1, 2].map(i => (
         <span key={i} style={{
           width: 6, height: 6, borderRadius: '50%',
-          background: 'var(--rc-ai)',
+          background: 'var(--accent-fg)',
           animation: 'pulse 1.2s ease-in-out infinite',
           animationDelay: `${i * 0.2}s`,
           display: 'inline-block',
@@ -426,16 +426,16 @@ const s = {
     display: 'flex', flexDirection: 'column',
     height: '100%', minHeight: 480,
     background: 'var(--rc-bg)', borderRadius: 'var(--radius-lg)',
-    border: '0.5px solid var(--rc-border)',
+    border: '0.5px solid var(--accent-hairline)',
     overflow: 'hidden',
   },
   header: {
     padding: '16px 20px 12px',
-    borderBottom: '0.5px solid var(--rc-border)',
+    borderBottom: '0.5px solid var(--accent-hairline)',
     display: 'flex', flexDirection: 'column', gap: 2,
   },
-  headerTitle: { fontSize: 15, fontWeight: 600, color: 'var(--rc-title)' },
-  headerSub:   { fontSize: 12, color: 'var(--rc-sub)' },
+  headerTitle: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' },
+  headerSub:   { fontSize: 12, color: 'var(--text-secondary)' },
   messages: {
     flex: 1, overflowY: 'auto',
     padding: '16px 20px',
@@ -447,7 +447,7 @@ const s = {
     padding: '32px 0',
   },
   emptyIcon: { fontSize: 36 },
-  emptyText: { fontSize: 14, color: 'var(--rc-empty)', margin: 0 },
+  emptyText: { fontSize: 14, color: 'var(--text-secondary)', margin: 0 },
   suggestions: {
     display: 'flex', flexWrap: 'wrap', gap: 8,
     justifyContent: 'center', maxWidth: 480,
@@ -455,7 +455,7 @@ const s = {
   suggestion: {
     padding: '8px 14px', fontSize: 13,
     background: 'var(--rc-chip-bg)', color: 'var(--rc-chip-fg)',
-    border: '0.5px solid var(--rc-border)', borderRadius: 'var(--radius-xl)',
+    border: '0.5px solid var(--accent-hairline)', borderRadius: 'var(--radius-xl)',
     cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s',
     textAlign: 'left',
@@ -467,7 +467,7 @@ const s = {
     display: 'flex', flexDirection: 'column', gap: 4,
     alignItems: 'flex-start',
   },
-  aiLabel: { fontSize: 11, fontWeight: 700, color: 'var(--rc-ai)', letterSpacing: '0.05em' },
+  aiLabel: { fontSize: 11, fontWeight: 700, color: 'var(--accent-fg)', letterSpacing: '0.05em' },
   bubbleUser: {
     maxWidth: '75%', padding: '10px 14px',
     background: 'var(--accent)',
@@ -477,21 +477,21 @@ const s = {
   bubbleAssistant: {
     maxWidth: '90%', padding: '12px 16px',
     background: 'var(--rc-chip-bg)',
-    color: 'var(--rc-assist-fg)', borderRadius: '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
+    color: 'var(--text-primary)', borderRadius: '4px var(--radius-lg) var(--radius-lg) var(--radius-lg)',
     fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap',
   },
-  error: { color: 'var(--rc-err)', fontSize: 13, textAlign: 'center', margin: 0 },
+  error: { color: 'var(--color-danger)', fontSize: 13, textAlign: 'center', margin: 0 },
   inputRow: {
     display: 'flex', gap: 8, alignItems: 'flex-end',
     padding: '12px 16px 8px',
-    borderTop: '0.5px solid var(--rc-border)',
+    borderTop: '0.5px solid var(--accent-hairline)',
   },
   textarea: {
     flex: 1, resize: 'none',
     padding: '10px 14px', fontSize: 14,
-    border: '1px solid var(--rc-border)', borderRadius: 'var(--radius-md)',
-    fontFamily: 'inherit', color: 'var(--rc-input-fg)',
-    background: 'var(--rc-input-bg)', outline: 'none',
+    border: '1px solid var(--accent-hairline)', borderRadius: 'var(--radius-md)',
+    fontFamily: 'inherit', color: 'var(--text-primary)',
+    background: 'var(--bg-deeper-veil)', outline: 'none',
     lineHeight: 1.5,
   },
   sendBtn: {
@@ -502,5 +502,5 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'opacity 0.15s',
   },
-  hint: { fontSize: 11, color: 'var(--rc-hint)', textAlign: 'center', margin: '0 0 8px', padding: 0 },
+  hint: { fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 8px', padding: 0 },
 };
