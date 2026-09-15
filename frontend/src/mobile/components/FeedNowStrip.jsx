@@ -13,8 +13,7 @@
  * Полоса НЕ липкая (`position: sticky`),
  * хотя §6 явно просит `top: 0`. Причина — заголовки дней (`FeedDayHeader.jsx`)
  * уже липкие на том же `top: 0` того же скроллера, а высота этой полосы
- * плавает (открытие чипа добавляет `ExpandedCard`, строки 1-2 пропадают при
- * нехватке данных) — без измерения фактической высоты и проброса её как
+ * плавает (строки 1-2 пропадают при нехватке данных) — без измерения фактической высоты и проброса её как
  * `top`-отступа в заголовки дней они наедут друг на друга или полоса
  * перекроет часть контента. Сделать правильно — отдельная, самостоятельная
  * задача (ResizeObserver + проброс отступа), не путать с содержимым строк.
@@ -31,32 +30,59 @@
  * самое длинное в потоке — месячный период Солнца, и приём снова честен.
  *
  * ⚠️ Что потеряно вместе с изъятием: привязка к шкале. «Сатурн выйдет из 7
- * дома через полгода» на таймлайне больше не видно, и §4 требует
- * компенсировать это словами — поэтому в развёрнутой карточке срок написан
- * текстом («с ноября 2012 по март 2032»), а не только нарисован.
+ * дома через полгода» на таймлайне больше не видно, и §4 требовал
+ * компенсировать это словами — срок писался текстом («с ноября 2012 по март
+ * 2032») в карточке, раскрывавшейся по нажатию чипа.
+ *
+ * ⚠️ С 15.09.2026 раскрытия нет: чипы стали подписями (разбор — у Chip ниже),
+ * и вместе с ним ушёл срок словами. Компенсация §4 сейчас НЕ выполняется —
+ * это известный долг, а не недосмотр, и закрывается он переносом планера в
+ * приложение целиком (пункт в TASKS.md), а не возвратом раскрытия.
  *
  * Порядок чипов — от самого короткого периода к самому длинному
  * (Юпитер → Плутон), НЕ по дате начала: периоды идут одновременно, и
  * хронология между ними бессмысленна.
  */
 
-import React, { useState } from 'react';
-import BlurredHint from './BlurredHint';
+import React from 'react';
 import HintButton from './HintButton';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
-import { daysBetween, periodRange } from '../lib/feedTime';
+import { daysBetween } from '../lib/feedTime';
 // Отбор — общий с компактной полоской (FeedNowCompact.jsx): один факт,
 // два вида. Разбор, почему вынесено, — в шапке lib/feedNow.js.
 import { findMoonState, findSunPeriod, longtermChips, pluralDays } from '../lib/feedNow';
 import { signInRu } from '../lib/ruDeclension';
 
-function Chip({ event, active, onClick }) {
+/**
+ * Планета и её дом — ПОДПИСЬ, а не кнопка.
+ *
+ * ⚠️ Рамку, фон и состояние «нажато» сняли 15.09.2026 по решению владельца, и
+ * вернуть их без нового экрана нельзя. Причина в том, куда ведут осмысленные
+ * действия всех трёх элементов этой полосы (период Солнца, знак Луны, дома):
+ * они ведут В ПЛАНЕР, которого в приложении НЕТ.
+ *
+ * В вебе планер — три горизонта: месяц, неделя, долгосрочно. В приложение
+ * попал только «долгосрочно», и попал вырванным куском — вот этими чипами.
+ * Поэтому:
+ *
+ *   • у чипа дома раскрывать нечего: на free сервер отдаёт пустые theme и
+ *     groups, то есть за нажатием стояла витрина под блюром с кнопкой,
+ *     которая и так ничего не делала (onUpgrade сюда никто не передавал);
+ *   • период Солнца — один из МНОГИХ периодов месячного планера, и делать
+ *     нажимаемым его одного бессмысленно: остальных в приложении не
+ *     существует;
+ *   • знак Луны ведёт к прогнозу на день, а такого экрана в приложении тоже
+ *     нет.
+ *
+ * Пока планер не перенесён целиком (пункт в TASKS.md), элемент, который
+ * выглядит нажимаемым и не нажимается, хуже честной подписи: на это уже
+ * споткнулись — тап по чипу уводил ленту на месяц назад, потому что
+ * обработчик висел на всей полосе.
+ */
+function Chip({ event }) {
   const meta = event.meta || {};
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
+    <div
       style={{
         flex: '1 1 0',
         minWidth: 0,
@@ -64,11 +90,8 @@ function Chip({ event, active, onClick }) {
         flexDirection: 'column',
         alignItems: 'center',
         gap: 2,
-        padding: '8px 2px',
-        borderRadius: 'var(--radius-md)',
-        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-        background: active ? 'var(--accent-muted)' : 'var(--bg-card)',
-        color: active ? 'var(--accent)' : 'var(--text-primary)',
+        padding: '4px 2px',
+        color: 'var(--text-primary)',
       }}
     >
       <span style={{ ...glyphStyle, fontSize: 17 }}>{glyph(meta.planet)}</span>
@@ -77,69 +100,11 @@ function Chip({ event, active, onClick }) {
       <span style={{ fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600, whiteSpace: 'nowrap' }}>
         {meta.house} дом
       </span>
-    </button>
-  );
-}
-
-function ExpandedCard({ event, onUpgrade }) {
-  const meta = event.meta || {};
-  const groups = Array.isArray(meta.groups) ? meta.groups : [];
-  const hasContent = groups.some((g) => (g.items || []).length > 0);
-
-  return (
-    <div
-      style={{
-        marginTop: 10,
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 14,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ ...glyphStyle, fontSize: 18, color: 'var(--accent)' }}>{glyph(meta.planet)}</span>
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}>
-          {meta.planet_name} в {meta.house} доме
-        </h3>
-      </div>
-
-      {/* Срок словами — компенсация потерянной шкалы, см. шапку файла. */}
-      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        {periodRange(event.at, event.ends_at)}
-      </div>
-
-      {meta.theme && (
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{meta.theme}</div>
-      )}
-
-      {hasContent
-        ? groups.map((group, gi) => (
-          <ul key={gi} style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-            {(group.items || []).map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        ))
-        : <BlurredHint />}
-
-      {event.locked && (
-        <button
-          type="button"
-          className="mobile-btn-primary"
-          disabled={!onUpgrade}
-          onClick={onUpgrade ? () => onUpgrade(event) : undefined}
-          style={{ marginTop: 4 }}
-        >
-          Открыть доступ
-        </button>
-      )}
     </div>
   );
 }
 
-export default function FeedNowStrip({ events, today, onUpgrade, onHelp, chipsRef }) {
-  const [openKey, setOpenKey] = useState(null);
+export default function FeedNowStrip({ events, today, onHelp, chipsRef }) {
   const all = events || [];
   const longterm = longtermChips(all);
   const sunPeriod = findSunPeriod(all, today);
@@ -150,7 +115,6 @@ export default function FeedNowStrip({ events, today, onUpgrade, onHelp, chipsRe
   // Порядок и копия — в longtermChips() (lib/feedNow.js), общая с компактной
   // полоской.
   const chips = longterm;
-  const open = chips.find((e) => e.key === openKey) || null;
 
   return (
     // position: relative — под кнопку «?» в правом верхнем углу
@@ -219,17 +183,8 @@ export default function FeedNowStrip({ events, today, onUpgrade, onHelp, chipsRe
           </h2>
 
           <div ref={chipsRef} style={{ display: 'flex', gap: 6 }}>
-            {chips.map((event) => (
-              <Chip
-                key={event.key}
-                event={event}
-                active={event.key === openKey}
-                onClick={() => setOpenKey(event.key === openKey ? null : event.key)}
-              />
-            ))}
+            {chips.map((event) => <Chip key={event.key} event={event} />)}
           </div>
-
-          {open && <ExpandedCard event={open} onUpgrade={onUpgrade} />}
         </>
       )}
     </section>
