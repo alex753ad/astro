@@ -18,11 +18,22 @@
  * одинаковых пустых дней дают ровную гребёнку — ту же массу, из которой
  * уходили, только собранную из заголовков.
  *
- * `position: sticky` сохранён с прежнего захода, и два его условия — тоже:
+ * `position: sticky` сохранён с прежнего захода, и его условия — тоже, но
+ * первое с 15.09.2026 выполняется ИНАЧЕ:
  *
- *   1. Заголовок обязан быть непрозрачным (`background: var(--bg)`).
- *      Прилипший прозрачный заголовок пропускает под собой карточки, и текст
- *      накладывается на текст.
+ *   1. Непрозрачной обязана быть подложка ПОД ТЕКСТОМ — иначе прилипший
+ *      заголовок пропускает под собой карточки и текст ложится на текст.
+ *      Раньше это делала полоса во всю ширину (`background: var(--bg)`).
+ *      Теперь фон страницы в светлой теме — ГРАДИЕНТ, и плоская полоса
+ *      поперёк него читается как светлая заплатка (проверено снимком до
+ *      правки). Поэтому непрозрачен ЧИП по ширине текста (`--bg-card`), а не
+ *      полоса: он ничего не перекрывает поперёк экрана и от градиента не
+ *      зависит.
+ *      ⚠️ Цена решения, принятая сознательно: рядом с чипом содержимое видно,
+ *      оно проезжает справа от прилипшей даты. Выбрано вместо
+ *      `backdrop-filter: blur` — блюр на липком элементе это единственное
+ *      место в ленте с настоящей ценой на каждом кадре прокрутки, а чип её
+ *      не имеет вовсе.
  *   2. Ни один предок заголовка внутри FeedScreen не должен получить
  *      `overflow` — это создаст новый контекст прокрутки, и sticky начнёт
  *      липнуть к нему, то есть перестанет липнуть к экрану вовсе. Ошибка
@@ -49,7 +60,9 @@ const LABEL_STYLE = {
   color: 'var(--text-secondary)',
 };
 
-export default function FeedDayHeader({ date, today, first = false, quiet = false, sticky = true }) {
+export default function FeedDayHeader({
+  date, today, first = false, quiet = false, sticky = true, stickyTop = 0,
+}) {
   const isToday = date === today;
   const monthStep = isMonthStart(date) && !first;
   return (
@@ -57,13 +70,16 @@ export default function FeedDayHeader({ date, today, first = false, quiet = fals
       aria-label={dayLabel(date, today)}
       style={sticky ? {
         position: 'sticky',
-        top: 0,
+        // Не 0, когда сверху висит компактная полоска «сейчас»
+        // (FeedNowCompact.jsx): два липких слоя на одной точке наехали бы
+        // друг на друга. Значение приходит сверху, а не вычисляется здесь —
+        // высота полоски известна ей самой (COMPACT_HEIGHT).
+        top: stickyTop,
         zIndex: 1,
         // Ступень месяца — тот же приём, что и у дня, на порядок крупнее:
         // добавочный воздух. Своих цветов и линий ей не заводили.
         marginTop: first ? 8 : (monthStep ? 44 : 26),
         paddingBottom: quiet ? 4 : 12,
-        background: 'var(--bg)',
       } : {
         // Раскрытый день (сегодняшний) живёт ВНУТРИ поднятой поверхности
         // (FeedScreen.jsx), и здесь заголовок не липнет: прилипая, он
@@ -73,9 +89,23 @@ export default function FeedDayHeader({ date, today, first = false, quiet = fals
         paddingBottom: 14,
       }}
     >
+      {/* Ступень месяца — тоже чипом, по той же причине: заголовок липкий
+          целиком, и прозрачная подпись пропустила бы под собой карточки. */}
       {monthStep && (
-        <div style={{ ...LABEL_STYLE, letterSpacing: '0.12em', marginBottom: 8 }}>
-          {monthTitle(date, today)}
+        <div style={{ marginBottom: 8 }}>
+          <span
+            style={{
+              ...LABEL_STYLE,
+              letterSpacing: '0.12em',
+              display: 'inline-block',
+              background: 'var(--bg-card)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '3px 10px',
+              marginLeft: -10,
+            }}
+          >
+            {monthTitle(date, today)}
+          </span>
         </div>
       )}
       {sticky && (
@@ -92,7 +122,21 @@ export default function FeedDayHeader({ date, today, first = false, quiet = fals
           Сегодня
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+      {/* Чип: непрозрачен ровно по ширине даты и дня недели. display:
+          inline-flex, а не flex — растянутый на всю ширину чип снова стал бы
+          полосой, только со скруглением. */}
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'baseline',
+          gap: 10,
+          background: sticky ? 'var(--bg-card)' : 'transparent',
+          borderRadius: sticky ? 'var(--radius-md)' : 0,
+          padding: sticky ? '4px 10px' : 0,
+          marginLeft: sticky ? -10 : 0,
+          maxWidth: '100%',
+        }}
+      >
         <h2
           style={{
             margin: 0,

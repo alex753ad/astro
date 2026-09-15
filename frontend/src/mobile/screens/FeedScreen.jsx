@@ -44,6 +44,7 @@ import FeedEventPanel from '../components/FeedEventPanel';
 import FeedHorizonCard from '../components/FeedHorizonCard';
 import FeedLunarFold, { isLunarBackground } from '../components/FeedLunarFold';
 import FeedNowStrip from '../components/FeedNowStrip';
+import FeedNowCompact, { COMPACT_HEIGHT } from '../components/FeedNowCompact';
 import PullIndicator from '../components/PullIndicator';
 import FeedSkeleton from '../components/FeedSkeleton';
 import FeedTimelineNode from '../components/FeedTimelineNode';
@@ -51,6 +52,7 @@ import HintOverlay from '../components/HintOverlay';
 import { FEED_HINTS } from '../lib/onboardingCopy';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
+import useCompactNow from '../lib/useCompactNow';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, groupByDay, localToday, timePart } from '../lib/feedTime';
 import { isMajorEvent } from '../lib/feedRank';
@@ -123,6 +125,8 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   // Один узел на дату — используется и для якоря открытия (§10), и для тапа
   // по полоске дней (§7): второе не заводит свой отдельный набор рефов.
   const dayRefs = useRef(new Map());
+  // Развёрнутая полоса «сейчас»: за её уходом с экрана следит хук ниже.
+  const nowStripRef = useRef(null);
 
   /**
    * `silent` — обновление жестом, без смены состояния на 'loading'.
@@ -272,6 +276,20 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   // (SPEC_ONBOARDING.md §9).
   const hints = useHints('feed', active && status === 'ready' && days.length > 0);
 
+  // Компактная полоска включается, когда развёрнутая ушла за верх. Гейт по
+  // `active` обязателен, как и у жеста обновления: все три экрана
+  // смонтированы одновременно и делят один скроллер, и без него полоска
+  // ленты висела бы поверх «Карты» и «Ещё».
+  const compactNow = useCompactNow(
+    scrollRef,
+    nowStripRef,
+    active && status === 'ready' && days.length > 0,
+  );
+  const goTop = useCallback(() => {
+    userMovedRef.current = true;
+    scrollRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [scrollRef]);
+
   useEffect(() => {
     onHintsToggle?.('feed', hints.open);
   }, [onHintsToggle, hints.open]);
@@ -352,12 +370,23 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
           скроллера: собственный overflow здесь сломал бы sticky заголовков
           (см. FeedDayHeader.jsx), а прибивать полосу к верху экрана
           спецификация не просит. */}
-      <FeedNowStrip
+      {/* Полоска поверх потока — вне прокрутки (position: fixed), поэтому
+          стоит рядом с полосой, а не внутри неё: она ничего не занимает в
+          раскладке и её появление не двигает содержимое. */}
+      <FeedNowCompact
         events={allEvents}
         today={today}
-        onHelp={hints.show}
-        chipsRef={chipsRef}
+        visible={compactNow}
+        onGoTop={goTop}
       />
+      <div ref={nowStripRef}>
+        <FeedNowStrip
+          events={allEvents}
+          today={today}
+          onHelp={hints.show}
+          chipsRef={chipsRef}
+        />
+      </div>
       <FeedDayStrip
         from={feed?.horizon?.from}
         to={feed?.horizon?.to}
@@ -386,7 +415,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         // Блок пропорционален содержанию: у дня, где кроме лунного фона
         // ничего нет, заголовок не тянет за собой пустой отступ.
         const quiet = !expanded && foreground.length === 0;
-        const surface = expanded ? 'var(--bg-card)' : 'var(--bg)';
+        const surface = expanded ? 'var(--bg-card)' : 'var(--bg-dot)';
 
         const eventNode = (event, { compact, quiet: quietRow = false }) => {
           const major = isMajorEvent(event);
@@ -403,6 +432,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               size={compact ? 9 : dotSize(event)}
               gap={compact ? 6 : 12}
               dense={compact}
+              quiet={quietRow}
               fill={surface}
             >
               {compact
@@ -436,6 +466,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               first={dayIndex === 0}
               quiet={quiet}
               sticky={!expanded}
+              stickyTop={compactNow ? `calc(env(safe-area-inset-top) + ${COMPACT_HEIGHT}px)` : 0}
             />
             {/* Сжатый день меняет ОБЪЁМ события, а не доступ к нему: строка
                 открывает ту же панель, что и карточка. Крупное (feedRank.js)

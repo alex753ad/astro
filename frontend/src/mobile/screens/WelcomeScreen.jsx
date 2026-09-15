@@ -108,7 +108,8 @@ export default function WelcomeScreen() {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--bg)',
+        // Фон не задаётся: его рисует body (--bg-page, градиент в светлой
+        // теме). Плоский var(--bg) здесь закрывал бы градиент собой.
         // Полноэкранный экран: под ним нет таб-бара, который забрал бы
         // нижний safe-area на себя (как в TabShell), поэтому отступы
         // ставятся здесь со всех четырёх сторон.

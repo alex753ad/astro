@@ -9,10 +9,14 @@
  *
  * ⚠️ `fill` — цвет СЕРДЦЕВИНЫ точки, а не обводки: точка это кольцо, и
  * внутри него лежит фон той поверхности, на которой она стоит. По умолчанию
- * это фон страницы; раскрытый день ленты лежит на поднятой поверхности
+ * это --bg-dot; раскрытый день ленты лежит на поднятой поверхности
  * (`--bg-card`) и передаёт её сюда. В светлой теме разница почти не видна
- * (#FDFBF9 против #FFFFFF), в ТЁМНОЙ видна сразу (#0F0A1A против #1A1230):
+ * (#FFFFFF против #FFFFFF), в ТЁМНОЙ видна сразу (#0F0A1A против #1A1230):
  * сердцевина оказалась бы темнее карточки, то есть дыркой в ней.
+ *
+ * ⚠️ Токен, а не `var(--bg)`, с 15.09.2026: фон страницы в светлой теме стал
+ * ГРАДИЕНТОМ, и плоский цвет под точку из него не берётся — любой попадёт
+ * мимо. --bg-dot задан отдельно (белый в светлой, цвет фона в тёмной).
  *
  * ⚠️ Линия — не один элемент на весь экран, а сегмент на каждый узел
  * (`position:absolute; top:0; bottom:0` внутри `position:relative`-обёртки,
@@ -38,7 +42,8 @@ const TIME_COL_WIDTH = 64;
 const LINE_LEFT = TIME_COL_WIDTH - 1; // 63px от левого края контейнера ленты
 
 export default function FeedTimelineNode({
-  time, bold, color, size, children, gap = 12, fill = 'var(--bg)', dense = false,
+  time, bold, color, size, children, gap = 12, fill = 'var(--bg-dot)', dense = false,
+  quiet = false,
 }) {
   const hasDot = typeof size === 'number';
   return (
@@ -65,6 +70,7 @@ export default function FeedTimelineNode({
             background: fill,
             border: `${size >= 13 ? 2 : 1.5}px solid ${color}`,
             transform: 'translate(-50%, 0)',
+            opacity: quiet ? 0.62 : 1,
           }}
         />
       )}
@@ -93,6 +99,10 @@ export default function FeedTimelineNode({
             fontWeight: bold ? 700 : 400,
             color: bold ? 'var(--text-primary)' : 'var(--text-secondary)',
             paddingTop: 2,
+            // `quiet` приходит вместе с приглушённой строкой события
+            // (лунный фон): время и точка — часть той же строки, и
+            // оставить их в полную силу значит приглушить половину.
+            opacity: quiet ? 0.62 : 1,
           }}
         >
           {time}
