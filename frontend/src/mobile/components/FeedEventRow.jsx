@@ -49,17 +49,67 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
   // Проход Луны по дому — недельный горизонт планера (§5 DESIGN_SYSTEM.md).
   // Рядовым он остаётся намеренно: их ~53 на окне ленты, и карточка на
   // каждый вернула бы ту самую массу, ради разбора которой ритм и принят.
-  // Срок со временем — единственное, что строка добавляет к заголовку.
-  const moonRange = event.kind === 'planner_moon_house'
-    ? moonRangeShort(event.at, event.ends_at)
-    : '';
+  const isMoonHouse = event.kind === 'planner_moon_house';
+
+  /**
+   * ⚠️ У прохода Луны СВОЙ вид строки, и это решение приёмки 16.09.2026, а не
+   * украшение. Остальные строки сжатого дня — это события, которые уже
+   * сказали о себе всё: транзит, фаза, станция. Проход Луны — единственная
+   * строка, ЗА которой лежит текст (тема и рекомендации планера), и по
+   * рядовой строке этого не видно вовсе: человек читает её как «ещё один
+   * транзит» и не нажимает.
+   *
+   * Отсюда три отличия, все внутри §2 DESIGN_SYSTEM.md, без новых цветов:
+   * значок Луны и шеврон набраны `--accent-fg` (акцент в роли текста),
+   * заголовок — `--text-primary` даже в приглушённом дне, срок вынесен во
+   * вторую строку и переносится. Шеврон, а не рамка: рамка сделала бы строку
+   * карточкой и сломала бы ритм, ради которого строку и вводили.
+   */
+  if (isMoonHouse) {
+    return (
+      <div
+        onClick={openable ? () => onOpen(event) : undefined}
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 8,
+          padding: '2px 0',
+          fontFamily: 'var(--font-body)',
+          cursor: openable ? 'pointer' : 'default',
+        }}
+      >
+        <span style={{ ...glyphStyle, fontSize: 14, color: 'var(--accent-fg)', flexShrink: 0, lineHeight: 1.45 }}>
+          {glyph('moon')}
+        </span>
+        <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 13.5, color: 'var(--text-primary)' }}>
+            {eventTitle(event)}
+          </span>
+          {/* Срок переносится, а не обрезается: обрезанный срок выглядит
+              настоящим и потому хуже отсутствующего. */}
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            {moonRangeShort(event.at, event.ends_at)}
+          </span>
+        </span>
+        {event.locked && <FeedLockMark />}
+        <span
+          aria-hidden="true"
+          style={{ flexShrink: 0, fontSize: 15, lineHeight: 1.3, color: 'var(--accent-fg)' }}
+        >
+          ›
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
       onClick={openable ? () => onOpen(event) : undefined}
       style={{
         display: 'flex',
-        alignItems: 'center',
+        // flex-start, а не center: строка формулы может стать двухрядной
+        // (см. overflowWrap ниже), и значки обязаны остаться у ПЕРВОГО ряда.
+        alignItems: 'flex-start',
         gap: 7,
         padding: '2px 0',
         fontFamily: 'var(--font-body)',
@@ -84,9 +134,18 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
               // приёмке 15.09.2026 («Меркурий — Ю…» и зазор до чипа).
               flex: '1 1 auto',
               minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              // ⚠️ ПЕРЕНОС, а не многоточие — приёмка 16.09.2026. Обрезка
+              // съедала ВТОРУЮ планету целиком («Меркурий — Ма…», «Венера —
+              // Сев. …»), то есть половину содержания аспекта: по первой
+              // планете событие не опознать. Сокращать слова тоже нельзя —
+              // «Сев. Узел» уже сокращение. Строка на два ряда дороже
+              // высотой, но дешевле потерянного смысла.
+              //
+              // ⚠️ Это НЕ отменяет правило §5 «однострочные сводки не
+              // переносятся»: там речь о свёртке лунных, где уступает место
+              // список значков, а здесь уступать нечему — обе планеты
+              // обязательны.
+              overflowWrap: 'anywhere',
             }}
           >
             {planetRu(formula.transit_planet)} — {planetRu(formula.natal_planet)}
@@ -112,19 +171,6 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
       )}
       {/* Без `margin-left: auto`: место отдаёт заголовок (flex выше), а не
           пустой отступ. Чип не сжимается — «0.1°» не бывает длиннее. */}
-      {moonRange && (
-        <span
-          style={{
-            flexShrink: 0,
-            fontSize: quiet ? 11 : 12,
-            color: 'var(--text-secondary)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {moonRange}
-        </span>
-      )}
-      {event.locked && event.kind === 'planner_moon_house' && <FeedLockMark />}
       <span style={{ flexShrink: 0 }}>
         <FeedOrbChip meta={meta} />
       </span>

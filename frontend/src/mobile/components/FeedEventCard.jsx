@@ -306,6 +306,14 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          {/* Значок Луны — такой же опознавательный знак, как формула у
+              транзита: без него «Луна в 3 доме» в раскрытом дне неотличима
+              от заголовка любого другого события (приёмка 16.09.2026). */}
+          {moonRange && (
+            <span style={{ ...glyphStyle, fontSize: 16, color: 'var(--accent-fg)', flexShrink: 0 }}>
+              {glyph('moon')}
+            </span>
+          )}
           <h3
             style={{
               margin: 0,
@@ -320,22 +328,15 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
           >
             {eventTitle(event)}
           </h3>
-          {moonRange && (
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-                fontFamily: 'var(--font-body)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {moonRange}
-            </span>
-          )}
           {locked && isPlannerEvent(event) && !showFiller && <FeedLockMark />}
         </div>
       )}
+
+      {/* Срок прохода — ОТДЕЛЬНОЙ строкой, а не рядом с заголовком: обе
+          границы записаны полностью («16.09 Ср 19:33 – 19.09 Сб 23:47»), и в
+          одну строку с заголовком это не влезает ни на одном телефоне.
+          Переносится, не обрезается. */}
+      {moonRange && <div style={rowStyle}>{moonRange}</div>}
 
       {/* Тема периода — вторая строка, если пришла. На free она пустая
           (сервер отдаёт `theme: ""` вместе с locked), и строки не будет. */}
@@ -359,6 +360,16 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
           похож на тело разбора, потому что стоит в той же карточке. */}
       {groups.map((group, gi) => (
         <div key={gi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* Метка группы («Обучение:», «Быт:») — жирным, как в веб-планере.
+              Она не заголовок раздела, а подпись к списку, поэтому остаётся
+              гротеском того же кегля: антиква здесь превратила бы список
+              императивов в прозу (§3 DESIGN_SYSTEM.md). Приходит пустой у
+              большинства домов — тогда строки нет вовсе. */}
+          {group.heading && (
+            <div style={{ ...rowStyle, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {group.heading}
+            </div>
+          )}
           {(group.items || []).map((item) => (
             <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, ...rowStyle }}>
               <span

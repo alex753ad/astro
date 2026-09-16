@@ -266,6 +266,52 @@ class TestWebPlannerUnchanged:
             assert re.fullmatch(r"\d{2}\.\d{2} \S{2} \d{2}:\d{2}", d["date"]), d["date"]
             assert re.fullmatch(r"\d{2}\.\d{2} \S{2} \d{2}:\d{2}", d["time"]), d["time"]
 
+    def test_feed_and_planner_agree_to_the_minute(self):
+        """Одно и то же время в ленте и в /planner/monthly — до минуты.
+
+        ⚠️ Ради этого теста задание и ставилось. На приёмке 16.09.2026
+        приложение показывало проход на +3 часа позже веба, и по двум экранам
+        нельзя было сказать, который врёт. Истина установлена прямым расчётом
+        мимо обоих (долгота Луны против куспидов, бисекция по swisseph):
+        вход в 1 дом на этой карте — 12.09.2026 13:03 по Europe/Moscow, и
+        именно это отдаёт движок домов.
+
+        Расхождение было в ЛЕНТЕ и чинится флагом `local=True` у `add()`
+        (feed/builder.py): движок домов отдаёт проходы Луны МЕСТНЫМ временем,
+        а лента объявляла его UTC ещё раз. Тест сверяет два экрана между
+        собой — то есть ловит возврат любого одностороннего сдвига.
+        """
+        from backend.transit.planner_engine import build_planner
+        c = _chart()
+        planner = build_planner(
+            natal_profile={"planets": c.planets, "houses": c.houses,
+                           "ascendant": c.ascendant, "midheaven": c.midheaven},
+            from_date=date(2026, 9, 1), to_date=date(2026, 9, 30),
+            today=date(2026, 9, 16), user_timezone="Europe/Moscow",
+            tier="pro", week_offset=None, now=datetime(2026, 9, 16, 12, 0),
+        )
+        # «12.09 Сб 13:03» → ключ «12.09 13:03»
+        def key_from_label(label: str) -> str:
+            day, _weekday, clock = label.split()
+            return f"{day} {clock}"
+
+        web = {key_from_label(d["date"]) for d in planner["week_days"]}
+        assert web, "неделя веб-планера пуста — сверять нечего"
+
+        feed_cache.clear()
+        feed = build_feed(chart=_chart(), from_date=date(2026, 9, 1), to_date=date(2026, 9, 30),
+                          today=date(2026, 9, 16), tier="pro", now=datetime(2026, 9, 16, 12, 0))
+        app = {f"{e['at'][8:10]}.{e['at'][5:7]} {e['at'][11:16]}"
+               for e in feed["events"] if e["kind"] == "planner_moon_house"}
+
+        common = web & app
+        assert common, (
+            "ни один проход не совпал по времени между лентой и планером. "
+            f"планер: {sorted(web)} | лента: {sorted(app)}"
+        )
+        # Каждый проход НЕДЕЛИ планера обязан найтись в ленте тем же временем.
+        assert web <= app, f"в ленте нет этих проходов планера: {sorted(web - app)}"
+
     def test_free_now_gets_the_current_week_open(self):
         """Правка сетки доехала и до веба: free видит текущую неделю.
 

@@ -43,12 +43,18 @@
  * возвращает смысл, не занимая места: Солнце встаёт в тот же ряд, что и пять
  * медленных планет, и вся строка читается одним правилом «планета — дом».
  * Остаток периода словами остаётся в развёрнутой полосе.
+ *
+ * ⚠️ С 16.09.2026 ряд значков здесь НЕ свой — общий компонент
+ * FeedPlanetStrip, и в нём десять планет, а не шесть: добавились Луна
+ * (недельный горизонт) и быстрые планеты. Своя копия ряда и была причиной
+ * того, что «☉ 12» тут означало дни, а «♃ 11» — дом: одно из двух мест
+ * поправили, второе осталось. Значки нажимаются и открывают панель события.
  */
 
 import React from 'react';
-import { glyph, glyphStyle } from '../lib/feedGlyphs';
-import { findMoonState, findSunPeriod, longtermChips, pluralDays } from '../lib/feedNow';
-import { daysBetween } from '../lib/feedTime';
+import FeedPlanetStrip from './FeedPlanetStrip';
+import { glyphStyle } from '../lib/feedGlyphs';
+import { findMoonState, plannerTimeline } from '../lib/feedNow';
 // Именительный падеж, а не предложный: предлога «в» рядом со значком Луны
 // здесь нет — он съедал место, которого в 44px строке нет ни на что
 // лишнее. В развёрнутой полосе предлог остаётся (там фраза целиком).
@@ -57,20 +63,16 @@ import { SIGN_RU } from '../lib/feedTime';
 /** Высота самой строки, без safe-area. Заголовки дней липнут ровно под неё. */
 export const COMPACT_HEIGHT = 44;
 
-export default function FeedNowCompact({ events, today, visible, onGoToday }) {
+export default function FeedNowCompact({ events, today, visible, onGoToday, onOpen }) {
   const all = events || [];
-  const sunPeriod = findSunPeriod(all, today);
   const moonState = findMoonState(all, today);
-  // Солнце идёт первым в том же ряду, что медленные планеты: один ряд —
-  // одно правило «планета — дом».
-  const chips = [
-    ...(sunPeriod ? [sunPeriod] : []),
-    ...longtermChips(all),
-  ];
+  // Все три горизонта планера одним рядом — тот же отбор и тот же порядок,
+  // что в развёрнутой полосе (§5 задания 16.09.2026).
+  const planets = plannerTimeline(all);
 
   // Нечего показать — нечего и прилеплять: пустая полоска отъедала бы
   // 44 px экрана, не сообщая ничего.
-  if (!sunPeriod && !moonState && chips.length === 0) return null;
+  if (!moonState && planets.length === 0) return null;
 
   return (
     <div
@@ -137,34 +139,14 @@ export default function FeedNowCompact({ events, today, visible, onGoToday }) {
             </span>
           </span>
         )}
-        {/* Дома — значком планеты и номером, без слова «дом»: в развёрнутой
-            полосе оно помещается, здесь шесть пар делят остаток строки. */}
-        {chips.length > 0 && (
-          <span style={{
-            marginLeft: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            // Сжимаются и обрезаются первыми: дома при прокрутке не меняются,
-            // а дата и остаток периода меняются — им место нужнее.
-            minWidth: 0,
-            overflow: 'hidden',
-            // 8px, а не 16: при обычном системном шрифте ряд влезает целиком
-            // (замер: 357 из 390), и широкая растушёвка зря гасила последний
-            // чип. Своё дело она делает только при увеличенном шрифте.
-            maskImage: 'linear-gradient(to right, black calc(100% - 8px), transparent)',
-            WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 8px), transparent)',
-          }}>
-            {chips.map((e) => (
-              <span key={e.key} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <span style={{ ...glyphStyle, fontSize: 13, color: 'var(--text-primary)' }}>
-                  {glyph(e.meta?.planet)}
-                </span>
-                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{e.meta?.house}</span>
-              </span>
-            ))}
-          </span>
-        )}
+        {/* Полоса планет — общая с развёрнутой (FeedPlanetStrip). Уступает
+            место первой: дома при прокрутке не меняются, а знак Луны и
+            кнопка «Сегодня» нужнее. Растушёвка у правой кромки делает своё
+            дело только при увеличенном системном шрифте — при обычном ряд
+            влезает целиком. */}
+        <span style={{ marginLeft: 'auto', minWidth: 0, display: 'flex' }}>
+          <FeedPlanetStrip items={planets} onOpen={onOpen} compact />
+        </span>
       </div>
     </div>
   );

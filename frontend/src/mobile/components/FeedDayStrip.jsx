@@ -51,11 +51,33 @@ function buildRange(from, to) {
 
 export default function FeedDayStrip({ from, to, today, dotsByDay, onSelectDay }) {
   const todayRef = useRef(null);
+  const railRef = useRef(null);
 
-  // Один раз при монтировании — прокрутка к сегодня, чтобы полоска
-  // открывалась не с самого начала окна (эквивалент §10 для ленты).
+  /**
+   * Один раз при монтировании — прокрутка к сегодня, чтобы полоска
+   * открывалась не с самого начала окна (эквивалент §10 для ленты).
+   *
+   * ⚠️ Считается СВОИМ `scrollLeft`, а не `scrollIntoView`, и это не
+   * стилистика. `scrollIntoView` прокручивает ВСЕ прокручиваемые предки, а не
+   * только тот, который имелся в виду: `inline: 'center'` центрировал колонку
+   * в полоске, а `block: 'nearest'` тут же поднимал ВЕРТИКАЛЬНЫЙ скроллер
+   * ленты (он один на все вкладки, живёт в TabShell.jsx) так, чтобы полоска
+   * попала в кадр. Полоска стоит в самом верху ленты — значит страница
+   * уезжала в начало окна, то есть на месяц назад, ровно поверх прокрутки к
+   * сегодняшнему дню, которую FeedScreen только что сделал.
+   *
+   * Это гонка, и выигрывал её кто как: эффекты детей выполняются РАНЬШЕ
+   * родительских, поэтому подъём успевал встать между первым прыжком к якорю
+   * и повторными. Отсюда и вид дефекта — «полоска показывает сегодня, а лента
+   * стоит на месяце назад»: два скролла спорили за один и тот же контейнер.
+   *
+   * `scrollLeft` трогает ровно эту полоску и ничего кроме неё.
+   */
   useEffect(() => {
-    todayRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    const rail = railRef.current;
+    const cell = todayRef.current;
+    if (!rail || !cell) return;
+    rail.scrollLeft = cell.offsetLeft - (rail.clientWidth - cell.offsetWidth) / 2;
   }, []);
 
   if (!from || !to) return null;
@@ -63,6 +85,7 @@ export default function FeedDayStrip({ from, to, today, dotsByDay, onSelectDay }
 
   return (
     <div
+      ref={railRef}
       style={{
         display: 'flex',
         gap: 4,

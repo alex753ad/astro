@@ -66,6 +66,7 @@ import useHints from '../lib/useHints';
 import useCompactNow from '../lib/useCompactNow';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
+import { pickAnchorDate } from '../lib/feedAnchor';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
@@ -386,8 +387,10 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
 
   // Якорь открытия: сегодняшний день, а если событий сегодня нет — первый
   // день после сегодняшнего (§10). Ищется один раз на список, а не в цикле
-  // отрисовки, чтобы ref достался ровно одному заголовку.
-  const anchorDate = (days.find((d) => d.date >= today) || days[days.length - 1]).date;
+  // отрисовки, чтобы ref достался ровно одному заголовку. Само правило — в
+  // lib/feedAnchor.js: внутри рендера его нечем было проверить отдельно от
+  // прокрутки, а на приёмке 16.09.2026 разбирать пришлось именно это.
+  const anchorDate = pickAnchorDate(days, today);
   anchorDateRef.current = anchorDate;
 
   return (
@@ -404,6 +407,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         today={today}
         visible={compactNow}
         onGoToday={goToday}
+        onOpen={setSelected}
       />
       <div ref={nowStripRef}>
         <FeedNowStrip
@@ -450,11 +454,17 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
           // временем (§3). Оба признака — те же, что задают высоту
           // карточки в FeedEventCard.jsx (durationHeight), не выдумка.
           const isPeriod = Boolean(event.ends_at && event.duration_days);
+          // ⚠️ Проход Луны — период по данным, но в колонке у него ВРЕМЯ, а не
+          // дата (приёмка 16.09.2026). Дата там дублировала заголовок дня,
+          // под которым проход и стоит: «12.09» в колонке под шапкой
+          // «12 сентября». Месячный период Солнца этой беды не знает — он
+          // тянется неделями и стоит под днём своего НАЧАЛА ровно один раз.
+          const columnIsDate = isPeriod && event.kind !== 'planner_moon_house';
           return (
             <FeedTimelineNode
               key={event.key}
-              time={isPeriod ? dateShort(event.at) : timePart(event.at)}
-              bold={isPeriod || !compact}
+              time={columnIsDate ? dateShort(event.at) : timePart(event.at)}
+              bold={columnIsDate || !compact}
               color={dotColor(event)}
               size={compact ? 9 : dotSize(event)}
               gap={compact ? 6 : 12}

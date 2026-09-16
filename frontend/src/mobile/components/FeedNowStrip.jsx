@@ -35,88 +35,37 @@
  * 2032») в карточке, раскрывавшейся по нажатию чипа.
  *
  * ⚠️ С 16.09.2026 компенсация §4 снова выполняется, но НЕ возвратом прежнего
- * раскрытия: тап по чипу открывает ту же панель события, что и остальная
+ * раскрытия: тап по значку открывает ту же панель события, что и остальная
  * лента (FeedEventPanel.jsx), и срок словами живёт там. Промежуточное
- * состояние 15.09–16.09, когда чипы были подписями без срока, разобрано у
- * Chip ниже — оно было следствием того, что открывать было нечем.
+ * состояние 15.09–16.09, когда чипы были подписями без срока, было следствием
+ * того, что открывать было нечем: панель планерных полей не показывала вовсе.
  *
- * Порядок чипов — от самого короткого периода к самому длинному
- * (Юпитер → Плутон), НЕ по дате начала: периоды идут одновременно, и
- * хронология между ними бессмысленна.
+ * ⚠️ Ряда значков здесь больше НЕТ своего — он вынесен в FeedPlanetStrip и
+ * общий с липкой полосой. Там же и причина: рядов было два, и в одном из них
+ * число у Солнца означало дни, а у остальных дом. Порядок планет —
+ * PLANNER_PLANET_ORDER (lib/feedGlyphs.js), отбор — plannerTimeline
+ * (lib/feedNow.js); здесь остались только СЛОВА про «сейчас»: остаток периода
+ * Солнца и состояние Луны, которым в ряду значков места нет.
  */
 
 import React from 'react';
 import HintButton from './HintButton';
-import { glyph, glyphStyle } from '../lib/feedGlyphs';
+import FeedPlanetStrip from './FeedPlanetStrip';
+import { glyphStyle } from '../lib/feedGlyphs';
 import { daysBetween } from '../lib/feedTime';
 // Отбор — общий с компактной полоской (FeedNowCompact.jsx): один факт,
 // два вида. Разбор, почему вынесено, — в шапке lib/feedNow.js.
-import { findMoonState, findSunPeriod, longtermChips, pluralDays } from '../lib/feedNow';
+import { findMoonState, findSunPeriod, plannerTimeline, pluralDays } from '../lib/feedNow';
 import { signInRu } from '../lib/ruDeclension';
-
-/**
- * Планета и её дом — долгосрочный период планера, открывается панелью.
- *
- * ⚠️ 15.09.2026 чип был подписью, а не кнопкой, и это решение отменено
- * 16.09.2026 не по вкусу, а потому что исчезла его причина. Тогда за нажатием
- * не стояло НИЧЕГО: панель события планерных полей не показывала вовсе, а
- * `onUpgrade` сюда никто не передавал — оставалась витрина под блюром с
- * неработающей кнопкой. Теперь панель показывает срок словами, тему и
- * рекомендации, то есть нажатие ведёт к содержанию, а не к обещанию.
- *
- * ⚠️ Нажимаемым остаётся ЭЛЕМЕНТ, а не полоса. Обработчик на всём блоке уже
- * ловили на приёмке: тап по чипу дома уводил ленту на месяц назад.
- *
- * Период Солнца и знак Луны рядом по-прежнему подписи, и это не
- * непоследовательность: первый — один из многих периодов месячного планера, и
- * открывать его одного бессмысленно; второй ведёт к прогнозу на день, а
- * такого экрана в приложении нет. Закрывается переносом планера целиком
- * (пункт в TASKS.md).
- */
-function Chip({ event, onOpen }) {
-  const meta = event.meta || {};
-  const openable = typeof onOpen === 'function';
-  return (
-    <button
-      type="button"
-      onClick={openable ? () => onOpen(event) : undefined}
-      disabled={!openable}
-      style={{
-        flex: '1 1 0',
-        minWidth: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2,
-        padding: '4px 2px',
-        color: 'var(--text-primary)',
-        background: 'transparent',
-        border: 'none',
-        font: 'inherit',
-        cursor: openable ? 'pointer' : 'default',
-      }}
-    >
-      <span style={{ ...glyphStyle, fontSize: 17 }}>{glyph(meta.planet)}</span>
-      {/* «11 дом», без слова «дом» во второй строке места не хватает на
-          узком экране — пять чипов делят ширину поровну (§12.3). */}
-      <span style={{ fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-        {meta.house} дом
-      </span>
-    </button>
-  );
-}
 
 export default function FeedNowStrip({ events, today, onHelp, chipsRef, onOpen }) {
   const all = events || [];
-  const longterm = longtermChips(all);
+  const planets = plannerTimeline(all);
   const sunPeriod = findSunPeriod(all, today);
   const moonState = findMoonState(all, today);
 
-  if (longterm.length === 0 && !sunPeriod && !moonState) return null;
+  if (planets.length === 0 && !sunPeriod && !moonState) return null;
 
-  // Порядок и копия — в longtermChips() (lib/feedNow.js), общая с компактной
-  // полоской.
-  const chips = longterm;
 
   return (
     // position: relative — под кнопку «?» в правом верхнем углу
@@ -168,7 +117,7 @@ export default function FeedNowStrip({ events, today, onHelp, chipsRef, onOpen }
         </div>
       )}
 
-      {chips.length > 0 && (
+      {planets.length > 0 && (
         <>
           <h2
             style={{
@@ -184,9 +133,7 @@ export default function FeedNowStrip({ events, today, onHelp, chipsRef, onOpen }
             Планеты сейчас в домах
           </h2>
 
-          <div ref={chipsRef} style={{ display: 'flex', gap: 6 }}>
-            {chips.map((event) => <Chip key={event.key} event={event} onOpen={onOpen} />)}
-          </div>
+          <FeedPlanetStrip items={planets} onOpen={onOpen} innerRef={chipsRef} />
         </>
       )}
     </section>
