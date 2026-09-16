@@ -63,6 +63,10 @@ TIER_FLAGS: dict[str, dict] = {
         "profiles_limit": 2,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
+        # Недели «Луны по домам» с расшифровкой ВПЕРЁД, считая текущую
+        # (решение владельца 16.09.2026). Завершённые проходы открыты всем
+        # тарифам мимо этого числа — см. is_moon_week_locked().
+        "planner_weeks_ahead": 1,
         "synastry": False,
         # 30.08.2026: один PDF в месяц. Решение владельца — человек должен
         # один раз увидеть файл, за который просят денег: описание на витрине
@@ -82,6 +86,7 @@ TIER_FLAGS: dict[str, dict] = {
         "profiles_limit": 5,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
+        "planner_weeks_ahead": 4,              # текущая + 3 вперёд
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": 5,     # 19.08.2026: было безлимитно — новая сетка
@@ -97,6 +102,7 @@ TIER_FLAGS: dict[str, dict] = {
         "profiles_limit": 15,   # 19.08.2026: было 5 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,
         "planner_months": 12,
+        "planner_weeks_ahead": 4,
         "synastry": False,
         "pdf_export": True,
         "pdf_per_month": 15,    # 19.08.2026: было 5 — новая сетка
@@ -112,6 +118,7 @@ TIER_FLAGS: dict[str, dict] = {
         "profiles_limit": None,
         "lunar_months": None,   # 19.08.2026: было 12 — «безлимит» по новой сетке (12 = как у Pro, не дифференциатор)
         "planner_months": 12,
+        "planner_weeks_ahead": 4,
         # 31.08.2026: снято с True — решение владельца (AUDIT, FIXES_19).
         # Флаг обещал Ориону функцию, недоступную никому: эндпоинты
         # /chart/synastry и /synastry/interpret за require_admin,

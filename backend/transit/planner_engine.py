@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -58,9 +58,78 @@ def is_month_period_locked(tier: Optional[str], planet_key: str, is_current: boo
     return tier == "free" and not (planet_key == "sun" and is_current)
 
 
-def is_moon_week_locked(tier: Optional[str]) -> bool:
-    """Луна по домам на неделю — закрыта только на Free."""
-    return tier == "free"
+def now_local(user_timezone: Optional[str]) -> datetime:
+    """«Сейчас» в поясе карты, наивное — тем же видом, что границы проходов.
+
+    Границы прохода приходят наивным местным ISO (`_moon_passages_between`,
+    house_passages.py). Сравнивать их с aware-датой нельзя — Python бросит
+    TypeError, а сравнивать с UTC можно, но это тихо сдвинет «завершён» на
+    величину пояса: в Москве проход, кончившийся в 02:00, три часа считался бы
+    будущим.
+    """
+    if user_timezone:
+        try:
+            import pytz
+            return datetime.now(pytz.timezone(user_timezone)).replace(tzinfo=None)
+        except Exception:
+            pass
+    return datetime.now()
+
+
+def is_moon_week_locked(
+    tier: Optional[str],
+    start_iso: Optional[str] = None,
+    end_iso: Optional[str] = None,
+    now: Optional[datetime] = None,
+) -> bool:
+    """Закрыт ли ОДИН проход Луны по дому (решение владельца 16.09.2026).
+
+    Правило целиком:
+
+      * **завершённый проход открыт ВСЕМ тарифам** — конец раньше «сейчас».
+        Это витрина, а не щедрость: человек видит объём того, что прошло мимо,
+        на своих настоящих данных, а не на примере. Прошлое не продаётся —
+        ровно та же логика, по которой горизонт ленты назад одинаков у всех
+        (backend/feed/horizon.py);
+      * **вперёд — по тарифу**, `planner_weeks_ahead` недель, СЧИТАЯ текущую
+        (free 1, платные 4).
+
+    ⚠️ Принадлежность к неделе считается по НАЧАЛУ прохода против конца
+    последней разрешённой недели, а не «в какую неделю попадает проход». Проход
+    Луны по дому длится ~2.3 суток и регулярно пересекает границу недель:
+    начался в субботу — кончился во вторник. Считай мы по календарным суткам,
+    один и тот же проход был бы одновременно открыт и закрыт. Поэтому граница
+    проходит ПО ПРОХОДАМ: начался внутри разрешённого окна — открыт целиком,
+    со своим настоящим концом за его пределами.
+
+    Без дат (`start_iso`/`end_iso` не переданы) остаётся прежнее поведение
+    «закрыто на free» — на нём стоят вызовы, которым проход неизвестен.
+    """
+    from backend.auth.rate_limits import TIER_FLAGS
+
+    weeks = TIER_FLAGS.get(tier or "free", TIER_FLAGS["free"]).get("planner_weeks_ahead", 1)
+
+    if not start_iso or not end_iso:
+        return tier == "free"
+
+    moment = now or datetime.now()
+    try:
+        start_dt = datetime.fromisoformat(start_iso)
+        end_dt = datetime.fromisoformat(end_iso)
+    except ValueError:
+        return tier == "free"
+
+    if end_dt < moment:
+        return False  # завершившийся проход открыт всем
+
+    # Конец последней разрешённой недели: воскресенье 23:59 недели
+    # (текущая + weeks − 1). weeks >= 1 всегда, поэтому текущая неделя открыта
+    # у любого тарифа.
+    monday = (moment - timedelta(days=moment.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    allowed_end = monday + timedelta(weeks=max(1, weeks)) - timedelta(minutes=1)
+    return start_dt > allowed_end
 
 
 def is_longterm_locked(tier: Optional[str]) -> bool:
@@ -111,6 +180,7 @@ def build_planner(
     user_timezone: Optional[str] = None,
     tier: Optional[str] = None,
     week_offset: Optional[int] = None,
+    now: Optional[datetime] = None,
 ) -> dict:
     """Собрать планер полностью в Python без ИИ.
 
@@ -120,13 +190,18 @@ def build_planner(
       longterm_title, longterm
     }
 
-    E1 (Free-витрина): при tier="free" полный разбор (items) остаётся только
-    у текущего периода Солнца. Все прочие периоды/планеты и Луна возвращаются
-    с items=[] и locked=true (текст на клиент не уходит).
+    E1 (Free-витрина): при tier="free" полный разбор (items) в МЕСЯЧНЫХ
+    секциях остаётся только у текущего периода Солнца; прочие периоды
+    возвращаются с items=[] и locked=true (текст на клиент не уходит).
+    ⚠️ Луна под это правило больше не подпадает — у недели с 16.09.2026 своя
+    сетка, см. ниже.
 
     Тарифная сетка по разделам:
-      Месяц/Неделя — открыты с Lite и выше (locked только на Free).
-      Долгосрочно  — открыт только с Pro и выше (locked на Free и Lite).
+      Месяц       — открыт с Lite и выше (locked только на Free).
+      Неделя      — с 16.09.2026 открыта ВСЕМ: завершившиеся проходы всем,
+                    вперёд `planner_weeks_ahead` недель считая текущую
+                    (free 1, платные 4). Правило целиком — is_moon_week_locked.
+      Долгосрочно — открыт только с Pro и выше (locked на Free и Lite).
     """
     if today is None:
         today = date.today()
@@ -173,14 +248,28 @@ def build_planner(
     # time  = "до 25.05 Пн 01:03"  (момент выхода из дома)
     # house = номер дома
     week_days = []
+    # «Сейчас» считается ОДИН раз на весь ответ: внутри цикла соседние проходы
+    # могли бы получить разные моменты отсчёта и на стыке недели разъехаться по
+    # доступу. Тот же приём, что у `today_dt` выше.
+    #
+    # ⚠️ Параметр `now` существует не ради тестов одних. Гейт недели — про
+    # МОМЕНТ («проход завершился»), а весь остальной планер считает от даты
+    # `today`, которую передаёт вызывающий. В проде они совпадают, но передав
+    # прошлый `today` и не передав `now`, можно получить ответ, где периоды
+    # посчитаны на одну дату, а доступ к ним — на другую. Явный параметр
+    # делает это видимым, а не случайным.
+    week_now = now or now_local(user_timezone)
     for passage in periods.get("moon_week", []):
         house = passage.get("house", 0)
+        locked = is_moon_week_locked(
+            tier, passage.get("start_dt"), passage.get("end_dt"), week_now,
+        )
         week_days.append({
             "date":  passage["date"],
             "time":  passage.get("time", ""),
             "house": house,
-            "locked": is_moon_week_locked(tier),
-            **(_locked_payload() if (is_moon_week_locked(tier) or not house)
+            "locked": locked,
+            **(_locked_payload() if (locked or not house)
                else _unlocked_payload("Moon", house)),
         })
 

@@ -55,8 +55,16 @@ describe('isMajorEvent', () => {
     expect(isMajorEvent(lunar)).toBe(false);
   });
 
-  it('проход Луны по домам — фон, а не событие', () => {
-    expect(isMajorEvent({ kind: 'planner_moon_house', importance: 'low', locked: true, meta: {} })).toBe(false);
+  // ⚠️ Проход Луны по дому с 16.09.2026 больше НЕ лунный фон: он вышел
+  // из-под свёртки (FeedLunarFold.jsx) и стоит в потоке отдельной строкой.
+  // Крупным он при этом не становится — их ~53 на окне ленты (замер
+  // 16.09.2026), и карточка на каждый вернула бы ту самую массу, ради разбора
+  // которой ритм и принят. Важность у него `medium`, а не `low`, — фикстура
+  // повторяет то, что реально отдаёт сервер, иначе проверка была бы зелёной
+  // по чужой причине.
+  it('проход Луны по дому — строка, а не карточка', () => {
+    expect(isMajorEvent({ kind: 'planner_moon_house', importance: 'medium', locked: true, meta: {} })).toBe(false);
+    expect(isMajorEvent({ kind: 'planner_moon_house', importance: 'medium', locked: false, meta: {} })).toBe(false);
   });
 
   it('пустое значение не роняет правило', () => {

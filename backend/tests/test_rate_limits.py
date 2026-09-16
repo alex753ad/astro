@@ -305,6 +305,7 @@ class TestTierMonotonicity:
         "profiles_limit",
         "lunar_months",
         "planner_months",
+        "planner_weeks_ahead",
         "pdf_per_month",
     ]
 

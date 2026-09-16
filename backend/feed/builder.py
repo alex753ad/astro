@@ -78,6 +78,25 @@ from backend.feed.horizon import feed_horizon
 # быть обрезаны, но лента их не отдаёт (см. _transit_events).
 SCAN_PAD_DAYS = 5
 
+# Насколько вперёд лента отдаёт проходы Луны по домам — от понедельника
+# текущей недели (решение владельца 16.09.2026). Число одно на все тарифы:
+# тариф регулирует расшифровку, а не длину окна.
+MOON_WINDOW_MONTHS_AHEAD = 3
+
+
+def _plus_months(d: date, months: int) -> date:
+    """Та же дата на N месяцев позже. 31 января + 1 → 28/29 февраля.
+
+    Зеркало `_minus_one_month` из feed/horizon.py — держать их рядом нельзя
+    (тот считает границу тарифа, этот окно Луны), но правило переполнения дня
+    у них обязано быть одним.
+    """
+    total = d.month - 1 + months
+    year = d.year + total // 12
+    month = total % 12 + 1
+    return date(year, month, min(d.day, _calendar.monthrange(year, month)[1]))
+
+
 # Транзиты Луны — три четверти ленты (114 событий из 160 за август на
 # разведочной карте). Отдельный уровень важности заведён ровно под них.
 _LOW_IMPORTANCE_TRANSIT_PLANETS = {"Moon"}
@@ -147,6 +166,23 @@ def _naive_utc_to_local_iso(naive: datetime, tz) -> str:
     UTC — единственное место, где это знание применяется.
     """
     return _to_local_iso(pytz.UTC.localize(naive), tz)
+
+
+def _naive_local_to_iso(naive: datetime, tz) -> str:
+    """Наивный МЕСТНЫЙ datetime → ISO со смещением.
+
+    ⚠️ Нужна потому, что движок домов отдаёт два РАЗНЫХ вида наивных дат, и по
+    самому значению их не отличить. Периоды планет — наивный UTC. Проходы Луны
+    по домам — уже местные: house_passages прибавляет смещение внутри, чтобы
+    метки для человека («21.05 Чт 03:22») совпадали с границами.
+
+    Из-за этого до 16.09.2026 время `planner_moon_house` в ленте сдвигалось
+    ДВАЖДЫ: местное значение ещё раз объявлялось UTC. В Москве проход, начатый
+    в 15:56, приезжал как 18:56. Дефект дожил, потому что этих событий было
+    четыре на всю ленту и все они лежали под свёрткой лунного фона, где время
+    не показывается вовсе.
+    """
+    return tz.localize(naive).replace(microsecond=0).isoformat()
 
 
 # ── Шаблонный текст ──────────────────────────────────────────────────────────
@@ -342,7 +378,8 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
 # ── Планер ───────────────────────────────────────────────────────────────────
 
 def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date: date,
-                    today: date, timezone_name: Optional[str], tier: Optional[str], tz) -> list[dict]:
+                    today: date, timezone_name: Optional[str], tier: Optional[str], tz,
+                    now: datetime) -> list[dict]:
     """Периоды планера с настоящими ISO-датами.
 
     Границы берутся из start_dt/end_dt, которые compute_planner_periods кладёт
@@ -353,7 +390,10 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
     month_offset наружу не протекает: сюда приходят обычные даты, а
     compute_planner_periods принимает from_date/to_date напрямую.
     """
-    from backend.transit.house_passages import compute_planner_periods
+    from backend.transit.house_passages import (
+        compute_moon_house_passages,
+        compute_planner_periods,
+    )
     from backend.transit.planner_engine import (
         _KEY_TO_ENG,
         _locked_payload,
@@ -361,6 +401,7 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
         is_longterm_locked,
         is_month_period_locked,
         is_moon_week_locked,
+        now_local,
     )
 
     periods = compute_planner_periods(
@@ -369,22 +410,33 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
         to_date=to_date,
         today=today,
         user_timezone=timezone_name,
+        # Проходы Луны лента берёт за СВОЁ окно (ниже), а не за неделю
+        # веб-планера — считать неделю, которую никто не прочитает, незачем.
+        with_moon_week=False,
     )
 
     out: list[dict] = []
 
     def add(kind: str, planet_key: str, planet_name: str, emoji: str,
-            house: int, start_iso: str, end_iso: str, locked: bool, eng: str) -> None:
+            house: int, start_iso: str, end_iso: str, locked: bool, eng: str,
+            local: bool = False) -> None:
+        """`local=True` — границы пришли МЕСТНЫМ временем, а не UTC.
+
+        Так их отдаёт только движок проходов Луны; разбор — у
+        _naive_local_to_iso выше. Признак передаётся явно, потому что по
+        самому значению эти два вида наивных дат неразличимы.
+        """
         start_dt = datetime.fromisoformat(start_iso)
         end_dt = datetime.fromisoformat(end_iso)
+        naive_to_iso = _naive_local_to_iso if local else _naive_utc_to_local_iso
         payload = _locked_payload() if (locked or not house) else _unlocked_payload(eng, house)
         out.append({
             "key": _key("p", chart_id, planet_key, house, start_iso, end_iso),
             "kind": kind,
             "importance": IMPORTANCE_MEDIUM,
-            "at": _naive_utc_to_local_iso(start_dt, tz) if start_dt.tzinfo is None
+            "at": naive_to_iso(start_dt, tz) if start_dt.tzinfo is None
                   else _to_local_iso(start_dt, tz),
-            "ends_at": _naive_utc_to_local_iso(end_dt, tz) if end_dt.tzinfo is None
+            "ends_at": naive_to_iso(end_dt, tz) if end_dt.tzinfo is None
                        else _to_local_iso(end_dt, tz),
             # Длительность в сутках — по просьбе владельца: долгосрочный
             # транзит идёт месяцами (в разведке был период 14.07.2025 —
@@ -415,12 +467,34 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
                 is_month_period_locked(tier, p["planet_key"], period.get("is_current", False)),
                 eng)
 
-    for p in periods.get("moon_week", []):
-        house = p.get("house")
-        if not house or not p.get("start_dt"):
-            continue
-        add("planner_moon_house", "moon", "Луна", "🌙", house,
-            p["start_dt"], p["end_dt"], is_moon_week_locked(tier), "Moon")
+    # Проходы Луны по домам — недельный горизонт планера (§«Неделя в ленте»).
+    #
+    # ⚠️ Окно у них СВОЁ и одинаковое на всех тарифах: от начала окна ленты до
+    # трёх месяцев вперёд от понедельника текущей недели. Оно не выводится из
+    # feed_horizon() намеренно — тарифом здесь регулируется РАСШИФРОВКА
+    # (is_moon_week_locked), а не наличие события: каркас «Луна в 7 доме, тогда
+    # и до тогда» виден всем. Верхняя граница — плата за вес: проход длится
+    # ~2.3 суток, то есть на горизонте Ориона (24 месяца) их было бы ~320
+    # только от Луны. Кнопка «показать ещё три месяца» — отдельный пункт
+    # TASKS.md, её сознательно не делаем, пока не измерена тяжесть ленты.
+    #
+    # min(to_date, ...) обязателен: окно ленты может быть УЖЕ трёх месяцев —
+    # и запрошенное клиентом, и обрезанное горизонтом free. Отдать событие за
+    # объявленным `to_date` значило бы показать день, которого нет в полоске
+    # дней (она строится по horizon).
+    monday = today - timedelta(days=today.weekday())
+    moon_to = min(to_date, _plus_months(monday, MOON_WINDOW_MONTHS_AHEAD))
+    if moon_to >= from_date:
+        for p in compute_moon_house_passages(
+            natal_profile, from_date, moon_to, timezone_name,
+        ):
+            house = p.get("house")
+            if not house or not p.get("start_dt"):
+                continue
+            add("planner_moon_house", "moon", "Луна", "🌙", house,
+                p["start_dt"], p["end_dt"],
+                is_moon_week_locked(tier, p["start_dt"], p["end_dt"], now),
+                "Moon", local=True)
 
     for p in periods.get("slow_planets", []):
         house = p.get("house")
@@ -642,8 +716,15 @@ _ECLIPSE_PHASE_MERGE_HOURS = 3
 # ── Сборка ───────────────────────────────────────────────────────────────────
 
 def build_feed(*, chart, from_date: date, to_date: date, today: date,
-               tier: Optional[str]) -> dict:
+               tier: Optional[str], now: Optional[datetime] = None) -> dict:
     """Лента событий за произвольное окно. Одна зона, одна сортировка.
+
+    `now` — «сейчас» наивным МЕСТНЫМ временем карты. Нужен ровно одному
+    правилу: завершившийся проход Луны по дому открыт на любом тарифе
+    (is_moon_week_locked), а «завершился» — это момент, не дата. По умолчанию
+    берётся с часов; параметр существует, чтобы тест мог его закрепить —
+    иначе проверка «прошлое открыто, будущее закрыто» зависела бы от того,
+    в какой день её запустили.
 
     Окно обрезается горизонтом ДО расчёта — один раз, для всех трёх
     источников сразу. Именно здесь, а не в роутере: иначе лунные события,
@@ -670,6 +751,12 @@ def build_feed(*, chart, from_date: date, to_date: date, today: date,
 
     from_date, to_date = eff_from, eff_to
 
+    # Импорт отложенный, как и у остального планера ниже: backend.transit
+    # тянет за собой Swiss Ephemeris, и на уровне модуля это удлиняет
+    # старт всему, кто импортирует ленту.
+    from backend.transit.planner_engine import now_local
+    now = now or now_local(getattr(chart, "timezone", None))
+
     events = _transit_events(chart_id, chart.planets, from_date, to_date, tz, tier)
     events += _lunar_events(from_date, to_date, tz)
 
@@ -682,6 +769,7 @@ def build_feed(*, chart, from_date: date, to_date: date, today: date,
             {"planets": chart.planets, "houses": chart.houses,
              "ascendant": chart.ascendant, "midheaven": chart.midheaven},
             from_date, to_date, today, getattr(chart, "timezone", None), tier, tz,
+            now,
         )
 
     # planner_longterm — единственный kind, чей `at` может лежать раньше

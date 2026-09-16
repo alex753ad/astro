@@ -34,10 +34,11 @@
  */
 
 import React from 'react';
+import FeedLockMark from './FeedLockMark';
 import FeedOrbChip from './FeedOrbChip';
 import { isOpenable } from './FeedEventCard';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { eventTitle, planetRu } from '../lib/feedTime';
+import { eventTitle, moonRangeShort, planetRu } from '../lib/feedTime';
 
 export default function FeedEventRow({ event, onOpen, quiet = false }) {
   const meta = event.meta || {};
@@ -45,6 +46,13 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
   const formula = event.kind === 'transit' && meta.transit_planet && meta.natal_planet && meta.aspect_type
     ? meta
     : null;
+  // Проход Луны по дому — недельный горизонт планера (§5 DESIGN_SYSTEM.md).
+  // Рядовым он остаётся намеренно: их ~53 на окне ленты, и карточка на
+  // каждый вернула бы ту самую массу, ради разбора которой ритм и принят.
+  // Срок со временем — единственное, что строка добавляет к заголовку.
+  const moonRange = event.kind === 'planner_moon_house'
+    ? moonRangeShort(event.at, event.ends_at)
+    : '';
 
   return (
     <div
@@ -89,6 +97,10 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
           style={{
             fontSize: quiet ? 12 : 13,
             color: quiet ? 'var(--text-secondary)' : 'var(--text-primary)',
+            // Та же причина, что у ветки формулы выше: свободное место строки
+            // принадлежит заголовку, иначе он уходит в многоточие при пустом
+            // месте справа (приёмка 15.09.2026).
+            flex: '1 1 auto',
             minWidth: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -100,6 +112,19 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
       )}
       {/* Без `margin-left: auto`: место отдаёт заголовок (flex выше), а не
           пустой отступ. Чип не сжимается — «0.1°» не бывает длиннее. */}
+      {moonRange && (
+        <span
+          style={{
+            flexShrink: 0,
+            fontSize: quiet ? 11 : 12,
+            color: 'var(--text-secondary)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {moonRange}
+        </span>
+      )}
+      {event.locked && event.kind === 'planner_moon_house' && <FeedLockMark />}
       <span style={{ flexShrink: 0 }}>
         <FeedOrbChip meta={meta} />
       </span>

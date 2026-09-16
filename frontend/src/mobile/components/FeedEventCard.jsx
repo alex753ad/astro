@@ -28,9 +28,10 @@
 
 import React from 'react';
 import BlurredHint from './BlurredHint';
+import FeedLockMark from './FeedLockMark';
 import FeedOrbChip from './FeedOrbChip';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { dateRangeShort, daysBetween, eventTitle, localToday, planetRu, signRu } from '../lib/feedTime';
+import { dateRangeShort, daysBetween, eventTitle, localToday, moonRangeShort, planetRu, signRu } from '../lib/feedTime';
 import { planetDotColor } from '../lib/feedTimelineDot';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
@@ -69,7 +70,20 @@ export function isLocked(event) {
  * только на устройстве и только на платном тарифе, где тизеров нет вовсе.
  */
 export function isOpenable(event) {
-  return isLocked(event) || event?.kind === 'transit';
+  return isLocked(event) || event?.kind === 'transit' || isPlannerEvent(event);
+}
+
+/**
+ * Событие планера — месячный период, проход Луны по дому или долгосрочный.
+ *
+ * У всех трёх одинаковый набор полей (одна функция `add()` в
+ * backend/feed/builder.py), и все три открываются панелью: там срок,
+ * тема и рекомендации. До 16.09.2026 открывалось только ЗАКРЫТОЕ — то есть
+ * человек с платным тарифом не мог открыть ничего, хотя открыто было всё.
+ * Ровно тот же дефект уже ловили на транзитах 09.09.2026.
+ */
+export function isPlannerEvent(event) {
+  return typeof event?.kind === 'string' && event.kind.startsWith('planner_');
 }
 
 const rowStyle = {
@@ -84,10 +98,15 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
   const locked = isLocked(event);
   const extraHeight = durationHeight(event);
 
-  // Витрина под блюром — только у закрытого периода: у него есть высота
-  // (она значит длительность), но нечего в ней показать, потому что на free
-  // сервер отдаёт пустые theme и groups.
-  const showFiller = locked && Boolean(extraHeight);
+  // Витрина под блюром — только у закрытого МЕСЯЧНОГО периода: у него есть
+  // высота (она значит длительность), но нечего в ней показать, потому что на
+  // free сервер отдаёт пустые theme и groups.
+  //
+  // ⚠️ Проход Луны по дому сюда не входит намеренно (решение владельца
+  // 16.09.2026): вид события не должен зависеть от тарифа. Блюр давал бы free
+  // рамку с витриной там, где у платного просто строка, — и лента читалась бы
+  // по-разному у разных людей. Закрытость несёт значок (FeedLockMark).
+  const showFiller = locked && Boolean(extraHeight) && event.kind === 'planner_period';
 
   // ⚠️ Высота по длительности идёт В ПАРЕ с витриной, а не сама по себе.
   // Растянутая карточка без содержимого — это пустая коробка, и владелец
@@ -155,8 +174,18 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
   const periodColor = isPeriodCard ? planetDotColor(meta.planet) : null;
 
   // Список рекомендаций периода (§5). Только у открытого: у закрытого
-  // сервер отдаёт пустые theme/groups и показывает вместо них showFiller.
-  const groups = isPeriodCard && !locked && Array.isArray(meta.groups) ? meta.groups : [];
+  // сервер отдаёт пустые theme/groups.
+  //
+  // ⚠️ Условие было `isPeriodCard`, то есть буллеты видел только МЕСЯЧНЫЙ
+  // период. Проход Луны по дому приезжал с бэкенда с тем же непустым
+  // `groups` — и молча не рисовался: недельная вкладка планера существовала в
+  // ответе и не существовала на экране.
+  const groups = isPlannerEvent(event) && !locked && Array.isArray(meta.groups) ? meta.groups : [];
+
+  // Срок прохода Луны — со временем с обоих концов (см. moonRangeShort).
+  const moonRange = event.kind === 'planner_moon_house'
+    ? moonRangeShort(event.at, event.ends_at)
+    : '';
 
   // Прогресс периода (§5, полоса внизу) — доля прошедшего от всего срока,
   // по календарным дням. today во всех расчётах ленты — локальная дата
@@ -276,18 +305,36 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
           )}
         </div>
       ) : (
-        <h3
-          style={{
-            margin: 0,
-            fontSize: 18,
-            fontWeight: 600,
-            fontFamily: 'var(--font-display)',
-            color: 'var(--text-primary)',
-            lineHeight: 1.3,
-          }}
-        >
-          {eventTitle(event)}
-        </h3>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 600,
+              fontFamily: 'var(--font-display)',
+              color: 'var(--text-primary)',
+              lineHeight: 1.3,
+              flex: '1 1 auto',
+              minWidth: 0,
+            }}
+          >
+            {eventTitle(event)}
+          </h3>
+          {moonRange && (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-body)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {moonRange}
+            </span>
+          )}
+          {locked && isPlannerEvent(event) && !showFiller && <FeedLockMark />}
+        </div>
       )}
 
       {/* Тема периода — вторая строка, если пришла. На free она пустая

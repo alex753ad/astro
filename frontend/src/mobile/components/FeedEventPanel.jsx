@@ -17,8 +17,11 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { eventTitle, signRu, timePart } from '../lib/feedTime';
+import FeedLockMark from './FeedLockMark';
+import { isLocked, isPlannerEvent } from './FeedEventCard';
+import { dateRangeShort, eventTitle, moonRangeShort, periodRange, signRu, timePart } from '../lib/feedTime';
 import { transitTeaserText } from '../lib/transitTeaser';
+import { lockedPlannerText, upgradeOpensIt } from '../lib/plannerAccess';
 import { openInBrowser } from '../lib/openInBrowser';
 import { PRICING_URL } from '../lib/onboardingCopy';
 import {
@@ -89,6 +92,25 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   const hasSigns = meta.transit_sign && meta.natal_sign;
   // null, если данных в meta не хватило — тогда покажется серверный текст.
   const composedTeaser = transitTeaserText(event);
+
+  // ── Событие планера: срок, тема, рекомендации ──────────────────────────────
+  //
+  // Панель — единственное место, где у события планера показывается ВЕСЬ
+  // разбор. В потоке проход Луны сжат до строки, а долгосрочный период
+  // вынесен в полосу «сейчас» чипом: ни там, ни там рекомендациям места нет.
+  // Это и закрывает долг §4 SPEC_FEED_VISUAL.md — срок словами у чипа.
+  const planner = isPlannerEvent(event);
+  const plannerRange = !planner ? '' : (
+    event.kind === 'planner_moon_house'
+      ? moonRangeShort(event.at, event.ends_at)
+      // ⚠️ У долгосрочного периода срок пишется СЛОВАМИ («с ноября 2012 по
+      // март 2032»), а не числами: он идёт годами, и «17.11 — 23.03» без года
+      // читалось бы как пять месяцев. Числовой формат остаётся месячному.
+      : (event.duration_days > 400
+        ? periodRange(event.at, event.ends_at)
+        : dateRangeShort(event.at, event.ends_at))
+  );
+  const plannerGroups = planner && !event.locked && Array.isArray(meta.groups) ? meta.groups : [];
   const degree = typeof meta.transit_degree === 'number'
     ? `${meta.transit_degree.toFixed(1)}° `
     : '';
@@ -169,7 +191,64 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
               {degree}{signRu(meta.transit_sign)} → {signRu(meta.natal_sign)}
             </div>
           )}
+          {plannerRange && (
+            <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{plannerRange}</span>
+              {event.locked && <FeedLockMark />}
+            </div>
+          )}
         </div>
+
+        {/* Тема периода — то, чего касается проход. Приходит и у закрытого
+            пустой строкой, поэтому проверка на непустоту, а не на locked. */}
+        {planner && meta.theme && (
+          <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+            {meta.theme}
+          </div>
+        )}
+
+        {/* Рекомендации — гротеск, а не антиква: список императивов читают
+            сканированием (§3 DESIGN_SYSTEM.md, то же правило и та же причина,
+            что у карточки периода в FeedEventCard.jsx). */}
+        {plannerGroups.map((group, gi) => (
+          <div key={gi} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {group.heading && (
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                {group.heading}
+              </div>
+            )}
+            {(group.items || []).map((item) => (
+              <div
+                key={item}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
+                  fontSize: 13.5, lineHeight: 1.55,
+                  fontFamily: 'var(--font-body)', color: 'var(--text-secondary)',
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    marginTop: 6, flexShrink: 0, width: 5, height: 5,
+                    borderRadius: '50%', border: '1px solid var(--accent)',
+                  }}
+                />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {/* Закрытая расшифровка: каркас выше уже показан (дом в заголовке,
+            срок под ним), а вместо текста — прямая строка о том, чего не
+            хватает. Блюра здесь нет намеренно: витрина под размытием живёт в
+            карточке месячного периода, где у неё есть высота; в панели она
+            была бы имитацией текста, которого не существует. */}
+        {planner && event.locked && (
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+            {lockedPlannerText(event, tier, known)}
+          </p>
+        )}
 
         {/* Тизер прячется, как только пошёл разбор: он подводка к тексту, а
             не спутник ему.
@@ -276,7 +355,20 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
           </button>
         )}
 
-        {!isTransit && (
+        {/* ⚠️ Условие было `!isTransit`, и с 16.09.2026 этого мало по ДВУМ
+            причинам, а не по одной.
+
+            Первая: панель стала открываться у ЛЮБОГО события планера, в том
+            числе открытого — завершившийся проход Луны открыт даже на free.
+            Кнопка под открытым разбором предлагала бы купить то, что человек
+            прямо сейчас читает.
+
+            Вторая, менее очевидная: у события планера `locked` больше НЕ
+            означает «купи тариф». У платных тарифов закрытое будущее есть
+            тоже — расшифровка идёт на четыре недели вперёд у всех. Там
+            покупать нечего, и решает это upgradeOpensIt (lib/plannerAccess.js),
+            а не флаг. */}
+        {!isTransit && isLocked(event) && (!planner || upgradeOpensIt(event, tier, known)) && (
           <button
             type="button"
             className="mobile-btn-primary"

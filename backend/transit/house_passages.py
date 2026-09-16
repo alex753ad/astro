@@ -315,6 +315,111 @@ def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
     return result
 
 
+# Запас сканирования по обе стороны окна, в сутках.
+#
+# Луна меняет дом раз в ~2.3 суток, и запас нужен НЕ ради точности расчёта,
+# а ради границ выдачи: без него первый и последний период обрезались бы краем
+# окна сканирования и приезжали бы с временем ровно 00:00 — выдуманным
+# моментом, который выглядит как настоящий вход в дом. Пять суток покрывают
+# самый длинный проход Луны по широкому дому с запасом.
+MOON_SCAN_PAD_DAYS = 5
+
+
+def moon_tz_offset(user_timezone: Optional[str], probe_day: date) -> timedelta:
+    """Смещение пояса пользователя на конкретный день.
+
+    Сканирование идёт в UTC, а показываем местное время — сдвиг применяется к
+    каждому периоду. Берётся на ДЕНЬ НАЧАЛА окна, а не на «сейчас»: иначе окно,
+    пересекающее переход на летнее время, сдвинулось бы целиком по последнему
+    состоянию часов.
+    """
+    if not user_timezone:
+        return timedelta(0)
+    try:
+        import pytz
+        tz = pytz.timezone(user_timezone)
+        return tz.utcoffset(datetime(probe_day.year, probe_day.month, probe_day.day, 0, 0))
+    except Exception:
+        return timedelta(0)
+
+
+def _moon_passages_between(
+    cusps: list[float],
+    win_start_local: datetime,
+    win_end_local: datetime,
+    tz_offset: timedelta,
+) -> list[dict]:
+    """Проходы Луны по домам, ПЕРЕСЕКАЮЩИЕ окно [win_start_local, win_end_local].
+
+    Одна реализация на оба потребителя: недельную вкладку веб-планера
+    (compute_planner_periods ниже) и ленту (compute_moon_house_passages).
+    Вторая копия разъехалась бы с первой при первой же правке формата меток —
+    а метки веб-планер разбирает глазами человека, то есть расхождение было бы
+    видно только на скриншоте.
+
+    ⚠️ Граница окна проходит ПО ПРОХОДАМ, а не по полуночи. Оставляем период,
+    который окно пересекает, целиком и с его настоящими временами: проход,
+    начавшийся в субботу до окна или кончающийся во вторник после него, —
+    это один проход, а не два. Обрезка по краю дала бы «дата 00:00» —
+    момент, которого не было.
+    """
+    scan_from = win_start_local - tz_offset - timedelta(days=MOON_SCAN_PAD_DAYS)
+    scan_to   = win_end_local   - tz_offset + timedelta(days=MOON_SCAN_PAD_DAYS)
+    raw = calculate_house_passages("Moon", cusps, scan_from, scan_to, refine_edges=True)
+
+    result = []
+    for p in raw:
+        start_local = p["start_dt"] + tz_offset
+        end_local   = p["end_dt"]   + tz_offset
+        if end_local < win_start_local or start_local > win_end_local:
+            continue
+        result.append({
+            # date = момент входа Луны в дом: "21.05 Чт 03:22".
+            # ⚠️ Имя вводит в заблуждение и оставлено ради совместимости с
+            # planner_engine и PlannerPage.jsx: внутри и дата, и время.
+            "date":  _moon_label(start_local),
+            # time = момент выхода, тем же форматом. Фронт склеивает их тире.
+            "time":  _moon_label(end_local),
+            "house": p["house"],
+            # Настоящие границы для ленты — она строку не разбирает.
+            "start_dt": start_local.isoformat(),
+            "end_dt":   end_local.isoformat(),
+        })
+    return result
+
+
+def _moon_label(dt_local: datetime) -> str:
+    return f"{dt_local.strftime('%d.%m')} {DAY_RU_SHORT[dt_local.weekday()]} {dt_local.strftime('%H:%M')}"
+
+
+def compute_moon_house_passages(
+    natal_profile: dict,
+    from_date: date,
+    to_date: date,
+    user_timezone: Optional[str] = None,
+) -> list[dict]:
+    """Проходы Луны по домам за ПРОИЗВОЛЬНОЕ окно — режим ленты.
+
+    ⚠️ Зачем отдельная функция, а не параметр у compute_planner_periods.
+    Недельная вкладка веб-планера листается (`week_offset`), и её неделя
+    считается от первого понедельника ОТОБРАЖАЕМОГО месяца — правило, которое
+    к ленте отношения не имеет вовсе. До 16.09.2026 лента звала ту же функцию
+    с окном в 148 дней и получала из неё ОДНУ неделю (4 события на пять
+    месяцев): недельный горизонт формально доезжал, а фактически его не было.
+    Разбор — CLAUDE.md, «Неделя в ленте».
+
+    Расчёт при этом общий: обе ветки зовут _moon_passages_between выше.
+    """
+    cusps = _extract_cusps(natal_profile)
+    if all(c == 0.0 for c in cusps):
+        return []
+    win_start = datetime(from_date.year, from_date.month, from_date.day, 0, 0)
+    win_end = datetime(to_date.year, to_date.month, to_date.day, 23, 59)
+    return _moon_passages_between(
+        cusps, win_start, win_end, moon_tz_offset(user_timezone, from_date),
+    )
+
+
 def compute_planner_periods(
     natal_profile: dict,
     from_date: date,
@@ -322,6 +427,7 @@ def compute_planner_periods(
     today: Optional[date] = None,
     user_timezone: Optional[str] = None,
     week_offset: Optional[int] = None,
+    with_moon_week: bool = True,
 ) -> dict:
     """Готовая структура для промпта планера: уже посчитанные периоды по домам.
 
@@ -408,20 +514,13 @@ def compute_planner_periods(
         })
 
     # ── Луна на текущую календарную неделю (периоды нахождения по домам) ──
-    import logging as _logging
-    _logging.getLogger('astro.house_passages').info('CUSPS: %s', cusps)
-    # Сканирование в UTC; сдвиг для отображения применяется к каждому периоду
-    import pytz
-    tz_offset = timedelta(0)
-    if user_timezone:
-        try:
-            tz = pytz.timezone(user_timezone)
-            # FIX: используем дату начала сканирования, а не utcnow(),
-            # чтобы корректно учитывать переход на летнее/зимнее время
-            local_day_start_probe = datetime(today.year, today.month, today.day, 0, 0)
-            tz_offset = tz.utcoffset(local_day_start_probe)
-        except Exception:
-            tz_offset = timedelta(0)
+    #
+    # ⚠️ with_moon_week=False — режим ленты: ей нужны периоды планет и станции
+    # из этой же функции, а проходы Луны она берёт за СВОЁ окно
+    # (compute_moon_house_passages). Без этого флага мы считали бы неделю,
+    # которую никто не прочитает, — а это ~800 обращений к эфемеридам на
+    # каждый запрос ленты (шаг Луны 30 минут).
+    tz_offset = moon_tz_offset(user_timezone, today)
 
     # Неделя считается от первой недели ОТОБРАЖАЕМОГО месяца (from_date..to_date),
     # а не от "сегодня" — иначе прокрутка недель (week_offset) не имела бы смысла:
@@ -451,51 +550,10 @@ def compute_planner_periods(
     )
     week_end_local = week_start_local + timedelta(days=7) - timedelta(minutes=1)
 
-    # Окно сканирования шире недели (Луна меняет дом раз в ~2.5 дня) — так
-    # calculate_house_passages(refine_edges=True) сможет найти реальные
-    # момент входа/выхода для периодов, пересекающих границы недели, а не
-    # обрежет их по краю окна.
-    week_dt_start_utc = week_start_local - tz_offset - timedelta(days=5)
-    week_dt_end_utc   = week_end_local   - tz_offset + timedelta(days=5)
-    moon_passages_raw = calculate_house_passages(
-        "Moon", cusps, week_dt_start_utc, week_dt_end_utc, refine_edges=True,
+    moon_week = (
+        _moon_passages_between(cusps, week_start_local, week_end_local, tz_offset)
+        if with_moon_week else []
     )
-
-    # FIX: возвращаем периоды нахождения Луны по домам (не группируем по дням).
-    # Каждый элемент — один непрерывный период в одном доме со временем входа и выхода.
-    # Оставляем только периоды, ПЕРЕСЕКАЮЩИЕСЯ с текущей неделей (а не только те,
-    # что начались внутри неё) — иначе период, начавшийся до понедельника или
-    # заканчивающийся после воскресенья, будет потерян или обрезан.
-    moon_week = []
-    for p in moon_passages_raw:
-        start_local = p["start_dt"] + tz_offset
-        end_local   = p["end_dt"]   + tz_offset
-        if end_local < week_start_local or start_local > week_end_local:
-            continue
-
-        # Метка входа: "21.05 Чт 03:22"
-        start_label = (
-            f"{start_local.strftime('%d.%m')} "
-            f"{DAY_RU_SHORT[start_local.weekday()]} "
-            f"{start_local.strftime('%H:%M')}"
-        )
-        # Метка выхода: "25.05 Пн 01:03"
-        end_label = (
-            f"{end_local.strftime('%d.%m')} "
-            f"{DAY_RU_SHORT[end_local.weekday()]} "
-            f"{end_local.strftime('%H:%M')}"
-        )
-
-        moon_week.append({
-            # date = момент входа Луны в дом (для совместимости с planner_engine)
-            "date":  start_label,
-            # time = метка даты выхода — фронт склеивает "date – time" через тире
-            "time":  end_label,
-            "house": p["house"],
-            # Сохраняем полные datetime для возможной дальнейшей обработки
-            "start_dt": start_local.isoformat(),
-            "end_dt":   end_local.isoformat(),
-        })
 
     # ── Медленные планеты: Юпитер..Плутон — берём дом на середину месяца ──
     slow_result = []

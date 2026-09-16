@@ -4,7 +4,7 @@ import MotionButton from "../components/MotionButton";
 import { authFetch, createCheckoutSession, apiErrorText } from "../api/client";
 import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
-import { TIER_NAMES } from "../constants";
+import { PLANNER_WEEKS_AHEAD, TIER_NAMES } from "../constants";
 import LyraPaywallModal from "../components/LyraPaywallModal";
 import PlanComparisonModal from "../components/PlanComparisonModal";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -1057,8 +1057,16 @@ export default function PlannerPage() {
   const weekNav = planData?.week_nav || null;
   const currentWeekOffset = weekOffset ?? weekNav?.week_offset ?? 0;
 
+  // ⚠️ Строка `if (isFree) { openPaywall(); return; }` снята 16.09.2026.
+  // Она запрещала бесплатному пользователю листать недели ВООБЩЕ — а по новому
+  // правилу (is_moon_week_locked, backend) завершившиеся проходы Луны открыты
+  // всем тарифам, и без листания free до них не добраться: то, что ему уже
+  // отдаёт сервер, было бы недостижимо с экрана.
+  //
+  // Тариф решает не «листать или нет», а что внутри недели ЗАКРЫТО, и решает
+  // это сервер. Клиентский запрет был вторым гейтом поверх серверного — ровно
+  // та конструкция, которая в этом проекте расходится молча.
   function changeWeek(delta) {
-    if (isFree) { openPaywall(); return; }
     if (!weekNav) return;
     const next = currentWeekOffset + delta;
     if (next < 0 || next > weekNav.total_weeks - 1) return;
@@ -1255,13 +1263,13 @@ export default function PlannerPage() {
                       <div className="month-nav">
                         <MotionButton
                           level="secondary" className="month-nav-btn"
-                          disabled={!isFree && currentWeekOffset <= 0}
+                          disabled={currentWeekOffset <= 0}
                           onClick={() => changeWeek(-1)}
                         >‹</MotionButton>
                         <span className="month-nav-label">{formatWeekRange(weekNav.week_start, weekNav.week_end)}</span>
                         <MotionButton
                           level="secondary" className="month-nav-btn"
-                          disabled={!isFree && currentWeekOffset >= weekNav.total_weeks - 1}
+                          disabled={currentWeekOffset >= weekNav.total_weeks - 1}
                           onClick={() => changeWeek(1)}
                         >›</MotionButton>
                       </div>
@@ -1271,13 +1279,20 @@ export default function PlannerPage() {
                     const days = planData?.week_days || [];
                     let bannerShown = false;
                     return days.map((day, i) => {
-                      const showBanner = day.locked && !bannerShown;
+                      // ⚠️ Плашка апселла — только на free. У платных тарифов
+                      // закрытые недели тоже появляются (расшифровка идёт на
+                      // 4 недели вперёд у всех платных), но им переход на
+                      // Вегу ничего не даст: предлагать его значило бы продавать
+                      // то, что у человека уже есть. Сами карточки при этом
+                      // остаются закрытыми — видно, что дальше есть периоды.
+                      const showBanner = isFree && day.locked && !bannerShown;
                       if (showBanner) bannerShown = true;
                       return (
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint onUpgrade={openPaywall}>
-                              Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям. Открывается на тарифе {TIER_NAMES.lite}.
+                              Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям.
+                              Прошедшие периоды и текущая неделя открыты всегда; ещё {PLANNER_WEEKS_AHEAD.lite - 1} недели вперёд — на тарифе {TIER_NAMES.lite}.
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
