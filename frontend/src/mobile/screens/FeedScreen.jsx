@@ -133,16 +133,24 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   const { logout } = useAuth();
   const [selected, setSelected] = useState(null);
   /**
-   * Периоды планера, раскрытые вручную (ключи событий).
+   * Периоды планера, которые человек ПЕРЕКЛЮЧИЛ вручную (ключи событий).
+   *
+   * ⚠️ Это множество «наоборот от умолчания», а не «раскрытых». Умолчание
+   * зависит от дня: в дне-якоре период раскрыт, в остальных свёрнут. С
+   * 16.09.2026 сворачивать можно и сегодняшний, и хранить отдельно
+   * «раскрытые» и «свёрнутые» значило бы держать два множества и следить,
+   * чтобы ключ не попал в оба. Одно множество-переключатель этого не
+   * допускает по построению.
    *
    * ⚠️ Состояние живёт ЗДЕСЬ, а не внутри карточки. Карточка пересоздаётся при
    * каждом обновлении ленты (жест обновления, возврат из фона), и локальное
-   * состояние схлопнуло бы всё, что человек только что раскрыл. Ключ события
-   * устойчив между окнами у транзитов и лунных; у периодов планера — нет
-   * (известный дефект, docs/HISTORY-feed.md), и тогда раскрытое схлопнется:
-   * это честнее, чем раскрыть чужой период с совпавшим ключом.
+   * состояние схлопнуло бы всё, что человек только что раскрыл или свернул.
+   * Ключ события устойчив между окнами у транзитов и лунных; у периодов
+   * планера — нет (известный дефект, docs/HISTORY-feed.md), и тогда состояние
+   * вернётся к умолчанию: это честнее, чем применить его к чужому периоду с
+   * совпавшим ключом.
    */
-  const [openPeriods, setOpenPeriods] = useState(() => new Set());
+  const [flippedPeriods, setFlippedPeriods] = useState(() => new Set());
   /**
    * Развёрнута ли шапка поверх ленты (решение владельца 16.09.2026).
    *
@@ -153,7 +161,7 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
    */
   const [headerOpen, setHeaderOpen] = useState(true);
   const togglePeriod = useCallback((event) => {
-    setOpenPeriods((prev) => {
+    setFlippedPeriods((prev) => {
       const next = new Set(prev);
       if (next.has(event.key)) next.delete(event.key); else next.add(event.key);
       return next;
@@ -370,6 +378,10 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   useEffect(() => {
     if (!active) return undefined;
     setHeaderOpen(true);
+    // Новый вход на вкладку — умолчания вернулись: сегодняшний период снова
+    // раскрыт, остальные свёрнуты. Внутри одного посещения состояние
+    // сохраняется, в том числе через обновление ленты.
+    setFlippedPeriods(new Set());
     const el = scrollRef?.current;
     if (!el) return undefined;
     const from = el.scrollTop;
@@ -542,7 +554,8 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
           // Периоды планера: в несегодняшнем дне свёрнуты, тапом
           // раскрываются на месте (решение владельца 16.09.2026, исключение
           // из §5 — записано в DESIGN_SYSTEM).
-          const periodCollapsed = isPlannerPeriod && !expanded && !openPeriods.has(event.key);
+          const periodCollapsed = isPlannerPeriod
+            && (!expanded) !== flippedPeriods.has(event.key);
           return (
             <FeedTimelineNode
               key={event.key}
@@ -596,7 +609,15 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-xl)',
               boxShadow: 'var(--shadow-card)',
-              padding: '16px 14px 8px',
+              // ⚠️ Боковые поля СНЯТЫ (приёмка 16.09.2026): внутри карточки
+              // дня стоят карточки периодов со своей рамкой, и два набора
+              // полей подряд съедали ширину у расшифровки — «карточка в
+              // карточке». Верх и низ остались: они отделяют заголовок дня и
+              // последнюю строку от края поднятой поверхности.
+              // 6px, а не 0: при нуле время слева упиралось в саму рамку
+              // карточки дня — на снимке между ними оставалось 4 px, и это
+              // читалось как склейка, а не как поле.
+              padding: '14px 6px 8px',
             } : undefined}
           >
             <FeedDayHeader

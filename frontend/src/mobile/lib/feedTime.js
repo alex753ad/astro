@@ -157,10 +157,19 @@ export function periodRangeFull(fromAt, toAt, todayStr = localToday()) {
   return `${periodEdge(fromAt, longterm)} – ${periodEdge(toAt, longterm)}`;
 }
 
-/** Один конец срока: «16.09 Ср 19:33», либо «17.11.2012» у долгосрочного. */
+/**
+ * Один конец срока: «16.09 ср 19:33», либо «17.11.2012» у долгосрочного.
+ *
+ * ⚠️ Внутри половины — НЕРАЗРЫВНЫЕ пробелы. Иначе строка рвётся где придётся:
+ * на приёмке 16.09.2026 срок переносился как «16.09 ср 19:33 – 19.09 сб» /
+ * «23:47», то есть время отрывалось от своей даты и читалось как часть
+ * соседней. Половина срока — одно значение, и делить её нельзя; переносить
+ * можно только по тире между половинами, там обычные пробелы.
+ */
 function periodEdge(at, longterm) {
   if (longterm) return `${dateShort(at)}.${datePart(at).slice(0, 4)}`;
-  return `${dateShort(at)} ${weekdayShort(datePart(at))} ${timePart(at)}`;
+  // Между частями — НЕРАЗРЫВНЫЕ пробелы (U+00A0), не обычные.
+  return `${dateShort(at)} ${weekdayShort(datePart(at))} ${timePart(at)}`;
 }
 
 /**

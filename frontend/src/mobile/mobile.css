@@ -75,7 +75,7 @@
      Один источник на все места: точка на линии, значок в полосе планет,
      полоса карточки периода (feedTimelineDot.js → planetDotColor). */
   --planet-sun: #876802;
-  --planet-moon: #6D6D75;
+  --planet-moon: #4F7287;
   --planet-mercury: #1F74AE;
   --planet-venus: #D21673;
   --planet-mars: #D12B1A;
@@ -179,7 +179,7 @@
   --bg-card: #1A1230;
   /* Цвета планет — разбор у светлой темы выше. */
   --planet-sun: #FDD85D;
-  --planet-moon: #8E8E96;
+  --planet-moon: #ABC1CE;
   --planet-mercury: #3498DB;
   --planet-venus: #EC4899;
   --planet-mars: #E74C3C;
