@@ -41,6 +41,12 @@ import ChartScreen from '../screens/ChartScreen';
 import MoreScreen from '../screens/MoreScreen';
 import TabBar from './TabBar';
 import AristeaFab from './AristeaFab';
+import HintOverlay from './HintOverlay';
+import useChatAccess from '../lib/useChatAccess';
+import { chatHint } from '../lib/onboardingCopy';
+import { chatHintKey, isSeen, markSeen } from '../lib/onboardingFlags';
+import { TIER_NAMES } from '../../constants';
+import useTier from '../lib/useTier';
 import { syncLocalNotifications } from '../lib/localNotificationsSync';
 
 const TAB_KEYS = ['feed', 'chart', 'more'];
@@ -61,6 +67,30 @@ export default function TabShell() {
   // вкладки не гарантирован — булев сеттер давал бы гонку, в которой
   // «закрылось на одном» затирало бы «открылось на другом».
   const [hintsOwner, setHintsOwner] = useState(null);
+  const fabRef = useRef(null);
+  const hasChatAccess = useChatAccess();
+  const { tier, known } = useTier();
+  const [chatHintOpen, setChatHintOpen] = useState(false);
+
+  /**
+   * Подсказка у кнопки чата — при первом запуске и по разу на каждый тариф.
+   *
+   * ⚠️ Ждём `known`: до того как тариф приехал, неизвестно ни какой ключ
+   * проверять, ни какой из двух текстов показывать. Показать раньше — значит
+   * с равной вероятностью соврать про доступ.
+   *
+   * ⚠️ Ждём и `showFab`: подсказка подсвечивает кнопку, а её на вкладке «Ещё»
+   * нет вовсе. Рамка ушла бы в пустоту.
+   */
+  useEffect(() => {
+    if (!known || !showFab || hintsOwner !== null) return;
+    if (!isSeen(chatHintKey(tier))) setChatHintOpen(true);
+  }, [known, tier, showFab, hintsOwner]);
+
+  const closeChatHint = useCallback(() => {
+    setChatHintOpen(false);
+    markSeen(chatHintKey(tier));
+  }, [tier]);
   const handleHints = useCallback((key, open) => {
     setHintsOwner((prev) => (open ? key : (prev === key ? null : prev)));
   }, []);
@@ -216,7 +246,30 @@ export default function TabShell() {
         visible={showFab && hintsOwner === null}
         bottomOffset={tabBarHeight + 16}
         chart={active === 'chart' ? tabCharts.chart : tabCharts.feed}
+        innerRef={fabRef}
       />
+
+      {/*
+        Подсказка у кнопки чата: первый запуск и по разу после каждого
+        апгрейда (решение владельца 16.09.2026). Механизм тот же, что у
+        подсказок экранов, — HintOverlay плюс флаг в localStorage; нового не
+        заводится. Разница одна: ключ флага несёт тариф (`chatHintKey`),
+        поэтому смена тарифа сама по себе делает подсказку непоказанной.
+
+        ⚠️ Стоит ЗДЕСЬ, а не в экране: кнопка живёт в оболочке и видна и на
+        «Ленте», и на «Карте». В экране она показывалась бы дважды.
+
+        ⚠️ Гейт `hintsOwner === null` обязателен: подсказки экрана прячут саму
+        кнопку (см. `visible` выше), и без гейта рамка искала бы элемент,
+        которого в этот момент нет.
+      */}
+      {chatHintOpen && (
+        <HintOverlay
+          steps={[chatHint(hasChatAccess, TIER_NAMES.pro)]}
+          anchors={{ chat: fabRef }}
+          onClose={closeChatHint}
+        />
+      )}
 
       <TabBar ref={tabBarRef} active={active} />
     </div>

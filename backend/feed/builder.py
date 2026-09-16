@@ -67,7 +67,7 @@ from typing import Any, Optional
 import pytz
 
 from backend.cache import RedisCache, TTL_TRANSIT
-from backend.calendar.lunar_engine import jd_to_utc
+from backend.calendar.lunar_engine import jd_to_utc, sign_in
 from backend.feed.horizon import feed_horizon
 
 # Скан месяца расширяется на столько суток в каждую сторону. Нужен только для
@@ -588,7 +588,7 @@ def _lunar_events(from_date: date, to_date: date, tz) -> list[dict]:
                 "ends_at": None,
                 "duration_days": None,
                 "locked": False,
-                "text": f"{label} в {sign}",
+                "text": f"{label} {sign_in(sign)}",
                 "teaser": None,
                 "meta": {"type": etype, "emoji": emoji, "sign": sign},
             })

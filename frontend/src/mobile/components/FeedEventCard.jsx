@@ -335,7 +335,12 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
           <h3
             style={{
               margin: 0,
-              fontSize: collapsed ? 15 : 18,
+              // ⚠️ 18 и у свёрнутого. Было 15 — и на одном экране «Луна в
+              // 12 доме» оказывалась мельче, чем «Уран: начало ретроградности»
+              // рядом, хотя это события одного порядка. По §5 свёрнутый и
+              // раскрытый вид различаются ОБЪЁМОМ, а кегль — это оформление:
+              // разный кегль делал их разными сущностями.
+              fontSize: 18,
               fontWeight: 600,
               fontFamily: 'var(--font-display)',
               color: 'var(--text-primary)',

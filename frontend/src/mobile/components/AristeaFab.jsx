@@ -31,7 +31,7 @@ import { useNavigate } from 'react-router-dom';
 import useChatAccess from '../lib/useChatAccess';
 import AristeaChat from './AristeaChat';
 
-export default function AristeaFab({ visible, bottomOffset, chart }) {
+export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
   const hasAccess = useChatAccess();
   const navigate = useNavigate();
   const [chatOpen, setChatOpen] = useState(false);
@@ -49,6 +49,7 @@ export default function AristeaFab({ visible, bottomOffset, chart }) {
   return (
     <>
       <button
+        ref={innerRef}
         type="button"
         onClick={onClick}
         aria-label={hasAccess ? 'Чат с Аристеей' : 'Чат с Аристеей — доступен на Лире и Орионе'}
