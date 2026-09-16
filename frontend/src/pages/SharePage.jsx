@@ -155,7 +155,7 @@ const s = {
   page: {
     minHeight: '100vh',
     background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)',
-    color: '#fff',
+    color: 'var(--text-primary)',
     fontFamily: "'Segoe UI', Arial, sans-serif",
   },
   center: {
@@ -198,7 +198,7 @@ const s = {
   actions: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
   btnPrimary: {
     background: 'var(--accent)',
-    color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
+    color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-md)',
     padding: '12px 24px', fontSize: '15px', fontWeight: '700',
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -209,7 +209,7 @@ const s = {
     fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
   },
   btn: {
-    background: 'var(--accent)', color: '#fff', border: 'none',
+    background: 'var(--accent)', color: 'var(--accent-on)', border: 'none',
     borderRadius: 'var(--radius-md)', padding: '10px 20px', cursor: 'pointer',
   },
   promo: { fontSize: '13px', color: 'var(--accent)', textAlign: 'center', marginTop: '8px' },

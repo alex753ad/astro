@@ -275,7 +275,7 @@ function FilterBar({ planetFilter, setPlanetFilter, aspectFilter, setAspectFilte
       display: "flex", flexDirection: "column", gap: 10,
       padding: "14px 16px", background: "var(--bg-card-veil)",
       borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)",
-      boxShadow: "0 4px 16px -4px rgba(224,195,252,0.2)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
+      boxShadow: "var(--shadow-card)", /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */
     }}>
       <div>
         <button onClick={() => toggle("planets")} style={filterLabelStyle}>
@@ -507,7 +507,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
           background: "var(--accent)",
           color: "#fff", fontSize: 13, fontWeight: 700,
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
-          boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
+          boxShadow: "var(--shadow-accent)", /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */
         }}>
           Открыть {TIER_NAMES.pro}
         </button>
@@ -687,7 +687,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
   }, [text]);
 
   return (
-    <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
+    <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "var(--shadow-raised)", /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--accent-hairline)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{key}</div>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
@@ -741,7 +741,7 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
     : "Полный разбор этого транзита — на Веге и Лире.";
 
   return (
-    <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
+    <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "var(--shadow-raised)", /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--accent-hairline)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{key}</div>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: 18, cursor: "pointer", padding: "2px 6px", borderRadius: 'var(--radius-sm)', fontFamily: "inherit" }}>✕</button>
@@ -752,7 +752,7 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
         <MotionButton level="primary" onClick={onOpenAccess} style={{
           alignSelf: "flex-start", padding: "9px 20px", borderRadius: 'var(--radius-md)', border: "none",
           background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 700,
-          cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
+          cursor: "pointer", fontFamily: "inherit", boxShadow: "var(--shadow-accent)", /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */
         }}>Открыть доступ</MotionButton>
       </div>
     </div>

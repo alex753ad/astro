@@ -203,7 +203,7 @@ export default function AuthModal({ onClose, returnTo }) {
     background: disabled
       ? 'rgba(var(--accent-rgb), 0.35)'
       : 'var(--accent)',
-    color: '#fff', fontWeight: 700, fontSize: 14,
+    color: 'var(--accent-on)', fontWeight: 700, fontSize: 14,
     cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
   });
 

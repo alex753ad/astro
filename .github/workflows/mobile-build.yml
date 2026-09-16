@@ -178,7 +178,7 @@ jobs:
       - name: Иконка приложения
         working-directory: frontend
         run: |
-          npx @capacitor/assets generate --android --iconBackgroundColor '#CDBBE6' --iconBackgroundColorDark '#CDBBE6'
+          npx @capacitor/assets generate --android --iconBackgroundColor '#5B3A9E' --iconBackgroundColorDark '#5B3A9E'
 
       # Правки нативного проекта, который генерируется заново каждым прогоном.
       # Падает, если якорь не найден: молчаливый пропуск дал бы APK без

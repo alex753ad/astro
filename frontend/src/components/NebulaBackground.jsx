@@ -2,7 +2,7 @@
  * NebulaBackground — процедурный WebGL nebula как фиксированный фоновый слой.
  * (Содержит zodiac data-color hex: WebGL-шейдеру нужны сырые hex, не CSS-переменные.)
  * ТЗ раздел 4 («Космос»): глубокий, но не отвлекающий; u_time — медленный дрейф,
- * u_mouse — ленивый параллакс, u_accent — из --accent (#8B5CF6),
+ * u_mouse — ленивый параллакс, u_accent — из --accent тёмной темы (#A98BF0),
  * u_glow — сдвиг по стихии активного знака (4.2). Honors prefers-reduced-motion.
  *
  * Использование:
@@ -109,7 +109,7 @@ function compile(gl, type, src) {
 }
 
 export default function NebulaBackground({
-  accentColor = '#8B5CF6', /* zodiac data-color, intentional — WebGL needs raw hex */
+  accentColor = '#A98BF0', /* zodiac data-color, intentional — WebGL needs raw hex */
   element = null,
   intensity = 1.0,
 }) {

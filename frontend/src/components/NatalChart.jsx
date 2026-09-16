@@ -242,9 +242,9 @@ function NatalChartInner({
   // custom properties там не резолвятся (падают на initial => чёрный). forExport
   // форсирует dark=false именно чтобы получить светлый экспорт — CSS-переменная это
   // намерение не видит и продолжает брать текущую тему документа.
-  const discBase        = dark ? 'rgba(26,18,48,0.55)'    : '#FDFBF9';
-  const discInner       = dark ? 'rgba(26,18,48,0.60)'    : '#FFFFFF';
-  const discInnerStroke = dark ? 'rgba(var(--accent-rgb),0.25)'  : '#EDE8F5';
+  const discBase        = dark ? 'rgba(30,22,54,0.55)'    : '#F6F3FA';  /* zodiac data-color, intentional */
+  const discInner       = dark ? 'rgba(30,22,54,0.60)'    : '#FFFFFF';  /* zodiac data-color, intentional */
+  const discInnerStroke = dark ? 'rgba(var(--accent-rgb),0.25)'  : '#E4DCF0';  /* zodiac data-color, intentional */
 
   // ── Палитра кольца/штрихов/домов: тёмные варианты для тёмной темы ──
   const EL_FILL = dark
@@ -510,7 +510,7 @@ function NatalChartInner({
               />
             )}
 
-            <circle cx={glyphPos.x} cy={glyphPos.y} r={r} fill={dark ? '#1A1230' : '#FFFFFF'} />
+            <circle cx={glyphPos.x} cy={glyphPos.y} r={r} fill={dark ? '#1E1636' : '#FFFFFF'} /*  zodiac data-color, intentional */ />
             <circle cx={glyphPos.x} cy={glyphPos.y} r={r}
               fill="none" stroke={color} strokeWidth={1.25} />
 
@@ -618,7 +618,7 @@ function NatalChartInner({
                     stroke={color} strokeWidth={0.5} strokeOpacity={0.25} />
 
                   <g className="transit-planet" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
-                    <circle cx={0} cy={0} r={12} fill={dark ? '#1A1230' : '#FFFFFF'} />
+                    <circle cx={0} cy={0} r={12} fill={dark ? '#1E1636' : '#FFFFFF'} /*  zodiac data-color, intentional */ />
                     <circle cx={0} cy={0} r={12}
                       fill="none"
                       stroke={color}
@@ -782,7 +782,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{
               background: 'var(--accent)',
-              color: '#fff', borderRadius: 'var(--radius-sm)', padding: '2px 8px',
+              color: 'var(--accent-on)', borderRadius: 'var(--radius-sm)', padding: '2px 8px',
               fontSize: 11, fontWeight: 700,
             }}>
               {TOOLTIPS[activeTooltip].label}
@@ -803,7 +803,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
             </button>
             <button onClick={nextTooltip} style={{
               background: 'var(--accent)',
-              border: 'none', color: '#fff', borderRadius: 'var(--radius-md)',
+              border: 'none', color: 'var(--accent-on)', borderRadius: 'var(--radius-md)',
               padding: '6px 16px', fontSize: 12, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
             }}>

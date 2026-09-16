@@ -96,7 +96,22 @@ const API_BASE = '/api/v1';
 // ─── Цвета тарифов ───────────────────────────────────────────────────────────
 const TIER_LABELS = TIER_NAMES;
 /* tier data-color, intentional */
+/**
+ * ⚠️ Значения — `var(...)`, и приписать к ним hex-альфу НЕЛЬЗЯ.
+ *
+ * Так и было до 16.09.2026: `${TIER_COLORS[t.id]}60` давало строку
+ * `var(--accent)60`, которую браузер не разбирает вовсе — `getComputedStyle`
+ * отдавал `border: 0px none` и прозрачный фон, то есть КАРТОЧКИ ТАРИФОВ В
+ * ПРОФИЛЕ НЕ РИСОВАЛИСЬ. «Рекомендуем» держалось на одной мелкой надписи.
+ * В PlannerPage тот же приём работал, потому что там PLANET_COLORS — сырые
+ * hex; здесь токены, и это не взаимозаменяемо.
+ *
+ * Прозрачность теперь берётся через color-mix, который принимает var() как
+ * значение. Рядом заведены готовые пары, чтобы соблазна дописать «60»
+ * больше не было.
+ */
 const TIER_COLORS = { free: 'var(--text-secondary)', lite: 'var(--color-air)', pro: 'var(--accent)', premium: 'var(--color-warning)' };
+const TIER_TINT = (tier, pct) => `color-mix(in srgb, ${TIER_COLORS[tier] || 'var(--text-secondary)'} ${pct}%, transparent)`;
 
 // ─── Стили (светлая и тёмная тема через CSS-переменные) ─────────────────────
 const S = {
@@ -158,7 +173,7 @@ const S = {
     display: 'inline-block',
     padding: '3px 12px',
     borderRadius: 'var(--radius-xl)',
-    background: `${TIER_COLORS[tier] || 'var(--text-secondary)'}18`,
+    background: TIER_TINT(tier, 10),
     color: TIER_COLORS[tier] || 'var(--text-secondary)',
     fontSize: 12,
     fontWeight: 700,
@@ -734,8 +749,8 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
               <div key={t.id} style={{
                 display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
                 padding: '14px 16px', borderRadius: 'var(--radius-sm)',
-                border: `1px solid ${TIER_COLORS[t.id]}${t.recommended ? '60' : '30'}`,
-                background: `${TIER_COLORS[t.id]}08`,
+                border: `1px solid ${TIER_TINT(t.id, t.recommended ? 38 : 19)}`,
+                background: TIER_TINT(t.id, 5),
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -1090,7 +1105,7 @@ function TabNotifications({ authFetch }) {
               setMsg(e.message || 'Не удалось отправить тест');
             }
           }}
-          style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+          style={{ background: 'var(--accent)', color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
         >
           Отправить тест
         </MotionButton>

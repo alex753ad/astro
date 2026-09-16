@@ -44,9 +44,9 @@ export default function LandingPage({ onShowAuth, currentUser }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
+      background: 'var(--bg-page)',
       fontFamily: 'var(--font-body)',
-      color: '#1a1230',
+      color: 'var(--text-primary)',
     }}>
 
 
@@ -66,7 +66,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           fontSize: 12,
           fontWeight: 700,
           letterSpacing: '0.12em',
-          color: '#8B5CF6',
+          color: 'var(--accent-fg)',
           textTransform: 'uppercase',
           marginBottom: 20,
         }}>
@@ -79,28 +79,15 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           fontWeight: 700,
           lineHeight: 1.15,
           margin: '0 0 20px',
-          color: '#1a1230',
+          color: 'var(--text-primary)',
         }}>
           Лучшее время для возможностей —<br />
-          <motion.span
-            style={{
-              background: 'linear-gradient(135deg, #8B5CF6, #EC4899)',
-              // Растягиваем градиент вдвое, чтобы было куда его смещать.
-              backgroundSize: prefersReduced ? '100% 100%' : '200% 100%',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-            animate={prefersReduced ? undefined : { backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-            transition={prefersReduced ? undefined : { duration: 7, ease: 'easeInOut', repeat: Infinity }}
-          >
-            в твоём планере
-          </motion.span>
+          <span style={{ color: 'var(--accent-fg)' }}>в твоём планере</span>
         </motion.h1>
 
         <motion.p variants={heroItem} style={{
           fontSize: 16,
-          color: '#6B6885',
+          color: 'var(--text-secondary)',
           lineHeight: 1.7,
           maxWidth: 540,
           margin: '0 auto 36px',
@@ -121,10 +108,14 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               padding: '16px 36px',
               borderRadius: 'var(--radius-lg)',
               border: 'none',
-              background: '#1a1230',
-              color: '#fff',
+              // ⚠️ Была чёрная кнопка литералом #1a1230 — четвёртый вид кнопки
+              // в проекте и единственный, не подчинявшийся палитре. Сведена к
+              // первичной (решение владельца 16.09.2026): видов теперь два,
+              // первичная и вторичная, и оба берут токены.
+              background: 'var(--accent)',
+              color: 'var(--accent-on)',
               fontSize: 16,
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: 'pointer',
               fontFamily: 'inherit',
               letterSpacing: '0.01em',
@@ -187,7 +178,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             textAlign: 'center',
             fontStyle: 'italic',
             fontWeight: 500,
-            color: '#8B5CF6',
+            color: 'var(--accent-fg)',
             lineHeight: 1.6,
           }}>
             И это лишь одно окно твоего месяца — Аристея проведёт тебя по всем транзитным периодам
@@ -209,7 +200,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
           lineHeight: 1.2,
           textAlign: 'center',
           margin: '48px 0 24px',
-          color: '#1a1230',
+          color: 'var(--text-primary)',
         }}
       >
         Что делает Аристея
@@ -264,12 +255,12 @@ export default function LandingPage({ onShowAuth, currentUser }) {
               fontFamily: 'var(--font-display)',
               fontWeight: 700,
               fontSize: 15,
-              color: '#1a1230',
+              color: 'var(--text-primary)',
               marginBottom: 8,
             }}>{f.title}</div>
             <div style={{
               fontSize: 13,
-              color: '#6B6885',
+              color: 'var(--text-secondary)',
               lineHeight: 1.6,
             }}>{isMobile ? f.descShort : f.desc}</div>
           </motion.div>
@@ -294,8 +285,8 @@ export default function LandingPage({ onShowAuth, currentUser }) {
             padding: '16px 36px',
             borderRadius: 'var(--radius-lg)',
             border: 'none',
-            background: '#1a1230',
-            color: '#fff',
+            background: 'var(--accent)',
+            color: 'var(--accent-on)',
             fontSize: 16,
             fontWeight: 700,
             cursor: 'pointer',
@@ -319,7 +310,7 @@ export default function LandingPage({ onShowAuth, currentUser }) {
 
       {/* B2B-пространство — временно неактивно (chore: временно отключить вход в CRM с лендинга) */}
       <div style={{ textAlign: 'center', padding: '0 24px 8px' }}>
-        <span style={{ fontSize: 16, color: '#6B6780', cursor: 'default' }}>
+        <span style={{ fontSize: 16, color: 'var(--text-secondary)', cursor: 'default' }}>
           Ты астролог и ведёшь клиентов? Аристея для практики — скоро
         </span>
       </div>
@@ -376,14 +367,21 @@ function ZodiacWheelSVG() {
         {/* Center dot */}
         <circle cx={cx} cy={cy} r={3} style={{ fill: 'rgba(var(--accent-rgb),0.5)' }} />
         {/* Planet dots */}
+        {/* Точки — один акцент разной плотности. Прежде их было три цвета,
+            включая розовый #EC4899, которого в палитре нет вовсе: планет они
+            не обозначают, это декорация, и второй цвет тут только шумел.
+
+            ⚠️ Цвет идёт через style, а не через атрибут fill: SVG-атрибут
+            var() не разворачивает (та же ловушка, что в NatalChart.jsx). */}
         {[
-          { angle: 30, dist: 42, c: '#8B5CF6' },
-          { angle: 110, dist: 38, c: '#EC4899' },
-          { angle: 200, dist: 45, c: '#8B5CF6' },
-          { angle: 300, dist: 40, c: '#A78BFA' },
+          { angle: 30, dist: 42, o: 0.9 },
+          { angle: 110, dist: 38, o: 0.55 },
+          { angle: 200, dist: 45, o: 0.9 },
+          { angle: 300, dist: 40, o: 0.4 },
         ].map((p, i) => {
           const rad = ((p.angle - 90) * Math.PI) / 180;
-          return <circle key={i} cx={cx + p.dist * Math.cos(rad)} cy={cy + p.dist * Math.sin(rad)} r={3} fill={p.c} />;
+          return <circle key={i} cx={cx + p.dist * Math.cos(rad)} cy={cy + p.dist * Math.sin(rad)} r={3}
+                         style={{ fill: `rgba(var(--accent-rgb),${p.o})` }} />;
         })}
       </g>
     </svg>

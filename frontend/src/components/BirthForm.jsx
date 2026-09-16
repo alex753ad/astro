@@ -401,7 +401,7 @@ export default function BirthForm({ onSubmit, loading }) {
             background: loading
               ? 'rgba(var(--accent-rgb), 0.5)'
               : 'var(--accent)',
-            color: '#fff',
+            color: 'var(--accent-on)',
             fontSize: 16,
             fontWeight: 700,
             cursor: loading ? 'not-allowed' : 'pointer',

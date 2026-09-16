@@ -57,7 +57,7 @@ const s = {
   link: {
     display: 'inline-block',
     background: 'var(--accent)',
-    color: '#fff',
+    color: 'var(--accent-on)',
     fontSize: 14,
     fontWeight: 600,
     padding: '10px 20px',

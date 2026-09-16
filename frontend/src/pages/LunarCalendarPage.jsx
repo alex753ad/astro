@@ -592,7 +592,7 @@ const pg = {
   card: {
     background:'var(--bg-card-veil)', borderRadius:'var(--radius-xl)',
     padding:'20px 18px 16px',
-    boxShadow:'0 12px 40px -8px rgba(224,195,252,0.28),0 2px 8px rgba(0,0,0,0.04)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
+    boxShadow:'var(--shadow-raised)', /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026 — DESIGN_SYSTEM.md §6 */
     border:'1px solid var(--accent-hairline)',
   },
   cardHead:  { display:'flex', alignItems:'center', gap:7, marginBottom:12 },

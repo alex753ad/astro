@@ -395,7 +395,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           cursor: 'pointer',
         }} onClick={onUpgrade}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, gap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{liteUpsell?.title}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-on)' }}>{liteUpsell?.title}</span>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{liteUpsell?.subtitle}</span>
           </div>
           <button

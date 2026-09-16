@@ -96,7 +96,7 @@ export default function PortalPage() {
 }
 
 const s = {
-  page: { minHeight: '100vh', background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)', color: '#fff', fontFamily: "'Segoe UI', Arial, sans-serif" },
+  page: { minHeight: '100vh', background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)', color: 'var(--text-primary)', fontFamily: "'Segoe UI', Arial, sans-serif" },
   center: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 16 },
   logo: { fontSize: 22, color: 'var(--accent-glow)' },
   header: { display: 'flex', alignItems: 'center', gap: 12, padding: '20px 32px', borderBottom: '1px solid rgba(112,80,200,0.2)' },
@@ -111,6 +111,6 @@ const s = {
   assignment: { borderLeft: '3px solid var(--accent)', paddingLeft: 14 },
   assignmentHead: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 },
   assignmentBody: { fontSize: 14, color: 'var(--accent-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap' },
-  btnPrimary: { background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  btnPrimary: { background: 'var(--accent)', color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-md)', padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
   promo: { fontSize: 13, color: 'var(--accent)', textAlign: 'center', marginTop: 8 },
 };

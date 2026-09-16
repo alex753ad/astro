@@ -12,16 +12,30 @@
 /* ── CSS-переменные DS v1.1 ────────────────────────────────── */
 /* Светлая тема */
 :root {
-  --bg:              #FDFBF9;
+  /* ── Палитра «Глубокий аметист», вариант A, решение владельца 16.09.2026 ──
+     Прежний акцент #7C6CFF («светлый индиго») давал белым текстом 3.86:1 — то
+     есть первичная кнопка НИКОГДА не проходила по контрасту. Новый акцент
+     тёмный и сиреневее: белый на нём 8.26:1. Разбор и отклонённые варианты —
+     DESIGN_SYSTEM.md §1–§2. */
+  --bg:              #F6F3FA;
+  /* Фон СТРАНИЦЫ. Отдельно от --bg, потому что в ТЁМНОЙ теме веба под
+     страницей лежит шейдер небулы (NebulaBackground.jsx) и фон обязан быть
+     прозрачным, а поверхности — нет. В светлой теме значения совпадают, и
+     это не повод их сводить. */
+  --bg-page:         #F6F3FA;
   --bg-card:         #FFFFFF;
-  --bg-deeper:       #FDFBFF;
-  --text-primary:    #1E1A2E;
-  --text-secondary:  #6B6885;
-  --border:          #EDE8F5;
-  --accent:          #7C6CFF;
-  --accent-glow:     #8B5CF6;
-  --accent-rgb:      124, 108, 255;
-  --accent-glow-rgb: 139, 92, 246;
+  --bg-deeper:       #FBF8FF;
+  --text-primary:    #221A33;
+  --text-secondary:  #615874;
+  --border:          #E4DCF0;
+  --accent:          #5B3A9E;
+  /* ⚠️ В светлой теме --accent-glow ТЕМНЕЕ акцента, в тёмной светлее. Это не
+     опечатка: он означает «отклик» (hover/нажатие), а отклик на светлом фоне
+     идёт в темноту, на тёмном — в свет. */
+  --accent-glow:     #4A2E85;
+  --accent-on:       #FFFFFF;   /* текст на акцентной заливке, 8.26:1 */
+  --accent-rgb:      91, 58, 158;
+  --accent-glow-rgb: 74, 46, 133;
   --accent-muted:    rgba(var(--accent-rgb), 0.08);
   /* --accent-fg — акцент В РОЛИ ТЕКСТА (заголовок, ссылка, иконка).
      В светлой теме это --accent, в тёмной --accent-glow: на тёмном фоне
@@ -81,10 +95,12 @@
   --radius-full: 9999px;
   /* Тени — три ступени высоты, значения подобраны от СВЕТЛОЙ темы (она основная).
      Прежняя тройка из DESIGN_SYSTEM.md §6 была тёмной по происхождению: её
-     «модал» rgba(0,0,0,0.40) роняет светлый фон #FDFBF9 на 36 L* — это чёрный
+     «модал» rgba(0,0,0,0.40) роняет светлый фон страницы на 36 L* — это чёрный
      ореол, а не тень. Здесь модал даёт 22%, что на светлом читается ступенью.
-     Цвет — #1E1A2E (--text-primary), не чистый чёрный: на тёплом белом чёрный
-     даёт серый налёт.
+     Цвет — rgba(30,26,46), близкий к --text-primary, не чистый чёрный: на
+     светлом фоне чёрный даёт серый налёт. Значение оставлено прежним при
+     переходе на «Глубокий аметист»: тень задаёт ГЛУБИНУ, а не оттенок, и
+     перекрашивать её вслед за текстом не требуется.
      ⚠️ --shadow-accent — ТОЛЬКО под hover кнопок (§5 B2, моторный отклик).
      Ограничение владельца 14.09.2026: на карточки и баннеры не расползается.
      Акцентная тень на большой поверхности — это тот же ореол, ради устранения
@@ -136,25 +152,30 @@
 }
 /* Тёмная тема — основная */
 .dark {
+  /* ⚠️ `transparent`, а не цвет: под тёмной темой веба рисуется шейдер небулы
+     (NebulaBackground.jsx), и плоская заливка перекрыла бы его. Приложение
+     этого шейдера не имеет — там свой плоский --bg (mobile.css). */
   --bg:              transparent;
-  --bg-card:         #1A1230;
-  --bg-deeper:       #231C38;
-  --text-primary:    #E2DFF0;
-  --text-secondary:  #9B97B0;
-  --border:          #2A2245;
-  --accent:          #8B5CF6;
-  --accent-glow:     #A78BFA;
-  --accent-rgb:      139, 92, 246;
-  --accent-glow-rgb: 167, 139, 250;
+  --bg-page:         transparent;
+  --bg-card:         #1E1636;
+  --bg-deeper:       #221A3D;
+  --text-primary:    #E7E2F5;
+  --text-secondary:  #9E97B8;
+  --border:          #2E2450;
+  --accent:          #A98BF0;
+  --accent-glow:     #BFA6F7;
+  --accent-on:       #1A1030;   /* тёмный текст на светлом акценте, 6.58:1 */
+  --accent-rgb:      169, 139, 240;
+  --accent-glow-rgb: 191, 166, 247;
   --accent-muted:    rgba(var(--accent-rgb), 0.15);
   --accent-fg:       var(--accent-glow);
-  --bg-deeper-veil:  rgba(35,28,56,0.60);   /* = --bg-deeper #231C38 при α 0.60 */
-  /* = --bg-card #1A1230 при α 0.60. Собрал три токена: --tt-card и --lc-card
+  --bg-deeper-veil:  rgba(34,26,61,0.60);   /* = --bg-deeper #221A3D при α 0.60 */
+  /* Собрал три токена: --tt-card и --lc-card
      были 0.60, --crm-card 0.55. Сведены к 0.60 решением владельца 15.09.2026:
      замерено 0.28–0.31 L* разницы над тёмной частью небулы (порог ~1.0) и до
      1.82 над самыми яркими пятнами, куда карточки не попадают; на снимке со
      стыком двух половин посередине шва не видно. */
-  --bg-card-veil:    rgba(26,18,48,0.60);
+  --bg-card-veil:    rgba(30,22,54,0.60);   /* = --bg-card #1E1636 при α 0.60 */
   --accent-hairline: rgba(var(--accent-rgb), 0.16);
   --accent-fill:     rgba(var(--accent-rgb), 0.22);
   --accent-mark:     rgba(var(--accent-rgb), 0.45);
@@ -204,17 +225,42 @@
     transform: translateY(-2px);
     box-shadow: var(--shadow-raised);
   }
+  /* ⚠️ Кнопки набраны ГРОТЕСКОМ (решение владельца 16.09.2026). До этого дня
+     они брали --font-display, и расхождение с §3 держалось сознательно — «до
+     захода про палитру»: шрифт кнопки и её вид решаются вместе, а видов было
+     четыре. Заход состоялся, вид сведён к одному, шрифт закрыт вместе с ним.
+     Возврат антиквы сюда — регресс, а не тонкая настройка.
+
+     ⚠️ Цвет текста — --accent-on, не #fff. На светлом акценте белый не
+     проходит по контрасту ни при каком оттенке (у прежнего #7C6CFF было
+     3.86:1), поэтому «какой текст на кнопке» — свойство ПАЛИТРЫ и живёт
+     токеном рядом с самим акцентом. */
   .btn-primary {
     display: inline-flex; align-items: center; justify-content: center;
     height: 44px; padding: 0 16px;
-    background: var(--accent); color: #fff;
-    font-family: var(--font-display); font-weight: 700;
-    border-radius: var(--radius-md);
+    background: var(--accent); color: var(--accent-on);
+    font-family: var(--font-body); font-weight: 600;
+    border-radius: var(--radius-lg);
     transition: background-color .2s ease;
   }
-  .btn-primary:hover    { background: var(--accent-glow); }
+  .btn-primary:hover    { background: var(--accent-glow); box-shadow: var(--shadow-accent); }
   .btn-primary:active   { transform: scale(.98); }
   .btn-primary:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
+  /* Обводка для клавиатуры — одна на все кнопки проекта. */
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible { outline: 2px solid var(--accent-edge); outline-offset: 2px; }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 44px; padding: 0 16px;
+    background: var(--bg-card); color: var(--text-primary);
+    border: 1.5px solid var(--border);
+    font-family: var(--font-body); font-weight: 600;
+    border-radius: var(--radius-lg);
+    transition: border-color .2s ease;
+  }
+  .btn-secondary:hover    { border-color: var(--accent); }
+  .btn-secondary:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 
 }
 

@@ -6,7 +6,7 @@
  *
  * Гейт по тарифу — `useChatAccess()`, источник сервер. На Лире/Орионе тап
  * открывает чат (AristeaChat.jsx). На free/Веге кнопка визуально приглушена
- * и несёт значок замка вместо ✦; тап не ведёт на оплату — переключает на
+ * и несёт значок замка вместо литеры «A»; тап не ведёт на оплату — переключает на
  * вкладку «Ещё» с подсветкой блока тарифа (там уже есть кнопка «Тарифы»).
  * Это поведение free/Веги оставлено как было, решение владельца 09.09.2026.
  *
@@ -67,12 +67,23 @@ export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: hasAccess ? '0 8px 24px rgba(var(--accent-rgb), 0.32)' : 'none',
+          boxShadow: hasAccess ? 'var(--shadow-accent)' : 'none',
           zIndex: 5,
         }}
       >
         {hasAccess ? (
-          '✦'
+          /*
+            Литера «A» вместо прежнего ромба ✦ (решение владельца 16.09.2026).
+            ⚠️ Форма ВСТАВЛЕНА разметкой, а не подключена как <img src=...>:
+            через <img> цвет не наследуется, и значок перестал бы слушаться
+            состояния кнопки и темы. Тот же путь, что у значка замка ниже.
+            Источник формы — src/assets/aristea-a.svg, менять там.
+          */
+          <svg width="26" height="26" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+            <path d="M15 42 L28 15 L41 42" stroke="currentColor" strokeWidth="3.6"
+                  strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M21 31 L35 31" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
+          </svg>
         ) : (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="5" y="11" width="14" height="9" rx="2" />

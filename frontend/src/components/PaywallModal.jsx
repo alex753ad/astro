@@ -191,7 +191,7 @@ const s = {
     maxWidth: '420px',
     width: '100%',
     position: 'relative',
-    boxShadow: '0 20px 60px rgba(112, 96, 160, 0.15)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
+    boxShadow: 'var(--shadow-overlay)', /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */
   },
   close: {
     position: 'absolute', top: '16px', right: '16px',
@@ -207,7 +207,7 @@ const s = {
   badge: {
     display: 'inline-block',
     background: 'var(--accent)',
-    color: '#fff',
+    color: 'var(--accent-on)',
     fontSize: '11px',
     fontWeight: '600',
     letterSpacing: '0.08em',
@@ -255,7 +255,7 @@ const s = {
     width: '100%',
     padding: '14px',
     background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
-    color: '#fff',
+    color: 'var(--accent-on)',
     border: 'none',
     borderRadius: 'var(--radius-md)',
     fontSize: '15px',
