@@ -243,7 +243,11 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
         borderRadius: boxed ? 'var(--radius-xl)' : 0,
         // Единственное различие свёрнутого и раскрытого — ОБЪЁМ: те же рамка,
         // фон и радиус, меньше воздуха внутри.
-        padding: boxed ? (collapsed ? '10px 14px' : 16) : 0,
+        // ⚠️ Боковые поля 8px, а не 16: текст расшифровки лежит в пяти
+        // вложенных отступах подряд, и здесь последний из них. Вертикальные
+        // оставлены прежними — они отделяют строки друг от друга, а не от
+        // края, и на ширину не влияют.
+        padding: boxed ? (collapsed ? '10px 8px' : '14px 8px') : 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -391,14 +395,16 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
             // планет выглядят по-разному.
             const { label, rest } = splitItemLabel(item);
             return (
-              <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, ...rowStyle }}>
+              // gap 6, а не 8: маркер с отступом стоит перед КАЖДЫМ пунктом,
+              // то есть экономия повторяется на всех строках списка.
+              <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, ...rowStyle }}>
                 <span
                   aria-hidden="true"
                   style={{
                     marginTop: 6,
                     flexShrink: 0,
-                    width: 5,
-                    height: 5,
+                    width: 4,
+                    height: 4,
                     borderRadius: '50%',
                     border: `1px solid ${periodColor || 'var(--accent)'}`,
                   }}

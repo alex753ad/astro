@@ -67,6 +67,7 @@ import useCompactNow from '../lib/useCompactNow';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
 import { pickAnchorDate } from '../lib/feedAnchor';
+import { splitDayEvents } from '../lib/feedDayOrder';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
@@ -82,7 +83,14 @@ import useAuth from '../../hooks/useAuth.jsx';
 /** Насколько нужно прокрутить, чтобы шапка свернулась. См. эффект ниже. */
 const HEADER_COLLAPSE_PX = 24;
 
-const PAGE_PADDING = { padding: '0 16px 96px' };
+/*
+ * ⚠️ 8px по бокам, а не 16 (приёмка 16.09.2026, пятый заход). Ширина отдана
+ * расшифровке периода: она лежит в самой глубокой вложенности ленты — поля
+ * страницы, колонка времени, отступ узла, рамка карточки, поля карточки, —
+ * и каждый из пяти уровней отъедал по два края. Восемь пикселей у кромки
+ * экрана ещё читаются как поле, четыре уже нет.
+ */
+const PAGE_PADDING = { padding: '0 8px 96px' };
 
 function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
   return (
@@ -519,16 +527,11 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
       <div ref={nowStripRef}>{headerContent(true)}</div>
 
       {days.map((day, dayIndex) => {
-        // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
-        // проходы Луны по домам, но не фазы и не затмения — у тех своя
-        // важность, и они остаются в потоке как события.
-        const background = day.events.filter(isLunarBackground);
-        const foreground = day.events.filter((e) => !isLunarBackground(e));
-        // При одном лунном событии свёртывать нечего — «ещё 1 лунное»
-        // ничего не сокращает, только добавляет лишний тап. Показываем его
-        // как обычный узел линии; сворачиваем только от двух и больше.
-        const soloLunar = background.length === 1 ? background[0] : null;
-        const foldedLunar = background.length > 1 ? background : [];
+        // Порядок внутри дня — строго по времени; под свёртку уходит только
+        // лунный фон, и только когда его два и больше. Правило целиком и
+        // разбор дефекта приёмки — в lib/feedDayOrder.js.
+        const { inFlow, folded: foldedLunar } = splitDayEvents(day);
+        const foreground = inFlow.filter((e) => !isLunarBackground(e));
         // Раскрыт ровно ОДИН день, и это тот же день, на котором лента
         // открывается (§10). Обычно это сегодня; если событий сегодня нет —
         // ближайший следующий, иначе экран открылся бы на сжатом дне и
@@ -631,14 +634,17 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
                 открывает ту же панель, что и карточка. Крупное (feedRank.js)
                 карточкой остаётся всегда — в том числе открытый разбор, ради
                 которого на free ленту и открывают. */}
-            {foreground.map((event) => eventNode(event, {
-              compact: !expanded && !isMajorEvent(event),
-            }))}
-            {/* Одиночное лунное — тот же ФОН, что и свёртка, а не событие
-                (решение владельца 15.09.2026): карточкой оно не рисуется
-                никогда, приглушается вместе со своим днём и остаётся внизу.
-                Разбор, почему не по времени, — в шапке FeedEventRow.jsx. */}
-            {soloLunar && eventNode(soloLunar, { compact: true, quiet: !expanded })}
+            {/* Одиночное лунное идёт здесь же, по своему времени (решение
+                владельца 16.09.2026). Видом оно остаётся ФОНОМ: строкой, а не
+                карточкой, и приглушённым вместе со своим днём — менялось
+                только МЕСТО, не вид. */}
+            {inFlow.map((event) => {
+              const lunar = isLunarBackground(event);
+              return eventNode(event, {
+                compact: lunar || (!expanded && !isMajorEvent(event)),
+                quiet: lunar && !expanded,
+              });
+            })}
             {foldedLunar.length > 0 && (
               <FeedTimelineNode time="" gap={16} fill={surface}>
                 <FeedLunarFold events={foldedLunar} onOpen={setSelected} quiet={!expanded} />

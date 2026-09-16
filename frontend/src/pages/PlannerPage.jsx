@@ -169,7 +169,9 @@ function buildTimeline(planData, phases) {
     if (!dd) return;
     events.push({
       id: `retro-${i}`, kind: "phase", day: dd, mon: mm, date: r.date, planet: r.planet,
-      tooltip: r.label || `${r.status === "end" ? "Окончание" : "Начало"} ретро ${r.planet_name || ""}`.trim(),
+      // Запасная формулировка повторяет серверную (house_passages.py): если
+      // они разойдутся, разница будет видна только там, где label не пришёл.
+      tooltip: r.label || `${r.planet_name || ""}: ${r.status === "end" ? "конец" : "начало"} ретроградности`.trim(),
     });
   });
 
