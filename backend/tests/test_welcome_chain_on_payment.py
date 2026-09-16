@@ -155,7 +155,15 @@ class TestEmailsMatchTheGrid:
         html = await self._render(send_pro_welcome, "a@example.com")
 
         assert f"— {TIER_FLAGS['pro']['pdf_per_month']} в месяц" in html
-        assert f"{TIER_FLAGS['pro']['interpretations_per_month']} AI-интерпретаци" in html
+        # ⚠️ Слово «AI» из пользовательских текстов убрано 17.09.2026 (решение
+        # владельца). Проверка осталась про ЧИСЛО из флага — именно она и
+        # держит письмо в согласии с сеткой; формулировка тут не закрепляется.
+        #
+        # ⚠️ Проверять «"AI" not in html» здесь НЕЛЬЗЯ, хотя и хочется: в шапке
+        # письма лежит логотип строкой data:image/png;base64, и эти две буквы
+        # встречаются в ней случайно. Такая проверка падает на здоровом письме
+        # и ловится только чтением 53 строк base64 в выводе.
+        assert f"{TIER_FLAGS['pro']['interpretations_per_month']} интерпретаци" in html
 
     async def test_pro_welcome_does_not_name_a_wrong_model(self):
         """Движок один на все тарифы; тариф регулирует глубину, а не модель."""
