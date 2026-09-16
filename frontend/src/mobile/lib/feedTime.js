@@ -130,12 +130,36 @@ export function dateRangeShort(fromAt, toAt) {
  * отсутствующего, потому что выглядит как настоящий.
  */
 export function moonRangeShort(fromAt, toAt) {
-  if (!fromAt || !toAt) return '';
-  return `${moonEdge(fromAt)} – ${moonEdge(toAt)}`;
+  return periodRangeFull(fromAt, toAt);
 }
 
-/** Один конец срока: «16.09 Ср 19:33». */
-function moonEdge(at) {
+/**
+ * Срок ЛЮБОГО периода планера одним форматом:
+ * «16.09 Ср 19:33 – 19.09 Сб 23:47».
+ *
+ * ⚠️ Форматов было три, и это заметили на приёмке 16.09.2026: у прохода Луны
+ * дата+день+время, у месячного периода «14.09 — 30.09» (без времени и без дня
+ * недели), у долгосрочного — словами через `periodRange`. Один экран, три
+ * записи одного и того же — человек сравнивает сроки между карточками, а не
+ * читает каждую с нуля.
+ *
+ * ⚠️ Год добавляется ТОЛЬКО когда он не текущий, и это не экономия места:
+ * «19.09.2026» рядом с «19.09» читалось бы как разные виды данных. У
+ * долгосрочных периодов (Плутон: 2012 → 2032) год стоит с обоих концов, и
+ * день недели у них опускается — он ничего не сообщает о сроке в 19 лет и
+ * только удлиняет строку, которой и без него тесно.
+ */
+export function periodRangeFull(fromAt, toAt, todayStr = localToday()) {
+  if (!fromAt || !toAt) return '';
+  const year = Number(todayStr.slice(0, 4));
+  const longterm = Number(datePart(fromAt).slice(0, 4)) !== year
+    || Number(datePart(toAt).slice(0, 4)) !== year;
+  return `${periodEdge(fromAt, longterm)} – ${periodEdge(toAt, longterm)}`;
+}
+
+/** Один конец срока: «16.09 Ср 19:33», либо «17.11.2012» у долгосрочного. */
+function periodEdge(at, longterm) {
+  if (longterm) return `${dateShort(at)}.${datePart(at).slice(0, 4)}`;
   return `${dateShort(at)} ${weekdayShort(datePart(at))} ${timePart(at)}`;
 }
 

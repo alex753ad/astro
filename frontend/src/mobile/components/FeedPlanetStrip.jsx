@@ -31,12 +31,13 @@
 
 import React from 'react';
 import { glyph, glyphStyle } from '../lib/feedGlyphs';
+import { planetDotColor } from '../lib/feedTimelineDot';
 
 export default function FeedPlanetStrip({ items, onOpen, compact = false, innerRef }) {
   if (!items || items.length === 0) return null;
 
+  const ring = compact ? 24 : 34;
   const glyphSize = compact ? 13 : 17;
-  const houseSize = compact ? 11 : 11;
 
   return (
     <div
@@ -44,22 +45,28 @@ export default function FeedPlanetStrip({ items, onOpen, compact = false, innerR
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: compact ? 8 : 4,
+        gap: compact ? 6 : 8,
         minWidth: 0,
-        // В липком виде ряд не переносится и гасится у правой кромки; в
-        // развёрнутом планеты делят ширину поровну, как делали чипы домов.
-        ...(compact
-          ? {
-            overflow: 'hidden',
-            maskImage: 'linear-gradient(to right, black calc(100% - 8px), transparent)',
-            WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 8px), transparent)',
-          }
-          : {}),
+        /*
+         * ⚠️ Прокрутка вбок, а не деление ширины поровну (приёмка 16.09.2026).
+         * Планет десять, и при равных долях каждая получала 35px на кружок,
+         * значок и номер дома — на пределе даже при обычном системном шрифте,
+         * а при увеличенном ряд ломался. Полоса дней рядом решает то же самое
+         * тем же способом, так что приём не новый.
+         */
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        scrollbarWidth: 'none',
+        /* Обрезанный кружок у кромки тает, а не торчит половиной — тот же
+           приём, что у полосы дней (FeedDayStrip.jsx). */
+        maskImage: 'linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent)',
+        WebkitMaskImage: 'linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent)',
       }}
     >
       {items.map((event) => {
         const meta = event.meta || {};
         const openable = typeof onOpen === 'function';
+        const color = planetDotColor(meta.planet);
         return (
           <button
             key={event.key}
@@ -68,15 +75,12 @@ export default function FeedPlanetStrip({ items, onOpen, compact = false, innerR
             disabled={!openable}
             aria-label={`${meta.planet_name || ''} в ${meta.house} доме`}
             style={{
-              // Развёрнутый вид: равные доли, как у прежних чипов домов.
-              // Липкий: по содержимому, иначе десять планет растянули бы
-              // строку и вытеснили кнопку «Сегодня».
-              ...(compact ? { flexShrink: 0 } : { flex: '1 1 0', minWidth: 0 }),
+              flexShrink: 0,
               display: 'flex',
               flexDirection: compact ? 'row' : 'column',
               alignItems: 'center',
-              gap: compact ? 2 : 2,
-              padding: compact ? 0 : '4px 2px',
+              gap: compact ? 3 : 3,
+              padding: 0,
               background: 'transparent',
               border: 'none',
               font: 'inherit',
@@ -84,13 +88,32 @@ export default function FeedPlanetStrip({ items, onOpen, compact = false, innerR
               cursor: openable ? 'pointer' : 'default',
             }}
           >
-            <span style={{ ...glyphStyle, fontSize: glyphSize }}>{glyph(meta.planet)}</span>
+            {/*
+              Кружок в цвете планеты — та же примета, что точка этого события
+              на линии времени, и тот же источник цвета (planetDotColor).
+              ⚠️ Цвет здесь ВТОРАЯ примета: значок внутри остаётся всегда, и
+              по нему планета опознаётся без цвета вовсе.
+            */}
+            <span
+              style={{
+                width: ring,
+                height: ring,
+                flexShrink: 0,
+                borderRadius: '50%',
+                border: `1.5px solid ${color}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span style={{ ...glyphStyle, fontSize: glyphSize, color }}>{glyph(meta.planet)}</span>
+            </span>
             {/* Только число: слово «дом» не влезает ни в липкую строку из
                 десяти планет, ни в развёрнутую на узком экране. Что это дом,
                 говорит единообразие ряда и подпись над ним. */}
             <span
               style={{
-                fontSize: houseSize,
+                fontSize: compact ? 11 : 12,
                 fontFamily: 'var(--font-body)',
                 fontWeight: 600,
                 fontVariantNumeric: 'tabular-nums',

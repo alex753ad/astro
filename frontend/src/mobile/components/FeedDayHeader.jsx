@@ -82,7 +82,11 @@ export default function FeedDayHeader({ date, today, first = false, quiet = fals
         <div
           style={{
             height: isToday ? 2 : 1,
-            background: isToday ? 'var(--accent)' : 'var(--border)',
+            // Разделитель дня — тем же токеном и той же прозрачностью, что
+            // линия таймлайна (FeedTimelineNode.jsx, там же разбор): на
+            // светлом градиенте `--border` не виден.
+            background: isToday ? 'var(--accent)' : 'var(--text-secondary)',
+            opacity: isToday ? 1 : 0.6,
             marginBottom: 10,
           }}
         />

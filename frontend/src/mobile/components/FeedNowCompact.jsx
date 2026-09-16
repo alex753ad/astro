@@ -53,26 +53,22 @@
 
 import React from 'react';
 import FeedPlanetStrip from './FeedPlanetStrip';
-import { glyphStyle } from '../lib/feedGlyphs';
-import { findMoonState, plannerTimeline } from '../lib/feedNow';
-// Именительный падеж, а не предложный: предлога «в» рядом со значком Луны
-// здесь нет — он съедал место, которого в 44px строке нет ни на что
-// лишнее. В развёрнутой полосе предлог остаётся (там фраза целиком).
-import { SIGN_RU } from '../lib/feedTime';
+import { plannerTimeline } from '../lib/feedNow';
 
 /** Высота самой строки, без safe-area. Заголовки дней липнут ровно под неё. */
 export const COMPACT_HEIGHT = 44;
 
-export default function FeedNowCompact({ events, today, visible, onGoToday, onOpen }) {
+export default function FeedNowCompact({
+  events, today, visible, onGoToday, onOpen, header, expanded, onToggleHeader,
+}) {
   const all = events || [];
-  const moonState = findMoonState(all, today);
   // Все три горизонта планера одним рядом — тот же отбор и тот же порядок,
   // что в развёрнутой полосе (§5 задания 16.09.2026).
   const planets = plannerTimeline(all);
 
   // Нечего показать — нечего и прилеплять: пустая полоска отъедала бы
   // 44 px экрана, не сообщая ничего.
-  if (!moonState && planets.length === 0) return null;
+  if (planets.length === 0) return null;
 
   return (
     <div
@@ -131,14 +127,31 @@ export default function FeedNowCompact({ events, today, visible, onGoToday, onOp
         >
           Сегодня
         </button>
-        {moonState && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-            <span style={{ ...glyphStyle, fontSize: 14 }}>☽</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
-              {SIGN_RU[moonState.currentSign] || moonState.currentSign}
-            </span>
-          </span>
-        )}
+        {/* ⚠️ Знака Луны со знаком зодиака здесь БОЛЬШЕ НЕТ, и возвращать его
+            нельзя. В строке он стоял рядом с ☽ из полосы планет: «☽ Ско…» и
+            «☽ 2» в паре сантиметров друг от друга — два разных числа под одним
+            значком (знак зодиака и дом), да ещё первое обрезанное многоточием.
+            Состояние Луны словами живёт в развёрнутой шапке, где для него есть
+            строка целиком. */}
+        {/* Стрелка разворачивает шапку ПОВЕРХ ленты (см. ниже). */}
+        <button
+          type="button"
+          onClick={onToggleHeader}
+          aria-expanded={Boolean(expanded)}
+          aria-label={expanded ? 'Свернуть шапку' : 'Развернуть шапку'}
+          style={{
+            flexShrink: 0,
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--accent)',
+            padding: '4px 2px',
+            fontSize: 13,
+            lineHeight: 1,
+            cursor: 'pointer',
+          }}
+        >
+          {expanded ? '▲' : '▼'}
+        </button>
         {/* Полоса планет — общая с развёрнутой (FeedPlanetStrip). Уступает
             место первой: дома при прокрутке не меняются, а знак Луны и
             кнопка «Сегодня» нужнее. Растушёвка у правой кромки делает своё
@@ -148,6 +161,31 @@ export default function FeedNowCompact({ events, today, visible, onGoToday, onOp
           <FeedPlanetStrip items={planets} onOpen={onOpen} compact />
         </span>
       </div>
+
+      {/*
+        Развёрнутая шапка лежит ПОВЕРХ ленты, внутри того же `fixed`-блока, а
+        не в потоке. Иначе её появление сдвинуло бы содержимое на свою высоту —
+        тот же прыжок под пальцем, из-за которого 15.09.2026 компактную полосу
+        сделали оверлеем, а не схлопыванием блока в потоке.
+
+        ⚠️ Содержимое приходит пропсом `header`, а не собирается здесь: это
+        РОВНО тот же JSX, что стоит в начале списка. Собери его вторым
+        экземпляром — и «развёрнутая шапка» начала бы расходиться с той, что
+        человек видит при открытии ленты.
+      */}
+      {expanded && header && (
+        <div
+          style={{
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            padding: '0 16px 12px',
+            borderTop: '1px solid var(--border)',
+            background: 'var(--bg-card)',
+          }}
+        >
+          {header}
+        </div>
+      )}
     </div>
   );
 }

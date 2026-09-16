@@ -129,6 +129,27 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   const [error, setError] = useState('');
   const { logout } = useAuth();
   const [selected, setSelected] = useState(null);
+  /**
+   * Периоды планера, раскрытые вручную (ключи событий).
+   *
+   * ⚠️ Состояние живёт ЗДЕСЬ, а не внутри карточки. Карточка пересоздаётся при
+   * каждом обновлении ленты (жест обновления, возврат из фона), и локальное
+   * состояние схлопнуло бы всё, что человек только что раскрыл. Ключ события
+   * устойчив между окнами у транзитов и лунных; у периодов планера — нет
+   * (известный дефект, docs/HISTORY-feed.md), и тогда раскрытое схлопнется:
+   * это честнее, чем раскрыть чужой период с совпавшим ключом.
+   */
+  const [openPeriods, setOpenPeriods] = useState(() => new Set());
+  // Развёрнута ли шапка поверх ленты (стрелка в липкой полосе). При открытии
+  // ленты она развёрнута В ПОТОКЕ и оверлей не нужен — поэтому false.
+  const [headerOpen, setHeaderOpen] = useState(false);
+  const togglePeriod = useCallback((event) => {
+    setOpenPeriods((prev) => {
+      const next = new Set(prev);
+      if (next.has(event.key)) next.delete(event.key); else next.add(event.key);
+      return next;
+    });
+  }, []);
   const [chartId, setChartId] = useState(null);
   const anchorRef = useRef(null);
   // Якорь подсветки для чипов домов (SPEC_ONBOARDING.md §11). Остальные два
@@ -385,6 +406,36 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
     return <CenteredNotice title="В этом окне событий нет" text="Попробуйте обновить ленту позже." action="Обновить" onAction={load} />;
   }
 
+  /**
+   * Шапка ленты — одно содержимое на два места: в начале списка (при открытии
+   * она развёрнута) и внутри липкой полосы, куда её разворачивает стрелка.
+   *
+   * ⚠️ Функция, а не переменная, и не второй экземпляр компонентов: в потоке
+   * шапка несёт кнопку подсказки и якорь онбординга (`chipsRef`), а в оверлее
+   * они не нужны — двойной якорь увёл бы подсветку подсказки на невидимую
+   * копию. `inFlow` и отвечает ровно за это различие; всё остальное —
+   * буквально один и тот же JSX, иначе «развёрнутая шапка» разъехалась бы с
+   * той, что человек видит при открытии.
+   */
+  const headerContent = (inFlow) => (
+    <>
+      <FeedNowStrip
+        events={allEvents}
+        today={today}
+        onHelp={inFlow ? hints.show : undefined}
+        chipsRef={inFlow ? chipsRef : undefined}
+        onOpen={setSelected}
+      />
+      <FeedDayStrip
+        from={feed?.horizon?.from}
+        to={feed?.horizon?.to}
+        today={today}
+        dotsByDay={dotsByDay}
+        onSelectDay={(date) => { setHeaderOpen(false); scrollToDay(date); }}
+      />
+    </>
+  );
+
   // Якорь открытия: сегодняшний день, а если событий сегодня нет — первый
   // день после сегодняшнего (§10). Ищется один раз на список, а не в цикле
   // отрисовки, чтобы ref достался ровно одному заголовку. Само правило — в
@@ -408,23 +459,11 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         visible={compactNow}
         onGoToday={goToday}
         onOpen={setSelected}
+        header={headerContent(false)}
+        expanded={headerOpen}
+        onToggleHeader={() => setHeaderOpen((v) => !v)}
       />
-      <div ref={nowStripRef}>
-        <FeedNowStrip
-          events={allEvents}
-          today={today}
-          onHelp={hints.show}
-          chipsRef={chipsRef}
-          onOpen={setSelected}
-        />
-      </div>
-      <FeedDayStrip
-        from={feed?.horizon?.from}
-        to={feed?.horizon?.to}
-        today={today}
-        dotsByDay={dotsByDay}
-        onSelectDay={scrollToDay}
-      />
+      <div ref={nowStripRef}>{headerContent(true)}</div>
 
       {days.map((day, dayIndex) => {
         // Фон дня отделяется от событий: §7 сворачивает лунные транзиты и
@@ -450,31 +489,48 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
 
         const eventNode = (event, { compact, quiet: quietRow = false }) => {
           const major = isMajorEvent(event);
-          // Период (planner_period) метится датой начала, точка —
-          // временем (§3). Оба признака — те же, что задают высоту
-          // карточки в FeedEventCard.jsx (durationHeight), не выдумка.
-          const isPeriod = Boolean(event.ends_at && event.duration_days);
-          // ⚠️ Проход Луны — период по данным, но в колонке у него ВРЕМЯ, а не
-          // дата (приёмка 16.09.2026). Дата там дублировала заголовок дня,
-          // под которым проход и стоит: «12.09» в колонке под шапкой
-          // «12 сентября». Месячный период Солнца этой беды не знает — он
-          // тянется неделями и стоит под днём своего НАЧАЛА ровно один раз.
-          const columnIsDate = isPeriod && event.kind !== 'planner_moon_house';
+          // ⚠️ У ВСЕХ периодов в колонке слева ВРЕМЯ начала, того же кегля и
+          // веса, что у транзитов (приёмка 16.09.2026). Дата там была у
+          // месячного периода и дублировала заголовок дня, под которым он и
+          // стоит: «14.09» в колонке под шапкой «14 сентября». Разный вид
+          // колонки у соседних строк одного дня читался как разные сорта
+          // данных, а сорт один — момент события.
+          const isPlannerPeriod = event.kind === 'planner_period'
+            || event.kind === 'planner_moon_house'
+            || event.kind === 'planner_longterm';
+          // Периоды планера: в несегодняшнем дне свёрнуты, тапом
+          // раскрываются на месте (решение владельца 16.09.2026, исключение
+          // из §5 — записано в DESIGN_SYSTEM).
+          const periodCollapsed = isPlannerPeriod && !expanded && !openPeriods.has(event.key);
           return (
             <FeedTimelineNode
               key={event.key}
-              time={columnIsDate ? dateShort(event.at) : timePart(event.at)}
-              bold={columnIsDate || !compact}
+              time={timePart(event.at)}
+              // ⚠️ Вес времени задаёт ДЕНЬ, а не вид события. Приёмка
+              // 16.09.2026: у «Луна в 4 доме» время было светлее и тоньше,
+              // чем у транзита строкой выше, — потому что период метился
+              // датой и получал `bold`, а транзит в том же сжатом дне не
+              // получал. Одинаковые данные в одной колонке обязаны выглядеть
+              // одинаково; выделяется период заголовком и цветной точкой.
+              bold={!compact}
               color={dotColor(event)}
-              size={compact ? 9 : dotSize(event)}
+              size={compact && !isPlannerPeriod ? 9 : dotSize(event)}
               gap={compact ? 6 : 12}
               dense={compact}
               quiet={quietRow}
               fill={surface}
             >
-              {compact
+              {compact && !isPlannerPeriod
                 ? <FeedEventRow event={event} onOpen={setSelected} quiet={quietRow} />
-                : <FeedEventCard event={event} onOpen={setSelected} major={major} />}
+                : (
+                  <FeedEventCard
+                    event={event}
+                    onOpen={setSelected}
+                    major={major}
+                    collapsed={periodCollapsed}
+                    onToggle={isPlannerPeriod ? togglePeriod : undefined}
+                  />
+                )}
             </FeedTimelineNode>
           );
         };

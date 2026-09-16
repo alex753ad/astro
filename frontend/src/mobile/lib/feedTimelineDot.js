@@ -21,15 +21,25 @@
  * не как недостающий кейс, а как осознанный запасной вариант.
  */
 export function planetDotColor(planetKey) {
-  switch (planetKey) {
-    case 'sun': return 'var(--color-warning)';
-    case 'mercury': return 'var(--color-air)';
-    case 'venus': return 'var(--accent-glow)';
-    case 'mars': return 'var(--color-danger)';
-    case 'moon': return 'var(--text-secondary)';
-    default: return 'var(--color-earth)'; // Сатурн и медленнее
-  }
+  const key = String(planetKey || '').toLowerCase();
+  return PLANET_COLOR_KEYS.includes(key) ? `var(--planet-${key})` : 'var(--text-secondary)';
 }
+
+/**
+ * Планеты, у которых есть свой токен цвета (`--planet-*`, mobile.css).
+ *
+ * ⚠️ До 16.09.2026 здесь стояли СЕМАНТИЧЕСКИЕ токены: Солнце брало
+ * `--color-warning`, Меркурий `--color-air`, а «Сатурн и медленнее» — один
+ * общий `--color-earth`. Значит пять медленных планет были одного цвета, то
+ * есть цвет не различал их вовсе, а Венера красилась акцентом приложения и
+ * менялась бы вместе с ним при редизайне. Теперь у каждой планеты свой тон,
+ * общий с веб-планером, и подогнанный по контрасту в каждой теме — разбор в
+ * mobile.css над `--planet-sun`.
+ */
+const PLANET_COLOR_KEYS = [
+  'sun', 'moon', 'mercury', 'venus', 'mars',
+  'jupiter', 'saturn', 'uranus', 'neptune', 'pluto',
+];
 
 /** Лунное событие — фаза или затмение, у обоих одинаковый цвет и размер. */
 function isLunarEvent(event) {

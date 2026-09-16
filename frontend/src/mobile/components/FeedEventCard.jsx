@@ -31,7 +31,7 @@ import BlurredHint from './BlurredHint';
 import FeedLockMark from './FeedLockMark';
 import FeedOrbChip from './FeedOrbChip';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { dateRangeShort, daysBetween, eventTitle, localToday, moonRangeShort, planetRu, signRu } from '../lib/feedTime';
+import { daysBetween, eventTitle, localToday, periodRangeFull, planetRu, signRu } from '../lib/feedTime';
 import { planetDotColor } from '../lib/feedTimelineDot';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
@@ -93,7 +93,7 @@ const rowStyle = {
   lineHeight: 1.5,
 };
 
-export default function FeedEventCard({ event, onOpen, major = false }) {
+export default function FeedEventCard({ event, onOpen, major = false, collapsed = false, onToggle }) {
   const meta = event.meta || {};
   const locked = isLocked(event);
   const extraHeight = durationHeight(event);
@@ -106,7 +106,7 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
   // 16.09.2026): вид события не должен зависеть от тарифа. Блюр давал бы free
   // рамку с витриной там, где у платного просто строка, — и лента читалась бы
   // по-разному у разных людей. Закрытость несёт значок (FeedLockMark).
-  const showFiller = locked && Boolean(extraHeight) && event.kind === 'planner_period';
+  const showFiller = !collapsed && locked && Boolean(extraHeight) && event.kind === 'planner_period';
 
   // ⚠️ Высота по длительности идёт В ПАРЕ с витриной, а не сама по себе.
   // Растянутая карточка без содержимого — это пустая коробка, и владелец
@@ -167,11 +167,15 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
   // с ними спорит). showFiller — исключение: витрине под блюром нужна
   // видимая граница, иначе непонятно, где она заканчивается.
   const isPeriodCard = event.kind === 'planner_period';
-  const boxed = isPeriodCard || showFiller;
+  // ⚠️ Свёрнутый период рамки НЕ получает. Рамка означает «поднятая
+  // поверхность», а свёрнутых периодов в ленте десятки: каждый в рамке
+  // превратил бы поток в гребёнку карточек — ровно ту массу, ради разбора
+  // которой ритм §5 и вводился.
+  const boxed = (isPeriodCard && !collapsed) || showFiller;
 
   // Цветная полоса периода (§5) — та же таблица «планета → токен», что и у
   // точки на линии (feedTimelineDot.js): один источник, не вторая копия.
-  const periodColor = isPeriodCard ? planetDotColor(meta.planet) : null;
+  const periodColor = isPlannerEvent(event) ? planetDotColor(meta.planet) : null;
 
   // Список рекомендаций периода (§5). Только у открытого: у закрытого
   // сервер отдаёт пустые theme/groups.
@@ -180,26 +184,49 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
   // период. Проход Луны по дому приезжал с бэкенда с тем же непустым
   // `groups` — и молча не рисовался: недельная вкладка планера существовала в
   // ответе и не существовала на экране.
-  const groups = isPlannerEvent(event) && !locked && Array.isArray(meta.groups) ? meta.groups : [];
+  const groups = !collapsed && isPlannerEvent(event) && !locked && Array.isArray(meta.groups) ? meta.groups : [];
 
-  // Срок прохода Луны — со временем с обоих концов (см. moonRangeShort).
-  const moonRange = event.kind === 'planner_moon_house'
-    ? moonRangeShort(event.at, event.ends_at)
+  // Срок ЛЮБОГО периода — одним форматом (periodRangeFull). В свёрнутом виде
+  // скрыт: решение владельца 16.09.2026 оставляет там заголовок и тему.
+  const periodRangeText = !collapsed && isPlannerEvent(event) && event.ends_at
+    ? periodRangeFull(event.at, event.ends_at)
     : '';
 
   // Прогресс периода (§5, полоса внизу) — доля прошедшего от всего срока,
   // по календарным дням. today во всех расчётах ленты — локальная дата
   // устройства (см. localToday в feedTime.js), не UTC.
-  const progressPct = isPeriodCard && event.ends_at
+  const progressPct = isPeriodCard && !collapsed && event.ends_at
     ? Math.min(100, Math.max(0, Math.round(
       (daysBetween(event.at.slice(0, 10), localToday()) /
         Math.max(1, daysBetween(event.at.slice(0, 10), event.ends_at.slice(0, 10)))) * 100,
     )))
     : null;
 
+  /**
+   * Тап по периоду: раскрыть/свернуть прямо в ленте (решение владельца
+   * 16.09.2026) — это исключение из §5 «сжатый день не раскрывается», и оно
+   * записано в DESIGN_SYSTEM как решение, а не как случайность.
+   *
+   * ⚠️ Переключение работает только у ОТКРЫТОГО периода. У закрытого тарифом
+   * раскрывать нечего: сервер отдаёт пустые theme и groups, и «полный вид»
+   * оказался бы тем же самым заголовком. Такой период по-прежнему открывает
+   * панель — там каркас и «Открыть доступ» по правилу plannerAccess.js.
+   * Иначе платный путь исчез бы из потока вовсе.
+   *
+   * ⚠️ Высота НЕ анимируется. Раскрытие меняет высоту блока, а анимация
+   * высоты под липкой полосой уводит прокрутку — дефект этого класса в ленте
+   * уже ловили (§5 DESIGN_SYSTEM.md, три попытки прокрутки к якорю). Рост
+   * идёт ВНИЗ от тапнутого элемента, поэтому сам он с места не двигается и
+   * компенсировать прокрутку не нужно.
+   */
+  const togglable = typeof onToggle === 'function' && isPlannerEvent(event) && !locked;
+  const handleClick = togglable
+    ? () => onToggle(event)
+    : (openable ? () => onOpen(event) : undefined);
+
   return (
     <article
-      onClick={openable ? () => onOpen(event) : undefined}
+      onClick={handleClick}
       style={{
         position: 'relative',
         background: boxed ? 'var(--bg-card)' : 'transparent',
@@ -210,7 +237,7 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        cursor: openable ? 'pointer' : 'default',
+        cursor: (togglable || openable) ? 'pointer' : 'default',
         // minHeight, а не height: длительность задаёт нижнюю границу, но
         // длинный заголовок не должен обрезаться.
         minHeight,
@@ -225,11 +252,16 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
         + `borderRadius` родителя (уже стоят на article), даёт ровно те же
         3px спецификации без этого эффекта.
       */}
-      {periodColor && (
+      {/* Полоса рисуется только у карточки в рамке: у свёрнутого периода
+          рамки нет, и полоса висела бы в воздухе рядом с текстом. Его цвет
+          несут значок и точка на линии. */}
+      {periodColor && boxed && (
         <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: periodColor }} />
       )}
       {formula ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        // alignItems: flex-start — строка формулы может стать двухрядной
+        // (перенос вместо обрезки), значки остаются у ПЕРВОГО ряда.
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <span style={{ ...glyphStyle, fontSize: glyphSize }}>{glyph(formula.transit_planet)}</span>
           <span style={{ ...glyphStyle, fontSize: glyphSize, color: aspectColor(formula.aspect_type) }}>
             {aspectSymbol(formula.aspect_type)}
@@ -246,9 +278,13 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
               // FeedEventRow.jsx.
               flex: '1 1 auto',
               minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              // ⚠️ ПЕРЕНОС, а не многоточие. Первый заход 16.09.2026 поправил
+              // только сжатую строку (FeedEventRow) и пропустил КАРТОЧКУ — а
+              // именно ею транзит рисуется в раскрытом дне, то есть на том
+              // самом экране, где обрезку и увидели («Меркурий — Ме…»).
+              // Обрезка съедает вторую планету целиком, то есть половину
+              // содержания аспекта.
+              overflowWrap: 'anywhere',
             }}
           >
             {planetRu(formula.transit_planet)} — {planetRu(formula.natal_planet)}
@@ -269,55 +305,28 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
             </span>
           )}
         </div>
-      ) : isPeriodCard ? (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ ...glyphStyle, fontSize: 17, color: periodColor, flexShrink: 0 }}>
-            {glyph(meta.planet)}
-          </span>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 600,
-              fontFamily: 'var(--font-display)',
-              color: 'var(--text-primary)',
-              lineHeight: 1.3,
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {meta.planet_name}
-          </h3>
-          {event.ends_at && (
-            <span
-              style={{
-                marginLeft: 'auto',
-                flexShrink: 0,
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-                fontFamily: 'var(--font-body)',
-              }}
-            >
-              {dateRangeShort(event.at, event.ends_at)}
-            </span>
-          )}
-        </div>
       ) : (
+        /*
+         * Заголовок ЛЮБОГО периода планера — один вид на все три горизонта
+         * (решение владельца 16.09.2026). Раньше их было два: месячный период
+         * показывал только имя планеты («Солнце») и срок в строке заголовка, а
+         * проход Луны — «Луна в 3 доме» и срок отдельной строкой. Один экран,
+         * два разных способа сказать одно и то же.
+         *
+         * Значок цветной (`--planet-*`, один источник с точкой на линии) —
+         * опознавательный знак, как формула у транзита. Цвет при этом вторая
+         * примета, не единственная: сам значок остаётся всегда.
+         */
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          {/* Значок Луны — такой же опознавательный знак, как формула у
-              транзита: без него «Луна в 3 доме» в раскрытом дне неотличима
-              от заголовка любого другого события (приёмка 16.09.2026). */}
-          {moonRange && (
-            <span style={{ ...glyphStyle, fontSize: 16, color: 'var(--accent-fg)', flexShrink: 0 }}>
-              {glyph('moon')}
+          {isPlannerEvent(event) && (
+            <span style={{ ...glyphStyle, fontSize: 16, color: periodColor, flexShrink: 0 }}>
+              {glyph(meta.planet)}
             </span>
           )}
           <h3
             style={{
               margin: 0,
-              fontSize: 18,
+              fontSize: collapsed ? 15 : 18,
               fontWeight: 600,
               fontFamily: 'var(--font-display)',
               color: 'var(--text-primary)',
@@ -336,7 +345,7 @@ export default function FeedEventCard({ event, onOpen, major = false }) {
           границы записаны полностью («16.09 Ср 19:33 – 19.09 Сб 23:47»), и в
           одну строку с заголовком это не влезает ни на одном телефоне.
           Переносится, не обрезается. */}
-      {moonRange && <div style={rowStyle}>{moonRange}</div>}
+      {periodRangeText && <div style={rowStyle}>{periodRangeText}</div>}
 
       {/* Тема периода — вторая строка, если пришла. На free она пустая
           (сервер отдаёт `theme: ""` вместе с locked), и строки не будет. */}
