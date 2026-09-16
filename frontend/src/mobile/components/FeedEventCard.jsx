@@ -33,6 +33,7 @@ import FeedOrbChip from './FeedOrbChip';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
 import { daysBetween, eventTitle, localToday, periodRangeFull, planetRu, signRu } from '../lib/feedTime';
 import { planetDotColor } from '../lib/feedTimelineDot';
+import { splitItemLabel } from '../lib/plannerItemLabel';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
@@ -167,14 +168,17 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
   // с ними спорит). showFiller — исключение: витрине под блюром нужна
   // видимая граница, иначе непонятно, где она заканчивается.
   const isPeriodCard = event.kind === 'planner_period';
-  // ⚠️ Свёрнутый период рамки НЕ получает. Рамка означает «поднятая
-  // поверхность», а свёрнутых периодов в ленте десятки: каждый в рамке
-  // превратил бы поток в гребёнку карточек — ровно ту массу, ради разбора
-  // которой ритм §5 и вводился.
-  const boxed = (isPeriodCard && !collapsed) || showFiller;
+  /**
+   * ⚠️ Рамка — у ВСЕХ периодов планера и в обоих состояниях (решение владельца
+   * 16.09.2026). Раньше она была только у месячного и только у раскрытого:
+   * на одном экране Меркурий стоял в рамке, а Луна под ним — без, хотя это
+   * одна и та же сущность. Свёрнутый и раскрытый вид отличаются ОБЪЁМОМ, а не
+   * оформлением.
+   */
+  const boxed = isPlannerEvent(event) || showFiller;
 
-  // Цветная полоса периода (§5) — та же таблица «планета → токен», что и у
-  // точки на линии (feedTimelineDot.js): один источник, не вторая копия.
+  // Цвет планеты — та же таблица, что у точки на линии и у полосы в шапке
+  // (feedTimelineDot.js): один источник на всё приложение, не вторая копия.
   const periodColor = isPlannerEvent(event) ? planetDotColor(meta.planet) : null;
 
   // Список рекомендаций периода (§5). Только у открытого: у закрытого
@@ -230,9 +234,16 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
       style={{
         position: 'relative',
         background: boxed ? 'var(--bg-card)' : 'transparent',
-        border: boxed ? `1px solid ${openInterpretation ? 'var(--accent)' : 'var(--border)'}` : 'none',
-        borderRadius: boxed ? 20 : 0,
-        padding: boxed ? 16 : 0,
+        // ⚠️ Цвет рамки у периода — цвет ПЛАНЕТЫ. Он же несёт опознание, и
+        // поэтому цветной полосы слева больше нет: две приметы одного и того
+        // же на одной карточке — это не «надёжнее», а шумнее.
+        border: boxed
+          ? `1px solid ${periodColor || (openInterpretation ? 'var(--accent)' : 'var(--border)')}`
+          : 'none',
+        borderRadius: boxed ? 'var(--radius-xl)' : 0,
+        // Единственное различие свёрнутого и раскрытого — ОБЪЁМ: те же рамка,
+        // фон и радиус, меньше воздуха внутри.
+        padding: boxed ? (collapsed ? '10px 14px' : 16) : 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -252,12 +263,6 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
         + `borderRadius` родителя (уже стоят на article), даёт ровно те же
         3px спецификации без этого эффекта.
       */}
-      {/* Полоса рисуется только у карточки в рамке: у свёрнутого периода
-          рамки нет, и полоса висела бы в воздухе рядом с текстом. Его цвет
-          несут значок и точка на линии. */}
-      {periodColor && boxed && (
-        <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: periodColor }} />
-      )}
       {formula ? (
         // alignItems: flex-start — строка формулы может стать двухрядной
         // (перенос вместо обрезки), значки остаются у ПЕРВОГО ряда.
@@ -379,22 +384,34 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
               {group.heading}
             </div>
           )}
-          {(group.items || []).map((item) => (
-            <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, ...rowStyle }}>
-              <span
-                aria-hidden="true"
-                style={{
-                  marginTop: 6,
-                  flexShrink: 0,
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  border: '1px solid var(--accent)',
-                }}
-              />
-              <span>{item}</span>
-            </div>
-          ))}
+          {(group.items || []).map((item) => {
+            // Метка Луны («Работа:») вшита в сам пункт, у Меркурия она
+            // приходит отдельным `heading` — разбор в lib/plannerItemLabel.js.
+            // Выделяем одинаково, иначе на одном экране подписи у разных
+            // планет выглядят по-разному.
+            const { label, rest } = splitItemLabel(item);
+            return (
+              <div key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, ...rowStyle }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    marginTop: 6,
+                    flexShrink: 0,
+                    width: 5,
+                    height: 5,
+                    borderRadius: '50%',
+                    border: `1px solid ${periodColor || 'var(--accent)'}`,
+                  }}
+                />
+                <span>
+                  {label && (
+                    <strong style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{label} </strong>
+                  )}
+                  {rest}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ))}
 

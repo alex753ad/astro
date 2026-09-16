@@ -40,9 +40,10 @@ function backendWeeks(tier) {
   expect(start, `в ${BACKEND} не найден тариф ${tier}`).toBeGreaterThan(-1);
   const nextTier = order[order.indexOf(tier) + 1];
   const end = nextTier ? src.indexOf(`"${nextTier}": {`) : src.length;
-  const m = src.slice(start, end).match(/"planner_weeks_ahead":\s*(\d+)/);
+  const m = src.slice(start, end).match(/"planner_weeks_ahead":\s*(None|\d+)/);
   expect(m, `в ${BACKEND} не найден planner_weeks_ahead у ${tier}`).not.toBeNull();
-  return Number(m[1]);
+  // `None` в TIER_FLAGS — это «всё окно», на фронте тем же смыслом `null`.
+  return m[1] === 'None' ? null : Number(m[1]);
 }
 
 describe("недельный планер: витрина и тарифная сетка считают одинаково", () => {
@@ -54,17 +55,22 @@ describe("недельный планер: витрина и тарифная с
     expect(backendWeeks("free")).toBe(1);
   });
 
-  it("платные тарифы не хуже бесплатного", () => {
+  it("у платных — всё окно, а не число недель", () => {
+    // ⚠️ null/None, а не большое число. Конечное число означало бы состояние
+    // «закрыто, и купить нечем»: у всех платных тарифов оно одинаково, то
+    // есть апгрейд не открывал бы ничего. Это и отменено 16.09.2026.
     for (const tier of ["lite", "pro", "premium"]) {
-      expect(backendWeeks(tier)).toBeGreaterThanOrEqual(backendWeeks("free"));
+      expect(backendWeeks(tier)).toBeNull();
+      expect(PLANNER_WEEKS_AHEAD[tier]).toBeNull();
     }
   });
 
-  it("строка витрины набирается по константе, а не литералом", () => {
-    // Литерал стал бы третьей копией числа: флаг, константа и текст
-    // разъехались бы молча — ровно то, ради чего этот тест написан.
+  it("витрина платных обещает весь горизонт, а не недели", () => {
+    // Число из константы больше не подставляется — подставлять нечего.
+    // Проверка держит то же самое: текст не разъезжается с флагом.
     const src = read(FRONTEND);
-    expect(src).toContain("PLANNER_WEEKS_AHEAD.lite} недели вперёд");
+    expect(src).toContain("Луна по домам на весь горизонт ленты");
+    expect(src).not.toContain("PLANNER_WEEKS_AHEAD.lite}");
   });
 
   it("витрина free называет и прошедшие периоды, а не только текущую неделю", () => {

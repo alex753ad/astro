@@ -44,7 +44,7 @@ const LINE_LEFT = TIME_COL_WIDTH - 1; // 63px от левого края кон�
 
 export default function FeedTimelineNode({
   time, bold, color, size, children, gap = 12, fill = 'var(--bg-dot)', dense = false,
-  quiet = false,
+  quiet = false, solid = false,
 }) {
   const hasDot = typeof size === 'number';
   return (
@@ -79,8 +79,13 @@ export default function FeedTimelineNode({
             width: size,
             height: size,
             borderRadius: '50%',
-            background: fill,
-            border: `${size >= 13 ? 2 : 1.5}px solid ${color}`,
+            /* ⚠️ `solid` — период планера: кружок ЗАЛИТ цветом планеты, а не
+               обведён им (решение владельца 16.09.2026). Полый кружок у
+               периода читался как «ещё одно событие», а период — носитель
+               цвета: тот же цвет стоит у его значка и в полосе шапки.
+               У транзитов кружок остаётся полым, их не трогаем. */
+            background: solid ? color : fill,
+            border: solid ? 'none' : `${size >= 13 ? 2 : 1.5}px solid ${color}`,
             transform: 'translate(-50%, 0)',
             opacity: quiet ? 0.62 : 1,
           }}

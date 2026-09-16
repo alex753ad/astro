@@ -79,6 +79,9 @@ import useAuth from '../../hooks/useAuth.jsx';
 // потоке от этого не зависит вовсе.
 //
 // 96 = 52 (кнопка) + 16 (её отступ снизу) + 16 запаса + 12 на тень.
+/** Насколько нужно прокрутить, чтобы шапка свернулась. См. эффект ниже. */
+const HEADER_COLLAPSE_PX = 24;
+
 const PAGE_PADDING = { padding: '0 16px 96px' };
 
 function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
@@ -140,9 +143,15 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
    * это честнее, чем раскрыть чужой период с совпавшим ключом.
    */
   const [openPeriods, setOpenPeriods] = useState(() => new Set());
-  // Развёрнута ли шапка поверх ленты (стрелка в липкой полосе). При открытии
-  // ленты она развёрнута В ПОТОКЕ и оверлей не нужен — поэтому false.
-  const [headerOpen, setHeaderOpen] = useState(false);
+  /**
+   * Развёрнута ли шапка поверх ленты (решение владельца 16.09.2026).
+   *
+   * ⚠️ `true` при открытии — и это НЕ то же, что «шапка в потоке». Лента
+   * открывается на сегодняшнем дне, то есть прокрученной; потоковая шапка в
+   * этот момент уже за верхом экрана, и без оверлея человек видит ленту без
+   * шапки вовсе. Ровно это и поймали на приёмке.
+   */
+  const [headerOpen, setHeaderOpen] = useState(true);
   const togglePeriod = useCallback((event) => {
     setOpenPeriods((prev) => {
       const next = new Set(prev);
@@ -343,6 +352,35 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   }, [onHintsToggle, hints.open]);
 
   /**
+   * Любая прокрутка сворачивает развёрнутую шапку — в ОБЕ стороны (решение
+   * владельца 16.09.2026).
+   *
+   * ⚠️ Порог в 24 px обязателен. Тап по ленте на телефоне почти всегда даёт
+   * микропрокрутку в несколько пикселей, и без порога шапка схлопывалась бы
+   * от касания, которым человек её только что открыл.
+   *
+   * ⚠️ Сравнение идёт с положением НА МОМЕНТ открытия, а не с предыдущим
+   * кадром: иначе медленная прокрутка на сотню пикселей по 3-5 px за событие
+   * не пересекла бы порог ни разу.
+   *
+   * ⚠️ Возврат на вкладку снова разворачивает шапку — то же состояние, что
+   * при открытии ленты. Это тот же эффект, поэтому второго правила «что
+   * такое открытие» не заводится.
+   */
+  useEffect(() => {
+    if (!active) return undefined;
+    setHeaderOpen(true);
+    const el = scrollRef?.current;
+    if (!el) return undefined;
+    const from = el.scrollTop;
+    const onScroll = () => {
+      if (Math.abs(el.scrollTop - from) > HEADER_COLLAPSE_PX) setHeaderOpen(false);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [active, scrollRef]);
+
+  /**
    * §10: лента открывается на сегодня, прошлое отматывается вверх.
    *
    * Прокрутка повторяется трижды, и это не перестраховка. Одного вызова в
@@ -460,7 +498,10 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
         onGoToday={goToday}
         onOpen={setSelected}
         header={headerContent(false)}
-        expanded={headerOpen}
+        /* ⚠️ Оверлей только когда потоковая шапка ушла за верх. Иначе, стоя в
+           самом начале ленты, человек увидел бы ДВЕ шапки сразу: настоящую и
+           её копию поверх. */
+        expanded={headerOpen && compactNow}
         onToggleHeader={() => setHeaderOpen((v) => !v)}
       />
       <div ref={nowStripRef}>{headerContent(true)}</div>
@@ -506,14 +547,19 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
             <FeedTimelineNode
               key={event.key}
               time={timePart(event.at)}
-              // ⚠️ Вес времени задаёт ДЕНЬ, а не вид события. Приёмка
-              // 16.09.2026: у «Луна в 4 доме» время было светлее и тоньше,
-              // чем у транзита строкой выше, — потому что период метился
-              // датой и получал `bold`, а транзит в том же сжатом дне не
-              // получал. Одинаковые данные в одной колонке обязаны выглядеть
-              // одинаково; выделяется период заголовком и цветной точкой.
-              bold={!compact}
+              /*
+               * ⚠️ Вес времени задаёт ДЕНЬ, и только он.
+               *
+               * `compact` для этого не годится, хотя и выглядит подходящим:
+               * он означает «рисовать строкой, а не карточкой», а крупное
+               * событие (feedRank.js) остаётся карточкой и в сжатом дне.
+               * Из-за этого в одном и том же дне период Меркурия получал
+               * жирное время, а проход Луны рядом — бледное: третья приёмка
+               * 16.09.2026, «05:52 жирное, 22:02 бледное».
+               */
+              bold={expanded}
               color={dotColor(event)}
+              solid={isPlannerPeriod}
               size={compact && !isPlannerPeriod ? 9 : dotSize(event)}
               gap={compact ? 6 : 12}
               dense={compact}

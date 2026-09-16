@@ -51,7 +51,8 @@
 import React from 'react';
 import HintButton from './HintButton';
 import FeedPlanetStrip from './FeedPlanetStrip';
-import { glyphStyle } from '../lib/feedGlyphs';
+import { glyph, glyphStyle } from '../lib/feedGlyphs';
+import { planetDotColor } from '../lib/feedTimelineDot';
 import { daysBetween } from '../lib/feedTime';
 // Отбор — общий с компактной полоской (FeedNowCompact.jsx): один факт,
 // два вида. Разбор, почему вынесено, — в шапке lib/feedNow.js.
@@ -86,7 +87,13 @@ export default function FeedNowStrip({ events, today, onHelp, chipsRef, onOpen }
           место под кнопку «?», иначе остаток дней уходит под неё. */}
       {sunPeriod && (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4, paddingRight: 36 }}>
-          <span style={{ ...glyphStyle, fontSize: 17, color: 'var(--color-warning)' }}>☉</span>
+          {/* ⚠️ Цвет — из planetDotColor, как и везде. Здесь стоял
+              `--color-warning`, то есть ВТОРОЙ источник цвета планеты: Солнце
+              в заголовке было оранжевым, а в полосе под ним — своим
+              `--planet-sun`. Один значок, два цвета на одном экране. */}
+          <span style={{ ...glyphStyle, fontSize: 17, color: planetDotColor('sun') }}>
+            {glyph('sun')}
+          </span>
           <h2
             style={{
               margin: 0,

@@ -73,20 +73,27 @@ class TestMoonWeekGate:
         assert is_moon_week_locked("free", start, end, NOW) is True
 
     @pytest.mark.parametrize("tier", ["lite", "pro", "premium"])
-    def test_paid_open_four_weeks_and_close_the_fifth(self, tier):
-        """Платный — текущая плюс три, то есть четыре считая текущую.
+    def test_paid_has_no_locked_passages_at_all(self, tier):
+        """Платный — всё окно, замков нет ни на какой дистанции.
 
-        Недели считая от текущей: 31.08 (эта), 07.09, 14.09, 21.09. Значит
-        последний открытый момент — вс 27.09 23:59, а пн 28.09 уже закрыт.
-        ⚠️ Числа выписаны нарочно: «четыре недели вперёд» на глаз легко
-        отсчитать до 20.09 (так и было в первой редакции этого теста) — и
-        тогда проверка требовала бы от кода закрывать неделю, которую тариф
-        обязан открывать.
+        ⚠️ До 16.09.2026 здесь стояло «четыре недели вперёд, пятая закрыта», и
+        это было хуже, чем кажется: у ВСЕХ платных тарифов число было одно и
+        то же, то есть закрытую неделю нельзя было открыть ничем — ни временем
+        (она не приближалась быстрее), ни деньгами (следующий тариф давал
+        столько же). Решение владельца: `planner_weeks_ahead: None`.
+
+        Проверяются три дистанции, включая ту, что за горизонтом самого окна:
+        правило не должно зависеть от расстояния вовсе.
         """
-        inside = self._pass(datetime(2026, 9, 27, 20, 0))     # вс четвёртой недели
-        outside = self._pass(datetime(2026, 9, 28, 1, 0))     # пн пятой недели
-        assert is_moon_week_locked(tier, *inside, NOW) is False
-        assert is_moon_week_locked(tier, *outside, NOW) is True
+        for start in (datetime(2026, 9, 28, 1, 0),      # следующая после прежнего порога
+                      datetime(2026, 11, 4, 12, 0),     # через два месяца
+                      datetime(2027, 6, 1, 12, 0)):     # через девять
+            assert is_moon_week_locked(tier, *self._pass(start), NOW) is False, start
+
+    def test_free_still_closes_the_next_week(self):
+        """У free правило не изменилось — иначе платное раздалось бы даром."""
+        assert is_moon_week_locked("free", *self._pass(datetime(2026, 9, 7, 9, 0)), NOW) is True
+        assert is_moon_week_locked("free", *self._pass(datetime(2026, 11, 4, 12, 0)), NOW) is True
 
     def test_passage_crossing_the_boundary_belongs_to_its_start(self):
         """Граница проходит ПО ПРОХОДАМ, а не по полуночи воскресенья.
@@ -221,11 +228,19 @@ class TestMoonPassagesInFeed:
             "у открытого прохода обязаны быть рекомендации"
         )
 
-    def test_free_closes_more_than_paid(self):
-        """У free закрытых больше, чем у платного, — сетка работает в ленте."""
+    def test_free_closes_future_and_paid_closes_nothing(self):
+        """Сетка работает в ленте: у free закрытое есть, у платного — нет."""
         free_locked = sum(1 for e in _moon(_feed(tier="free")) if e["locked"])
         paid_locked = sum(1 for e in _moon(_feed(tier="pro")) if e["locked"])
-        assert free_locked > paid_locked > 0
+        assert free_locked > 0, "у free будущее за текущей неделей обязано быть закрыто"
+        assert paid_locked == 0, "у платного замков на проходах Луны не бывает"
+
+    def test_paid_sees_a_passage_two_months_ahead_open(self):
+        """Проход через два месяца у платного открыт и с расшифровкой."""
+        far = [e for e in _moon(_feed(tier="pro")) if e["at"][:7] >= "2026-11"]
+        assert far, "в окне обязан быть проход через два месяца"
+        assert all(not e["locked"] for e in far)
+        assert any(e["meta"]["groups"] for e in far)
 
 
 # ═══════════════════════════════════════════════════════════

@@ -27,8 +27,11 @@ describe('upgradeOpensIt — открывает ли апгрейд это со�
     }
   });
 
-  it('проход Луны у ПЛАТНОГО — горизонт, а не витрина', () => {
-    // Четыре недели вперёд у Веги, Лиры и Ориона одинаково: покупать нечего.
+  it('у платного закрытых проходов Луны не бывает — продавать нечего', () => {
+    // ⚠️ Это НЕ «горизонт вместо витрины», как было до 16.09.2026: у платных
+    // `planner_weeks_ahead: None`, то есть событие с locked сюда вообще не
+    // доходит. Ветка оставлена на случай расхождения сетки между сервером и
+    // клиентом, и она обязана молчать, а не продавать наугад.
     for (const tier of ['lite', 'pro', 'premium']) {
       expect(upgradeOpensIt(ev('planner_moon_house'), tier)).toBe(false);
       expect(upgradeOpensIt(ev('planner_period'), tier)).toBe(false);
@@ -57,11 +60,11 @@ describe('upgradeOpensIt — открывает ли апгрейд это со�
 });
 
 describe('lockedPlannerText — текст соответствует тому, что реально откроется', () => {
-  it('платному не предлагают платный тариф', () => {
+  it('платному не говорят ничего — такого состояния у него нет', () => {
+    // Прежняя строка «Рекомендации появятся ближе к сроку» удалена вместе с
+    // состоянием, которое её порождало (решение владельца 16.09.2026).
     for (const tier of ['lite', 'pro', 'premium']) {
-      const text = lockedPlannerText(ev('planner_moon_house'), tier);
-      expect(text).not.toMatch(/тариф/);
-      expect(text).toMatch(/ближе к сроку/);
+      expect(lockedPlannerText(ev('planner_moon_house'), tier)).toBe('');
     }
   });
 
@@ -82,7 +85,7 @@ describe('lockedPlannerText — текст соответствует тому, 
     // запрещены даты границ транзита (CLAUDE.md).
     for (const tier of TIERS) {
       for (const kind of KINDS) {
-        expect(lockedPlannerText(ev(kind), tier)).not.toMatch(/\d+\s*(дн|час)/);
+        expect(lockedPlannerText(ev(kind), tier)).not.toMatch(/\d+\s*(дн|час|недел)/);
       }
     }
   });
