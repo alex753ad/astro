@@ -13,7 +13,7 @@ const BODY = "var(--font-body)";
 
 const PRACTICE_FEATURES = [
   'Кабинет астролога: все клиенты, их карты, заметки и история разговоров — в одном месте',
-  'AI готовит разбор карты клиента заранее — вы приходите подготовленными',
+  'Разбор карты клиента готовится заранее — вы приходите подготовленными',
   'Клиент сам заполняет анкету по ссылке — данные и карта сразу в вашем кабинете',
   'Ваши авторские трактовки: Аристея разбирает карты вашим голосом, а не общими словами',
   'Аналитика практики: доход, средний чек и темы консультаций — наглядно, помесячно',
@@ -24,7 +24,7 @@ const PRACTICE_FEATURES = [
 
 const PERSONAL_FEATURES = [
   'Чат с Аристеей — персональный разбор в любой момент',
-  'AI-разбор каждого транзита без лимита',
+  'Разбор каждого транзита без лимита',
   'Глубокий разбор натальной карты — от 1500 слов',
   'Планер Timeline: все планеты, астро-рекомендации на неделю и месяц, долгосрочные периоды',
   'Горизонт транзитов на 24 месяца вперёд',
@@ -137,7 +137,7 @@ function OrionOfferModal({ onClose, onActivate }) {
         <div style={{
           display: 'inline-block',
           background: 'var(--accent)',
-          color: 'var(--accent-on)',
+          color: '#fff',
           fontSize: 11,
           fontWeight: 600,
           letterSpacing: '0.08em',
@@ -184,7 +184,7 @@ function OrionOfferModal({ onClose, onActivate }) {
             border: 'none',
             borderRadius: 'var(--radius-md)',
             background: 'var(--accent)',
-            color: 'var(--accent-on)',
+            color: '#fff',
             fontSize: 15,
             fontWeight: 700,
             cursor: 'pointer',
@@ -247,12 +247,12 @@ export default function OrionPage({ currentUser }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--bg-page)',
+      background: 'linear-gradient(135deg, #f8f0ff 0%, #f0e8ff 20%, #fce8f4 45%, #e8f0ff 70%, #f0f8ff 100%)',
       fontFamily: 'var(--font-body)',
-      color: 'var(--text-primary)',
+      color: '#1a1230',
     }}>
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 24px 0' }}>
-        <Link to="/" style={{ color: 'var(--accent-fg)', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
+        <Link to="/" style={{ color: '#8B5CF6', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
         >← На главную</Link>
@@ -263,7 +263,7 @@ export default function OrionPage({ currentUser }) {
           fontSize: 12,
           fontWeight: 700,
           letterSpacing: '0.12em',
-          color: 'var(--accent-fg)',
+          color: '#8B5CF6',
           textTransform: 'uppercase',
         }}>
           Аристея для практики
@@ -292,11 +292,11 @@ export default function OrionPage({ currentUser }) {
             fontWeight: 700,
             lineHeight: 1.2,
             margin: '0 0 14px',
-            color: 'var(--text-primary)',
+            color: '#1a1230',
           }}>
             Аристея станет вашим рабочим местом
           </h2>
-          <p style={{ fontSize: 15, color: 'var(--text-secondary)', lineHeight: 1.7, margin: 0 }}>
+          <p style={{ fontSize: 15, color: '#6B6885', lineHeight: 1.7, margin: 0 }}>
             Ваша практика переезжает из заметок телефона в одно живое пространство —
             и каждый повод написать превращается в новую консультацию.
           </p>
@@ -379,8 +379,8 @@ export default function OrionPage({ currentUser }) {
                 padding: '24px 20px',
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', marginBottom: 8 }}>{f.title}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{f.desc}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#1a1230', marginBottom: 8 }}>{f.title}</div>
+              <div style={{ fontSize: 13, color: '#6B6885', lineHeight: 1.6 }}>{f.desc}</div>
             </motion.div>
           ))}
         </motion.div>
@@ -402,8 +402,8 @@ export default function OrionPage({ currentUser }) {
               padding: '16px 36px',
               borderRadius: 'var(--radius-lg)',
               border: 'none',
-              background: 'var(--accent)',
-              color: 'var(--accent-on)',
+              background: '#1a1230',
+              color: '#fff',
               fontSize: 16,
               fontWeight: 700,
               cursor: 'pointer',
@@ -423,7 +423,7 @@ export default function OrionPage({ currentUser }) {
           >
             Открыть пространство Аристеи
           </MotionButton>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12 }}>
+          <p style={{ fontSize: 13, color: '#6B6885', marginTop: 12 }}>
             Каждый клиент, потерянный в заметках телефона, — несостоявшаяся консультация.
           </p>
         </motion.div>

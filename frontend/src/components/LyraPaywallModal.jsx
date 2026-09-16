@@ -24,7 +24,7 @@ const DISPLAY = "var(--font-display)";
 const BODY = "var(--font-body)";
 
 const DEFAULT_FEATURES = [
-  { icon: "telescope", text: "Безлимитный AI-разбор транзитов" },
+  { icon: "telescope", text: "Безлимитный разбор транзитов" },
   { icon: "chat", text: "Чат с астрологом Аристеей, которая уже знает вашу карту" },
   { icon: "doc", text: "Глубокий разбор — от 1500 слов" },
   { icon: "calendar", text: "Планер Timeline: текущий месяц + вперёд + неделя + долгосрочно" },

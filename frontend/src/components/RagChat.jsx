@@ -471,7 +471,7 @@ const s = {
   bubbleUser: {
     maxWidth: '75%', padding: '10px 14px',
     background: 'var(--accent)',
-    color: 'var(--accent-on)', borderRadius: 'var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)',
+    color: '#fff', borderRadius: 'var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)',
     fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
   },
   bubbleAssistant: {
@@ -497,7 +497,7 @@ const s = {
   sendBtn: {
     width: 40, height: 40, borderRadius: 'var(--radius-md)', flexShrink: 0,
     background: 'var(--accent)',
-    color: 'var(--accent-on)', border: 'none', fontSize: 18,
+    color: '#fff', border: 'none', fontSize: 18,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     transition: 'opacity 0.15s',

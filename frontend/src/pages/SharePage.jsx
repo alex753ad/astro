@@ -144,7 +144,7 @@ export default function SharePage() {
         </div>
 
         <p style={s.promo}>
-          Персональные натальные карты, транзиты и AI-интерпретации — <strong>aristeatime.ru</strong>
+          Персональные натальные карты, транзиты и интерпретации — <strong>aristeatime.ru</strong>
         </p>
       </main>
     </div>
@@ -155,6 +155,10 @@ const s = {
   page: {
     minHeight: '100vh',
     background: 'linear-gradient(160deg, var(--bg-deeper) 0%, var(--bg-card) 100%)',
+    /* ⚠️ НЕ '#fff': подложка выше — linear-gradient(--bg-deeper → --bg-card),
+       и в СВЕТЛОЙ теме обе половины почти белые. Белым по ним 1.03:1, то есть
+       текста не видно вовсе; в тёмной читается отлично, поэтому дефект и дожил
+       до 16.09.2026. Правка пережила откат визуального языка 17.09.2026. */
     color: 'var(--text-primary)',
     fontFamily: "'Segoe UI', Arial, sans-serif",
   },
@@ -198,7 +202,7 @@ const s = {
   actions: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
   btnPrimary: {
     background: 'var(--accent)',
-    color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-md)',
+    color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
     padding: '12px 24px', fontSize: '15px', fontWeight: '700',
     cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -209,7 +213,7 @@ const s = {
     fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
   },
   btn: {
-    background: 'var(--accent)', color: 'var(--accent-on)', border: 'none',
+    background: 'var(--accent)', color: '#fff', border: 'none',
     borderRadius: 'var(--radius-md)', padding: '10px 20px', cursor: 'pointer',
   },
   promo: { fontSize: '13px', color: 'var(--accent)', textAlign: 'center', marginTop: '8px' },

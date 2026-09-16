@@ -111,6 +111,6 @@ const s = {
   assignment: { borderLeft: '3px solid var(--accent)', paddingLeft: 14 },
   assignmentHead: { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 },
   assignmentBody: { fontSize: 14, color: 'var(--accent-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap' },
-  btnPrimary: { background: 'var(--accent)', color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-md)', padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  btnPrimary: { background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-md)', padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
   promo: { fontSize: 13, color: 'var(--accent)', textAlign: 'center', marginTop: 8 },
 };

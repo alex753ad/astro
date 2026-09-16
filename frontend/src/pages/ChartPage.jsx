@@ -164,7 +164,7 @@ function ReportModal({ chartId, onClose, setForExport }) {
 
 const sr = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(30,26,46,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 },
-  modal: { background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '0.5px solid var(--border)', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */ boxShadow: 'var(--shadow-overlay)' },
+  modal: { background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)', border: '0.5px solid var(--border)', padding: '32px 28px 24px', maxWidth: 420, width: '100%', position: 'relative', /* леденец: удалить вместе с градиентом — DESIGN_SYSTEM.md §6 */ boxShadow: '0 20px 60px rgba(112,96,160,0.15)' },
   close: { position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer' },
   title: { margin: '0 0 4px', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' },
   sub: { margin: '0 0 20px', fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center' },
@@ -172,7 +172,7 @@ const sr = {
   item: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-deeper)' },
   itemTitle: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 2 },
   itemDesc: { fontSize: 11, color: 'var(--text-secondary)' },
-  btn: { padding: '8px 16px', background: 'var(--accent)', color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
+  btn: { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   error: { margin: '12px 0 0', fontSize: 12, color: 'var(--color-danger)', textAlign: 'center' },
   legal: { margin: '14px 0 0', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' },
 };
@@ -185,7 +185,7 @@ const LEFT_BTNS = [
   { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
 ];
 const LEFT_BTNS_BOTTOM = [
-  { key: 'interpretation', label: 'AI-интерпретация',   icon: '' },
+  { key: 'interpretation', label: 'Интерпретация',   icon: '' },
   { key: 'chat',           label: 'Астролог Аристея', icon: '', minTier: 'pro' },
 ];
 
@@ -215,7 +215,7 @@ function SaveChartBanner({ onLogin }) {
         style={{
           padding: '9px 20px', borderRadius: 'var(--radius-md)', border: 'none',
           background: 'var(--accent)',
-          color: 'var(--accent-on)', fontSize: 13, fontWeight: 700,
+          color: '#fff', fontSize: 13, fontWeight: 700,
           cursor: 'pointer', whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(var(--accent-rgb), 0.35)',
         }}
@@ -742,7 +742,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Астролог Аристея</div>
               <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Аристея знает вашу карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
-              <MotionButton level="primary" onClick={() => setShowChatPlans(true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 'var(--radius-full)', border: 'none', background: 'var(--accent)', color: 'var(--accent-on)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              <MotionButton level="primary" onClick={() => setShowChatPlans(true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 'var(--radius-full)', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Открыть доступ
               </MotionButton>
             </div>
@@ -789,7 +789,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               Карточка
             </MotionButton>
           )}
-          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: 'var(--accent-on)', opacity: pdfLoading ? 0.7 : 1 }}>
+          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
             {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
           </MotionButton>
         </div>
@@ -835,7 +835,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                       level="ghost"
                       key={key}
                       onClick={() => handleLeftBtn(key)}
-                      style={{ ...s.leftBtn, background: 'var(--accent)', borderColor: 'transparent', color: 'var(--accent-on)' }}
+                      style={{ ...s.leftBtn, background: 'var(--accent)', borderColor: 'transparent', color: '#fff' }}
                     >
                       <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
                       <span style={{ flex: 1 }}>{label}</span>
@@ -1014,7 +1014,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             <div style={s.confirmRow}>
               <MotionButton
                 level="primary"
-                style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: 'var(--accent-on)' }}
+                style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}
                 onClick={() => {
                   setPdfConfirm(false);
                   runPdfDownload(localStorage.getItem('astro_access_token'));
@@ -1381,7 +1381,7 @@ const s = {
   leftBtnActive: {
     background: 'var(--accent)',
     borderColor: 'transparent',
-    color: 'var(--accent-on)',
+    color: '#fff',
   },
   leftBtnIcon: { fontSize: 14, color: 'inherit', flexShrink: 0 },
 
@@ -1402,12 +1402,6 @@ const s = {
   wheelOverlay: {
     position: 'absolute', inset: 0, zIndex: 10,
     background: 'var(--bg-card)',
-    /* Плотная рамка вместо левой цветной полосы — решение владельца
-       16.09.2026 (приём из варианта C, цвет в тонах палитры A). Полоса
-       означала «это разбор» одним краем; рамка говорит то же самое всей
-       формой и не спорит с цветными рамками периодов планера, у которых
-       цвет НЕСЁТ ДАННЫЕ (планету), а не роль. */
-    border: '1.5px solid var(--accent-hairline)',
     borderRadius: 'var(--radius-lg)',
     overflowY: 'auto',
     padding: 20,
@@ -1424,7 +1418,7 @@ const s = {
     background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)',
     border: '0.5px solid var(--border)', padding: '28px 24px 22px',
     maxWidth: 420, width: '100%',
-    /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */ boxShadow: 'var(--shadow-overlay)',
+    /* леденец: удалить вместе с градиентом — DESIGN_SYSTEM.md §6 */ boxShadow: '0 20px 60px rgba(112,96,160,0.15)',
   },
   confirmTitle: {
     margin: '0 0 12px', fontSize: 17, fontWeight: 600,
@@ -1446,7 +1440,7 @@ const s = {
   overlayLoginBtn: {
     padding: '10px 24px', borderRadius: 'var(--radius-md)', border: 'none',
     background: 'var(--accent)',
-    color: 'var(--accent-on)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
   },
 
   // Правая колонка — панель

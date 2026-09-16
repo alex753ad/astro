@@ -94,7 +94,7 @@ def _base(title: str, preview: str, body: str) -> str:
               Aristea Timeline
             </div>
             <div style="color:rgba(201,168,255,0.55);font-size:12px;margin-top:4px;letter-spacing:2px;">
-              АСТРОЛОГИЯ · AI · ТРАНЗИТЫ
+              АСТРОЛОГИЯ · ТРАНЗИТЫ · ПЛАНЕР
             </div>
           </td>
         </tr>
@@ -419,7 +419,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
         _h2(greeting)
         + _p("Ваша натальная карта рассчитана. Вот первый инсайт — специально для вас:")
         + sun_block
-        + _p("Откройте карту, чтобы увидеть все планеты, дома и AI-интерпретацию.")
+        + _p("Откройте карту, чтобы увидеть все планеты, дома и интерпретацию.")
         + _btn("✦ Открыть мою карту", APP_URL)
     )
     return await _send(
@@ -436,7 +436,7 @@ async def send_retention_day2(to: str, transit_text: str) -> bool:
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
           f'{transit_text}</div>'
-        + _p("Откройте Aristea Timeline, чтобы увидеть все активные транзиты и AI-интерпретацию.")
+        + _p("Откройте Aristea Timeline, чтобы увидеть все активные транзиты и интерпретацию.")
         + _btn("Смотреть полный прогноз", APP_URL)
     )
     return await _send(
@@ -461,7 +461,7 @@ async def send_retention_day7(to: str, locked_count: int) -> bool:
         )
         + _p(
             f"С планом <strong>{TIER_NAMES['pro']}</strong> вы видите полный прогноз и получаете "
-            "AI-интерпретацию каждого периода."
+            "интерпретацию каждого периода."
         )
         + _btn(f"Попробовать {TIER_NAMES['pro']}", f"{APP_URL}/pricing")
     )
@@ -486,7 +486,7 @@ async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAME
             f"Триальный период заканчивается {days_str}."
         )
         + _p(
-            "Чтобы сохранить доступ к полным транзитам, AI-интерпретациям и еженедельным "
+            "Чтобы сохранить доступ к полным транзитам, интерпретациям и еженедельным "
             "дайджестам — продлите подписку сейчас."
         )
         + f'<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:10px;'
@@ -575,7 +575,7 @@ async def send_transit_alert_email(
           f'  </div>'
           f'  <div style="color:#5a4a7a;font-size:14px;line-height:1.7;">{description}</div>'
           f'</div>'
-        + _p("Откройте приложение, чтобы получить полную AI-интерпретацию этого транзита.")
+        + _p("Откройте приложение, чтобы получить полную интерпретацию этого транзита.")
         + _btn("Читать интерпретацию →", link)
     )
     return await _send(
@@ -857,7 +857,7 @@ async def send_retention_day14(to: str) -> bool:
         _h2("Две недели с Aristea Timeline")
         + _p(
             "Вы уже две недели с нами на бесплатном тарифе. Если хочется больше — "
-            f"полные транзиты, AI-разбор карты, персональный планер ({TIER_NAMES['lite']} "
+            f"полные транзиты, разбор карты, персональный планер ({TIER_NAMES['lite']} "
             f"и выше) — посмотрите тарифы и выберите то, что подходит."
         )
         + _btn("Посмотреть тарифы →", pricing_url)
@@ -870,7 +870,7 @@ async def send_retention_day14(to: str) -> bool:
     return await _send(
         to,
         "Ваши тарифы на Aristea Timeline",
-        _base("Тарифы Aristea Timeline", "Полные транзиты, AI-разбор карты и персональный планер", body),
+        _base("Тарифы Aristea Timeline", "Полные транзиты, разбор карты и персональный планер", body),
     )
 
 
@@ -976,15 +976,15 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
           f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>PDF-отчёты</strong> — {_pro_pdf} в месяц, для скачивания и печати</span></td></tr>'
           f'<tr><td style="padding:8px 0;">'
           f'<span style="color:#9060C8;font-weight:700;">🔭</span>'
-          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>{_pro_int} {_plural(_pro_int, "AI-интерпретация", "AI-интерпретации", "AI-интерпретаций")}</strong> в месяц</span></td></tr>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>{_pro_int} {_plural(_pro_int, "интерпретация", "интерпретации", "интерпретаций")}</strong> в месяц</span></td></tr>'
           f'</table>'
-        + _p("Совет: начните с вкладки «Транзиты» на вашей карте — нажмите на любой период, чтобы получить AI-расшифровку.")
+        + _p("Совет: начните с вкладки «Транзиты» на вашей карте — нажмите на любой период, чтобы получить расшифровку.")
         + _btn("Открыть мою карту →", f"{APP_URL}/profile")
     )
     return await _send(
         to,
         f"🪐 Добро пожаловать в Aristea {TIER_NAMES['pro']}",
-        _base(f"{TIER_NAMES['pro']} активирован", "RAG-чат, AI-транзиты и PDF ждут вас", body),
+        _base(f"{TIER_NAMES['pro']} активирован", "Чат с Аристеей, разборы транзитов и PDF ждут вас", body),
     )
 
 
@@ -995,7 +995,7 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
         _h2(greeting)
         + _p(
             f"Месяц с Aristea {TIER_NAMES['pro']} — это не просто подписка. "
-            "Это месяц глубокого знакомства с собой через транзиты, планировщик и AI-ассистента."
+            "Это месяц глубокого знакомства с собой через транзиты, планировщик и чат с Аристеей."
         )
         + _p("Вопрос к вам: вы занимаетесь астрологией только для себя или уже консультируете других?")
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'

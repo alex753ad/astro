@@ -106,9 +106,9 @@ const TIER_LABELS = TIER_NAMES;
  * В PlannerPage тот же приём работал, потому что там PLANET_COLORS — сырые
  * hex; здесь токены, и это не взаимозаменяемо.
  *
- * Прозрачность теперь берётся через color-mix, который принимает var() как
- * значение. Рядом заведены готовые пары, чтобы соблазна дописать «60»
- * больше не было.
+ * Прозрачность берётся через color-mix, который принимает var() как значение.
+ * ⚠️ Правка ПЕРЕЖИЛА откат визуального языка 17.09.2026 намеренно: откатывался
+ * вид, а это дефект — цвета тарифов остались прежними, веб-овскими.
  */
 const TIER_COLORS = { free: 'var(--text-secondary)', lite: 'var(--color-air)', pro: 'var(--accent)', premium: 'var(--color-warning)' };
 const TIER_TINT = (tier, pct) => `color-mix(in srgb, ${TIER_COLORS[tier] || 'var(--text-secondary)'} ${pct}%, transparent)`;
@@ -554,7 +554,7 @@ function buildFeatureRows(feat = {}, lim = {}) {
       // теперь означало бы настоящую поломку, а не известную ложь флага.
       label: 'Транзиты',
       ok: !!feat.transits,
-      value: feat.transits ? `${transitsMonths} мес${feat.transits_ai ? ' + AI' : ''}` : null,
+      value: feat.transits ? `${transitsMonths} мес${feat.transits_ai ? ' + разбор' : ''}` : null,
     },
     { label: 'Лунный календарь', ok: lunarMonths === null || lunarMonths === undefined || lunarMonths > 0 },
     { label: 'Google Calendar', ok: !!feat.google_calendar },
@@ -698,7 +698,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                 отвечает на вопрос «разбирал ли пользователь хоть раз». */}
             {tier !== 'free' && (
               <UsageBar
-                label="AI-интерпретации"
+                label="Интерпретации"
                 used={interpUsed}
                 limit={interpUnlimited ? null : interpLimit}
                 tierColor={tierColor}
@@ -708,7 +708,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             {/* AI-транзиты показываем только там, где есть квота (lite) или безлимит (pro/premium) */}
             {(transitAiLimit === null || transitAiLimit > 0) && (
               <UsageBar
-                label="AI-расшифровки транзитов"
+                label="Расшифровки транзитов"
                 used={transitAiUsed}
                 limit={transitAiLimit}
                 tierColor={tierColor}
@@ -1105,7 +1105,7 @@ function TabNotifications({ authFetch }) {
               setMsg(e.message || 'Не удалось отправить тест');
             }
           }}
-          style={{ background: 'var(--accent)', color: 'var(--accent-on)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+          style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
         >
           Отправить тест
         </MotionButton>

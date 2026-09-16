@@ -584,11 +584,7 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
             size -= 3
         return load_font(min_size, bold)
 
-    # Акцент палитры «Глубокий аметист» (#5B3A9E) — тот же, что в
-    # frontend/src/index.css. Прежние (139, 92, 246) = #8B5CF6 остались от
-    # старой палитры и на белой карточке давали 3.5:1 — ниже порога для
-    # мелкого текста; новый даёт 8.26:1.
-    C_PURPLE = (0x5B, 0x3A, 0x9E)
+    C_PURPLE = (139, 92, 246)
     C_DARK   = (0x1A, 0x12, 0x30)
     C_MUTED  = (0x6B, 0x68, 0x85)
     ML = 90

@@ -767,7 +767,7 @@ async def generate_brief(
                     logger.warning("Brief stream from %s failed: %s", eng.name, e)
                     continue
 
-            yield f"data: {json.dumps({'text': 'AI временно недоступен. Попробуйте позже.'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'text': 'Разбор временно недоступен. Попробуйте позже.'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.exception("Brief generation stream failed")
@@ -854,7 +854,7 @@ async def client_summary(
         text = (result.content or "").strip()
     except Exception as e:
         logger.warning("Client summary generation failed for %s: %s", client.id, e)
-        raise HTTPException(status_code=503, detail="AI временно недоступен")
+        raise HTTPException(status_code=503, detail="Разбор временно недоступен")
 
     if text:
         client.summary = text

@@ -36,13 +36,40 @@
 import React from 'react';
 import FeedLockMark from './FeedLockMark';
 import FeedOrbChip from './FeedOrbChip';
-import { isOpenable } from './FeedEventCard';
+import { isLocked, isOpenable } from './FeedEventCard';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
 import { eventTitle, moonRangeShort, planetRu } from '../lib/feedTime';
+
+/**
+ * Высота первой строки заголовка строки события.
+ *
+ * ⚠️ Одно число на оба кегля (12 у приглушённой лунной строки, 13 у обычной):
+ * по нему выравнивается чип орба, и разное значение в разных ветках означало
+ * бы, что чип стоит на одной линии с заголовком у транзита и не стоит у
+ * лунного — то есть ровно тот дефект, ради которого константа и заведена.
+ * 19px = 13px × 1.45, то есть высота БОЛЬШЕГО из двух кеглей: меньший внутри
+ * неё центрируется, больший ей равен.
+ */
+const LINE_H = 19;
 
 export default function FeedEventRow({ event, onOpen, quiet = false }) {
   const meta = event.meta || {};
   const openable = isOpenable(event) && typeof onOpen === 'function';
+  /**
+   * Признак «разбор открыт» — та же точка перед чипом орба, что у карточки
+   * (FeedEventCard.jsx), и по тому же правилу.
+   *
+   * ⚠️ Заведено 17.09.2026 по приёмке. Лунный транзит («07:56 Луна — Сатурн»)
+   * в раскрытом дне рисуется СТРОКОЙ, а соседние транзиты того же дня —
+   * карточками: строка точки не показывала вовсе, и на одном экране рядом
+   * стояли два транзита, у одного признак есть, у другого нет. Разница
+   * читалась как «у лунного разбора нет», хотя он есть.
+   *
+   * Правило не копируется, а берётся из isLocked() — второй его экземпляр
+   * разъехался бы с карточкой молча, ровно как уже было с условием открытия
+   * 09.09.2026.
+   */
+  const openInterpretation = event.kind === 'transit' && !isLocked(event);
   const formula = event.kind === 'transit' && meta.transit_planet && meta.natal_planet && meta.aspect_type
     ? meta
     : null;
@@ -128,6 +155,10 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
             style={{
               fontSize: quiet ? 12 : 13,
               color: quiet ? 'var(--text-secondary)' : 'var(--text-primary)',
+              // Высота строки та же, по которой выровнен чип орба (LINE_H):
+              // иначе центр чипа и центр заголовка расходятся на пару
+              // пикселей, и на мелком лунном кегле это уже видно.
+              lineHeight: `${LINE_H}px`,
               // ⚠️ flex: 1 обязателен. Без него свободное место строки уходило
               // в `margin-left: auto` правого блока, а заголовок сжимался до
               // многоточия при пустом месте справа — ровно то, что поймали на
@@ -156,6 +187,7 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
           style={{
             fontSize: quiet ? 12 : 13,
             color: quiet ? 'var(--text-secondary)' : 'var(--text-primary)',
+            lineHeight: `${LINE_H}px`,
             // Та же причина, что у ветки формулы выше: свободное место строки
             // принадлежит заголовку, иначе он уходит в многоточие при пустом
             // месте справа (приёмка 15.09.2026).
@@ -170,8 +202,29 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
         </span>
       )}
       {/* Без `margin-left: auto`: место отдаёт заголовок (flex выше), а не
-          пустой отступ. Чип не сжимается — «0.1°» не бывает длиннее. */}
-      <span style={{ flexShrink: 0 }}>
+          пустой отступ. Чип не сжимается — «0.1°» не бывает длиннее.
+
+          ⚠️ `minHeight` и `alignItems: center` — не украшение. Ряд выровнен по
+          `flex-start` (значки обязаны остаться у первого ряда двухрядного
+          заголовка), а чип выше строки текста: у него свои рамка и поля, и при
+          выравнивании по верху он повисал НИЖЕ заголовка — приёмка 17.09.2026
+          на лунной строке, где кегль ещё и мельче. Здесь чип получает высоту
+          первой строки заголовка и центрируется внутри неё, то есть встаёт с
+          ним на одну линию при любом кегле и при любом числе рядов. */}
+      <span style={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: LINE_H,
+      }}>
+        {openInterpretation && (
+          <span
+            aria-label="Разбор открыт"
+            title="Разбор открыт"
+            style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}
+          />
+        )}
         <FeedOrbChip meta={meta} />
       </span>
     </div>

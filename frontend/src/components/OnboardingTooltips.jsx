@@ -101,7 +101,7 @@ const s = {
     border: '0.5px solid var(--border)',
     padding: '28px 24px 20px',
     maxWidth: 360, width: '100%',
-    boxShadow: 'var(--shadow-overlay)', /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */
+    boxShadow: '0 16px 48px rgba(112,96,160,0.18)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
     display: 'flex', flexDirection: 'column', gap: 12,
   },
   icon: {
@@ -142,7 +142,7 @@ const s = {
   next: {
     padding: '8px 18px', borderRadius: 'var(--radius-md)', border: 'none',
     background: 'var(--accent)',
-    color: 'var(--accent-on)', fontSize: 13, fontWeight: 600,
+    color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 };

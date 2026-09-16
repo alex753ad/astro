@@ -39,8 +39,8 @@ function formatWeekRange(startIso, endIso) {
  */
 const PLANET_COLORS = {
   sun: "#FDD85D", moon: "#4F7287", mercury: "#3498DB", venus: "#EC4899",  /* zodiac data-color, intentional */
-  mars: "#E74C3C", jupiter: "#AB562B", saturn: "#1E3A6E", uranus: "#1ABC9C",  /* zodiac data-color, intentional */
-  neptune: "#3F3D9E", pluto: "#BA4A4F",  /* zodiac data-color, intentional */
+  mars: "#E74C3C", jupiter: "#9B59B6", saturn: "#1E3A6E", uranus: "#1ABC9C",  /* zodiac data-color, intentional */
+  neptune: "#3F3D9E", pluto: "#7C3AED",  /* zodiac data-color, intentional */
 };
 
 /* zodiac data-color, intentional */
@@ -51,11 +51,11 @@ const PLANET_DOT_GRADIENTS = {
   mercury: { c1: "#8FD3F4", c2: "#3498DB" },
   venus:   { c1: "#FF9EC4", c2: "#EC4899" },
   mars:    { c1: "#FF6B5A", c2: "#E74C3C" },
-  jupiter: { c1: "#D89A6E", c2: "#AB562B" },  /* zodiac data-color, intentional */
+  jupiter: { c1: "#C9A7F0", c2: "#9B59B6" },  /* zodiac data-color, intentional */
   saturn:  { c1: "#3F5C8A", c2: "#1E3A6E" },
   uranus:  { c1: "#7FE7D8", c2: "#1ABC9C" },
   neptune: { c1: "#7C86E0", c2: "#3F3D9E" },
-  pluto:   { c1: "#D4868D", c2: "#BA4A4F" },  /* zodiac data-color, intentional */
+  pluto:   { c1: "#B98BE0", c2: "#7C3AED" },  /* zodiac data-color, intentional */
 };
 
 /* zodiac data-color, intentional */

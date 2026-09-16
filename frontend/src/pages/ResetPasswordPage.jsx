@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
 
             {err && <div style={{ fontSize:12, color:'var(--color-danger)', marginBottom:12, textAlign:'center' }}>{err}</div>}
 
-            <button onClick={handleSubmit} disabled={loading || !token} style={{ width:'100%', padding:'12px', borderRadius:'var(--radius-md)', border:'none', background:'linear-gradient(135deg,var(--accent),var(--accent-glow))', color: 'var(--accent-on)', fontWeight:700, fontSize:14, cursor: loading ? 'not-allowed':'pointer', opacity: (loading || !token) ? 0.6:1, fontFamily:'inherit' }}>
+            <button onClick={handleSubmit} disabled={loading || !token} style={{ width:'100%', padding:'12px', borderRadius:'var(--radius-md)', border:'none', background:'linear-gradient(135deg,var(--accent),var(--accent-glow))', color:'#fff', fontWeight:700, fontSize:14, cursor: loading ? 'not-allowed':'pointer', opacity: (loading || !token) ? 0.6:1, fontFamily:'inherit' }}>
               {loading ? 'Сохраняем…' : 'Сохранить пароль'}
             </button>
           </>

@@ -584,6 +584,10 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               dense={compact}
               quiet={quietRow}
               fill={surface}
+              /* Восемь — только карточке периода (её ширина уже отвоёвана и
+                 менять её нельзя); всем остальным 16, иначе значок формулы
+                 упирается в точку на линии. Разбор — в FeedTimelineNode.jsx. */
+              pad={isPlannerPeriod ? 8 : 16}
             >
               {compact && !isPlannerPeriod
                 ? <FeedEventRow event={event} onOpen={setSelected} quiet={quietRow} />

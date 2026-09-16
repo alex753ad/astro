@@ -194,21 +194,31 @@ function Header({ onShowAuth, dark, toggleDark }) {
 
   return (
     <header className="sticky top-0 z-50 bg-brand-card/80 backdrop-blur-md border-b border-brand-border">
-      <div className="max-w-6xl mx-auto px-4 py-3">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
-        {/* Логотип + слоган — верхняя строка фиксированной высоты, без переноса */}
-        <Link to="/" className="flex items-center gap-2 group h-8 overflow-hidden">
+        {/* Логотип + слоган — одна строка с навигацией, решение владельца 17.09.2026.
+            ⚠️ Шапка была двухстрочной с 10.08.2026 (`f4dc5bd`), и причина у этого
+            была настоящая: слоган стоял в одном ряду с меню и на средних ширинах
+            НАЕЗЖАЛ на его пункты. Возврат в одну строку не отменяет ту причину, а
+            снимает её иначе — тремя вещами сразу, и убрать любую значит вернуть
+            наложение:
+              • `min-w-0` на самой ссылке — без него flex-элемент не даёт себя
+                сжать ниже содержимого, и труncate внутри не срабатывает вовсе;
+              • `truncate` на слогане — он и сжимается первым;
+              • порог показа слогана поднят с `sm` (640px) до `lg` (1024px): на
+                планшете меню длиннее слогана, и обрезать надо не его, а прятать. */}
+        <Link to="/" className="flex items-center gap-2 group h-8 overflow-hidden min-w-0">
           <img src="/logo_120x120.png" alt="Aristea Timeline" className="w-8 h-8 rounded-full shrink-0" />
           <span className="font-display text-lg font-bold text-brand-text group-hover:text-brand-accent transition-colors duration-200 whitespace-nowrap">
             Aristea Timeline
           </span>
-          <span className="hidden sm:block text-sm text-brand-muted border-l border-brand-border pl-3 ml-1 min-w-0 truncate">
+          <span className="hidden lg:block text-sm text-brand-muted border-l border-brand-border pl-3 ml-1 min-w-0 truncate">
             — плавное выравнивание жизни по ритму космических циклов
           </span>
         </Link>
 
-        {/* Навигация — отдельная строка под логотипом */}
-        <nav className="flex items-center gap-1 text-sm mt-2">
+        {/* Навигация — в той же строке, прижата вправо и не сжимается */}
+        <nav className="flex items-center gap-1 text-sm shrink-0">
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-1">
@@ -428,7 +438,7 @@ function AppRoutes() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden" style={{ background: dark ? 'transparent' : 'var(--bg-page)', color: 'var(--text-primary)' }}>
+    <div className="relative min-h-screen overflow-x-hidden" style={{ background: 'var(--bg-page)', color: 'var(--text-primary)' }}>
 
       {/* Космический фон — только в тёмной теме */}
       {dark && <NebulaBackground element={null} />}

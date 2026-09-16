@@ -58,11 +58,11 @@ const PAYWALL_CONTENT = {
     title: 'Подготовка к консультации — 20 минут вместо 2 часов',
     subtitle: 'При 3 клиентах по 4 000 ₽ подписка окупается с первой консультации',
     benefits: [
-      { text: 'Синастрия: AI-разбор совместимости клиента с партнёром, ребёнком, коллегой' },
-      { text: 'AI готовит разбор карты клиента — вы приходите подготовленными' },
+      { text: 'Синастрия: разбор совместимости клиента с партнёром, ребёнком, коллегой' },
+      { text: 'Разбор карты клиента готовится заранее — вы приходите подготовленными' },
       { text: 'CRM: все клиенты, карты, заметки и история в одном месте' },
       { text: 'PDF-отчёты с вашим брендингом — клиент уходит с документом' },
-      { text: 'Безлимитные AI-интерпретации' },
+      { text: 'Безлимитные интерпретации' },
       { text: 'Безлимитные карты и клиентские профили' },
     ],
     cta: `Перейти на тариф ${TIER_NAMES.premium} — 7 990 ₽/мес`,
@@ -191,7 +191,7 @@ const s = {
     maxWidth: '420px',
     width: '100%',
     position: 'relative',
-    boxShadow: 'var(--shadow-overlay)', /* было: «леденцовая» тень под градиент фона; градиент снят 16.09.2026, тень сведена к шкале — DESIGN_SYSTEM.md §6 */
+    boxShadow: '0 20px 60px rgba(112, 96, 160, 0.15)', /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
   },
   close: {
     position: 'absolute', top: '16px', right: '16px',
@@ -207,7 +207,7 @@ const s = {
   badge: {
     display: 'inline-block',
     background: 'var(--accent)',
-    color: 'var(--accent-on)',
+    color: '#fff',
     fontSize: '11px',
     fontWeight: '600',
     letterSpacing: '0.08em',
@@ -255,7 +255,7 @@ const s = {
     width: '100%',
     padding: '14px',
     background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%)',
-    color: 'var(--accent-on)',
+    color: '#fff',
     border: 'none',
     borderRadius: 'var(--radius-md)',
     fontSize: '15px',

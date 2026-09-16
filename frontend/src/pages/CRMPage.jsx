@@ -558,7 +558,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   };
 
   const tabs = ['chart', 'transits', 'ai', 'notes', 'consultations'];
-  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'AI-интерпретация', notes: 'Заметки', consultations: 'Консультации' };
+  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'Интерпретация', notes: 'Заметки', consultations: 'Консультации' };
 
   return (
     <div>
@@ -747,7 +747,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
       {tab === 'ai' && (
         <div style={S.card}>
           {!aiText && !aiLoading && (
-            <MotionButton level="primary" style={S.btn('primary')} onClick={loadAI}>Получить AI-интерпретацию</MotionButton>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={loadAI}>Получить интерпретацию</MotionButton>
           )}
           {aiLoading && <div style={S.muted}>Генерирую интерпретацию…</div>}
           {aiText && (() => {
@@ -1280,7 +1280,7 @@ function BroadcastPanel({ authFetch, clients }) {
   };
 
   const doSend = async () => {
-    const label = aiMode ? 'AI-версию прогноза' : 'прогноз месяца';
+    const label = aiMode ? 'индивидуальную версию прогноза' : 'прогноз месяца';
     if (!window.confirm(`Отправить ${label} ${withEmail.length} клиентам?`)) return;
     setSending(true);
     try {
@@ -1327,7 +1327,7 @@ function BroadcastPanel({ authFetch, clients }) {
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={aiMode} onChange={e => setAiMode(e.target.checked)} />
-            AI-версия письма (индивидуальный текст, платно) — иначе шаблонный список транзитов
+            Индивидуальная версия письма (текст под клиента, платно) — иначе шаблонный список транзитов
           </label>
 
           <div style={{ marginBottom: 12 }}>

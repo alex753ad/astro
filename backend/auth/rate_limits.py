@@ -583,7 +583,7 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"AI-интерпретации недоступны на {TIER_NAMES['free']} плане. Оформите {TIER_NAMES['lite']}.",
+                detail=f"Интерпретации недоступны на {TIER_NAMES['free']} плане. Оформите {TIER_NAMES['lite']}.",
             )
 
         if limit is None:
@@ -671,14 +671,14 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"AI-расшифровка транзитов доступна на {TIER_NAMES['pro']} и выше.",
+                detail=f"Расшифровка транзитов доступна на {TIER_NAMES['pro']} и выше.",
             )
 
         # Lite — квота в месяц
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Войдите в аккаунт, чтобы получить AI-расшифровку транзита.",
+                detail="Войдите в аккаунт, чтобы получить расшифровку транзита.",
             )
         if db is None:
             return
@@ -688,7 +688,7 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Использовано {quota} AI-расшифровок транзитов в этом месяце "
+                    f"Использовано {quota} расшифровок транзитов в этом месяце "
                     f"на тарифе {TIER_NAMES['lite']}. Перейдите на {TIER_NAMES['pro']} для безлимита."
                 ),
             )

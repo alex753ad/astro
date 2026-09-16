@@ -1,5 +1,5 @@
 /**
- * Interpretation.jsx — AI-интерпретация натальной карты.
+ * Interpretation.jsx — Интерпретация натальной карты.
  * Запускается ТОЛЬКО по кнопке, автозагрузки нет.
  *
  * v2:
@@ -224,7 +224,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: 'var(--accent)' }}>✦</span>
-            AI-интерпретация
+            Интерпретация
           </h2>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
@@ -268,7 +268,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--accent)' }}>✦</span>
-          AI-интерпретация
+          Интерпретация
         </h2>
         
       </div>
@@ -395,7 +395,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
           cursor: 'pointer',
         }} onClick={onUpgrade}>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, gap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-on)' }}>{liteUpsell?.title}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{liteUpsell?.title}</span>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>{liteUpsell?.subtitle}</span>
           </div>
           <button
