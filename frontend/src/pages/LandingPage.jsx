@@ -113,31 +113,22 @@ export default function LandingPage({ onShowAuth, currentUser }) {
         <motion.div variants={heroItem}>
           <MotionButton
             level="primary"
+            className="btn-primary"
             onClick={handleActivate}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
+              /* ⚠️ Размер, и только он. Цвет, шрифт и hover приходят из
+                 .btn-primary — иначе кнопка снова начнёт жить своей жизнью, как
+                 и жила чёрным #1a1230 до 17.09.2026, когда весь остальной сайт
+                 был фиолетовым.
+                 `height: auto` нужен: у .btn-primary высота 44px, а эта кнопка
+                 крупнее. Инлайн перебивает класс без !important. */
+              height: 'auto',
               gap: 10,
               padding: '16px 36px',
               borderRadius: 'var(--radius-lg)',
-              border: 'none',
-              background: '#1a1230',
-              color: '#fff',
               fontSize: 16,
-              fontWeight: 700,
               cursor: 'pointer',
-              fontFamily: 'inherit',
               letterSpacing: '0.01em',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: 'var(--shadow-card)',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = 'var(--shadow-raised)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'var(--shadow-card)';
             }}
           >
             Собрать мой Timeline
@@ -286,31 +277,22 @@ export default function LandingPage({ onShowAuth, currentUser }) {
       >
         <MotionButton
           level="primary"
+          className="btn-primary"
           onClick={handleActivate}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
+            /* ⚠️ Размер, и только он. Цвет, шрифт и hover приходят из
+               .btn-primary — иначе кнопка снова начнёт жить своей жизнью, как
+               и жила чёрным #1a1230 до 17.09.2026, когда весь остальной сайт
+               был фиолетовым.
+               `height: auto` нужен: у .btn-primary высота 44px, а эта кнопка
+               крупнее. Инлайн перебивает класс без !important. */
+            height: 'auto',
             gap: 10,
             padding: '16px 36px',
             borderRadius: 'var(--radius-lg)',
-            border: 'none',
-            background: '#1a1230',
-            color: '#fff',
             fontSize: 16,
-            fontWeight: 700,
             cursor: 'pointer',
-            fontFamily: 'inherit',
             letterSpacing: '0.01em',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            boxShadow: 'var(--shadow-card)',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-raised)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-card)';
           }}
         >
           Собрать мой Timeline

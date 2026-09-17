@@ -177,18 +177,17 @@ function OrionOfferModal({ onClose, onActivate }) {
 
         <MotionButton
           level="primary"
+          className="btn-primary"
           onClick={() => { onClose(); onActivate(); }}
           style={{
+            /* Цвет, шрифт и hover — из .btn-primary. Здесь только размер:
+               кнопка во всю ширину модалки и чуть ниже обычной. */
             width: '100%',
+            height: 'auto',
             padding: 14,
-            border: 'none',
             borderRadius: 'var(--radius-md)',
-            background: 'var(--accent)',
-            color: '#fff',
             fontSize: 15,
-            fontWeight: 700,
             cursor: 'pointer',
-            fontFamily: DISPLAY,
             marginBottom: 12,
           }}
         >
@@ -393,32 +392,22 @@ export default function OrionPage({ currentUser }) {
           style={{ textAlign: 'center' }}
         >
           <MotionButton
-            level="secondary"
+            /* ⚠️ primary, а не secondary. Уровень задаёт ОТКЛИК (MotionButton),
+               и у главного действия страницы он обязан совпадать с главным
+               действием лендинга — до 17.09.2026 они отличались, хотя кнопка
+               одна и та же по смыслу. */
+            level="primary"
+            className="btn-primary"
             onClick={() => setShowOfferModal(true)}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
+              /* Только размер — см. тот же разбор в LandingPage.jsx. */
+              height: 'auto',
               gap: 10,
               padding: '16px 36px',
               borderRadius: 'var(--radius-lg)',
-              border: 'none',
-              background: '#1a1230',
-              color: '#fff',
               fontSize: 16,
-              fontWeight: 700,
               cursor: 'pointer',
-              fontFamily: 'inherit',
               letterSpacing: '0.01em',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: 'var(--shadow-card)',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = 'var(--shadow-raised)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'var(--shadow-card)';
             }}
           >
             Открыть пространство Аристеи
