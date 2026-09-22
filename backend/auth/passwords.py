@@ -1,13 +1,17 @@
-"""Password hashing with bcrypt via passlib + единая политика паролей."""
+"""Password hashing на bcrypt напрямую + единая политика паролей."""
 
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 # bcrypt использует только первые 72 байта и молча отбрасывает остаток:
 # без явной проверки два разных длинных пароля оказывались эквивалентны.
 # Ограничение в байтах, а не символах — кириллица занимает по 2 байта.
 BCRYPT_MAX_BYTES = 72
+
+# Столько же, сколько ставил passlib по умолчанию (`passlib.hash.bcrypt.
+# default_rounds == 12`), — проверено исполнением на passlib 1.7.4 перед
+# переходом. Менять нельзя молча: старые хеши останутся на 12, новые уедут
+# на другое число, и стоимость входа разойдётся между аккаунтами.
+BCRYPT_ROUNDS = 12
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -49,11 +53,41 @@ def validate_password(plain: str) -> str:
     return plain
 
 
+def _secret(plain: str) -> bytes:
+    """Секрет для bcrypt: utf-8, обрезанный до 72 байт.
+
+    ⚠️ Обрезку удалять нельзя ни здесь, ни у вызывающих. passlib обрезал
+    молча, bcrypt 5.x на секрете длиннее 72 байт кидает ValueError. Старые
+    хеши длинных паролей посчитаны ОТ ОБРЕЗАННОГО секрета, поэтому обрезка
+    обязана стоять в обоих местах — и в hash, и в verify:
+
+    * без неё в verify человек со старым длинным паролем получит 500 вместо
+      входа (`/auth/login` пароль не валидирует вовсе — LoginRequest без
+      валидаторов, длина долетает до хешера как есть);
+    * без неё в hash новый хеш разойдётся с тем, что проверяет verify.
+
+    Срез по байтам может разрубить многобайтный символ — это нормально и
+    совпадает с тем, что делал bcrypt под passlib: на вход идут байты, а не
+    текст.
+    """
+    return plain.encode("utf-8")[:BCRYPT_MAX_BYTES]
+
+
 def hash_password(plain: str) -> str:
-    """Hash a plain-text password."""
-    return pwd_context.hash(plain)
+    """Hash a plain-text password. Формат — тот же `$2b$12$…`, что у passlib."""
+    return bcrypt.hashpw(_secret(plain), bcrypt.gensalt(BCRYPT_ROUNDS)).decode("ascii")
 
 
-def verify_password(plain: str, hashed: str) -> bool:
-    """Verify a plain-text password against a hash."""
-    return pwd_context.verify(plain, hashed)
+def verify_password(plain: str, hashed: str | None) -> bool:
+    """Verify a plain-text password against a hash.
+
+    Возвращает False, а не исключение, на пустом/NULL хеше (аккаунты Google
+    заводятся с `hashed_password=None`) и на битой строке: иначе такой
+    аккаунт отдавал бы 500 вместо «неверный пароль».
+    """
+    if not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(_secret(plain), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False

@@ -21,11 +21,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
-    # bcrypt 5.x несовместим с passlib 1.7.4 — ломается вход для всех паролей;
-    # механизм расписан в комментарии к зависимости в pyproject.toml.
-    ignore:
-      - dependency-name: "bcrypt"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/frontend"
