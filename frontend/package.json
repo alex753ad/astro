@@ -21,7 +21,7 @@
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/preferences": "^7.0.4",
     "@capacitor/push-notifications": "^7.0.7",
-    "@sentry/react": "^8.0.0",
+    "@sentry/react": "^10.75.0",
     "d3": "^7.9.0",
     "framer-motion": "^12.42.2",
     "react": "^18.3.1",
