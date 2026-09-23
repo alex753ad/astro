@@ -788,7 +788,8 @@ async def calculate_chart(
         db.commit()
         db.refresh(chart_record)
 
-    # Welcome-письмо после первой карты
+    # Welcome-письмо после первой карты. Письма day2/day7/day14 отсюда больше
+    # не ставятся: их шлёт Beat от даты регистрации (backend/lifecycle_emails.py).
     if user:
         prev_charts = db.query(NatalChart).filter(
             NatalChart.user_id == user.id,
@@ -803,11 +804,6 @@ async def calculate_chart(
                 )
             except Exception as e:
                 logger.warning("Welcome email failed: %s", e)
-            try:
-                from backend.tasks import schedule_retention_emails
-                schedule_retention_emails.delay(user.id)
-            except Exception as e:
-                logger.warning("Retention email schedule failed: %s", e)
 
     return NatalChartResponse(
         id=chart_record.id,

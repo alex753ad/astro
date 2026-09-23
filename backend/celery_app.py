@@ -12,19 +12,15 @@ logger = logging.getLogger("astro.celery")
 
 settings = get_settings()
 
-# ⚠️ Visibility timeout Redis-брокера ОБЯЗАН быть больше самого длинного
-# countdown в tasks.py (pro_day30 — 30 суток). По умолчанию он 1 час, и
-# отложенная задача, не подтверждённая за час, выдаётся воркеру ЗАНОВО — раз в
-# час, «again and again in a loop» (docs.celeryq.dev, Redis → Visibility
-# timeout). Все копии несут один и тот же ETA и срабатывают в одну секунду.
-# 23.09.2026 так пришло ~10 писем «Ваши тарифы…» (retention day14, countdown
-# 14 суток) разом: по копии на каждый час с последнего перезапуска воркера.
-#
-# Цена: задача, чей воркер убит ЖЁСТКО посреди выполнения (OOM, SIGKILL),
-# будет выдана повторно не через час, а через 31 сутки (acks_late=True ниже).
-# Тёплая остановка (деплой) возвращает задачи в очередь сразу — её это не
-# касается. Второй слой защиты от дублей писем — dedup_key в email_service._send.
-VISIBILITY_TIMEOUT_SEC = 31 * 24 * 3600
+# ⚠️ Visibility timeout Redis-брокера — умолчание, 1 час, и это НЕ недосмотр.
+# Задача, не подтверждённая за это время, выдаётся воркеру заново, а задача с
+# ETA держится неподтверждённой до срока — поэтому любой countdown/eta дольше
+# часа даёт петлю копий, срабатывающих разом (docs.celeryq.dev, Redis →
+# Visibility timeout). 23.09.2026 так пришло ~10 одинаковых писем. Лечение —
+# не поднимать timeout (тогда задача, чей воркер убит жёстко, повторится
+# через столько же), а не ставить длинных отложенных запусков вовсе: письма
+# идут через Beat и журнал (backend/lifecycle_emails.py). Запрет держит
+# test_lifecycle_emails.py::test_no_long_countdown_in_tasks.
 
 celery_app = Celery(
     "astro",
@@ -41,10 +37,6 @@ celery_app.conf.update(
     task_track_started=True,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
-    # Все три — по документации Celery обязательны вместе (см. выше).
-    broker_transport_options={"visibility_timeout": VISIBILITY_TIMEOUT_SEC},
-    result_backend_transport_options={"visibility_timeout": VISIBILITY_TIMEOUT_SEC},
-    visibility_timeout=VISIBILITY_TIMEOUT_SEC,
 
     # ── Celery Beat — периодические задачи ──
     beat_schedule={
@@ -69,6 +61,14 @@ celery_app.conf.update(
         "expire-subscriptions-daily": {
             "task": "tasks.expire_subscriptions",
             "schedule": crontab(hour=5, minute=0),
+        },
+        # Письма онбординга и после покупки — раз в час, 06:15–18:15 UTC
+        # (09:15–21:15 МСК), решение владельца 23.09.2026. Ежечасно, а не раз
+        # в сутки: деплой в 06:15 не стоит суток задержки. Повтор прогона
+        # безопасен — выборка идёт по журналу (backend/lifecycle_emails.py).
+        "send-lifecycle-emails-hourly": {
+            "task": "tasks.send_lifecycle_emails",
+            "schedule": crontab(hour="6-18", minute=15),
         },
     },
     beat_timezone="UTC",

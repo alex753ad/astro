@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Дёргает один из /api/v1/internal/* эндпоинтов по расписанию (systemd-таймер).
 # Запускать из /opt/astro:  ./09-internal-cron.sh <path>
-#   ./09-internal-cron.sh /api/v1/internal/onboarding-emails
 #   ./09-internal-cron.sh /api/v1/internal/pilot-tick
 #
-# Зачем отдельный скрипт, а не всё в Celery Beat: эти две ручки не Celery-задачи,
+# (/internal/onboarding-emails снят 23.09.2026: письма day2/day7 перешли в
+# Celery Beat + журнал, backend/lifecycle_emails.py — у них было два пути.)
+#
+# Зачем отдельный скрипт, а не всё в Celery Beat: эти ручки не Celery-задачи,
 # а обычные HTTP-эндпоинты за require_internal_secret (backend/authz.py) —
 # переделывать их в задачи ради унификации того не стоило. Раньше их не вызывал
 # вообще никто: при переезде с Railway (там это были cron-контейнеры) замена

@@ -8,85 +8,92 @@
 
 Здесь проверяется сам факт постановки и три условия вокруг неё: верный
 тариф, отсутствие повтора при продлении и то, что недоступная очередь не
-стоит человеку подписки.
+стоит человеку подписки. С 23.09.2026 ставится одно приветствие по id
+платежа, а сама оплата получает starts_chain — от неё Beat шлёт
+lite_day14/pro_day30 (backend/lifecycle_emails.py).
 """
 
 from __future__ import annotations
 
+import itertools
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
 
-from backend.models import Subscription
+from backend.models import PaymentEvent, Subscription
 from backend.payments.common import activate_subscription
 from backend.time_utils import utcnow
+
+_inv = itertools.count(1)
+
+
+def _pay(db, user, tier):
+    """Оплата так, как её проводит process_payment: запись платежа + активация."""
+    pe = PaymentEvent(provider="yookassa", inv_id=f"t-{next(_inv)}", user_id=user.id,
+                      tier=tier, period="monthly", amount=100.0)
+    db.add(pe)
+    db.flush()
+    activate_subscription(str(user.id), tier, "monthly", db, payment_event=pe)
+    return pe
 
 
 @pytest.fixture
 def queued(monkeypatch):
-    """Перехватывает .delay у всех трёх цепочек, возвращает список вызовов."""
-    calls: list[tuple[str, object]] = []
-
-    for tier, name in (
-        ("lite", "schedule_lite_emails"),
-        ("pro", "schedule_pro_emails"),
-        ("premium", "schedule_premium_emails"),
-    ):
-        monkeypatch.setattr(
-            f"backend.tasks.{name}.delay",
-            (lambda t: lambda uid: calls.append((t, uid)))(tier),
-            raising=True,
-        )
+    """Перехватывает .delay приветствия, возвращает список id платежей."""
+    calls: list[int] = []
+    monkeypatch.setattr(
+        "backend.tasks.send_purchase_welcome_task.delay", calls.append, raising=True,
+    )
     return calls
 
 
 class TestChainIsQueued:
     @pytest.mark.parametrize("tier", ["lite", "pro", "premium"])
-    def test_paid_activation_queues_matching_chain(self, db, user_free, queued, tier):
-        activate_subscription(str(user_free.id), tier, "monthly", db)
+    def test_paid_activation_queues_welcome_for_this_payment(self, db, user_free, queued, tier):
+        pe = _pay(db, user_free, tier)
 
-        assert [t for t, _ in queued] == [tier], (
-            "поставлена цепочка не того тарифа или не поставлена вовсе"
-        )
-        assert queued[0][1] == user_free.id
+        assert queued == [pe.id], "приветствие не поставлено или не по этому платежу"
+        assert pe.starts_chain is True
 
     def test_tier_change_queues_the_new_tier(self, db, user_free, queued):
         """Смена тарифа — не продление: письмо про новый тариф человек видит
         впервые, и оно должно прийти."""
-        activate_subscription(str(user_free.id), "lite", "monthly", db)
+        _pay(db, user_free, "lite")
         queued.clear()
 
-        activate_subscription(str(user_free.id), "pro", "monthly", db)
+        pe = _pay(db, user_free, "pro")
 
-        assert [t for t, _ in queued] == ["pro"]
+        assert queued == [pe.id]
+        assert pe.starts_chain is True
 
 
 class TestRenewalDoesNotRepeat:
     def test_second_payment_same_tier_queues_nothing(self, db, user_free, queued):
         """Продливший Вегу на второй месяц не должен снова получить
-        «Добро пожаловать»."""
-        activate_subscription(str(user_free.id), "lite", "monthly", db)
+        «Добро пожаловать» — и цепочку lite_day14 заново."""
+        _pay(db, user_free, "lite")
         assert len(queued) == 1
         queued.clear()
 
-        activate_subscription(str(user_free.id), "lite", "monthly", db)
+        pe = _pay(db, user_free, "lite")
 
         assert queued == [], "приветствие ушло повторно при продлении"
+        assert pe.starts_chain is False
 
     def test_expired_same_tier_is_treated_as_new(self, db, user_free, queued):
         """Подписка истекла и человек вернулся — это уже не продление:
         renewal требует ЖИВОЙ подписки того же тарифа."""
-        activate_subscription(str(user_free.id), "lite", "monthly", db)
+        _pay(db, user_free, "lite")
         queued.clear()
 
         sub = db.query(Subscription).filter(Subscription.user_id == user_free.id).first()
         sub.current_period_end = utcnow() - timedelta(days=1)
         db.commit()
 
-        activate_subscription(str(user_free.id), "lite", "monthly", db)
+        pe = _pay(db, user_free, "lite")
 
-        assert [t for t, _ in queued] == ["lite"]
+        assert queued == [pe.id]
 
 
 class TestQueueOutageDoesNotBreakPayment:
@@ -94,10 +101,10 @@ class TestQueueOutageDoesNotBreakPayment:
         """Redis/Celery недоступны. Деньги списаны, тариф обязан быть выдан:
         письмо — приятное дополнение, а не часть оплаты."""
         with patch(
-            "backend.tasks.schedule_lite_emails.delay",
+            "backend.tasks.send_purchase_welcome_task.delay",
             side_effect=OSError("broker unreachable"),
         ):
-            activate_subscription(str(user_free.id), "lite", "monthly", db)
+            _pay(db, user_free, "lite")
 
         db.expire_all()
         assert user_free.tier == "lite", "подписка не выдана из-за письма"
@@ -110,7 +117,7 @@ class TestQueueOutageDoesNotBreakPayment:
         with patch(
             "backend.payments.common.logger.warning"
         ) as warn, patch.dict("sys.modules", {"backend.tasks": None}):
-            activate_subscription(str(user_free.id), "pro", "monthly", db)
+            _pay(db, user_free, "pro")
 
         db.expire_all()
         assert user_free.tier == "pro"

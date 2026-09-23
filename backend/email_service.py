@@ -156,94 +156,30 @@ def _p(text: str) -> str:
 
 # ───────────────────────────── transport ─────────────────────────────────────
 
-_SENT_KEY_PREFIX = "astro:email_sent:"
-
-# Период дедупа = срок жизни ключа «вид письма + пользователь».
-# Retention-цепочку (day2/day7/day14) шлют ДВА независимых пути: отложенная
-# цепочка Celery от первой карты (tasks.schedule_retention_emails) и ручка
-# POST /internal/onboarding-emails от регистрации (onboarding_router.py) —
-# с разных точек отсчёта, то есть в РАЗНЫЕ дни. Суточный ключ их бы не свёл,
-# поэтому у retention период — 30 суток: одно письмо каждого вида на старт.
-# Письма платных цепочек повторяются законно при каждой новой покупке —
-# им хватает суток: копии из петли visibility timeout приходят в одну секунду.
-RETENTION_DEDUP_TTL_SEC = 30 * 24 * 3600
-DEFAULT_DEDUP_TTL_SEC = 24 * 3600
+# Таймауты запроса к Resend — явные и с ОБЩИМ потолком. Письма онбординга и
+# после покупки отправляются внутри открытой транзакции со строкой журнала
+# (`lifecycle_emails.send_once`), и параллельный прогон ждёт на её уникальном
+# индексе: зависший запрос держал бы блокировку. httpx.Timeout ограничивает
+# каждую фазу отдельно (connect, read, write, pool), а не сумму — медленный,
+# но не молчащий ответ тянулся бы сколь угодно долго; поэтому поверх стоит
+# asyncio.wait_for на весь запрос.
+RESEND_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+RESEND_TOTAL_TIMEOUT_SEC = 20.0
 
 
-def dedup_key(kind: str, user_id) -> str:
-    return f"{kind}:{user_id}"
-
-
-def _retention_dedup(kind: str, user_id) -> dict:
-    """Аргументы дедупа для _send; без user_id — без дедупа (как раньше)."""
-    if user_id is None:
-        return {}
-    return {"dedup": dedup_key(kind, user_id), "dedup_ttl_sec": RETENTION_DEDUP_TTL_SEC}
-
-
-def _daily_dedup(kind: str, user_id) -> dict:
-    if user_id is None:
-        return {}
-    return {"dedup": dedup_key(kind, user_id), "dedup_ttl_sec": DEFAULT_DEDUP_TTL_SEC}
-
-
-def _claim_send(key: str, ttl_sec: int) -> bool:
-    """Занять право отправить письмо с этим ключом — атомарно, SET NX.
-
-    Копии одной задачи срабатывают в одну секунду (см. VISIBILITY_TIMEOUT_SEC
-    в celery_app.py), поэтому проверка «уже отправляли?» отдельным чтением
-    пропустила бы их все — нужен именно атомарный захват.
-
-    ⚠️ Redis недоступен → НЕ отправляем. Ключ передают только маркетинговые
-    цепочки (retention и письма после покупки): лишнее такое письмо хуже
-    пропущенного, а отложенные задачи Celery без Redis-брокера не исполнились
-    бы всё равно. Письма, которые обязаны дойти (сброс пароля, подтверждение),
-    ключа не передают и сюда не попадают.
-    """
-    from backend.beat_watchdog import _sync_redis
-    try:
-        return bool(_sync_redis().set(
-            _SENT_KEY_PREFIX + key, "1", ex=ttl_sec, nx=True
-        ))
-    except Exception as e:
-        logger.warning("email dedup: Redis недоступен, письмо %s не отправлено: %s", key, e)
-        return False
-
-
-def _release_send(key: str) -> None:
-    """Вернуть ключ, если письмо не ушло: «не отправлено» ≠ «отправлено»."""
-    from backend.beat_watchdog import _sync_redis
-    try:
-        _sync_redis().delete(_SENT_KEY_PREFIX + key)
-    except Exception as e:
-        logger.warning("email dedup: не удалось снять ключ %s: %s", key, e)
-
-
-async def _send(
-    to: str, subject: str, html: str,
-    dedup: str | None = None, dedup_ttl_sec: int = DEFAULT_DEDUP_TTL_SEC,
-) -> bool:
-    """dedup — ключ из dedup_key(): повторный вызов с ним в течение
-    dedup_ttl_sec письма не шлёт, сколько бы копий задачи ни сработало."""
+async def _send(to: str, subject: str, html: str) -> bool:
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not set — skipping email to %s", mask_email(to))
         return False
-    if dedup is not None and not _claim_send(dedup, dedup_ttl_sec):
-        logger.info("email dedup: %s уже отправлено — пропускаю", dedup)
-        return False
-    sent = await _post_resend(to, subject, html)
-    if not sent and dedup is not None:
-        _release_send(dedup)
-    return sent
-
-
-async def _post_resend(to: str, subject: str, html: str) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                json={"from": f"Aristea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
+        async with httpx.AsyncClient(timeout=RESEND_TIMEOUT) as client:
+            resp = await asyncio.wait_for(
+                client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                    json={"from": f"Aristea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
+                ),
+                timeout=RESEND_TOTAL_TIMEOUT_SEC,
             )
             if resp.status_code not in (200, 201):
                 logger.error("Resend error %s: %s", resp.status_code, resp.text)
@@ -507,7 +443,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
     )
 
 
-async def send_retention_day2(to: str, transit_text: str, user_id=None) -> bool:
+async def send_retention_day2(to: str, transit_text: str) -> bool:
     """Retention Day 2 — актуальный транзит для карты пользователя."""
     body = (
         _h2("🌙 Ваш транзит на сегодня")
@@ -521,7 +457,6 @@ async def send_retention_day2(to: str, transit_text: str, user_id=None) -> bool:
         to,
         "🌙 Ваш астрологический прогноз на сегодня",
         _base("Прогноз на сегодня", "Персональный транзит по вашей карте", body),
-        **_retention_dedup("retention_day2", user_id),
     )
 
 
@@ -529,7 +464,7 @@ async def send_retention_day2(to: str, transit_text: str, user_id=None) -> bool:
 send_retention_email = send_retention_day2
 
 
-async def send_retention_day7(to: str, locked_count: int, user_id=None) -> bool:
+async def send_retention_day7(to: str, locked_count: int) -> bool:
     """Retention Day 7 — апгрейд-нудж для free-пользователей."""
     body = (
         _h2("⭐ Не пропустите важные периоды")
@@ -548,7 +483,6 @@ async def send_retention_day7(to: str, locked_count: int, user_id=None) -> bool:
         to,
         f"⭐ Вы пропускаете {locked_count} активных транзитов",
         _base("Важные транзиты закрыты", "Откройте полный прогноз на месяц", body),
-        **_retention_dedup("retention_day7", user_id),
     )
 
 
@@ -928,7 +862,7 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
 # RETENTION DAY 14 — шаблон (Free → Lite, купон 30%)
 # ═══════════════════════════════════════════════════════════
 
-async def send_retention_day14(to: str, user_id=None) -> bool:
+async def send_retention_day14(to: str) -> bool:
     """Retention Day 14 — напоминание о тарифах, без скидки и без купона
     (был Stripe-купон на годовой план — оба удалены как мёртвый код
     19.08.2026, годовых планов в текущей модели тоже больше нет)."""
@@ -951,7 +885,6 @@ async def send_retention_day14(to: str, user_id=None) -> bool:
         to,
         "Ваши тарифы на Aristea Timeline",
         _base("Тарифы Aristea Timeline", "Полные транзиты, разбор карты и персональный планер", body),
-        **_retention_dedup("retention_day14", user_id),
     )
 
 
@@ -991,7 +924,7 @@ async def send_lite_welcome(to: str, name: str | None = None) -> bool:
     )
 
 
-async def send_lite_day14(to: str, name: str | None = None, user_id=None) -> bool:
+async def send_lite_day14(to: str, name: str | None = None) -> bool:
     """Lite — День 14: identity + тизер RAG-чата."""
     greeting = f"{name}, вы исследуете себя серьёзнее других" if name else "Вы исследуете себя серьёзнее других"
     body = (
@@ -1028,7 +961,6 @@ async def send_lite_day14(to: str, name: str | None = None, user_id=None) -> boo
         to,
         "🌟 Вы исследуете себя серьёзнее других",
         _base("14 дней с Aristea", "Следующий уровень — задавать вопросы своей карте", body),
-        **_daily_dedup("lite_day14", user_id),
     )
 
 
@@ -1070,7 +1002,7 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
     )
 
 
-async def send_pro_day30(to: str, name: str | None = None, user_id=None) -> bool:
+async def send_pro_day30(to: str, name: str | None = None) -> bool:
     """Pro — День 30: результат + мягкий вопрос про клиентов → Premium."""
     greeting = f"{name}, уже 30 дней с вашей картой ✦" if name else "Уже 30 дней с вашей картой ✦"
     body = (
@@ -1099,7 +1031,6 @@ async def send_pro_day30(to: str, name: str | None = None, user_id=None) -> bool
         to,
         "✦ Уже 30 дней с вашей астрологической картой",
         _base("30 дней с Aristea", "Результат + взгляд вперёд", body),
-        **_daily_dedup("pro_day30", user_id),
     )
 
 

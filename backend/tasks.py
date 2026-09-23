@@ -14,225 +14,69 @@ logger = logging.getLogger("astro.tasks")
 
 
 # ═══════════════════════════════════════════════════════════
-# RETENTION EMAIL CHAIN
+# ПИСЬМА ОНБОРДИНГА И ПОСЛЕ ПОКУПКИ — backend/lifecycle_emails.py
 # ═══════════════════════════════════════════════════════════
+#
+# ⚠️ Отложенных запусков дольше часа здесь быть не должно: задача с
+# countdown/eta дольше visibility timeout Redis-брокера (умолчание 1 час)
+# выдаётся воркеру заново каждый час, и все копии срабатывают разом — так
+# 23.09.2026 одно письмо пришло ~10 раз. Держит test_lifecycle_emails.py.
 
-@celery_app.task(name="tasks.send_retention_day2")
-def send_retention_day2_task(user_id: int) -> None:
-    from datetime import date as date_type, timedelta
-    from backend.models import User
+@celery_app.task(name="tasks.send_lifecycle_emails")
+def send_lifecycle_emails() -> dict:
+    """Beat, раз в час 06:15–18:15 UTC: day2/day7/day14, lite_day14, pro_day30."""
+    from backend.lifecycle_emails import run_lifecycle_emails
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            return
-        chart = _get_primary_chart(db, user)
-        if not chart:
-            return
-        from backend.transit.engine import calculate_transits
-        today = date_type.today()
-        events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=7))
-        if not events:
-            return
-        # pick best positive transit
-        POSITIVE = {"Venus", "Jupiter", "Sun"}
-        POSITIVE_ASP = {"trine", "sextile", "conjunction"}
-        event = next((e for e in events if getattr(e, "transit_planet", "") in POSITIVE and getattr(e, "aspect_type", "") in POSITIVE_ASP), events[0])
-        from backend.ephemeris.ru_names import PLANET_RU, ASPECT_RU as ASP_RU
-        tp = getattr(event, "transit_planet", "")
-        np_ = getattr(event, "natal_planet", "")
-        at = getattr(event, "aspect_type", "")
-        text = (f"Сегодня <strong>{PLANET_RU.get(tp, tp)}</strong> образует "
-                f"{ASP_RU.get(at, at)} с вашим натальным <strong>{PLANET_RU.get(np_, np_)}</strong>.")
-        import asyncio
-        from backend.email_service import send_retention_day2
-        asyncio.run(send_retention_day2(user.email, text, user_id=user.id))
-    except Exception as e:
-        logger.warning("send_retention_day2_task failed user=%s: %s", user_id, e)
+        return run_lifecycle_emails(db)
     finally:
         db.close()
 
 
-@celery_app.task(name="tasks.send_retention_day7")
-def send_retention_day7_task(user_id: int) -> None:
-    from datetime import date as date_type, timedelta
-    from backend.models import User
+@celery_app.task(name="tasks.send_purchase_welcome")
+def send_purchase_welcome_task(payment_event_id: int) -> bool:
+    """Приветствие сразу после оплаты, начавшей тариф (payments/common.py)."""
+    from backend.lifecycle_emails import send_purchase_welcome
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or user.tier != "free":
-            return
-        chart = _get_primary_chart(db, user)
-        if not chart:
-            return
-        from backend.transit.engine import calculate_transits
-        today = date_type.today()
-        events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30))
-        import asyncio
-        from backend.email_service import send_retention_day7
-        asyncio.run(send_retention_day7(user.email, max(0, len(events) - 1), user_id=user.id))
-    except Exception as e:
-        logger.warning("send_retention_day7_task failed user=%s: %s", user_id, e)
+        return send_purchase_welcome(db, payment_event_id)
     finally:
         db.close()
 
 
-@celery_app.task(name="tasks.send_retention_day14")
-def send_retention_day14_task(user_id: int) -> None:
-    """Напоминание о тарифах для free-пользователей на 14-й день — без
-    скидки и без купона (решение владельца, 19.08.2026)."""
-    from backend.models import User
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or user.tier != "free":
-            return
-        import asyncio
-        from backend.email_service import send_retention_day14
-        # user_id включает дедуп в _send: копии этой задачи из петли visibility
-        # timeout (celery_app.VISIBILITY_TIMEOUT_SEC) дают одно письмо, не десять.
-        asyncio.run(
-            send_retention_day14(user.email, user_id=user.id)
-        )
-    except Exception as e:
-        logger.warning("send_retention_day14_task failed user=%s: %s", user_id, e)
-    finally:
-        db.close()
+# ── Снятые задачи: заглушки до 24.10.2026 ──
+#
+# До перехода на журнал письма ставились под этими именами с countdown до 30
+# суток, и их сообщения с ETA ещё лежат в Redis. Удали имена сразу — воркер
+# упадёт на незарегистрированной задаче; оставь рабочими — письмо уйдёт вторым
+# путём мимо журнала. Поэтому имена зарегистрированы и не делают ничего.
+# Удалить после 24.10.2026 (деплой + 31 сутки: самый длинный countdown был 30
+# суток) — напоминание в TASKS.md.
+_RETIRED_TASK_NAMES = (
+    "tasks.send_retention_day2",
+    "tasks.send_retention_day7",
+    "tasks.send_retention_day14",
+    "tasks.schedule_retention_emails",
+    "tasks.send_lite_welcome_task",
+    "tasks.send_lite_day14_task",
+    "tasks.schedule_lite_emails",
+    "tasks.send_pro_welcome_task",
+    "tasks.send_pro_day30_task",
+    "tasks.schedule_pro_emails",
+    "tasks.send_premium_welcome_task",
+    "tasks.schedule_premium_emails",
+)
 
 
-# ═══════════════════════════════════════════════════════════
-# LITE EMAIL CHAIN
-# ═══════════════════════════════════════════════════════════
-
-@celery_app.task(name="tasks.send_lite_welcome_task")
-def send_lite_welcome_task(user_id: int) -> None:
-    from backend.models import User
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            return
-        import asyncio
-        from backend.email_service import send_lite_welcome
-        asyncio.run(
-            send_lite_welcome(user.email, name=user.name)
-        )
-    except Exception as e:
-        logger.warning("send_lite_welcome_task failed user=%s: %s", user_id, e)
-    finally:
-        db.close()
+def _register_retired(name: str) -> None:
+    def _retired(*args, **kwargs) -> None:
+        logger.info("снятая задача %s args=%s — пропущено (письма идут через журнал)", name, args)
+    _retired.__name__ = name.rsplit(".", 1)[-1]
+    celery_app.task(name=name)(_retired)
 
 
-@celery_app.task(name="tasks.send_lite_day14_task")
-def send_lite_day14_task(user_id: int) -> None:
-    from backend.models import User
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or user.tier not in ("lite",):
-            return
-        import asyncio
-        from backend.email_service import send_lite_day14
-        asyncio.run(
-            send_lite_day14(user.email, name=user.name, user_id=user.id)
-        )
-    except Exception as e:
-        logger.warning("send_lite_day14_task failed user=%s: %s", user_id, e)
-    finally:
-        db.close()
-
-
-@celery_app.task(name="tasks.schedule_lite_emails")
-def schedule_lite_emails(user_id: int) -> None:
-    """Запускается при апгрейде на Lite."""
-    send_lite_welcome_task.apply_async(args=[user_id], countdown=60)
-    send_lite_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
-
-
-# ═══════════════════════════════════════════════════════════
-# PRO EMAIL CHAIN
-# ═══════════════════════════════════════════════════════════
-
-@celery_app.task(name="tasks.send_pro_welcome_task")
-def send_pro_welcome_task(user_id: int) -> None:
-    from backend.models import User
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            return
-        import asyncio
-        from backend.email_service import send_pro_welcome
-        asyncio.run(
-            send_pro_welcome(user.email, name=user.name)
-        )
-    except Exception as e:
-        logger.warning("send_pro_welcome_task failed user=%s: %s", user_id, e)
-    finally:
-        db.close()
-
-
-@celery_app.task(name="tasks.send_pro_day30_task")
-def send_pro_day30_task(user_id: int) -> None:
-    from backend.models import User
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user or user.tier not in ("pro",):
-            return
-        import asyncio
-        from backend.email_service import send_pro_day30
-        asyncio.run(
-            send_pro_day30(user.email, name=user.name, user_id=user.id)
-        )
-    except Exception as e:
-        logger.warning("send_pro_day30_task failed user=%s: %s", user_id, e)
-    finally:
-        db.close()
-
-
-@celery_app.task(name="tasks.schedule_pro_emails")
-def schedule_pro_emails(user_id: int) -> None:
-    """Запускается при апгрейде на Pro."""
-    send_pro_welcome_task.apply_async(args=[user_id], countdown=60)
-    send_pro_day30_task.apply_async(args=[user_id], countdown=30 * 24 * 3600)
-
-
-# ═══════════════════════════════════════════════════════════
-# PREMIUM EMAIL CHAIN
-# ═══════════════════════════════════════════════════════════
-
-@celery_app.task(name="tasks.send_premium_welcome_task")
-def send_premium_welcome_task(user_id: int) -> None:
-    from backend.models import User
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            return
-        import asyncio
-        from backend.email_service import send_premium_welcome
-        asyncio.run(
-            send_premium_welcome(user.email, name=user.name)
-        )
-    except Exception as e:
-        logger.warning("send_premium_welcome_task failed user=%s: %s", user_id, e)
-    finally:
-        db.close()
-
-
-@celery_app.task(name="tasks.schedule_premium_emails")
-def schedule_premium_emails(user_id: int) -> None:
-    """Запускается при апгрейде на Premium."""
-    send_premium_welcome_task.apply_async(args=[user_id], countdown=60)
-
-
-@celery_app.task(name="tasks.schedule_retention_emails")
-def schedule_retention_emails(user_id: int) -> None:
-    """Запускает цепочку retention-писем после первой карты пользователя."""
-    send_retention_day2_task.apply_async(args=[user_id], countdown=48 * 3600)
-    send_retention_day7_task.apply_async(args=[user_id], countdown=7 * 24 * 3600)
-    send_retention_day14_task.apply_async(args=[user_id], countdown=14 * 24 * 3600)
+for _name in _RETIRED_TASK_NAMES:
+    _register_retired(_name)
 
 
 # ═══════════════════════════════════════════════════════════

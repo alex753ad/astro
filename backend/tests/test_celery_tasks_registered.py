@@ -22,25 +22,14 @@ class TestTasksRegistered:
         assert celery_app.main == "astro"
 
     @pytest.mark.parametrize("import_path", [
-        # main.py:705, stripe_service.py:328-332
-        "backend.tasks.schedule_retention_emails",
-        "backend.tasks.schedule_lite_emails",
-        "backend.tasks.schedule_pro_emails",
-        "backend.tasks.schedule_premium_emails",
-        # onboarding_router.py:168
+        # payments/common.py: приветствие после оплаты
+        "backend.tasks.send_purchase_welcome_task",
+        # onboarding_router.py: /lunar-returns
         "backend.tasks.check_lunar_returns",
         # crm/dashboard_router.py:216, tasks.py:850 (send_broadcast_auto_task)
         "backend.tasks.send_client_broadcast_task",
-        # tasks.py: apply_async chains после welcome-писем
-        "backend.tasks.send_lite_day14_task",
-        "backend.tasks.send_lite_welcome_task",
-        "backend.tasks.send_pro_day30_task",
-        "backend.tasks.send_pro_welcome_task",
-        "backend.tasks.send_premium_welcome_task",
-        "backend.tasks.send_retention_day2_task",
-        "backend.tasks.send_retention_day7_task",
-        "backend.tasks.send_retention_day14_task",
         # celery_app.py: beat_schedule
+        "backend.tasks.send_lifecycle_emails",
         "backend.tasks.send_weekly_digest_task",
         "backend.tasks.send_broadcast_auto_task",
         "backend.tasks.expire_subscriptions",
@@ -59,6 +48,18 @@ class TestTasksRegistered:
             f"{import_path} (name={obj.name!r}) не найдена в celery_app.tasks — "
             f"воркер получит задачу с этим именем и не будет знать, что выполнять"
         )
+
+    def test_retired_email_tasks_stay_registered(self):
+        """Под этими именами в Redis ещё лежат сообщения с ETA до 30 суток:
+        снятое имя уронило бы воркер на незарегистрированной задаче. Заглушки
+        снимаются после 24.10.2026 (TASKS.md) — вместе с этим тестом."""
+        from backend.celery_app import celery_app
+        from backend.tasks import _RETIRED_TASK_NAMES
+
+        assert len(_RETIRED_TASK_NAMES) == 12
+        for name in _RETIRED_TASK_NAMES:
+            assert name in celery_app.tasks, name
+            assert celery_app.tasks[name].run(1) is None
 
     def test_beat_schedule_points_to_registered_tasks(self):
         from backend.celery_app import celery_app

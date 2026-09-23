@@ -21,7 +21,6 @@ SYSTEMD_DST_DIR="/etc/systemd/system"
 UNITS=(
   astro-backup.service astro-backup.timer
   astro-prune.service astro-prune.timer
-  astro-onboarding-emails.service astro-onboarding-emails.timer
   astro-pilot-tick.service astro-pilot-tick.timer
   astro-beat-watchdog.service astro-beat-watchdog.timer
 )
@@ -194,9 +193,10 @@ fi
 
 # ---------------------------------------------------------------------------
 # systemd: таймеры бэкапа, чистки образов и служебных /internal/* эндпоинтов
-# (onboarding-emails, pilot-tick — единственные внутренние ручки, которые не
-# покрыты Celery Beat, потому что это обычный HTTP за X-Internal-Secret, а не
-# Celery-задача; lunar-returns и weekly-digest уже в beat_schedule).
+# (pilot-tick — единственная внутренняя ручка, не покрытая Celery Beat, потому
+# что это обычный HTTP за X-Internal-Secret, а не Celery-задача; lunar-returns,
+# weekly-digest и письма онбординга — в beat_schedule. Таймер
+# onboarding-emails снят 23.09.2026: письма day2/day7 шли двумя путями).
 # ---------------------------------------------------------------------------
 log "Устанавливаю systemd-юниты: ${UNITS[*]}"
 chmod +x 07-backup-cron.sh prune-and-diskcheck.sh 09-internal-cron.sh
@@ -206,7 +206,7 @@ done
 sudo systemctl daemon-reload
 sudo systemctl enable --now \
   astro-backup.timer astro-prune.timer \
-  astro-onboarding-emails.timer astro-pilot-tick.timer \
+  astro-pilot-tick.timer \
   astro-beat-watchdog.timer
 
 log "Готово"

@@ -220,6 +220,12 @@ class PaymentEvent(Base):
     period = Column(String(20), nullable=True)
     amount = Column(Float, nullable=True)
     created_at = Column(DateTime, default=utcnow)
+    # Эта оплата начала тариф (не продление того же тарифа) — от неё идут
+    # приветственное письмо и письма lite_day14/pro_day30 (054). Отдельная
+    # колонка, потому что в этой же таблице лежат продления, возвраты
+    # (inv_id "refund:…", amount < 0) и непригодные платежи (period NULL):
+    # выбрать «покупки» по остальным полям однозначно нельзя.
+    starts_chain = Column(Boolean, nullable=False, default=False, server_default="false")
 
 
 class AdminAuditLog(Base):
@@ -620,6 +626,31 @@ class PushSentLog(Base):
     kind    = Column(String(16), nullable=False)
     ref_key = Column(String(128), nullable=False)
     sent_at = Column(DateTime, default=utcnow)
+
+
+class EmailSentLog(Base):
+    """Журнал писем онбординга и писем после покупки (054) — один путь, одно письмо.
+
+    Строка пишется ДО отправки в той же транзакции, что и проверка
+    (`backend/lifecycle_emails.py::send_once`), и откатывается, если письмо не
+    ушло. Второй параллельный прогон упирается в уникальный индекс.
+
+    ref: "" у писем онбординга (раз в жизни), id строки payment_events у писем
+    после покупки (раз на покупку). sent_at NULL — строка восстановлена
+    миграцией по датам: уходило ли письмо на самом деле, неизвестно.
+    """
+    __tablename__ = "email_sent_log"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", "ref", name="uq_email_sent_user_kind_ref"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind = Column(String(32), nullable=False)
+    ref = Column(String(64), nullable=False, default="", server_default="")
+    sent_at = Column(DateTime, nullable=True, default=utcnow)
 
 
 # ── Пилот / метрики / обратная связь / exit-survey / TG-токены ──

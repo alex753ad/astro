@@ -19,7 +19,6 @@ import pytest
 # без строки здесь останется непроверенной.
 INTERNAL_ENDPOINTS = [
     "/api/v1/internal/pilot-token",
-    "/api/v1/internal/onboarding-emails",
     "/api/v1/internal/weekly-digest",
     "/api/v1/internal/lunar-returns",
     "/api/v1/internal/push-tick",

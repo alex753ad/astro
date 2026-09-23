@@ -80,7 +80,10 @@ class SubscriptionOwnerMissing(Exception):
 
 # ── Активация подписки ─────────────────────────────────────
 
-def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> None:
+def activate_subscription(
+    user_id: str, tier: str, period: str, db: Session,
+    payment_event: PaymentEvent | None = None,
+) -> bool:
     """Активировать или продлить подписку. Всегда ровно одна строка на юзера.
 
     Срок считается от одной из двух точек (решение владельца 22.08.2026):
@@ -110,6 +113,11 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
     (`with_for_update`) — параллельный платёж дожидается и продлевает уже
     существующую подписку. Блокировка не может «не дать» платежу пройти, она
     только выстраивает их в очередь.
+
+    Возвращает `renewal`: True — продление живой подписки того же тарифа.
+    Если передан `payment_event`, ему ставится `starts_chain = not renewal` в
+    той же транзакции — от таких оплат идут приветствие и письма
+    lite_day14/pro_day30 (backend/lifecycle_emails.py).
     """
     # Блокировка снимается вместе с транзакцией (db.commit() в конце функции).
     # SQLite (тесты) FOR UPDATE игнорирует — там всё и так последовательно.
@@ -163,6 +171,9 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
         )
         db.add(sub)
 
+    if payment_event is not None:
+        payment_event.starts_chain = not renewal
+
     db.commit()
     logger.info(
         "Activated: user=%s tier=%s period=%s until=%s (%s)",
@@ -170,42 +181,28 @@ def activate_subscription(user_id: str, tier: str, period: str, db: Session) -> 
         "продление, срок суммирован" if renewal else "отсчёт от сегодня",
     )
 
-    # Приветственная цепочка писем по тарифу. Постановщик стоял в
-    # payments/stripe_service.py и уехал вместе с ним в f3fc0a3 («удалить
-    # Robokassa и Stripe как мёртвый код», 19.08.2026) — к ЮKassa цепочку
-    # тогда не перепривязали, и с тех пор платящий человек не получал по
-    # почте ничего: ни приветствия, ни даже подтверждения оплаты.
-    #
-    # ТОЛЬКО при renewal == False. Признак уже посчитан выше и означает
-    # «живая подписка того же тарифа»: продливший Вегу на второй месяц
-    # приветствие повторно не получит. Смена тарифа (lite -> pro) даёт
-    # renewal == False намеренно — это новый тариф, и письмо про него
-    # человек видит впервые.
+    # Приветственное письмо по тарифу — ТОЛЬКО при renewal == False: продливший
+    # Вегу на второй месяц приветствие повторно не получит, а смена тарифа
+    # (lite -> pro) даёт renewal == False намеренно — это новый тариф. Письма
+    # lite_day14/pro_day30 отсюда не ставятся: их шлёт Beat по starts_chain
+    # (отложенные задачи Celery дольше часа давали петлю копий, CLAUDE.md).
     #
     # Ставится ПОСЛЕ db.commit(): подписка уже выдана, и что бы дальше ни
-    # случилось с очередью, оплата не откатывается.
-    if not renewal:
+    # случилось с очередью, оплата не откатывается. Без payment_event (прямые
+    # вызовы, тесты) письму не к чему привязаться в журнале — не ставим.
+    if not renewal and payment_event is not None:
         try:
-            from backend.tasks import (
-                schedule_lite_emails,
-                schedule_premium_emails,
-                schedule_pro_emails,
-            )
-            _chain = {
-                "lite": schedule_lite_emails,
-                "pro": schedule_pro_emails,
-                "premium": schedule_premium_emails,
-            }.get(tier)
-            if _chain is not None:
-                _chain.delay(user.id)
+            from backend.tasks import send_purchase_welcome_task
+            send_purchase_welcome_task.delay(payment_event.id)
         except Exception as exc:
             # Недоступный Redis/Celery не должен стоить человеку подписки:
             # деньги списаны, тариф выдан и закоммичен выше. Письмо —
             # приятное дополнение, а не часть оплаты.
             logger.warning(
-                "Не удалось поставить цепочку писем: user=%s tier=%s: %s",
+                "Не удалось поставить приветственное письмо: user=%s tier=%s: %s",
                 user_id, tier, exc,
             )
+    return renewal
 
 
 def apply_referral_reward(referrer_user_id: str, db: Session) -> None:
@@ -328,7 +325,9 @@ def process_payment(
         logger.exception("%s: referral reward/commission failed, payment_id=%s", provider, payment_id)
 
     try:
-        activate_subscription(user_id=user_id, tier=tier, period=period, db=db)
+        activate_subscription(
+            user_id=user_id, tier=tier, period=period, db=db, payment_event=payment_event,
+        )
     except SubscriptionOwnerMissing as exc:
         # ВАЖЕН ПОРЯДОК: эта ветка обязана стоять ВЫШЕ общего except —
         # тот делает rollback и потерял бы запись о платеже, ради сохранения

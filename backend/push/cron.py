@@ -5,7 +5,7 @@
 держит HTTP-сервер. Ручка `POST /api/v1/internal/push-tick` существует как
 запасной вход (за `require_internal_secret`), но ни один cron её сегодня не
 дёргает: в `deploy/opt-astro/09-internal-cron.sh` перечислены только
-`onboarding-emails` и `pilot-tick`.
+только `pilot-tick` (`onboarding-emails` снят 23.09.2026, письма перешли в Beat).
 
 (До 10.09.2026 здесь было написано «Вызывается Railway Cron каждые ~15 минут».
 Railway в проекте нет и не было ни одного дня этой кодовой базы; строка

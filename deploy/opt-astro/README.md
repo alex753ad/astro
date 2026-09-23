@@ -86,13 +86,17 @@ API): скопировать `frontend.env.example` в `frontend.env` (рядо�
 `worker` их забирает и выполняет. Держать `beat` только в одном экземпляре
 обязательно: два `beat` поставят каждую периодическую задачу в очередь дважды.
 
-Две служебные ручки — `POST /api/v1/internal/onboarding-emails` (письма
-удержания дня 2/7) и `POST /api/v1/internal/pilot-tick` (жизненный цикл
-пилотной программы) — не Celery-задачи, а обычный HTTP за
-`X-Internal-Secret`, и Beat их не покрывает. Их дёргают systemd-таймеры
-`astro-onboarding-emails.timer` / `astro-pilot-tick.timer` (ставит
-`08-setup-automation.sh`), ежедневно в 06:15 и 06:20 UTC — после задач Beat
+Служебная ручка `POST /api/v1/internal/pilot-tick` (жизненный цикл пилотной
+программы) — не Celery-задача, а обычный HTTP за `X-Internal-Secret`, и Beat
+её не покрывает. Её дёргает systemd-таймер `astro-pilot-tick.timer` (ставит
+`08-setup-automation.sh`), ежедневно в 06:20 UTC — после задач Beat
 (06:00–06:10 UTC), чтобы не толкаться за одну БД в одну минуту.
+
+Письма онбординга (day2/day7/day14) и письма после покупки шлёт Beat
+(`tasks.send_lifecycle_emails`, раз в час 06:15–18:15 UTC). Прежний таймер
+`astro-onboarding-emails.timer` снят 23.09.2026 — на уже настроенном сервере
+его нужно отключить руками (`systemctl disable --now`), репозиторий его больше
+не содержит.
 
 ## Диагностика
 
