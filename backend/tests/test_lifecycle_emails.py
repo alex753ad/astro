@@ -242,12 +242,17 @@ def test_letters_have_exactly_one_caller():
     assert {c for cs in callers.values() for c in cs} == {"lifecycle_emails.py"}, callers
 
 
-def test_onboarding_endpoint_is_gone():
-    from backend.main import app
-
-    paths = {getattr(r, "path", "") for r in app.routes}
-    assert "/api/v1/internal/weekly-digest" in paths  # роутер подключён — проверка не пустая
-    assert "/api/v1/internal/onboarding-emails" not in paths
+def test_onboarding_endpoint_is_gone(client, monkeypatch):
+    """Настоящим запросом, а не по app.routes: в CI список маршрутов
+    приложения подключённых роутеров не содержал, и проверка по нему падала
+    на здоровом коде (прогон 35891877103)."""
+    secret = "internal-secret-for-tests-0123456789"  # gitleaks:allow — тестовая фикстура
+    monkeypatch.setenv("INTERNAL_SECRET", secret)
+    # Соседняя ручка того же роутера отвечает — значит 404 ниже про саму ручку,
+    # а не про неподключённый роутер.
+    assert client.post("/api/v1/internal/weekly-digest").status_code == 403
+    resp = client.post("/api/v1/internal/onboarding-emails", headers={"X-Internal-Secret": secret})
+    assert resp.status_code == 404
 
 
 # ── Нет отложенных запусков дольше часа ─────────────────────
