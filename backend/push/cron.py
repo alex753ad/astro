@@ -367,7 +367,12 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
 
 # ── Тексты ──
 def _daily_body(chart: NatalChart, today: date_type) -> str:
-    """Короткий тизер прогноза на день из активных транзитов (без AI, без жаргона)."""
+    """Короткий тизер прогноза на день из активных транзитов (без жаргона).
+
+    На «ты» — как и сам прогноз в приложении (решение владельца 23.09.2026).
+    Текст прогноза сюда НЕ кладётся: он генерируется при первом открытии
+    карточки «Сегодня» (backend/forecast/), а уведомление только зовёт к ней.
+    """
     try:
         from backend.transit.engine import calculate_transits
         events = calculate_transits(
@@ -381,11 +386,11 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
         best = best or (events[0] if events else None)
         if best:
             if best.aspect_type in ("trine", "sextile", "conjunction"):
-                return "Сегодня один из тех дней, когда многое складывается чуть легче обычного. Загляните в прогноз."
-            return "Сегодня — активный день, который стоит прожить осознанно. Загляните в прогноз."
+                return "Сегодня многое складывается чуть легче обычного. Загляни в прогноз."
+            return "Сегодня активный день — его стоит прожить осознанно. Загляни в прогноз."
     except Exception as e:
         logger.warning("daily body build failed: %s", e)
-    return "Ваш персональный прогноз на сегодня готов."
+    return "Твой прогноз на сегодня готов."
 
 
 def _sphere_short(sphere: str | None) -> str | None:
@@ -543,8 +548,12 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
         cands.append({
             "kind": "daily", "ref": today.isoformat(),
             "priority": "soft", "weight": 10, "frag": "прогноз на день",
-            "title": "✦ Ваш день сегодня", "body": _daily_body(chart, today),
+            "title": "✦ Твой день сегодня", "body": _daily_body(chart, today),
+            # url — для веб-пуша, его не трогаем (веб в этой задаче не
+            # меняется). Приложение ведёт по target: открыть ленту и
+            # развернуть карточку «Сегодня» (решение владельца 23.09.2026).
             "url": _with_topic(f"/chart/{chart.id}", _topic_key("daily")),
+            "target": "feed_today",
         })
 
     # Планер (significant): старт сегодня + упреждение неделя/месяц
@@ -722,6 +731,7 @@ def _process_user(db: Session, user: User) -> int:
             "title": to_send[0]["title"],
             "body": to_send[0]["body"],
             "url": to_send[0]["url"],
+            "target": to_send[0].get("target"),
             "keys": keys,
         }
     else:
@@ -853,6 +863,7 @@ def collect_upcoming(db: Session, user: User, days: int) -> dict:
                 "title": cand["title"],
                 "body": cand["body"],
                 "url": cand["url"],
+                "target": cand.get("target"),
             })
 
     return {"timezone": tzname, "days": days, "events": events}

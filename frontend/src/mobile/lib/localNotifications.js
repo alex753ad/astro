@@ -203,9 +203,9 @@ export async function schedulePlan(plan) {
         // другая из присланных (запас у верхней границы, localNotificationPlan).
         // Своего времени клиент не собирает.
         schedule: { at: new Date(item.at), allowWhileIdle: true },
-        // Ключи доезжают до обработчика тапа, если он когда-нибудь появится:
-        // по ним видно, о каком событии уведомление, без разбора текста.
-        extra: { keys: item.keys, url: item.url },
+        // Ключи — по ним видно, о каком событии уведомление, без разбора
+        // текста. target читает обработчик нажатия (notificationTap.js).
+        extra: { keys: item.keys, url: item.url, target: item.target || null },
       })),
     });
     return plan.length;

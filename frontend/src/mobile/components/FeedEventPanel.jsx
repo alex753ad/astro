@@ -18,6 +18,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FeedLockMark from './FeedLockMark';
+import FeedLunationForecast from './FeedLunationForecast';
+import { hasLunationForecast } from '../lib/lunationPhase';
 import { isLocked, isPlannerEvent } from './FeedEventCard';
 import { dateRangeShort, eventTitle, moonRangeShort, periodRange, signRu, timePart } from '../lib/feedTime';
 import { transitTeaserText } from '../lib/transitTeaser';
@@ -198,6 +200,13 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             </div>
           )}
         </div>
+
+        {/* Личный прогноз на фазу — на всех тарифах, без гейта (решение
+            владельца 23.09.2026). key — чтобы другая фаза не показала на миг
+            текст предыдущей. */}
+        {chartId && hasLunationForecast(event) && (
+          <FeedLunationForecast key={event.key} chartId={chartId} event={event} />
+        )}
 
         {/* Тема периода — то, чего касается проход. Приходит и у закрытого
             пустой строкой, поэтому проверка на непустоту, а не на locked. */}

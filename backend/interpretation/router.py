@@ -155,28 +155,6 @@ def track_engine_spend(engine_name: str, tokens: int, contour: str) -> float:
     return cost
 
 
-def track_openai_spend(data: dict | None, contour: str) -> float:
-    """То же для прямых вызовов OpenAI мимо роутера (фолбэк прогнозов).
-
-    Цена берётся из _COST_PER_1K_TOKENS["gpt4o"] — той же таблицы, что и у
-    вызовов через движок, чтобы один и тот же токен не стоил в двух местах
-    по-разному.
-    """
-    usage = ((data or {}).get("usage")) or {}
-    tokens = usage.get("total_tokens") or 0
-    if not tokens:
-        logger.warning("%s: ответ OpenAI без usage — расход не записан", contour)
-        return 0.0
-
-    cost = (tokens / 1000) * _COST_PER_1K_TOKENS["gpt4o"]
-    new_total = budget_tracker.add_spend(cost)
-    logger.info(
-        "Spent $%.4f on gpt4o/%s (%d tokens). Daily total: $%.4f",
-        cost, contour, tokens, new_total,
-    )
-    return cost
-
-
 def select_model(tier: str, is_cached: bool = False) -> str:
     """Return engine name based on user tier and cache state."""
     if tier == "free":

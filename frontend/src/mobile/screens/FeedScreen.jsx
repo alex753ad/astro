@@ -66,7 +66,8 @@ import useHints from '../lib/useHints';
 import useCompactNow from '../lib/useCompactNow';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
-import { pickAnchorDate } from '../lib/feedAnchor';
+import { pickAnchorDate, withToday } from '../lib/feedAnchor';
+import FeedTodayCard from '../components/FeedTodayCard';
 import { splitDayEvents } from '../lib/feedDayOrder';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
@@ -136,7 +137,9 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
   );
 }
 
-export default function FeedScreen({ active = true, onHintsToggle, scrollRef, chartsVersion = 0, onChartResolved }) {
+export default function FeedScreen({
+  active = true, onHintsToggle, scrollRef, chartsVersion = 0, onChartResolved, openTodayToken = 0,
+}) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
@@ -171,6 +174,14 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
    * шапки вовсе. Ровно это и поймали на приёмке.
    */
   const [headerOpen, setHeaderOpen] = useState(true);
+  /**
+   * Развёрнута ли карточка прогноза на сегодня (FeedTodayCard.jsx).
+   *
+   * Живёт здесь, а не в карточке: её разворачивает и нажатие на утреннее
+   * уведомление (target "feed_today", notificationTap.js) — TabShell
+   * поднимает `openTodayToken`, и лента разворачивает карточку и едет к ней.
+   */
+  const [todayOpen, setTodayOpen] = useState(false);
   const togglePeriod = useCallback((event) => {
     setFlippedPeriods((prev) => {
       const next = new Set(prev);
@@ -300,7 +311,9 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   // (полосе ещё нужны период Солнца и ближайшая фаза Луны, §6).
   const allEvents = feed?.events || [];
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
-  const days = groupByDay(events);
+  // Сегодняшний день есть в списке всегда, даже без событий: в нём карточка
+  // прогноза (lib/feedAnchor.js → withToday, там же про следствие для якоря).
+  const days = withToday(groupByDay(events), today, feed?.horizon || {});
 
   // Жест обновления. Гейт по `active` обязателен: все три экрана
   // смонтированы одновременно и делят ОДИН скроллер (TabShell.jsx) — без
@@ -369,6 +382,16 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
   useEffect(() => {
     onHintsToggle?.('feed', hints.open);
   }, [onHintsToggle, hints.open]);
+
+  // Нажатие на утреннее уведомление: развернуть прогноз и доехать до него.
+  // Ноль — начальное значение, по нему ничего не делаем.
+  useEffect(() => {
+    if (!openTodayToken) return;
+    setTodayOpen(true);
+    setHeaderOpen(false);
+    userMovedRef.current = true;
+    dayRefs.current.get(localToday())?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [openTodayToken]);
 
   /**
    * Любая прокрутка сворачивает развёрнутую шапку — в ОБЕ стороны (решение
@@ -637,6 +660,16 @@ export default function FeedScreen({ active = true, onHintsToggle, scrollRef, ch
               quiet={quiet}
               boundary={!expanded}
             />
+            {/* Прогноз на сегодня — первым в сегодняшнем дне (решение
+                владельца 23.09.2026). Только в настоящем сегодня: раскрытый
+                день и сегодняшний могут не совпасть (lib/feedAnchor.js). */}
+            {day.date === today && chartId && (
+              <FeedTodayCard
+                chartId={chartId}
+                open={todayOpen}
+                onToggle={() => setTodayOpen((v) => !v)}
+              />
+            )}
             {/* Сжатый день меняет ОБЪЁМ события, а не доступ к нему: строка
                 открывает ту же панель, что и карточка. Крупное (feedRank.js)
                 карточкой остаётся всегда — в том числе открытый разбор, ради

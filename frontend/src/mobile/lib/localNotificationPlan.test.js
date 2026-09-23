@@ -35,6 +35,29 @@ const EVENTS = [
     title: '✦ Прогноз дня', body: 'Загляните, что происходит сегодня.', url: '/feed' },
 ];
 
+describe('target — куда вести по нажатию', () => {
+  it('ежедневный прогноз несёт target до уведомления, остальные — null', () => {
+    const events = [
+      ...EVENTS.slice(0, 2),
+      { ...EVENTS[2], target: 'feed_today' },
+    ];
+    const plan = buildPlan(events, NOW);
+    const daily = plan.find((p) => p.keys.includes('daily:2026-09-15'));
+    const other = plan.find((p) => !p.keys.includes('daily:2026-09-15'));
+    expect(daily.target).toBe('feed_today');
+    expect(other.target).toBeNull();
+  });
+
+  it('в склейке target не теряется, даже если ежедневный не первый', () => {
+    const plan = buildPlan([
+      EVENTS[0],
+      { ...EVENTS[2], at: DAY1, target: 'feed_today' },
+    ], NOW);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].target).toBe('feed_today');
+  });
+});
+
 describe('склейка событий одного дня', () => {
   it('день с несколькими событиями даёт ОДНО уведомление, день с одним — одно', () => {
     const plan = buildPlan(EVENTS, NOW);

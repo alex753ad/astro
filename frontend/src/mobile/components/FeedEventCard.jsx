@@ -34,6 +34,7 @@ import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs'
 import { daysBetween, eventTitle, localToday, periodRangeFull, planetRu, signRu } from '../lib/feedTime';
 import { planetDotColor } from '../lib/feedTimelineDot';
 import { splitItemLabel } from '../lib/plannerItemLabel';
+import { hasLunationForecast } from '../lib/lunationPhase';
 
 // Высота блока пропорциональна длительности (§8). Коэффициент подобран под
 // то, что реально остаётся в потоке после изъятия долгосрочных периодов:
@@ -71,7 +72,11 @@ export function isLocked(event) {
  * только на устройстве и только на платном тарифе, где тизеров нет вовсе.
  */
 export function isOpenable(event) {
-  return isLocked(event) || event?.kind === 'transit' || isPlannerEvent(event);
+  // Фаза Луны (и затмение, заменяющее её в ленте) с 23.09.2026 нажимается:
+  // в панели — личный прогноз на фазу (FeedLunationForecast.jsx). До этого
+  // показывать там было нечего, и правило держало её ненажимаемой.
+  return isLocked(event) || event?.kind === 'transit' || isPlannerEvent(event)
+    || hasLunationForecast(event);
 }
 
 /**

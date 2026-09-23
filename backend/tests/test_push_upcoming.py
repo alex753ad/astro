@@ -367,7 +367,11 @@ class TestUpcomingHttp:
         assert body["days"] == 3
         assert body["timezone"] == "Europe/Moscow"
         for event in body["events"]:
-            assert set(event) == {"key", "kind", "at", "title", "body", "url"}
+            # target — куда вести в приложении (у daily — "feed_today"), у
+            # остальных видов None; url остаётся для веба.
+            assert set(event) == {"key", "kind", "at", "title", "body", "url", "target"}
+            if event["kind"] == "daily":
+                assert event["target"] == "feed_today"
 
     def test_rejects_days_out_of_range(self, client, auth_headers_free, chart):
         assert client.get("/api/v1/push/upcoming?days=0", headers=auth_headers_free).status_code == 422

@@ -23,6 +23,33 @@
  * @param {string} today — локальная дата устройства, «YYYY-MM-DD».
  * @returns {string|null} дата дня-якоря либо null, если дней нет вовсе.
  */
+/**
+ * Добавить в список пустой сегодняшний день, если событий сегодня нет.
+ *
+ * С 23.09.2026 у сегодняшнего дня всегда есть содержание — карточка прогноза
+ * на сегодня (FeedTodayCard.jsx). Без этой вставки в день без событий
+ * прогнозу негде было бы стоять, а лента открывалась бы на завтрашнем дне
+ * мимо него. Следствие для якоря: при сегодняшнем дне внутри окна лента
+ * теперь открывается на сегодня всегда.
+ *
+ * Не вставляется, если событий нет вовсе (для пустого окна у ленты своё
+ * сообщение) и если сегодня вне окна `horizon` — там прогноз не к месту.
+ *
+ * @param {{date: string, events: object[]}[]} days — по возрастанию даты.
+ * @param {string} today — «YYYY-MM-DD».
+ * @param {{from?: string, to?: string}} [horizon]
+ */
+export function withToday(days, today, horizon = {}) {
+  if (!Array.isArray(days) || days.length === 0) return days;
+  if (horizon.from && today < horizon.from) return days;
+  if (horizon.to && today > horizon.to) return days;
+  if (days.some((d) => d.date === today)) return days;
+  const i = days.findIndex((d) => d.date > today);
+  const out = days.slice();
+  out.splice(i === -1 ? out.length : i, 0, { date: today, events: [] });
+  return out;
+}
+
 export function pickAnchorDate(days, today) {
   if (!Array.isArray(days) || days.length === 0) return null;
   const ahead = days.find((d) => d && d.date >= today);

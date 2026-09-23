@@ -137,6 +137,9 @@ def send_fcm(token: str, payload: dict) -> bool:
             # Всё строками: FCM других типов в `data` не принимает.
             "data": {
                 "url": str(payload.get("url", "/")),
+                # Куда вести внутри приложения (например "feed_today"); пустая
+                # строка — «просто открыть». url остаётся для веба.
+                "target": str(payload.get("target") or ""),
                 "keys": ",".join(payload.get("keys", []) or []),
             },
         }

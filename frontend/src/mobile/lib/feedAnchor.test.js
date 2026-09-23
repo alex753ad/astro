@@ -1,9 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { pickAnchorDate } from './feedAnchor';
+import { pickAnchorDate, withToday } from './feedAnchor';
 
 const day = (date) => ({ date });
+
+describe('withToday — у сегодняшнего дня всегда есть прогноз', () => {
+  const d = (date) => ({ date, events: [{ key: date }] });
+
+  it('пустой сегодняшний день встаёт на своё место по дате', () => {
+    const out = withToday([d('2026-09-14'), d('2026-09-18')], '2026-09-16');
+    expect(out.map((x) => x.date)).toEqual(['2026-09-14', '2026-09-16', '2026-09-18']);
+    expect(out[1].events).toEqual([]);
+    // Следствие: якорь теперь — сегодня, а не ближайший следующий день.
+    expect(pickAnchorDate(out, '2026-09-16')).toBe('2026-09-16');
+  });
+
+  it('если сегодня уже есть события — список не меняется', () => {
+    const days = [d('2026-09-16')];
+    expect(withToday(days, '2026-09-16')).toBe(days);
+  });
+
+  it('пустое окно не получает искусственного дня', () => {
+    expect(withToday([], '2026-09-16')).toEqual([]);
+  });
+
+  it('сегодня вне окна — не вставляется', () => {
+    const days = [d('2026-10-01')];
+    expect(withToday(days, '2026-09-16', { from: '2026-09-20', to: '2026-12-01' })).toBe(days);
+  });
+
+  it('сегодня позже всех дней — встаёт в конец', () => {
+    const out = withToday([d('2026-09-10')], '2026-09-16');
+    expect(out.map((x) => x.date)).toEqual(['2026-09-10', '2026-09-16']);
+  });
+});
 
 describe('pickAnchorDate — день, на котором открывается лента', () => {
   it('сегодняшний день, если он в списке есть', () => {

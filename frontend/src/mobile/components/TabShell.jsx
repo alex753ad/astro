@@ -35,7 +35,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { listenForTaps } from '../lib/notificationTap';
 import FeedScreen from '../screens/FeedScreen';
 import ChartScreen from '../screens/ChartScreen';
 import MoreScreen from '../screens/MoreScreen';
@@ -116,6 +117,22 @@ export default function TabShell() {
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
+
+  // Нажатие на уведомление (оба канала — notificationTap.js). Сегодня
+  // известен один адрес: "feed_today" — открыть ленту и развернуть прогноз
+  // на сегодня. Счётчик, а не флаг: второе нажатие должно сработать снова.
+  const navigate = useNavigate();
+  const [openTodayToken, setOpenTodayToken] = useState(0);
+  useEffect(() => {
+    let unsubscribe = () => {};
+    let alive = true;
+    listenForTaps((target) => {
+      if (target !== 'feed_today') return;
+      navigate('/app/feed', { replace: true });
+      setOpenTodayToken((n) => n + 1);
+    }).then((off) => { if (alive) unsubscribe = off; else off(); });
+    return () => { alive = false; unsubscribe(); };
+  }, [navigate]);
 
   // Высота таб-бара — измеряется, а не захардкожена: она уже включает его
   // собственный `padding-bottom: env(safe-area-inset-bottom)`
@@ -223,6 +240,7 @@ export default function TabShell() {
             scrollRef={scrollRef}
             chartsVersion={chartsVersion}
             onChartResolved={handleFeedChart}
+            openTodayToken={openTodayToken}
           />
         </div>
         <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>

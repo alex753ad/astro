@@ -238,6 +238,9 @@ export function buildPlan(events, nowMs = Date.now()) {
       // разделители.
       body: rest.length ? `${first.body}\n${rest.map((i) => i.title).join(' · ')}` : first.body,
       url: first.url,
+      // Куда вести в приложении по нажатию (notificationTap.js). В склейке —
+      // первый найденный: сегодня target есть только у ежедневного прогноза.
+      target: (items.find((i) => i.target) || {}).target || null,
     });
   }
 
