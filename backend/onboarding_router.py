@@ -135,7 +135,9 @@ async def send_onboarding_emails(
             event = _pick_best_transit(events)
             if not event:
                 continue
-            await send_retention_day2(user.email, _build_transit_text(event))
+            # user_id — тот же ключ дедупа, что у цепочки Celery (tasks.py):
+            # оба пути шлют это письмо, с разных точек отсчёта.
+            await send_retention_day2(user.email, _build_transit_text(event), user_id=user.id)
             sent_day2 += 1
         except Exception as e:
             logger.warning("Day2 email failed for %s: %s", user.email, e)
@@ -157,7 +159,7 @@ async def send_onboarding_emails(
             events = await asyncio.to_thread(
                 calculate_transits, natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30)
             )
-            await send_retention_day7(user.email, max(0, len(events) - 1))
+            await send_retention_day7(user.email, max(0, len(events) - 1), user_id=user.id)
             sent_day7 += 1
         except Exception as e:
             logger.warning("Day7 email failed for %s: %s", user.email, e)

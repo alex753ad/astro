@@ -12,6 +12,20 @@ logger = logging.getLogger("astro.celery")
 
 settings = get_settings()
 
+# ⚠️ Visibility timeout Redis-брокера ОБЯЗАН быть больше самого длинного
+# countdown в tasks.py (pro_day30 — 30 суток). По умолчанию он 1 час, и
+# отложенная задача, не подтверждённая за час, выдаётся воркеру ЗАНОВО — раз в
+# час, «again and again in a loop» (docs.celeryq.dev, Redis → Visibility
+# timeout). Все копии несут один и тот же ETA и срабатывают в одну секунду.
+# 23.09.2026 так пришло ~10 писем «Ваши тарифы…» (retention day14, countdown
+# 14 суток) разом: по копии на каждый час с последнего перезапуска воркера.
+#
+# Цена: задача, чей воркер убит ЖЁСТКО посреди выполнения (OOM, SIGKILL),
+# будет выдана повторно не через час, а через 31 сутки (acks_late=True ниже).
+# Тёплая остановка (деплой) возвращает задачи в очередь сразу — её это не
+# касается. Второй слой защиты от дублей писем — dedup_key в email_service._send.
+VISIBILITY_TIMEOUT_SEC = 31 * 24 * 3600
+
 celery_app = Celery(
     "astro",
     broker=settings.redis_url,
@@ -27,6 +41,10 @@ celery_app.conf.update(
     task_track_started=True,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
+    # Все три — по документации Celery обязательны вместе (см. выше).
+    broker_transport_options={"visibility_timeout": VISIBILITY_TIMEOUT_SEC},
+    result_backend_transport_options={"visibility_timeout": VISIBILITY_TIMEOUT_SEC},
+    visibility_timeout=VISIBILITY_TIMEOUT_SEC,
 
     # ── Celery Beat — периодические задачи ──
     beat_schedule={

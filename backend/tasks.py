@@ -46,7 +46,7 @@ def send_retention_day2_task(user_id: int) -> None:
                 f"{ASP_RU.get(at, at)} с вашим натальным <strong>{PLANET_RU.get(np_, np_)}</strong>.")
         import asyncio
         from backend.email_service import send_retention_day2
-        asyncio.run(send_retention_day2(user.email, text))
+        asyncio.run(send_retention_day2(user.email, text, user_id=user.id))
     except Exception as e:
         logger.warning("send_retention_day2_task failed user=%s: %s", user_id, e)
     finally:
@@ -70,7 +70,7 @@ def send_retention_day7_task(user_id: int) -> None:
         events = calculate_transits(natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30))
         import asyncio
         from backend.email_service import send_retention_day7
-        asyncio.run(send_retention_day7(user.email, max(0, len(events) - 1)))
+        asyncio.run(send_retention_day7(user.email, max(0, len(events) - 1), user_id=user.id))
     except Exception as e:
         logger.warning("send_retention_day7_task failed user=%s: %s", user_id, e)
     finally:
@@ -89,8 +89,10 @@ def send_retention_day14_task(user_id: int) -> None:
             return
         import asyncio
         from backend.email_service import send_retention_day14
+        # user_id включает дедуп в _send: копии этой задачи из петли visibility
+        # timeout (celery_app.VISIBILITY_TIMEOUT_SEC) дают одно письмо, не десять.
         asyncio.run(
-            send_retention_day14(user.email)
+            send_retention_day14(user.email, user_id=user.id)
         )
     except Exception as e:
         logger.warning("send_retention_day14_task failed user=%s: %s", user_id, e)
@@ -132,7 +134,7 @@ def send_lite_day14_task(user_id: int) -> None:
         import asyncio
         from backend.email_service import send_lite_day14
         asyncio.run(
-            send_lite_day14(user.email, name=user.name)
+            send_lite_day14(user.email, name=user.name, user_id=user.id)
         )
     except Exception as e:
         logger.warning("send_lite_day14_task failed user=%s: %s", user_id, e)
@@ -181,7 +183,7 @@ def send_pro_day30_task(user_id: int) -> None:
         import asyncio
         from backend.email_service import send_pro_day30
         asyncio.run(
-            send_pro_day30(user.email, name=user.name)
+            send_pro_day30(user.email, name=user.name, user_id=user.id)
         )
     except Exception as e:
         logger.warning("send_pro_day30_task failed user=%s: %s", user_id, e)
