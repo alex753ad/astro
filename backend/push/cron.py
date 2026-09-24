@@ -156,6 +156,81 @@ def in_send_window(moment_local: datetime, daily_time, quiet_from) -> bool:
     return hm < end
 
 
+# ── Вечернее уведомление «прогноз на завтра» ──
+#
+# Решение владельца 24.09.2026. Отдельный вид, а не ещё один кандидат в
+# _collect_candidates: у него своё время (вечер, а не нижняя граница окна), и
+# он не должен ни склеиваться с утренним, ни упираться в потолок мягких
+# (SOFT_KINDS: «1 мягкий за 48 ч» съел бы его через день).
+#
+# Время — по местному времени человека (здесь это пояс главной карты: пояс
+# телефона сервер не знает, долг в TASKS.md):
+#   * обычно 20:00;
+#   * тихие часы с 21:00 или раньше — 19:00, чтобы успеть до них;
+#   * тихие часы с 19:00 или раньше — не уходит вовсе: это выбор человека.
+# Карточка «завтра» в приложении открывается в 19:00 у всех
+# (forecast/router.py, TOMORROW_OPEN_HOUR), поэтому уведомление в 19:00 не
+# ведёт к закрытой карточке.
+TOMORROW_KIND = "tomorrow"
+EVENING_TIME = (20, 0)
+EVENING_EARLY_TIME = (19, 0)
+
+
+def evening_send_time(daily_time, quiet_from) -> tuple[int, int] | None:
+    """Во сколько уходит вечернее уведомление; None — не уходит."""
+    start = _parse_hm(daily_time, _parse_hm(DEFAULT_DAILY_TIME, (8, 0)))
+    end = _parse_hm(quiet_from, _parse_hm(DEFAULT_QUIET_FROM, (22, 0)))
+    if end <= start:
+        # Бессмысленная пара — «верхней границы нет», как в in_send_window.
+        return EVENING_TIME
+    if end > (21, 0):
+        return EVENING_TIME
+    if end > EVENING_EARLY_TIME:
+        return EVENING_EARLY_TIME
+    return None
+
+
+def _evening_candidate(user, chart, today: date_type) -> dict | None:
+    """Кандидат вечернего уведомления на `today` (прогноз на следующий день).
+    Тумблер — общий с утренним «Прогнозом дня» (решение владельца)."""
+    if not getattr(user, "push_daily_forecast", True):
+        return None
+    tomorrow = today + timedelta(days=1)
+    return {
+        "kind": TOMORROW_KIND, "ref": tomorrow.isoformat(),
+        "priority": "soft", "weight": 10, "frag": "прогноз на завтра",
+        "title": "✦ Прогноз на завтра",
+        "body": "Прогноз на завтра готов — загляни заранее, чтобы спланировать день.",
+        # url — для веб-пуша (веб не трогаем), приложение ведёт по target.
+        "url": _with_topic(f"/chart/{chart.id}", _topic_key("daily")),
+        "target": "feed_tomorrow",
+    }
+
+
+def _send_evening(db: Session, user: User, chart, now_local: datetime) -> int:
+    """Отправить вечернее уведомление, если пора и оно ещё не ушло."""
+    at = evening_send_time(_daily_time_of(user), _quiet_from_of(user))
+    if at is None:
+        return 0
+    hm = (now_local.hour, now_local.minute)
+    end = _parse_hm(_quiet_from_of(user), (22, 0))
+    # Пора: время наступило и тихие часы ещё не начались. Пропустил тик до
+    # тихих часов (простой сервера) — не шлём ночью, завтра будет новое.
+    if hm < at or (end > at and hm >= end):
+        return 0
+    cand = _evening_candidate(user, chart, now_local.date())
+    if not cand or _already_sent(db, user.id, cand["kind"], cand["ref"]):
+        return 0
+    n = send_to_user(db, user.id, {
+        "title": cand["title"], "body": cand["body"], "url": cand["url"],
+        "target": cand["target"], "keys": [f"{cand['kind']}:{cand['ref']}"],
+    })
+    if n:
+        _mark_sent(db, user.id, cand["kind"], cand["ref"])
+        logger.info("push send user=%s kinds=['tomorrow'] n=%d", user.id, n)
+    return n
+
+
 # ── Дедупликация ──
 def _already_sent(db: Session, user_id: str, kind: str, ref_key: str) -> bool:
     return db.query(PushSentLog).filter(
@@ -679,6 +754,10 @@ def _process_user(db: Session, user: User) -> int:
     now_local = datetime.now(pytz.utc).astimezone(tz)
     today = now_local.date()
 
+    # Вечернее уведомление живёт своим временем и уходит отдельным пушем —
+    # до проверки окна утреннего набора (см. блок «Вечернее уведомление»).
+    evening = _send_evening(db, user, chart, now_local)
+
     # Окно отправки целиком — обе границы считает in_send_window (см. её
     # докстринг: до 10.09.2026 верхней границы не было вовсе).
     if not in_send_window(now_local, _daily_time_of(user), _quiet_from_of(user)):
@@ -687,7 +766,7 @@ def _process_user(db: Session, user: User) -> int:
             user.id, _daily_time_of(user), _quiet_from_of(user),
             now_local.strftime("%H:%M"),
         )
-        return 0
+        return evening
 
     # Сбор + отсев уже отправленного
     cands = [
@@ -696,7 +775,7 @@ def _process_user(db: Session, user: User) -> int:
     ]
     if not cands:
         logger.info("push skip user=%s: no candidates", user.id)
-        return 0
+        return evening
 
     significant = [c for c in cands if c["priority"] != "soft"]
     soft = [c for c in cands if c["priority"] == "soft"]
@@ -708,7 +787,7 @@ def _process_user(db: Session, user: User) -> int:
     else:
         if _soft_capped(db, user.id, utcnow()):
             logger.info("push skip user=%s: soft capped", user.id)
-            return 0
+            return evening
         to_send = soft
 
     # Порядок по убыванию значимости (медленные планеты первыми)
@@ -756,9 +835,9 @@ def _process_user(db: Session, user: User) -> int:
         for c in to_send:
             _mark_sent(db, user.id, c["kind"], c["ref"])
         logger.info("push send user=%s kinds=%s n=%d", user.id, [c["kind"] for c in to_send], n)
-        return n
+        return evening + n
     logger.info("push skip user=%s: send_to_user delivered 0 (no active subscriptions or all sends failed)", user.id)
-    return 0
+    return evening
 
 
 # ── Будущие события для локальных уведомлений на устройстве ──
@@ -835,8 +914,27 @@ def collect_upcoming(db: Session, user: User, days: int) -> dict:
     events: list[dict] = []
     seen_keys: set[str] = set()
 
+    evening_at = evening_send_time(daily_time, quiet_from)
+
     for offset in range(days):
         day = now_local.date() + timedelta(days=offset)
+
+        # Вечернее «прогноз на завтра» — своим временем (19:00 или 20:00, см.
+        # evening_send_time) и ДО проверок утреннего слота ниже: утро этого дня
+        # может быть уже позади, а вечер — ещё впереди.
+        ev = _evening_candidate(user, chart, day) if evening_at else None
+        if ev:
+            ev_naive = datetime(day.year, day.month, day.day, *evening_at)
+            ev_at = tz.localize(ev_naive) if hasattr(tz, "localize") else ev_naive.replace(tzinfo=tz)
+            ev_key = f"{ev['kind']}:{ev['ref']}"
+            if ev_at > now_local and ev_key not in seen_keys:
+                seen_keys.add(ev_key)
+                events.append({
+                    "key": ev_key, "kind": ev["kind"], "at": ev_at.isoformat(),
+                    "title": ev["title"], "body": ev["body"], "url": ev["url"],
+                    "target": ev["target"],
+                })
+
         # Время показа — то же, что у веб-пуша: начало окна в день события.
         naive = datetime(day.year, day.month, day.day, th, tm)
         at = tz.localize(naive) if hasattr(tz, "localize") else naive.replace(tzinfo=tz)

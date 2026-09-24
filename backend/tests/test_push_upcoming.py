@@ -227,9 +227,18 @@ class TestUpcoming:
         user_free.push_quiet_from = "21:00"
         db.commit()
         result = collect_upcoming(db, user_free, days=5)
-        for event in result["events"]:
+        # Вечернее «прогноз на завтра» (с 24.09.2026) живёт своим временем:
+        # при тихих часах с 21:00 оно переносится на 19:00 (evening_send_time).
+        morning = [e for e in result["events"] if e["kind"] != "tomorrow"]
+        evening = [e for e in result["events"] if e["kind"] == "tomorrow"]
+        assert morning and evening, "в выборке нет одного из видов — проверка пустая"
+        for event in morning:
             at = datetime.fromisoformat(event["at"])
             assert (at.hour, at.minute) == (9, 0)
+            assert in_send_window(at, "09:00", "21:00")
+        for event in evening:
+            at = datetime.fromisoformat(event["at"])
+            assert (at.hour, at.minute) == (19, 0)
             assert in_send_window(at, "09:00", "21:00")
 
     def test_keys_are_stable_between_calls(self, db, user_free, chart):

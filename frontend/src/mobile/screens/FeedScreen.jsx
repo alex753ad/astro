@@ -66,8 +66,9 @@ import useHints from '../lib/useHints';
 import useCompactNow from '../lib/useCompactNow';
 import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
-import { pickAnchorDate, withToday } from '../lib/feedAnchor';
-import FeedTodayCard from '../components/FeedTodayCard';
+import { forecastDates, pickAnchorDate, withDates } from '../lib/feedAnchor';
+import FeedDayForecastCard from '../components/FeedDayForecastCard';
+import { shiftDays } from '../lib/feedTime';
 import { splitDayEvents } from '../lib/feedDayOrder';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
@@ -138,7 +139,7 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
 }
 
 export default function FeedScreen({
-  active = true, onHintsToggle, scrollRef, chartsVersion = 0, onChartResolved, openTodayToken = 0,
+  active = true, onHintsToggle, scrollRef, chartsVersion = 0, onChartResolved, openForecast = null,
 }) {
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
@@ -175,13 +176,21 @@ export default function FeedScreen({
    */
   const [headerOpen, setHeaderOpen] = useState(true);
   /**
-   * Развёрнута ли карточка прогноза на сегодня (FeedTodayCard.jsx).
+   * Даты, чья карточка прогноза развёрнута (FeedDayForecastCard.jsx).
    *
-   * Живёт здесь, а не в карточке: её разворачивает и нажатие на утреннее
-   * уведомление (target "feed_today", notificationTap.js) — TabShell
-   * поднимает `openTodayToken`, и лента разворачивает карточку и едет к ней.
+   * Живёт здесь, а не в карточке: её разворачивает и нажатие на уведомление
+   * (target "feed_today" / "feed_tomorrow", notificationTap.js) — TabShell
+   * передаёт `openForecast = {target, n}`, и лента разворачивает карточку
+   * нужного дня и едет к ней.
    */
-  const [todayOpen, setTodayOpen] = useState(false);
+  const [openDates, setOpenDates] = useState(() => new Set());
+  const toggleForecast = useCallback((date) => {
+    setOpenDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date); else next.add(date);
+      return next;
+    });
+  }, []);
   const togglePeriod = useCallback((event) => {
     setFlippedPeriods((prev) => {
       const next = new Set(prev);
@@ -311,9 +320,12 @@ export default function FeedScreen({
   // (полосе ещё нужны период Солнца и ближайшая фаза Луны, §6).
   const allEvents = feed?.events || [];
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
-  // Сегодняшний день есть в списке всегда, даже без событий: в нём карточка
-  // прогноза (lib/feedAnchor.js → withToday, там же про следствие для якоря).
-  const days = withToday(groupByDay(events), today, feed?.horizon || {});
+  // Дни с карточкой прогноза (вчера, сегодня, с 19:00 — завтра) есть в
+  // списке всегда, даже без событий (lib/feedAnchor.js → withDates, там же про
+  // следствие для якоря). Час — по часам телефона, как и граница на сервере.
+  const withForecast = forecastDates(today, new Date().getHours());
+  const days = withDates(groupByDay(events), withForecast, feed?.horizon || {});
+  const forecastLabel = { [shiftDays(today, -1)]: 'вчера', [today]: 'сегодня', [shiftDays(today, 1)]: 'завтра' };
 
   // Жест обновления. Гейт по `active` обязателен: все три экрана
   // смонтированы одновременно и делят ОДИН скроллер (TabShell.jsx) — без
@@ -383,15 +395,17 @@ export default function FeedScreen({
     onHintsToggle?.('feed', hints.open);
   }, [onHintsToggle, hints.open]);
 
-  // Нажатие на утреннее уведомление: развернуть прогноз и доехать до него.
-  // Ноль — начальное значение, по нему ничего не делаем.
+  // Нажатие на уведомление: развернуть прогноз нужного дня и доехать до него.
+  // `n` — счётчик: повторное нажатие на то же уведомление срабатывает снова.
   useEffect(() => {
-    if (!openTodayToken) return;
-    setTodayOpen(true);
+    if (!openForecast?.n) return;
+    const now = localToday();
+    const date = openForecast.target === 'feed_tomorrow' ? shiftDays(now, 1) : now;
+    setOpenDates((prev) => new Set(prev).add(date));
     setHeaderOpen(false);
     userMovedRef.current = true;
-    dayRefs.current.get(localToday())?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  }, [openTodayToken]);
+    dayRefs.current.get(date)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [openForecast]);
 
   /**
    * Любая прокрутка сворачивает развёрнутую шапку — в ОБЕ стороны (решение
@@ -660,14 +674,17 @@ export default function FeedScreen({
               quiet={quiet}
               boundary={!expanded}
             />
-            {/* Прогноз на сегодня — первым в сегодняшнем дне (решение
-                владельца 23.09.2026). Только в настоящем сегодня: раскрытый
-                день и сегодняшний могут не совпасть (lib/feedAnchor.js). */}
-            {day.date === today && chartId && (
-              <FeedTodayCard
+            {/* Прогноз на день — первым в своём дне: вчера, сегодня и с 19:00
+                завтра (решения владельца 23 и 24.09.2026). Подпись — по
+                настоящему сегодня, а не по раскрытому дню: они могут не
+                совпасть (lib/feedAnchor.js). */}
+            {withForecast.includes(day.date) && chartId && (
+              <FeedDayForecastCard
                 chartId={chartId}
-                open={todayOpen}
-                onToggle={() => setTodayOpen((v) => !v)}
+                date={day.date}
+                label={forecastLabel[day.date]}
+                open={openDates.has(day.date)}
+                onToggle={() => toggleForecast(day.date)}
               />
             )}
             {/* Сжатый день меняет ОБЪЁМ события, а не доступ к нему: строка

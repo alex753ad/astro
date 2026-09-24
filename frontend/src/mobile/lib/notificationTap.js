@@ -17,7 +17,9 @@
 
 import { IS_MOBILE } from '../../api/authTransport';
 
-export const KNOWN_TARGETS = new Set(['feed_today']);
+// feed_today — утреннее «прогноз дня», feed_tomorrow — вечернее «прогноз на
+// завтра» (с 24.09.2026): открыть ленту и развернуть карточку своего дня.
+export const KNOWN_TARGETS = new Set(['feed_today', 'feed_tomorrow']);
 
 /** Разобрать target из события нажатия любого из двух каналов. */
 export function targetOfAction(action) {

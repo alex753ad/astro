@@ -78,7 +78,7 @@ def no_transit_ai(monkeypatch):
 
 NORMAL_PHRASES = [
     "Побудь дома и займись домашними делами.",
-    "Дома сегодня уютнее, чем обычно.",
+    "Дома уютнее, чем обычно.",
     "В рабочей среде всё спокойно, а к среде станет легче.",
     "Твой выбор — сделать вывод и выдохнуть.",
     "Если выглянет солнце, выйди на прогулку.",
@@ -120,10 +120,21 @@ def test_forbidden_is_caught(phrase):
     assert problems_daily(phrase), phrase
 
 
-def test_daily_sample_itself_passes():
-    """Образец владельца — эталон: проверка обязана его пропускать."""
+def test_daily_sample_differs_only_by_relative_day_words():
+    """Образец владельца — эталон тона: у него единственное расхождение с
+    правилами — «сегодня». Слово запрещено с 24.09.2026: текст дня служит
+    и «завтра», и «сегодня», и «вчера» (forecast/router.py)."""
     paragraphs, problems = check_daily(DAILY_SAMPLE)
-    assert problems == [] and len(paragraphs) == 3
+    assert problems == ["сегодня/завтра/вчера"] and len(paragraphs) == 3
+    _, neutral = check_daily(GOOD_DAILY)
+    assert neutral == []
+
+
+@pytest.mark.parametrize("phrase", [
+    "Сегодня хороший день.", "Завтра будет легче.", "Вчерашние дела подождут.",
+])
+def test_relative_day_words_are_caught(phrase):
+    assert "сегодня/завтра/вчера" in problems_daily(phrase)
 
 
 def test_parse_json_is_tolerant():
@@ -174,12 +185,29 @@ def test_lunation_without_birth_time_has_no_house():
 
 # ── Сегодня: ручка ──────────────────────────────────────────
 
-URL_TODAY = "/api/v1/chart/{}/forecast/today?tz=Europe/Moscow"
+def _today_msk() -> date:
+    return datetime.now(timezone.utc).astimezone(F.resolve_tz("Europe/Moscow", None)).date()
+
+
+class _Url:
+    """Прогноз на сегодняшнюю дату — через общую ручку /forecast/day."""
+    def format(self, chart_id):
+        return f"/api/v1/chart/{chart_id}/forecast/day?date={_today_msk()}&tz=Europe/Moscow"
+
+
+URL_TODAY = _Url()
+
+# Образец владельца с нейтральными словами вместо «сегодня» — годный ответ.
+GOOD_DAILY = (
+    DAILY_SAMPLE
+    .replace("Сегодня хороший день", "Хороший день")
+    .replace("начни его сегодня", "начни его")
+)
 
 
 def test_today_model_answer_is_served_and_cached(client, db, user_free, auth_headers_free, model, no_transit_ai):
     chart = _chart(db, user_free)
-    model["replies"] = [DAILY_SAMPLE]
+    model["replies"] = [GOOD_DAILY]
     first = client.get(URL_TODAY.format(chart.id), headers=auth_headers_free)
     assert first.status_code == 200, first.text
     assert first.json()["source"] == "model"
@@ -200,7 +228,7 @@ def test_today_model_down_gives_fallback_not_503(client, db, user_free, auth_hea
 def test_today_bad_answers_retry_then_fallback(client, db, user_free, auth_headers_free, model):
     chart = _chart(db, user_free)
     bad = "Ваш день.\n\nВы справитесь."
-    model["replies"] = [bad, DAILY_SAMPLE.replace("Сегодня", "Луна в пятом доме, и сегодня", 1)]
+    model["replies"] = [bad, GOOD_DAILY.replace("Хороший день", "Луна в пятом доме, и хороший день", 1)]
     body = client.get(URL_TODAY.format(chart.id), headers=auth_headers_free).json()
     assert model["calls"] == 2
     assert body["source"] == "fallback"
@@ -209,7 +237,7 @@ def test_today_bad_answers_retry_then_fallback(client, db, user_free, auth_heade
 def test_fallback_is_not_cached(client, db, user_free, auth_headers_free, model):
     chart = _chart(db, user_free)
     client.get(URL_TODAY.format(chart.id), headers=auth_headers_free)
-    model["replies"] = [DAILY_SAMPLE]
+    model["replies"] = [GOOD_DAILY]
     body = client.get(URL_TODAY.format(chart.id), headers=auth_headers_free).json()
     assert body["source"] == "model", "запасной текст попал в кэш и заслонил модель"
 
@@ -325,6 +353,123 @@ def test_lunation_bad_phase_is_422(client, db, user_free, auth_headers_free, mod
     assert resp.status_code == 422
 
 
+# ── Вчера / сегодня / завтра ────────────────────────────────
+
+def test_allowed_days_open_tomorrow_at_19():
+    tz = F.resolve_tz("Europe/Moscow", None)
+    before = datetime(2026, 9, 24, 18, 59, tzinfo=tz)
+    after = datetime(2026, 9, 24, 19, 0, tzinfo=tz)
+    assert R.allowed_days(before) == [date(2026, 9, 23), date(2026, 9, 24)]
+    assert R.allowed_days(after) == [date(2026, 9, 23), date(2026, 9, 24), date(2026, 9, 25)]
+
+
+def _day_url(chart_id, d):
+    return f"/api/v1/chart/{chart_id}/forecast/day?date={d}&tz=Europe/Moscow"
+
+
+def test_yesterday_open_older_closed(client, db, user_free, auth_headers_free, model):
+    chart = _chart(db, user_free)
+    today = _today_msk()
+    assert client.get(_day_url(chart.id, today - timedelta(days=1)), headers=auth_headers_free).status_code == 200
+    assert client.get(_day_url(chart.id, today - timedelta(days=2)), headers=auth_headers_free).status_code == 404
+
+
+def test_tomorrow_opens_only_from_19(client, db, user_free, auth_headers_free, model, monkeypatch):
+    chart = _chart(db, user_free)
+    tomorrow = _today_msk() + timedelta(days=1)
+    monkeypatch.setattr(R, "TOMORROW_OPEN_HOUR", 24)   # «ещё не 19:00»
+    assert client.get(_day_url(chart.id, tomorrow), headers=auth_headers_free).status_code == 404
+    monkeypatch.setattr(R, "TOMORROW_OPEN_HOUR", 0)    # «уже 19:00»
+    assert client.get(_day_url(chart.id, tomorrow), headers=auth_headers_free).status_code == 200
+
+
+def test_old_today_endpoint_is_gone(client, db, user_free, auth_headers_free, model):
+    chart = _chart(db, user_free)
+    assert client.get(f"/api/v1/chart/{chart.id}/forecast/today",
+                      headers=auth_headers_free).status_code == 404
+
+
+# ── Вечернее уведомление «прогноз на завтра» ────────────────
+
+@pytest.mark.parametrize("quiet_from, expected", [
+    ("22:00", (20, 0)),   # обычно — 20:00
+    ("21:30", (20, 0)),
+    ("21:00", (19, 0)),   # тихие часы до 21:00 — переносим на 19:00
+    ("20:00", (19, 0)),
+    ("19:30", (19, 0)),
+    ("19:00", None),      # с 19:00 и раньше — не шлём
+    ("18:00", None),
+    ("07:00", (20, 0)),   # бессмысленная пара (раньше утра) — «границы нет»
+])
+def test_evening_send_time(quiet_from, expected):
+    from backend.push.cron import evening_send_time
+    assert evening_send_time("08:00", quiet_from) == expected
+
+
+@pytest.fixture
+def pushes(monkeypatch):
+    sent = []
+    monkeypatch.setattr("backend.push.cron.send_to_user",
+                        lambda db, uid, payload: sent.append(payload) or 1)
+    return sent
+
+
+def _at(h, m=0):
+    return datetime(2026, 9, 24, h, m, tzinfo=F.resolve_tz("Europe/Moscow", None))
+
+
+def test_evening_push_once_after_20(db, user_free, pushes):
+    from backend.push.cron import _send_evening
+    chart = _chart(db, user_free)
+    assert _send_evening(db, user_free, chart, _at(19, 30)) == 0
+    assert _send_evening(db, user_free, chart, _at(20, 5)) == 1
+    assert _send_evening(db, user_free, chart, _at(20, 20)) == 0, "второй раз за вечер"
+    assert len(pushes) == 1
+    p = pushes[0]
+    assert p["target"] == "feed_tomorrow" and p["keys"] == ["tomorrow:2026-09-25"]
+    # «завтра» уведомлению можно — оно про завтра; остальные правила те же.
+    from backend.forecast.validate import problems_common
+    assert problems_common(p["body"]) == [] and problems_common(p["title"]) == []
+
+
+def test_evening_push_moves_to_19_before_early_quiet(db, user_free, pushes):
+    from backend.push.cron import _send_evening
+    user_free.push_quiet_from = "21:00"
+    db.commit()
+    chart = _chart(db, user_free)
+    assert _send_evening(db, user_free, chart, _at(19, 5)) == 1
+
+
+def test_evening_push_not_in_quiet_hours(db, user_free, pushes):
+    from backend.push.cron import _send_evening
+    user_free.push_quiet_from = "21:00"
+    db.commit()
+    chart = _chart(db, user_free)
+    assert _send_evening(db, user_free, chart, _at(21, 30)) == 0, "пропущенный вечер не догоняем ночью"
+    user_free.push_quiet_from = "19:00"
+    db.commit()
+    assert _send_evening(db, user_free, chart, _at(19, 30)) == 0
+    assert pushes == []
+
+
+def test_evening_push_follows_daily_toggle(db, user_free, pushes):
+    from backend.push.cron import _send_evening
+    user_free.push_daily_forecast = False
+    db.commit()
+    chart = _chart(db, user_free)
+    assert _send_evening(db, user_free, chart, _at(20, 5)) == 0
+
+
+def test_upcoming_plans_evening_push(db, user_free):
+    """Локальный канал: вечернее уведомление в выдаче со своим временем."""
+    from backend.push.cron import collect_upcoming
+    _chart(db, user_free)
+    out = collect_upcoming(db, user_free, 3)
+    evening = [e for e in out["events"] if e["kind"] == "tomorrow"]
+    assert evening, "в выдаче нет вечернего уведомления"
+    assert all(e["target"] == "feed_tomorrow" and "T20:00:00" in e["at"] for e in evening)
+
+
 # ── Уведомление «daily» ─────────────────────────────────────
 
 @pytest.mark.parametrize("aspect", [None, "trine", "square"])
@@ -337,7 +482,10 @@ def test_daily_push_teaser_is_on_ty(monkeypatch, aspect):
     events = [SimpleNamespace(aspect_type=aspect)] if aspect else []
     monkeypatch.setattr("backend.transit.engine.calculate_transits", lambda **k: events)
     body = cron._daily_body(SimpleNamespace(planets=[]), date(2026, 9, 23))
-    assert problems_daily(body) == [], body
+    # «Сегодня» уведомлению можно — оно уходит в сам день; запрет на
+    # «сегодня/завтра/вчера» касается только текста прогноза.
+    from backend.forecast.validate import problems_common
+    assert problems_common(body) == [], body
     assert "Загляни" in body or "Твой" in body
 
 

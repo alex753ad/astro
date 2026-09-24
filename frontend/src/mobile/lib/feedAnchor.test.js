@@ -1,37 +1,57 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { pickAnchorDate, withToday } from './feedAnchor';
+import { TOMORROW_OPEN_HOUR, forecastDates, pickAnchorDate, withDates } from './feedAnchor';
 
 const day = (date) => ({ date });
 
-describe('withToday — у сегодняшнего дня всегда есть прогноз', () => {
+describe('forecastDates — у каких дней есть прогноз', () => {
+  it('до 19:00 — вчера и сегодня, завтра нет совсем', () => {
+    expect(forecastDates('2026-09-24', 18)).toEqual(['2026-09-23', '2026-09-24']);
+  });
+
+  it('с 19:00 — ещё и завтра', () => {
+    expect(forecastDates('2026-09-24', 19)).toEqual(['2026-09-23', '2026-09-24', '2026-09-25']);
+  });
+
+  it('граница совпадает с серверной (backend/forecast/router.py)', () => {
+    expect(TOMORROW_OPEN_HOUR).toBe(19);
+  });
+
+  it('переход через месяц и год', () => {
+    expect(forecastDates('2027-01-01', 20)).toEqual(['2026-12-31', '2027-01-01', '2027-01-02']);
+  });
+});
+
+describe('withDates — у дней с прогнозом всегда есть место в ленте', () => {
   const d = (date) => ({ date, events: [{ key: date }] });
 
-  it('пустой сегодняшний день встаёт на своё место по дате', () => {
-    const out = withToday([d('2026-09-14'), d('2026-09-18')], '2026-09-16');
-    expect(out.map((x) => x.date)).toEqual(['2026-09-14', '2026-09-16', '2026-09-18']);
-    expect(out[1].events).toEqual([]);
+  it('пустые дни встают на свои места по дате', () => {
+    const out = withDates([d('2026-09-14'), d('2026-09-18')], ['2026-09-15', '2026-09-16', '2026-09-17']);
+    expect(out.map((x) => x.date)).toEqual(
+      ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18'],
+    );
+    expect(out[2].events).toEqual([]);
     // Следствие: якорь теперь — сегодня, а не ближайший следующий день.
     expect(pickAnchorDate(out, '2026-09-16')).toBe('2026-09-16');
   });
 
-  it('если сегодня уже есть события — список не меняется', () => {
+  it('если в дне уже есть события — список не меняется', () => {
     const days = [d('2026-09-16')];
-    expect(withToday(days, '2026-09-16')).toBe(days);
+    expect(withDates(days, ['2026-09-16'])).toBe(days);
   });
 
-  it('пустое окно не получает искусственного дня', () => {
-    expect(withToday([], '2026-09-16')).toEqual([]);
+  it('пустое окно не получает искусственных дней', () => {
+    expect(withDates([], ['2026-09-16'])).toEqual([]);
   });
 
-  it('сегодня вне окна — не вставляется', () => {
+  it('дата вне окна — не вставляется', () => {
     const days = [d('2026-10-01')];
-    expect(withToday(days, '2026-09-16', { from: '2026-09-20', to: '2026-12-01' })).toBe(days);
+    expect(withDates(days, ['2026-09-16'], { from: '2026-09-20', to: '2026-12-01' })).toBe(days);
   });
 
-  it('сегодня позже всех дней — встаёт в конец', () => {
-    const out = withToday([d('2026-09-10')], '2026-09-16');
+  it('дата позже всех дней — встаёт в конец', () => {
+    const out = withDates([d('2026-09-10')], ['2026-09-16']);
     expect(out.map((x) => x.date)).toEqual(['2026-09-10', '2026-09-16']);
   });
 });

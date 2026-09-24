@@ -1,10 +1,14 @@
 /**
- * FeedTodayCard.jsx — прогноз на сегодня в начале сегодняшнего дня ленты.
+ * FeedDayForecastCard.jsx — прогноз на день в начале этого дня ленты.
  *
- * Свёрнута — первый абзац, по нажатию — целиком (решение владельца
- * 23.09.2026, вариант 1). Открытие/закрытие держит FeedScreen: туда же
- * приходит нажатие на утреннее уведомление, которое обязано развернуть
- * карточку, а не просто открыть ленту.
+ * Дни с карточкой: вчера, сегодня и — с 19:00 — завтра (feedAnchor.js,
+ * forecastDates; решения владельца 23 и 24.09.2026). Текст один и тот же для
+ * дня во всех трёх ролях — сервер пишет его без «сегодня/завтра/вчера», а
+ * роль называет только подпись карточки.
+ *
+ * Свёрнута — первый абзац, по нажатию — целиком. Открытие/закрытие держит
+ * FeedScreen: туда же приходит нажатие на утреннее и вечернее уведомления,
+ * которые обязаны развернуть карточку своего дня, а не просто открыть ленту.
  *
  * Текст генерируется при первом открытии дня и кэшируется на сервере —
  * первый запрос может идти несколько секунд, отсюда отдельное состояние
@@ -14,23 +18,24 @@
  * Тело — антиквой, как тело любой интерпретации (§3 DESIGN_SYSTEM.md).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchTodayForecast } from '../lib/forecastApi';
+import { fetchDayForecast } from '../lib/forecastApi';
 
-export default function FeedTodayCard({ chartId, open, onToggle }) {
+/** label — «вчера» | «сегодня» | «завтра». */
+export default function FeedDayForecastCard({ chartId, date, label, open, onToggle }) {
   const [state, setState] = useState({ status: 'loading', data: null });
   const runRef = useRef(0);
 
   const load = useCallback(async () => {
-    if (!chartId) return;
+    if (!chartId || !date) return;
     const run = ++runRef.current;
     setState({ status: 'loading', data: null });
     try {
-      const data = await fetchTodayForecast(chartId);
+      const data = await fetchDayForecast(chartId, date);
       if (runRef.current === run) setState({ status: 'ready', data });
     } catch {
       if (runRef.current === run) setState({ status: 'error', data: null });
     }
-  }, [chartId]);
+  }, [chartId, date]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -51,7 +56,7 @@ export default function FeedTodayCard({ chartId, open, onToggle }) {
       }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', color: 'var(--text-secondary)' }}>
-        ПРОГНОЗ НА СЕГОДНЯ
+        {`ПРОГНОЗ НА ${String(label || '').toUpperCase()}`}
       </div>
 
       {state.status === 'loading' && (

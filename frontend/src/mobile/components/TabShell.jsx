@@ -118,18 +118,17 @@ export default function TabShell() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
-  // Нажатие на уведомление (оба канала — notificationTap.js). Сегодня
-  // известен один адрес: "feed_today" — открыть ленту и развернуть прогноз
-  // на сегодня. Счётчик, а не флаг: второе нажатие должно сработать снова.
+  // Нажатие на уведомление (оба канала — notificationTap.js): "feed_today" и
+  // "feed_tomorrow" — открыть ленту и развернуть прогноз своего дня. `n` —
+  // счётчик, а не флаг: второе нажатие должно сработать снова.
   const navigate = useNavigate();
-  const [openTodayToken, setOpenTodayToken] = useState(0);
+  const [openForecast, setOpenForecast] = useState(null);
   useEffect(() => {
     let unsubscribe = () => {};
     let alive = true;
     listenForTaps((target) => {
-      if (target !== 'feed_today') return;
       navigate('/app/feed', { replace: true });
-      setOpenTodayToken((n) => n + 1);
+      setOpenForecast((prev) => ({ target, n: (prev?.n || 0) + 1 }));
     }).then((off) => { if (alive) unsubscribe = off; else off(); });
     return () => { alive = false; unsubscribe(); };
   }, [navigate]);
@@ -240,7 +239,7 @@ export default function TabShell() {
             scrollRef={scrollRef}
             chartsVersion={chartsVersion}
             onChartResolved={handleFeedChart}
-            openTodayToken={openTodayToken}
+            openForecast={openForecast}
           />
         </div>
         <div style={{ display: active === 'chart' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>

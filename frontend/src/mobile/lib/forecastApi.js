@@ -34,9 +34,14 @@ async function getJson(url) {
   return resp.json();
 }
 
-/** { date, paragraphs[], source, trimmed } */
-export function fetchTodayForecast(chartId, tz) {
-  return getJson(withTz(`${API_BASE}/chart/${chartId}/forecast/today`, tz));
+/**
+ * Прогноз на местную дату «YYYY-MM-DD»: вчера, сегодня, завтра (с 19:00).
+ * Какие даты открыты — feedAnchor.js (forecastDates), сервер держит ту же
+ * границу и на остальное отвечает 404.
+ * { date, paragraphs[], source, trimmed }
+ */
+export function fetchDayForecast(chartId, date, tz) {
+  return getJson(withTz(`${API_BASE}/chart/${chartId}/forecast/day?date=${date}`, tz));
 }
 
 /**

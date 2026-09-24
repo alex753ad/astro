@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -96,11 +96,29 @@ async def _ask_model(prompt: str, *, contour: str, json_mode: bool, max_tokens: 
         return ""
 
 
-# ── Сегодня ─────────────────────────────────────────────────
+# ── Прогноз на день: вчера, сегодня, завтра ─────────────────
 
-async def daily_forecast(chart, tz_name: str | None, today: date | None = None) -> dict:
+# С этого часа по местному времени открыт прогноз на завтра — для всех, а не
+# только для тех, кому вечернее уведомление уходит в 19:00 (решение владельца
+# 24.09.2026): уведомление никогда не должно вести к ещё закрытой карточке.
+# Вторая копия — TOMORROW_OPEN_HOUR в mobile/lib/feedAnchor.js.
+TOMORROW_OPEN_HOUR = 19
+
+
+def allowed_days(now_local: datetime) -> list[date]:
+    """Даты, на которые прогноз открыт: вчера, сегодня и — с 19:00 — завтра."""
+    today = now_local.date()
+    days = [today - timedelta(days=1), today]
+    if now_local.hour >= TOMORROW_OPEN_HOUR:
+        days.append(today + timedelta(days=1))
+    return days
+
+
+async def daily_forecast(chart, tz_name: str | None, day: date | None = None) -> dict:
     tz = F.resolve_tz(tz_name, chart.timezone)
-    local_date = today or datetime.now(timezone.utc).astimezone(tz).date()
+    local_date = day or datetime.now(timezone.utc).astimezone(tz).date()
+    # Ключ — по дате, без «вчера/сегодня/завтра»: один и тот же текст служит
+    # дню во всех трёх ролях, поэтому промпт и требует нейтральных слов.
     key = f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart.id}:{local_date.isoformat()}"
     cached = interpretation_cache.get(key)
     if cached is not None:
@@ -132,17 +150,32 @@ async def daily_forecast(chart, tz_name: str | None, today: date | None = None) 
     return result
 
 
-@router.get("/chart/{chart_id}/forecast/today", summary="Прогноз на сегодня (приложение)")
+@router.get("/chart/{chart_id}/forecast/day", summary="Прогноз на день (приложение)")
 @limiter.limit("20/minute")
-async def get_forecast_today(
+async def get_forecast_day(
     request: Request,
     chart_id: str,
+    on_date: str = Query(..., alias="date"),
     tz: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """`date` — местная дата, YYYY-MM-DD. Открыты вчера, сегодня и — с 19:00
+    по местному времени — завтра; остальное 404. Не 403: закрыто не тарифом,
+    а временем, и купить тут нечего.
+
+    ⚠️ Граница «с 19:00» считается по поясу из запроса — тому же, по которому
+    приложение решает, показывать ли карточку (feedAnchor.js). Разные пояса у
+    двух концов дали бы карточку, которая открывается в 404."""
+    try:
+        day = date.fromisoformat(on_date)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="date: YYYY-MM-DD.")
     chart = _owned_chart(chart_id, user, db)
-    return await daily_forecast(chart, tz)
+    tz_obj = F.resolve_tz(tz, chart.timezone)
+    if day not in allowed_days(datetime.now(timezone.utc).astimezone(tz_obj)):
+        raise HTTPException(status_code=404, detail="Прогноз на эту дату недоступен.")
+    return await daily_forecast(chart, tz, day)
 
 
 # ── Новолуние / полнолуние ─────────────────────────────────

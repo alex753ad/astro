@@ -17,19 +17,19 @@ vi.mock('./authFetchTimeout', () => ({
   },
 }));
 
-const { fetchLunationForecast, fetchTodayForecast } = await import('./forecastApi');
+const { fetchLunationForecast, fetchDayForecast } = await import('./forecastApi');
 
 beforeEach(() => { calls.length = 0; });
 
-describe('прогноз на сегодня', () => {
-  it('пояс телефона уходит в запрос', async () => {
-    await fetchTodayForecast('c1', 'Asia/Novosibirsk');
-    expect(calls[0]).toMatch(/\/chart\/c1\/forecast\/today\?tz=Asia%2FNovosibirsk$/);
+describe('прогноз на день', () => {
+  it('дата и пояс телефона уходят в запрос', async () => {
+    await fetchDayForecast('c1', '2026-09-25', 'Asia/Novosibirsk');
+    expect(calls[0]).toMatch(/\/chart\/c1\/forecast\/day\?date=2026-09-25&tz=Asia%2FNovosibirsk$/);
   });
 
   it('без пояса — запрос без tz (сервер возьмёт пояс карты)', async () => {
-    await fetchTodayForecast('c1', '');
-    expect(calls[0]).toMatch(/\/forecast\/today$/);
+    await fetchDayForecast('c1', '2026-09-24', '');
+    expect(calls[0]).toMatch(/\/forecast\/day\?date=2026-09-24$/);
   });
 });
 

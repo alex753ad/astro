@@ -18,35 +18,57 @@
  * ставит заголовок и только настоящему сегодня (FeedDayHeader.jsx).
  */
 
+import { shiftDays } from './feedTime';
+
 /**
  * @param {{date: string}[]} days — дни ленты, по возрастанию даты.
  * @param {string} today — локальная дата устройства, «YYYY-MM-DD».
  * @returns {string|null} дата дня-якоря либо null, если дней нет вовсе.
  */
 /**
- * Добавить в список пустой сегодняшний день, если событий сегодня нет.
+ * С этого часа (по часам телефона) открыт прогноз на завтра — у всех
+ * (решение владельца 24.09.2026). Зеркало TOMORROW_OPEN_HOUR в
+ * backend/forecast/router.py: разойдутся — карточка «завтра» откроется в 404.
+ */
+export const TOMORROW_OPEN_HOUR = 19;
+
+/**
+ * Даты, у которых в ленте есть карточка прогноза: вчера, сегодня и — с 19:00
+ * — завтра. До 19:00 завтрашней карточки нет совсем, не заглушка (решение
+ * владельца).
+ */
+export function forecastDates(today, hour) {
+  const dates = [shiftDays(today, -1), today];
+  if (hour >= TOMORROW_OPEN_HOUR) dates.push(shiftDays(today, 1));
+  return dates;
+}
+
+/**
+ * Добавить в список пустые дни для дат с прогнозом, если событий в них нет.
  *
- * С 23.09.2026 у сегодняшнего дня всегда есть содержание — карточка прогноза
- * на сегодня (FeedTodayCard.jsx). Без этой вставки в день без событий
- * прогнозу негде было бы стоять, а лента открывалась бы на завтрашнем дне
- * мимо него. Следствие для якоря: при сегодняшнем дне внутри окна лента
- * теперь открывается на сегодня всегда.
+ * С 23.09.2026 у сегодняшнего дня всегда есть содержание — карточка
+ * прогноза; с 24.09.2026 то же у вчера и (с 19:00) у завтра. Без вставки
+ * прогнозу в день без событий негде было бы стоять. Следствие для якоря:
+ * сегодняшний день внутри окна теперь есть всегда, и лента открывается на нём.
  *
  * Не вставляется, если событий нет вовсе (для пустого окна у ленты своё
- * сообщение) и если сегодня вне окна `horizon` — там прогноз не к месту.
+ * сообщение) и для дат вне окна `horizon`.
  *
  * @param {{date: string, events: object[]}[]} days — по возрастанию даты.
- * @param {string} today — «YYYY-MM-DD».
+ * @param {string[]} dates — «YYYY-MM-DD».
  * @param {{from?: string, to?: string}} [horizon]
  */
-export function withToday(days, today, horizon = {}) {
+export function withDates(days, dates, horizon = {}) {
   if (!Array.isArray(days) || days.length === 0) return days;
-  if (horizon.from && today < horizon.from) return days;
-  if (horizon.to && today > horizon.to) return days;
-  if (days.some((d) => d.date === today)) return days;
-  const i = days.findIndex((d) => d.date > today);
-  const out = days.slice();
-  out.splice(i === -1 ? out.length : i, 0, { date: today, events: [] });
+  let out = days;
+  for (const date of dates) {
+    if (horizon.from && date < horizon.from) continue;
+    if (horizon.to && date > horizon.to) continue;
+    if (out.some((d) => d.date === date)) continue;
+    const i = out.findIndex((d) => d.date > date);
+    out = out.slice();
+    out.splice(i === -1 ? out.length : i, 0, { date, events: [] });
+  }
   return out;
 }
 

@@ -11,6 +11,11 @@ describe('targetOfAction', () => {
       .toBe('feed_today');
   });
 
+  it('вечернее «прогноз на завтра» — свой target', () => {
+    expect(targetOfAction({ notification: { data: { target: 'feed_tomorrow' } } })).toBe('feed_tomorrow');
+    expect(targetOfAction({ notification: { extra: { target: 'feed_tomorrow' } } })).toBe('feed_tomorrow');
+  });
+
   it('локальное: target лежит в extra', () => {
     expect(targetOfAction({ notification: { extra: { target: 'feed_today' } } })).toBe('feed_today');
   });
