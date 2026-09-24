@@ -74,10 +74,7 @@ ALLOWED_FILES = {
 }
 
 # Временно: ещё не переведённые зоны. Только сокращается.
-PENDING: set[str] = {
-    "backend/interpretation/template.py",
-    "backend/transit/methodology.json",
-}
+PENDING: set[str] = set()
 
 
 def _files():
