@@ -131,6 +131,11 @@ class NatalChart(Base):
     longitude = Column(Float, nullable=False)
     timezone = Column(String(50), nullable=False)
     utc_datetime = Column(DateTime, nullable=True)
+    # Смещение от UTC задано человеком вручную (055). Само число не хранится:
+    # оно выводится из birth_date/birth_time и utc_datetime
+    # (applied_utc_offset_minutes) — второе хранилище того же факта могло бы
+    # с ним разойтись.
+    utc_offset_manual = Column(Boolean, default=False, nullable=False, server_default="false")
     time_unknown = Column(Boolean, default=False)
 
     planets = Column(JSON, nullable=False)

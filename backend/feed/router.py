@@ -82,11 +82,21 @@ async def get_feed(
     # build_feed синхронный и считает эфемериды — из async-обработчика только
     # через to_thread, иначе он держит единственный event loop процесса
     # (правило из CLAUDE.md, раздел про Swiss Ephemeris).
+    # «Сегодня» и «сейчас» — в ОДНОМ поясе, поясе карты. До 24.09.2026 здесь
+    # стоял date.today(): сервер живёт в UTC, и в Москве с 00:00 до 03:00
+    # «сегодня» было вчерашним, а «сейчас» (now_local внутри build_feed) —
+    # уже нынешним. В ночь на понедельник понедельник недели считался от
+    # воскресенья, и окно проходов Луны («3 месяца от понедельника текущей
+    # недели») теряло последнюю неделю; в новогоднюю ночь горизонт тарифа
+    # считался от 31 декабря.
+    from backend.transit.planner_engine import now_local  # отложенно: тянет Swiss Ephemeris
+    now = now_local(getattr(chart, "timezone", None))
     return await asyncio.to_thread(
         build_feed,
         chart=chart,
         from_date=from_dt,
         to_date=to_dt,
-        today=date.today(),
+        today=now.date(),
         tier=tier,
+        now=now,
     )

@@ -77,6 +77,7 @@ import { splitDayEvents } from '../lib/feedDayOrder';
 import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
+import { serverNow } from '../../lib/serverClock';
 
 // ⚠️ Нижний запас — ЗДЕСЬ, а не только на скроллере (TabShell.jsx). Приёмка
 // 15.09.2026: последние строки ленты уходили под кнопку чата. Замер при
@@ -375,7 +376,7 @@ export default function FeedScreen({
   // Дни с карточкой прогноза (вчера, сегодня, с 19:00 — завтра) есть в
   // списке всегда, даже без событий (lib/feedAnchor.js → withDates, там же про
   // следствие для якоря). Час — по часам телефона, как и граница на сервере.
-  const withForecast = forecastDates(today, new Date().getHours());
+  const withForecast = forecastDates(today, new Date(serverNow()).getHours());
   const days = withDates(groupByDay(events), withForecast, feed?.horizon || {});
   const forecastLabel = { [shiftDays(today, -1)]: 'вчера', [today]: 'сегодня', [shiftDays(today, 1)]: 'завтра' };
 

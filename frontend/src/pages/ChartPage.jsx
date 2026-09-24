@@ -34,6 +34,7 @@ import {
 } from '../api/client';
 import { useToast } from '../components/Toast';
 import PlanComparisonModal from '../components/PlanComparisonModal';
+import { utcOffsetLabel } from '../lib/utcOffset';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -779,7 +780,10 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h1 style={s.title}>Карта {chart.name ?? currentUser?.email?.split('@')[0] ?? ''}</h1>
-            <p style={{ ...s.subtitle, margin: 0 }}>{chart.birth_date} · {chart.birth_place}</p>
+            <p style={{ ...s.subtitle, margin: 0 }}>
+              {chart.birth_date} · {chart.birth_place}
+              {utcOffsetLabel(chart) && ` · ${utcOffsetLabel(chart)}`}
+            </p>
             <StreakBadge streak={streak} isNew={isNew} />
           </div>
         </div>

@@ -18,6 +18,7 @@
  */
 
 import { tokenExpiresAt } from './jwt';
+import { serverNow } from './serverClock';
 
 /** За сколько до истечения обновляемся заранее. */
 export const REFRESH_BUFFER_MS = 2 * 60 * 1000;
@@ -45,7 +46,7 @@ export const RETRY_MAX_MS = 5 * 60 * 1000;
  * бесконечное обновление. Такой токен уедет на сервер как есть, и решение
  * примет он — ответом 401, на который клиент обновится обычным путём.
  */
-export function nextRefresh(token, now = Date.now()) {
+export function nextRefresh(token, now = serverNow()) {
   const expiresAt = tokenExpiresAt(token);
   if (!expiresAt) return { kind: 'never' };
   if (now >= expiresAt) return { kind: 'now' };

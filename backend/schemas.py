@@ -26,6 +26,10 @@ class BirthDataInput(BaseModel):
         "placidus",
         pattern=r"^(placidus|koch|whole_sign|equal)$",
     )
+    # Смещение от UTC в минутах, заданное человеком вручную (UTC+3 → 180).
+    # Приоритет над поясом места рождения. None — считать по месту.
+    # Пределы — крайние реальные смещения (UTC−12 … UTC+14).
+    utc_offset_minutes: Optional[int] = Field(None, ge=-720, le=840)
 
     @field_validator("birth_date")
     @classmethod
@@ -376,6 +380,10 @@ class NatalChartResponse(BaseModel):
     latitude: float = Field(..., ge=-90.0, le=90.0)
     longitude: float = Field(..., ge=-180.0, le=180.0)
     timezone: str
+    # Смещение, по которому построена карта, и откуда оно: "place" — по поясу
+    # места рождения с учётом истории поясов, "manual" — задано человеком.
+    utc_offset_minutes: Optional[int] = None
+    utc_offset_source: str = "place"
     time_unknown: bool
     house_system: str
     planets: list[PlanetPosition]

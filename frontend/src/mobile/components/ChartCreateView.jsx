@@ -29,6 +29,7 @@ import { displayToIso, maskDateInput } from '../lib/dateMask';
 import { searchPlaces } from '../lib/placeSearch';
 import { createChart } from '../lib/chartApi';
 import { describeCreateError, validateBirthForm } from '../lib/chartCreateRules';
+import { UTC_OFFSET_CHOICES, formatUtcOffset } from '../../lib/utcOffset';
 
 const EMPTY = {
   name: '',
@@ -42,6 +43,9 @@ const EMPTY = {
   birthTime: '',
   timeUnknown: false,
   birthPlace: '',
+  // null — смещение считает сервер по поясу места рождения (с историей
+  // поясов); число — задано вручную и имеет приоритет.
+  utcOffsetMinutes: null,
 };
 
 /** Пауза перед запросом подсказок — как на вебе (BirthForm.jsx). */
@@ -271,6 +275,25 @@ export default function ChartCreateView({ onCancel, onCreated }) {
           )}
         </Field>
 
+        <Field
+          id="chart-offset"
+          label="Смещение от UTC"
+          hint="Обычно не нужно: по месту рождения посчитаем сами, с историей переводов часов"
+          error={null}
+        >
+          <select
+            id="chart-offset"
+            className="mobile-input"
+            value={form.utcOffsetMinutes ?? ''}
+            onChange={(e) => set('utcOffsetMinutes', e.target.value === '' ? null : Number(e.target.value))}
+          >
+            <option value="">По месту рождения</option>
+            {UTC_OFFSET_CHOICES.map((m) => (
+              <option key={m} value={m}>{formatUtcOffset(m)}</option>
+            ))}
+          </select>
+        </Field>
+
         {ambiguous && (
           <section
             style={{
@@ -290,20 +313,23 @@ export default function ChartCreateView({ onCancel, onCreated }) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {ambiguous.options.map((option) => (
                 <button
-                  key={option}
+                  key={option.offset}
                   type="button"
                   disabled={busy}
-                  // Выбор и подставляется в поле, и сразу уходит запросом:
-                  // человек уже ответил на заданный вопрос, второе нажатие
-                  // «Построить карту» ничего к его ответу не добавляет.
-                  onClick={() => { set('birthTime', option); submit({ birthTime: option }); }}
+                  // Выбор и подставляется в поле смещения, и сразу уходит
+                  // запросом: человек уже ответил на заданный вопрос, второе
+                  // нажатие «Построить карту» ничего к его ответу не добавляет.
+                  onClick={() => {
+                    set('utcOffsetMinutes', option.offset);
+                    submit({ utcOffsetMinutes: option.offset });
+                  }}
                   style={{
                     padding: '9px 16px', borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--accent)', background: 'transparent',
                     color: 'var(--accent)', fontSize: 14, fontWeight: 600,
                   }}
                 >
-                  {option}
+                  {option.label}
                 </button>
               ))}
             </div>

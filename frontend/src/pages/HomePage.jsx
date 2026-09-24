@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import BirthForm from '../components/BirthForm';
 import { calculateChart } from '../api/client';
+import { ambiguousChoices } from '../lib/utcOffset';
 
 export default function HomePage({ currentUser, onShowAuth }) {
   const [loading, setLoading] = useState(false);
@@ -27,8 +28,15 @@ export default function HomePage({ currentUser, onShowAuth }) {
       }
       navigate(chart.id ? `/chart/${chart.id}` : '/chart/anonymous');
     } catch (err) {
-      if (err.data?.type === 'ambiguous_time') {
-        setError(`${err.data.message}\nВарианты: ${err.data.options?.join(' или ')}`);
+      // Тело ответа ApiError кладёт в `detail`, и серверный `detail` лежит
+      // внутри него. До 24.09.2026 здесь читалось несуществующее `err.data`:
+      // ветка не срабатывала никогда, и человек видел «[object Object]».
+      const ambiguous = err.detail?.detail;
+      if (ambiguous?.type === 'ambiguous_time') {
+        // Выбрать можно полем «Смещение от UTC»: подписи из options
+        // («02:30 MSD») в поле времени не вводятся.
+        const choices = ambiguousChoices(ambiguous).map(c => c.label).join(' или ');
+        setError(`${ambiguous.message}${choices ? `\nУкажи в поле «Смещение от UTC»: ${choices}.` : ''}`);
       } else {
         setError(err.message || 'Ошибка расчёта. Попробуй ещё раз.');
       }

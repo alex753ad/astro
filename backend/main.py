@@ -59,6 +59,7 @@ from backend.ephemeris.calculator import calculate_full_chart
 from backend.ephemeris.geo import (
     geocode_place,
     resolve_utc_datetime,
+    applied_utc_offset_minutes,
     validate_coordinates,
     GeocodingError,
     AmbiguousTimeError,
@@ -568,17 +569,11 @@ async def calculate_chart(
             birth_date=str(data.birth_date),
             birth_time=data.birth_time,
             timezone=geo.timezone,
+            utc_offset_minutes=data.utc_offset_minutes,
         )
         warnings.extend(tz_warnings)
     except AmbiguousTimeError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": str(e),
-                "options": e.options,
-                "type": "ambiguous_time",
-            },
-        )
+        raise _ambiguous_time_http(e)
 
     # 4. Calculate chart
     try:
@@ -651,6 +646,7 @@ async def calculate_chart(
         longitude=geo.longitude,
         timezone=geo.timezone,
         utc_datetime=utc_dt,
+        utc_offset_manual=data.utc_offset_minutes is not None,
         time_unknown=time_unknown,
         house_system=data.house_system,
         planets=[p.model_dump() for p in planets_resp],
@@ -766,6 +762,8 @@ async def calculate_chart(
         latitude=geo.latitude,
         longitude=geo.longitude,
         timezone=geo.timezone,
+        utc_offset_minutes=applied_utc_offset_minutes(str(data.birth_date), data.birth_time, utc_dt),
+        utc_offset_source="manual" if data.utc_offset_minutes is not None else "place",
         time_unknown=time_unknown,
         house_system=data.house_system,
         planets=planets_resp,
@@ -775,6 +773,24 @@ async def calculate_chart(
         midheaven=mc_resp,
         warnings=warnings,
         access_token=(chart_record.access_token if user is None else None),
+    )
+
+
+def _ambiguous_time_http(e: AmbiguousTimeError) -> HTTPException:
+    """400 на время из часа перевода стрелок назад.
+
+    `offsets` — парой к `options`: клиент отправляет выбранное смещение в
+    `utc_offset_minutes`, и повторный запрос уже однозначен. `options`
+    оставлены прежними строками ради уже установленных APK.
+    """
+    return HTTPException(
+        status_code=400,
+        detail={
+            "message": str(e),
+            "options": e.options,
+            "offsets": e.offsets,
+            "type": "ambiguous_time",
+        },
     )
 
 
@@ -797,11 +813,16 @@ async def save_anonymous_chart(
     from backend.ephemeris.calculator import calculate_full_chart as _calc
 
     geo = await geocode_place(data.birth_place)
-    utc_dt, time_unknown, _ = resolve_utc_datetime(
-        birth_date=str(data.birth_date),
-        birth_time=data.birth_time,
-        timezone=geo.timezone,
-    )
+    # До 24.09.2026 неоднозначное время здесь не ловилось и давало 500.
+    try:
+        utc_dt, time_unknown, _ = resolve_utc_datetime(
+            birth_date=str(data.birth_date),
+            birth_time=data.birth_time,
+            timezone=geo.timezone,
+            utc_offset_minutes=data.utc_offset_minutes,
+        )
+    except AmbiguousTimeError as e:
+        raise _ambiguous_time_http(e)
     (chart_data, aspects) = await asyncio.to_thread(
         _calc,
         utc_dt=utc_dt,
@@ -849,6 +870,7 @@ async def save_anonymous_chart(
         longitude=geo.longitude,
         timezone=geo.timezone,
         utc_datetime=utc_dt,
+        utc_offset_manual=data.utc_offset_minutes is not None,
         time_unknown=time_unknown,
         house_system=data.house_system,
         planets=[p.model_dump() for p in planets_resp],
@@ -870,6 +892,8 @@ async def save_anonymous_chart(
         latitude=geo.latitude,
         longitude=geo.longitude,
         timezone=geo.timezone,
+        utc_offset_minutes=applied_utc_offset_minutes(str(data.birth_date), data.birth_time, utc_dt),
+        utc_offset_source="manual" if data.utc_offset_minutes is not None else "place",
         time_unknown=time_unknown,
         house_system=data.house_system,
         planets=planets_resp,
@@ -931,6 +955,10 @@ async def get_chart(
         latitude=chart.latitude,
         longitude=chart.longitude,
         timezone=chart.timezone,
+        utc_offset_minutes=applied_utc_offset_minutes(
+            chart.birth_date, chart.birth_time, chart.utc_datetime,
+        ),
+        utc_offset_source="manual" if getattr(chart, "utc_offset_manual", False) else "place",
         time_unknown=chart.time_unknown,
         house_system=chart.house_system,
         planets=planets,

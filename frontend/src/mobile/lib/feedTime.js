@@ -22,6 +22,7 @@
  * английские названия вместо русских. Приложение обязано работать офлайн и
  * одинаково на любом устройстве — девятнадцать строк списком надёжнее.
  */
+import { serverNow } from '../../lib/serverClock';
 
 // Родительный падеж — «5 сентября», а не «5 сентябрь».
 const MONTHS_GENITIVE = [
@@ -193,7 +194,9 @@ export function daysBetween(a, b) {
  * день, и лента открывалась бы не на том дне.
  */
 export function localToday() {
-  const d = new Date();
+  // Момент — по серверу, пояс — телефона (lib/serverClock.js): с неверной
+  // датой на телефоне лента открывалась бы не на том дне.
+  const d = new Date(serverNow());
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }

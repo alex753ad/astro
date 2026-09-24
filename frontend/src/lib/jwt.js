@@ -12,7 +12,13 @@
  * быть не может — ключ на сервере. Значение одно: не тратить запрос (и место
  * в очереди лимитера) на токен, срок которого уже вышел по его же claim'у.
  * Решение о доступе всегда за сервером.
+ *
+ * ⚠️ «Сейчас» — по часам сервера (`serverNow`), а не телефона: `exp` выставлен
+ * сервером. С часами телефона, спешащими больше срока жизни токена (15 мин),
+ * любой свежий токен выглядел бы протухшим — см. lib/serverClock.js.
  */
+
+import { serverNow } from './serverClock';
 
 function parseJwtPayload(token) {
   try {
@@ -36,7 +42,7 @@ export function tokenExpiresAt(token) {
  * ответит он. Иначе любой формат токена, который мы не разобрали, молча
  * превратился бы в вечное обновление сессии.
  */
-export function isTokenExpired(token, now = Date.now()) {
+export function isTokenExpired(token, now = serverNow()) {
   const expiresAt = tokenExpiresAt(token);
   return expiresAt > 0 && now >= expiresAt;
 }

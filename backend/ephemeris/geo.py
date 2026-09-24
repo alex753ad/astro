@@ -10,7 +10,7 @@ import asyncio
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 import pytz
@@ -49,9 +49,17 @@ class GeocodingError(Exception):
 class AmbiguousTimeError(Exception):
     """Raised when birth time falls in a DST transition gap/overlap."""
 
-    def __init__(self, message: str, options: list[str] | None = None):
+    def __init__(self, message: str, options: list[str] | None = None,
+                 offsets: list[int] | None = None):
         super().__init__(message)
         self.options = options or []
+        # Смещения от UTC в минутах, парой к `options`. Нужны, чтобы выбор
+        # человека можно было ОТПРАВИТЬ обратно: `options` — подписи вида
+        # «02:30 MSD», поле времени их не принимает (^HH:MM$), а голое «02:30»
+        # снова неоднозначно. До 24.09.2026 кнопки выбора слали подпись и
+        # получали 422 — родившийся в час перевода часов назад не мог
+        # построить карту вовсе.
+        self.offsets = offsets or []
 
 
 async def _nominatim_get(client: "httpx.AsyncClient", params: dict) -> "httpx.Response":
@@ -167,12 +175,27 @@ async def geocode_place(place: str) -> GeoResult:
     return result
 
 
+def _fmt_offset(dt: datetime) -> str:
+    """aware datetime → «UTC+4», «UTC−3:30»."""
+    minutes = int(dt.utcoffset().total_seconds() // 60)
+    sign = "+" if minutes >= 0 else "−"
+    h, m = divmod(abs(minutes), 60)
+    return f"UTC{sign}{h}" + (f":{m:02d}" if m else "")
+
+
 def resolve_utc_datetime(
     birth_date: str,
     birth_time: str | None,
     timezone: str,
+    utc_offset_minutes: int | None = None,
 ) -> tuple[datetime, bool, list[str]]:
     """Convert local birth date/time to UTC.
+
+    `utc_offset_minutes` — смещение, заданное человеком вручную. Имеет
+    приоритет над поясом места: история поясов в tzdata хороша, но не
+    безупречна (местные решения, самовольный переход районов на соседнее
+    время), и у человека должен быть способ её поправить. Неоднозначности
+    при нём не бывает — смещение и есть ответ на вопрос «какое из двух».
 
     Returns (utc_datetime, time_unknown, warnings).
 
@@ -194,8 +217,11 @@ def resolve_utc_datetime(
     hour, minute = map(int, birth_time.split(":"))
     year, month, day = map(int, birth_date.split("-"))
 
-    tz = pytz.timezone(timezone)
     naive_dt = datetime(year, month, day, hour, minute, 0)
+    if utc_offset_minutes is not None:
+        return naive_dt - timedelta(minutes=utc_offset_minutes), time_unknown, warnings
+
+    tz = pytz.timezone(timezone)
 
     try:
         local_dt = tz.localize(naive_dt, is_dst=None)
@@ -204,14 +230,16 @@ def resolve_utc_datetime(
         dt_std = tz.localize(naive_dt, is_dst=False)
 
         raise AmbiguousTimeError(
-            f"The time {birth_time} on {birth_date} in timezone {timezone} is ambiguous "
-            f"due to DST transition. It could be either "
-            f"{dt_dst.strftime('%H:%M %Z')} (summer time) or "
-            f"{dt_std.strftime('%H:%M %Z')} (standard time). "
-            f"Please specify which one.",
+            f"В эту ночь часы переводили назад, и {birth_time} наступало дважды: "
+            f"сначала по летнему времени ({_fmt_offset(dt_dst)}), потом по "
+            f"зимнему ({_fmt_offset(dt_std)}). Выбери, какое из двух.",
             options=[
                 dt_dst.strftime("%H:%M %Z"),
                 dt_std.strftime("%H:%M %Z"),
+            ],
+            offsets=[
+                int(dt_dst.utcoffset().total_seconds() // 60),
+                int(dt_std.utcoffset().total_seconds() // 60),
             ],
         )
     except pytz.exceptions.NonExistentTimeError:
@@ -245,3 +273,22 @@ def validate_coordinates(latitude: float, longitude: float) -> list[str]:
         )
 
     return warnings
+
+
+def applied_utc_offset_minutes(
+    birth_date: str, birth_time: str | None, utc_dt: datetime | None,
+) -> int | None:
+    """Смещение от UTC, которое карта ФАКТИЧЕСКИ применила, в минутах.
+
+    Считается из сохранённого, а не заново из пояса: местное время рождения
+    минус `utc_datetime`. Так показанное человеку число — ровно то, по
+    которому построена карта, даже если с тех пор обновилась tzdata или
+    смещение задано вручную. Время неизвестно — местным берётся 12:00, как
+    в `resolve_utc_datetime`.
+    """
+    if utc_dt is None:
+        return None
+    hour, minute = map(int, (birth_time or "12:00").split(":"))
+    year, month, day = map(int, birth_date.split("-"))
+    local = datetime(year, month, day, hour, minute)
+    return round((local - utc_dt.replace(tzinfo=None)).total_seconds() / 60)

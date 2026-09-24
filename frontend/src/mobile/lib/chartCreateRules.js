@@ -13,6 +13,7 @@
 
 import { hasDigits } from './dateMask';
 import { localToday } from './feedTime';
+import { ambiguousChoices } from '../../lib/utcOffset';
 
 /** Раньше этой даты эфемериды не считают (`validate_date_range`, schemas.py). */
 export const MIN_BIRTH_DATE = '1900-01-01';
@@ -104,6 +105,10 @@ export function buildChartPayload(form) {
     birth_date: form?.birthDate ?? '',
     birth_time: form?.timeUnknown ? null : (form?.birthTime || null),
     birth_place: (form?.birthPlace ?? '').trim(),
+    // Ручное смещение от UTC — только когда задано: без поля сервер считает
+    // по поясу места рождения, с историей поясов.
+    ...(typeof form?.utcOffsetMinutes === 'number'
+      ? { utc_offset_minutes: form.utcOffsetMinutes } : {}),
   };
 }
 
@@ -113,7 +118,7 @@ export function buildChartPayload(form) {
  * Разбирает отказ `POST /chart/calculate`.
  *
  * @returns {{ kind: 'ambiguous-time'|'place'|'limit'|'rate'|'validation'|'unknown',
- *             text: string, field: string|null, options: string[],
+ *             text: string, field: string|null, options: {offset: number, label: string}[],
  *             showPricing: boolean }}
  *
  * ⚠️ У 400 два РАЗНЫХ смысла, и различать их надо по форме `detail`, а не по
@@ -143,7 +148,10 @@ export function describeCreateError(err) {
       ...blank,
       kind: 'ambiguous-time',
       text: detail.message || 'В эту ночь переводили часы — уточни время.',
-      options: Array.isArray(detail.options) ? detail.options : [],
+      // Выбор уходит СМЕЩЕНИЕМ, а не подписью из `options`: подпись вида
+      // «02:30 MSD» поле времени не принимает, а голое «02:30» снова
+      // неоднозначно. До 24.09.2026 кнопки слали подпись и получали 422.
+      options: ambiguousChoices(detail),
     };
   }
 

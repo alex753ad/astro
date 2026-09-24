@@ -38,6 +38,7 @@ import {
 } from '../api/authTransport';
 import { API_BASE as CONFIG_API_BASE } from '../config';
 import { isTokenExpired, tokenExpiresAt } from '../lib/jwt';
+import { noteFreshToken, serverNow } from '../lib/serverClock';
 import { REFRESH_BUFFER_MS, nextRefresh, retryDelay } from '../lib/refreshSchedule';
 import { getRefCode } from '../utils/refCode';
 
@@ -203,6 +204,8 @@ function useAuthInternal() {
       is_admin: data.is_admin ?? false,
       is_partner: data.is_partner ?? false,
     };
+    // Выдан только что: вход, OAuth или обновление — узнаём расхождение часов.
+    noteFreshToken(data.access_token);
     setAccessToken(data.access_token);
     setUser(newUser);
     // Сохраняем сразу — не ждём useEffect
@@ -336,7 +339,7 @@ function useAuthInternal() {
       if (document.visibilityState !== 'visible') return;
       if (!accessToken) return;
       const expiresAt = tokenExpiresAt(accessToken);
-      if (Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
+      if (serverNow() >= expiresAt - REFRESH_BUFFER_MS) {
         doRefresh();
       }
     }

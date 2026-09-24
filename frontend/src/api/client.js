@@ -9,6 +9,7 @@
 
 import { API_BASE } from '../config';
 import { isTokenExpired } from '../lib/jwt';
+import { noteFreshToken } from '../lib/serverClock';
 import { createSectionParser } from '../lib/sectionStream';
 import {
   AUTH_CREDENTIALS,
@@ -251,6 +252,9 @@ export async function refreshSession() {
 
     lastRefreshFailure = null;
 
+    // Токен выдан только что — по его iat узнаём расхождение часов телефона
+    // с сервером (lib/serverClock.js). До проверок срока, которые его читают.
+    noteFreshToken(data.access_token);
     localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token);
     // Сервер ротирует refresh: не сохранив новый, приложение разлогинится на
     // следующем обновлении. В вебе это no-op — там refresh в куке.

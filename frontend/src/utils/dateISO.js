@@ -14,6 +14,7 @@
  * единственная читает локальные компоненты Date. Дальше в цепочку (например
  * addDaysISO(todayLocalISO(), 365)) уходит уже чистая ISO-строка.
  */
+import { serverNow } from '../lib/serverClock';
 
 export function addDaysISO(dateStr, days) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -60,6 +61,6 @@ export function monthEndISO(dateStr, monthsOffset = 0) {
 // "Сегодня" по локальным часам пользователя. См. пояснение в шапке файла —
 // единственная функция модуля, которая намеренно читает локальное время.
 export function todayLocalISO() {
-  const d = new Date();
+  const d = new Date(serverNow()); // момент по серверу, пояс телефона — lib/serverClock.js
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

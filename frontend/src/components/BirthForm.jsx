@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import MotionButton from './MotionButton';
 import { todayLocalISO } from '../utils/dateISO';
+import { UTC_OFFSET_CHOICES, formatUtcOffset } from '../lib/utcOffset';
 
 const TODAY = todayLocalISO();
 const MIN_DATE = '1900-01-01';
@@ -243,6 +244,9 @@ export default function BirthForm({ onSubmit, loading }) {
   const [form, setForm]           = useState(DEFAULT_FORM);
   const [placeValue, setPlaceValue] = useState(DEFAULT_PLACE_FULL);
   const [timeUnknown, setTimeUnknown] = useState(false);
+  // null — смещение от UTC считает сервер по месту рождения (с историей
+  // поясов); число — задано вручную и имеет приоритет.
+  const [utcOffset, setUtcOffset] = useState(null);
   const [errors, setErrors]       = useState({});
 
   const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
@@ -284,6 +288,7 @@ export default function BirthForm({ onSubmit, loading }) {
       birth_time:   timeUnknown ? null : form.birth_time || null,
       birth_place:  placeValue,
       house_system: form.house_system,
+      ...(utcOffset !== null ? { utc_offset_minutes: utcOffset } : {}),
     });
   };
 
@@ -387,6 +392,19 @@ export default function BirthForm({ onSubmit, loading }) {
             error={errors.birth_place}
             defaultQuery={DEFAULT_PLACE_DISPLAY}
           />
+        </Field>
+
+        <Field label="Смещение от UTC (обычно не нужно — посчитаем по месту)">
+          <select
+            value={utcOffset ?? ''}
+            onChange={e => setUtcOffset(e.target.value === '' ? null : Number(e.target.value))}
+            style={S.input}
+          >
+            <option value="">По месту рождения</option>
+            {UTC_OFFSET_CHOICES.map(m => (
+              <option key={m} value={m}>{formatUtcOffset(m)}</option>
+            ))}
+          </select>
         </Field>
 
         <MotionButton

@@ -33,6 +33,7 @@ import { birthDateWords, shortPlace } from '../lib/chartFormat';
 import { CHART_HINTS } from '../lib/onboardingCopy';
 import useHints from '../lib/useHints';
 import useAuth from '../../hooks/useAuth.jsx';
+import { utcOffsetLabel } from '../../lib/utcOffset';
 
 function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
   return (
@@ -407,6 +408,13 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
         <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
           {birthDateWords(chart.birth_date)} · {timeLabel} · {shortPlace(chart.birth_place)}
         </p>
+        {/* По какому смещению построена карта — чтобы ошибку пояса можно было
+            заметить. Исправляется новой картой с ручным смещением. */}
+        {utcOffsetLabel(chart) && (
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+            {utcOffsetLabel(chart)}
+          </p>
+        )}
         {chart.time_unknown && (
           <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--color-warning)' }}>
             Время рождения неизвестно — дома и углы посчитаны на полдень и показаны условно.

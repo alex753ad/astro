@@ -104,8 +104,12 @@ describe('describeCreateError — 400 ambiguous_time', () => {
   // main.py: detail — объект, а не строка.
   const err = apiError(400, {
     detail: {
-      message: 'Время 02:30 не существует: перевод часов.',
-      options: ['01:30', '03:30'],
+      // Форма — ровно та, что отдаёт сервер (geo.py). До 24.09.2026 здесь
+      // стояли выдуманные «01:30»/«03:30», и тест был зелёным, пока кнопки
+      // слали настоящую подпись «02:30 MSD» и получали 422.
+      message: 'В эту ночь часы переводили назад, и 02:30 наступало дважды.',
+      options: ['02:30 MSD', '02:30 MSK'],
+      offsets: [240, 180],
       type: 'ambiguous_time',
     },
   });
@@ -113,10 +117,28 @@ describe('describeCreateError — 400 ambiguous_time', () => {
   it('это отдельная ветка с вариантами, а не текст ошибки', () => {
     const d = describeCreateError(err);
     expect(d.kind).toBe('ambiguous-time');
-    expect(d.options).toEqual(['01:30', '03:30']);
-    expect(d.text).toBe('Время 02:30 не существует: перевод часов.');
+    expect(d.options).toEqual([
+      { offset: 240, label: 'летнее (UTC+4)' },
+      { offset: 180, label: 'зимнее (UTC+3)' },
+    ]);
+    expect(d.text).toBe('В эту ночь часы переводили назад, и 02:30 наступало дважды.');
     // Ошибку у поля не показываем: время человек заполнил правильно.
     expect(d.field).toBeNull();
+  });
+
+  it('выбранный вариант уходит смещением, а время остаётся прежним', () => {
+    const [choice] = describeCreateError(err).options;
+    const body = buildChartPayload({
+      birthDate: '2010-10-31', birthTime: '02:30', birthPlace: 'Москва',
+      utcOffsetMinutes: choice.offset,
+    });
+    expect(body.birth_time).toBe('02:30');
+    expect(body.utc_offset_minutes).toBe(240);
+  });
+
+  it('без ручного смещения поле не отправляется — считает сервер по месту', () => {
+    const body = buildChartPayload({ birthDate: '2010-10-31', birthTime: '02:30', birthPlace: 'Москва', utcOffsetMinutes: null });
+    expect('utc_offset_minutes' in body).toBe(false);
   });
 });
 
