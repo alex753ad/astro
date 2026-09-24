@@ -307,6 +307,7 @@ def process_payment(
     tier: str,
     period: str,
     amount: float,
+    paid_at: datetime | None = None,
 ) -> PaymentEvent:
     """Идемпотентно фиксирует платёж и активирует подписку.
 
@@ -339,6 +340,7 @@ def process_payment(
             tier=tier,
             period=period,
             amount=amount,
+            paid_at=paid_at,
         )
         db.add(payment_event)
         db.flush()

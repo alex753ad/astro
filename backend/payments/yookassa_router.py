@@ -46,12 +46,13 @@ from backend.redis_client import get_redis
 from backend.time_utils import utcnow
 from backend.payments.common import (
     TIER_PRICES_RUB,
-    price_on,
     DuplicatePayment,
     PaymentProcessingError,
     SubscriptionOwnerMissing,
+    price_on,
     process_payment,
 )
+from backend.payments.receipts import notify_receipt, paid_at_from
 
 logger = logging.getLogger("astro.payments.yookassa")
 settings = get_settings()
@@ -536,6 +537,9 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
     period = str(meta.get("period") or PERIOD)
 
     paid = _amount_value(payment)
+    # Момент оплаты по ЮKassa — для чека «Мой налог» и месячной сводки
+    # (payments/receipts.py). Не utcnow(): сверка начисляет с опозданием.
+    paid_at = paid_at_from(payment)
 
     # Непригодная metadata — постоянная причина: она фиксируется при создании
     # платежа и при перечитывании всегда та же. Сюда же попадает оплаченный
@@ -548,7 +552,7 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
             else "в metadata платежа нет user_id и тарифа"
         )
         await _record_unusable_payment(
-            db, payment_id, problem=problem, amount=paid,
+            db, payment_id, problem=problem, amount=paid, paid_at=paid_at,
             user_id=user_id or None, tier=tier if tier in TIER_PRICES_RUB else None,
         )
         return UNUSABLE
@@ -560,7 +564,7 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
     if refunded > 0:
         await _record_unusable_payment(
             db, payment_id, problem=f"по платежу уже был возврат {refunded:.2f} ₽",
-            amount=paid, user_id=user_id, tier=tier,
+            amount=paid, paid_at=paid_at, user_id=user_id, tier=tier,
         )
         return UNUSABLE
 
@@ -572,7 +576,7 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
         return await _unusable(
             db, payment_id,
             problem=f"сумма не совпадает с ценой тарифа: заплачено {paid:.2f}, ожидалось {expected or 0:.2f}",
-            amount=paid, user_id=user_id, tier=tier,
+            amount=paid, paid_at=paid_at, user_id=user_id, tier=tier,
         )
 
     # Валюта — часть сверки суммы, а не отдельная проверка (аудит 23.08.2026,
@@ -587,7 +591,7 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
         return await _unusable(
             db, payment_id,
             problem=f"валюта {currency or 'не указана'}, а цены рублёвые",
-            amount=paid, user_id=user_id, tier=tier,
+            amount=paid, paid_at=paid_at, user_id=user_id, tier=tier, currency=currency or "?",
         )
 
     try:
@@ -599,6 +603,7 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
             tier=tier,
             period=period,
             amount=paid,
+            paid_at=paid_at,
         )
     except DuplicatePayment:
         # Ретрай ЮKassa, повтор перехваченного запроса или вторая дорожка
@@ -616,6 +621,8 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
             payment_id, exc.user_id,
         )
         await _notify_orphan_payment(payment_id, exc.user_id, tier, paid)
+        await notify_receipt(db, payment_id=payment_id, amount=paid, paid_at=paid_at, tier=tier,
+                             user_id=None, note="Тариф не выдан: пользователя нет в базе (см. сообщение выше).")
         return ORPHAN
     except PaymentProcessingError as exc:
         logger.error("YooKassa: обработка платежа %s упала на шаге %s", payment_id, exc.stage)
@@ -623,7 +630,7 @@ async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
 
     # Только после успешной обработки: на повторной доставке сюда не доходим
     # (DuplicatePayment вернул выше), поэтому одно сообщение на один платёж.
-    await _notify_payment(db, payment_id, user_id, tier, paid)
+    await _notify_payment(db, payment_id, user_id, tier, paid, paid_at)
     return ACTIVATED
 
 
@@ -640,6 +647,8 @@ async def _record_unusable_payment(
     amount: float,
     user_id: str | None = None,
     tier: str | None = None,
+    paid_at=None,
+    currency: str = "RUB",
 ) -> dict[str, Any]:
     """Платёж пришёл, но выдать по нему нечего. Записать, сообщить, ответить 200.
 
@@ -671,6 +680,7 @@ async def _record_unusable_payment(
             tier=tier or None,
             period=None,
             amount=amount,
+            paid_at=paid_at,
         ))
         db.commit()
     except IntegrityError:
@@ -682,6 +692,10 @@ async def _record_unusable_payment(
         "YooKassa: платёж %s записан, но подписка НЕ выдана — %s", payment_id, problem,
     )
     await _notify_unusable_payment(payment_id, problem, amount, tier)
+    # Деньги получены — чек нужен и без выданного тарифа (payments/receipts.py).
+    await notify_receipt(db, payment_id=payment_id, amount=amount, paid_at=paid_at, tier=tier,
+                         user_id=user_id, currency=currency,
+                         note=f"Тариф не выдан: {problem} (см. сообщение выше).")
     return {"ok": True}
 
 
@@ -711,7 +725,7 @@ async def _notify_unusable_payment(payment_id, problem: str, amount: float, tier
         f"payment_id: {payment_id}\n\n"
         "Платёж записан в payment_events, деньги не потерялись. Нужно два "
         "действия:\n"
-        "1) Провести доход вручную в «Мой налог» — деньги получены.\n"
+        "1) Пробить чек в «Мой налог» — деньги получены, данные в следующем сообщении.\n"
         "2) Решить с доступом: выдать тариф через админку "
         "(/api/v1/payments/admin/set-tier) или вернуть деньги. Подробности "
         "платежа — по payment_id в кабинете ЮKassa."
@@ -748,9 +762,8 @@ async def _notify_orphan_payment(payment_id, user_id, tier, amount) -> None:
         f"payment_id: {payment_id}\n\n"
         "Платёж записан в payment_events, деньги не потерялись. Нужно два "
         "действия:\n"
-        "1) Провести доход вручную в «Мой налог» — это обязательно в любом "
-        "случае, деньги получены (ЮKassa чеки для самозанятых не формирует "
-        "с 29.12.2025).\n"
+        "1) Пробить чек в «Мой налог» — обязательно в любом случае, деньги "
+        "получены. Данные для чека — в следующем сообщении.\n"
         "2) Разобраться с подпиской руками: скорее всего человек удалил "
         "аккаунт после оплаты. Если он вернётся — выдать тариф через админку "
         "(/api/v1/payments/admin/set-tier) или вернуть деньги."
@@ -761,7 +774,7 @@ async def _notify_orphan_payment(payment_id, user_id, tier, amount) -> None:
         logger.warning("YooKassa: не удалось отправить уведомление о платеже без владельца %s", payment_id)
 
 
-async def _notify_payment(db: Session, payment_id, user_id, tier, amount) -> None:
+async def _notify_payment(db: Session, payment_id, user_id, tier, amount, paid_at=None) -> None:
     """Сообщить владельцу о поступившем платеже — для «Мой налог».
 
     Не дублирует кабинет ЮKassa, а заменяет поход в него: ЮKassa закрыла
@@ -772,12 +785,12 @@ async def _notify_payment(db: Session, payment_id, user_id, tier, amount) -> Non
     Молчит и не мешает ответить 200, если Telegram недоступен или не задан
     TELEGRAM_SUPPORT_CHAT_ID: провал уведомления не повод заставлять ЮKassa
     ретраить уже обработанный платёж.
-    """
-    from backend.email_service import TIER_NAMES
-    from backend.notifications.telegram import send_support_message
 
+    С 24.09.2026 это и есть сообщение-чек (payments/receipts.py): дата — момент
+    ОПЛАТЫ по Москве, а не момент отправки, иначе платёж, начисленный сверкой
+    через несколько дней, получил бы в чеке чужую дату.
+    """
     try:
-        buyer = db.query(User).filter(User.id == user_id).first()
         sub = (
             db.query(Subscription)
             .filter(Subscription.user_id == user_id)
@@ -788,18 +801,10 @@ async def _notify_payment(db: Session, payment_id, user_id, tier, amount) -> Non
             sub.current_period_end.strftime("%d.%m.%Y")
             if sub and sub.current_period_end else "—"
         )
-        text = (
-            f"💰 Оплата {amount:.2f} ₽ — {TIER_NAMES.get(tier, tier)}\n"
-            f"Дата: {utcnow().strftime('%d.%m.%Y %H:%M')} UTC\n"
-            f"Плательщик: {buyer.email if buyer else user_id}\n"
-            f"Подписка действует до: {until}\n"
-            f"payment_id: {payment_id}\n\n"
-            f"⚠️ Провести доход вручную в «Мой налог» — ЮKassa чеки для "
-            f"самозанятых не формирует с 29.12.2025."
-        )
-        await send_support_message(text)
     except Exception:
-        logger.warning("YooKassa: не удалось отправить уведомление о платеже %s", payment_id)
+        until = "—"
+    await notify_receipt(db, payment_id=payment_id, amount=amount, paid_at=paid_at,
+                         tier=tier, user_id=user_id, note=f"Тариф выдан, действует до {until}.")
 
 
 async def _handle_refund(db: Session, obj: dict[str, Any]) -> dict[str, Any]:
@@ -878,6 +883,8 @@ async def _notify_refund(refund_id, payment_id, amount, origin) -> None:
         f"payment_id: {payment_id or '—'}\n"
         f"user_id: {origin.user_id if origin else '—'}\n"
         f"tier: {origin.tier if origin else '—'}\n\n"
+        f"🧾 Чек по платежу {payment_id or '—'} в «Мой налог» — аннулировать "
+        f"(«Возврат средств»), если он уже пробит.\n\n"
         f"Подписка НЕ отозвана. Если доступ нужно закрыть — админка: "
         f"refund комиссии по платежу и set-tier free."
     )

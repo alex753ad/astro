@@ -79,6 +79,19 @@ def send_price_notice_task(effective_date: str) -> dict:
         db.close()
 
 
+@celery_app.task(name="tasks.monthly_receipts_summary", ignore_result=True)
+def monthly_receipts_summary() -> int:
+    """Beat, 1-го числа 09:00 МСК: все оплаты прошлого месяца — сверить чеки
+    «Мой налог» (payments/receipts.py)."""
+    import asyncio
+    from backend.payments.receipts import run_monthly_summary
+    db = SessionLocal()
+    try:
+        return asyncio.run(run_monthly_summary(db))
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.reconcile_payments", ignore_result=True)
 def reconcile_payments() -> dict:
     """Beat, 06:00 МСК: успешные платежи ЮKassa ↔ payment_events ↔ тарифы.

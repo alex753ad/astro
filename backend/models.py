@@ -237,6 +237,11 @@ class PaymentEvent(Base):
     # (inv_id "refund:…", amount < 0) и непригодные платежи (period NULL):
     # выбрать «покупки» по остальным полям однозначно нельзя.
     starts_chain = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Момент оплаты по ЮKassa (captured_at, иначе created_at), наивный UTC (058).
+    # created_at — момент ОБРАБОТКИ: сверка может начислить через несколько
+    # дней, и дата в чеке «Мой налог» и месячной сводке была бы неверной.
+    # NULL у записей до 058 — там берётся created_at.
+    paid_at = Column(DateTime, nullable=True)
 
 
 class AdminAuditLog(Base):

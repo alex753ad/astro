@@ -81,6 +81,12 @@ celery_app.conf.update(
         # :50 — чтобы не совпадать с утренней самопроверкой в 04:30.
         # Сверка платежей с ЮKassa (backend/payments/reconcile.py): 06:00 МСК,
         # до утренней самопроверки — её сигналы идут в тот же чат.
+        # Сводка оплат за прошлый месяц для чеков «Мой налог» — 1-го числа,
+        # 09:00 МСК: после ночной сверки, чтобы найденные ею платежи попали.
+        "monthly-receipts-summary": {
+            "task": "tasks.monthly_receipts_summary",
+            "schedule": crontab(day_of_month=1, hour=6, minute=0),
+        },
         "reconcile-payments": {
             "task": "tasks.reconcile_payments",
             "schedule": crontab(hour=3, minute=0),

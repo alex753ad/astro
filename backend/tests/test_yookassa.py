@@ -73,6 +73,14 @@ def _api_payment(user_id, tier="pro", amount=None, status="succeeded"):
     }
 
 
+def _split(messages):
+    """(предупреждений, чеков). С 24.09.2026 на платёж, по которому тариф не
+    выдан, уходят ДВА сообщения: предупреждение и «Чек в „Мой налог“» — доход
+    есть и без тарифа (payments/receipts.py). Дубль любого из них — дефект."""
+    receipts = sum(1 for m in messages if m.startswith("🧾"))
+    return len(messages) - receipts, receipts
+
+
 @pytest.fixture
 def telegram_capture(monkeypatch):
     """Перехват уведомлений владельцу.
@@ -313,7 +321,7 @@ class TestPaymentSucceeded:
         event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first()
         assert event is not None, "платёж проглочен молча — деньги пришли без следа"
         assert event.amount == 1.0
-        assert len(telegram_capture) == 1, "владелец должен узнать о расхождении"
+        assert _split(telegram_capture) == (1, 1), "владелец должен узнать о расхождении"
         msg = telegram_capture[0]
         assert "1.00" in msg and "2490.00" in msg, "нужны фактическая и ожидаемая суммы"
         assert PAYMENT_ID in msg
@@ -334,8 +342,10 @@ class TestPaymentSucceeded:
         assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
         event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first()
         assert event is not None, "платёж в чужой валюте тоже обязан оставить след"
-        assert len(telegram_capture) == 1
+        assert _split(telegram_capture) == (1, 1)
         assert "KZT" in telegram_capture[0], "в сообщении должна быть фактическая валюта"
+        receipt = next(m for m in telegram_capture if m.startswith("🧾"))
+        assert "KZT" in receipt and "₽" not in receipt.split("Дата")[0], "чек в тенге подписан рублями"
 
     def test_missing_user_keeps_payment_record_and_does_not_retry(
         self, client, db, from_yookassa, api_returns, monkeypatch
@@ -394,7 +404,7 @@ class TestPaymentSucceeded:
             "db.close(), и платёж исчезнет без следа"
         )
 
-        assert len(sent) == 1, "владелец должен узнать о платеже без владельца"
+        assert _split(sent) == (1, 1), "владелец должен узнать о платеже без владельца"
         assert "НЕКОМУ" in sent[0]
         assert "Мой налог" in sent[0], "доход провести надо в любом случае — это должно быть в сообщении"
 
@@ -413,7 +423,7 @@ class TestPaymentSucceeded:
 
         assert resp.status_code == 200, resp.text
         assert db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first() is not None
-        assert len(telegram_capture) == 1
+        assert _split(telegram_capture) == (1, 1)
         assert PAYMENT_ID in telegram_capture[0]
         db.expire_all()
         assert db.query(User).filter(User.id == user_free.id).first().tier == "free"
@@ -439,7 +449,7 @@ class TestPaymentSucceeded:
         event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).first()
         assert event is not None, "платёж без metadata тоже обязан оставить след"
         assert event.user_id is None and event.tier is None
-        assert len(telegram_capture) == 1
+        assert _split(telegram_capture) == (1, 1)
         assert PAYMENT_ID in telegram_capture[0]
 
     def test_unusable_payment_replay_does_not_notify_twice(
@@ -454,7 +464,7 @@ class TestPaymentSucceeded:
             assert client.post(WEBHOOK_URL, json=_payment_body()).status_code == 200
 
         assert db.query(PaymentEvent).filter(PaymentEvent.inv_id == PAYMENT_ID).count() == 1
-        assert len(telegram_capture) == 1, "повторная доставка отправила второе сообщение"
+        assert _split(telegram_capture) == (1, 1), "повторная доставка отправила второе сообщение"
 
     def test_api_unavailable_returns_500_for_retry(self, client, db, user_free, from_yookassa, api_returns):
         """Не смогли перечитать платёж — активировать по неподписанному телу
