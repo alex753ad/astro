@@ -25,7 +25,10 @@ import InterpretView from '../components/InterpretView';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
 import useTheme from '../useTheme.jsx';
-import { fetchChart, resolvePrimaryChartId } from '../lib/chartApi';
+import { cachedChart, fetchChart, resolvePrimaryChartId } from '../lib/chartApi';
+import { errorText, isConnectivity, netKind } from '../lib/netError';
+import useReconnect from '../lib/useReconnect';
+import OfflineNote from '../components/OfflineNote';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
 import { CHART_HINTS } from '../lib/onboardingCopy';
 import useHints from '../lib/useHints';
@@ -90,6 +93,12 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
   const [error, setError] = useState('');
+  // Без сети (24.09.2026) — см. FeedScreen: { at, kind } показанного
+  // сохранённого или null; ref'ы — для load, который не пересоздаётся.
+  const [stale, setStale] = useState(null);
+  const staleRef = useRef(null);
+  const chartRef = useRef(null);
+  const [offlineError, setOfflineError] = useState(false);
   // 'chart' | 'create' — форма построения живёт подэкраном этой вкладки,
   // не отдельным маршрутом (SPEC_CHART_CREATE.md §3), тем же приёмом, что
   // разделы MoreScreen.
@@ -159,11 +168,26 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
    * нельзя (за полноэкранным отказом спрячется уже показанная карта),
    * проглотить молча — тем более. Её показывает полоска жеста.
    */
-  const load = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setStatus('loading');
-      setError('');
+  const load = useCallback(async ({ silent = false, background = false } = {}) => {
+    if (!silent && !background) {
+      const snap = chartRef.current || forcedChartIdRef.current ? null : await cachedChart();
+      if (snap?.data) {
+        chartRef.current = snap.data;
+        staleRef.current = { at: snap.savedAt, kind: 'offline' };
+        setChart(snap.data);
+        setStale(staleRef.current);
+        setStatus('ready');
+      } else {
+        setStatus('loading');
+        setError('');
+      }
     }
+    const show = (data) => {
+      chartRef.current = data;
+      staleRef.current = null;
+      setChart(data);
+      setStale(null);
+    };
     try {
       const forced = forcedChartIdRef.current;
       const chartId = forced || await resolvePrimaryChartId();
@@ -172,7 +196,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
         return;
       }
       try {
-        setChart(await fetchChart(chartId));
+        show(await fetchChart(chartId));
       } catch (err) {
         // ⚠️ Показанной карты больше нет — её удалили в «Ещё», пока она
         // стояла переопределением. Снимаем переопределение и показываем
@@ -186,19 +210,33 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
           setStatus('no-chart');
           return;
         }
-        setChart(await fetchChart(fallback));
+        show(await fetchChart(fallback));
       }
       setStatus('ready');
     } catch (err) {
       if (silent) throw err;
-      // Текст уже человеческий: chartApi подменяет и «Chart not found»,
-      // и сетевой сбой. Сюда попадает то, что можно показать как есть.
-      setError(err?.message || 'Не удалось загрузить карту.');
+      if (chartRef.current && staleRef.current) {
+        setStale((s) => (s ? { ...s, kind: netKind(err) === 'server' ? 'server' : 'offline' } : s));
+        return;
+      }
+      if (background) {
+        if (!isConnectivity(err)) {
+          setError(errorText(err, 'Не удалось загрузить карту.'));
+          setOfflineError(false);
+        }
+        return;
+      }
+      // Текст уже человеческий: chartApi подменяет «Chart not found», а
+      // netError — сетевой сбой.
+      setError(errorText(err, 'Не удалось загрузить карту.'));
+      setOfflineError(isConnectivity(err));
       setStatus('error');
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useReconnect(Boolean(stale) || (status === 'error' && offlineError), () => load({ background: true }));
 
   // Наверх, в TabShell: кнопка чата открывает диалог по карте ТОЙ вкладки, с
   // которой её нажали. Здесь это отдельный эффект по уже загруженной карте, а
@@ -294,7 +332,8 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
         text={error}
         action="Повторить"
         onAction={load}
-        secondary="Войти заново"
+        /* Без сети выход не предлагаем — см. FeedScreen. */
+        secondary={offlineError ? undefined : 'Войти заново'}
         onSecondary={logout}
       />
     );
@@ -315,6 +354,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <OfflineNote savedAt={stale?.at} kind={stale?.kind} />
       <header style={{ padding: '12px 16px 4px', flexShrink: 0 }}>
         {/* name сегодня приходит null на обеих картах служебного аккаунта
             (CHART_API_RECON.md §2), но поле в ответе есть — если карту

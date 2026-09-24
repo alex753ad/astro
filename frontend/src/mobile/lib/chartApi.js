@@ -15,8 +15,9 @@
 
 import { API_BASE } from '../../config';
 import { responseErrorText } from '../../api/client';
-import { authFetchWithTimeout } from './authFetchTimeout';
+import { authFetchWithTimeout, failWith, getWithRetry } from './authFetchTimeout';
 import { buildChartPayload } from './chartCreateRules';
+import { offlineCache } from './offlineCache';
 
 export { resolvePrimaryChartId } from './feedApi';
 
@@ -30,7 +31,7 @@ export { resolvePrimaryChartId } from './feedApi';
  * (resolve_chart_access отвечает одинаково, это не утечка, а защита).
  */
 export async function fetchChart(chartId) {
-  const resp = await authFetchWithTimeout(`${API_BASE}/chart/${chartId}`);
+  const resp = await getWithRetry(`${API_BASE}/chart/${chartId}`);
 
   if (resp.status === 404) {
     // Статус приклеен намеренно: по нему ChartScreen отличает «нет карты,
@@ -40,10 +41,16 @@ export async function fetchChart(chartId) {
     err.status = 404;
     throw err;
   }
-  if (!resp.ok) {
-    throw new Error(await responseErrorText(resp, 'Не удалось загрузить карту.'));
-  }
-  return resp.json();
+  if (!resp.ok) await failWith(resp, 'Не удалось загрузить карту.');
+  const data = await resp.json();
+  // Без сети показывается последняя показанная карта — одна запись.
+  await offlineCache.write('chart', data);
+  return data;
+}
+
+/** `{ data, savedAt }` последней показанной карты или null. */
+export function cachedChart() {
+  return offlineCache.read('chart');
 }
 
 /**

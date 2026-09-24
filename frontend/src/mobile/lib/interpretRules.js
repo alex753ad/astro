@@ -155,3 +155,14 @@ export function shouldRefetchOnResume(state) {
   // фона. После успеха текст уже на экране.
   return !state.finished;
 }
+
+/**
+ * Сохранять ли разбор на устройство (offlineCache.js).
+ *
+ * ⚠️ Только полный: поток дошёл до [DONE] (finished без failure) и пришёл
+ * из сети, а не показан с диска. Обрыв после первых данных транспорт
+ * отдаёт ошибкой (`_connectSSE`, 24.09.2026) — сюда он попадает с failure.
+ */
+export function shouldCacheInterpretation({ finished, failure, streamed, sections }) {
+  return Boolean(finished && !failure && streamed && sections?.some((s) => s.text?.trim()));
+}

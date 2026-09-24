@@ -495,13 +495,23 @@ function _connectSSE(buildUrl, onChunk, onDone, onError) {
 
       if (isDone) { onDone?.(); return; }
 
+      // ⚠️ Признак полного текста — ТОЛЬКО [DONE] (сервер шлёт его после
+      // finish_reason == "stop", main.py). До 24.09.2026 обрыв после первых
+      // данных отдавался как onDone: оборванный разбор выглядел полным и в
+      // вебе, и в приложении, а приложение ещё и сохраняло его на диск.
+      //
+      // Переподключаться после данных тоже нельзя: докачки у ручек нет
+      // (last_event_id сервер не читает), поток начался бы сначала и текст
+      // задвоился бы у того, кто уже дописал в экран первые куски.
+      if (hasData) { onError?.('Connection lost'); return; }
+
       if (attempt < maxRetries) {
         const delay = 1500 * (attempt + 1);
         console.warn(`SSE connection lost. Reconnect attempt ${attempt + 1}/${maxRetries} in ${delay}ms…`);
         attempt++;
         retryTimeout = setTimeout(connect, delay);
       } else {
-        if (hasData) { onDone?.(); } else { onError?.('Connection lost'); }
+        onError?.('Connection lost');
       }
     };
   }

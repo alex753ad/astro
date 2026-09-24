@@ -64,7 +64,11 @@ import { FEED_HINTS } from '../lib/onboardingCopy';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import useHints from '../lib/useHints';
 import useCompactNow from '../lib/useCompactNow';
-import { feedWindow, fetchFeed, resolvePrimaryChart } from '../lib/feedApi';
+import { cachedFeed, feedWindow, fetchFeed, rememberFeed, resolvePrimaryChart } from '../lib/feedApi';
+import { prefetchLunation } from '../lib/forecastPrefetch';
+import { errorText, isConnectivity, netKind } from '../lib/netError';
+import useReconnect from '../lib/useReconnect';
+import OfflineNote from '../components/OfflineNote';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
 import { forecastDates, pickAnchorDate, withDates } from '../lib/feedAnchor';
 import FeedDayForecastCard from '../components/FeedDayForecastCard';
@@ -145,6 +149,13 @@ export default function FeedScreen({
   const [status, setStatus] = useState('loading');
   const [feed, setFeed] = useState(null);
   const [error, setError] = useState('');
+  // Показано сохранённое: { at, kind } или null. Ref — для load, который не
+  // должен пересоздаваться от смены этого состояния.
+  const [stale, setStale] = useState(null);
+  const staleRef = useRef(null);
+  staleRef.current = stale;
+  const feedRef = useRef(null);
+  const [offlineError, setOfflineError] = useState(false);
   const { logout } = useAuth();
   const [selected, setSelected] = useState(null);
   /**
@@ -236,10 +247,27 @@ export default function FeedScreen({
    * нельзя (за полноэкранным отказом спрячется уже загруженная лента),
    * проглотить молча — тем более. Её показывает полоска жеста.
    */
-  const load = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setStatus('loading');
-      setError('');
+  /*
+   * Без сети (24.09.2026): сначала сохранённое, потом сеть. `background` —
+   * перезапрос из useReconnect: ни скелета, ни ошибки, при отказе остаётся
+   * то, что на экране.
+   */
+  const load = useCallback(async ({ silent = false, background = false } = {}) => {
+    if (!silent && !background) {
+      const snap = feedRef.current ? null : await cachedFeed();
+      if (snap) {
+        feedRef.current = snap.feed;
+        setFeed(snap.feed);
+        setChartId(snap.chart.id);
+        onChartResolved?.(snap.chart);
+        // ref — сразу, не дожидаясь рендера: отказ сети приходит раньше него.
+        staleRef.current = { at: snap.savedAt, kind: 'offline' };
+        setStale(staleRef.current);
+        setStatus('ready');
+      } else {
+        setStatus('loading');
+        setError('');
+      }
     }
     try {
       // Карта целиком, а не один id: имя нужно шапке чата, и оно уже приехало
@@ -259,13 +287,33 @@ export default function FeedScreen({
       // с которой её нажали, а не по основной.
       onChartResolved?.({ id, name: chart.name });
       const data = await fetchFeed(id, feedWindow());
+      feedRef.current = data;
+      staleRef.current = null;
       setFeed(data);
+      setStale(null);
       setStatus('ready');
+      rememberFeed(chart, data);
+      prefetchLunation(id, data.events);
     } catch (err) {
       if (silent) throw err;
-      // Текст уже человеческий: feedApi подменяет и «Chart not found»,
-      // и сетевой сбой. Сюда попадает то, что можно показать как есть.
-      setError(err?.message || 'Не удалось загрузить ленту.');
+      // Показано сохранённое — оно и остаётся, с пометкой. Экран ошибки
+      // закрыл бы то, что у человека уже есть.
+      if (feedRef.current && staleRef.current) {
+        setStale((s) => (s ? { ...s, kind: netKind(err) === 'server' ? 'server' : 'offline' } : s));
+        return;
+      }
+      if (background) {
+        // Сеть вернулась, но ответ — отказ: показываем его и больше не ждём.
+        if (!isConnectivity(err)) {
+          setError(errorText(err, 'Не удалось загрузить ленту.'));
+          setOfflineError(false);
+        }
+        return;
+      }
+      // Текст уже человеческий: feedApi подменяет «Chart not found», а
+      // netError — сетевой сбой.
+      setError(errorText(err, 'Не удалось загрузить ленту.'));
+      setOfflineError(isConnectivity(err));
       setStatus('error');
     }
     // ⚠️ onChartResolved обязан быть стабильным у вызывающего (в TabShell он
@@ -275,6 +323,10 @@ export default function FeedScreen({
   }, [onChartResolved]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Сохранённое на экране или «нет сети» — перезапрашиваем сами.
+  const waiting = Boolean(stale) || (status === 'error' && offlineError);
+  useReconnect(waiting, () => load({ background: true }));
 
   /**
    * Перезагрузка после того, как на вкладке «Карта» построили новую карту
@@ -479,13 +531,15 @@ export default function FeedScreen({
   }
 
   if (status === 'error') {
+    // ⚠️ «Войти заново» без сети не предлагаем: выход сотрёт и сессию, и
+    // сохранённые данные, а войти обратно без сети нельзя.
     return (
       <CenteredNotice
         title="Не удалось загрузить ленту"
         text={error}
         action="Повторить"
         onAction={load}
-        secondary="Войти заново"
+        secondary={offlineError ? undefined : 'Войти заново'}
         onSecondary={logout}
       />
     );
@@ -545,6 +599,7 @@ export default function FeedScreen({
   return (
     <div style={PAGE_PADDING}>
       <PullIndicator state={pull.state} ready={pull.ready} innerRef={pull.indicatorRef} />
+      <OfflineNote savedAt={stale?.at} kind={stale?.kind} />
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}

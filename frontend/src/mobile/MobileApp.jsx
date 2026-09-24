@@ -25,6 +25,7 @@ import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../hooks/useAuth.jsx';
 import useAuth from '../hooks/useAuth.jsx';
 import { resetSubscription } from './lib/tierSource';
+import { offlineCache } from './lib/offlineCache';
 import { ThemeProvider } from './useTheme.jsx';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -42,8 +43,15 @@ function RequireAuth({ children }) {
   // процесса и переживает разлогин. Разлогин ловим по признаку, а не по
   // вызову logout(): выходов несколько (кнопка на трёх экранах, отказ
   // аутентификации), и любой пропущенный дал бы ровно тот же дефект.
+  //
+  // Там же стирается сохранённое для показа без сети (offlineCache.js): оно
+  // и так помечено владельцем, но на общем телефоне чужое не должно лежать
+  // на диске вовсе.
   useEffect(() => {
-    if (!isAuthenticated) resetSubscription();
+    if (!isAuthenticated) {
+      resetSubscription();
+      offlineCache.clearAll();
+    }
   }, [isAuthenticated]);
 
   return isAuthenticated ? children : <Navigate to="/login" replace />;

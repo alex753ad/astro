@@ -541,3 +541,35 @@ class TestStreamDeadline:
         premium_deadline = _stream_deadline_seconds(_request(tier="premium"))
 
         assert premium_deadline > free_deadline * 5
+
+
+class TestStreamClosedByClient:
+    """Клиент отвалился посреди потока — генератор закрывают (aclose), и в
+    кэш Redis не попадает ничего (24.09.2026). Запись в кэш стоит ПОСЛЕ
+    цикла по движку и до неё закрытый генератор не доходит."""
+
+    def test_closed_generator_is_not_cached(self):
+        router = InterpretationRouter()
+        calls = {"n": 0}
+
+        async def _fake_stream(req):
+            calls["n"] += 1
+            yield "Первая половина. "
+            yield "Вторая половина."
+            router._engines[0]._last_finish_reason = "stop"
+
+        router._engines[0].stream = _fake_stream
+
+        async def _first_chunk_then_close():
+            gen = router.stream(_request())
+            first = await gen.__anext__()
+            await gen.aclose()
+            return first
+
+        assert _run(_first_chunk_then_close()) == "Первая половина. "
+
+        async def _collect():
+            return "".join([c async for c in router.stream(_request())])
+
+        assert _run(_collect()) == "Первая половина. Вторая половина."
+        assert calls["n"] == 2, "обрубок попал в кэш: второй запрос не дошёл до движка"

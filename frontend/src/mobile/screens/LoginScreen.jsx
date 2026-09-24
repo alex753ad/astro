@@ -15,6 +15,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth.jsx';
 import PasswordInput from '../../components/PasswordInput.jsx';
+import { humanizeErrorText } from '../lib/netError';
 
 export default function LoginScreen() {
   const { login, loading, error, clearError } = useAuth();
@@ -91,7 +92,9 @@ export default function LoginScreen() {
 
           {error && (
             <div style={{ color: 'var(--color-danger)', fontSize: 13 }}>
-              {error}
+              {/* Хук общий с вебом и кладёт сюда текст исключения как есть —
+                  без сети это было бы «Failed to fetch». */}
+              {humanizeErrorText(error)}
             </div>
           )}
 

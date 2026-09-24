@@ -21,6 +21,7 @@ import ReactDOM from 'react-dom/client';
 import * as Sentry from '@sentry/react';
 import MobileApp from './mobile/MobileApp';
 import { scrubEvent } from './lib/sentryScrub';
+import { isNetworkNoise } from './mobile/lib/netError';
 
 // Только JS-ошибки: @sentry/capacitor (падения нативной части) не взят —
 // нативный плагин, решение владельца 24.09.2026. Без VITE_SENTRY_DSN в
@@ -33,7 +34,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     release: __APP_RELEASE__,
     tracesSampleRate: 0,
     sendDefaultPii: false,
-    beforeSend: scrubEvent,
+    // Нет сети и таймаут — не поломка, а шум, который съел бы лимит
+    // (решение владельца 24.09.2026). 5xx остаётся: его видно и на бэкенде,
+    // но с устройства — с контекстом экрана.
+    beforeSend: (event, hint) => (isNetworkNoise(event, hint) ? null : scrubEvent(event)),
   });
 }
 
