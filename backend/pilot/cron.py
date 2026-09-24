@@ -123,7 +123,7 @@ def _upcoming_windows(db: Session, user: User) -> list[str]:
         start = _fmt_day(str(getattr(e, "start_date", "") or ""))
         end = _fmt_day(str(getattr(e, "end_date", "") or ""))
         rng = f"{start}–{end}" if start and end and start != end else (start or end)
-        out.append(f"{pr} {rng} — влияет на вашу карту, посмотрите что делать")
+        out.append(f"{pr} {rng} — влияет на твою карту, посмотри, что делать")
     return out
 
 
@@ -166,10 +166,10 @@ async def _process(db: Session, user: User) -> dict:
 
             # пуш (если есть подписка)
             try:
-                near = windows[0] if windows else "важное окно вашей карты"
+                near = windows[0] if windows else "важное окно твоей карты"
                 send_to_user(db, user.id, {
-                    "title": "✦ Ваш месяц заканчивается",
-                    "body": f"Через {days_left} дн. {near} закроется для вас. Это окно стоит того, чтобы его не потерять.",
+                    "title": "✦ Твой месяц заканчивается",
+                    "body": f"Через {days_left} дн. {near} закроется для тебя. Это окно стоит того, чтобы его не потерять.",
                     "url": "/profile",
                 })
             except Exception as e:
@@ -212,9 +212,9 @@ async def _process(db: Session, user: User) -> dict:
 
                 try:
                     body = {
-                        5:  f"Вы не заходили 5 дней. {near or 'В карте идёт активное окно'} — не пропустите.",
-                        10: "10 дней без Timeline. Если что-то не так — расскажите, это 30 секунд.",
-                        14: "Последнее напоминание. Ваша карта будет ждать, если захотите вернуться.",
+                        5:  f"Тебя не было 5 дней. {near or 'В карте идёт активное окно'} — не пропусти.",
+                        10: "10 дней без Timeline. Если что-то не так — расскажи, это 30 секунд.",
+                        14: "Последнее напоминание. Твоя карта будет ждать, если захочешь вернуться.",
                     }[step]
                     send_to_user(db, user.id, {
                         "title": "✦ Aristea", "body": body, "url": "/planner",

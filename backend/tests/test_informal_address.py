@@ -39,7 +39,7 @@ _F = re.IGNORECASE | re.UNICODE
 PRONOUN = re.compile(
     r"(?<![а-яё])(?:вы|вас|вам|вами|ваш|ваша|ваше|ваши|вашего|вашей|вашему|"
     r"вашим|вашими|ваших|вашу|вашем)(?![а-яё])", _F)
-VERB_2PL = re.compile(r"(?<![а-яё])[а-яё]{2,}(?:айте|яйте|ейте|уйте|ойте|ьте|ите|ете|ёте)(?![а-яё])", _F)
+VERB_2PL = re.compile(r"(?<![а-яё])[а-яё]{2,}(?:айте|яйте|ейте|уйте|ойте|ьте|ите|ете|ёте)(?:сь)?(?![а-яё])", _F)
 # Существительные на те же окончания (предложный падеж).
 NOT_IMPERATIVE = {
     "сайте", "транзите", "лимите", "орбите", "визите", "защите", "кредите",
@@ -75,27 +75,13 @@ ALLOWED_FILES = {
 
 # Временно: ещё не переведённые зоны. Только сокращается.
 PENDING: set[str] = {
-    "backend/advanced_charts_router.py",
-    "backend/auth/passwords.py",
-    "backend/auth/rate_limits.py",
     "backend/auth/router.py",
     "backend/crm/dashboard_router.py",
-    "backend/crm/router.py",
     "backend/email_service.py",
-    "backend/feed/templates.json",
-    "backend/feedback/router.py",
-    "backend/interpretation/rag_router.py",
-    "backend/interpretation/router.py",
     "backend/interpretation/template.py",
     "backend/lifecycle_emails.py",
-    "backend/main.py",
-    "backend/payments/yookassa_router.py",
-    "backend/pilot/cron.py",
-    "backend/push/cron.py",
     "backend/tasks.py",
-    "backend/transit/engine.py",
     "backend/transit/methodology.json",
-    "bot/pilot_bot.py",
     "frontend/src/components/AuthModal.jsx",
     "frontend/src/components/BirthForm.jsx",
     "frontend/src/components/ExitSurveyModal.jsx",
@@ -159,6 +145,10 @@ def _json_strings(obj):
         yield obj
     elif isinstance(obj, dict):
         for k, v in obj.items():
+            # `_readme` и подобные — записка для того, кто правит файл, а не
+            # текст для человека.
+            if k.startswith("_"):
+                continue
             yield from _json_strings(k)
             yield from _json_strings(v)
     elif isinstance(obj, list):
@@ -267,6 +257,8 @@ def test_scanner_catches_known_forms():
     assert _violations("по вашей карте") == ["вашей"]
     assert _violations("о транзите на сайте") == []
     assert _violations("больше, чем можете осилить") == ["можете"]
+    assert _violations("подпишитесь на канал") == ["подпишитесь"]
+    assert list(_json_strings({"_readme": ["поправьте"], "a": "ваш"})) == ["a", "ваш"]
     assert list(_py_strings('"""док вы"""\nx = f"Ваш {y}"\n')) == [(2, 2, "Ваш ")]
     assert [l for _, l in _js_lines("a // Вы\n/* ваш */ b\n")] == ["a ", " b"]
     assert len(list(_files())) > 200

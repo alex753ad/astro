@@ -92,8 +92,8 @@ async def on_start(message: Message):
     checks = await asyncio.gather(*[_is_member(uid, cid) for cid in CHANNEL_IDS])
     if not CHANNEL_IDS or not all(checks):
         await message.answer(
-            "Чтобы открыть бесплатный месяц Aristea, подпишитесь на оба канала, "
-            "а затем снова напишите /start.",
+            "Чтобы открыть бесплатный месяц Aristea, подпишись на оба канала, "
+            "а затем снова напиши /start.",
             reply_markup=_subscribe_keyboard(),
         )
         return
@@ -101,10 +101,10 @@ async def on_start(message: Message):
     # 2) запрос одноразовой ссылки у бэкенда
     status, data = await _request_link(uid)
     if status == 409:
-        await message.answer("Вы уже активировали бесплатный месяц — повторно нельзя.")
+        await message.answer("Бесплатный месяц уже активирован — повторно нельзя.")
         return
     if status != 200 or "claim_url" not in data:
-        await message.answer("Не удалось создать ссылку. Попробуйте позже.")
+        await message.answer("Не удалось создать ссылку. Попробуй чуть позже.")
         logger.warning("pilot-token issue failed: status=%s data=%s", status, data)
         return
 
@@ -113,7 +113,7 @@ async def on_start(message: Message):
         [InlineKeyboardButton(text="Открыть Aristea Premium", url=data["claim_url"])]
     ])
     await message.answer(
-        "Готово! Нажмите кнопку ниже — откроется Aristea, и мы включим вам "
+        "Готово! Нажми кнопку ниже — откроется Aristea, и мы включим тебе "
         "Premium на 30 дней.\n\nСсылка одноразовая и действует ограниченное время.\n\n"
         "Доступ к скачиванию PDF в приложении открыт.",
         reply_markup=kb,

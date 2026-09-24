@@ -275,6 +275,18 @@ def _period_starts_on(planet: str, cusps: list[float], target: date_type) -> lis
 
 # ── Фаза 2: транзит «за 4° applying» ──
 PERSONAL_NATAL = ("Sun", "Moon", "Mercury", "Venus", "Mars")
+
+# Личная планета с «твой» — готовой фразой, по роду и падежу. До 24.09.2026
+# здесь подставлялось «вашему {nr}» с именем в именительном: «к вашему Луна».
+# Словарь по PERSONAL_NATAL; незнакомая планета — голое имя, без притяжательного.
+_NATAL_YOURS = {
+    "Sun": "твоё Солнце", "Moon": "твоя Луна", "Mercury": "твой Меркурий",
+    "Venus": "твоя Венера", "Mars": "твой Марс",
+}
+_NATAL_YOURS_DAT = {
+    "Sun": "твоему Солнцу", "Moon": "твоей Луне", "Mercury": "твоему Меркурию",
+    "Venus": "твоей Венере", "Mars": "твоему Марсу",
+}
 APPLYING_ORB = 4.0
 
 
@@ -317,10 +329,10 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                     sphere = _sphere_short(NATAL_SPHERE.get((tp, npl)))
                     if sphere:
                         frag = f"{pr} → {sphere}"
-                        body = f"{pr} подходит к теме «{sphere}» — на горизонте важное движение. Понаблюдайте, что откликается."
+                        body = f"{pr} подходит к теме «{sphere}» — на горизонте важное движение. Понаблюдай, что откликается."
                     else:
                         frag = f"{pr} подходит к {nr}"
-                        body = f"{pr} подходит к вашему {nr} — на горизонте важное движение. Понаблюдайте, что откликается."
+                        body = f"{pr} подходит к {_NATAL_YOURS_DAT.get(npl, nr)} — на горизонте важное движение. Понаблюдай, что откликается."
                     out.append({
                         "kind": "transit_approach",
                         "ref": f"4deg:{tp}:{npl}:{aspect}:{today.isoformat()}",
@@ -365,13 +377,13 @@ TRIPLE_SCAN_DAYS = 300    # окно назад для подсчёта номе
 # (transit_planet, natal_planet) там есть — иначе берётся _TRIPLE_MSG_FALLBACK
 # с тем же смыслом, но без названия сферы.
 _TRIPLE_MSG = {
-    1: ("✦ Ваша тема открывается", "открывается {sphere} — эта тема ещё вернётся к вам"),
-    2: ("✦ Тема возвращается", "{sphere} возвращается — время пересмотреть то, что начали"),
+    1: ("✦ Твоя тема открывается", "открывается {sphere} — эта тема ещё вернётся к тебе"),
+    2: ("✦ Тема возвращается", "{sphere} возвращается — время пересмотреть то, что было начато"),
     3: ("✦ Тема закрывается", "{sphere} закрывается и закрепляется — время подвести итог"),
 }
 _TRIPLE_MSG_FALLBACK = {
-    1: "открывается тема, которая ещё вернётся к вам",
-    2: "тема возвращается — время пересмотреть то, что начали",
+    1: "открывается тема, которая ещё вернётся к тебе",
+    2: "тема возвращается — время пересмотреть то, что было начато",
     3: "тема закрывается и закрепляется — время подвести итог",
 }
 
@@ -434,7 +446,7 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
                         "priority": "significant", "weight": 98,
                         "frag": f"{pr} и {nr}: {tail}",
                         "title": title,
-                        "body": f"{pr} и ваш {nr} — {tail}.",
+                        "body": f"{pr} и {_NATAL_YOURS.get(npl, nr)} — {tail}.",
                         "url": _with_topic(planner_url, _topic_key(f"triple{phase}", planet=tp, aspect=aspect, natal=npl)),
                     })
     return out
@@ -488,12 +500,12 @@ _TRANSIT_TONE_TITLE = {
 _TRANSIT_TONE_BODY = {
     "harmonious": "{planet} поддерживает тему «{sphere}» — хороший момент сделать конкретный шаг именно здесь.",
     "tense":      "{planet} создаёт напряжение в теме «{sphere}» — не время торопиться, но стоит обратить внимание.",
-    "new_cycle":  "{planet} запускает новый цикл в теме «{sphere}» — то, что начнёте сейчас, определит эту сферу надолго.",
+    "new_cycle":  "{planet} запускает новый цикл в теме «{sphere}» — то, что начнёшь сейчас, определит эту сферу надолго.",
 }
 _TRANSIT_TONE_FALLBACK = {
-    "harmonious": "{planet} активирует один из благоприятных периодов в вашей карте — момент сделать шаг в важной для вас сфере.",
+    "harmonious": "{planet} активирует один из благоприятных периодов в твоей карте — момент сделать шаг в важной для тебя сфере.",
     "tense":      "{planet} требует осознанности и терпения — не время торопиться, лучше укрепить то, что важно.",
-    "new_cycle":  "{planet} запускает новый цикл в вашей карте — обратите внимание, что начинается сейчас.",
+    "new_cycle":  "{planet} запускает новый цикл в твоей карте — обрати внимание, что начинается сейчас.",
 }
 
 
@@ -645,14 +657,14 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
                         if sphere_name:
                             frag = f"{pr}: {sphere_name}"
-                            body = f"{pr} открывает новый период — в фокусе {sphere_name.lower()}. Загляните в планер, чтобы понять, что делать дальше."
+                            body = f"{pr} открывает новый период — в фокусе {sphere_name.lower()}. Загляни в планер, чтобы понять, что делать дальше."
                         else:
                             frag = f"новый период {pr}"
-                            body = f"{pr} открывает новый период в вашем плане — загляните, что это значит."
+                            body = f"{pr} открывает новый период в твоём плане — загляни, что это значит."
                         cands.append({
                             "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
                             "priority": "significant", "weight": 60, "frag": frag,
-                            "title": "✦ Начался ваш период",
+                            "title": "✦ Начался твой период",
                             "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_start", planet=planet, house=house)),
                         })
@@ -667,7 +679,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                             body = f"Через неделю открывается период в сфере «{sphere_name}» — {pr} задаёт тон. Есть время подготовиться заранее."
                         else:
                             frag = f"скоро период {pr}"
-                            body = f"Через неделю начнётся заметный период — {pr} задаёт тон. Загляните в планер заранее."
+                            body = f"Через неделю начнётся заметный период — {pr} задаёт тон. Загляни в планер заранее."
                         cands.append({
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
                             "priority": "significant", "weight": 70, "frag": frag,
@@ -729,7 +741,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                     "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
                     "priority": "soft", "weight": 30, "frag": f"{label} завтра",
                     "title": f"{label} завтра",
-                    "body": "Хорошее время заметить, что вы на самом деле чувствуете. Загляните в лунный календарь.",
+                    "body": "Хорошее время заметить, что ты на самом деле чувствуешь. Загляни в лунный календарь.",
                     "url": _with_topic("/lunar", _topic_key("moon", planet=phase.type)),
                 })
         except Exception as e:
@@ -824,7 +836,7 @@ def _process_user(db: Session, user: User) -> int:
                 seen_frags.add(c["frag"])
                 frags.append(c["frag"])
         payload = {
-            "title": "✦ Ваше окно сегодня",
+            "title": "✦ Твоё окно сегодня",
             "body": " · ".join(frags),
             "url": to_send[0]["url"],
             "keys": keys,

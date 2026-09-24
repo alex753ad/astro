@@ -734,7 +734,7 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
 
   const intro = reason === "lite-limit"
     ? `Разборы транзитов на этот месяц закончились${remaining ? ` (${remaining.used} из ${remaining.limit})` : ""}. Лимит обновится 1-го числа.`
-    : "Это активный период по одной из ключевых тем вашей карты — действия в это окно сильнее обычного.";
+    : "Это активный период по одной из ключевых тем твоей карты — действия в это окно сильнее обычного.";
 
   const outro = reason === "lite-limit"
     ? "А разбор этого периода уже ждёт вас на Лире."
