@@ -24,6 +24,8 @@
  * продолжит работать. Наоборот (клиент отбивает то, что сервер принимает) не
  * случится, потому что здесь нет проверки.
  */
+import { errorText, netKind } from './netError';
+
 export const RU_EMAIL_DOMAINS_HINT = [
   'yandex.ru', 'ya.ru',
   'mail.ru', 'bk.ru', 'list.ru', 'inbox.ru', 'internet.ru',
@@ -100,6 +102,9 @@ const RESEND_THROTTLE_TEXT = 'Код уже отправлен. Повторит
  * @returns {{ text: string, kind: 'resend'|'ip-limit'|'validation'|'unknown' }}
  */
 export function describeSendCodeError(err) {
+  // Без сети — сказать это, а не «Failed to fetch» (useAuth ходит мимо
+  // authFetchWithTimeout, NetError там не рождается).
+  if (netKind(err)) return { text: errorText(err, '', { write: true }), kind: 'unknown' };
   const status = err?.status;
   const detail = typeof err?.detail?.detail === 'string' ? err.detail.detail : '';
   const message = typeof err?.message === 'string' ? err.message : '';
@@ -146,6 +151,7 @@ const EXPIRED_MARKS = ['Код устарел', 'Превышено число �
  *             offerLogin: boolean }}
  */
 export function describeVerifyError(err) {
+  if (netKind(err)) return { text: errorText(err, '', { write: true }), kind: 'unknown', offerLogin: false };
   const status = err?.status;
   const detail = typeof err?.detail?.detail === 'string' ? err.detail.detail : '';
   const message = typeof err?.message === 'string' ? err.message : '';

@@ -11,8 +11,10 @@
  */
 
 import { API_BASE } from '../../config';
-import { authFetchWithTimeout } from './authFetchTimeout';
+import { failWith, getWithRetry } from './authFetchTimeout';
+import { localToday } from './feedTime';
 import { lunationPhase } from './lunationPhase';
+import { dayForecastKey, lunationForecastKey, offlineCache, rememberForecast } from './offlineCache';
 
 const FORECAST_TIMEOUT_MS = 45000;
 
@@ -29,9 +31,19 @@ function withTz(url, tz = deviceTimeZone()) {
 }
 
 async function getJson(url) {
-  const resp = await authFetchWithTimeout(url, {}, FORECAST_TIMEOUT_MS);
-  if (!resp.ok) throw new Error(`forecast ${resp.status}`);
+  const resp = await getWithRetry(url, FORECAST_TIMEOUT_MS);
+  if (!resp.ok) await failWith(resp, 'Прогноз не загрузился.');
   return resp.json();
+}
+
+async function getAndRemember(url, name) {
+  const data = await getJson(url);
+  await rememberForecast(name, data, localToday());
+  return data;
+}
+
+async function cached(name) {
+  return (await offlineCache.read(name)) || null;
 }
 
 /**
@@ -41,7 +53,19 @@ async function getJson(url) {
  * { date, paragraphs[], source, trimmed }
  */
 export function fetchDayForecast(chartId, date, tz) {
-  return getJson(withTz(`${API_BASE}/chart/${chartId}/forecast/day?date=${date}`, tz));
+  return getAndRemember(
+    withTz(`${API_BASE}/chart/${chartId}/forecast/day?date=${date}`, tz),
+    dayForecastKey(chartId, date),
+  );
+}
+
+/**
+ * Сохранённый прогноз ровно на эту дату: `{ data, savedAt }` или null.
+ * ⚠️ Ключ — дата карточки, поэтому вчерашний текст под «сегодня» не
+ * попадёт никогда: у сегодняшней карточки другой ключ.
+ */
+export function cachedDayForecast(chartId, date) {
+  return cached(dayForecastKey(chartId, date));
 }
 
 /**
@@ -52,8 +76,12 @@ export function fetchDayForecast(chartId, date, tz) {
 export function fetchLunationForecast(chartId, event, tz) {
   const phase = lunationPhase(event);
   const date = (event?.at || '').slice(0, 10);
-  return getJson(withTz(
-    `${API_BASE}/chart/${chartId}/forecast/lunation?phase=${encodeURIComponent(phase)}&date=${date}`,
-    tz,
-  ));
+  return getAndRemember(
+    withTz(`${API_BASE}/chart/${chartId}/forecast/lunation?phase=${encodeURIComponent(phase)}&date=${date}`, tz),
+    lunationForecastKey(chartId, phase, date),
+  );
+}
+
+export function cachedLunationForecast(chartId, event) {
+  return cached(lunationForecastKey(chartId, lunationPhase(event), (event?.at || '').slice(0, 10)));
 }

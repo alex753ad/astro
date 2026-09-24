@@ -19,6 +19,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SECTION_TITLES, stripSectionTags } from '../../lib/sectionStream';
 import { startInterpretation } from '../lib/interpretApi';
+import { cachedInterpretation, rememberInterpretation } from '../lib/offlineCache';
 import {
   OUTCOMES,
   classifyOutcome,
@@ -74,6 +75,30 @@ export default function InterpretView({ chartId, onBack }) {
 
   const closeRef   = useRef(null);
   const sectionRef = useRef(null);  // имя открытой секции
+  // Разбор пришёл потоком (а не с диска) — только такой и сохраняется.
+  const streamedRef = useRef(false);
+
+  /*
+   * Без сети (24.09.2026): сохранённый разбор основной карты показывается
+   * сразу, как готовый. Это не автозапуск (он запрещён — см. шапку): запроса
+   * нет, текст уже был получен человеком раньше.
+   */
+  useEffect(() => {
+    let alive = true;
+    cachedInterpretation(chartId).then((saved) => {
+      if (!alive || !saved?.length || stateRef.current.started) return;
+      setSections(saved);
+      setStarted(true);
+      setFinished(true);
+    });
+    return () => { alive = false; };
+  }, [chartId]);
+
+  useEffect(() => {
+    if (!finished || failure || !streamedRef.current || !sections.length) return;
+    streamedRef.current = false;
+    rememberInterpretation(chartId, sections);
+  }, [finished, failure, sections, chartId]);
 
   // Состояние для решения о перезапросе читается из ref, а не из замыкания:
   // обработчик visibilitychange вешается один раз и иначе видел бы значения
@@ -97,6 +122,7 @@ export default function InterpretView({ chartId, onBack }) {
     setFinished(false);
     setStarted(true);
     sectionRef.current = null;
+    streamedRef.current = true;
 
     closeRef.current = startInterpretation(chartId, {
       onSectionStart: (name) => {

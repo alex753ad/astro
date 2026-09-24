@@ -19,9 +19,9 @@
  */
 
 import { API_BASE } from '../../config';
-import { responseErrorText } from '../../api/client';
-import { authFetchWithTimeout } from './authFetchTimeout';
+import { failWith, getWithRetry } from './authFetchTimeout';
 import { localToday, shiftDays } from './feedTime';
+import { offlineCache, rememberCharts, trimFeed } from './offlineCache';
 
 // Таймаут запроса вынесен в authFetchTimeout.js 06.09.2026, когда у него
 // появился второй потребитель (экран «Карта»). Там же — разбор, почему это
@@ -52,11 +52,12 @@ export function feedWindow(today = localToday()) {
  * и так был причиной отдельного разбора (CLAUDE.md, «Холодный старт»).
  */
 export async function resolvePrimaryChart() {
-  const resp = await authFetchWithTimeout(`${API_BASE}/profile/charts`);
-  if (!resp.ok) {
-    throw new Error(await responseErrorText(resp, 'Не удалось получить список карт.'));
-  }
-  return pickPrimaryChart((await resp.json())?.charts);
+  const resp = await getWithRetry(`${API_BASE}/profile/charts`);
+  if (!resp.ok) await failWith(resp, 'Не удалось получить список карт.');
+  const data = await resp.json();
+  const primary = pickPrimaryChart(data?.charts);
+  await rememberCharts(data, primary?.id ?? null);
+  return primary;
 }
 
 /** Тот же запрос, когда нужен только идентификатор. */
@@ -96,13 +97,25 @@ export function pickPrimaryChartId(charts) {
  */
 export async function fetchFeed(chartId, { from, to }) {
   const url = `${API_BASE}/chart/${chartId}/feed?from_date=${from}&to_date=${to}`;
-  const resp = await authFetchWithTimeout(url);
+  const resp = await getWithRetry(url);
 
   if (resp.status === 404) {
     throw new Error('Карта не найдена. Построй её заново на вкладке «Карта».');
   }
-  if (!resp.ok) {
-    throw new Error(await responseErrorText(resp, 'Не удалось загрузить ленту.'));
-  }
+  if (!resp.ok) await failWith(resp, 'Не удалось загрузить ленту.');
   return resp.json();
+}
+
+/**
+ * Лента для показа без сети: карта (id и имя — шапке чата) и обрезанная
+ * лента (`trimFeed`). Одна запись на обе, чтобы карта и лента не
+ * разошлись.
+ */
+export function rememberFeed(chart, feed, today = localToday()) {
+  return offlineCache.write('feed', { chart: { id: chart.id, name: chart.name }, feed: trimFeed(feed, today) });
+}
+
+export async function cachedFeed() {
+  const hit = await offlineCache.read('feed');
+  return hit?.data?.chart?.id && hit.data.feed ? { ...hit.data, savedAt: hit.savedAt } : null;
 }

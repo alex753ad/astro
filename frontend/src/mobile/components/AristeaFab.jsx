@@ -36,7 +36,9 @@ export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
   const navigate = useNavigate();
   const [chatOpen, setChatOpen] = useState(false);
 
-  if (!visible) return null;
+  // Тариф неизвестен (нет сети, ещё грузится) — ни замка, ни чата
+  // (useChatAccess.js, chatAccessFrom).
+  if (!visible || hasAccess === null) return null;
 
   const onClick = () => {
     if (hasAccess) {

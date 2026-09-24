@@ -18,26 +18,44 @@
  * Тело — антиквой, как тело любой интерпретации (§3 DESIGN_SYSTEM.md).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchDayForecast } from '../lib/forecastApi';
+import { cachedDayForecast, fetchDayForecast } from '../lib/forecastApi';
+import { errorText, isConnectivity } from '../lib/netError';
+import useReconnect from '../lib/useReconnect';
 
 /** label — «вчера» | «сегодня» | «завтра». */
 export default function FeedDayForecastCard({ chartId, date, label, open, onToggle }) {
   const [state, setState] = useState({ status: 'loading', data: null });
   const runRef = useRef(0);
 
-  const load = useCallback(async () => {
+  /*
+   * Без сети (24.09.2026): сохранённый текст ЭТОЙ даты показывается сразу.
+   * Ключ кэша — дата карточки, так что вчерашний под «сегодня» не встанет.
+   * Текст модели за дату не меняется, и сеть за ним не нужна; запасной
+   * (`source: 'fallback'`) сервер не кэширует — его перезапрашиваем.
+   */
+  const load = useCallback(async ({ background = false } = {}) => {
     if (!chartId || !date) return;
     const run = ++runRef.current;
-    setState({ status: 'loading', data: null });
+    const hit = background ? null : await cachedDayForecast(chartId, date);
+    if (runRef.current !== run) return;
+    if (hit) {
+      setState({ status: 'ready', data: hit.data });
+      if (hit.data?.source !== 'fallback') return;
+    } else if (!background) {
+      setState({ status: 'loading', data: null });
+    }
     try {
       const data = await fetchDayForecast(chartId, date);
       if (runRef.current === run) setState({ status: 'ready', data });
-    } catch {
-      if (runRef.current === run) setState({ status: 'error', data: null });
+    } catch (err) {
+      if (runRef.current === run && !hit) {
+        setState((s) => (background && s.status === 'ready' ? s : { status: 'error', data: null, error: err }));
+      }
     }
   }, [chartId, date]);
 
   useEffect(() => { load(); }, [load]);
+  useReconnect(state.status === 'error' && isConnectivity(state.error), () => load({ background: true }));
 
   const paragraphs = state.data?.paragraphs || [];
   const shown = open ? paragraphs : paragraphs.slice(0, 1);
@@ -68,9 +86,9 @@ export default function FeedDayForecastCard({ chartId, date, label, open, onTogg
       {state.status === 'error' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-            Прогноз не загрузился.
+            {errorText(state.error, 'Прогноз не загрузился. Нажми «Повторить».')}
           </p>
-          <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={load}>
+          <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => load()}>
             Повторить
           </button>
         </div>

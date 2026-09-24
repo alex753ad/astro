@@ -11,10 +11,11 @@ import { hasLunationForecast, lunationPhase } from './lunationPhase';
 const calls = [];
 vi.mock('./authFetchTimeout', () => ({
   REQUEST_TIMEOUT_MS: 15000,
-  authFetchWithTimeout: (url) => {
+  getWithRetry: (url) => {
     calls.push(url);
     return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
   },
+  failWith: async () => { throw new Error('отказ'); },
 }));
 
 const { fetchLunationForecast, fetchDayForecast } = await import('./forecastApi');

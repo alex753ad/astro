@@ -27,7 +27,10 @@ import MoreNotificationsView from '../components/MoreNotificationsView';
 import MoreSettingsView from '../components/MoreSettingsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
-import { deleteChart, fetchMe, fetchCharts, setPrimaryChart } from '../lib/moreApi';
+import { cachedMore, deleteChart, fetchMe, fetchCharts, setPrimaryChart } from '../lib/moreApi';
+import { errorText, isConnectivity, netKind } from '../lib/netError';
+import useReconnect from '../lib/useReconnect';
+import OfflineNote from '../components/OfflineNote';
 import { getSubscription } from '../lib/tierSource';
 import { birthDateWords } from '../lib/chartFormat';
 import { pickPrimaryChartId } from '../lib/feedApi';
@@ -68,6 +71,12 @@ export default function MoreScreen({ onChartsChanged }) {
   const [subscription, setSubscription] = useState(null);
   const [charts, setCharts] = useState([]);
   const [error, setError] = useState('');
+  // Без сети (24.09.2026) — см. FeedScreen. ⚠️ Тариф отсюда — только для
+  // показа на этом экране; для доступа он неизвестен (tierSource.js).
+  const [stale, setStale] = useState(null);
+  const staleRef = useRef(null);
+  const shownRef = useRef(false);
+  const [offlineError, setOfflineError] = useState(false);
   // Какая карта сейчас в работе (удаление или закрепление) — строка на это
   // время гаснет и её кнопки блокируются. Один идентификатор, не множество:
   // два действия над списком карт одновременно человеку не нужны, а
@@ -165,10 +174,21 @@ export default function MoreScreen({ onChartsChanged }) {
    * нельзя (за полноэкранным отказом спрячется уже загруженный профиль),
    * проглотить молча — тем более. Её показывает полоска жеста.
    */
-  const load = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setStatus('loading');
-      setError('');
+  const load = useCallback(async ({ silent = false, background = false } = {}) => {
+    if (!silent && !background) {
+      const snap = shownRef.current ? null : await cachedMore();
+      if (snap) {
+        shownRef.current = true;
+        staleRef.current = { at: snap.savedAt, kind: 'offline' };
+        setMe(snap.me);
+        setSubscription(snap.sub);
+        setCharts(snap.charts?.charts || []);
+        setStale(staleRef.current);
+        setStatus('ready');
+      } else {
+        setStatus('loading');
+        setError('');
+      }
     }
     try {
       const [meData, subData, chartsData] = await Promise.all([
@@ -182,15 +202,32 @@ export default function MoreScreen({ onChartsChanged }) {
       setMe(meData);
       setSubscription(subData);
       setCharts(chartsData.charts || []);
+      shownRef.current = true;
+      staleRef.current = null;
+      setStale(null);
       setStatus('ready');
     } catch (err) {
       if (silent) throw err;
-      setError(err?.message || 'Не удалось загрузить профиль.');
+      if (shownRef.current && staleRef.current) {
+        setStale((s) => (s ? { ...s, kind: netKind(err) === 'server' ? 'server' : 'offline' } : s));
+        return;
+      }
+      if (background) {
+        if (!isConnectivity(err)) {
+          setError(errorText(err, 'Не удалось загрузить профиль.'));
+          setOfflineError(false);
+        }
+        return;
+      }
+      setError(errorText(err, 'Не удалось загрузить профиль.'));
+      setOfflineError(isConnectivity(err));
       setStatus('error');
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useReconnect(Boolean(stale) || (status === 'error' && offlineError), () => load({ background: true }));
 
   // Жест обновления — на собственном скроллере экрана (в отличие от
   // «Ленты», которая делит скроллер с TabShell). Только в корневом виде:
@@ -214,7 +251,8 @@ export default function MoreScreen({ onChartsChanged }) {
         text={error}
         action="Повторить"
         onAction={load}
-        secondary="Войти заново"
+        /* Без сети выход не предлагаем — см. FeedScreen. */
+        secondary={offlineError ? undefined : 'Войти заново'}
         onSecondary={logout}
       />
     );
@@ -244,6 +282,7 @@ export default function MoreScreen({ onChartsChanged }) {
         innerRef={pull.indicatorRef}
         style={{ marginBottom: -20 }}
       />
+      {stale && <div style={{ margin: '-14px 0 -14px' }}><OfflineNote savedAt={stale.at} kind={stale.kind} /></div>}
       <header>
         {/* /auth/me.name приходит null, если имя не задано (UserProfileResponse,
             без фолбэка на бэкенде, backend/auth/router.py:713) — выдумывать

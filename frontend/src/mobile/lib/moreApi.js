@@ -12,11 +12,13 @@
 
 import { API_BASE } from '../../config';
 import { responseErrorText } from '../../api/client';
-import { authFetchWithTimeout } from './authFetchTimeout';
+import { authFetchWithTimeout, failWith, getWithRetry } from './authFetchTimeout';
+import { pickPrimaryChartId } from './feedApi';
+import { offlineCache, rememberCharts } from './offlineCache';
 
 async function getJson(path, fallback) {
-  const resp = await authFetchWithTimeout(`${API_BASE}${path}`);
-  if (!resp.ok) throw new Error(await responseErrorText(resp, fallback));
+  const resp = await getWithRetry(`${API_BASE}${path}`);
+  if (!resp.ok) await failWith(resp, fallback);
   return resp.json();
 }
 
@@ -40,12 +42,33 @@ async function postJson(path, body, fallback) {
   return resp.json();
 }
 
-export const fetchMe = () => getJson('/auth/me', 'Не удалось загрузить профиль.');
+// Три ответа экрана «Ещё» кладутся на диск для показа без сети.
+// ⚠️ Тариф с диска — ТОЛЬКО для показа в «Ещё» с пометкой «без сети». В
+// tierSource он не попадает: для доступа, приписок и пейволла тариф без
+// сети неизвестен (`known: false`), решение владельца 24.09.2026.
+async function getAndRemember(path, fallback, name) {
+  const data = await getJson(path, fallback);
+  await offlineCache.write(name, data);
+  return data;
+}
 
-export const fetchSubscription = () => getJson('/profile/subscription', 'Не удалось загрузить тариф.');
+export const fetchMe = () => getAndRemember('/auth/me', 'Не удалось загрузить профиль.', 'me');
+
+export const fetchSubscription = () => getAndRemember('/profile/subscription', 'Не удалось загрузить тариф.', 'sub');
+
+/** Сохранённое экраном «Ещё»: `{ me, sub, charts, savedAt }` или null, если чего-то нет. */
+export async function cachedMore() {
+  const [me, sub, charts] = await Promise.all(['me', 'sub', 'charts'].map((n) => offlineCache.read(n)));
+  if (!me || !sub || !charts) return null;
+  return { me: me.data, sub: sub.data, charts: charts.data, savedAt: Math.min(me.savedAt, sub.savedAt, charts.savedAt) };
+}
 
 /** `{ total, offset, limit, primary_chart_id, charts: [...] }` — весь объект, не только массив: список карт (§5) читает `primary_chart_id` из корня. */
-export const fetchCharts = () => getJson('/profile/charts', 'Не удалось загрузить карты.');
+export async function fetchCharts() {
+  const data = await getJson('/profile/charts', 'Не удалось загрузить карты.');
+  await rememberCharts(data, pickPrimaryChartId(data?.charts));
+  return data;
+}
 
 export const fetchHistory = () => getJson('/profile/history', 'Не удалось загрузить историю разборов.');
 

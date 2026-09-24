@@ -40,3 +40,15 @@ export function isTokenExpired(token, now = Date.now()) {
   const expiresAt = tokenExpiresAt(token);
   return expiresAt > 0 && now >= expiresAt;
 }
+
+/**
+ * Чей токен — claim `sub` (id пользователя) или null.
+ *
+ * Нужен кэшу приложения (mobile/lib/offlineCache.js): сохранённое без сети
+ * показывается только тому, кто его сохранил. Подпись не проверяется — см.
+ * шапку файла: это не доступ, а выбор, чьи данные достать с диска.
+ */
+export function tokenSubject(token) {
+  const sub = token ? parseJwtPayload(token)?.sub : null;
+  return sub ? String(sub) : null;
+}
