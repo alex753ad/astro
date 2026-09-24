@@ -179,13 +179,26 @@ Vite, а цепочка мажоров Vite 5 → 8 (восьмёрка — эт
 
 ---
 
-## npm audit: 15 находок в devDependencies
+## npm audit: 18 находок в devDependencies
 
 ⚠️ **Прод чист:** `npm audit --omit=dev` → 0. Всё перечисленное ниже в сборку
 не попадает — ни в веб-бандл, ни в APK.
 
 Крупное: `tar` (critical, тянет `@capacitor/cli` → `@capacitor/assets`),
 `sharp`, `browserslist`, `vite` (high).
+
+**+3 с 14.09.2026 (было 15, сверено 24.09.2026 аудитом lock-файла на `309fc9c`):**
+`puppeteer-core` → `@puppeteer/browsers` → `extract-zip`, все high, одна цепочка.
+Пришла с пререндером (`9f29776`). Уязвимость — запись файлов через symlink при
+распаковке архива. Распаковывает `@puppeteer/browsers` только при СКАЧИВАНИИ
+браузера, а пререндер браузер не скачивает: берёт системный chromium через
+`executablePath` (`scripts/prerender.mjs`). Код сидит в `node_modules` на сервере,
+но не исполняется. Лечится только мажором `puppeteer-core` 23 → 25; до
+этого стоит пройтись по `launch`/`kill` в `prerender.mjs`, там есть ссылки на
+строки исходника puppeteer.
+
+`tar` (critical) исполняется только внутри `@capacitor/cli`, а его зовёт
+сборка APK в CI. На сервере при `npm run build` его не трогает никто.
 
 **Сделать:** решить, живём ли с этим. ⚠️ `@capacitor/assets` и `@capacitor/cli`
 чинятся только апгрейдом Capacitor, а `vite` — мажором до 6/7, который тянет за
