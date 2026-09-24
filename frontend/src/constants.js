@@ -63,12 +63,29 @@ export const TIER_NAMES_GENITIVE = {
 // stripe_service.TIER_PRICE_MAP — оба модуля удалены 19.08.2026 вместе с
 // провайдерами. Ссылка на несуществующий источник истины хуже её отсутствия:
 // по ней идут проверять и не находят ничего.
-export const TIER_PRICES = {
-  free: 0,
-  lite: 790,
-  pro: 2490,
-  premium: 7990,
-};
+//
+// С 24.09.2026 — расписание, зеркало common.PRICE_SCHEDULE: строка с будущей
+// датой объявляет смену цены (оферта п. 10.1 — за 14 дней), и витрина
+// переключается в ту же дату по Москве, что и чекаут, без деплоя в этот день.
+// test_price_sync.py сверяет расписания целиком.
+export const TIER_PRICE_SCHEDULE = [
+  { from: '2026-08-19', prices: { free: 0, lite: 790, pro: 2490, premium: 7990 } },
+];
+
+/** Цены на дату «YYYY-MM-DD» по Москве (граница суток — как у бэкенда). */
+export function tierPricesOn(day) {
+  let current = TIER_PRICE_SCHEDULE[0].prices;
+  for (const row of TIER_PRICE_SCHEDULE) if (row.from <= day) current = row.prices;
+  return current;
+}
+
+function moscowToday() {
+  return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// Цены на сегодня. Считаются при загрузке страницы — перезагрузка в день
+// смены цены покажет новые.
+export const TIER_PRICES = tierPricesOn(moscowToday());
 
 // "2 490 ₽" — без суффикса "/мес", каждый компонент обрамляет сам.
 export function tierPriceLabel(tierId) {

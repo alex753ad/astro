@@ -23,7 +23,6 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext } f
 import { mergeUserFromTokens } from '../lib/sessionUser';
 import {
   ApiError,
-  authFetch,
   getSubscription,
   onSessionExpired,
   onTokensRefreshed,
@@ -146,11 +145,14 @@ function useAuthInternal() {
   // пояс»: сменил пояс в поездке — уйдёт при следующем входе в приложение.
   useEffect(() => {
     if (!user?.id || !accessToken) return;
+    // ⚠️ authFetch здесь — функция ЭТОГО хука (объявлена ниже): она отдаёт
+    // тело ответа, а не Response, и бросает на не-2xx. До 24.09.2026 тут
+    // стояло `.then((r) => r.ok)` — у тела нет `ok`, отправка никогда не
+    // считалась успешной, и PATCH уходил заново на каждом обновлении токена.
     syncDeviceTimezone(user.id, (body) => authFetch(`${CONFIG_API_BASE}/push/settings`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then((r) => r.ok));
+    }).then(() => true));
   }, [user?.id, accessToken]);
   // Сколько неудачных обновлений подряд — от этого зависит пауза перед
   // следующей попыткой. Обнуляется успехом и разлогином.

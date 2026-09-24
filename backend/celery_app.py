@@ -79,6 +79,12 @@ celery_app.conf.update(
         # Ключ, бюджет, модель, доля запасных — круглые сутки: модель,
         # упавшая ночью, должна дать сигнал в течение часа, а не утром.
         # :50 — чтобы не совпадать с утренней самопроверкой в 04:30.
+        # Сверка платежей с ЮKassa (backend/payments/reconcile.py): 06:00 МСК,
+        # до утренней самопроверки — её сигналы идут в тот же чат.
+        "reconcile-payments": {
+            "task": "tasks.reconcile_payments",
+            "schedule": crontab(hour=3, minute=0),
+        },
         "selfcheck-hourly": {
             "task": "tasks.selfcheck_hourly",
             "schedule": crontab(minute=50),

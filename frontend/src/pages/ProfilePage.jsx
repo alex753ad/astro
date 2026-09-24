@@ -17,6 +17,8 @@ import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 import MotionButton from '../components/MotionButton';
 import { TIER_NAMES, TIERS } from '../constants';
+import { rememberWebPayment } from '../lib/webPayment';
+import PaymentHistory from '../components/PaymentHistory';
 
 // ─── Тёмная тема ──────────────────────────────────────────────────────────────
 const PROF_THEME_CSS = `
@@ -613,6 +615,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           cancel_url: window.location.href,
         }),
       });
+      rememberWebPayment(data.payment_id, tier);
       window.location.href = data.checkout_url;
     } catch (e) {
       setCheckoutError(e.message);
@@ -648,6 +651,10 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
           )}
         </div>
       </div>
+
+      {/* История платежей и поддержка — «заплатил, а тарифа нет» должно
+          быть видно самому человеку и решаться одной кнопкой. */}
+      <PaymentHistory authFetch={authFetch} cardStyle={S.card} titleStyle={S.cardTitle} />
 
       {/* Фичи */}
       <div style={S.card}>

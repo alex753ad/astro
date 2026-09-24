@@ -33,9 +33,19 @@ def send_lifecycle_emails() -> dict:
         db.close()
 
 
-@celery_app.task(name="tasks.send_purchase_welcome")
+@celery_app.task(name="tasks.send_purchase_welcome", ignore_result=True)
 def send_purchase_welcome_task(payment_event_id: int) -> bool:
-    """Приветствие сразу после оплаты, начавшей тариф (payments/common.py)."""
+    """Приветствие сразу после оплаты, начавшей тариф (payments/common.py).
+
+    ⚠️ `ignore_result=True` несущий, а не косметика. Без него `.delay()` перед
+    отправкой подписывается на результат в Redis-бэкенде (`on_task_call`), и
+    при недоступном Redis переподключается БЕСКОНЕЧНО — исключения нет, и
+    `try/except` вокруг `.delay` в activate_subscription не срабатывает.
+    Вызов идёт из синхронного кода внутри async-вебхука, то есть висел бы
+    весь API. С флагом бэкенд не трогается, а отправка в брокер ретраится
+    ограниченно и падает исключением, которое там ловится. Найдено 24.09.2026
+    дампом стека: локально (без Redis) так висели все тесты оплаты.
+    """
     from backend.lifecycle_emails import send_purchase_welcome
     db = SessionLocal()
     try:
@@ -55,6 +65,34 @@ def selfcheck_daily() -> dict:
     from backend.beat_watchdog import _sync_redis
     from backend.selfcheck import run_daily
     return asyncio.run(run_daily(_sync_redis()))
+
+
+@celery_app.task(name="tasks.send_price_notice", ignore_result=True)
+def send_price_notice_task(effective_date: str) -> dict:
+    """Рассылка уведомления о смене цен — ставит только админ-ручка."""
+    from datetime import date as _date
+    from backend.payments.price_notice import build_notice, send_all
+    db = SessionLocal()
+    try:
+        return send_all(db, build_notice(_date.fromisoformat(effective_date)))
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.reconcile_payments", ignore_result=True)
+def reconcile_payments() -> dict:
+    """Beat, 06:00 МСК: успешные платежи ЮKassa ↔ payment_events ↔ тарифы.
+
+    Начисляет пропущенное вебхуком теми же проверками (payments/reconcile.py).
+    """
+    import asyncio
+    from backend.beat_watchdog import _sync_redis
+    from backend.payments.reconcile import run_reconciliation
+    db = SessionLocal()
+    try:
+        return asyncio.run(run_reconciliation(db, _sync_redis()))
+    finally:
+        db.close()
 
 
 @celery_app.task(name="tasks.selfcheck_hourly")

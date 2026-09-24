@@ -23,8 +23,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MoreSwitch from './MoreSwitch';
-import { openInBrowser } from '../lib/openInBrowser';
-import { PRICING_URL } from '../lib/onboardingCopy';
+import { openPaySheet } from '../lib/paySheetBus';
 import { displayToIso, maskDateInput } from '../lib/dateMask';
 import { searchPlaces } from '../lib/placeSearch';
 import { createChart } from '../lib/chartApi';
@@ -349,7 +348,7 @@ export default function ChartCreateView({ onCancel, onCreated }) {
                 type="button"
                 className="mobile-link"
                 style={{ alignSelf: 'flex-start', padding: 0 }}
-                onClick={() => openInBrowser(PRICING_URL)}
+                onClick={() => openPaySheet()}
               >
                 Открыть тарифы
               </button>

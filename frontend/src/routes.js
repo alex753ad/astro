@@ -191,6 +191,8 @@ export const ROUTES = [
     },
   },
   { id: 'profile',       path: '/profile',                kind: 'app' },
+  // Возврат из ЮKassa после оплаты: страница сама спрашивает статус платежа.
+  { id: 'paymentReturn', path: '/payment/return',         kind: 'app' },
   { id: 'admin',         path: '/admin',                  kind: 'app' },
   { id: 'crm',           path: '/dashboard/clients',      kind: 'app' },
   { id: 'reset',         path: '/reset-password',         kind: 'app' },

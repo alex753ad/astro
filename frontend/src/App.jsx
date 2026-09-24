@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import useAuth from './hooks/useAuth.jsx';
@@ -18,6 +18,8 @@ import SolarReturnPage from './pages/SolarReturnPage';
 import SynastryPage from './pages/SynastryPage';
 import RelocationPage from './pages/RelocationPage';
 import ProfilePage from './pages/ProfilePage';
+import PaymentReturnPage from './pages/PaymentReturnPage';
+import AnnouncementBanner from './components/AnnouncementBanner';
 import AuthModal from './components/AuthModal';
 import LunarCalendarPage from './pages/LunarCalendarPage';
 import SharePage from './pages/SharePage';
@@ -429,6 +431,7 @@ function AppRoutes() {
   const [authReturnTo, setAuthReturnTo] = useState(null);
   const [dark, toggleDark] = useDarkMode();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefersReducedMotion = useReducedMotion();
 
   useOGMeta();
@@ -467,6 +470,11 @@ function AppRoutes() {
         <Header onShowAuth={openAuth} dark={dark} toggleDark={toggleDark} />
 
         <main className="flex-1">
+          {/* Смена цен и прочие объявления (оферта п. 10.1 — публикация).
+              Пустой — ноль высоты, раскладку страниц не сдвигает. */}
+          <div className="max-w-4xl mx-auto px-4">
+            <AnnouncementBanner style={{ marginTop: 12 }} onLink={(to) => navigate(to)} />
+          </div>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -490,6 +498,7 @@ function AppRoutes() {
                 <Route path="/synastry/:chartId"     element={<SynastryPage />} />
                 <Route path="/relocation/:chartId"   element={<RelocationPage />} />
                 <Route path="/profile"        element={<ProfilePage />} />
+                <Route path="/payment/return" element={<PaymentReturnPage />} />
                 <Route path="/lunar"          element={<LunarCalendarPage />} />
                 <Route path="/zodiac/:sign"          element={<ZodiacPage />} />
                 <Route path="/dashboard/clients"     element={<CRMPage />} />

@@ -35,6 +35,7 @@ import {
 import { useToast } from '../components/Toast';
 import PlanComparisonModal from '../components/PlanComparisonModal';
 import { utcOffsetLabel } from '../lib/utcOffset';
+import { rememberWebPayment } from '../lib/webPayment';
 import { withTz } from '../lib/deviceTimezone';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
@@ -352,12 +353,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     setChatCheckoutLoading(true);
     try {
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
-      const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, 'monthly', chartId, null);
+      const { checkout_url: checkoutUrl, payment_id: paymentId } = await createCheckoutSession(tier, 'monthly', chartId, null);
       if (!checkoutUrl) {
         toast.error('Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.');
         setChatCheckoutLoading(false);
         return;
       }
+      rememberWebPayment(paymentId, tier);
       window.location.href = checkoutUrl;
     } catch (e) {
       toast.error(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуй чуть позже.'));

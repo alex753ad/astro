@@ -24,8 +24,7 @@ import { isLocked, isPlannerEvent } from './FeedEventCard';
 import { dateRangeShort, eventTitle, moonRangeShort, periodRange, signRu, timePart } from '../lib/feedTime';
 import { transitTeaserText } from '../lib/transitTeaser';
 import { lockedPlannerText, upgradeOpensIt } from '../lib/plannerAccess';
-import { openInBrowser } from '../lib/openInBrowser';
-import { PRICING_URL } from '../lib/onboardingCopy';
+import { openPaySheet } from '../lib/paySheetBus';
 import {
   canInterpretTransit,
   streamTransitInterpretation,
@@ -318,7 +317,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
                 type="button"
                 className="mobile-btn-primary"
                 style={{ height: 44, fontSize: 14 }}
-                onClick={() => openInBrowser(PRICING_URL)}
+                onClick={() => openPaySheet()}
               >
                 Открыть тарифы
               </button>
@@ -338,7 +337,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', textAlign: 'center' }}>
               {upsell.text}
             </p>
-            <button type="button" className="mobile-link" onClick={() => openInBrowser(PRICING_URL)}>
+            <button type="button" className="mobile-link" onClick={() => openPaySheet()}>
               {upsell.cta}
             </button>
           </div>
@@ -349,7 +348,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
               <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>{upsell.title}</p>
               <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--text-secondary)' }}>{upsell.subtitle}</p>
             </div>
-            <button type="button" className="mobile-btn-primary" style={{ height: 42, fontSize: 13 }} onClick={() => openInBrowser(PRICING_URL)}>
+            <button type="button" className="mobile-btn-primary" style={{ height: 42, fontSize: 13 }} onClick={() => openPaySheet()}>
               {upsell.cta}
             </button>
           </div>

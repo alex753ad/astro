@@ -28,8 +28,7 @@
 import React from 'react';
 import { TIERS, TIER_NAMES, tierFeatures } from '../../constants';
 import { tierAccusative } from '../lib/ruDeclension';
-import { openInBrowser } from '../lib/openInBrowser';
-import { PRICING_URL } from '../lib/onboardingCopy';
+import { openPaySheet } from '../lib/paySheetBus';
 
 function nextTierId(currentTier) {
   const idx = TIERS.findIndex((t) => t.id === currentTier);
@@ -37,7 +36,19 @@ function nextTierId(currentTier) {
   return TIERS[idx + 1]?.id ?? null;
 }
 
-export default function MoreTierCard({ tier, highlight }) {
+/** «до 24.10.2026» из ISO; пусто — срока нет (free) или прочитать нельзя. */
+function untilLabel(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  // Выданное админкой «навсегда» (10 лет) датой не показываем — оно не срок.
+  if (d.getFullYear() - new Date().getFullYear() > 5) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `до ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+export default function MoreTierCard({ tier, highlight, activeUntil, onPayments }) {
+  const until = tier !== 'free' ? untilLabel(activeUntil) : '';
   const currentName = TIER_NAMES[tier] || tier;
   const nextId = nextTierId(tier);
   const nextName = nextId ? TIER_NAMES[nextId] : null;
@@ -66,6 +77,11 @@ export default function MoreTierCard({ tier, highlight }) {
         <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
           {currentName}
         </p>
+        {until && (
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            Оплачен {until}. Без автопродления — продлишь, когда захочешь.
+          </p>
+        )}
       </div>
 
       {nextId && (
@@ -88,10 +104,15 @@ export default function MoreTierCard({ tier, highlight }) {
         type="button"
         className="mobile-btn-primary"
         style={{ height: 44, fontSize: 14, marginTop: 4 }}
-        onClick={() => openInBrowser(PRICING_URL)}
+        onClick={() => openPaySheet()}
       >
-        Тарифы
+        {nextId ? 'Тарифы' : 'Продлить'}
       </button>
+      {onPayments && (
+        <button type="button" className="mobile-link" style={{ alignSelf: 'center' }} onClick={onPayments}>
+          Оплата и поддержка
+        </button>
+      )}
     </section>
   );
 }

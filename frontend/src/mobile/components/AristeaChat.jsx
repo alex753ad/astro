@@ -47,8 +47,7 @@ import {
   shouldStickToBottom,
 } from '../lib/chatRules';
 import { CHAT_GREETING, CHAT_SUGGESTIONS } from '../../lib/chatSuggestions';
-import { openInBrowser } from '../lib/openInBrowser';
-import { PRICING_URL } from '../lib/onboardingCopy';
+import { openPaySheet } from '../lib/paySheetBus';
 
 const MAX_QUESTION_LEN = 1000;   // столько же принимает сервер (rag_router.py)
 
@@ -328,7 +327,7 @@ export default function AristeaChat({ chart, onClose }) {
               {failure.text}
               {failure.showPricing && (
                 <div style={{ marginTop: 8 }}>
-                  <button type="button" className="mobile-link" onClick={() => openInBrowser(PRICING_URL)}>
+                  <button type="button" className="mobile-link" onClick={() => openPaySheet()}>
                     Открыть тарифы
                   </button>
                 </div>

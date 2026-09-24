@@ -721,3 +721,22 @@ class AstreaMemory(Base):
     )
     summary = Column(Text, nullable=False, default="", server_default="")
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class Announcement(Base):
+    """Объявление для баннера в приложении и на вебе (057).
+
+    Сегодня единственный писатель — уведомление о смене цен
+    (payments/price_notice.py, оферта п. 10.1 требует публикации). `ref`
+    уникален: повторный запуск уведомления обновляет строку, а не плодит
+    вторую. Показывается, пока `ends_at` в будущем.
+    """
+    __tablename__ = "announcements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ref = Column(String(100), nullable=False, unique=True)
+    title = Column(String(200), nullable=False)
+    body = Column(Text, nullable=True)
+    link = Column(String(200), nullable=True)
+    ends_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=utcnow)

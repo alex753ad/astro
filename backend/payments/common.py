@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -37,7 +37,60 @@ REFERRAL_REWARD_DAYS = 14
 # MRR по уже выданным вручную премиумам и для промокодов в админке. Источником
 # цены для показа пользователю он не является — фронт берёт цены из своего
 # constants.js, а /pricing Орион не показывает.
-TIER_PRICES_RUB = {"lite": 790, "pro": 2490, "premium": 7990}
+#
+# С 24.09.2026 цена — это РАСПИСАНИЕ, а не одно число. Причина — деньги, а не
+# удобство: вебхук сверяет списанное с ценой, и при одном числе повышение цены
+# отбросило бы платёж, созданный по старой цене и оплаченный после смены, —
+# деньги списаны, тариф не включён. Теперь сумма сверяется с ценой, которая
+# действовала в момент СОЗДАНИЯ платежа (`price_on`, created_at из API ЮKassa).
+#
+# Как менять цену: добавить строку с датой вступления не раньше чем через 14
+# дней (оферта п. 10.1) — здесь и в TIER_PRICE_HISTORY во frontend/src/
+# constants.js одним коммитом (держит test_price_sync.py), затем разослать
+# уведомление (`POST /api/v1/admin/price-notice`). Дата — начало суток по
+# Москве: до неё чекаут создаёт платежи по старой цене.
+PRICE_SCHEDULE: list[tuple[date, dict[str, int]]] = [
+    (date(2026, 8, 19), {"lite": 790, "pro": 2490, "premium": 7990}),
+]
+
+_MSK = timezone(timedelta(hours=3))
+
+
+def _msk_date(moment: datetime | None) -> date:
+    if moment is None:
+        moment = datetime.now(timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)   # наивное в проекте — UTC
+    return moment.astimezone(_MSK).date()
+
+
+def prices_on(moment: datetime | None = None) -> dict[str, int]:
+    """Цены, действовавшие в момент `moment` (по умолчанию — сейчас)."""
+    day = _msk_date(moment)
+    current = PRICE_SCHEDULE[0][1]
+    for start, prices in PRICE_SCHEDULE:
+        if start <= day:
+            current = prices
+    return current
+
+
+def price_on(tier: str, moment: datetime | None = None) -> int | None:
+    return prices_on(moment).get(tier)
+
+
+def upcoming_price_change(now: datetime | None = None) -> tuple[date, dict[str, int]] | None:
+    """Ближайшая объявленная смена цен в будущем, если есть."""
+    day = _msk_date(now)
+    for start, prices in PRICE_SCHEDULE:
+        if start > day:
+            return start, prices
+    return None
+
+
+# Цены на сегодня — для админки (MRR, промокоды) и тестов. ⚠️ Вычисляется при
+# импорте, то есть в день смены цены устаревает до перезапуска процесса. Там,
+# где решаются деньги (чекаут, вебхук, сверка), — только price_on().
+TIER_PRICES_RUB = prices_on()
 
 
 class DuplicatePayment(Exception):

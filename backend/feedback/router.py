@@ -71,6 +71,28 @@ def _format_report(row: Feedback, user: Optional[User]) -> str:
     )
 
 
+# Экран «Написать в поддержку» из раздела оплаты (приложение и веб). Для него
+# к жалобе приклеиваются тариф и последние платежи: человек, у которого
+# «заплатил, а тарифа нет», номер платежа не знает, а без него владельцу
+# разбираться не с чем.
+PAYMENT_SCREEN = "payment"
+
+
+def _payment_context(db: Session, user: User) -> str:
+    from backend.models import PaymentEvent, Subscription
+    sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
+    lines = ["", "", f"Тариф: {user.tier}"
+             + (f", до {sub.current_period_end:%d.%m.%Y}" if sub and sub.current_period_end else "")]
+    rows = (db.query(PaymentEvent).filter(PaymentEvent.user_id == user.id)
+            .order_by(PaymentEvent.created_at.desc()).limit(3).all())
+    for r in rows:
+        lines.append(f"Платёж {r.inv_id}: {r.amount or 0:.0f} ₽, {r.tier or '—'}, "
+                     f"{r.created_at:%d.%m.%Y %H:%M} UTC" + ("" if r.period else " (не начислен)"))
+    if not rows:
+        lines.append("Платежей в базе нет — если человек платил, проверь ЮKassa по email.")
+    return chr(10).join(lines)
+
+
 @router.post("", status_code=201)
 @limiter.limit("5/hour")
 async def create_feedback(
@@ -115,6 +137,8 @@ async def create_feedback(
     log_event(db, user.id if user else None, "feedback_reported", {"screen": row.screen})
 
     text = _format_report(row, user)
+    if row.screen == PAYMENT_SCREEN and user is not None:
+        text += _payment_context(db, user)
 
     if screenshot_path:
         # Фото ждём синхронно (один запрос к Telegram) — иначе нечем определить,

@@ -28,8 +28,7 @@ import {
   upsellForTier,
 } from '../lib/interpretRules';
 import useTier from '../lib/useTier';
-import { openInBrowser } from '../lib/openInBrowser';
-import { PRICING_URL } from '../lib/onboardingCopy';
+import { openPaySheet } from '../lib/paySheetBus';
 
 /**
  * Разбор текста секции по строкам.
@@ -248,7 +247,7 @@ export default function InterpretView({ chartId, onBack }) {
             <button
               type="button"
               className="mobile-link"
-              onClick={() => openInBrowser(PRICING_URL)}
+              onClick={() => openPaySheet()}
             >
               {upsell.cta}
             </button>
@@ -269,7 +268,7 @@ export default function InterpretView({ chartId, onBack }) {
               type="button"
               className="mobile-btn-primary"
               style={{ height: 44, fontSize: 13.5 }}
-              onClick={() => openInBrowser(PRICING_URL)}
+              onClick={() => openPaySheet()}
             >
               {upsell.cta}
             </button>
@@ -285,7 +284,7 @@ export default function InterpretView({ chartId, onBack }) {
               {failure.text}
             </p>
             {failure.showPricing && (
-              <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => openInBrowser(PRICING_URL)}>
+              <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => openPaySheet()}>
                 Открыть тарифы
               </button>
             )}

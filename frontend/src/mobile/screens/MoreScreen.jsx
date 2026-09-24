@@ -25,12 +25,15 @@ import MoreHistoryView from '../components/MoreHistoryView';
 import MoreReferralView from '../components/MoreReferralView';
 import MoreNotificationsView from '../components/MoreNotificationsView';
 import MoreSettingsView from '../components/MoreSettingsView';
+import MorePaymentsView from '../components/MorePaymentsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
 import { cachedMore, deleteChart, fetchMe, fetchCharts, setPrimaryChart } from '../lib/moreApi';
 import { errorText, isConnectivity, netKind } from '../lib/netError';
 import useReconnect from '../lib/useReconnect';
 import OfflineNote from '../components/OfflineNote';
+import AnnouncementBanner from '../../components/AnnouncementBanner';
+import { openPaySheet } from '../lib/paySheetBus';
 import { getSubscription } from '../lib/tierSource';
 import { birthDateWords } from '../lib/chartFormat';
 import { pickPrimaryChartId } from '../lib/feedApi';
@@ -43,6 +46,7 @@ const SUB_TITLES = {
   referral: 'Друзья',
   notifications: 'Уведомления',
   settings: 'Настройки',
+  payments: 'Оплата и поддержка',
 };
 
 /** Скелет: строка шапки, прямоугольник тарифа, 2 плейсхолдера карт, 5 строк меню (§8). */
@@ -266,6 +270,7 @@ export default function MoreScreen({ onChartsChanged }) {
         {view === 'referral' && <MoreReferralView />}
         {view === 'notifications' && <MoreNotificationsView />}
         {view === 'settings' && <MoreSettingsView />}
+        {view === 'payments' && <MorePaymentsView />}
       </MoreSubScreen>
     );
   }
@@ -283,6 +288,10 @@ export default function MoreScreen({ onChartsChanged }) {
         style={{ marginBottom: -20 }}
       />
       {stale && <div style={{ margin: '-14px 0 -14px' }}><OfflineNote savedAt={stale.at} kind={stale.kind} /></div>}
+      {/* Смена цен (оферта п. 10.1). В ленту баннер не ставится: он приходит
+          после первой отрисовки и сдвинул бы список уже после прокрутки к
+          сегодняшнему дню (CLAUDE.md, прокрутка к якорю). */}
+      <AnnouncementBanner onLink={() => openPaySheet()} />
       <header>
         {/* /auth/me.name приходит null, если имя не задано (UserProfileResponse,
             без фолбэка на бэкенде, backend/auth/router.py:713) — выдумывать
@@ -297,7 +306,12 @@ export default function MoreScreen({ onChartsChanged }) {
         </p>
       </header>
 
-      <MoreTierCard tier={subscription.tier} highlight={highlightTier} />
+      <MoreTierCard
+        tier={subscription.tier}
+        highlight={highlightTier}
+        activeUntil={subscription.current_period_end}
+        onPayments={() => setView('payments')}
+      />
 
       {/* PDF-отчёт по карте — ссылкой на сайт, а не своей кнопкой.
 

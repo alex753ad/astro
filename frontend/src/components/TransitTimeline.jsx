@@ -3,6 +3,7 @@ import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES, tierPriceLabel, tierFeatures, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
 import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
+import { rememberWebPayment } from '../lib/webPayment';
 import { readSseLines } from "../lib/sseLines";
 import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
@@ -1104,12 +1105,13 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     setCheckoutLoading(true);
     try {
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
-      const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
+      const { checkout_url: checkoutUrl, payment_id: paymentId } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
       if (!checkoutUrl) {
         toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.");
         setCheckoutLoading(false);
         return;
       }
+      rememberWebPayment(paymentId, tier);
       window.location.href = checkoutUrl;
     } catch (e) {
       toast.error(apiErrorText(e, "Не удалось открыть страницу оплаты. Попробуй чуть позже."));

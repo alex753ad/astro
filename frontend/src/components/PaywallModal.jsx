@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { createCheckoutSession, apiErrorText } from '../api/client';
+import { rememberWebPayment } from '../lib/webPayment';
 import MotionButton from './MotionButton';
 import { TIER_NAMES } from '../constants';
 
@@ -115,12 +116,13 @@ export default function PaywallModal({ context = 'free_to_lite', onClose, chartI
       // форма ответа Stripe Checkout Session, удалённого 19.08.2026: значение
       // было undefined, браузер уходил на /undefined и показывал пустую
       // страницу, а исключения не возникало и catch не срабатывал.
-      const { checkout_url: checkoutUrl } = await createCheckoutSession(content.tier, 'monthly', chartId);
+      const { checkout_url: checkoutUrl, payment_id: paymentId } = await createCheckoutSession(content.tier, 'monthly', chartId);
       if (!checkoutUrl) {
         setError('Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.');
         setLoading(false);
         return;
       }
+      rememberWebPayment(paymentId, content.tier);
       window.location.href = checkoutUrl;
     } catch (e) {
       setError(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуй чуть позже.'));

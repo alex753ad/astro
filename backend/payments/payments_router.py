@@ -114,3 +114,62 @@ async def get_subscription(
         stripe_subscription_id=None,
         current_period_end=sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
     )
+
+
+# ── Уведомление о смене цен (оферта п. 10.1) ───────────────
+
+@router.post("/admin/price-notice")
+async def admin_price_notice(
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Запуск уведомления о смене цен — только вручную, только админ.
+
+    Тело: `{"effective_date": "YYYY-MM-DD", "dry_run": true}`. С `dry_run`
+    (по умолчанию) ничего не отправляет и не публикует — отдаёт тему, текст и
+    число адресатов, чтобы владелец увидел письмо до рассылки. Без него —
+    публикует баннер и ставит рассылку в очередь (payments/price_notice.py).
+    """
+    from datetime import date as _date
+    from backend.payments import price_notice as pn
+
+    body = await request.json()
+    try:
+        effective = _date.fromisoformat(str(body.get("effective_date") or ""))
+    except ValueError:
+        raise HTTPException(422, "effective_date: YYYY-MM-DD")
+    try:
+        notice = pn.build_notice(effective)
+    except pn.NoticeError as exc:
+        raise HTTPException(422, str(exc))
+
+    count = len(pn.recipients(db))
+    if body.get("dry_run", True):
+        return {"dry_run": True, "recipients": count, **notice}
+
+    pn.publish(db, notice)
+    db.add(AdminAuditLog(
+        admin_id=admin.id, admin_email=admin.email, action="price_notice",
+        target_user_id=None, details={"effective_date": notice["effective_date"], "recipients": count},
+        ip=client_ip(request),
+    ))
+    db.commit()
+    from backend.tasks import send_price_notice_task
+    send_price_notice_task.delay(notice["effective_date"])
+    logger.info("Price notice started: admin=%s effective=%s recipients=%d",
+                admin.id, notice["effective_date"], count)
+    return {"dry_run": False, "recipients": count, "published": True, **notice}
+
+
+@router.get("/announcements")
+async def active_announcements(db: Session = Depends(get_db)):
+    """Действующие объявления для баннера — без входа: смена цен касается и
+    тех, кто ещё не зарегистрирован, а публикация по оферте — для всех."""
+    from backend.models import Announcement
+    from backend.time_utils import utcnow
+    rows = (db.query(Announcement).filter(Announcement.ends_at > utcnow())
+            .order_by(Announcement.created_at.desc()).all())
+    return {"items": [
+        {"ref": r.ref, "title": r.title, "body": r.body, "link": r.link} for r in rows
+    ]}

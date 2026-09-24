@@ -40,12 +40,13 @@ from sqlalchemy.orm import Session
 from backend.auth.dependencies import get_current_user
 from backend.config import get_settings
 from backend.database import get_db
-from backend.limiter import client_ip
+from backend.limiter import client_ip, limiter
 from backend.models import PaymentEvent, Subscription, User
 from backend.redis_client import get_redis
 from backend.time_utils import utcnow
 from backend.payments.common import (
     TIER_PRICES_RUB,
+    price_on,
     DuplicatePayment,
     PaymentProcessingError,
     SubscriptionOwnerMissing,
@@ -200,6 +201,11 @@ async def _notify_ip_reject(ip: str) -> None:
 class CheckoutRequest(BaseModel):
     tier: str
     billing_period: str = PERIOD
+    # Откуда оплата: "app" — приложение создаёт платёж само и открывает
+    # страницу ЮKassa во внешнем браузере (решение владельца 24.09.2026).
+    # Влияет только на страницу возврата: из браузера человека просим
+    # вернуться в приложение, а не показываем веб-профиль.
+    source: str = "web"
 
     # Фронт присылает ещё success_url/cancel_url/promo_code — принимаем и
     # игнорируем. return_url всегда наш (/profile), иначе после оплаты можно
@@ -234,13 +240,18 @@ async def create_checkout(
 
     from backend.email_service import TIER_NAMES
 
-    amount = TIER_PRICES_RUB[tier]
+    # Цена на сегодня по расписанию: объявленная смена вступает в силу сама,
+    # в свою дату, без деплоя в этот день (common.PRICE_SCHEDULE).
+    amount = price_on(tier)
     payload: dict[str, Any] = {
         "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
         "capture": True,
         "confirmation": {
             "type": "redirect",
-            "return_url": f"{settings.frontend_url}/profile",
+            # Страница возврата сама спрашивает статус (GET /payments/status)
+            # — вебхук может прийти и раньше редиректа, и через час.
+            "return_url": f"{settings.frontend_url}/payment/return"
+                          + ("?from=app" if body.source == "app" else ""),
         },
         "description": f"Aristea Timeline — {TIER_NAMES.get(tier, tier.capitalize())}, 30 дней",
         # metadata возвращается в вебхуке и перечитывается из API — это
@@ -287,6 +298,118 @@ async def create_checkout(
         data.get("id"), user.id, tier, amount,
     )
     return {"checkout_url": checkout_url, "payment_id": data.get("id")}
+
+
+# ── Статус платежа и история ───────────────────────────────
+
+# Причины отмены ЮKassa (cancellation_details.reason) → текст человеку.
+# Главное в каждом — деньги не списаны: отказ при оплате не оставляет
+# списания, а человек в этот момент думает именно об этом.
+CANCEL_REASON_RU = {
+    "insufficient_funds": "На карте не хватило денег.",
+    "card_expired": "Срок действия карты истёк.",
+    "invalid_card_number": "Номер карты введён с ошибкой.",
+    "invalid_csc": "Код CVC введён с ошибкой.",
+    "3d_secure_failed": "Банк не подтвердил оплату кодом.",
+    "call_issuer": "Банк отклонил оплату — позвони в свой банк.",
+    "issuer_unavailable": "Банк не ответил — попробуй чуть позже.",
+    "payment_method_limit_exceeded": "Превышен лимит по карте.",
+    "payment_method_restricted": "Этот способ оплаты сейчас недоступен.",
+    "country_forbidden": "Оплата картой этой страны недоступна.",
+    "fraud_suspected": "Банк заподозрил мошенничество и отклонил оплату.",
+    "general_decline": "Банк отклонил оплату без объяснения причины.",
+    "expired_on_confirmation": "Оплата не была завершена вовремя.",
+    "canceled_by_merchant": "Платёж отменён.",
+    "internal_timeout": "Платёжный сервис не ответил вовремя.",
+}
+CANCEL_REASON_DEFAULT = "Оплата не прошла."
+
+
+def _subscription_state(db: Session, user: User) -> dict[str, Any]:
+    sub = (
+        db.query(Subscription).filter(Subscription.user_id == user.id)
+        .order_by(Subscription.current_period_end.desc().nullslast()).first()
+    )
+    end = sub.current_period_end if sub and sub.status == "active" else None
+    return {"tier": user.tier, "active_until": end.isoformat() if end else None}
+
+
+@router.get("/status/{payment_id}")
+@limiter.limit("30/minute")
+async def payment_status(
+    request: Request,
+    payment_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Что с платежом — для экрана ожидания в приложении и на вебе.
+
+    `state`: `succeeded` (тариф включён, с датой окончания) | `pending` (ждём
+    банк) | `canceled` (не прошло, `reason` — по-русски) | `unknown` (ЮKassa
+    не ответила — экран предлагает проверить позже).
+
+    ⚠️ Если ЮKassa говорит «оплачено», а нашей записи нет, ручка НАЧИСЛЯЕТ
+    сама, тем же `settle_payment`, что и вебхук. Иначе человек, вернувшийся
+    раньше вебхука, видел бы бесплатный тариф при списанных деньгах. Повтор
+    безопасен: начисление идемпотентно по id платежа.
+    """
+    event = db.query(PaymentEvent).filter(PaymentEvent.inv_id == payment_id).first()
+    if event is not None and event.user_id == user.id and event.period:
+        return {"state": "succeeded", **_subscription_state(db, user)}
+
+    payment = await _fetch_payment(payment_id)
+    if payment is None:
+        return {"state": "unknown", **_subscription_state(db, user)}
+    # Чужой или несуществующий платёж — одинаково 404, чтобы по ручке нельзя
+    # было проверять чужие id.
+    if str((payment.get("metadata") or {}).get("user_id") or "") != str(user.id):
+        raise HTTPException(status_code=404, detail="Платёж не найден.")
+
+    status = payment.get("status")
+    if status == "succeeded":
+        try:
+            outcome = await settle_payment(db, payment)
+        except PaymentProcessingError:
+            return {"state": "unknown", **_subscription_state(db, user)}
+        db.refresh(user)
+        if outcome in (ACTIVATED, DUPLICATE):
+            return {"state": "succeeded", **_subscription_state(db, user)}
+        # Деньги есть, а начислить нельзя (сумма, возврат…) — владелец уже
+        # получил сигнал из settle_payment. Человеку — честно и с выходом.
+        return {"state": "review", **_subscription_state(db, user)}
+    if status == "canceled":
+        reason = ((payment.get("cancellation_details") or {}).get("reason")) or ""
+        return {"state": "canceled", "reason": CANCEL_REASON_RU.get(reason, CANCEL_REASON_DEFAULT),
+                **_subscription_state(db, user)}
+    return {"state": "pending", **_subscription_state(db, user)}
+
+
+@router.get("/history")
+async def payment_history(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Платежи и возвраты человека, новые сверху, плюс текущий тариф.
+
+    Непригодные платежи (period NULL — сумма/валюта не сошлись) тоже
+    показываются: деньги человек отдал, и строка «на проверке» честнее, чем
+    отсутствие строки, — ровно с неё и начинается «заплатила, покупки нет».
+    """
+    rows = (
+        db.query(PaymentEvent).filter(PaymentEvent.user_id == user.id)
+        .order_by(PaymentEvent.created_at.desc()).limit(50).all()
+    )
+    items = []
+    for r in rows:
+        refund = str(r.inv_id).startswith("refund:") or (r.amount or 0) < 0
+        items.append({
+            "id": r.inv_id,
+            "at": r.created_at.isoformat() if r.created_at else None,
+            "tier": r.tier,
+            "amount": abs(r.amount or 0),
+            "kind": "refund" if refund else ("payment" if r.period else "review"),
+        })
+    return {"items": items, **_subscription_state(db, user)}
 
 
 # ── Вебхук ─────────────────────────────────────────────────
@@ -362,14 +485,50 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
         # Проверить платёж не смогли — активировать по неподписанному телу
         # вебхука нельзя. 500, чтобы ЮKassa повторила доставку.
         raise HTTPException(status_code=500, detail="verification failed")
+    try:
+        await settle_payment(db, payment)
+    except PaymentProcessingError:
+        raise HTTPException(status_code=500, detail="processing failed")
+    return {"ok": True}
 
+
+# Итог settle_payment — чтобы вызывающий (сверка, ручка статуса) мог отличить
+# «начислено сейчас» от «уже было» и от «не начисляется».
+ACTIVATED = "activated"
+DUPLICATE = "duplicate"
+UNUSABLE = "unusable"
+ORPHAN = "orphan"
+NOT_SUCCEEDED = "not_succeeded"
+
+
+def _parse_created_at(payment: dict[str, Any]):
+    """created_at платежа из API ЮKassa (ISO, UTC) → aware datetime или None."""
+    from datetime import datetime
+    raw = str(payment.get("created_at") or "")
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+async def settle_payment(db: Session, payment: dict[str, Any]) -> str:
+    """Проверить уже ПЕРЕЧИТАННЫЙ из API платёж и начислить тариф.
+
+    Единственный путь начисления — его зовут вебхук, ручка статуса
+    (`GET /payments/status/{id}`) и ежедневная сверка (payments/reconcile.py).
+    Проверки одни на всех, поэтому сверка начисляет ровно тогда, когда начислил
+    бы вебхук (решение владельца 24.09.2026), и не шире.
+
+    Возвращает один из итогов выше. PaymentProcessingError — временный сбой,
+    его вызывающий обязан повторить (вебхук — 500).
+    """
+    payment_id = str(payment.get("id") or "")
     if payment.get("status") != "succeeded":
-        # Тело вебхука говорило одно, API — другое. Ретрай не поможет.
-        logger.error(
-            "YooKassa: вебхук payment.succeeded, но API отдаёт status=%s для %s",
-            payment.get("status"), payment_id,
-        )
-        return {"ok": True}
+        if payment.get("status") not in ("pending", "waiting_for_capture", "canceled"):
+            logger.error("YooKassa: платёж %s в статусе %s", payment_id, payment.get("status"))
+        return NOT_SUCCEEDED
 
     meta = payment.get("metadata") or {}
     user_id = str(meta.get("user_id") or "")
@@ -388,31 +547,46 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
             f"тариф «{tier}» не продаётся или не распознан" if tier
             else "в metadata платежа нет user_id и тарифа"
         )
-        return await _record_unusable_payment(
+        await _record_unusable_payment(
             db, payment_id, problem=problem, amount=paid,
             user_id=user_id or None, tier=tier if tier in TIER_PRICES_RUB else None,
         )
+        return UNUSABLE
 
-    expected = TIER_PRICES_RUB[tier]
-    if abs(paid - expected) > 0.01:
-        return await _record_unusable_payment(
+    # По платежу уже был возврат — тариф за него не выдаём. Вебхук возврата
+    # (refund.succeeded) подписку не трогает, но выдавать её по возвращённым
+    # деньгам, если вебхук оплаты опоздал или платёж нашла сверка, нельзя.
+    refunded = _amount_value({"amount": payment.get("refunded_amount") or {}})
+    if refunded > 0:
+        await _record_unusable_payment(
+            db, payment_id, problem=f"по платежу уже был возврат {refunded:.2f} ₽",
+            amount=paid, user_id=user_id, tier=tier,
+        )
+        return UNUSABLE
+
+    # Цена — на момент СОЗДАНИЯ платежа, а не сегодняшняя: иначе повышение
+    # цены отбросило бы платёж, созданный до него и оплаченный после
+    # (common.PRICE_SCHEDULE). Нет created_at — сегодняшняя.
+    expected = price_on(tier, _parse_created_at(payment))
+    if expected is None or abs(paid - expected) > 0.01:
+        return await _unusable(
             db, payment_id,
-            problem=f"сумма не совпадает с ценой тарифа: заплачено {paid:.2f}, ожидалось {expected:.2f}",
+            problem=f"сумма не совпадает с ценой тарифа: заплачено {paid:.2f}, ожидалось {expected or 0:.2f}",
             amount=paid, user_id=user_id, tier=tier,
         )
 
     # Валюта — часть сверки суммы, а не отдельная проверка (аудит 23.08.2026,
     # находка 2.3). До этого читался только amount.value, и «790» в любой
-    # валюте проходило как 790 ₽: TIER_PRICES_RUB — рубли по определению.
+    # валюте проходило как 790 ₽: цены в PRICE_SCHEDULE — рубли по определению.
     # Сегодня чекаут жёстко ставит RUB (см. create_checkout), поэтому путь
     # недостижим — но ровно эта проверка выстрелит первой, если в кабинете
     # ЮKassa включат мультивалютность или появится второй способ создать
     # платёж. Дешевле держать её, чем вспоминать про неё потом.
     currency = str((payment.get("amount") or {}).get("currency") or "")
     if currency != "RUB":
-        return await _record_unusable_payment(
+        return await _unusable(
             db, payment_id,
-            problem=f"валюта {currency or 'не указана'}, а цены в TIER_PRICES_RUB рублёвые",
+            problem=f"валюта {currency or 'не указана'}, а цены рублёвые",
             amount=paid, user_id=user_id, tier=tier,
         )
 
@@ -427,10 +601,11 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
             amount=paid,
         )
     except DuplicatePayment:
-        # Ретрай ЮKassa или повтор перехваченного запроса. Ровно тот же ответ,
-        # что и на первую успешную доставку — иначе ретраи не прекратятся.
+        # Ретрай ЮKassa, повтор перехваченного запроса или вторая дорожка
+        # (вебхук + ручка статуса + сверка). Ровно тот же ответ, что и на
+        # первую успешную доставку — иначе ретраи не прекратятся.
         logger.info("YooKassa: повторная доставка payment_id=%s, пропущено", payment_id)
-        return {"ok": True}
+        return DUPLICATE
     except SubscriptionOwnerMissing as exc:
         # 200, а не 500: причина постоянная (пользователя нет), ретрай ЮKassa
         # сутки подряд ничего не исправит — только зашумит. Запись о платеже
@@ -441,15 +616,20 @@ async def _handle_succeeded(db: Session, payment_id: str) -> dict[str, Any]:
             payment_id, exc.user_id,
         )
         await _notify_orphan_payment(payment_id, exc.user_id, tier, paid)
-        return {"ok": True}
+        return ORPHAN
     except PaymentProcessingError as exc:
         logger.error("YooKassa: обработка платежа %s упала на шаге %s", payment_id, exc.stage)
-        raise HTTPException(status_code=500, detail="processing failed")
+        raise
 
     # Только после успешной обработки: на повторной доставке сюда не доходим
     # (DuplicatePayment вернул выше), поэтому одно сообщение на один платёж.
     await _notify_payment(db, payment_id, user_id, tier, paid)
-    return {"ok": True}
+    return ACTIVATED
+
+
+async def _unusable(db, payment_id, **kw) -> str:
+    await _record_unusable_payment(db, payment_id, **kw)
+    return UNUSABLE
 
 
 async def _record_unusable_payment(

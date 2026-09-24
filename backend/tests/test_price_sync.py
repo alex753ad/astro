@@ -29,23 +29,47 @@ from backend.payments.common import TIER_PRICES_RUB
 CONSTANTS_JS = Path(__file__).resolve().parents[2] / "frontend" / "src" / "constants.js"
 
 
-def _parse_frontend_prices() -> dict[str, int]:
-    """Вытащить TIER_PRICES из constants.js.
+def _parse_frontend_schedule() -> list[tuple[str, dict[str, int]]]:
+    """TIER_PRICE_SCHEDULE из constants.js → [(from, prices)].
 
     Разбор регуляркой, а не исполнением JS: тянуть node в бэкенд-тесты ради
-    одного объекта не стоит. Если формат объявления изменится, тест упадёт
+    одного массива не стоит. Если формат объявления изменится, тест упадёт
     на разборе — это лучше, чем молча пропустить сверку.
     """
     src = CONSTANTS_JS.read_text(encoding="utf-8")
-    match = re.search(r"export\s+const\s+TIER_PRICES\s*=\s*\{(.*?)\}", src, re.S)
-    assert match, f"TIER_PRICES не найден в {CONSTANTS_JS} — изменился формат объявления?"
+    match = re.search(r"export\s+const\s+TIER_PRICE_SCHEDULE\s*=\s*\[(.*?)\];", src, re.S)
+    assert match, f"TIER_PRICE_SCHEDULE не найден в {CONSTANTS_JS} — изменился формат объявления?"
+    body = re.sub(r"//[^\n]*", "", match.group(1))
+    body = body.replace("'", '"')
+    body = re.sub(r"(\w+)\s*:", r'"\1":', body)
+    body = re.sub(r",\s*([}\]])", r"\1", body.strip().rstrip(","))
+    rows = json.loads("[" + body + "]")
+    return [(r["from"], r["prices"]) for r in rows]
 
-    body = match.group(1)
-    # Убираем комментарии и висячие запятые, чтобы получился валидный JSON.
-    body = re.sub(r"//[^\n]*", "", body)
-    body = re.sub(r",\s*$", "", body.strip())
-    pairs = re.sub(r"(\w+)\s*:", r'"\1":', body)
-    return json.loads("{" + pairs + "}")
+
+def _parse_frontend_prices() -> dict[str, int]:
+    """Цены витрины на сегодня — строка расписания, действующая сегодня."""
+    from backend.payments.common import _msk_date
+    today = _msk_date(None).isoformat()
+    current: dict[str, int] = {}
+    for day, prices in _parse_frontend_schedule():
+        if day <= today:
+            current = prices
+    return current
+
+
+class TestScheduleSync:
+    """Смена цены объявляется строкой расписания в ОБОИХ местах — иначе в
+    день вступления витрина покажет одну цену, а чекаут спишет другую."""
+
+    def test_schedules_match(self):
+        from backend.payments.common import PRICE_SCHEDULE
+        front = _parse_frontend_schedule()
+        back = [(d.isoformat(), prices) for d, prices in PRICE_SCHEDULE]
+        assert [f for f, _ in front] == [b for b, _ in back], "даты смены цен разошлись"
+        for (day, fp), (_, bp) in zip(front, back):
+            for tier, price in bp.items():
+                assert fp.get(tier) == price, f"{day}: {tier} витрина {fp.get(tier)}, платёж {price}"
 
 
 class TestPriceSync:

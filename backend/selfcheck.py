@@ -70,6 +70,11 @@ TITLES = {
     "budget_low": "DeepSeek: бюджет на исходе",
     "model_down": "DeepSeek: модель недоступна",
     "fallback_share": "Прогнозы: много запасных текстов",
+    # Сверка платежей (payments/reconcile.py). Имена с id платежа после
+    # двоеточия — заголовок берётся по части до него.
+    "payments_api": "Оплата: сверка с ЮKassa не прошла",
+    "payment_no_tier": "Оплата: деньги есть — тарифа нет",
+    "payment_credit_failed": "Оплата: сверка не смогла начислить",
 }
 
 # Лунные события ленты: проход Луны по дому, фаза, затмение.
@@ -293,7 +298,7 @@ async def settle(redis, name: str, problem: str | None, *, send=None, details: s
     if send is None:
         from backend.notifications.telegram import send_support_message as send
     key = _INCIDENT_PREFIX + name
-    title = TITLES.get(name, name)
+    title = TITLES.get(name) or TITLES.get(name.split(":")[0], name)
     try:
         if problem:
             if not redis.set(key, problem, nx=True):
