@@ -751,7 +751,9 @@ class ForecastFeedback(Base):
     kind = Column(String(16), nullable=False)        # today | lunation
     ref = Column(String(64), nullable=False)
     rating = Column(Integer, nullable=False)         # 1 | -1
-    prompt_version = Column(Integer, nullable=False)
+    # NULL — текст из офлайн-кэша, сохранённый до появления версии в ответе:
+    # какой версией он написан, неизвестно, а текущая была бы неправдой.
+    prompt_version = Column(Integer, nullable=True)
     source = Column(String(16), nullable=False)      # model | fallback
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
 

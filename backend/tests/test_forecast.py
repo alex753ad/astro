@@ -668,3 +668,37 @@ def test_feedback_cannot_be_removed_or_malformed(client, db, user_free, auth_hea
 def test_feedback_requires_owner(client, db, user_free, auth_headers_pro):
     chart = _chart(db, user_free)
     assert _vote(client, chart.id, auth_headers_pro, 1).status_code in (403, 404)
+
+
+def test_feedback_without_version_is_stored_empty(client, db, user_free, auth_headers_free):
+    """Текст из офлайн-кэша до появления версии: пишется NULL, а не текущая версия."""
+    from backend.models import ForecastFeedback
+    chart = _chart(db, user_free)
+    assert _vote(client, chart.id, auth_headers_free, -1, prompt_version=None).status_code == 200
+    assert db.query(ForecastFeedback).filter_by(chart_id=chart.id).one().prompt_version is None
+
+
+def test_previous_openings_go_into_prompt(client, db, user_free, auth_headers_free, model, monkeypatch):
+    """Начала прошлых дней берутся из кэша той же версии и пояса, ближайший день первым."""
+    chart = _chart(db, user_free)
+    today = _today_msk()
+    for back, text in [(1, "Вчерашнее начало. Дальше."), (2, "Позавчерашнее начало! Дальше.")]:
+        R.interpretation_cache.set(R._daily_key(chart.id, today - timedelta(days=back), "Europe/Moscow"),
+                                   {"paragraphs": [text, "второй"]})
+    seen = []
+
+    async def fake(prompt, **k):
+        seen.append(prompt)
+        return GOOD_DAILY
+
+    monkeypatch.setattr(R, "_ask_model", fake)
+    client.get(URL_TODAY.format(chart.id), headers=auth_headers_free)
+    prompt = seen[0]
+    assert "Так начинались прогнозы прошлых дней" in prompt
+    assert prompt.index("«Вчерашнее начало.»") < prompt.index("«Позавчерашнее начало!»")
+    assert "Дальше" not in prompt
+
+
+def test_no_previous_openings_rule_without_cache():
+    f = F.DayFacts(date(2026, 9, 23), False, "Дева", houses=[4], aspects=[])
+    assert "прошлых дней" not in build_daily_prompt(f)

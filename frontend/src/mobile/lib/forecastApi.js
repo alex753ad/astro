@@ -89,7 +89,8 @@ export async function sendForecastFeedback(chartId, { kind, ref, rating, data })
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      kind, ref, rating, prompt_version: data.prompt_version, source: data.source,
+      // Нет версии (текст из офлайн-кэша до 24.09.2026) — null, не текущая.
+      kind, ref, rating, prompt_version: data.prompt_version ?? null, source: data.source,
     }),
   });
   if (!resp.ok) await failWith(resp, 'Оценка не сохранилась.');

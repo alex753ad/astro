@@ -6,9 +6,9 @@
  * выбранную ничего не делает. Сервер — POST /forecast/feedback; доля 👎 за
  * неделю уходит в утреннюю самопроверку (backend/selfcheck.py).
  *
- * Не показывается, если в ответе нет `prompt_version`: так выглядит текст,
- * сохранённый офлайн-кэшем до появления оценок, и оценка легла бы не на ту
- * версию промпта.
+ * Текст, сохранённый офлайн-кэшем до появления оценок, приходит без
+ * `prompt_version`. Кнопки у него есть, а версия уходит ПУСТОЙ (null), не
+ * текущей: какой версией он написан, неизвестно (решение владельца 24.09.2026).
  *
  * Выбранная оценка запоминается в localStorage только для подсветки кнопки:
  * источник правды — сервер, а пропавшая подсветка ничего не ломает.
@@ -40,7 +40,7 @@ export default function ForecastRating({ chartId, kind, refKey, data }) {
   const [rating, setRating] = useState(() => readSaved(key));
   const [error, setError] = useState(null);
 
-  if (typeof data?.prompt_version !== 'number') return null;
+  if (!data) return null;
 
   async function vote(value) {
     if (value === rating) return;

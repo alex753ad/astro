@@ -34,7 +34,7 @@ from backend.forecast import facts as F
 from backend.forecast import stats
 from backend.forecast.fallback import daily_fallback, lunation_fallback
 from backend.forecast.prompts import (
-    DAILY_PROMPT_VERSION, LUNATION_PROMPT_VERSION, build_daily_prompt, build_lunation_prompt,
+    DAILY_PROMPT_VERSION, LUNATION_PROMPT_VERSION, build_daily_prompt, build_lunation_prompt, first_sentence,
     lunation_allowed, lunation_needs_warning,
 )
 from backend.forecast.validate import check_daily, check_lunation, is_tone_problem, parse_json_reply
@@ -137,6 +137,30 @@ def allowed_days(now_local: datetime) -> list[date]:
     return days
 
 
+# Сколько прошлых дней показывать модели, чтобы она не повторяла начало.
+PREVIOUS_OPENINGS_DAYS = 3
+
+
+def _daily_key(chart_id, local_date: date, tz_key: str) -> str:
+    return f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart_id}:{local_date.isoformat()}:{tz_key}"
+
+
+def _previous_openings(chart_id, local_date: date, tz_key: str) -> list[str]:
+    """Первые фразы прогнозов прошлых дней из кэша — ближайший день первым.
+
+    Берутся только ответы модели (запасной текст не кэшируется) и только той
+    же версии промпта и пояса: другого источника прошлых текстов нет. Нет
+    кэша — пустой список, промпт без этого правила.
+    """
+    out = []
+    for back in range(1, PREVIOUS_OPENINGS_DAYS + 1):
+        prev = interpretation_cache.get(_daily_key(chart_id, local_date - timedelta(days=back), tz_key))
+        paragraphs = (prev or {}).get("paragraphs") or []
+        if paragraphs:
+            out.append(first_sentence(paragraphs[0]))
+    return out
+
+
 async def daily_forecast(chart, tz_name: str | None, day: date | None = None) -> dict:
     tz = F.resolve_tz(tz_name, chart.timezone)
     local_date = day or datetime.now(timezone.utc).astimezone(tz).date()
@@ -145,8 +169,7 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
     # ⚠️ Пояс в ключе обязателен: факты дня (знак Луны в полдень, дома)
     # считаются в поясе телефона. Без пояса человек, открывший прогноз в
     # Москве, а потом во Владивостоке, получал бы московский текст.
-    key = (f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart.id}:"
-           f"{local_date.isoformat()}:{tz.key}")
+    key = _daily_key(chart.id, local_date, tz.key)
     cached = interpretation_cache.get(key)
     if cached is not None:
         # Кэш-хит считается показом «из модели»: запасной текст не кэшируется
@@ -156,7 +179,7 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
         return cached
 
     facts = await asyncio.to_thread(F.compute_day, chart, local_date, tz)
-    prompt = build_daily_prompt(facts)
+    prompt = build_daily_prompt(facts, _previous_openings(chart.id, local_date, tz.key))
     paragraphs, source, reason = None, "fallback", None
     for attempt in range(ATTEMPTS):
         raw = await _ask_model(prompt, contour="forecast/today", json_mode=False, max_tokens=900)
@@ -298,7 +321,8 @@ class FeedbackIn(BaseModel):
     # Дата дня (YYYY-MM-DD) или «фаза:момент» у фазы Луны — как клиент их знает.
     ref: str = Field(min_length=1, max_length=64)
     rating: int = Field(ge=-1, le=1)
-    prompt_version: int = Field(ge=0, le=10_000)
+    # None — текст из офлайн-кэша без версии: пишем пустое, а не текущую.
+    prompt_version: int | None = Field(default=None, ge=0, le=10_000)
     source: str = Field(pattern="^(model|fallback)$")
 
 

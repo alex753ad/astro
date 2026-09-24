@@ -22,7 +22,7 @@ def upgrade() -> None:
         sa.Column("kind", sa.String(16), nullable=False),
         sa.Column("ref", sa.String(64), nullable=False),
         sa.Column("rating", sa.Integer(), nullable=False),
-        sa.Column("prompt_version", sa.Integer(), nullable=False),
+        sa.Column("prompt_version", sa.Integer(), nullable=True),
         sa.Column("source", sa.String(16), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.UniqueConstraint("user_id", "chart_id", "kind", "ref", name="uq_forecast_feedback"),
