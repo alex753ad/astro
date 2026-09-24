@@ -10,7 +10,8 @@
  *    `?`. Крошки консоли и кликов выброшены: в консоль попадают данные
  *    ответов, в клик — текст нажатого элемента;
  *  - `user` не передаётся;
- *  - email в текстах ошибок маскируется.
+ *  - email в текстах ошибок заменяется на `[email]` целиком — без первой
+ *    буквы и домена; на скраббер Sentry не полагаемся (настройка проекта).
  *
  * Файл намеренно не импортирует SDK: иначе при пустом VITE_SENTRY_DSN SDK
  * перестал бы вырезаться из бандла (см. assert-bundle.mjs).
@@ -20,7 +21,7 @@ const KEPT_CRUMBS = new Set(['fetch', 'xhr', 'navigation']);
 const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 
 const stripQuery = (url) => (typeof url === 'string' ? url.split('?')[0] : url);
-const maskEmails = (s) => (typeof s === 'string' ? s.replace(EMAIL, '***@***') : s);
+const maskEmails = (s) => (typeof s === 'string' ? s.replace(EMAIL, '[email]') : s);
 
 export function scrubEvent(event) {
   delete event.user;

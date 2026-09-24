@@ -26,4 +26,14 @@ describe('scrubEvent', () => {
     expect(out.breadcrumbs[0].data.url).toBe('https://aristeatime.ru/api/v1/geo');
     expect(out.breadcrumbs[0].data.method).toBe('GET');
   });
+
+  it('email заменяется целиком на [email]', () => {
+    const out = scrubEvent({
+      message: 'письмо для owner@example.com',
+      exception: { values: [{ value: 'Email send failed for owner@example.com' }] },
+    });
+    expect(out.message).toBe('письмо для [email]');
+    expect(out.exception.values[0].value).toBe('Email send failed for [email]');
+    expect(JSON.stringify(out)).not.toMatch(/@|example\.com/);
+  });
 });

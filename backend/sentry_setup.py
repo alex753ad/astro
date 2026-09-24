@@ -16,7 +16,10 @@
   Nominatim несёт место рождения в query. Крошки логов и Redis выброшены —
   в них попадают тексты и значения кэша;
 * `user` не передаётся вовсе;
-* email в текстах исключений и сообщений — маскируются (`mask_emails_in_text`).
+* email в текстах исключений и сообщений заменяется на `[email]` целиком. Не
+  через `mask_emails_in_text`: та оставляет первую букву и домен (`o***@x.ru`),
+  что для логов годится, а стороннему сервису отдавать нельзя. Полагаться на
+  скраббер Sentry тоже нельзя: это настройка проекта, её могут выключить.
 
 `include_local_variables=False` — секреты в чужих фреймах (кортеж Basic-auth
 ЮKassa внутри httpx), см. прежний комментарий в main.py, перенесён ниже.
@@ -27,9 +30,13 @@ from __future__ import annotations
 
 import os
 
-from backend.log_utils import mask_emails_in_text
+from backend.log_utils import _EMAIL_RE
 
 _initialized = False
+
+
+def _redact_emails(text: str) -> str:
+    return _EMAIL_RE.sub("[email]", text)
 
 
 def _strip_query(url):
@@ -71,20 +78,20 @@ def scrub(event, hint=None):
     for key in ("message", "logentry"):
         value = event.get(key)
         if isinstance(value, str):
-            event[key] = mask_emails_in_text(value)
+            event[key] = _redact_emails(value)
         elif isinstance(value, dict):
             for f in ("message", "formatted"):
                 if isinstance(value.get(f), str):
-                    value[f] = mask_emails_in_text(value[f])
+                    value[f] = _redact_emails(value[f])
             value.pop("params", None)
 
     extra = event.get("extra")
     if isinstance(extra, dict):
-        event["extra"] = {k: (mask_emails_in_text(v) if isinstance(v, str) else v) for k, v in extra.items()}
+        event["extra"] = {k: (_redact_emails(v) if isinstance(v, str) else v) for k, v in extra.items()}
 
     for exc in (event.get("exception") or {}).get("values") or []:
         if isinstance(exc.get("value"), str):
-            exc["value"] = mask_emails_in_text(exc["value"])
+            exc["value"] = _redact_emails(exc["value"])
 
     return event
 

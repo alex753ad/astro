@@ -334,3 +334,18 @@ def test_sentry_scrub_drops_personal_data():
     for secret in ("Москва", "1990-06-15", "a@b.ru", "что меня ждёт", "interp:abc", "203.0.113.7"):
         assert secret not in flat, secret
     assert out["breadcrumbs"]["values"][0]["data"]["url"] == "https://nominatim/search"
+
+
+def test_sentry_scrub_replaces_email_whole():
+    """Ни первой буквы, ни домена — на скраббер Sentry не полагаемся."""
+    from backend.sentry_setup import scrub
+    out = scrub({
+        "message": "письмо для owner@example.com",
+        "logentry": {"message": "a owner@example.com", "formatted": "b owner@example.com"},
+        "extra": {"to": "owner@example.com"},
+        "exception": {"values": [{"value": "Email send failed for owner@example.com"}]},
+    })
+    flat = repr(out)
+    assert "@" not in flat and "example.com" not in flat and "o***" not in flat
+    assert out["message"] == "письмо для [email]"
+    assert out["exception"]["values"][0]["value"] == "Email send failed for [email]"
