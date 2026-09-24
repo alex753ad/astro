@@ -974,7 +974,7 @@ function TabPartners({ authFetch }) {
   useEffect(() => { load(); }, [load]);
 
   const createPartner = async () => {
-    if (!newEmail.includes('@')) { alert('Введите корректный email'); return; }
+    if (!newEmail.includes('@')) { alert('Введи корректный email'); return; }
     const rate = parseFloat(newRate) / 100;
     if (!(rate > 0 && rate <= 1)) { alert('Ставка должна быть от 0 до 100%'); return; }
     setCreating(true);

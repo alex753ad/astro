@@ -36,7 +36,7 @@ export default function FeedbackButton() {
       return;
     }
     if (file.size > MAX_SCREENSHOT_BYTES) {
-      setFileError("Файл больше 5 МБ — приложите поменьше");
+      setFileError("Файл больше 5 МБ — приложи поменьше");
       return;
     }
     setScreenshot(file);
@@ -99,7 +99,7 @@ export default function FeedbackButton() {
               <div className="fb-title">Что не так на этом экране?</div>
               <textarea
                 className="fb-input"
-                placeholder="Опишите проблему (необязательно)"
+                placeholder="Опиши проблему (необязательно)"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={3}

@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
       setDone(true);
       setTimeout(() => navigate('/'), 3000);
     } catch {
-      setErr('Ошибка сети, попробуйте снова');
+      setErr('Ошибка сети, попробуй снова');
     } finally {
       setLoading(false);
     }
@@ -50,7 +50,7 @@ export default function ResetPasswordPage() {
           <div style={{ textAlign:'center' }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
             <h2 style={{ margin:'0 0 10px', fontSize:18, fontWeight:700, color:'var(--text-primary)' }}>Пароль изменён</h2>
-            <p style={{ fontSize:13, color:'var(--text-secondary)' }}>Перенаправляем вас на главную…</p>
+            <p style={{ fontSize:13, color:'var(--text-secondary)' }}>Перенаправляем на главную…</p>
           </div>
         ) : (
           <>
@@ -62,7 +62,7 @@ export default function ResetPasswordPage() {
 
             {!token && (
               <div style={{ fontSize:13, color:'var(--color-danger)', textAlign:'center', marginBottom:16 }}>
-                Ссылка недействительна. Запросите сброс пароля снова.
+                Ссылка недействительна. Запроси сброс пароля снова.
               </div>
             )}
 
@@ -71,7 +71,7 @@ export default function ResetPasswordPage() {
                 placeholder="Новый пароль"
                 value={password} onChange={e => setPassword(e.target.value)}
                 style={inp} />
-              <PasswordInput placeholder="Повторите пароль"
+              <PasswordInput placeholder="Повтори пароль"
                 value={password2} onChange={e => setPassword2(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                 style={{ ...inp, borderColor: password2 && password !== password2 ? 'var(--color-danger)' : 'var(--text-primary)' }} />

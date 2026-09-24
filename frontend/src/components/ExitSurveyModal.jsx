@@ -71,7 +71,7 @@ export default function ExitSurveyModal({
         <style>{xsStyles}</style>
         <Wrap>
           <div className="xs-thanks">
-            Спасибо. Ваш ответ помогает нам стать лучше.
+            Спасибо. Твой ответ помогает нам стать лучше.
             {page && <div className="xs-sub">Окно можно закрыть.</div>}
           </div>
         </Wrap>
@@ -80,9 +80,9 @@ export default function ExitSurveyModal({
   }
 
   const title =
-    moment === "end_of_month" ? "Почему вы не остались?"
+    moment === "end_of_month" ? "Что помешало остаться?"
     : moment === "dormant"    ? "Что-то пошло не так?"
-    :                           "Почему вы уходите?";
+    :                           "Почему уходишь?";
 
   return (
     <>
@@ -103,7 +103,7 @@ export default function ExitSurveyModal({
         {selected === "other" && (
           <textarea
             className="xs-text"
-            placeholder="Расскажите подробнее"
+            placeholder="Расскажи подробнее"
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={3}

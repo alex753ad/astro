@@ -30,7 +30,7 @@ export default function PilotClaim({ onShowAuth }) {
     const token = params.get("t") || localStorage.getItem(LS_KEY);
     if (!token) {
       setState("error");
-      setError("Ссылка недействительна. Откройте бота @Aristeatimebot заново.");
+      setError("Ссылка недействительна. Открой бота @Aristeatimebot заново.");
       return;
     }
 
@@ -65,10 +65,10 @@ export default function PilotClaim({ onShowAuth }) {
     switch (detail) {
       case "already_pilot":  return "На этом аккаунте пилот уже активирован.";
       case "tg_already_used": return "Этот Telegram уже активировал пилот на другом аккаунте.";
-      case "token_used":     return "Ссылка уже использована. Запросите новую в боте.";
-      case "token_expired":  return "Ссылка истекла. Откройте бота и получите новую.";
-      case "invalid_token":  return "Ссылка недействительна. Откройте бота заново.";
-      default:               return "Не удалось активировать пилот. Попробуйте позже.";
+      case "token_used":     return "Ссылка уже использована. Запроси новую в боте.";
+      case "token_expired":  return "Ссылка истекла. Открой бота и получи новую.";
+      case "invalid_token":  return "Ссылка недействительна. Открой бота заново.";
+      default:               return "Не удалось активировать пилот. Попробуй чуть позже.";
     }
   }
 
@@ -80,14 +80,14 @@ export default function PilotClaim({ onShowAuth }) {
           {(state === "init" || state === "claiming") && (
             <>
               <div className="pc-spin" />
-              <div className="pc-title">Активируем ваш месяц…</div>
+              <div className="pc-title">Активируем твой месяц…</div>
             </>
           )}
           {state === "ok" && (
             <>
               <div className="pc-badge">✦</div>
               <div className="pc-title">{TIER_NAMES.premium} на 30 дней открыт</div>
-              <div className="pc-sub">Открываем ваш планер…</div>
+              <div className="pc-sub">Открываем твой планер…</div>
             </>
           )}
           {state === "error" && (

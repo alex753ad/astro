@@ -178,7 +178,7 @@ export default function RelocationPage() {
   if (!user?.is_admin) return <Navigate to="/" replace />;
 
   async function handleCalculate() {
-    if (!location) { setError('Выберите город из подсказок'); return; }
+    if (!location) { setError('Выбери город из подсказок'); return; }
     setLoading(true);
     setError(null);
     setRelocated(null);
@@ -202,7 +202,7 @@ export default function RelocationPage() {
       </p>
 
       <Field label="Новый город">
-        <PlaceInput onChange={setLocation} placeholder="Начните вводить город..." />
+        <PlaceInput onChange={setLocation} placeholder="Начни вводить город..." />
       </Field>
 
       <MotionButton onClick={handleCalculate} disabled={loading} style={{ width: '100%' }}>

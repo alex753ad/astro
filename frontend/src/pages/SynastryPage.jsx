@@ -270,7 +270,7 @@ export default function SynastryPage() {
 
   async function handleCalculate() {
     if (!birthDate || !birthPlace) {
-      setError('Заполните дату рождения и город партнёра');
+      setError('Заполни дату рождения и город партнёра');
       return;
     }
     setLoading(true);
@@ -291,7 +291,7 @@ export default function SynastryPage() {
         Синастрия
       </h1>
       <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24 }}>
-        Сравнение вашей карты с картой партнёра. Карта партнёра считается на лету
+        Сравнение твоей карты с картой партнёра. Карта партнёра считается на лету
         и не сохраняется.
       </p>
 
@@ -325,7 +325,7 @@ export default function SynastryPage() {
         </Field>
 
         <Field label="Город рождения">
-          <PlaceInput onChange={setBirthPlace} placeholder="Начните вводить город..." />
+          <PlaceInput onChange={setBirthPlace} placeholder="Начни вводить город..." />
         </Field>
 
         <MotionButton onClick={handleCalculate} disabled={loading} style={{ width: '100%' }}>

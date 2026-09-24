@@ -30,7 +30,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
       if (err.data?.type === 'ambiguous_time') {
         setError(`${err.data.message}\nВарианты: ${err.data.options?.join(' или ')}`);
       } else {
-        setError(err.message || 'Ошибка расчёта. Попробуйте ещё раз.');
+        setError(err.message || 'Ошибка расчёта. Попробуй ещё раз.');
       }
     } finally {
       setLoading(false);

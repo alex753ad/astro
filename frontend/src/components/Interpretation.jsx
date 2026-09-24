@@ -206,7 +206,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         }
 
         setError(isTransport
-          ? 'Соединение прервалось. Проверьте связь и попробуйте снова.'
+          ? 'Соединение прервалось. Проверь связь и попробуй снова.'
           : msg);
         setStreaming(false);
         toast.error(isTransport ? 'Соединение прервалось' : msg);

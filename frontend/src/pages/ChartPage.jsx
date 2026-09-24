@@ -137,7 +137,7 @@ function ReportModal({ chartId, onClose, setForExport }) {
       <div style={sr.modal} onClick={e => e.stopPropagation()}>
         <button style={sr.close} onClick={onClose}>✕</button>
         <h2 style={sr.title}>📄 PDF-отчёт</h2>
-        <p style={sr.sub}>Скачайте карту в PDF</p>
+        <p style={sr.sub}>Скачай карту в PDF</p>
 
         {/* ── Бесплатный PDF ── */}
         <div style={{ ...sr.item, marginBottom: 12, background: 'rgba(var(--accent-rgb), 0.06)', border: '1px solid rgba(var(--accent-rgb), 0.2)' }}>
@@ -203,10 +203,10 @@ function SaveChartBanner({ onLogin }) {
     }}>
       <div>
         <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 4 }}>
-          ✦ Ваш таймлайн готов
+          ✦ Твой таймлайн готов
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          Сохраните карту — и увидите, что делать в каждый период
+          Сохрани карту — и увидишь, что делать в каждый период
         </div>
       </div>
       <MotionButton
@@ -230,11 +230,11 @@ function SaveChartBanner({ onLogin }) {
 // Работает и для анонимной карты — использует только уже посчитанные натальные
 // данные (chart.planets), без дополнительных запросов к бэку.
 const SUN_HOUSE_THEME = {
-  1:  'ваша личность, тело и то, как вас видят',
+  1:  'твоя личность, тело и то, как тебя видят',
   2:  'деньги, ценности и чувство опоры',
   3:  'общение, учёба и ближний круг',
   4:  'дом, семья и внутренняя основа',
-  5:  'творчество, дети и то, что вас зажигает',
+  5:  'творчество, дети и то, что тебя зажигает',
   6:  'работа, здоровье и ежедневные дела',
   7:  'партнёрство и близкие отношения',
   8:  'глубокие перемены, совместные ресурсы и доверие',
@@ -262,8 +262,8 @@ function SunPeakBanner({ chart, sunPeriod }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <span style={{ fontSize: 20, lineHeight: 1.2, flexShrink: 0 }}>☉</span>
           <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.55 }}>
-            Сейчас у вас идёт период Солнца{sunPeriod.period ? ` (${sunPeriod.period})` : ''} — главная тема этого времени.
-            {spheres && <> Ваши сферы сейчас: {spheres}.</>}
+            Сейчас у тебя идёт период Солнца{sunPeriod.period ? ` (${sunPeriod.period})` : ''} — главная тема этого времени.
+            {spheres && <> Твои сферы сейчас: {spheres}.</>}
             <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
               Ниже — периоды других планет и что делать в каждом.
             </span>
@@ -281,8 +281,8 @@ function SunPeakBanner({ chart, sunPeriod }) {
   const theme = sun.house ? SUN_HOUSE_THEME[sun.house] : null;
 
   const line = theme
-    ? `Ваше Солнце в ${signRu}, ${sun.house} дом — это про ${theme}. Ваш главный ресурс сейчас здесь.`
-    : `Ваше Солнце в ${signRu} — это ядро вашего характера и то, откуда вы черпаете силы.`;
+    ? `Твоё Солнце в ${signRu}, ${sun.house} дом — это про ${theme}. Твой главный ресурс сейчас здесь.`
+    : `Твоё Солнце в ${signRu} — это ядро твоего характера и то, откуда ты черпаешь силы.`;
 
   return (
     <div style={{
@@ -296,7 +296,7 @@ function SunPeakBanner({ chart, sunPeriod }) {
         <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.55 }}>
           {line}
           <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-            А ещё по вашей карте движутся Луна, Венера, Марс — у каждого сейчас свой период.
+            А ещё по твоей карте движутся Луна, Венера, Марс — у каждого сейчас свой период.
           </span>
         </div>
       </div>
@@ -352,13 +352,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
       const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, 'monthly', chartId, null);
       if (!checkoutUrl) {
-        toast.error('Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.');
+        toast.error('Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.');
         setChatCheckoutLoading(false);
         return;
       }
       window.location.href = checkoutUrl;
     } catch (e) {
-      toast.error(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуйте позже.'));
+      toast.error(apiErrorText(e, 'Не удалось открыть страницу оплаты. Попробуй чуть позже.'));
       setChatCheckoutLoading(false);
     }
   }
@@ -445,7 +445,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
   async function handleDownloadCard() {
     const token = localStorage.getItem('astro_access_token');
-    if (!token) { toast.info('Войдите, чтобы скачать карточку'); return; }
+    if (!token) { toast.info('Войди, чтобы скачать карточку'); return; }
     // получаем токен если нет
     let url = shareUrl;
     if (!url) {
@@ -484,7 +484,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   async function handleDownloadPdf() {
     if (pdfLoading) return;
     const token = localStorage.getItem('astro_access_token');
-    if (!token) { toast.info('Войдите, чтобы скачать PDF'); return; }
+    if (!token) { toast.info('Войди, чтобы скачать PDF'); return; }
     // Своего тарифного гейта здесь БОЛЬШЕ НЕТ, и это осознанно.
     //
     // Раньше стояло `if (!tierAllowed('lite')) openPaywall(...)`. Оно устарело
@@ -549,7 +549,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         if (raw) {
           setChart(JSON.parse(raw));
         } else {
-          setError('Данные карты не найдены. Рассчитайте карту заново.');
+          setError('Данные карты не найдены. Рассчитай карту заново.');
         }
       } catch {
         setError('Ошибка загрузки карты.');
@@ -682,7 +682,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   if (authRequired) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: 16 }}>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Войдите, чтобы открыть карту</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Войди, чтобы открыть карту</p>
         <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
       </div>
     );
@@ -741,7 +741,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Астролог Аристея</div>
-              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Аристея знает вашу карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который вас уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
+              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Аристея знает твою карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который тебя уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
               <MotionButton level="primary" onClick={() => setShowChatPlans(true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 'var(--radius-full)', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Открыть доступ
               </MotionButton>
@@ -883,7 +883,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                         <Interpretation chartId={chartId} userTier="free" onUpgrade={() => {}} />
                       </div>
                       <div style={s.overlayLogin}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>Войдите, чтобы прочитать интерпретацию</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>Войди, чтобы прочитать интерпретацию</div>
                         <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
                       </div>
                     </div>
@@ -1220,7 +1220,7 @@ const sl = {
 
 // ── Астро-глоссарий ──
 const TOOLTIPS = {
-  ASC: 'Асцендент (ASC) — точка горизонта на востоке в момент рождения. Показывает, как вы воспринимаетесь окружающими.',
+  ASC: 'Асцендент (ASC) — точка горизонта на востоке в момент рождения. Показывает, как тебя воспринимают окружающие.',
   MC:  'Середина Неба (MC) — высшая точка неба в момент рождения. Связана с карьерой и жизненным призванием.',
   'аспекты': 'Аспекты — угловые соотношения между планетами. Трин и секстиль — гармоничные, квадрат и оппозиция — напряжённые.',
   'дома': 'Дома — 12 секторов карты, каждый отвечает за свою сферу жизни: 1-й — личность, 7-й — партнёрство, 10-й — карьера.',

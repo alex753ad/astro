@@ -123,10 +123,10 @@ export default function SharePage() {
         {/* Приглашение построить свою карту */}
         <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-            А что сейчас в вашей карте?
+            А что сейчас в твоей карте?
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Постройте свою за минуту и узнайте, какой период у вас идёт прямо сейчас — бесплатно.
+            Построй свою за минуту и узнай, какой период у тебя идёт прямо сейчас — бесплатно.
           </div>
         </div>
 

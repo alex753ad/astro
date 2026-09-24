@@ -1180,7 +1180,7 @@ function ClientList({ clients, allClients, onSelect, onAdd, onDelete, onFiltered
         <div style={{ ...S.card, color: 'var(--text-secondary)', textAlign: 'center', fontSize: 13 }}>
           {isFiltered
             ? 'По заданным параметрам клиентов не найдено.'
-            : clients.length === 0 ? 'Нет клиентов. Добавьте первого.' : 'Ничего не найдено.'}
+            : clients.length === 0 ? 'Нет клиентов. Добавь первого.' : 'Ничего не найдено.'}
         </div>
       )}
 
@@ -1307,13 +1307,13 @@ function BroadcastPanel({ authFetch, clients }) {
       {open && (
         <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
-            Каждый клиент с указанным email получит персональный прогноз на месяц под вашим именем.
+            Каждый клиент с указанным email получит персональный прогноз на месяц под твоим именем.
           </div>
 
           {/* Бренд + автоотправка */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 8, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 200 }}>
-              <label style={S.label}>Ваш бренд (имя отправителя)</label>
+              <label style={S.label}>Твой бренд (имя отправителя)</label>
               <input style={S.input} value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="Например: Астролог Мария" />
             </div>
             <MotionButton level="secondary" style={S.btn()} onClick={saveBrand} disabled={brandSaving}>
@@ -1322,7 +1322,7 @@ function BroadcastPanel({ authFetch, clients }) {
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={brandAuto} onChange={e => setBrandAuto(e.target.checked)} />
-            Автоотправка 1-го числа каждого месяца (не забудьте «Сохранить»)
+            Автоотправка 1-го числа каждого месяца (не забудь «Сохранить»)
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, cursor: 'pointer' }}>
@@ -1331,7 +1331,7 @@ function BroadcastPanel({ authFetch, clients }) {
           </label>
 
           <div style={{ marginBottom: 12 }}>
-            <label style={S.label}>Ваш текст в письмо (необязательно) — добавится в начало письма каждому клиенту</label>
+            <label style={S.label}>Твой текст в письмо (необязательно) — добавится в начало письма каждому клиенту</label>
             <textarea
               style={{ ...S.input, minHeight: 90, resize: 'vertical' }}
               value={customText}
@@ -1344,7 +1344,7 @@ function BroadcastPanel({ authFetch, clients }) {
             <div style={{ flex: 1, minWidth: 200 }}>
               <label style={S.label}>Предпросмотр письма клиента</label>
               <select style={S.input} value={previewClient} onChange={e => setPreviewClient(e.target.value)}>
-                <option value="">— выберите клиента —</option>
+                <option value="">— выбери клиента —</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}{!c.email ? ' (нет email)' : ''}</option>)}
               </select>
             </div>
@@ -1463,7 +1463,7 @@ function IntakePanel({ authFetch, onConverted }) {
       {open && (
         <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
-            Отправьте клиенту ссылку — он сам заполнит данные рождения, и анкета появится здесь.
+            Отправь клиенту ссылку — он сам заполнит данные рождения, и анкета появится здесь.
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
@@ -1753,7 +1753,7 @@ function AuthorLibraryPanel({ authFetch }) {
   useEffect(() => { if (open && !loaded) load(); }, [open]);
 
   const save = async () => {
-    if (!form.key.trim() || !form.content.trim()) { alert('Заполните ключ и текст'); return; }
+    if (!form.key.trim() || !form.content.trim()) { alert('Заполни ключ и текст'); return; }
     setSaving(true);
     try {
       if (editId) await authFetch(`${API}/astrologer/interpretations/${editId}`, { method: 'PATCH', body: JSON.stringify(form) });
@@ -1782,13 +1782,13 @@ function AuthorLibraryPanel({ authFetch }) {
       {open && (
         <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
-            Ваши формулировки подмешиваются в ИИ-разборы (отчёт, бриф, резюме) по совпадению ключей.
+            Твои формулировки подмешиваются в разборы (отчёт, бриф, резюме) по совпадению ключей.
             Ключи: <b>planet_sign</b> (sun_taurus), <b>planet_house_N</b> (saturn_house_7), <b>asc_sign</b> (asc_leo). Планеты — по-английски строчными.
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             <input style={S.input} placeholder="Ключ, напр. saturn_house_7" value={form.key} onChange={e => setForm(p => ({ ...p, key: e.target.value }))} />
-            <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }} placeholder="Ваш авторский текст трактовки…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} />
+            <textarea style={{ ...S.input, minHeight: 80, resize: 'vertical' }} placeholder="Твой авторский текст трактовки…" value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} />
             <div style={{ display: 'flex', gap: 8 }}>
               <MotionButton level="primary" style={S.btn('primary')} onClick={save} disabled={saving}>{saving ? 'Сохраняю…' : (editId ? 'Обновить' : 'Добавить')}</MotionButton>
               {editId && <MotionButton level="secondary" style={S.btn()} onClick={cancel}>Отмена</MotionButton>}
@@ -1833,7 +1833,7 @@ function GroupForecastPanel({ authFetch, clients }) {
   const PLANETS = [['', 'любая медленная'], ['Jupiter', 'Юпитер'], ['Saturn', 'Сатурн'], ['Uranus', 'Уран'], ['Neptune', 'Нептун'], ['Pluto', 'Плутон']];
 
   const run = async () => {
-    if (!ids.length) { alert('Отметьте клиентов'); return; }
+    if (!ids.length) { alert('Отметь клиентов'); return; }
     setRunning(true); setResults(null);
     try {
       const r = await authFetch(`${API}/crm/group-forecast`, { method: 'POST', body: JSON.stringify({ client_ids: ids, planet: planet || null }) });
@@ -1852,7 +1852,7 @@ function GroupForecastPanel({ authFetch, clients }) {
       {open && (
         <div style={{ marginTop: 16, borderTop: '1px solid rgba(var(--accent-rgb), 0.12)', paddingTop: 16 }}>
           <div style={{ ...S.muted, marginBottom: 12 }}>
-            Отметьте клиентов (для групп/марафонов) — покажу, у кого значимый транзит в ближайший месяц.
+            Отметь клиентов (для групп/марафонов) — покажу, у кого значимый транзит в ближайший месяц.
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
@@ -2038,7 +2038,7 @@ function AvatarProfile({ user, authFetch, updateUser }) {
         ) : (
           <div
             onClick={startEditName}
-            title="Нажмите, чтобы изменить имя"
+            title="Нажми, чтобы изменить имя"
             style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'text' }}
           >
             {user?.name || user?.email}
@@ -2143,7 +2143,7 @@ export default function CRMPage() {
     return (
       <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ ...S.card, textAlign: 'center', maxWidth: 400 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты</div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Управляй клиентами, строй их карты и создавай PDF-отчёты</div>
           <div style={{ ...S.muted, marginBottom: 16 }}>Всё в одном месте. Открывается на тарифе {TIER_NAMES.premium}.</div>
           <Link to="/upgrade" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block' }}>
             Перейти на тариф {TIER_NAMES.premium}

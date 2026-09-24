@@ -1012,7 +1012,7 @@ function LoadingState() {
   return (
     <div className="loading-box">
       <div className="loading-spinner" />
-      <div className="loading-text">Составляем ваш план…</div>
+      <div className="loading-text">Составляем твой план…</div>
     </div>
   );
 }
@@ -1095,19 +1095,19 @@ export default function PlannerPage() {
       // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
       const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, "monthly", id, promoCode);
       if (!checkoutUrl) {
-        toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуйте позже.");
+        toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.");
         setCheckoutLoading(false);
         return;
       }
       window.location.href = checkoutUrl;
     } catch (e) {
-      toast.error(apiErrorText(e, "Не удалось открыть страницу оплаты. Попробуйте позже."));
+      toast.error(apiErrorText(e, "Не удалось открыть страницу оплаты. Попробуй чуть позже."));
       setCheckoutLoading(false);
     }
   }
 
   function handleEnterPromo() {
-    const code = window.prompt("Введите промокод:");
+    const code = window.prompt("Введи промокод:");
     if (code && code.trim()) handleCheckout("pro", code.trim());
   }
 
@@ -1208,7 +1208,7 @@ export default function PlannerPage() {
     idle:    "📅 Экспортировать в Google Calendar",
     loading: "⏳ Экспортируем…",
     success: "✅ Добавлено в Google Calendar",
-    error:   "❌ Ошибка — попробуйте снова",
+    error:   "❌ Ошибка — попробуй снова",
   }[gcalStatus];
 
   return (
@@ -1238,7 +1238,7 @@ export default function PlannerPage() {
           {(isFree || userTier === "lite") && (
             <LockedGroupHint onUpgrade={openPaywall}>
               {isFree
-                ? <>✦ Сейчас открыт ваш период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по вашей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.</>
+                ? <>✦ Сейчас открыт твой период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по твоей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.</>
                 : <>✦ Месяц и неделя открыты полностью. Долгосрочные периоды — тренды на месяцы и годы вперёд — открываются на тарифе {TIER_NAMES.pro}.</>}
             </LockedGroupHint>
           )}
@@ -1332,7 +1332,7 @@ export default function PlannerPage() {
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint onUpgrade={openPaywall}>
-                              Дальше — медленные планеты задают ваши большие темы на месяцы и годы вперёд. Открывается на тарифе {TIER_NAMES.pro}.
+                              Дальше — медленные планеты задают твои большие темы на месяцы и годы вперёд. Открывается на тарифе {TIER_NAMES.pro}.
                             </LockedGroupHint>
                           )}
                           <div style={{ marginBottom: 20 }}>

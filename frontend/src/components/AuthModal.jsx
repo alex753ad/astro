@@ -87,7 +87,7 @@ export default function AuthModal({ onClose, returnTo }) {
   // ── Login ───────────────────────────────────────────────
   const handleLogin = async () => {
     setLocalErr(''); clearError();
-    if (!email || !password) { setLocalErr('Заполните все поля'); return; }
+    if (!email || !password) { setLocalErr('Заполни все поля'); return; }
     try {
       const u = await login(email, password);
       onClose();
@@ -111,8 +111,8 @@ export default function AuthModal({ onClose, returnTo }) {
   // ── Register step 1: send OTP ───────────────────────────
   const handleSendCode = async () => {
     setLocalErr(''); clearError();
-    if (!email || !password) { setLocalErr('Заполните все поля'); return; }
-    if (!email.includes('@')) { setLocalErr('Введите корректный email'); return; }
+    if (!email || !password) { setLocalErr('Заполни все поля'); return; }
+    if (!email.includes('@')) { setLocalErr('Введи корректный email'); return; }
     if (password.length < 8) { setLocalErr('Пароль минимум 8 символов'); return; }
     if (/^\d+$/.test(password)) { setLocalErr('Пароль не может состоять только из цифр'); return; }
     if (password !== password2) { setLocalErr('Пароли не совпадают'); return; }
@@ -142,7 +142,7 @@ export default function AuthModal({ onClose, returnTo }) {
   // ── Register step 2: verify OTP ────────────────────────
   const handleVerify = async () => {
     setLocalErr(''); clearError();
-    if (!/^\d{6}$/.test(otpCode)) { setLocalErr('Введите 6-значный код'); return; }
+    if (!/^\d{6}$/.test(otpCode)) { setLocalErr('Введи 6-значный код'); return; }
 
     setOtpLoading(true);
     try {
@@ -170,7 +170,7 @@ export default function AuthModal({ onClose, returnTo }) {
   // ── Forgot password ─────────────────────────────────────
   const handleForgot = async () => {
     setLocalErr(''); setLocalOk('');
-    if (!forgotEmail.includes('@')) { setLocalErr('Введите корректный email'); return; }
+    if (!forgotEmail.includes('@')) { setLocalErr('Введи корректный email'); return; }
     setForgotLoading(true);
     try {
       await fetch(`${API_BASE}/auth/forgot-password`, {
@@ -180,7 +180,7 @@ export default function AuthModal({ onClose, returnTo }) {
       });
       setMode('forgot_sent');
     } catch {
-      setLocalErr('Ошибка сети, попробуйте снова');
+      setLocalErr('Ошибка сети, попробуй снова');
     } finally {
       setForgotLoading(false);
     }
@@ -237,7 +237,7 @@ export default function AuthModal({ onClose, returnTo }) {
             <div style={{ textAlign:'center', marginBottom:20 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>🔑</div>
               <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Восстановление пароля</h2>
-              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Введите email — пришлём ссылку для сброса</p>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Введи email — пришлём ссылку для сброса</p>
             </div>
             <div style={{ marginBottom:14 }}>
               <input type="email" placeholder="Email" value={forgotEmail}
@@ -261,7 +261,7 @@ export default function AuthModal({ onClose, returnTo }) {
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>✦</div>
               <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Войти</h2>
-              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Войдите чтобы сохранять карты</p>
+              <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Войди, чтобы сохранять карты</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
               <input type="email" placeholder="Email" value={email}
@@ -301,11 +301,11 @@ export default function AuthModal({ onClose, returnTo }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>✦</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Сохраните, чтобы увидеть таймлайн</h2>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Сохрани, чтобы увидеть таймлайн</h2>
               <p style={{ margin:'6px 0 0', fontSize:13, color:'var(--text-secondary)' }}>Бесплатно, 10 секунд.</p>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:6 }}>
-              <input type="text" placeholder="Ваше имя (необязательно)" value={name}
+              <input type="text" placeholder="Твоё имя (необязательно)" value={name}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSendCode()}
                 style={inp} />
@@ -315,7 +315,7 @@ export default function AuthModal({ onClose, returnTo }) {
                   onKeyDown={e => e.key === 'Enter' && handleSendCode()}
                   style={inp} />
                 <p style={{ margin:'4px 0 0', fontSize:11, color:'var(--text-secondary)', lineHeight:1.5 }}>
-                  Используйте почту российского сервиса: yandex.ru, mail.ru, rambler.ru и др.
+                  Используй почту российского сервиса: yandex.ru, mail.ru, rambler.ru и др.
                 </p>
               </div>
               <div>
@@ -335,7 +335,7 @@ export default function AuthModal({ onClose, returnTo }) {
               </div>
               <div style={{ position:'relative' }}>
                 <input type={showPass2 ? 'text' : 'password'}
-                  placeholder="Повторите пароль"
+                  placeholder="Повтори пароль"
                   value={password2} onChange={e => setPassword2(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSendCode()}
                   style={{ ...inp, paddingRight:40, borderColor: password2 && password !== password2 ? 'var(--color-danger)' : 'var(--border)' }} />
@@ -374,7 +374,7 @@ export default function AuthModal({ onClose, returnTo }) {
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>📬</div>
-              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Введите код</h2>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text-primary)' }}>Введи код</h2>
               <p style={{ margin:'8px 0 0', fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>
                 Код отправлен на <strong style={{color:'var(--accent-glow)'}}>{email}</strong>.<br/>
                 Действителен 10 минут.

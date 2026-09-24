@@ -232,7 +232,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) {
-              setError(parsed.text || 'Не получилось получить ответ. Попробуйте ещё раз.');
+              setError(parsed.text || 'Не получилось получить ответ. Попробуй ещё раз.');
               // Пустой пузырёк убираем; частичный ответ (например, обрыв по
               // таймауту после того, как что-то уже пришло) оставляем видимым.
               setMessages(prev => {
@@ -279,7 +279,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
         // абортнула именно наша клиентская страховка (timedOut) — это тот
         // самый случай «сервер не ответил», и его нельзя проглатывать молча.
         if (timedOut) {
-          setError('Ответ не пришёл вовремя. Попробуйте ещё раз.');
+          setError('Ответ не пришёл вовремя. Попробуй ещё раз.');
           setMessages(prev => {
             const last = prev[prev.length - 1];
             if (last?.role === 'assistant' && !last.content) {
@@ -290,7 +290,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
         }
         return;
       }
-      setError('Ошибка соединения. Попробуйте ещё раз.');
+      setError('Ошибка соединения. Попробуй ещё раз.');
       setMessages(prev => prev.slice(0, -1));
     } finally {
       clearTimeout(timeoutId);
@@ -326,14 +326,14 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       {/* Шапка */}
       <div style={s.header}>
         <span style={s.headerTitle}>Чат с астрологом Аристеей</span>
-        <span style={s.headerSub}>Помнит вашу карту и суть прошлых разговоров</span>
+        <span style={s.headerSub}>Помнит твою карту и суть прошлых разговоров</span>
       </div>
 
       {/* Сообщения */}
       <div style={s.messages}>
         {messages.length === 0 && (
           <div style={s.emptyState}>
-            <p style={s.emptyText}>Аристея знает вашу карту и помнит, о чём вы говорили раньше. Спросите что угодно.</p>
+            <p style={s.emptyText}>Аристея знает твою карту и помнит, о чём шла речь раньше. Спроси что угодно.</p>
             <div style={s.suggestions}>
               {SUGGESTIONS.map(q => (
                 <button key={q} style={s.suggestion} onClick={() => send(q)}>
@@ -381,7 +381,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Задайте вопрос о своей карте…"
+          placeholder="Задай вопрос о своей карте…"
           style={s.textarea}
           rows={2}
           disabled={loading}

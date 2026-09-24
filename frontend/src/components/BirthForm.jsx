@@ -188,7 +188,7 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
           type="text"
           value={query}
           onChange={handleChange}
-          placeholder="Начните вводить город..."
+          placeholder="Начни вводить город..."
           autoComplete="off"
           style={{
             ...S.input,
@@ -265,11 +265,11 @@ export default function BirthForm({ onSubmit, loading }) {
 
   const validate = () => {
     const errs = {};
-    if (!form.name?.trim())      errs.name = 'Укажите имя';
-    if (!form.birth_date)        errs.birth_date = 'Укажите дату рождения';
+    if (!form.name?.trim())      errs.name = 'Укажи имя';
+    if (!form.birth_date)        errs.birth_date = 'Укажи дату рождения';
     if (form.birth_date < MIN_DATE) errs.birth_date = 'Дата до 1900 не поддерживается';
     if (form.birth_date > TODAY)    errs.birth_date = 'Дата не может быть в будущем';
-    if (!placeValue)             errs.birth_place = 'Укажите место рождения';
+    if (!placeValue)             errs.birth_place = 'Укажи место рождения';
     return errs;
   };
 
@@ -298,7 +298,7 @@ export default function BirthForm({ onSubmit, loading }) {
           &amp; генерация персонального Timeline
         </p>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-          Постройте карту за минуту и узнайте, какой период у вас идёт прямо сейчас.
+          Построй карту за минуту и узнай, какой период у тебя идёт прямо сейчас.
         </p>
       </div>
 
@@ -311,7 +311,7 @@ export default function BirthForm({ onSubmit, loading }) {
         borderRadius: 'var(--radius-md)',
       }}>
         <p style={{ fontSize: 12, color: 'var(--color-success)', margin: '0 0 10px', lineHeight: 1.5 }}>
-          ⚠️ Эти данные необходимы исключительно для расчёта математических координат планет по эфемеридам (pyswisseph). Для ознакомления с интерфейсом вы можете использовать демо-данные.
+          ⚠️ Эти данные необходимы исключительно для расчёта математических координат планет по эфемеридам (pyswisseph). Для знакомства с интерфейсом можно использовать демо-данные.
         </p>
         <MotionButton
           level="secondary"
@@ -342,7 +342,7 @@ export default function BirthForm({ onSubmit, loading }) {
             type="text"
             value={form.name}
             onChange={e => set('name', e.target.value)}
-            placeholder="Ваше имя"
+            placeholder="Твоё имя"
             error={errors.name}
           />
         </Field>

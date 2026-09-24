@@ -373,7 +373,7 @@ function TabCharts({ charts, setCharts, primaryChartId, setPrimaryChartId, loadi
     }}>
       <span>{chartsLeft === 0 ? '🔒' : '🗂'}</span>
       {chartsLeft === 0
-        ? 'Достигнут лимит сохранённых карт. Удалите ненужную карту, чтобы освободить место, или перейдите на старший тариф.'
+        ? 'Достигнут лимит сохранённых карт. Удали ненужную карту, чтобы освободить место, или перейди на старший тариф.'
         : `Сохранено карт: ${chartsUsed} из ${chartsLimit}`}
     </div>
   ) : null;
@@ -730,7 +730,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             {/* Мягкий апсейл при исчерпании */}
             {tier !== 'premium' && !interpUnlimited && interpLimit > 0 && interpUsed >= interpLimit && (
               <div style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: 4 }}>
-                Лимит интерпретаций исчерпан — перейдите на тариф выше, чтобы продолжить.
+                Лимит интерпретаций исчерпан — перейди на тариф выше, чтобы продолжить.
               </div>
             )}
           </div>
@@ -873,7 +873,7 @@ function TabPartner({ authFetch }) {
   const money = (n) => Math.round(n || 0).toLocaleString('ru-RU') + ' ₽';
 
   if (error) {
-    return <div style={S.card}><p style={S.muted}>Не удалось загрузить данные партнёрки. Попробуйте позже.</p></div>;
+    return <div style={S.card}><p style={S.muted}>Не удалось загрузить данные партнёрки. Попробуй чуть позже.</p></div>;
   }
   if (!data) {
     return <div style={S.card}><div style={S.muted}>Загрузка…</div></div>;
@@ -1088,7 +1088,7 @@ function TabNotifications({ authFetch }) {
 
       {permStatus === 'denied' && (
         <div style={{ ...S.muted, marginTop: 12, fontSize: 12 }}>
-          Уведомления отключены в настройках браузера. Разрешите их там — и тумблеры заработают.
+          Уведомления отключены в настройках браузера. Разреши их там — и тумблеры заработают.
         </div>
       )}
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1145,7 +1145,7 @@ function DataExport({ authFetch }) {
     <div style={{ ...S.card, marginTop: 8 }}>
       <p style={S.cardTitle}>Мои данные</p>
       <p style={{ ...S.muted, marginBottom: 14 }}>
-        Скачайте все данные, которые мы храним о вас: карты, интерпретации, историю платежей и согласий.
+        Скачай все данные, которые мы храним о тебе: карты, интерпретации, историю платежей и согласий.
       </p>
       <MotionButton level="ghost" style={S.btn('ghost')} onClick={handleExport} disabled={loading}>
         {loading ? 'Формируем файл…' : 'Скачать мои данные'}
@@ -1240,7 +1240,7 @@ export default function ProfilePage() {
           <div style={{ ...S.card, textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>CRM-база клиентов</div>
-            <div style={{ ...S.muted, marginBottom: 16 }}>Управляйте клиентами, стройте их карты и создавайте PDF-отчёты.</div>
+            <div style={{ ...S.muted, marginBottom: 16 }}>Управляй клиентами, строй их карты и создавай PDF-отчёты.</div>
             <Link to="/dashboard/clients" style={{ ...S.btn('primary'), textDecoration: 'none', display: 'inline-block', background: 'var(--color-warning)' }}>
               Открыть CRM →
             </Link>
