@@ -179,3 +179,76 @@ class TestChartResponseExposesState:
 
         assert data["has_interpretation"] is True
         assert data["free_interpretation_used"] is True
+
+
+class TestClientDisconnect:
+    """Клиент отвалился посреди потока (24.09.2026): ни строки в БД, ни
+    записи в кэше Redis. Обрыв на стороне клиента не должен оставлять на
+    сервере обрубок, который потом отдадут как готовый разбор.
+
+    TestClient тело дочитывает всегда, поэтому приложение зовётся напрямую
+    по ASGI: после первого куска текста `receive` отдаёт `http.disconnect`.
+    Поток после первого куска ждёт вечно — дойти до конца он может только
+    если сервер НЕ прервал его на отключении, и тогда тест повиснет, а не
+    пройдёт.
+    """
+
+    def _call_and_disconnect(self, app, chart_id, headers):
+        import asyncio
+
+        got_body = asyncio.Event()
+        sent = []
+
+        async def receive():
+            if not sent:
+                sent.append("req")
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await got_body.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            sent.append(message)
+            if message["type"] == "http.response.body" and message.get("body"):
+                got_body.set()
+
+        scope = {
+            "type": "http", "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1", "method": "GET", "scheme": "http",
+            "path": _sse_url(chart_id), "raw_path": _sse_url(chart_id).encode(),
+            "query_string": b"", "root_path": "",
+            "headers": [(k.lower().encode(), v.encode()) for k, v in headers.items()],
+            "client": ("127.0.0.1", 5000), "server": ("testserver", 80),
+        }
+
+        async def run():
+            await asyncio.wait_for(app(scope, receive, send), timeout=10)
+
+        asyncio.run(run())
+        start = next(m for m in sent if isinstance(m, dict) and m["type"] == "http.response.start")
+        body = b"".join(m.get("body", b"") for m in sent if isinstance(m, dict) and m["type"] == "http.response.body")
+        return start["status"], body.decode("utf-8")
+
+    def test_disconnect_mid_stream_saves_nothing(
+        self, client, db, user_pro, auth_headers_pro, monkeypatch
+    ):
+        import asyncio
+
+        async def _stream(self, request):
+            yield "Начало разбора, "
+            await asyncio.Event().wait()  # дальше — только отключение
+            yield "не дойдёт"
+            request.engine_used = "deepseek"
+
+        monkeypatch.setattr(
+            "backend.interpretation.router.InterpretationRouter.stream", _stream
+        )
+        chart = _make_chart(db, user_id=user_pro.id)
+
+        status, body = self._call_and_disconnect(client.app, chart.id, auth_headers_pro)
+        # Поток и правда начался — иначе проверка ниже была бы пустой.
+        assert status == 200
+        assert "Начало разбора" in body
+        assert "[DONE]" not in body
+
+        db.expire_all()
+        assert _rows(db, chart.id) == []

@@ -23,6 +23,7 @@ import { cachedInterpretation, rememberInterpretation } from '../lib/offlineCach
 import {
   OUTCOMES,
   classifyOutcome,
+  shouldCacheInterpretation,
   shouldRefetchOnResume,
   upsellForTier,
 } from '../lib/interpretRules';
@@ -95,7 +96,7 @@ export default function InterpretView({ chartId, onBack }) {
   }, [chartId]);
 
   useEffect(() => {
-    if (!finished || failure || !streamedRef.current || !sections.length) return;
+    if (!shouldCacheInterpretation({ finished, failure, streamed: streamedRef.current, sections })) return;
     streamedRef.current = false;
     rememberInterpretation(chartId, sections);
   }, [finished, failure, sections, chartId]);
