@@ -55,7 +55,7 @@ export default function PullIndicator({ state, ready, innerRef, style }) {
         >
           {state === 'refreshing'
             ? 'Обновляю…'
-            : (ready ? 'Отпустите, чтобы обновить' : 'Потяните, чтобы обновить')}
+            : (ready ? 'Отпусти, чтобы обновить' : 'Потяни, чтобы обновить')}
         </span>
       )}
     </div>

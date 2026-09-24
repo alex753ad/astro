@@ -29,10 +29,10 @@ import { interpretationUpsell } from '../../lib/interpretationUpsell';
 
 /** Что показать, когда сервер не сказал ничего: оборвалась связь. */
 export const TRANSIT_BROKEN_TEXT =
-  'Не удалось получить разбор. Проверьте связь и попробуйте снова.';
+  'Не удалось получить разбор. Проверь связь и попробуй снова.';
 
 /** Запасной текст для отказа аутентификации — на случай пустого тела. */
-export const TRANSIT_ANON_TEXT = 'Войдите в аккаунт, чтобы получить разбор транзита.';
+export const TRANSIT_ANON_TEXT = 'Войди в аккаунт, чтобы получить разбор транзита.';
 
 export const TRANSIT_OUTCOMES = Object.freeze({
   DONE: 'done',

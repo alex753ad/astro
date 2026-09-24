@@ -38,8 +38,8 @@ describe('validateRegisterForm — повторяет проверки веба'
   });
 
   it('ловит пустые поля, адрес без @, короткий и цифровой пароль', () => {
-    expect(validateRegisterForm({ ...ok, email: '' })).toBe('Заполните все поля');
-    expect(validateRegisterForm({ ...ok, email: 'нет-собаки' })).toBe('Введите корректный email');
+    expect(validateRegisterForm({ ...ok, email: '' })).toBe('Заполни все поля');
+    expect(validateRegisterForm({ ...ok, email: 'нет-собаки' })).toBe('Введи корректный email');
     expect(validateRegisterForm({ ...ok, password: 'short', password2: 'short' }))
       .toBe('Пароль минимум 8 символов');
     expect(validateRegisterForm({ ...ok, password: '12345678', password2: '12345678' }))
@@ -69,9 +69,9 @@ describe('validateRegisterForm — повторяет проверки веба'
 describe('код подтверждения', () => {
   it('принимает ровно шесть цифр', () => {
     expect(validateOtpCode('123456')).toBeNull();
-    expect(validateOtpCode('12345')).toBe('Введите 6-значный код');
-    expect(validateOtpCode('1234567')).toBe('Введите 6-значный код');
-    expect(validateOtpCode('12345a')).toBe('Введите 6-значный код');
+    expect(validateOtpCode('12345')).toBe('Введи 6-значный код');
+    expect(validateOtpCode('1234567')).toBe('Введи 6-значный код');
+    expect(validateOtpCode('12345a')).toBe('Введи 6-значный код');
   });
 
   it('ввод чистится от нецифр и обрезается до шести', () => {

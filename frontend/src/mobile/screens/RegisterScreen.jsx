@@ -199,7 +199,7 @@ export default function RegisterScreen() {
                   className="mobile-input"
                   type="text"
                   autoComplete="name"
-                  placeholder="Как к вам обращаться"
+                  placeholder="Как к тебе обращаться"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -260,7 +260,7 @@ export default function RegisterScreen() {
         ) : (
           <>
             <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 26, color: 'var(--text-primary)', textAlign: 'center', margin: '0 0 12px' }}>
-              Введите код
+              Введи код
             </h1>
             <p style={{ margin: '0 0 24px', fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', textAlign: 'center' }}>
               {/* Формулировка намеренно осторожная: сервер отвечает одинаково
@@ -297,7 +297,7 @@ export default function RegisterScreen() {
                       человек в тупике (§6 п. 3 разведки). */}
                   Возможно, аккаунт уже создан.{' '}
                   <Link to="/login" className="mobile-link" style={{ fontSize: 12, verticalAlign: 'baseline' }}>
-                    Войдите с этой почтой и паролем
+                    Войди с этой почтой и паролем
                   </Link>.
                 </p>
               )}

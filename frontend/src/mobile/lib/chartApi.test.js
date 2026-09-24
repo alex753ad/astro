@@ -109,7 +109,7 @@ describe('createShareLink — отказ', () => {
   });
 
   it('обрыв связи доезжает наверх как есть — экран отличает его от отказа сервера', async () => {
-    nextResponse = new Error('Сервер не отвечает. Проверьте связь и попробуйте ещё раз.');
+    nextResponse = new Error('Сервер не отвечает. Проверь связь и попробуй ещё раз.');
 
     await expect(createShareLink('chart-1')).rejects.toThrow('Сервер не отвечает');
   });

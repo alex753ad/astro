@@ -495,13 +495,13 @@ export default function FeedScreen({
     return (
       <CenteredNotice
         title="Пока нет ни одной карты"
-        text="Лента строится по натальной карте. Постройте её на вкладке «Карта» — события появятся здесь."
+        text="Лента строится по натальной карте. Построй её на вкладке «Карта» — события появятся здесь."
       />
     );
   }
 
   if (days.length === 0) {
-    return <CenteredNotice title="В этом окне событий нет" text="Попробуйте обновить ленту позже." action="Обновить" onAction={load} />;
+    return <CenteredNotice title="В этом окне событий нет" text="Попробуй обновить ленту позже." action="Обновить" onAction={load} />;
   }
 
   /**

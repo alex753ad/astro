@@ -258,7 +258,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
     // первой же правки на бэкенде.
     if (!chartId) {
       setView('chart');
-      setError('Карта построена, но сервер не вернул её идентификатор. Обновите ленту жестом или откройте карту на сайте.');
+      setError('Карта построена, но сервер не вернул её идентификатор. Обнови ленту жестом или открой карту на сайте.');
       setStatus('error');
       return;
     }
@@ -454,7 +454,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
             больше не делит место с колесом через overflow, у неё всегда
             гарантированная высота. */}
         <p ref={zoomHintRef} style={{ margin: '6px 0 0', textAlign: 'center', fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>
-          Сведите пальцы для зума · двойной тап — сброс
+          Сведи пальцы для зума · двойной тап — сброс
         </p>
       </div>
 

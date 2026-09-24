@@ -61,7 +61,7 @@ export default function MoreTierCard({ tier, highlight }) {
     >
       <div>
         <p style={{ margin: 0, fontSize: 11.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-          Ваш тариф
+          Твой тариф
         </p>
         <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
           {currentName}

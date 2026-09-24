@@ -40,8 +40,8 @@ export const RU_EMAIL_DOMAINS_HINT = [
  * вебе: человек, привыкший к сайту, увидит те же подсказки в том же порядке.
  */
 export function validateRegisterForm({ email, password, password2, consent }) {
-  if (!email || !password) return 'Заполните все поля';
-  if (!email.includes('@')) return 'Введите корректный email';
+  if (!email || !password) return 'Заполни все поля';
+  if (!email.includes('@')) return 'Введи корректный email';
   if (password.length < 8) return 'Пароль минимум 8 символов';
   if (/^\d+$/.test(password)) return 'Пароль не может состоять только из цифр';
   if (password !== password2) return 'Пароли не совпадают';
@@ -51,7 +51,7 @@ export function validateRegisterForm({ email, password, password2, consent }) {
 
 /** Код — ровно шесть цифр (`VerifyEmailOTPRequest`, pattern `^\d{6}$`). */
 export function validateOtpCode(code) {
-  return /^\d{6}$/.test(code) ? null : 'Введите 6-значный код';
+  return /^\d{6}$/.test(code) ? null : 'Введи 6-значный код';
 }
 
 /** Оставляет только цифры и не длиннее шести — для поля ввода кода. */
@@ -62,13 +62,20 @@ export function normalizeOtpInput(value) {
 // ── Разбор ответов ────────────────────────────────────────────────────────
 
 /**
- * Точный текст нашего троттла на повторную отправку (`register_email_send`,
+ * Начало текста нашего троттла на повторную отправку (`register_email_send`,
  * `backend/auth/router.py`). По нему один вид 429 отличается от другого.
+ *
+ * ⚠️ «Подожди», а не «Подожди минуту»: с 24.09.2026 сервер на «ты»
+ * («Подожди минуту…»), а сервер прошлой недели отвечал «Подождите минуту…».
+ * «Подожди» — общее начало обеих форм, так новый APK узнаёт троттл от
+ * любого сервера. Старые APK держат «Подождите минуту» и на новом сервере
+ * покажут текст лимита по IP вместо «повторить через минуту» — это цена
+ * перевода, другого пути у уже установленных сборок нет.
  */
-const RESEND_THROTTLE_MARK = 'Подождите минуту';
+const RESEND_THROTTLE_MARK = 'Подожди';
 
 const IP_LIMIT_TEXT = 'Слишком много запросов кода с этого адреса. '
-  + 'Попробуйте через час или войдите, если аккаунт уже есть.';
+  + 'Попробуй через час или войди, если аккаунт уже есть.';
 
 const RESEND_THROTTLE_TEXT = 'Код уже отправлен. Повторить можно через минуту.';
 
@@ -107,10 +114,10 @@ export function describeSendCodeError(err) {
   // 422 — pydantic: домен не из списка, слабый пароль, нет согласия.
   // apiFetch уже склеил список ошибок и срезал префикс «Value error, ».
   if (status === 422) {
-    return { text: message || 'Проверьте правильность заполнения полей.', kind: 'validation' };
+    return { text: message || 'Проверь правильность заполнения полей.', kind: 'validation' };
   }
 
-  return { text: message || 'Не удалось отправить код. Попробуйте ещё раз.', kind: 'unknown' };
+  return { text: message || 'Не удалось отправить код. Попробуй ещё раз.', kind: 'unknown' };
 }
 
 /** Признак того, что код больше не действует и нужен новый. */
@@ -162,7 +169,7 @@ export function describeVerifyError(err) {
   }
 
   return {
-    text: message || 'Не удалось подтвердить код. Попробуйте ещё раз.',
+    text: message || 'Не удалось подтвердить код. Попробуй ещё раз.',
     kind: 'unknown',
     offerLogin: false,
   };

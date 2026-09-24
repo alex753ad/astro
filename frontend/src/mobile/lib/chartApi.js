@@ -83,7 +83,7 @@ export async function createChart(form) {
   const body = await resp.json().catch(() => null);
   const detail = body?.detail;
   const err = new Error(
-    (typeof detail === 'string' && detail) || 'Не удалось построить карту. Попробуйте ещё раз.',
+    (typeof detail === 'string' && detail) || 'Не удалось построить карту. Попробуй ещё раз.',
   );
   err.status = resp.status;
   err.detail = body;
@@ -126,7 +126,7 @@ export async function createShareLink(chartId) {
   // бы это в чат, ничего не заметив: копирование не показывает, что
   // скопировано. Тот же довод, что у пустого id в handleCreated.
   if (!data?.share_url || !data?.card_url) {
-    throw new Error('Сервер не вернул ссылку. Попробуйте ещё раз.');
+    throw new Error('Сервер не вернул ссылку. Попробуй ещё раз.');
   }
 
   return { shareUrl: data.share_url, cardUrl: data.card_url };

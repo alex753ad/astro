@@ -45,7 +45,7 @@ describe('validateBirthForm', () => {
 
   it('ловит дату: пустую, до 1900 и в будущем', () => {
     expect(validateBirthForm({ ...ok, birthDate: '' }, TODAY))
-      .toEqual({ field: 'birthDate', text: 'Укажите дату рождения' });
+      .toEqual({ field: 'birthDate', text: 'Укажи дату рождения' });
     expect(validateBirthForm({ ...ok, birthDate: '1899-12-31' }, TODAY).field).toBe('birthDate');
     expect(validateBirthForm({ ...ok, birthDate: '2026-09-09' }, TODAY).text)
       .toBe('Дата рождения не может быть в будущем');
@@ -56,7 +56,7 @@ describe('validateBirthForm', () => {
     // человек с набранным «28.05.19» получил бы «Укажите дату рождения» —
     // при заполненном на вид поле.
     expect(validateBirthForm({ ...ok, birthDate: '', birthDateInput: '' }, TODAY).text)
-      .toBe('Укажите дату рождения');
+      .toBe('Укажи дату рождения');
     expect(validateBirthForm({ ...ok, birthDate: '', birthDateInput: '28.05.19' }, TODAY))
       .toEqual({ field: 'birthDate', text: 'Дата не дописана — нужны день, месяц и год' });
   });
@@ -69,7 +69,7 @@ describe('validateBirthForm', () => {
     // Сервер принял бы null и посчитал бы карту на полдень с условными
     // домами: человек получил бы другую карту, не заметив этого.
     expect(validateBirthForm({ ...ok, birthTime: '' }, TODAY))
-      .toEqual({ field: 'birthTime', text: 'Укажите время или отметьте, что оно неизвестно' });
+      .toEqual({ field: 'birthTime', text: 'Укажи время или отметь, что оно неизвестно' });
     expect(validateBirthForm({ ...ok, birthTime: '', timeUnknown: true }, TODAY)).toBeNull();
   });
 
@@ -152,7 +152,7 @@ describe('describeCreateError — 403 лимита карт', () => {
   it('своего числа слотов не сочиняет', () => {
     // Второй копии тарифных чисел в клиенте нет — только текст сервера.
     expect(describeCreateError(apiError(403, { detail: '' })).text)
-      .toBe('Достигнут лимит сохранённых карт для вашего тарифа.');
+      .toBe('Достигнут лимит сохранённых карт для твоего тарифа.');
   });
 });
 
@@ -162,10 +162,10 @@ describe('describeCreateError — остальное', () => {
   });
 
   it('сетевой сбой без статуса — текст сообщения', () => {
-    const err = new Error('Сервер не отвечает. Проверьте связь и попробуйте ещё раз.');
+    const err = new Error('Сервер не отвечает. Проверь связь и попробуй ещё раз.');
     const d = describeCreateError(err);
     expect(d.kind).toBe('unknown');
-    expect(d.text).toBe('Сервер не отвечает. Проверьте связь и попробуйте ещё раз.');
+    expect(d.text).toBe('Сервер не отвечает. Проверь связь и попробуй ещё раз.');
     expect(d.showPricing).toBe(false);
   });
 });

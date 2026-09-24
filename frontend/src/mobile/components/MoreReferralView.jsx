@@ -56,7 +56,7 @@ export default function MoreReferralView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '16px' }}>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>Ваша ссылка</p>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>Твоя ссылка</p>
         <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-body)', fontSize: 14, wordBreak: 'break-all', color: 'var(--text-primary)' }}>
           {data.ref_url}
         </p>

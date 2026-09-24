@@ -107,7 +107,7 @@ export default function MoreMenuList({ onOpen }) {
           color: 'var(--text-secondary)',
         }}
       >
-        Выгрузка ваших данных доступна в личном кабинете на сайте →
+        Выгрузка твоих данных доступна в личном кабинете на сайте →
       </button>
     </section>
   );

@@ -63,7 +63,7 @@ export function validateBirthForm(form, today = localToday()) {
   if (!date) {
     return hasDigits(form?.birthDateInput)
       ? { field: 'birthDate', text: 'Дата не дописана — нужны день, месяц и год' }
-      : { field: 'birthDate', text: 'Укажите дату рождения' };
+      : { field: 'birthDate', text: 'Укажи дату рождения' };
   }
   if (date < MIN_BIRTH_DATE) {
     return { field: 'birthDate', text: 'Даты до 1900 года не поддерживаются' };
@@ -74,14 +74,14 @@ export function validateBirthForm(form, today = localToday()) {
 
   if (!form?.timeUnknown) {
     if (!time) {
-      return { field: 'birthTime', text: 'Укажите время или отметьте, что оно неизвестно' };
+      return { field: 'birthTime', text: 'Укажи время или отметь, что оно неизвестно' };
     }
     if (!/^\d{2}:\d{2}$/.test(time)) {
       return { field: 'birthTime', text: 'Время в формате ЧЧ:ММ' };
     }
   }
 
-  if (place.length < 2) return { field: 'birthPlace', text: 'Укажите место рождения' };
+  if (place.length < 2) return { field: 'birthPlace', text: 'Укажи место рождения' };
   if (FORBIDDEN_PLACE_CHARS.test(place)) {
     return { field: 'birthPlace', text: 'Название места содержит недопустимые символы' };
   }
@@ -142,7 +142,7 @@ export function describeCreateError(err) {
     return {
       ...blank,
       kind: 'ambiguous-time',
-      text: detail.message || 'В эту ночь переводили часы — уточните время.',
+      text: detail.message || 'В эту ночь переводили часы — уточни время.',
       options: Array.isArray(detail.options) ? detail.options : [],
     };
   }
@@ -153,7 +153,7 @@ export function describeCreateError(err) {
       kind: 'place',
       field: 'birthPlace',
       text: (typeof detail === 'string' && detail) || message
-        || 'Не удалось определить место. Попробуйте написать его иначе.',
+        || 'Не удалось определить место. Попробуй написать его иначе.',
     };
   }
 
@@ -166,18 +166,18 @@ export function describeCreateError(err) {
       // `message` лежит statusText «Forbidden», который человеку показывать
       // нельзя.
       text: (typeof detail === 'string' && detail)
-        || 'Достигнут лимит сохранённых карт для вашего тарифа.',
+        || 'Достигнут лимит сохранённых карт для твоего тарифа.',
       showPricing: true,
     };
   }
 
   if (status === 429) {
-    return { ...blank, kind: 'rate', text: 'Слишком часто. Попробуйте через минуту.' };
+    return { ...blank, kind: 'rate', text: 'Слишком часто. Попробуй через минуту.' };
   }
 
   if (status === 422) {
-    return { ...blank, kind: 'validation', text: message || 'Проверьте правильность заполнения полей.' };
+    return { ...blank, kind: 'validation', text: message || 'Проверь правильность заполнения полей.' };
   }
 
-  return { ...blank, kind: 'unknown', text: message || 'Не удалось построить карту. Попробуйте ещё раз.' };
+  return { ...blank, kind: 'unknown', text: message || 'Не удалось построить карту. Попробуй ещё раз.' };
 }

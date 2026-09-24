@@ -30,7 +30,7 @@ export const REQUEST_TIMEOUT_MS = 15000;
 
 function timeout(ms) {
   return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Сервер не отвечает. Проверьте связь и попробуйте ещё раз.')), ms);
+    setTimeout(() => reject(new Error('Сервер не отвечает. Проверь связь и попробуй ещё раз.')), ms);
   });
 }
 

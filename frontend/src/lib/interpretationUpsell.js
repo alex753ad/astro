@@ -72,7 +72,7 @@ export function interpretationUpsell(tier) {
   if (!tier || tier === 'free') {
     return {
       kind: 'free',
-      text: `Хотите разбор подробнее? На тарифе ${TIER_NAMES.lite} интерпретация примерно на ${TIER_WORDS.lite} слов.`,
+      text: `Хочешь разбор подробнее? На тарифе ${TIER_NAMES.lite} интерпретация примерно на ${TIER_WORDS.lite} слов.`,
       cta: 'Тарифы →',
     };
   }

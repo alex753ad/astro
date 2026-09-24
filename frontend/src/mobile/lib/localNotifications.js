@@ -161,7 +161,7 @@ export async function ensureChannel() {
     await api.plugin.createChannel({
       id: CHANNEL_ID,
       name: CHANNEL_NAME,
-      description: 'Транзиты, планер и фазы Луны по вашей карте',
+      description: 'Транзиты, планер и фазы Луны по твоей карте',
       importance: 3,
       visibility: 1,
     });

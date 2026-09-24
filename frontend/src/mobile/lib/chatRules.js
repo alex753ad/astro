@@ -26,7 +26,7 @@
 
 /** Что показать, когда сервер не сказал ничего: оборвалась связь. */
 export const CHAT_BROKEN_TEXT =
-  'Ответ не дошёл. Проверьте связь и попробуйте ещё раз.';
+  'Ответ не дошёл. Проверь связь и попробуй ещё раз.';
 
 /**
  * Отказ по тарифу. Текст свой — см. предупреждение в шапке.
@@ -90,7 +90,7 @@ export function classifyChatError(signal) {
     // дословно; своей копии числа в клиенте нет.
     return {
       outcome: CHAT_OUTCOMES.RATE_LIMIT,
-      text: detail || 'Слишком много вопросов подряд. Попробуйте через час.',
+      text: detail || 'Слишком много вопросов подряд. Попробуй через час.',
       showPricing: false,
       canRetry: false,
     };
@@ -101,7 +101,7 @@ export function classifyChatError(signal) {
     // человеку не за что, предлагать покупку в этот момент нельзя.
     return {
       outcome: CHAT_OUTCOMES.BUDGET,
-      text: detail || 'Аристея сегодня уже отвечать не может. Попробуйте завтра.',
+      text: detail || 'Аристея сегодня уже отвечать не может. Попробуй завтра.',
       showPricing: false,
       canRetry: false,
     };
@@ -122,7 +122,7 @@ export function classifyChatError(signal) {
   if (status === 400) {
     return {
       outcome: CHAT_OUTCOMES.BAD_QUESTION,
-      text: detail || 'Вопрос пустой — напишите, что хотите спросить.',
+      text: detail || 'Вопрос пустой — напиши, что хочешь спросить.',
       showPricing: false,
       canRetry: false,
     };

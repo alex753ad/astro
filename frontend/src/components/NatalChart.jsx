@@ -719,8 +719,8 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
   const [activeTooltip, setActiveTooltip] = useState(0);
 
   const TOOLTIPS = [
-    { key: 'asc', label: 'ASC', text: 'Асцендент — ваша маска для мира, то как вас воспринимают с первого взгляда' },
-    { key: 'mc', label: 'MC', text: 'Середина Неба — ваше призвание и публичный образ' },
+    { key: 'asc', label: 'ASC', text: 'Асцендент — твоя маска для мира, то как тебя воспринимают с первого взгляда' },
+    { key: 'mc', label: 'MC', text: 'Середина Неба — твоё призвание и публичный образ' },
     { key: 'aspects', label: 'Аспекты', text: 'Красные линии — напряжение и точки роста. Синие — природные таланты' },
   ];
 

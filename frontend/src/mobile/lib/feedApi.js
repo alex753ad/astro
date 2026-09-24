@@ -99,7 +99,7 @@ export async function fetchFeed(chartId, { from, to }) {
   const resp = await authFetchWithTimeout(url);
 
   if (resp.status === 404) {
-    throw new Error('Карта не найдена. Постройте её заново на вкладке «Карта».');
+    throw new Error('Карта не найдена. Построй её заново на вкладке «Карта».');
   }
   if (!resp.ok) {
     throw new Error(await responseErrorText(resp, 'Не удалось загрузить ленту.'));

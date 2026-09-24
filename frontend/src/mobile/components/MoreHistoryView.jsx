@@ -54,7 +54,7 @@ export default function MoreHistoryView({ chartsById }) {
   }
 
   if (items.length === 0) {
-    return <MoreCenteredNotice title="Разборов пока нет" text="Здесь появится история интерпретаций ваших карт." />;
+    return <MoreCenteredNotice title="Разборов пока нет" text="Здесь появится история интерпретаций твоих карт." />;
   }
 
   return (
