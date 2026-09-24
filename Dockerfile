@@ -43,4 +43,9 @@ USER appuser
 
 EXPOSE 8000
 
+# Версия для Sentry (backend/sentry_setup.py). Передаёт 05-update.sh; в самом
+# конце, чтобы новый коммит не сбрасывал кэш слоёв выше.
+ARG GIT_SHA=""
+ENV GIT_SHA=$GIT_SHA
+
 CMD ["/app/start.sh"]

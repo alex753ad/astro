@@ -40,7 +40,6 @@ from sqlalchemy import text
 from backend.async_utils import replay_as_stream
 from backend.config import get_settings
 from backend.limiter import limiter
-from backend.log_utils import mask_emails_in_text
 from backend.database import get_db, engine, Base
 from backend.schemas import (
     BirthDataInput,
@@ -243,61 +242,9 @@ async def _log_validation_errors(request: Request, exc: RequestValidationError):
     return await _default_validation_handler(request, exc)
 
 
-# ── Sentry ──
-# Без SENTRY_DSN ничего не инициализируется — приложение работает как раньше.
-if settings.sentry_dsn:
-    import sentry_sdk
-
-    def _sentry_before_send(event, hint):
-        request_data = event.get("request", {})
-        if "data" in request_data:
-            request_data["data"] = _sanitize_body_for_log(request_data["data"])
-
-        # send_default_pii=False убирает только то, что SDK собирает сам
-        # (заголовки, cookies, IP). Адрес, попавший в текст исключения, в
-        # extra или в breadcrumb, он не трогает — а туда он попадает регулярно:
-        # "Email send failed for user@example.com".
-        for key in ("message", "logentry"):
-            value = event.get(key)
-            if isinstance(value, str):
-                event[key] = mask_emails_in_text(value)
-            elif isinstance(value, dict) and isinstance(value.get("message"), str):
-                value["message"] = mask_emails_in_text(value["message"])
-
-        for entry in event.get("breadcrumbs", {}).get("values", []) or []:
-            if isinstance(entry.get("message"), str):
-                entry["message"] = mask_emails_in_text(entry["message"])
-
-        extra = event.get("extra")
-        if isinstance(extra, dict):
-            event["extra"] = {
-                k: (mask_emails_in_text(v) if isinstance(v, str) else v)
-                for k, v in extra.items()
-            }
-
-        for exc in event.get("exception", {}).get("values", []) or []:
-            if isinstance(exc.get("value"), str):
-                exc["value"] = mask_emails_in_text(exc["value"])
-
-        return event
-
-    sentry_sdk.init(
-        dsn=settings.sentry_dsn,
-        environment="production",
-        traces_sample_rate=0.1,
-        send_default_pii=False,
-        # Не отправлять локальные переменные фреймов (по умолчанию SDK их
-        # отправляет). Секреты попадают туда не из нашего кода, а из чужих
-        # фреймов в трейсбеке: httpx получает Basic-auth как кортеж
-        # (shop_id, secret_key) — при любом исключении внутри httpx этот кортеж
-        # уезжает в Sentry в открытом виде, и before_send его не видит, потому
-        # что маскирование ниже работает по тексту сообщений, а не по vars.
-        # Тот же механизм касается JWT_SECRET, пароля БД и ключа Resend.
-        # Событие, уже ушедшее к стороннему сервису, назад не отзывается —
-        # поэтому выключаем целиком, а не пытаемся вычищать по списку.
-        include_local_variables=False,
-        before_send=_sentry_before_send,
-    )
+# ── Sentry ── (backend/sentry_setup.py; без SENTRY_DSN — ничего)
+from backend.sentry_setup import init_sentry
+init_sentry(settings.sentry_dsn, "api")
 
 # ── TierMiddleware — пишет user_tier в request.state до декораторов лимитера ──
 @app.middleware("http")

@@ -18,7 +18,24 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import * as Sentry from '@sentry/react';
 import MobileApp from './mobile/MobileApp';
+import { scrubEvent } from './lib/sentryScrub';
+
+// Только JS-ошибки: @sentry/capacitor (падения нативной части) не взят —
+// нативный плагин, решение владельца 24.09.2026. Без VITE_SENTRY_DSN в
+// .env.mobile условие сворачивается при сборке, и SDK в APK не попадает.
+// Фильтр персональных данных — общий с вебом (lib/sentryScrub.js).
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: 'android',
+    release: __APP_RELEASE__,
+    tracesSampleRate: 0,
+    sendDefaultPii: false,
+    beforeSend: scrubEvent,
+  });
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

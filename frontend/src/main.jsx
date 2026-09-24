@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import App from './App';
 import { initMetrika } from './analytics';
+import { scrubEvent } from './lib/sentryScrub';
 import './index.css';
 
 // Без VITE_SENTRY_DSN SDK не инициализируется — работает как раньше.
@@ -13,6 +14,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     environment: 'production',
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
+    beforeSend: scrubEvent,
   });
 }
 

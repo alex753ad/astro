@@ -44,6 +44,28 @@ def send_purchase_welcome_task(payment_event_id: int) -> bool:
         db.close()
 
 
+# ═══════════════════════════════════════════════════════════
+# САМОПРОВЕРКА ПРОГНОЗОВ И СИГНАЛЫ ВЛАДЕЛЬЦУ — backend/selfcheck.py
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.selfcheck_daily")
+def selfcheck_daily() -> dict:
+    """Beat, 07:30 МСК: четыре шага на служебной карте."""
+    import asyncio
+    from backend.beat_watchdog import _sync_redis
+    from backend.selfcheck import run_daily
+    return asyncio.run(run_daily(_sync_redis()))
+
+
+@celery_app.task(name="tasks.selfcheck_hourly")
+def selfcheck_hourly() -> dict:
+    """Beat, раз в час: ключ, бюджет, модель, доля запасных, повтор красных шагов."""
+    import asyncio
+    from backend.beat_watchdog import _sync_redis
+    from backend.selfcheck import run_hourly
+    return asyncio.run(run_hourly(_sync_redis()))
+
+
 # ── Снятые задачи: заглушки до 24.10.2026 ──
 #
 # До перехода на журнал письма ставились под этими именами с countdown до 30

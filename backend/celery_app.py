@@ -70,9 +70,32 @@ celery_app.conf.update(
             "task": "tasks.send_lifecycle_emails",
             "schedule": crontab(hour="6-18", minute=15),
         },
+        # Самопроверка прогнозов на служебной карте — 07:30 МСК, до утренних
+        # уведомлений (backend/selfcheck.py).
+        "selfcheck-daily": {
+            "task": "tasks.selfcheck_daily",
+            "schedule": crontab(hour=4, minute=30),
+        },
+        # Ключ, бюджет, модель, доля запасных — круглые сутки: модель,
+        # упавшая ночью, должна дать сигнал в течение часа, а не утром.
+        # :50 — чтобы не совпадать с утренней самопроверкой в 04:30.
+        "selfcheck-hourly": {
+            "task": "tasks.selfcheck_hourly",
+            "schedule": crontab(minute=50),
+        },
     },
     beat_timezone="UTC",
 )
+
+
+# Sentry для worker и beat (backend/sentry_setup.py; без SENTRY_DSN — ничего).
+# api инициализирует его сам в main.py; повторный вызов в том же процессе
+# ничего не делает.
+import os  # noqa: E402
+
+from backend.sentry_setup import init_sentry  # noqa: E402
+
+init_sentry(get_settings().sentry_dsn, os.getenv("SERVICE_ROLE") or "worker")
 
 
 # ═══════════════════════════════════════════════════════════

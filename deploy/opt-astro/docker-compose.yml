@@ -7,6 +7,8 @@ x-logging: &default-logging
 x-app-build: &app-build
   context: ./app
   dockerfile: Dockerfile
+  args:
+    GIT_SHA: ${GIT_SHA:-}
 
 services:
   postgres:

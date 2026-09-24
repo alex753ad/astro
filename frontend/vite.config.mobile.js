@@ -16,13 +16,18 @@
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { renameSync, existsSync } from 'node:fs';
+import { renameSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const OUT_DIR = 'dist-mobile';
+
+// Версия приложения для Sentry: версия из package.json + коммит сборки.
+// GITHUB_SHA есть в каждом прогоне Actions (mobile-build.yml); локально — «local».
+const pkg = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+const APP_RELEASE = `aristea-mobile@${pkg.version}+${(process.env.GITHUB_SHA || 'local').slice(0, 7)}`;
 
 /**
  * Rollup именует выходной HTML по имени входного, то есть на диск лёг бы
@@ -48,6 +53,10 @@ export default defineConfig({
   // сервера, а из локальных файлов APK. С абсолютного /assets/index-*.js
   // webview не найдёт ничего, экран останется пустым.
   base: './',
+
+  define: {
+    __APP_RELEASE__: JSON.stringify(APP_RELEASE),
+  },
 
   build: {
     outDir: OUT_DIR,

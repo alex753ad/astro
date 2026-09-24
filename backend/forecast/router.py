@@ -29,6 +29,7 @@ from backend.cache import budget_tracker, interpretation_cache
 from backend.config import get_settings
 from backend.database import get_db
 from backend.forecast import facts as F
+from backend.forecast import stats
 from backend.forecast.fallback import daily_fallback, lunation_fallback
 from backend.forecast.prompts import (
     DAILY_PROMPT_VERSION, LUNATION_PROMPT_VERSION, build_daily_prompt, build_lunation_prompt,
@@ -87,13 +88,29 @@ async def _ask_model(prompt: str, *, contour: str, json_mode: bool, max_tokens: 
             data = resp.json()
     except Exception as e:
         logger.warning("%s: DeepSeek недоступен: %s", contour, e)
+        stats.incr("deepseek_error")
         return ""
     from backend.interpretation.router import track_engine_spend
     track_engine_spend(BUDGET_ENGINE, (data.get("usage") or {}).get("total_tokens") or 0, contour)
     try:
         return data["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
+        stats.incr("deepseek_error")
         return ""
+
+
+def _silence_reason() -> str:
+    """Почему модель не ответила — для счётчиков (backend/forecast/stats.py).
+
+    Считается после неудачи, а не внутри `_ask_model`: так сигнатура вызова
+    модели осталась прежней. Бюджет мог смениться между вызовом и этой
+    проверкой — на счётчик это влияет на единицу, не на смысл.
+    """
+    if not settings.deepseek_api_key:
+        return "no_key"
+    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, BUDGET_ENGINE):
+        return "budget"
+    return "model_error"
 
 
 # ── Прогноз на день: вчера, сегодня, завтра ─────────────────
@@ -122,22 +139,30 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
     key = f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart.id}:{local_date.isoformat()}"
     cached = interpretation_cache.get(key)
     if cached is not None:
+        # Кэш-хит считается показом «из модели»: запасной текст не кэшируется
+        # и отдаётся заново на каждом открытии, так что без этого доля
+        # запасных в счётчиках была бы завышена числом повторных заходов.
+        stats.record_outcome(chart.id, "today", "model", None)
         return cached
 
     facts = await asyncio.to_thread(F.compute_day, chart, local_date, tz)
     prompt = build_daily_prompt(facts)
-    paragraphs, source = None, "fallback"
+    paragraphs, source, reason = None, "fallback", None
     for attempt in range(ATTEMPTS):
         raw = await _ask_model(prompt, contour="forecast/today", json_mode=False, max_tokens=900)
         if not raw:
+            reason = reason or _silence_reason()
             break
         paras, problems = check_daily(raw)
         if not problems:
             paragraphs, source = paras, "model"
             break
+        reason = "rejected"
+        stats.incr("rejected")
         logger.warning("forecast/today: ответ отбракован (попытка %d): %s", attempt + 1, problems)
     if paragraphs is None:
         paragraphs = daily_fallback(facts)
+    stats.record_outcome(chart.id, "today", source, reason)
 
     result = {
         "date": local_date.isoformat(),
@@ -191,24 +216,29 @@ async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) 
     key =f"forecast_lunation:v{LUNATION_PROMPT_VERSION}:{chart.id}:{phase}:{at_utc.strftime('%Y-%m-%dT%H:%M')}:{tz.key}"
     cached = interpretation_cache.get(key)
     if cached is not None:
+        stats.record_outcome(chart.id, "lunation", "model", None)   # см. daily_forecast
         return cached
 
     facts = await asyncio.to_thread(F.compute_lunation, chart, phase, at_utc, tz)
     prompt = build_lunation_prompt(facts)
     dates, times = lunation_allowed(facts)
     need_warning = lunation_needs_warning(facts)
-    block, source = None, "fallback"
+    block, source, reason = None, "fallback", None
     for attempt in range(ATTEMPTS):
         raw = await _ask_model(prompt, contour="forecast/lunation", json_mode=True, max_tokens=1500)
         if not raw:
+            reason = reason or _silence_reason()
             break
         parsed, problems = check_lunation(parse_json_reply(raw), dates, times, need_warning)
         if not problems:
             block, source = parsed, "model"
             break
+        reason = "rejected"
+        stats.incr("rejected")
         logger.warning("forecast/lunation: ответ отбракован (попытка %d): %s", attempt + 1, problems)
     if block is None:
         block = lunation_fallback(facts)
+    stats.record_outcome(chart.id, "lunation", source, reason)
 
     result = {
         "phase": phase,

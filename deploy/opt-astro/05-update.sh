@@ -249,6 +249,10 @@ if $DO_BACKEND; then
   fi
 
   log "Бэкенд: собираю образ (api, bot, worker, beat)"
+  # Версия для Sentry (backend/sentry_setup.py) зашивается В ОБРАЗ, а не
+  # передаётся переменной окружения контейнеру: после отката (rollback ниже)
+  # старый образ иначе рапортовал бы номер нового коммита.
+  export GIT_SHA="$(git -C "$APP_DIR" rev-parse --short HEAD)"
   run_with_registry_retry docker compose build api bot worker beat
 
   # rollback: возвращает тег astro-app:latest на образ, работавший до этого
