@@ -357,9 +357,9 @@ async def register_email_send(
             from backend.email_service import _send, _base, _h2, _p, _btn
             body = (
                 _h2("Аккаунт уже существует")
-                + _p("Кто-то попытался зарегистрироваться с вашим адресом в "
+                + _p("Кто-то попытался зарегистрироваться с твоим адресом в "
                      "<strong>Aristea Timeline</strong>. Аккаунт уже создан ранее.")
-                + _p("Если это были вы — просто войдите. Если нет — проигнорируйте письмо.")
+                + _p("Если это ты — просто войди. Если нет — проигнорируй письмо.")
                 + _btn("Войти →", f"{get_settings().frontend_url}/login")
             )
             await _send(
@@ -785,8 +785,8 @@ async def forgot_password(
             from backend.email_service import _send, _base, _h2, _p, _btn
             body = (
                 _h2("Сброс пароля")
-                + _p("Вы запросили сброс пароля для аккаунта <strong>Aristea Timeline</strong>.")
-                + _p("Ссылка действительна <strong>1 час</strong>. Если не запрашивали — проигнорируйте.")
+                + _p("Для аккаунта <strong>Aristea Timeline</strong> запрошен сброс пароля.")
+                + _p("Ссылка действительна <strong>1 час</strong>. Если это не ты — просто проигнорируй письмо.")
                 + _btn("Сбросить пароль →", reset_url)
             )
             await _send(

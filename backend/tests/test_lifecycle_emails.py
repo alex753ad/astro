@@ -73,7 +73,7 @@ def test_double_beat_run_sends_once(db, sent):
     u = _user(db, 14.5)
     le.run_lifecycle_emails(db)
     le.run_lifecycle_emails(db)
-    assert sent == [(u.email, "Ваши тарифы на Aristea Timeline")]
+    assert sent == [(u.email, "Твои тарифы на Aristea Timeline")]
     assert _kinds(db, u) == ["retention_day14"]
 
 

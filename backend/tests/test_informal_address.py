@@ -75,12 +75,7 @@ ALLOWED_FILES = {
 
 # Временно: ещё не переведённые зоны. Только сокращается.
 PENDING: set[str] = {
-    "backend/auth/router.py",
-    "backend/crm/dashboard_router.py",
-    "backend/email_service.py",
     "backend/interpretation/template.py",
-    "backend/lifecycle_emails.py",
-    "backend/tasks.py",
     "backend/transit/methodology.json",
 }
 

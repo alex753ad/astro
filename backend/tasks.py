@@ -238,7 +238,7 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
         if not astrologer:
             return {"sent": 0, "failed": 0, "error": "astrologer not found"}
 
-        brand = astrologer.display_name or "Ваш астролог"
+        brand = astrologer.display_name or "Ваш астролог"  # вы-разрешено: письмо клиенту астролога
         owner = db.query(User).filter(User.id == astrologer.user_id).first()
         tier = owner.tier if owner else "premium"
 

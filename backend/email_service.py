@@ -205,7 +205,9 @@ def ru_month_label(d) -> str:
 
 def _base_branded(brand_name: str, title: str, preview: str, body: str, unsubscribe_url: str | None = None) -> str:
     """Базовый шаблон под брендом астролога: его имя в шапке, мелкий кредит Aristea в футере."""
-    safe_brand = (brand_name or "Ваш астролог").strip()
+    # Всё, что под брендом астролога, читает его КЛИЕНТ — голос астролога, на
+    # «вы» (решение владельца 24.09.2026). Отсюда маркеры до send_client_broadcast.
+    safe_brand = (brand_name or "Ваш астролог").strip()  # вы-разрешено
     unsub_html = (
         f'<br/><a href="{unsubscribe_url}" style="color:#b0a0d0;text-decoration:none;">Отписаться от рассылки</a>'
         if unsubscribe_url else ""
@@ -292,10 +294,10 @@ def build_client_broadcast(
     ai_text задан → тело из AI-текста (гибрид); иначе шаблонный список транзитов.
     custom_text (необязательно) → авторский текст астролога, ставится в начале письма.
     """
-    subject = f"Ваш период {period_label} — что важно и что делать"
+    subject = f"Ваш период {period_label} — что важно и что делать"  # вы-разрешено
     intro = _paragraphs(custom_text) if custom_text else ""
     if ai_text:
-        body = _h2(f"Ваш прогноз на {period_label}") + intro + _paragraphs(ai_text)
+        body = _h2(f"Ваш прогноз на {period_label}") + intro + _paragraphs(ai_text)  # вы-разрешено
     elif transits:
         rows = []
         for t in transits:
@@ -309,18 +311,18 @@ def build_client_broadcast(
                 f'<b>{tp}</b> {asp} <b>{npl}</b>{when_html}</td></tr>'
             )
         body = (
-            _h2(f"Ваш прогноз на {period_label}")
+            _h2(f"Ваш прогноз на {period_label}")  # вы-разрешено
             + intro
-            + _p("Ключевые астрологические события месяца по вашей натальной карте:")
+            + _p("Ключевые астрологические события месяца по вашей натальной карте:")  # вы-разрешено
             + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
             + "".join(rows)
             + "</table>"
         )
     else:
         body = (
-            _h2(f"Ваш прогноз на {period_label}")
+            _h2(f"Ваш прогноз на {period_label}")  # вы-разрешено
             + intro
-            + _p("В этом месяце крупных транзитных событий по вашей карте не выделяется — спокойный, ресурсный период. Хорошее время для планомерных дел.")
+            + _p("В этом месяце крупных транзитных событий по вашей карте не выделяется — спокойный, ресурсный период. Хорошее время для планомерных дел.")  # вы-разрешено
         )
     html = _base_branded(brand_name, subject, subject, body, unsubscribe_url=unsubscribe_url)
     return subject, html
@@ -366,18 +368,18 @@ async def send_client_broadcast(
 
 # ───────────────────────────── templates ─────────────────────────────────────
 _SUN_INSIGHTS: dict[str, str] = {
-    "Aries":       "Вы рождены действовать первым — ваша энергия заражает и двигает людей вперёд.",
-    "Taurus":      "Вы строите надёжное и красивое — терпение и вкус это ваши суперсилы.",
-    "Gemini":      "Вы мыслите быстро и умеете находить связи там, где другие видят хаос.",
-    "Cancer":      "Вы чувствуете глубже других — и именно это делает вас незаменимым для близких.",
-    "Leo":         "Вы рождены светить — ваша щедрость и харизма притягивают людей.",
-    "Virgo":       "Вы видите детали, которые меняют всё — ваша точность создаёт настоящее качество.",
-    "Libra":       "Вы умеете находить баланс и гармонию — это редкий дар в мире крайностей.",
-    "Scorpio":     "Вы видите суть вещей — за вашей интенсивностью стоит невероятная глубина.",
-    "Sagittarius": "Вы ищете смысл и горизонт — ваш оптимизм открывает двери там, где другие сдаются.",
-    "Capricorn":   "Вы строите на годы вперёд — ваша дисциплина превращает амбиции в реальность.",
-    "Aquarius":    "Вы думаете иначе — и именно это делает вас источником идей, которые меняют мир.",
-    "Pisces":      "Вы чувствуете невидимое — интуиция и сострадание ваши главные инструменты.",
+    "Aries":       "Твоя стихия — действовать без раскачки: твоя энергия заражает и двигает людей вперёд.",
+    "Taurus":      "Ты строишь надёжное и красивое — терпение и вкус это твои суперсилы.",
+    "Gemini":      "Ты мыслишь быстро и умеешь находить связи там, где другие видят хаос.",
+    "Cancer":      "Ты чувствуешь глубже других — и именно за это тебя так ценят близкие.",
+    "Leo":         "Твоя стихия — светить: щедрость и харизма притягивают к тебе людей.",
+    "Virgo":       "Ты видишь детали, которые меняют всё — твоя точность создаёт настоящее качество.",
+    "Libra":       "Ты умеешь находить баланс и гармонию — это редкий дар в мире крайностей.",
+    "Scorpio":     "Ты видишь суть вещей — за твоей интенсивностью стоит невероятная глубина.",
+    "Sagittarius": "Ты ищешь смысл и горизонт — твой оптимизм открывает двери там, где другие сдаются.",
+    "Capricorn":   "Ты строишь на годы вперёд — твоя дисциплина превращает амбиции в реальность.",
+    "Aquarius":    "Ты думаешь иначе — и именно это делает тебя источником идей, которые меняют мир.",
+    "Pisces":      "Ты чувствуешь невидимое — интуиция и сострадание твои главные инструменты.",
 }
 
 _SIGN_RU: dict[str, str] = {
@@ -417,46 +419,46 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
             f'padding:16px 20px;margin:16px 0 24px;">'
             f'  <div style="color:#9060C8;font-size:12px;font-weight:700;'
             f'text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">'
-            f'    ☀ Ваше Солнце · {sun_sign_ru}'
+            f'    ☀ Твоё Солнце · {sun_sign_ru}'
             f'  </div>'
             f'  <div style="color:#2D2540;font-size:15px;line-height:1.7;">{insight}</div>'
             f'</div>'
         )
-        subject_line = f"☀ Ваша карта готова — Солнце в {sun_sign_ru}, и вот что это говорит о вас"
+        subject_line = f"☀ Твоя карта готова — Солнце в {sun_sign_ru}, и вот что это говорит о тебе"
         preview = f"Солнце в {sun_sign_ru}: {insight[:60]}..."
     else:
         sun_block = ""
         subject_line = "✨ Добро пожаловать в Aristea Timeline"
-        preview = "Ваша натальная карта ждёт — откройте её прямо сейчас"
+        preview = "Твоя натальная карта ждёт — открой её прямо сейчас"
 
     body = (
         _h2(greeting)
-        + _p("Ваша натальная карта рассчитана. Вот первый инсайт — специально для вас:")
+        + _p("Твоя натальная карта рассчитана. Вот первый инсайт — специально для тебя:")
         + sun_block
-        + _p("Откройте карту, чтобы увидеть все планеты, дома и интерпретацию.")
+        + _p("Открой карту, чтобы увидеть все планеты, дома и интерпретацию.")
         + _btn("✦ Открыть мою карту", APP_URL)
     )
     return await _send(
         to,
         subject_line,
-        _base("Ваша карта готова", preview, body),
+        _base("Твоя карта готова", preview, body),
     )
 
 
 async def send_retention_day2(to: str, transit_text: str) -> bool:
     """Retention Day 2 — актуальный транзит для карты пользователя."""
     body = (
-        _h2("🌙 Ваш транзит на сегодня")
+        _h2("🌙 Твой транзит на сегодня")
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
           f'{transit_text}</div>'
-        + _p("Откройте Aristea Timeline, чтобы увидеть все активные транзиты и интерпретацию.")
+        + _p("Открой Aristea Timeline, чтобы увидеть все активные транзиты и интерпретацию.")
         + _btn("Смотреть полный прогноз", APP_URL)
     )
     return await _send(
         to,
-        "🌙 Ваш астрологический прогноз на сегодня",
-        _base("Прогноз на сегодня", "Персональный транзит по вашей карте", body),
+        "🌙 Твой астрологический прогноз на сегодня",
+        _base("Прогноз на сегодня", "Персональный транзит по твоей карте", body),
     )
 
 
@@ -467,22 +469,22 @@ send_retention_email = send_retention_day2
 async def send_retention_day7(to: str, locked_count: int) -> bool:
     """Retention Day 7 — апгрейд-нудж для free-пользователей."""
     body = (
-        _h2("⭐ Не пропустите важные периоды")
+        _h2("⭐ Не пропусти важные периоды")
         + _p(
-            f"В ближайший месяц для вашей карты активно "
+            f"В ближайший месяц для твоей карты активно "
             f"<strong>{locked_count} транзитов</strong> — периоды, влияющие на карьеру, "
             f"отношения и финансы."
         )
         + _p(
-            f"С планом <strong>{TIER_NAMES['pro']}</strong> вы видите полный прогноз и получаете "
+            f"С планом <strong>{TIER_NAMES['pro']}</strong> ты видишь полный прогноз и получаешь "
             "интерпретацию каждого периода."
         )
         + _btn(f"Попробовать {TIER_NAMES['pro']}", f"{APP_URL}/pricing")
     )
     return await _send(
         to,
-        f"⭐ Вы пропускаете {locked_count} активных транзитов",
-        _base("Важные транзиты закрыты", "Откройте полный прогноз на месяц", body),
+        f"⭐ Мимо тебя проходят {locked_count} активных транзитов",
+        _base("Важные транзиты закрыты", "Открой полный прогноз на месяц", body),
     )
 
 
@@ -494,24 +496,24 @@ async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAME
     """Trial Ending — за 1–2 дня до окончания триала."""
     days_str = "завтра" if days_left == 1 else f"через {days_left} дня"
     body = (
-        _h2(f"⏳ Ваш триал заканчивается {days_str}")
+        _h2(f"⏳ Твой триал заканчивается {days_str}")
         + _p(
-            f"Вы пользуетесь <strong>Aristea Timeline {plan}</strong>. "
+            f"Ты пользуешься <strong>Aristea Timeline {plan}</strong>. "
             f"Триальный период заканчивается {days_str}."
         )
         + _p(
             "Чтобы сохранить доступ к полным транзитам, интерпретациям и еженедельным "
-            "дайджестам — продлите подписку сейчас."
+            "дайджестам — продли подписку сейчас."
         )
         + f'<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:10px;'
           f'padding:14px 18px;margin:0 0 20px;color:#5d4000;font-size:14px;line-height:1.6;">'
-          f'💡 Подпишитесь сегодня и получите первый месяц без перебоев в прогнозах.</div>'
+          f'💡 Подпишись сегодня и получи первый месяц без перебоев в прогнозах.</div>'
         + _btn(f"Продолжить {plan}", f"{APP_URL}/pricing")
     )
     return await _send(
         to,
-        f"⏳ Ваш триал Aristea Timeline заканчивается {days_str}",
-        _base("Триал заканчивается", f"Продлите доступ к {plan} — осталось {days_left} дн.", body),
+        f"⏳ Твой триал Aristea Timeline заканчивается {days_str}",
+        _base("Триал заканчивается", f"Продли доступ к {plan} — осталось {days_left} дн.", body),
     )
 
 
@@ -544,16 +546,16 @@ async def send_weekly_digest_email(
         </tr>"""
 
     body = (
-        _h2(f"🔭 Ваша неделя {week_label}")
-        + _p("Главные астрологические события предстоящей недели по вашей карте:")
+        _h2(f"🔭 Твоя неделя {week_label}")
+        + _p("Главные астрологические события предстоящей недели по твоей карте:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" border="0"'
           f' style="margin:0 0 20px;">{items_html}</table>'
         + _btn("Открыть полный календарь", f"{APP_URL}/calendar")
     )
     return await _send(
         to,
-        f"🔭 Ваша неделя {week_label} — окна периода и что в них делать · Aristea",
-        _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
+        f"🔭 Твоя неделя {week_label} — окна периода и что в них делать · Aristea",
+        _base(f"Дайджест {week_label}", "Твои главные транзиты на неделю", body),
     )
 
 
@@ -579,7 +581,7 @@ async def send_transit_alert_email(
         if is_peak else ""
     )
     body = (
-        _h2(f"🌟 Ваше окно{' — сегодня пик' if is_peak else ''}")
+        _h2(f"🌟 Твоё окно{' — сегодня пик' if is_peak else ''}")
         + f'<div style="background:#f0ebff;border-radius:12px;padding:20px 24px;margin:0 0 20px;">'
           f'  <div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:8px;">'
           f'    {date_str}{badge}'
@@ -589,7 +591,7 @@ async def send_transit_alert_email(
           f'  </div>'
           f'  <div style="color:#5a4a7a;font-size:14px;line-height:1.7;">{description}</div>'
           f'</div>'
-        + _p("Откройте приложение, чтобы получить полную интерпретацию этого транзита.")
+        + _p("Открой приложение, чтобы получить полную интерпретацию этого транзита.")
         + _btn("Читать интерпретацию →", link)
     )
     return await _send(
@@ -647,7 +649,7 @@ async def send_weekly_digest(user, db) -> bool:
         at  = getattr(e, "aspect_type", "")
         peak = str(getattr(e, "peak_date", None) or getattr(e, "date", str(now)))
         is_pos = tp in POSITIVE_PLAN and at in POSITIVE_ASP
-        text = ("Благоприятный период — используйте энергию для важных дел."
+        text = ("Благоприятный период — используй энергию для важных дел."
                 if is_pos else
                 "Период требует осознанности и внимательности.")
         highlights.append({
@@ -758,8 +760,8 @@ async def send_weekly_digest(user, db) -> bool:
         )
 
     body = (
-        _h2(f"🔭 Ваш дайджест на {week_label}")
-        + _p("Главные астрологические события предстоящей недели по вашей карте:")
+        _h2(f"🔭 Твой дайджест на {week_label}")
+        + _p("Главные астрологические события предстоящей недели по твоей карте:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">{items_html}</table>'
         + tip_block
         + best_days_block
@@ -797,14 +799,14 @@ async def send_weekly_digest(user, db) -> bool:
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
     if variant == "A" and highlights:
         h0 = highlights[0]
-        subject = f"✦ {h0['planet']} открывает окно в вашей карте — что сделать · Aristea"
+        subject = f"✦ {h0['planet']} открывает окно в твоей карте — что сделать · Aristea"
     else:
-        subject = f"✦ Ваша неделя {week_label} — что важно и что делать · Aristea"
+        subject = f"✦ Твоя неделя {week_label} — что важно и что делать · Aristea"
 
     return await _send(
         user.email,
         subject,
-        _base(f"Дайджест {week_label}", "Ваши главные транзиты на неделю", body),
+        _base(f"Дайджест {week_label}", "Твои главные транзиты на неделю", body),
     )
 
 
@@ -820,18 +822,18 @@ async def send_gift_code_email(
     redeem_url = f"https://aristeatime.ru/gift/redeem?code={code}"
     tier_name = TIER_NAMES.get(tier, tier.capitalize())
     body = (
-        _h2(f"🎁 Ваш подарочный код Aristea {tier_name}")
+        _h2(f"🎁 Твой подарочный код Aristea {tier_name}")
         + _p(f"Спасибо за покупку! Вот подарочный код на <strong>{duration_months} мес.</strong> подписки {tier_name}:")
         + f'<div style="text-align:center;margin:24px 0">'
         + f'<code style="font-size:22px;font-weight:700;letter-spacing:3px;color:#7C6CFF;background:#1e1b4b;padding:12px 24px;border-radius:8px">{code}</code>'
         + f'</div>'
-        + _p("Передайте этот код получателю — он введёт его в разделе «Подписка» личного кабинета.")
+        + _p("Передай этот код получателю — он введёт его в разделе «Подписка» личного кабинета.")
         + _btn("Активировать подарок →", redeem_url)
         + _p("Код действителен бессрочно и может быть использован один раз.")
     )
     return await _send(
         to,
-        f"🎁 Ваш подарочный код Aristea {tier_name} на {duration_months} мес.",
+        f"🎁 Твой подарочный код Aristea {tier_name} на {duration_months} мес.",
         _base(f"Подарочная подписка {tier_name}", f"Код для активации {duration_months} мес. {tier_name}", body),
     )
 
@@ -840,20 +842,20 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
     """Notify user when Moon returns to their natal sign."""
     date_str = lunar_return_date.strftime("%d %B %Y") if hasattr(lunar_return_date, "strftime") else str(lunar_return_date)
     body = (
-        _h2("🌙 Луна вернулась в ваш знак")
+        _h2("🌙 Луна вернулась в твой знак")
         + _p(
-            f"Сегодня, <strong>{date_str}</strong>, Луна вернулась в ваш натальный знак. "
-            "Особый день для того, чтобы уделить время внедрению того, что вы хотите в своё жизненное пространство."
+            f"Сегодня, <strong>{date_str}</strong>, Луна вернулась в твой натальный знак. "
+            "Особый день для того, чтобы уделить время внедрению того, что ты хочешь в своё жизненное пространство."
         )
         + _p(
             "Это хороший момент для рефлексии, новых намерений и создания ритуалов. "
-            "Ваши эмоции сейчас особенно чувствительны к тому, что действительно важно."
+            "Твои эмоции сейчас особенно чувствительны к тому, что действительно важно."
         )
         + _btn("Открыть мою карту →", "https://aristeatime.ru/profile")
     )
     return await _send(
         user.email,
-        "Луна вернулась в ваш знак 🌙",
+        "Луна вернулась в твой знак 🌙",
         _base("Лунное возвращение", "Особый день для новых намерений", body),
     )
 
@@ -870,9 +872,9 @@ async def send_retention_day14(to: str) -> bool:
     body = (
         _h2("Две недели с Aristea Timeline")
         + _p(
-            "Вы уже две недели с нами на бесплатном тарифе. Если хочется больше — "
+            "Уже две недели ты с нами на бесплатном тарифе. Если хочется больше — "
             f"полные транзиты, разбор карты, персональный планер ({TIER_NAMES['lite']} "
-            f"и выше) — посмотрите тарифы и выберите то, что подходит."
+            f"и выше) — посмотри тарифы и выбери то, что подходит."
         )
         + _btn("Посмотреть тарифы →", pricing_url)
         + _p(
@@ -883,7 +885,7 @@ async def send_retention_day14(to: str) -> bool:
     )
     return await _send(
         to,
-        "Ваши тарифы на Aristea Timeline",
+        "Твои тарифы на Aristea Timeline",
         _base("Тарифы Aristea Timeline", "Полные транзиты, разбор карты и персональный планер", body),
     )
 
@@ -901,7 +903,7 @@ async def send_lite_welcome(to: str, name: str | None = None) -> bool:
     body = (
         _h2(greeting)
         + _p(
-            f"Ваша подписка {TIER_NAMES['lite']} активирована. Теперь вам доступны:"
+            f"Твоя подписка {TIER_NAMES['lite']} активирована. Теперь тебе доступны:"
         )
         + f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">'
           f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
@@ -914,36 +916,36 @@ async def send_lite_welcome(to: str, name: str | None = None) -> bool:
           f'<span style="color:#9060C8;font-weight:700;">✨</span>'
           f'<span style="color:#3d3060;font-size:15px;margin-left:10px;">Виральная карточка карты для Stories</span></td></tr>'
           f'</table>'
-        + _p("Ваши транзиты уже рассчитаны — откройте карту и исследуйте ближайшие периоды.")
+        + _p("Твои транзиты уже рассчитаны — открой карту и исследуй ближайшие периоды.")
         + _btn("Открыть мои транзиты →", f"{APP_URL}/profile")
     )
     return await _send(
         to,
         f"✨ Добро пожаловать в Aristea {TIER_NAMES['lite']}",
-        _base(f"{TIER_NAMES['lite']} активирован", "Транзиты и лунный календарь ждут вас", body),
+        _base(f"{TIER_NAMES['lite']} активирован", "Транзиты и лунный календарь ждут тебя", body),
     )
 
 
 async def send_lite_day14(to: str, name: str | None = None) -> bool:
     """Lite — День 14: identity + тизер RAG-чата."""
-    greeting = f"{name}, вы исследуете себя серьёзнее других" if name else "Вы исследуете себя серьёзнее других"
+    greeting = f"{name}, ты исследуешь себя серьёзнее других" if name else "Ты исследуешь себя серьёзнее других"
     body = (
         _h2(f"🌟 {greeting}")
         + _p(
-            "За две недели вы изучили свою натальную карту, транзиты и лунный календарь. "
+            "За две недели изучены натальная карта, транзиты и лунный календарь. "
             "Это уже больше, чем делают 95% людей."
         )
         + _p(
             "Но есть следующий уровень: <strong>задавать вопросы своей карте</strong>. "
             "«Почему мне сложно с деньгами?», «Когда лучший момент для смены работы?», "
-            "«Что говорит Сатурн о моих отношениях?» — и получать персональные ответы с учётом именно вашей карты."
+            "«Что говорит Сатурн о моих отношениях?» — и получать персональные ответы с учётом именно твоей карты."
         )
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:16px 0 24px;">'
           f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
-          f'letter-spacing:1px;margin-bottom:6px;">💬 RAG-чат доступен в {TIER_NAMES["pro"]}</div>'
+          f'letter-spacing:1px;margin-bottom:6px;">💬 Чат с Аристеей доступен в {TIER_NAMES["pro"]}</div>'
           f'<div style="color:#2D2540;font-size:15px;line-height:1.7;">'
-          f'AI-ассистент, который знает вашу карту наизусть. Задайте любой вопрос — ответ будет про вас, не про всех Тельцов.</div>'
+          f'Аристея знает твою карту наизусть. Задай любой вопрос — ответ будет про тебя, а не про всех Тельцов.</div>'
           f'</div>'
         + _btn(f"Попробовать {TIER_NAMES['pro']} →", f"{APP_URL}/pricing")
         + _p(
@@ -959,7 +961,7 @@ async def send_lite_day14(to: str, name: str | None = None) -> bool:
     )
     return await _send(
         to,
-        "🌟 Вы исследуете себя серьёзнее других",
+        "🌟 Ты исследуешь себя серьёзнее других",
         _base("14 дней с Aristea", "Следующий уровень — задавать вопросы своей карте", body),
     )
 
@@ -977,14 +979,14 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
     greeting = f"Привет, {name}! Добро пожаловать в глубину 🪐" if name else "Добро пожаловать в глубину 🪐"
     body = (
         _h2(greeting)
-        + _p(f"Ваша подписка {TIER_NAMES['pro']} активирована. Вот что теперь доступно:")
+        + _p(f"Твоя подписка {TIER_NAMES['pro']} активирована. Вот что теперь доступно:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">'
           f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
           f'<span style="color:#9060C8;font-weight:700;">💬</span>'
-          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>RAG-чат</strong> — AI знает вашу карту, задайте любой вопрос</span></td></tr>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>Чат с Аристеей</strong> — она знает твою карту, задай любой вопрос</span></td></tr>'
           f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
           f'<span style="color:#9060C8;font-weight:700;">🪐</span>'
-          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>AI-транзиты</strong> — персональная расшифровка каждого периода</span></td></tr>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>Разборы транзитов</strong> — персональная расшифровка каждого периода</span></td></tr>'
           f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
           f'<span style="color:#9060C8;font-weight:700;">📄</span>'
           f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>PDF-отчёты</strong> — {_pro_pdf} в месяц, для скачивания и печати</span></td></tr>'
@@ -992,44 +994,44 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
           f'<span style="color:#9060C8;font-weight:700;">🔭</span>'
           f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>{_pro_int} {_plural(_pro_int, "интерпретация", "интерпретации", "интерпретаций")}</strong> в месяц</span></td></tr>'
           f'</table>'
-        + _p("Совет: начните с вкладки «Транзиты» на вашей карте — нажмите на любой период, чтобы получить расшифровку.")
+        + _p("Совет: начни с вкладки «Транзиты» на своей карте — нажми на любой период, чтобы получить расшифровку.")
         + _btn("Открыть мою карту →", f"{APP_URL}/profile")
     )
     return await _send(
         to,
         f"🪐 Добро пожаловать в Aristea {TIER_NAMES['pro']}",
-        _base(f"{TIER_NAMES['pro']} активирован", "Чат с Аристеей, разборы транзитов и PDF ждут вас", body),
+        _base(f"{TIER_NAMES['pro']} активирован", "Чат с Аристеей, разборы транзитов и PDF ждут тебя", body),
     )
 
 
 async def send_pro_day30(to: str, name: str | None = None) -> bool:
     """Pro — День 30: результат + мягкий вопрос про клиентов → Premium."""
-    greeting = f"{name}, уже 30 дней с вашей картой ✦" if name else "Уже 30 дней с вашей картой ✦"
+    greeting = f"{name}, уже 30 дней с твоей картой ✦" if name else "Уже 30 дней с твоей картой ✦"
     body = (
         _h2(greeting)
         + _p(
             f"Месяц с Aristea {TIER_NAMES['pro']} — это не просто подписка. "
             "Это месяц глубокого знакомства с собой через транзиты, планировщик и чат с Аристеей."
         )
-        + _p("Вопрос к вам: вы занимаетесь астрологией только для себя или уже консультируете других?")
+        + _p("Вопрос к тебе: ты занимаешься астрологией только для себя или уже консультируешь других?")
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:16px 0 24px;">'
           f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
           f'letter-spacing:1px;margin-bottom:6px;">👥 Для астрологов — {TIER_NAMES["premium"]}</div>'
           f'<div style="color:#2D2540;font-size:15px;line-height:1.7;">'
-          f'CRM клиентов, безлимитные AI-интерпретации, брендированные PDF-отчёты. '
+          f'CRM клиентов, безлимитные интерпретации, брендированные PDF-отчёты. '
           f'Один клиент окупает подписку.</div>'
           f'</div>'
         + _btn(f"Посмотреть {TIER_NAMES['premium']} →", f"{APP_URL}/pricing")
         + _p(
             '<span style="font-size:12px;color:#a090c0;">'
-            f"Если работаете только для себя — {TIER_NAMES['pro']} идеален. Переходите, только если нужен CRM."
+            f"Если работаешь только для себя — {TIER_NAMES['pro']} то, что нужно. Переходи, только если нужен CRM."
             "</span>"
         )
     )
     return await _send(
         to,
-        "✦ Уже 30 дней с вашей астрологической картой",
+        "✦ Уже 30 дней с твоей астрологической картой",
         _base("30 дней с Aristea", "Результат + взгляд вперёд", body),
     )
 
@@ -1040,30 +1042,30 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
 
 async def send_premium_welcome(to: str, name: str | None = None) -> bool:
     """Premium — День 1: CRM-онбординг, первый PDF-шаблон."""
-    greeting = f"Привет, {name}! Ваш профессиональный инструмент готов 🖥️" if name else "Ваш профессиональный инструмент готов 🖥️"
+    greeting = f"Привет, {name}! Твой профессиональный инструмент готов 🖥️" if name else "Твой профессиональный инструмент готов 🖥️"
     body = (
         _h2(greeting)
         + _p(f"Подписка {TIER_NAMES['premium']} активирована. Вот с чего начать:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">'
           f'<tr><td style="padding:10px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">'
           f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 1 — CRM клиентов</div>'
-          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Откройте /dashboard/clients → добавьте первого клиента. '
-          f'Введите дату и место рождения — карта рассчитается автоматически.</div></td></tr>'
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Открой /dashboard/clients → добавь первого клиента. '
+          f'Введи дату и место рождения — карта рассчитается автоматически.</div></td></tr>'
           f'<tr><td style="padding:10px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">'
-          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 2 — PDF с вашим именем</div>'
-          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Откройте карточку клиента → «Создать отчёт». '
-          f'На обложке будет указано ваше имя как автора.</div></td></tr>'
+          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 2 — PDF с твоим именем</div>'
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Открой карточку клиента → «Создать отчёт». '
+          f'На обложке будет указано твоё имя как автора.</div></td></tr>'
           f'<tr><td style="padding:10px 0;vertical-align:top;">'
-          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 3 — AI без лимитов</div>'
-          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Безлимитные AI-интерпретации — '
+          f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 3 — разборы без лимитов</div>'
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Безлимитные интерпретации — '
           f'хватит на всех активных клиентов.</div></td></tr>'
           f'</table>'
         + _btn("Открыть CRM клиентов →", f"{APP_URL}/dashboard/clients")
     )
     return await _send(
         to,
-        f"🖥️ Ваш профессиональный инструмент Aristea {TIER_NAMES['premium']} готов",
-        _base(f"{TIER_NAMES['premium']} активирован", "CRM клиентов и брендированные PDF ждут вас", body),
+        f"🖥️ Твой профессиональный инструмент Aristea {TIER_NAMES['premium']} готов",
+        _base(f"{TIER_NAMES['premium']} активирован", "CRM клиентов и брендированные PDF ждут тебя", body),
     )
 
 
@@ -1076,7 +1078,7 @@ async def send_otp_email(to: str, code: str) -> bool:
     body = (
         _h2("Код подтверждения")
         + _p(
-            "Для завершения регистрации в <strong>Aristea Timeline</strong> введите код:"
+            "Для завершения регистрации в <strong>Aristea Timeline</strong> введи код:"
         )
         + (
             '<div style="text-align:center;margin:28px 0;">'
@@ -1087,12 +1089,12 @@ async def send_otp_email(to: str, code: str) -> bool:
         )
         + _p(
             "Код действителен <strong>10 минут</strong>. "
-            "Если вы не регистрировались — просто проигнорируйте это письмо."
+            "Если регистрации не было — просто проигнорируй это письмо."
         )
     )
     return await _send(
         to,
-        f"Ваш код: {code} — Aristea Timeline",
+        f"Твой код: {code} — Aristea Timeline",
         _base("Подтверждение регистрации", f"Код подтверждения: {code}", body),
     )
 
@@ -1115,9 +1117,9 @@ async def send_pilot_farewell(
     deadline   — до какой даты код действует (задаётся админом).
     """
     intro = (
-        f"Через {days_left} дня ваш месяц в Aristea заканчивается."
+        f"Через {days_left} дня твой месяц в Aristea заканчивается."
         if days_left != 1 else
-        "Завтра ваш месяц в Aristea заканчивается."
+        "Завтра твой месяц в Aristea заканчивается."
     )
 
     if windows:
@@ -1126,12 +1128,12 @@ async def send_pilot_farewell(
             for w in windows[:3]
         )
         windows_html = (
-            _p("Мы посмотрели на вашу карту — и нам жаль, что вы это потеряете:")
+            _p("Мы посмотрели на твою карту — и нам жаль, что это пропадёт:")
             + f'<ul style="margin:0 0 16px;padding-left:20px;">{items}</ul>'
         )
     else:
         windows_html = _p(
-            "В ближайшие недели у вас есть активные окна — нам жаль, если вы их не увидите."
+            "В ближайшие недели у тебя есть активные окна — жаль, если они пройдут мимо."
         )
 
     stay_html = ""
@@ -1146,7 +1148,7 @@ async def send_pilot_farewell(
         )
 
     body = (
-        _h2("Ваш месяц заканчивается")
+        _h2("Твой месяц заканчивается")
         + _p(intro)
         + windows_html
         + _p("После перехода на Free эти даты останутся, но без разбора — просто цифры без смысла.")
@@ -1155,8 +1157,8 @@ async def send_pilot_farewell(
 
     return await _send(
         to,
-        "Ваш месяц в Aristea заканчивается",
-        _base("Ваш месяц заканчивается", "Ближайшие окна, которые вы можете потерять", body),
+        "Твой месяц в Aristea заканчивается",
+        _base("Твой месяц заканчивается", "Ближайшие окна, которые могут пройти мимо", body),
     )
 
 
@@ -1171,26 +1173,26 @@ async def send_dormant(
     if day == 5:
         w = window or "активный период"
         body = (
-            _h2("Вы давно не заходили")
-            + _p(f"Вы не заходили 5 дней, а в вашей карте сейчас идёт {w}.")
+            _h2("Давно не виделись")
+            + _p(f"Тебя не было 5 дней, а в твоей карте сейчас идёт {w}.")
             + _p("Такие окна не повторяются — они приходят раз в несколько месяцев. "
-                 "Мы не хотим, чтобы вы его пропустили.")
+                 "Не хочется, чтобы оно прошло мимо тебя.")
             + _btn("Открыть Timeline", (survey_url or "").replace("/exit-survey", "/planner") or "/planner")
         )
-        subj, prev = "В вашей карте сейчас активное окно", "Вы не заходили 5 дней"
+        subj, prev = "В твоей карте сейчас активное окно", "Тебя не было 5 дней"
 
     elif day == 10:
         missed = f"{missed_count} активных периодов" if missed_count else "несколько активных периодов"
         tail = window or "ближайшее окно скоро закроется"
         body = (
             _h2("10 дней без Timeline")
-            + _p(f"За это время у вас прошло {missed} — мы смотрели на вашу карту "
+            + _p(f"За это время у тебя прошло {missed} — мы смотрели на твою карту "
                  "и немного переживали.")
             + _p(f"Осталось: {tail}.")
-            + _p("Если что-то пошло не так — скажите, мы хотим это исправить.")
+            + _p("Если что-то пошло не так — скажи, мы хотим это исправить.")
             + (_btn("Рассказать, что не так", survey_url) if survey_url else "")
         )
-        subj, prev = "Мы переживаем за вашу карту", "10 дней без Timeline"
+        subj, prev = "Мы переживаем за твою карту", "10 дней без Timeline"
 
     else:  # 14
         body = (
@@ -1199,7 +1201,7 @@ async def send_dormant(
             + _p("Если Aristea не подошла — нам важно понять почему. "
                  "30 секунд, один вопрос.")
             + (_btn("Ответить на один вопрос", survey_url) if survey_url else "")
-            + _p("Если когда-нибудь захотите вернуться — ваша карта будет ждать.")
+            + _p("Если когда-нибудь захочешь вернуться — твоя карта будет ждать.")
         )
         subj, prev = "Один вопрос напоследок", "Если Aristea не подошла"
 
@@ -1209,16 +1211,16 @@ async def send_dormant(
 async def send_end_of_month_survey(to: str, survey_url: str) -> bool:
     """Момент 3: месяц закончился, продолжения не было — «почему не остались»."""
     body = (
-        _h2("Ваш месяц закончился")
-        + _p("Вы решили не продолжать — это нормально.")
-        + _p("Если не сложно, скажите почему: это 30 секунд и один вопрос. "
-             "Ваш ответ помогает нам стать лучше.")
+        _h2("Твой месяц закончился")
+        + _p("Продолжения не случилось — это нормально.")
+        + _p("Если не сложно, скажи почему: это 30 секунд и один вопрос. "
+             "Твой ответ помогает нам стать лучше.")
         + _btn("Ответить на один вопрос", survey_url)
-        + _p("Ваша карта останется с вами и на бесплатном тарифе — окна будут видны "
+        + _p("Твоя карта останется с тобой и на бесплатном тарифе — окна будут видны "
              "как даты.")
     )
     return await _send(
-        to, "Ваш месяц в Aristea закончился",
-        _base("Ваш месяц закончился", "Один вопрос — почему не остались", body),
+        to, "Твой месяц в Aristea закончился",
+        _base("Твой месяц закончился", "Один вопрос — что помешало остаться", body),
     )
 

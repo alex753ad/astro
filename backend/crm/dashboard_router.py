@@ -162,7 +162,7 @@ async def broadcast_preview(
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
 
-    brand = astrologer.display_name or "Ваш астролог"
+    brand = astrologer.display_name or "Ваш астролог"  # вы-разрешено: письмо клиенту астролога
     period_label = ru_month_label(date.today())
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
     transits = await asyncio.to_thread(_month_transits, chart)
@@ -262,14 +262,17 @@ async def unsubscribe(token: str, db: Session = Depends(get_db)):
         client.broadcast_opt_out = True
         db.commit()
     ok = client is not None
-    msg = "Вы отписались от рассылки." if ok else "Ссылка недействительна."
+    # Страницу видит клиент астролога — голос астролога, на «вы» (решение
+    # владельца 24.09.2026).
+    msg = "Вы отписались от рассылки." if ok else "Ссылка недействительна."  # вы-разрешено
+    note = "Больше писем этой рассылки вы не получите."  # вы-разрешено
     return HTMLResponse(
         f"""<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/><title>Отписка</title></head>
 <body style="margin:0;background:#0e0c1a;font-family:'Segoe UI',Arial,sans-serif;color:#e8e0f4;">
   <div style="max-width:480px;margin:80px auto;padding:40px;background:#1a1030;border-radius:16px;text-align:center;">
     <div style="font-size:22px;font-weight:700;color:#c9a8ff;margin-bottom:12px;">{msg}</div>
-    <div style="font-size:14px;color:#a090c0;">Больше писем этой рассылки вы не получите.</div>
+    <div style="font-size:14px;color:#a090c0;">{note}</div>
   </div>
 </body></html>"""
     )
@@ -411,7 +414,7 @@ async def intake_public_get(token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Not found")
     astrologer = db.query(AstrologerProfile).filter(AstrologerProfile.id == intake.astrologer_id).first()
     return {
-        "astrologer_name": (astrologer.display_name if astrologer else None) or "Ваш астролог",
+        "astrologer_name": (astrologer.display_name if astrologer else None) or "Ваш астролог",  # вы-разрешено: анкета клиента
         "status": intake.status,
         "submitted": intake.submitted_at is not None,
     }
