@@ -11,7 +11,7 @@
  */
 
 import { API_BASE } from '../../config';
-import { failWith, getWithRetry } from './authFetchTimeout';
+import { authFetchWithTimeout, failWith, getWithRetry } from './authFetchTimeout';
 import { localToday } from './feedTime';
 import { withTz } from '../../lib/deviceTimezone';
 import { lunationPhase } from './lunationPhase';
@@ -76,4 +76,21 @@ export function fetchLunationForecast(chartId, event, tz) {
 
 export function cachedLunationForecast(chartId, event) {
   return cached(lunationForecastKey(chartId, lunationPhase(event), (event?.at || '').slice(0, 10)));
+}
+
+/**
+ * 👍/👎 под прогнозом: rating 1 | -1. Повторный вызов МЕНЯЕТ оценку, снять
+ * её нельзя (решение владельца 24.09.2026). Без повторов — это запись.
+ * `data` — ответ прогноза: версию промпта и источник сервер просит обратно,
+ * потому что текст из офлайн-кэша мог быть написан прошлой версией.
+ */
+export async function sendForecastFeedback(chartId, { kind, ref, rating, data }) {
+  const resp = await authFetchWithTimeout(`${API_BASE}/chart/${chartId}/forecast/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      kind, ref, rating, prompt_version: data.prompt_version, source: data.source,
+    }),
+  });
+  if (!resp.ok) await failWith(resp, 'Оценка не сохранилась.');
 }

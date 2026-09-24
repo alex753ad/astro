@@ -8,7 +8,10 @@
 Два прогона (Beat, `celery_app.py`):
 
 * **утренний, 07:30 МСК** — четыре шага на служебной карте: прогноз на день,
-  ближайшая фаза Луны, лента на сегодня, планер на текущий месяц;
+  ближайшая фаза Луны, лента на сегодня, планер на текущий месяц; плюс доля
+  👎 за 7 дней (`forecast_feedback`) — сигнал выше 30 % при ≥ 10 оценках.
+  Счёт раз в сутки, а не в час: оценок мало, и часовая проверка по недельному
+  окну сообщала бы одно и то же весь день;
 * **часовой** — ключ и бюджет DeepSeek, пробный запрос к модели, доля
   запасных за сутки, плюс повтор тех утренних шагов, что сейчас красные: так
   «починилось» приходит в течение часа, а не следующим утром.
@@ -52,6 +55,9 @@ SELFCHECK_TZ = "Europe/Moscow"
 FALLBACK_SHARE_MAX = 0.20     # доля запасных за сутки, выше — сигнал
 FALLBACK_MIN_SAMPLE = 10      # …но только если прогнозов за сутки не меньше
 BUDGET_LOW_SHARE = 0.20       # остаток бюджета ниже этой доли — сигнал
+DISLIKE_SHARE_MAX = 0.30      # доля 👎 за неделю, выше — сигнал
+DISLIKE_MIN_SAMPLE = 10       # …но только если оценок за неделю не меньше
+DISLIKE_WINDOW_DAYS = 7
 
 PROBE_TIMEOUT_SEC = 30.0
 
@@ -70,6 +76,7 @@ TITLES = {
     "budget_low": "DeepSeek: бюджет на исходе",
     "model_down": "DeepSeek: модель недоступна",
     "fallback_share": "Прогнозы: много запасных текстов",
+    "dislike_share": "Прогнозы: много 👎",
     # Сверка платежей (payments/reconcile.py). Имена с id платежа после
     # двоеточия — заголовок берётся по части до него.
     "payments_api": "Оплата: сверка с ЮKassa не прошла",
@@ -286,9 +293,53 @@ def stats_line(summary: dict, spent: float, limit: float) -> str:
     return (
         f"За 24 ч: из модели {summary['model']}, запасных {summary['fallback']} "
         f"(нет ключа {r['no_key']}, бюджет {r['budget']}, ошибка модели {r['model_error']}, "
-        f"отбракованы {r['rejected']}); отбраковано ответов {summary['rejected_answers']}, "
+        f"отбракованы {r['rejected']}); отбраковано ответов {summary['rejected_answers']} "
+        f"(из них по тону {summary['rejected_tone']}), "
         f"ошибок DeepSeek {summary['deepseek_errors']}. Бюджет: ${spent:.2f} из ${limit:.2f}."
     )
+
+
+# ── 👍/👎 под прогнозами (forecast_feedback, 059) ─────────────
+
+def read_feedback(*, now: datetime | None = None) -> dict | None:
+    """{source: {"up": n, "down": n}} за последние 7 суток. Нет базы — None:
+    молчим, а не объявляем «оценок ноль» (о базе скажут другие проверки)."""
+    from sqlalchemy import func
+    from backend.database import SessionLocal
+    from backend.models import ForecastFeedback
+
+    since = (now or datetime.now(timezone.utc)).replace(tzinfo=None) - timedelta(days=DISLIKE_WINDOW_DAYS)
+    out = {s: {"up": 0, "down": 0} for s in ("model", "fallback")}
+    try:
+        db = SessionLocal()
+        try:
+            rows = (db.query(ForecastFeedback.source, ForecastFeedback.rating, func.count())
+                    .filter(ForecastFeedback.updated_at >= since)
+                    .group_by(ForecastFeedback.source, ForecastFeedback.rating).all())
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("selfcheck: оценки не прочитаны: %s", e)
+        return None
+    for source, rating, n in rows:
+        if source in out:
+            out[source]["up" if rating > 0 else "down"] += n
+    return out
+
+
+def problem_dislike_share(fb: dict) -> str | None:
+    """Порог — на все оценки вместе; разбивка по источнику — в тексте сигнала."""
+    down = sum(v["down"] for v in fb.values())
+    total = down + sum(v["up"] for v in fb.values())
+    if total < DISLIKE_MIN_SAMPLE or down / total <= DISLIKE_SHARE_MAX:
+        return None
+    return f"👎 {down / total:.0%} из {total} оценок за {DISLIKE_WINDOW_DAYS} дн. (порог {DISLIKE_SHARE_MAX:.0%})"
+
+
+def feedback_line(fb: dict) -> str:
+    m, f = fb["model"], fb["fallback"]
+    return (f"Оценки за {DISLIKE_WINDOW_DAYS} дн.: модель 👍 {m['up']} 👎 {m['down']}, "
+            f"запасные 👍 {f['up']} 👎 {f['down']}.")
 
 
 # ── Инциденты ───────────────────────────────────────────────
@@ -332,6 +383,10 @@ async def run_daily(redis) -> dict:
     results = await run_steps(list(STEPS))
     for name, problem in results.items():
         await settle(redis, name, problem)
+    fb = read_feedback()
+    if fb is not None:
+        results["dislike_share"] = problem_dislike_share(fb)
+        await settle(redis, "dislike_share", results["dislike_share"], details=feedback_line(fb))
     return results
 
 
@@ -344,6 +399,9 @@ async def run_hourly(redis) -> dict:
     spent, limit = budget_state()
     summary = stats.summarize(stats.read_window())
     details = stats_line(summary, spent, limit)
+    fb = read_feedback()
+    if fb is not None:
+        details += "\n" + feedback_line(fb)
 
     out["no_key"] = None if has_key else "DEEPSEEK_API_KEY пуст — все прогнозы уходят в запасной текст"
     out["budget_out"] = (

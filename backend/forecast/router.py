@@ -22,6 +22,8 @@ from datetime import date, datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import get_current_user
@@ -35,9 +37,9 @@ from backend.forecast.prompts import (
     DAILY_PROMPT_VERSION, LUNATION_PROMPT_VERSION, build_daily_prompt, build_lunation_prompt,
     lunation_allowed, lunation_needs_warning,
 )
-from backend.forecast.validate import check_daily, check_lunation, parse_json_reply
+from backend.forecast.validate import check_daily, check_lunation, is_tone_problem, parse_json_reply
 from backend.limiter import limiter
-from backend.models import User
+from backend.models import ForecastFeedback, User
 
 logger = logging.getLogger("astro.forecast")
 settings = get_settings()
@@ -167,6 +169,8 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
             break
         reason = "rejected"
         stats.incr("rejected")
+        if any(is_tone_problem(p) for p in problems):
+            stats.incr("rejected_tone")
         logger.warning("forecast/today: ответ отбракован (попытка %d): %s", attempt + 1, problems)
     if paragraphs is None:
         paragraphs = daily_fallback(facts)
@@ -177,6 +181,7 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
         "paragraphs": paragraphs,
         "source": source,
         "trimmed": facts.trimmed,
+        "prompt_version": DAILY_PROMPT_VERSION,   # клиент возвращает её с 👍/👎
     }
     if source == "model":
         interpretation_cache.set(key, result, ttl=TTL_TODAY)
@@ -243,6 +248,8 @@ async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) 
             break
         reason = "rejected"
         stats.incr("rejected")
+        if any(is_tone_problem(p) for p in problems):
+            stats.incr("rejected_tone")
         logger.warning("forecast/lunation: ответ отбракован (попытка %d): %s", attempt + 1, problems)
     if block is None:
         block = lunation_fallback(facts)
@@ -255,6 +262,7 @@ async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) 
         **block,
         "source": source,
         "trimmed": facts.trimmed,
+        "prompt_version": LUNATION_PROMPT_VERSION,
     }
     if source == "model":
         interpretation_cache.set(key, result, ttl=TTL_LUNATION)
@@ -281,3 +289,46 @@ async def get_forecast_lunation(
         raise HTTPException(status_code=422, detail="date: YYYY-MM-DD.")
     chart = _owned_chart(chart_id, user, db)
     return await lunation_forecast(chart, phase, near, tz)
+
+
+# ── 👍/👎 под прогнозом ──────────────────────────────────────
+
+class FeedbackIn(BaseModel):
+    kind: str = Field(pattern="^(today|lunation)$")
+    # Дата дня (YYYY-MM-DD) или «фаза:момент» у фазы Луны — как клиент их знает.
+    ref: str = Field(min_length=1, max_length=64)
+    rating: int = Field(ge=-1, le=1)
+    prompt_version: int = Field(ge=0, le=10_000)
+    source: str = Field(pattern="^(model|fallback)$")
+
+
+@router.post("/chart/{chart_id}/forecast/feedback", summary="Оценка прогноза 👍/👎")
+@limiter.limit("30/minute")
+async def post_forecast_feedback(
+    request: Request,
+    chart_id: str,
+    body: FeedbackIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Одна оценка на прогноз; повторное нажатие меняет её, снять нельзя —
+    поэтому 0 не принимается, а ручки удаления нет (решение владельца 24.09.2026)."""
+    if body.rating == 0:
+        raise HTTPException(status_code=422, detail="rating: 1 или -1.")
+    chart = _owned_chart(chart_id, user, db)
+    key = dict(user_id=user.id, chart_id=chart.id, kind=body.kind, ref=body.ref)
+    fields = dict(rating=body.rating, prompt_version=body.prompt_version, source=body.source)
+    row = db.query(ForecastFeedback).filter_by(**key).first()
+    if row is None:
+        db.add(ForecastFeedback(**key, **fields))
+        try:
+            db.commit()
+            return {"rating": body.rating}
+        except IntegrityError:
+            # Два нажатия наперегонки: второе обновит строку, записанную первым.
+            db.rollback()
+            row = db.query(ForecastFeedback).filter_by(**key).one()
+    for k, v in fields.items():
+        setattr(row, k, v)
+    db.commit()
+    return {"rating": body.rating}

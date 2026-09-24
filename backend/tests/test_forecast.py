@@ -120,6 +120,59 @@ def test_forbidden_is_caught(phrase):
     assert problems_daily(phrase), phrase
 
 
+# Тон: пугающее ловится в любых падежах и формах, и именно как тон — по этому
+# признаку router считает отбраковки по тону для самопроверки.
+SCARY = [
+    "Возможны болезни, будь внимательнее.",
+    "Дорога может закончиться аварию избежать трудно.",
+    "Не шути со смертью.",
+    "Это время опасного дня для решений.",
+    "Заболеть легко, одевайся теплее.",
+    "Катастрофически не хватит времени.",
+    "Ни в коем случае не подписывай бумаги.",
+    "Такой исход неизбежен.",
+    "Берегись резких слов.",
+    "Есть угроза для денег.",
+    "Возможна измена.",
+    "Травмы вероятнее обычного.",
+]
+
+
+@pytest.mark.parametrize("phrase", SCARY)
+def test_scary_words_are_caught_as_tone(phrase):
+    from backend.forecast.validate import is_tone_problem
+    problems = problems_daily(phrase)
+    assert any(is_tone_problem(p) for p in problems), (phrase, problems)
+
+
+TONE_NORMAL = [
+    "Безопасно попробовать что-то новое.",
+    "Изменение в планах пойдёт на пользу.",
+    "Если что-то не успелось — это не страшно.",
+    "Береги себя и ложись пораньше.",
+    "Умеренно нагружай себя, и сил хватит.",
+    "Рабочий кризис позади, можно выдохнуть.",
+    "Забота о здоровье и режим дадут силы.",
+    "Изменения в делах к лучшему.",
+    "Обида может задеть — не спеши отвечать.",
+    "Побеседуй с тем, кто рядом.",
+]
+
+
+@pytest.mark.parametrize("phrase", TONE_NORMAL)
+def test_tone_normal_phrases_pass(phrase):
+    assert problems_daily(phrase) == [], phrase
+
+
+def test_tone_applies_to_lunation_too():
+    f = _lunation_facts(tense=True)
+    dates, times = lunation_allowed(f)
+    block = lunation_fallback(f)
+    block["closing"] = "Это роковой день, будь осторожнее."
+    _, problems = check_lunation(block, dates, times, True)
+    assert any(p.startswith("тон: ") for p in problems)
+
+
 def test_daily_sample_differs_only_by_relative_day_words():
     """Образец владельца — эталон тона: у него единственное расхождение с
     правилами — «сегодня». Слово запрещено с 24.09.2026: текст дня служит
@@ -154,9 +207,38 @@ def test_parse_json_is_tolerant():
     F.DayFacts(date(2026, 9, 23), True, "Весы", houses=[], aspects=[{"natal": "Sun", "tone": "strong"}]),
 ])
 def test_daily_fallback_is_clean(facts):
-    paragraphs = daily_fallback(facts)
-    assert 2 <= len(paragraphs) <= 3
-    assert problems_daily("\n\n".join(paragraphs)) == []
+    # Три дня подряд — это все три варианта каждой фразы.
+    for shift in range(3):
+        f = F.DayFacts(facts.local_date + timedelta(days=shift), facts.trimmed, facts.moon_sign,
+                       houses=facts.houses, aspects=facts.aspects)
+        paragraphs = daily_fallback(f)
+        assert 2 <= len(paragraphs) <= 3
+        assert problems_daily("\n\n".join(paragraphs)) == []
+
+
+@pytest.mark.parametrize("facts", [
+    F.DayFacts(date(2026, 9, 30), False, "Дева", houses=[4], aspects=[{"natal": "Saturn", "tone": "tense"}]),
+    F.DayFacts(date(2026, 12, 31), True, "Рыбы", houses=[], aspects=[]),
+])
+def test_daily_fallback_differs_on_consecutive_days(facts):
+    """Одинаковые смыслы два дня подряд (так бывает: касание медленной планеты
+    держится днями) — текст всё равно другой, причём КАЖДЫЙ абзац. Даты взяты
+    на стыке месяца и года: там день месяца сбрасывается, а выбор — нет."""
+    today = daily_fallback(facts)
+    nxt = daily_fallback(F.DayFacts(facts.local_date + timedelta(days=1), facts.trimmed,
+                                    facts.moon_sign, houses=facts.houses, aspects=facts.aspects))
+    assert all(a != b for a, b in zip(today, nxt))
+    assert daily_fallback(facts) == today, "повторное открытие в тот же день дало другой текст"
+
+
+def test_lunation_fallback_differs_between_consecutive_cycles():
+    f = _lunation_facts()
+    nxt = F.LunationFacts(
+        phase=f.phase, at_utc=f.at_utc + timedelta(days=29.53), at_local=f.at_local + timedelta(days=29.53),
+        sign=f.sign, trimmed=f.trimmed, house=f.house, aspects=f.aspects, warnings=f.warnings,
+    )
+    a, b = lunation_fallback(f), lunation_fallback(nxt)
+    assert a["headline"] != b["headline"] and a["closing"] != b["closing"]
 
 
 def _lunation_facts(tense=True, trimmed=False):
@@ -169,12 +251,19 @@ def _lunation_facts(tense=True, trimmed=False):
     )
 
 
+@pytest.mark.parametrize("phase", ["new_moon", "full_moon"])
 @pytest.mark.parametrize("tense", [True, False])
-def test_lunation_fallback_passes_check(tense):
-    f = _lunation_facts(tense)
-    dates, times = lunation_allowed(f)
-    _, problems = check_lunation(lunation_fallback(f), dates, times, lunation_needs_warning(f))
-    assert problems == []
+def test_lunation_fallback_passes_check(tense, phase):
+    base = _lunation_facts(tense)
+    for cycle in range(3):   # три цикла подряд — все три варианта
+        shift = timedelta(days=29.53 * cycle)
+        f = F.LunationFacts(
+            phase=phase, at_utc=base.at_utc + shift, at_local=base.at_local + shift, sign=base.sign,
+            trimmed=base.trimmed, house=base.house, aspects=base.aspects, warnings=base.warnings,
+        )
+        dates, times = lunation_allowed(f)
+        _, problems = check_lunation(lunation_fallback(f), dates, times, lunation_needs_warning(f))
+        assert problems == []
 
 
 def test_lunation_without_birth_time_has_no_house():
@@ -540,3 +629,42 @@ def test_ask_model_records_deepseek_spend(monkeypatch):
     out = asyncio.run(R._ask_model("p", contour="forecast/today", json_mode=False, max_tokens=10))
     assert out == "текст"
     assert spent == [("deepseek", 1234, "forecast/today")]
+
+
+# ── 👍/👎 ────────────────────────────────────────────────────
+
+def _vote(client, chart_id, headers, rating=1, **over):
+    body = {"kind": "today", "ref": "2026-09-24", "rating": rating, "prompt_version": 4, "source": "model"}
+    body.update(over)
+    return client.post(f"/api/v1/chart/{chart_id}/forecast/feedback", json=body, headers=headers)
+
+
+def test_forecast_answer_carries_prompt_version(client, db, user_free, auth_headers_free, model):
+    """Версию клиент возвращает вместе с оценкой — без неё оценка не на что лечь."""
+    from backend.forecast.prompts import DAILY_PROMPT_VERSION
+    chart = _chart(db, user_free)
+    body = client.get(URL_TODAY.format(chart.id), headers=auth_headers_free).json()
+    assert body["prompt_version"] == DAILY_PROMPT_VERSION
+
+
+def test_feedback_second_tap_changes_vote(client, db, user_free, auth_headers_free):
+    from backend.models import ForecastFeedback
+    chart = _chart(db, user_free)
+    assert _vote(client, chart.id, auth_headers_free, 1).status_code == 200
+    assert _vote(client, chart.id, auth_headers_free, -1, source="fallback").status_code == 200
+    rows = db.query(ForecastFeedback).filter_by(chart_id=chart.id).all()
+    assert [(r.rating, r.source) for r in rows] == [(-1, "fallback")]
+    # Другой прогноз — своя строка.
+    _vote(client, chart.id, auth_headers_free, 1, kind="lunation", ref="new_moon:2026-10-10T12:00")
+    assert db.query(ForecastFeedback).filter_by(chart_id=chart.id).count() == 2
+
+
+@pytest.mark.parametrize("over", [{"rating": 0}, {"rating": 2}, {"kind": "week"}, {"source": "x"}, {"ref": ""}])
+def test_feedback_cannot_be_removed_or_malformed(client, db, user_free, auth_headers_free, over):
+    chart = _chart(db, user_free)
+    assert _vote(client, chart.id, auth_headers_free, **{"rating": 1, **over}).status_code == 422
+
+
+def test_feedback_requires_owner(client, db, user_free, auth_headers_pro):
+    chart = _chart(db, user_free)
+    assert _vote(client, chart.id, auth_headers_pro, 1).status_code in (403, 404)

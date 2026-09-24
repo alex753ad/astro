@@ -168,6 +168,7 @@ def test_daily_run_twice_signals_once(monkeypatch):
         return {n: ("отдан запасной текст" if n == "forecast_day" else None) for n in names}
 
     monkeypatch.setattr(S, "run_steps", steps)
+    monkeypatch.setattr(S, "read_feedback", lambda **k: None)
     monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
     asyncio.run(S.run_daily(r))
     asyncio.run(S.run_daily(r))
@@ -195,6 +196,7 @@ def hourly(monkeypatch):
 
     monkeypatch.setattr(S, "probe_model", probe)
     monkeypatch.setattr(S, "run_steps", steps)
+    monkeypatch.setattr(S, "read_feedback", lambda **k: None)
     monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
     state["box"] = box
     return state
@@ -349,3 +351,53 @@ def test_sentry_scrub_replaces_email_whole():
     assert "@" not in flat and "example.com" not in flat and "o***" not in flat
     assert out["message"] == "письмо для [email]"
     assert out["exception"]["values"][0]["value"] == "Email send failed for [email]"
+
+
+# ── 👍/👎 за неделю ──────────────────────────────────────────
+
+def _fb(model_up=0, model_down=0, fb_up=0, fb_down=0):
+    return {"model": {"up": model_up, "down": model_down}, "fallback": {"up": fb_up, "down": fb_down}}
+
+
+@pytest.mark.parametrize("fb, red", [
+    (_fb(model_up=6, model_down=3), False),                 # 9 оценок — выборка мала, даже при 33 %
+    (_fb(model_up=7, model_down=3), False),                 # ровно 30 % — не выше порога
+    (_fb(model_up=6, model_down=2, fb_down=2), True),       # 40 % из 10, запасные считаются вместе
+    (_fb(model_up=20), False),
+])
+def test_dislike_share_threshold(fb, red):
+    assert bool(S.problem_dislike_share(fb)) is red
+
+
+def test_read_feedback_counts_week_by_source(db, user_free, monkeypatch):
+    from backend.models import ForecastFeedback, NatalChart
+    from sqlalchemy.orm import sessionmaker
+    chart = NatalChart(user_id=user_free.id, birth_date="1990-06-15", birth_place="Moscow",
+                       latitude=55.75, longitude=37.62, timezone="Europe/Moscow",
+                       planets=[], houses=[], aspects=[], ascendant={}, midheaven={})
+    db.add(chart)
+    db.commit()
+    now = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+    rows = [("today", "2026-09-24", -1, "model", now),
+            ("today", "2026-09-23", 1, "model", now - timedelta(days=1)),
+            ("lunation", "new_moon:x", -1, "fallback", now - timedelta(days=2)),
+            ("today", "2026-09-10", -1, "model", now - timedelta(days=8))]   # вне окна
+    for kind, ref, rating, source, at in rows:
+        db.add(ForecastFeedback(user_id=user_free.id, chart_id=chart.id, kind=kind, ref=ref, rating=rating,
+                                prompt_version=4, source=source, updated_at=at.replace(tzinfo=None)))
+    db.commit()
+    monkeypatch.setattr("backend.database.SessionLocal", sessionmaker(bind=db.get_bind()))
+    assert S.read_feedback(now=now) == _fb(model_up=1, model_down=1, fb_down=1)
+
+
+def test_daily_run_signals_dislikes(monkeypatch):
+    r, box = FakeRedis(), Outbox()
+
+    async def steps(names):
+        return {n: None for n in names}
+
+    monkeypatch.setattr(S, "run_steps", steps)
+    monkeypatch.setattr(S, "read_feedback", lambda **k: _fb(model_up=5, model_down=5))
+    monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
+    asyncio.run(S.run_daily(r))
+    assert len(box.sent) == 1 and "👎" in box.sent[0] and "модель 👍 5 👎 5" in box.sent[0]

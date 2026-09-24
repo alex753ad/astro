@@ -92,6 +92,9 @@ def summarize(counts: dict[str, int]) -> dict:
         "fallback": fallback,
         "by_reason": by_reason,
         "rejected_answers": counts.get("rejected", 0),
+        # Из них — за пугающие слова (validate._TONE). Отдельно, потому что
+        # это единственная отбраковка, где виноват не формат, а тон модели.
+        "rejected_tone": counts.get("rejected_tone", 0),
         "deepseek_errors": counts.get("deepseek_error", 0),
         "total": model + fallback,
     }

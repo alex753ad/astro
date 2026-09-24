@@ -16,6 +16,7 @@ import { cachedLunationForecast, fetchLunationForecast } from '../lib/forecastAp
 import { errorText, isConnectivity } from '../lib/netError';
 import useReconnect from '../lib/useReconnect';
 import { lunationPhase } from '../lib/lunationPhase';
+import ForecastRating from './ForecastRating';
 
 const PHASE_MARK = { new_moon: '🌑', full_moon: '🌕' };
 
@@ -115,6 +116,7 @@ export default function FeedLunationForecast({ chartId, event }) {
       )}
 
       {d.closing && <p style={{ ...prose, fontStyle: 'italic' }}>{d.closing}</p>}
+      <ForecastRating chartId={chartId} kind="lunation" refKey={`${d.phase}:${d.at}`} data={d} />
     </div>
   );
 }

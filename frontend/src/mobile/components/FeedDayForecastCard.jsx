@@ -21,6 +21,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cachedDayForecast, fetchDayForecast } from '../lib/forecastApi';
 import { errorText, isConnectivity } from '../lib/netError';
 import useReconnect from '../lib/useReconnect';
+import ForecastRating from './ForecastRating';
 
 /** label — «сегодня» | «завтра». */
 export default function FeedDayForecastCard({ chartId, date, label, open, onToggle }) {
@@ -117,6 +118,10 @@ export default function FeedDayForecastCard({ chartId, date, label, open, onTogg
             >
               {open ? 'Свернуть' : 'Читать дальше'}
             </button>
+          )}
+          {/* Оценка — под текстом целиком: свёрнутый первый абзац ещё не прогноз. */}
+          {(open || paragraphs.length <= 1) && (
+            <ForecastRating chartId={chartId} kind="today" refKey={date} data={state.data} />
           )}
         </>
       )}

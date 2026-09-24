@@ -728,6 +728,34 @@ class AstreaMemory(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class ForecastFeedback(Base):
+    """👍/👎 под прогнозом в приложении (059). Одна оценка на прогноз.
+
+    Повторное нажатие МЕНЯЕТ оценку, снять её нельзя (решение владельца
+    24.09.2026) — отсюда уникальный ключ и отсутствие ручки удаления.
+
+    ref — что оценено: местная дата у дня, «фаза:момент UTC» у фазы Луны.
+    prompt_version и source приходят от клиента, а не штампуются сервером:
+    текст из офлайн-кэша мог быть написан прошлой версией промпта, и оценка
+    должна достаться той версии, которую человек читал. source отделяет 👎
+    запасному тексту от 👎 модели — это разные сигналы.
+    """
+    __tablename__ = "forecast_feedback"
+    __table_args__ = (
+        UniqueConstraint("user_id", "chart_id", "kind", "ref", name="uq_forecast_feedback"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    chart_id = Column(String(36), ForeignKey("natal_charts.id", ondelete="CASCADE"), nullable=False)
+    kind = Column(String(16), nullable=False)        # today | lunation
+    ref = Column(String(64), nullable=False)
+    rating = Column(Integer, nullable=False)         # 1 | -1
+    prompt_version = Column(Integer, nullable=False)
+    source = Column(String(16), nullable=False)      # model | fallback
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+
 class Announcement(Base):
     """Объявление для баннера в приложении и на вебе (057).
 
