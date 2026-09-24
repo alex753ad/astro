@@ -84,8 +84,6 @@ PENDING: set[str] = {
     "backend/email_service.py",
     "backend/feed/templates.json",
     "backend/feedback/router.py",
-    "backend/forecast/prompts.py",
-    "backend/interpretation/rag.py",
     "backend/interpretation/rag_router.py",
     "backend/interpretation/router.py",
     "backend/interpretation/template.py",
@@ -96,9 +94,7 @@ PENDING: set[str] = {
     "backend/push/cron.py",
     "backend/tasks.py",
     "backend/transit/engine.py",
-    "backend/transit/forecast_prompt.py",
     "backend/transit/methodology.json",
-    "backend/transit/prompts.py",
     "bot/pilot_bot.py",
     "frontend/src/components/AuthModal.jsx",
     "frontend/src/components/BirthForm.jsx",
@@ -177,7 +173,10 @@ def _py_strings(src: str):
                     docstrings.add(id(stmt.value))
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
-            yield node.lineno, node.value
+            # end_lineno, а не счёт переводов строк: у склеенных литералов
+            # («...» "..." на соседних строках) переводов строк внутри нет,
+            # а маркер может стоять на последней из них.
+            yield node.lineno, node.end_lineno, node.value
 
 
 def _json_strings(obj):
@@ -223,8 +222,7 @@ def scan():
         lines = src.splitlines()
         found = []
         if p.suffix == ".py":
-            for lineno, s in _py_strings(src):
-                end = lineno + s.count("\n")
+            for lineno, end, s in _py_strings(src):
                 if any(MARKER in lines[i - 1] for i in range(lineno, min(end, len(lines)) + 1)):
                     continue
                 for w in _violations(s):
@@ -257,12 +255,43 @@ def test_pending_is_not_stale():
     assert not stale, f"уже переведены, убрать из PENDING: {stale}"
 
 
+def test_every_prompt_asks_for_ty():
+    """Каждый промпт, текст которого читает человек, несёт ADDRESS_RULE.
+
+    Сканер выше видит только литералы в коде, а текст модели — нет: без
+    строки в промпте разбор заговорит на «вы», и ни один тест этого не
+    заметит. Прогнозы (`forecast/prompts.py`) держат своё правило и свою
+    проверку ответа (`forecast/validate.py`).
+    """
+    from backend.interpretation.address import ADDRESS_RULE
+    from backend.interpretation import advanced_prompts as adv
+    from backend.interpretation.base import InterpretationRequest
+    from backend.interpretation.prompts import build_system_prompt
+    from backend.interpretation.rag_router import _system_prompt
+    from backend.transit import prompts as tp
+    from backend.transit.forecast_prompt import build_general_calendar_prompt
+
+    natal = build_system_prompt(InterpretationRequest(natal_profile={}, sections=["general"]))
+    prompts = {
+        "натальный разбор": natal,
+        "соляр": adv.SOLAR_RETURN_PROMPT,
+        "синастрия": adv.SYNASTRY_PROMPT,
+        "релокация": adv.RELOCATION_PROMPT,
+        "транзит": tp.TRANSIT_EVENT_PROMPT,
+        "период транзитов": tp.TRANSIT_PERIOD_PROMPT,
+        "чат": _system_prompt("карта", []),
+        "календарь": build_general_calendar_prompt("Октябрь 2026", []),
+    }
+    missing = [name for name, text in prompts.items() if ADDRESS_RULE not in text]
+    assert not missing, f"нет правила обращения на «ты»: {missing}"
+
+
 def test_scanner_catches_known_forms():
     """Без этого тест выше был бы зелёным и на сломанном сканере."""
     assert _violations("Оформите Вегу, чтобы продолжить") == ["Оформите"]
     assert _violations("по вашей карте") == ["вашей"]
     assert _violations("о транзите на сайте") == []
     assert _violations("больше, чем можете осилить") == ["можете"]
-    assert list(_py_strings('"""док вы"""\nx = f"Ваш {y}"\n')) == [(2, "Ваш ")]
+    assert list(_py_strings('"""док вы"""\nx = f"Ваш {y}"\n')) == [(2, 2, "Ваш ")]
     assert [l for _, l in _js_lines("a // Вы\n/* ваш */ b\n")] == ["a ", " b"]
     assert len(list(_files())) > 200

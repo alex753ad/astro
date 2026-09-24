@@ -39,7 +39,7 @@ from backend.interpretation.base import (
 )
 from backend.interpretation.deepseek import DeepSeekEngine
 from backend.interpretation.gpt4o import GPT4oEngine, _TOKENS_PER_WORD
-from backend.interpretation.prompts import resolve_word_limit
+from backend.interpretation.prompts import INTERPRETATION_PROMPT_VERSION, resolve_word_limit
 from backend.interpretation.template import TemplateEngine
 from backend.config import get_settings
 
@@ -241,7 +241,7 @@ class InterpretationRouter:
         # a later call would silently get an earlier month's stale text.
         profile_hash = make_profile_hash(request.natal_profile)
         wl_key = str(request.word_limit) if request.word_limit else f"tier_{request.tier}"
-        cache_key = f"interp:{profile_hash}:{wl_key}"
+        cache_key = f"interp:v{INTERPRETATION_PROMPT_VERSION}:{profile_hash}:{wl_key}"
         if request.custom_prompt:
             prompt_hash = hashlib.sha256(request.custom_prompt.encode()).hexdigest()[:12]
             cache_key = f"{cache_key}:{prompt_hash}"
@@ -377,7 +377,7 @@ class InterpretationRouter:
             cache_key = None
             if engine.name != "template":
                 model_id = engine.model_for(request)
-                cache_key = f"stream:{profile_hash}:{request.tier}:{model_id}:{wl_key}"
+                cache_key = f"stream:v{INTERPRETATION_PROMPT_VERSION}:{profile_hash}:{request.tier}:{model_id}:{wl_key}"
                 cached = interpretation_cache.get(cache_key)
                 if cached:
                     logger.info(

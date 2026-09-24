@@ -234,7 +234,7 @@ def build_transits_block(chart: dict, max_transits: int = 5) -> str:
         events = calculate_transits(natal_planets=planets, from_date=today, to_date=today)
     except Exception as e:
         logger.warning("chat transits calc failed: %s", e)
-        return "## Текущие транзиты\nНе удалось рассчитать (попробуйте позже).\n"
+        return "## Текущие транзиты\nНе удалось рассчитать (попробуй чуть позже).\n"
 
     significant = [e for e in events if is_significant_pair(e.transit_planet, e.natal_planet)]
     significant.sort(key=lambda e: e.peak_orb)

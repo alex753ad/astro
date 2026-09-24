@@ -1641,6 +1641,7 @@ async def interpret_transit_event(
     if _tier != "free":
         tier_limiter.check_transit_ai_limit(user, db)
     from backend.transit.prompts import (
+        TRANSIT_PROMPT_VERSION,
         build_transit_event_prompt,
         get_template_transit_text,
     )
@@ -1694,7 +1695,7 @@ async def interpret_transit_event(
     # Ключ однозначно определяет событие: одна и та же пара планета/аспект
     # повторяется из года в год (Марс к Солнцу — раз в ~2 года), поэтому
     # peak_date в ключе обязателен — иначе разборы разных лет склеятся.
-    cache_key = f"transit_interp:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}"
+    cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION}:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}"
 
     async def _yield_chunked(text: str):
         """Отдаём готовый текст тем же SSE-форматом, что и живой стрим —
