@@ -271,7 +271,7 @@ if not (settings.debug or settings.testing):
     if settings.jwt_secret in _INSECURE_JWT_SECRETS:
         raise RuntimeError(
             "JWT_SECRET не задан или равен значению-заглушке. "
-            "Сгенерируйте секрет: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            "Сгенерируйте секрет: python -c \"import secrets; print(secrets.token_urlsafe(48))\""  # вы-разрешено: владельцу при запуске
         )
     if len(settings.jwt_secret) < MIN_JWT_SECRET_LENGTH:
         raise RuntimeError(
@@ -287,7 +287,7 @@ if not (settings.debug or settings.testing):
         raise RuntimeError(
             "INTERNAL_SECRET не задан — служебные эндпоинты /api/v1/internal/* "
             "не смогут работать. Сгенерируйте: "
-            "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            "python -c \"import secrets; print(secrets.token_urlsafe(32))\""  # вы-разрешено: владельцу при запуске
         )
 
     # ── Платежи (ЮKassa) ──
@@ -308,7 +308,7 @@ if not (settings.debug or settings.testing):
             "без них /payments/checkout отвечает 503, то есть оплата не работает, "
             "хотя объявлена пользователям. Задайте обе переменные в /opt/astro/.env "
             "(магазин 1442186). Для локальной разработки без платежей используйте "
-            "DEBUG=true или TESTING=true."
+            "DEBUG=true или TESTING=true."  # вы-разрешено: владельцу при запуске
         )
     # Проверка ниже после введения обязательности недостижима в проде (пустая
     # половина уже упала выше) и оставлена намеренно: она страхует на случай,
@@ -320,13 +320,13 @@ if not (settings.debug or settings.testing):
             "ЮKassa настроена наполовину: задана только одна из YOOKASSA_SHOP_ID / "
             "YOOKASSA_SECRET_KEY. Задайте обе или ни одной — половина конфигурации "
             "означает checkout, который создаёт платежи, но не может проверить вебхук "
-            "(или наоборот)."
+            "(или наоборот)."  # вы-разрешено: владельцу при запуске
         )
     if settings.yookassa_secret_key.startswith("test_"):
         raise RuntimeError(
             "YOOKASSA_SECRET_KEY — тестовый ключ (test_...) в боевом окружении. "
             "В тестовом режиме ЮKassa «оплата» проходит без реальных денег, то есть "
-            "подписки выдавались бы бесплатно. Подставьте боевой ключ магазина."
+            "подписки выдавались бы бесплатно. Подставьте боевой ключ магазина."  # вы-разрешено: владельцу при запуске
         )
 
 # ── Доверенные прокси ──
@@ -360,7 +360,7 @@ CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "X-Chart-Token", "X-Clien
 if "*" in settings.cors_origins_list:
     message = (
         "ALLOWED_ORIGINS содержит '*' вместе с allow_credentials=True — "
-        "укажите конкретные origins."
+        "укажите конкретные origins."  # вы-разрешено: владельцу при запуске
     )
     if settings.debug or settings.testing:
         logger.error(message)
@@ -691,8 +691,8 @@ async def calculate_chart(
                     status_code=403,
                     detail=(
                         f"Достигнут лимит сохранённых карт ({profiles_limit}) для тарифа "
-                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Удалите ненужную карту, чтобы "
-                        f"освободить место, или перейдите на старший тариф."
+                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Удали ненужную карту, чтобы "
+                        f"освободить место, или перейди на старший тариф."
                     ),
                 )
 
@@ -700,8 +700,8 @@ async def calculate_chart(
         # обещана (20.08.2026, решение владельца). Одно число на все тарифы:
         # для free/lite/pro оно недостижимо (profiles_limit блокирует
         # намного раньше), реальный смысл имеет только для Orion, где слотов
-        # без ограничения. Сообщение намеренно не упоминает ни «удалите
-        # карту» (это подсказка, как обойти защиту), ни «перейдите на
+        # без ограничения. Сообщение намеренно не упоминает ни «удали
+        # карту» (это подсказка, как обойти защиту), ни «перейди на
         # тариф выше» (бессмысленно для Orion, который и так старший).
         charts_this_month = (
             db.query(sa_func.count(NatalChart.id))
@@ -711,7 +711,7 @@ async def calculate_chart(
         if charts_this_month >= CHART_CREATION_ABUSE_LIMIT:
             raise HTTPException(
                 status_code=403,
-                detail="Слишком много карт создано за последнее время. Попробуйте позже.",
+                detail="Слишком много карт создано за последнее время. Попробуй чуть позже.",
             )
 
         if daily_limit is not None:
@@ -1152,7 +1152,7 @@ async def interpret_chart(
             # Обрезано по длине или связь оборвалась после части текста —
             # не [DONE], не засчитываем попытку (см. router.stream()).
             logger.warning("Interpretation stream incomplete for chart=%s", chart_id)
-            yield f"data: {json.dumps({'error': 'Не удалось получить полный текст интерпретации. Попробуйте ещё раз.'})}\n\n"
+            yield f"data: {json.dumps({'error': 'Не удалось получить полный текст интерпретации. Попробуй ещё раз.'})}\n\n"
         except Exception as e:
             logger.exception("Streaming interpretation failed")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -1679,7 +1679,7 @@ async def interpret_transit_event(
                 status_code=403,
                 detail=(
                     "На бесплатном тарифе открыт разбор 2 самых значимых транзитов. "
-                    f"Оформите {TIER_NAMES['pro']}, чтобы разбирать все транзиты."
+                    f"Оформи {TIER_NAMES['pro']}, чтобы разбирать все транзиты."
                 ),
             )
 
@@ -1849,7 +1849,7 @@ async def get_monthly_planner(
         raise HTTPException(
             status_code=403,
             detail=(
-                f"Планер доступен на {_p_max} мес. вперёд на вашем тарифе "
+                f"Планер доступен на {_p_max} мес. вперёд на твоём тарифе "
                 f"(запрошено {month_offset})."
             ),
         )
@@ -1924,7 +1924,7 @@ async def start_pdf_generation(
     if chart_id == "anonymous":
         raise HTTPException(
             status_code=400,
-            detail="Сохраните карту перед скачиванием PDF. Войдите или зарегистрируйтесь."
+            detail="Сохрани карту перед скачиванием PDF. Войди или зарегистрируйся."
         )
 
     chart = resolve_chart_access(chart_id, user, chart_token(request), db)
@@ -2144,7 +2144,7 @@ async def get_general_calendar(
     if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "claude"):
         raise HTTPException(
             status_code=503,
-            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+            detail="Дневной лимит запросов исчерпан. Попробуй завтра.",
         )
 
     # 1. Вычислить события месяца — Swiss Ephemeris, синхронно (см. CLAUDE.md)

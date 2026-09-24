@@ -422,7 +422,7 @@ class TestProfilesLimitEnforcement:
         assert resp.status_code == 403, resp.text
         detail = resp.json()["detail"]
         assert str(limit) in detail, "в тексте нет числа слотов"
-        assert "Удалите ненужную карту" in detail
+        assert "Удали ненужную карту" in detail
         assert "старший тариф" in detail
         assert "/pricing" not in detail, "адрес страницы вернулся в текст отказа"
 
@@ -509,7 +509,7 @@ class TestChartCreationAbuseLimit:
         detail = resp.json()["detail"]
         # Не должен подсказывать обход (удалить карту) или бессмысленный для
         # старшего тарифа совет (перейти на тариф выше).
-        assert "удалите" not in detail.lower()
+        assert "удали" not in detail.lower()
         assert "тариф выше" not in detail.lower()
         assert "/pricing" not in detail
 

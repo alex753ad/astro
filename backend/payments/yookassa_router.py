@@ -187,7 +187,7 @@ async def _notify_ip_reject(ip: str) -> None:
         "⚠️ Если это была сама ЮKassa, а не чужой запрос — платежи сейчас НЕ "
         "активируются: деньги списываются, подписка не выдаётся. Сверьте "
         "список подсетей (yookassa.ru/developers/using-api/webhooks) и "
-        "TRUSTED_PROXY_IPS."
+        "TRUSTED_PROXY_IPS."  # вы-разрешено: уведомление владельцу
     )
     try:
         await send_support_message(text)
@@ -219,7 +219,7 @@ async def create_checkout(
     if tier == "premium":
         raise HTTPException(
             status_code=400,
-            detail="Тариф Орион пока не продаётся. Напишите нам, если он вам нужен.",
+            detail="Тариф Орион пока не продаётся. Напиши нам, если он тебе нужен.",
         )
     if tier not in CHECKOUT_TIERS:
         raise HTTPException(
@@ -275,7 +275,7 @@ async def create_checkout(
         data = resp.json()
     except Exception:
         logger.exception("YooKassa: создание платежа не удалось, user=%s tier=%s", user.id, tier)
-        raise HTTPException(status_code=502, detail="Платёжный сервис недоступен, попробуйте позже.")
+        raise HTTPException(status_code=502, detail="Платёжный сервис недоступен, попробуй чуть позже.")
 
     checkout_url = (data.get("confirmation") or {}).get("confirmation_url")
     if not checkout_url:
@@ -320,7 +320,7 @@ async def yookassa_notification(request: Request, db: Session = Depends(get_db))
             "YooKassa webhook отклонён: IP %s не входит в список подсетей ЮKassa "
             "(сверен %s, backend/payments/yookassa_router.py:YOOKASSA_NETWORKS). "
             "Если платежи перестали активироваться — сверьте список заново: "
-            "https://yookassa.ru/developers/using-api/webhooks",
+            "https://yookassa.ru/developers/using-api/webhooks",  # вы-разрешено: лог для владельца
             ip, YOOKASSA_IP_LIST_CHECKED,
         )
         # Лог не переживает деплой — дублируем владельцу в Telegram (раз в час).

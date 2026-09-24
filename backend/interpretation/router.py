@@ -332,7 +332,7 @@ class InterpretationRouter:
             cache_hit=False,
         )
         return InterpretationResult(
-            content="Интерпретация временно недоступна. Пожалуйста, попробуйте позже.",
+            content="Интерпретация временно недоступна. Попробуй чуть позже.",
             engine="none",
         )
 
@@ -455,7 +455,7 @@ class InterpretationRouter:
                     raise IncompleteInterpretation("connection_lost") from e
                 continue  # no chunks yet — try next engine
 
-        yield "Интерпретация временно недоступна. Пожалуйста, попробуйте позже."
+        yield "Интерпретация временно недоступна. Попробуй чуть позже."
 
     async def _try_engine(
         self,

@@ -125,7 +125,7 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
     """Проверяет OTP: при успехе удаляет из Redis и возвращает данные."""
     raw = await r.get(_otp_key(identifier))
     if not raw:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Код устарел. Запросите новый.")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Код устарел. Запроси новый.")
 
     data = json.loads(raw)
 
@@ -133,7 +133,7 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
         await r.delete(_otp_key(identifier))
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Превышено число попыток. Запросите новый код.",
+            "Превышено число попыток. Запроси новый код.",
         )
 
     if data["code"] != code:
@@ -341,7 +341,7 @@ async def register_email_send(
     if await r.exists(_resend_key(data.email)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
-            "Подождите минуту перед повторной отправкой.",
+            "Подожди минуту перед повторной отправкой.",
         )
 
     existing = db.query(User).filter(User.email == data.email).first()
@@ -480,7 +480,7 @@ async def login(
     if await login_guard.is_locked(data.email):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
-            "Слишком много неудачных попыток входа. Попробуйте позже.",
+            "Слишком много неудачных попыток входа. Попробуй чуть позже.",
         )
 
     user = db.query(User).filter(User.email == data.email).first()
@@ -604,7 +604,7 @@ async def logout(
     # Куку снимаем всегда: даже если токен в ней уже протух, оставлять её в
     # браузере после явного выхода незачем.
     _clear_refresh_cookie(response)
-    return MessageResponse(message="Вы вышли из аккаунта.")
+    return MessageResponse(message="Выход из аккаунта выполнен.")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -860,4 +860,4 @@ async def logout_all(
     # снимаем, чтобы не гонять заведомо мёртвый токен на /refresh неделю.
     _clear_refresh_cookie(response)
     logger.info("All sessions revoked: %s (%s)", mask_email(user.email), user.id)
-    return MessageResponse(message="Вы вышли на всех устройствах.")
+    return MessageResponse(message="Выход выполнен на всех устройствах.")

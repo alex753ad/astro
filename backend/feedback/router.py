@@ -93,7 +93,7 @@ async def create_feedback(
 
         rest = await screenshot.read(MAX_SCREENSHOT_BYTES + 1 - len(header))
         if len(header) + len(rest) > MAX_SCREENSHOT_BYTES:
-            raise HTTPException(status_code=422, detail="Скриншот больше 5 МБ — приложите файл поменьше")
+            raise HTTPException(status_code=422, detail="Скриншот больше 5 МБ — приложи файл поменьше")
 
         fd, screenshot_path = tempfile.mkstemp(suffix=_EXT_BY_MIME[mime])
         with os.fdopen(fd, "wb") as f:

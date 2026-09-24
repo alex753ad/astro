@@ -344,7 +344,7 @@ async def interpret_solar_return(
         fallback=(
             f"Соляр на {year} год рассчитан на момент "
             f"{payload['solar_return_datetime']}. Разбор сейчас недоступен — "
-            "попробуйте позже."
+            "попробуй чуть позже."
         ),
     )
 
@@ -475,7 +475,7 @@ async def interpret_synastry(
         tier=admin.tier or "free",
         fallback=(
             f"Найдено {len(result['cross_aspects'])} межкарточных аспектов. "
-            "Разбор совместимости сейчас недоступен — попробуйте позже."
+            "Разбор совместимости сейчас недоступен — попробуй чуть позже."
         ),
     )
 
@@ -567,6 +567,6 @@ async def interpret_relocation(
         tier=admin.tier or "free",
         fallback=(
             f"Релокационная карта для «{payload['relocated_location']}» рассчитана. "
-            "Разбор сейчас недоступен — попробуйте позже."
+            "Разбор сейчас недоступен — попробуй чуть позже."
         ),
     )

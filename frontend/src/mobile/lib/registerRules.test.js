@@ -83,10 +83,15 @@ describe('код подтверждения', () => {
 
 describe('describeSendCodeError — два разных 429', () => {
   it('наш троттл по адресу распознаётся по тексту сервера', () => {
-    const err = apiError(429, { detail: 'Подождите минуту перед повторной отправкой.' });
+    const err = apiError(429, { detail: 'Подожди минуту перед повторной отправкой.' });
     const out = describeSendCodeError(err);
     expect(out.kind).toBe('resend');
     expect(out.text).toMatch(/через минуту/i);
+  });
+
+  it('троттл узнаётся и в тексте сервера до перехода на «ты»', () => {
+    const err = apiError(429, { detail: 'Подождите минуту перед повторной отправкой.' });
+    expect(describeSendCodeError(err).kind).toBe('resend');
   });
 
   it('лимит по IP — другой текст, про час, а не про минуту', () => {
@@ -134,14 +139,14 @@ describe('describeVerifyError — три разных 400', () => {
   it('код устарел: предлагаем вход — аккаунт мог быть уже создан', () => {
     // Успешный verify удаляет запись. Если ответ 201 не доехал, аккаунт
     // существует, а повтор даёт ровно этот текст.
-    const err = apiError(400, { detail: 'Код устарел. Запросите новый.' });
+    const err = apiError(400, { detail: 'Код устарел. Запроси новый.' });
     const out = describeVerifyError(err);
     expect(out.kind).toBe('expired');
     expect(out.offerLogin).toBe(true);
   });
 
   it('превышено число попыток: тоже нужен новый код и тоже предлагаем вход', () => {
-    const err = apiError(400, { detail: 'Превышено число попыток. Запросите новый код.' });
+    const err = apiError(400, { detail: 'Превышено число попыток. Запроси новый код.' });
     const out = describeVerifyError(err);
     expect(out.kind).toBe('expired');
     expect(out.offerLogin).toBe(true);

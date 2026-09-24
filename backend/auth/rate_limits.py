@@ -439,7 +439,7 @@ async def check_chart_rate_limit(user: Optional[User], request: Request) -> None
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
                 f"Слишком много запросов на построение карт ({limit}/мин). "
-                f"Подождите минуту и повторите."
+                f"Подожди минуту и повтори."
             ),
         )
 
@@ -553,7 +553,7 @@ class TierRateLimiter:
             # анонимы — только превью, блокируется на уровне эндпоинта
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Войдите в аккаунт, чтобы получить интерпретацию.",
+                detail="Войди в аккаунт, чтобы получить интерпретацию.",
             )
 
         tier = user.tier
@@ -574,8 +574,8 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    "Вы использовали бесплатную интерпретацию. "
-                    f"Оформите {TIER_NAMES['lite']}, чтобы разбирать карты дальше."
+                    "Бесплатная интерпретация уже использована. "
+                    f"Оформи {TIER_NAMES['lite']}, чтобы разбирать карты дальше."
                 ),
             )
 
@@ -583,7 +583,7 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Интерпретации недоступны на {TIER_NAMES['free']} плане. Оформите {TIER_NAMES['lite']}.",
+                detail=f"Интерпретации недоступны на {TIER_NAMES['free']} плане. Оформи {TIER_NAMES['lite']}.",
             )
 
         if limit is None:
@@ -599,7 +599,7 @@ class TierRateLimiter:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
                     f"Лимит {limit} интерпретаций в месяц исчерпан для тарифа "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())}. Оформите более высокий тариф."
+                    f"{TIER_NAMES.get(tier, tier.capitalize())}. Оформи тариф повыше."
                 ),
             )
 
@@ -650,7 +650,7 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Транзиты недоступны на {TIER_NAMES['free']} плане. Оформите {TIER_NAMES['lite']}.",
+                detail=f"Транзиты недоступны на {TIER_NAMES['free']} плане. Оформи {TIER_NAMES['lite']}.",
             )
 
     def check_transit_ai_limit(self, user: Optional[User], db=None) -> None:
@@ -678,7 +678,7 @@ class TierRateLimiter:
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Войдите в аккаунт, чтобы получить расшифровку транзита.",
+                detail="Войди в аккаунт, чтобы получить расшифровку транзита.",
             )
         if db is None:
             return
@@ -689,7 +689,7 @@ class TierRateLimiter:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
                     f"Использовано {quota} расшифровок транзитов в этом месяце "
-                    f"на тарифе {TIER_NAMES['lite']}. Перейдите на {TIER_NAMES['pro']} для безлимита."
+                    f"на тарифе {TIER_NAMES['lite']}. Перейди на {TIER_NAMES['pro']} для безлимита."
                 ),
             )
 
@@ -727,7 +727,7 @@ class TierRateLimiter:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     f"PDF-отчёты недоступны на {TIER_NAMES['free']} плане. "
-                    f"Оформите {TIER_NAMES['lite']}."
+                    f"Оформи {TIER_NAMES['lite']}."
                 ),
             )
 
@@ -737,7 +737,7 @@ class TierRateLimiter:
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Войдите в аккаунт, чтобы скачать PDF-отчёт.",
+                detail="Войди в аккаунт, чтобы скачать PDF-отчёт.",
             )
 
         quota = flags.get("pdf_per_month")
@@ -757,7 +757,7 @@ class TierRateLimiter:
                 detail=(
                     "PDF-отчёты на этот месяц закончились: тариф "
                     f"{TIER_NAMES.get(tier, tier.capitalize())} даёт {quota} в месяц. "
-                    "Оформите более высокий тариф."
+                    "Оформи тариф повыше."
                 ),
             )
 

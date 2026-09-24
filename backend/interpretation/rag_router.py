@@ -600,7 +600,7 @@ async def _sse_generator(
             )
             error_payload = {
                 "error": "empty_response",
-                "text": "Не получилось сформировать ответ. Попробуйте ещё раз.",
+                "text": "Не получилось сформировать ответ. Попробуй ещё раз.",
             }
             yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
         else:
@@ -631,21 +631,21 @@ async def _sse_generator(
         )
         error_payload = {
             "error": "timeout",
-            "text": "Ответ не пришёл вовремя. Попробуйте ещё раз.",
+            "text": "Ответ не пришёл вовремя. Попробуй ещё раз.",
         }
         yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
     except httpx.HTTPStatusError as e:
         logger.error("AI API error %s: %s", e.response.status_code, e.response.text[:200])
-        fallback = "Извините, AI-сервис временно недоступен. Попробуйте через несколько минут."
+        fallback = "Извини, сервис временно недоступен. Попробуй через несколько минут."
         yield f"data: {json.dumps({'text': fallback}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
     except Exception as e:
         logger.error("RAG stream error: user=%s chart=%s: %s", user_id, chart_id, e)
         error_payload = {
             "error": "stream_failed",
-            "text": "Извините, что-то пошло не так. Попробуйте ещё раз.",
+            "text": "Извини, что-то пошло не так. Попробуй ещё раз.",
         }
         yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
@@ -676,7 +676,7 @@ async def rag_chat(
     if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "deepseek"):
         raise HTTPException(
             status_code=503,
-            detail="Дневной лимит AI-запросов исчерпан. Попробуйте завтра.",
+            detail="Дневной лимит запросов исчерпан. Попробуй завтра.",
         )
 
     # Месячный счётчик. Отдельный kind: чат — не интерпретация карты, смешивать

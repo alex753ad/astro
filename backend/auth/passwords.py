@@ -48,7 +48,7 @@ def validate_password(plain: str) -> str:
         raise ValueError("Пароль не может состоять только из цифр.")
 
     if plain.lower() in COMMON_PASSWORDS:
-        raise ValueError("Этот пароль слишком распространён. Выберите другой.")
+        raise ValueError("Этот пароль слишком распространён. Выбери другой.")
 
     return plain
 

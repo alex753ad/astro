@@ -767,7 +767,7 @@ async def generate_brief(
                     logger.warning("Brief stream from %s failed: %s", eng.name, e)
                     continue
 
-            yield f"data: {json.dumps({'text': 'Разбор временно недоступен. Попробуйте позже.'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'text': 'Разбор временно недоступен. Попробуй чуть позже.'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.exception("Brief generation stream failed")
