@@ -67,7 +67,7 @@ class User(Base):
 
     # Push notification preferences (031)
     push_daily_forecast = Column(Boolean, nullable=False, default=True, server_default="true")
-    push_daily_time     = Column(String(5), nullable=False, default="08:00", server_default="08:00")  # "HH:MM", локально по tz главной карты
+    push_daily_time     = Column(String(5), nullable=False, default="08:00", server_default="08:00")  # "HH:MM", локально по поясу устройства (device_timezone), иначе главной карты
     push_planner        = Column(Boolean, nullable=False, default=True, server_default="true")
     push_key_transits   = Column(Boolean, nullable=False, default=True, server_default="true")
     push_moon_phases    = Column(Boolean, nullable=False, default=False, server_default="false")
@@ -77,6 +77,12 @@ class User(Base):
     # же парой (см. backend/push/cron.py, in_send_window) и планировщиком, и
     # ручкой /push/upcoming — правило одно на оба пути.
     push_quiet_from     = Column(String(5), nullable=False, default="22:00", server_default="22:00")
+    # Пояс устройства (IANA), последним присланный клиентом (056). По нему
+    # считаются «сегодня» и окно отправки уведомлений; NULL — пояс главной
+    # карты (решение владельца 24.09.2026: время — по телефону/браузеру,
+    # пояс карты только запасной). Сервер сам пояс устройства узнать не может,
+    # поэтому клиент присылает его при каждом входе (lib/deviceTimezone.js).
+    device_timezone     = Column(String(64), nullable=True)
 
     # Primary chart (018) — карта относительно которой строятся письма, планер, натальная карта
     primary_chart_id = Column(

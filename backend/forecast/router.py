@@ -113,7 +113,7 @@ def _silence_reason() -> str:
     return "model_error"
 
 
-# ── Прогноз на день: вчера, сегодня, завтра ─────────────────
+# ── Прогноз на день: сегодня и завтра ───────────────────────
 
 # С этого часа по местному времени открыт прогноз на завтра — для всех, а не
 # только для тех, кому вечернее уведомление уходит в 19:00 (решение владельца
@@ -123,9 +123,13 @@ TOMORROW_OPEN_HOUR = 19
 
 
 def allowed_days(now_local: datetime) -> list[date]:
-    """Даты, на которые прогноз открыт: вчера, сегодня и — с 19:00 — завтра."""
+    """Даты, на которые прогноз открыт: сегодня и — с 19:00 — завтра.
+
+    Прогноза на вчера нет (решение владельца 24.09.2026): прошлая дата — 404,
+    а не текст. Держит `TestNoYesterday` в test_forecast.py.
+    """
     today = now_local.date()
-    days = [today - timedelta(days=1), today]
+    days = [today]
     if now_local.hour >= TOMORROW_OPEN_HOUR:
         days.append(today + timedelta(days=1))
     return days
@@ -134,9 +138,13 @@ def allowed_days(now_local: datetime) -> list[date]:
 async def daily_forecast(chart, tz_name: str | None, day: date | None = None) -> dict:
     tz = F.resolve_tz(tz_name, chart.timezone)
     local_date = day or datetime.now(timezone.utc).astimezone(tz).date()
-    # Ключ — по дате, без «вчера/сегодня/завтра»: один и тот же текст служит
-    # дню во всех трёх ролях, поэтому промпт и требует нейтральных слов.
-    key = f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart.id}:{local_date.isoformat()}"
+    # Ключ — по дате, без «сегодня/завтра»: один и тот же текст служит дню в
+    # обеих ролях, поэтому промпт и требует нейтральных слов.
+    # ⚠️ Пояс в ключе обязателен: факты дня (знак Луны в полдень, дома)
+    # считаются в поясе телефона. Без пояса человек, открывший прогноз в
+    # Москве, а потом во Владивостоке, получал бы московский текст.
+    key = (f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart.id}:"
+           f"{local_date.isoformat()}:{tz.key}")
     cached = interpretation_cache.get(key)
     if cached is not None:
         # Кэш-хит считается показом «из модели»: запасной текст не кэшируется
@@ -185,8 +193,8 @@ async def get_forecast_day(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """`date` — местная дата, YYYY-MM-DD. Открыты вчера, сегодня и — с 19:00
-    по местному времени — завтра; остальное 404. Не 403: закрыто не тарифом,
+    """`date` — местная дата, YYYY-MM-DD. Открыты сегодня и — с 19:00 по
+    местному времени — завтра; остальное (в том числе вчера) 404. Не 403: закрыто не тарифом,
     а временем, и купить тут нечего.
 
     ⚠️ Граница «с 19:00» считается по поясу из запроса — тому же, по которому

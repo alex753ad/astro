@@ -206,7 +206,8 @@ export async function cachedInterpretation(chartId, cache = offlineCache) {
 
 /**
  * Прогнозы — по записи на ключ, чтобы две карточки, сохраняющие разом, не
- * затирали друг друга. Старые чистятся на записи: дневные раньше вчера,
+ * затирали друг друга. Старые чистятся на записи: дневные раньше сегодня
+ * (прогноза на вчера нет — сервер его не отдаёт, и хранить его незачем),
  * лунные старше 40 дней.
  */
 export function dayForecastKey(chartId, date) {
@@ -218,7 +219,7 @@ export function lunationForecastKey(chartId, phase, date) {
 }
 
 export function staleForecastNames(names, today) {
-  const dayEdge = shiftDays(today, -1);
+  const dayEdge = today;
   const lunEdge = shiftDays(today, -40);
   return names.filter((n) => {
     const [, kind, date] = n.split(':');

@@ -23,6 +23,7 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext } f
 import { mergeUserFromTokens } from '../lib/sessionUser';
 import {
   ApiError,
+  authFetch,
   getSubscription,
   onSessionExpired,
   onTokensRefreshed,
@@ -41,6 +42,7 @@ import { isTokenExpired, tokenExpiresAt } from '../lib/jwt';
 import { noteFreshToken, serverNow } from '../lib/serverClock';
 import { REFRESH_BUFFER_MS, nextRefresh, retryDelay } from '../lib/refreshSchedule';
 import { getRefCode } from '../utils/refCode';
+import { syncDeviceTimezone } from '../lib/deviceTimezone';
 
 const API_BASE = `${CONFIG_API_BASE}/auth`;
 
@@ -138,6 +140,18 @@ function useAuthInternal() {
   const [error,        setError]        = useState(null);
 
   const refreshTimerRef = useRef(null);
+
+  // Пояс устройства — серверу, для уведомлений, которые он шлёт сам по
+  // расписанию (lib/deviceTimezone.js). Один раз на пару «пользователь +
+  // пояс»: сменил пояс в поездке — уйдёт при следующем входе в приложение.
+  useEffect(() => {
+    if (!user?.id || !accessToken) return;
+    syncDeviceTimezone(user.id, (body) => authFetch(`${CONFIG_API_BASE}/push/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.ok));
+  }, [user?.id, accessToken]);
   // Сколько неудачных обновлений подряд — от этого зависит пауза перед
   // следующей попыткой. Обнуляется успехом и разлогином.
   const retriesRef = useRef(0);

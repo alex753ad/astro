@@ -35,6 +35,7 @@ import {
 import { useToast } from '../components/Toast';
 import PlanComparisonModal from '../components/PlanComparisonModal';
 import { utcOffsetLabel } from '../lib/utcOffset';
+import { withTz } from '../lib/deviceTimezone';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -594,7 +595,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (!chart || !chartId || chartId === 'anonymous' || chart.time_unknown) return;
     const token = localStorage.getItem('astro_access_token');
     const chartTok = sessionStorage.getItem('chart_token');
-    fetch(`${API_BASE}/chart/${chartId}/planner/monthly`, {
+    fetch(withTz(`${API_BASE}/chart/${chartId}/planner/monthly`), {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(chartTok ? { 'X-Chart-Token': chartTok } : {}),

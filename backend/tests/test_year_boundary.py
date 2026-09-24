@@ -71,11 +71,11 @@ class TestMonthlyUsageKey:
 class TestForecastDays:
     def test_new_year_eve_opens_first_of_january(self):
         from backend.forecast.router import allowed_days
-        assert allowed_days(EVE) == [date(2026, 12, 30), date(2026, 12, 31), date(2027, 1, 1)]
+        assert allowed_days(EVE) == [date(2026, 12, 31), date(2027, 1, 1)]
 
     def test_after_midnight_today_is_january_first(self):
         from backend.forecast.router import allowed_days
-        assert allowed_days(NY) == [date(2026, 12, 31), date(2027, 1, 1)]
+        assert allowed_days(NY) == [date(2027, 1, 1)]
 
     def test_leap_day(self):
         from backend.forecast.router import allowed_days

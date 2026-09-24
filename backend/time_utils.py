@@ -20,3 +20,20 @@ from datetime import datetime, timezone
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def valid_timezone(name: str | None) -> str | None:
+    """Имя пояса IANA, если оно настоящее; иначе None.
+
+    Пояс устройства приходит с клиента (`tz` в запросе, поле настроек) — это
+    ввод, а не данные: мусор должен молча откатываться к поясу карты, а не
+    ронять ручку.
+    """
+    if not name or len(name) > 64:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(name)
+        return name
+    except Exception:
+        return None

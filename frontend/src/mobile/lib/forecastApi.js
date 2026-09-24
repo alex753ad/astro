@@ -13,22 +13,14 @@
 import { API_BASE } from '../../config';
 import { failWith, getWithRetry } from './authFetchTimeout';
 import { localToday } from './feedTime';
+import { withTz } from '../../lib/deviceTimezone';
 import { lunationPhase } from './lunationPhase';
 import { dayForecastKey, lunationForecastKey, offlineCache, rememberForecast } from './offlineCache';
 
 const FORECAST_TIMEOUT_MS = 45000;
 
-export function deviceTimeZone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-  } catch {
-    return '';
-  }
-}
-
-function withTz(url, tz = deviceTimeZone()) {
-  return tz ? `${url}${url.includes('?') ? '&' : '?'}tz=${encodeURIComponent(tz)}` : url;
-}
+// Общий файл веба и приложения — второй копии заводить не нужно.
+export { deviceTimeZone } from '../../lib/deviceTimezone';
 
 async function getJson(url) {
   const resp = await getWithRetry(url, FORECAST_TIMEOUT_MS);
@@ -47,7 +39,7 @@ async function cached(name) {
 }
 
 /**
- * Прогноз на местную дату «YYYY-MM-DD»: вчера, сегодня, завтра (с 19:00).
+ * Прогноз на местную дату «YYYY-MM-DD»: сегодня и завтра (с 19:00).
  * Какие даты открыты — feedAnchor.js (forecastDates), сервер держит ту же
  * границу и на остальное отвечает 404.
  * { date, paragraphs[], source, trimmed }
@@ -61,7 +53,7 @@ export function fetchDayForecast(chartId, date, tz) {
 
 /**
  * Сохранённый прогноз ровно на эту дату: `{ data, savedAt }` или null.
- * ⚠️ Ключ — дата карточки, поэтому вчерашний текст под «сегодня» не
+ * ⚠️ Ключ — дата карточки, поэтому завтрашний текст под «сегодня» не
  * попадёт никогда: у сегодняшней карточки другой ключ.
  */
 export function cachedDayForecast(chartId, date) {

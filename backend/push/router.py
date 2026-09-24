@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User, PushSubscription, DeviceToken, utcnow
+from backend.time_utils import valid_timezone
 from backend.auth.dependencies import get_current_user
 from backend.push.sender import vapid_public_key, send_to_user
 from backend.push.fcm import configured as fcm_configured
@@ -69,6 +70,7 @@ class PushSettings(BaseModel):
     planner: bool
     key_transits: bool
     moon_phases: bool
+    timezone: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,6 +82,8 @@ class PushSettingsPatch(BaseModel):
     planner: Optional[bool] = None
     key_transits: Optional[bool] = None
     moon_phases: Optional[bool] = None
+    # Пояс устройства (IANA). Шлёт клиент сам, не человек.
+    timezone: Optional[str] = None
 
 
 def _settings_of(user: User) -> PushSettings:
@@ -90,6 +94,7 @@ def _settings_of(user: User) -> PushSettings:
         planner=bool(getattr(user, "push_planner", True)),
         key_transits=bool(getattr(user, "push_key_transits", True)),
         moon_phases=bool(getattr(user, "push_moon_phases", False)),
+        timezone=getattr(user, "device_timezone", None),
     )
 
 
@@ -246,6 +251,12 @@ async def update_settings(
         user.push_key_transits = payload.key_transits
     if payload.moon_phases is not None:
         user.push_moon_phases = payload.moon_phases
+    if payload.timezone is not None:
+        tz = valid_timezone(payload.timezone)
+        if tz is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                detail="timezone must be an IANA name")
+        user.device_timezone = tz
 
     db.commit()
     db.refresh(user)
@@ -256,6 +267,7 @@ async def update_settings(
 @router.get("/upcoming", summary="Upcoming notification events for on-device scheduling")
 async def upcoming(
     days: int = UPCOMING_DEFAULT_DAYS,
+    tz: Optional[str] = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -279,7 +291,7 @@ async def upcoming(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"days must be between 1 and {UPCOMING_MAX_DAYS}",
         )
-    return await asyncio.to_thread(collect_upcoming, db, user, days)
+    return await asyncio.to_thread(collect_upcoming, db, user, days, valid_timezone(tz))
 
 
 # ── Test push ──

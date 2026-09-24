@@ -7,6 +7,7 @@ import { BACKEND_BASE as API_BASE } from "../config";
 import { PLANNER_WEEKS_AHEAD, TIER_NAMES } from "../constants";
 import LyraPaywallModal from "../components/LyraPaywallModal";
 import PlanComparisonModal from "../components/PlanComparisonModal";
+import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
@@ -1141,6 +1142,8 @@ export default function PlannerPage() {
       const params = new URLSearchParams();
       if (isPro && monthOffset !== 0) params.set('month_offset', monthOffset);
       if (weekOffset !== null) params.set('week_offset', weekOffset);
+      // Пояс браузера: «сегодня» и время проходов — по нему, не по месту рождения.
+      if (deviceTimeZone()) params.set('tz', deviceTimeZone());
       const qs = params.toString();
       const url = `${API_BASE}/api/v1/chart/${id}/planner/monthly${qs ? `?${qs}` : ''}`;
       const res = await authFetch(url);

@@ -761,7 +761,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     if getattr(user, "push_moon_phases", False):
         try:
             tomorrow = today + timedelta(days=1)
-            for phase in _phases_on_local_date(tomorrow, getattr(chart, "timezone", None)):
+            for phase in _phases_on_local_date(tomorrow, user_timezone(user, chart)):
                 label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
                 cands.append({
                     "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
@@ -777,17 +777,33 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
 
 
 # ── Основная логика по одному пользователю ──
+def user_timezone(user, chart, override: str | None = None) -> str:
+    """Пояс, в котором уведомления считают «сегодня» и окно отправки.
+
+    Порядок (решение владельца 24.09.2026): пояс из запроса устройства →
+    последний присланный пояс устройства (`users.device_timezone`) → пояс
+    главной карты → Москва. До этого решения был только пояс карты, то есть
+    места рождения: родившийся в Москве и живущий в Новосибирске получал
+    утреннее уведомление по московским 08:00 — в 12:00 по своим.
+    """
+    for name in (override, getattr(user, "device_timezone", None),
+                 getattr(chart, "timezone", None)):
+        if name:
+            try:
+                pytz.timezone(name)
+                return name
+            except Exception:
+                continue
+    return DEFAULT_TZ
+
+
 def _process_user(db: Session, user: User) -> int:
     chart = get_primary_chart(db, user)
     if not chart:
         logger.info("push skip user=%s: no primary chart", user.id)
         return 0  # без главной карты уведомлять не по чему
 
-    tzname = getattr(chart, "timezone", None) or DEFAULT_TZ
-    try:
-        tz = pytz.timezone(tzname)
-    except Exception:
-        tz = pytz.timezone(DEFAULT_TZ)
+    tz = pytz.timezone(user_timezone(user, chart))
 
     now_local = datetime.now(pytz.utc).astimezone(tz)
     today = now_local.date()
@@ -883,7 +899,7 @@ UPCOMING_DEFAULT_DAYS = 7
 UPCOMING_MAX_DAYS = 14
 
 
-def collect_upcoming(db: Session, user: User, days: int) -> dict:
+def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None = None) -> dict:
     """События ближайших `days` дней, уже с готовым текстом уведомления.
 
     Зачем ручка вообще. Локальные уведомления в мобильном приложении
@@ -937,12 +953,8 @@ def collect_upcoming(db: Session, user: User, days: int) -> dict:
         # планировать» это нормальное состояние, а не ошибка запроса.
         return {"timezone": DEFAULT_TZ, "days": days, "events": []}
 
-    tzname = getattr(chart, "timezone", None) or DEFAULT_TZ
-    try:
-        tz = pytz.timezone(tzname)
-    except Exception:
-        tz = pytz.timezone(DEFAULT_TZ)
-        tzname = DEFAULT_TZ
+    tzname = user_timezone(user, chart, tz_override)
+    tz = pytz.timezone(tzname)
 
     now_local = datetime.now(pytz.utc).astimezone(tz)
     daily_time = _daily_time_of(user)

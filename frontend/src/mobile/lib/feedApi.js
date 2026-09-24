@@ -22,6 +22,7 @@ import { API_BASE } from '../../config';
 import { failWith, getWithRetry } from './authFetchTimeout';
 import { localToday, shiftDays } from './feedTime';
 import { offlineCache, rememberCharts, trimFeed } from './offlineCache';
+import { withTz } from '../../lib/deviceTimezone';
 
 // Таймаут запроса вынесен в authFetchTimeout.js 06.09.2026, когда у него
 // появился второй потребитель (экран «Карта»). Там же — разбор, почему это
@@ -96,7 +97,9 @@ export function pickPrimaryChartId(charts) {
  * разбора на бэкенде текст подменяется здесь.
  */
 export async function fetchFeed(chartId, { from, to }) {
-  const url = `${API_BASE}/chart/${chartId}/feed?from_date=${from}&to_date=${to}`;
+  // Пояс телефона: времена событий, «сегодня» и «сейчас» — по нему, пояс
+  // карты сервер берёт только если `tz` не пришёл (решение 24.09.2026).
+  const url = withTz(`${API_BASE}/chart/${chartId}/feed?from_date=${from}&to_date=${to}`);
   const resp = await getWithRetry(url);
 
   if (resp.status === 404) {

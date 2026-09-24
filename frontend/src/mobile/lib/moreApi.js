@@ -15,6 +15,7 @@ import { responseErrorText } from '../../api/client';
 import { authFetchWithTimeout, failWith, getWithRetry } from './authFetchTimeout';
 import { pickPrimaryChartId } from './feedApi';
 import { offlineCache, rememberCharts } from './offlineCache';
+import { withTz } from '../../lib/deviceTimezone';
 
 async function getJson(path, fallback) {
   const resp = await getWithRetry(`${API_BASE}${path}`);
@@ -86,7 +87,7 @@ export const updatePushSettings = (patch) => patchJson('/push/settings', patch, 
  * склеить список и поставить — сочинять свой текст нельзя.
  */
 export const fetchUpcomingNotifications = () =>
-  getJson('/push/upcoming', 'Не удалось загрузить будущие события.');
+  getJson(withTz('/push/upcoming'), 'Не удалось загрузить будущие события.');
 
 /**
  * Токен устройства для мобильных пушей — `POST/DELETE /push/device`.

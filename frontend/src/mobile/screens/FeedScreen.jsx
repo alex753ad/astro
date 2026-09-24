@@ -373,12 +373,12 @@ export default function FeedScreen({
   // (полосе ещё нужны период Солнца и ближайшая фаза Луны, §6).
   const allEvents = feed?.events || [];
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
-  // Дни с карточкой прогноза (вчера, сегодня, с 19:00 — завтра) есть в
+  // Дни с карточкой прогноза (сегодня, с 19:00 — завтра) есть в
   // списке всегда, даже без событий (lib/feedAnchor.js → withDates, там же про
   // следствие для якоря). Час — по часам телефона, как и граница на сервере.
   const withForecast = forecastDates(today, new Date(serverNow()).getHours());
   const days = withDates(groupByDay(events), withForecast, feed?.horizon || {});
-  const forecastLabel = { [shiftDays(today, -1)]: 'вчера', [today]: 'сегодня', [shiftDays(today, 1)]: 'завтра' };
+  const forecastLabel = { [today]: 'сегодня', [shiftDays(today, 1)]: 'завтра' };
 
   // Жест обновления. Гейт по `active` обязателен: все три экрана
   // смонтированы одновременно и делят ОДИН скроллер (TabShell.jsx) — без
@@ -730,7 +730,7 @@ export default function FeedScreen({
               quiet={quiet}
               boundary={!expanded}
             />
-            {/* Прогноз на день — первым в своём дне: вчера, сегодня и с 19:00
+            {/* Прогноз на день — первым в своём дне: сегодня и с 19:00
                 завтра (решения владельца 23 и 24.09.2026). Подпись — по
                 настоящему сегодня, а не по раскрытому дню: они могут не
                 совпасть (lib/feedAnchor.js). */}

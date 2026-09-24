@@ -55,6 +55,7 @@ from backend.schemas import (
     TransitResponse,
 )
 from backend.models import NatalChart
+from backend.time_utils import valid_timezone
 from backend.ephemeris.calculator import calculate_full_chart
 from backend.ephemeris.geo import (
     geocode_place,
@@ -1847,6 +1848,7 @@ async def get_monthly_planner(
     chart_id: str,
     month_offset: int = 0,
     week_offset: int | None = None,
+    tz: str | None = None,
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
@@ -1882,8 +1884,9 @@ async def get_monthly_planner(
             ),
         )
 
-    # today в timezone пользователя
-    _tz = getattr(chart, "timezone", None)
+    # today и время проходов — в поясе браузера/телефона (`tz`), пояс карты —
+    # только запасной (решение владельца 24.09.2026).
+    _tz = valid_timezone(tz) or getattr(chart, "timezone", None)
     if _tz:
         try:
             import pytz as _pytz

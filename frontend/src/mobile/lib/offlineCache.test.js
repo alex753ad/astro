@@ -154,13 +154,14 @@ describe('trimFeed', () => {
 });
 
 describe('staleForecastNames', () => {
-  it('дневные — раньше вчера, лунные — старше 40 дней', () => {
+  it('дневные — раньше сегодня (прогноза на вчера нет), лунные — старше 40 дней', () => {
     const names = [
       'forecast:day:2026-09-22:c1', 'forecast:day:2026-09-23:c1', 'forecast:day:2026-09-24:c1',
       'forecast:lunation:2026-08-01:full_moon:c1', 'forecast:lunation:2026-09-10:new_moon:c1',
     ];
     expect(staleForecastNames(names, '2026-09-24')).toEqual([
-      'forecast:day:2026-09-22:c1', 'forecast:lunation:2026-08-01:full_moon:c1',
+      'forecast:day:2026-09-22:c1', 'forecast:day:2026-09-23:c1',
+      'forecast:lunation:2026-08-01:full_moon:c1',
     ]);
   });
 });

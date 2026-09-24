@@ -6,12 +6,12 @@ import { TOMORROW_OPEN_HOUR, forecastDates, pickAnchorDate, withDates } from './
 const day = (date) => ({ date });
 
 describe('forecastDates — у каких дней есть прогноз', () => {
-  it('до 19:00 — вчера и сегодня, завтра нет совсем', () => {
-    expect(forecastDates('2026-09-24', 18)).toEqual(['2026-09-23', '2026-09-24']);
+  it('до 19:00 — только сегодня: вчера нет никогда, завтра ещё нет', () => {
+    expect(forecastDates('2026-09-24', 18)).toEqual(['2026-09-24']);
   });
 
   it('с 19:00 — ещё и завтра', () => {
-    expect(forecastDates('2026-09-24', 19)).toEqual(['2026-09-23', '2026-09-24', '2026-09-25']);
+    expect(forecastDates('2026-09-24', 19)).toEqual(['2026-09-24', '2026-09-25']);
   });
 
   it('граница совпадает с серверной (backend/forecast/router.py)', () => {
@@ -19,7 +19,7 @@ describe('forecastDates — у каких дней есть прогноз', () 
   });
 
   it('переход через месяц и год', () => {
-    expect(forecastDates('2027-01-01', 20)).toEqual(['2026-12-31', '2027-01-01', '2027-01-02']);
+    expect(forecastDates('2026-12-31', 20)).toEqual(['2026-12-31', '2027-01-01']);
   });
 });
 

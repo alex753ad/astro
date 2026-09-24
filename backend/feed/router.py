@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import types
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -19,6 +20,7 @@ from backend.database import get_db
 from backend.feed.builder import build_feed
 from backend.limiter import limiter
 from backend.models import NatalChart, User
+from backend.time_utils import valid_timezone
 
 logger = logging.getLogger("astro.feed")
 
@@ -40,6 +42,20 @@ def _load_chart(chart_id: str, user: User | None, request: Request, db: Session)
     return resolve_chart_access(chart_id, user, chart_token(request), db)
 
 
+def _with_timezone(chart: NatalChart, zone: str | None):
+    """Карта для сборки ленты с подменённым поясом.
+
+    build_feed берёт пояс из `chart.timezone`; подменять поле у ORM-объекта
+    нельзя — сессия записала бы его в базу при следующем commit. Поэтому
+    копия только с тем, что читает лента.
+    """
+    return types.SimpleNamespace(
+        id=chart.id, planets=chart.planets, houses=chart.houses,
+        ascendant=chart.ascendant, midheaven=chart.midheaven,
+        time_unknown=chart.time_unknown, timezone=zone or chart.timezone,
+    )
+
+
 @router.get("/chart/{chart_id}/feed", summary="Лента событий за произвольное окно")
 @limiter.limit("30/minute")
 async def get_feed(
@@ -47,6 +63,7 @@ async def get_feed(
     chart_id: str,
     from_date: str,
     to_date: str,
+    tz: str | None = None,
     db: Session = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
@@ -55,6 +72,11 @@ async def get_feed(
     Окно произвольное — две даты, без привязки к календарному месяцу.
     Внутри планер считается по датам напрямую, month_offset наружу не
     протекает.
+
+    `tz` — пояс телефона (IANA). Все времена ленты, «сегодня» и «сейчас»
+    считаются в нём; пояс карты — только если `tz` не пришёл или негодный
+    (решение владельца 24.09.2026). Кэш ленты от пояса не зависит: чанки
+    транзитов хранят даты в UTC, пояс применяется при сборке ответа.
     """
     try:
         from_dt = date.fromisoformat(from_date)
@@ -90,10 +112,11 @@ async def get_feed(
     # недели») теряло последнюю неделю; в новогоднюю ночь горизонт тарифа
     # считался от 31 декабря.
     from backend.transit.planner_engine import now_local  # отложенно: тянет Swiss Ephemeris
-    now = now_local(getattr(chart, "timezone", None))
+    zone = valid_timezone(tz) or getattr(chart, "timezone", None)
+    now = now_local(zone)
     return await asyncio.to_thread(
         build_feed,
-        chart=chart,
+        chart=_with_timezone(chart, zone),
         from_date=from_dt,
         to_date=to_dt,
         today=now.date(),

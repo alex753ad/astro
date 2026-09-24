@@ -353,25 +353,44 @@ def test_lunation_bad_phase_is_422(client, db, user_free, auth_headers_free, mod
     assert resp.status_code == 422
 
 
-# ── Вчера / сегодня / завтра ────────────────────────────────
+# ── Сегодня / завтра (вчера закрыт) ─────────────────────────
 
 def test_allowed_days_open_tomorrow_at_19():
     tz = F.resolve_tz("Europe/Moscow", None)
     before = datetime(2026, 9, 24, 18, 59, tzinfo=tz)
     after = datetime(2026, 9, 24, 19, 0, tzinfo=tz)
-    assert R.allowed_days(before) == [date(2026, 9, 23), date(2026, 9, 24)]
-    assert R.allowed_days(after) == [date(2026, 9, 23), date(2026, 9, 24), date(2026, 9, 25)]
+    assert R.allowed_days(before) == [date(2026, 9, 24)]
+    assert R.allowed_days(after) == [date(2026, 9, 24), date(2026, 9, 25)]
 
 
 def _day_url(chart_id, d):
     return f"/api/v1/chart/{chart_id}/forecast/day?date={d}&tz=Europe/Moscow"
 
 
-def test_yesterday_open_older_closed(client, db, user_free, auth_headers_free, model):
+class TestNoYesterday:
+    """Прогноза на вчера нет (решение владельца 24.09.2026): прошлая дата —
+    404, а не текст, и модель на неё не зовётся."""
+
+    def test_past_dates_are_404(self, client, db, user_free, auth_headers_free, model):
+        chart = _chart(db, user_free)
+        today = _today_msk()
+        for back in (1, 2):
+            r = client.get(_day_url(chart.id, today - timedelta(days=back)), headers=auth_headers_free)
+            assert r.status_code == 404
+        assert model["calls"] == 0
+        assert client.get(_day_url(chart.id, today), headers=auth_headers_free).status_code == 200
+
+
+def test_cache_key_has_timezone(client, db, user_free, auth_headers_free, model, no_transit_ai):
+    """Факты дня считаются в поясе телефона — текст для Москвы не должен
+    отдаваться другому поясу. Ключ: карта, местная дата, пояс, версия."""
     chart = _chart(db, user_free)
-    today = _today_msk()
-    assert client.get(_day_url(chart.id, today - timedelta(days=1)), headers=auth_headers_free).status_code == 200
-    assert client.get(_day_url(chart.id, today - timedelta(days=2)), headers=auth_headers_free).status_code == 404
+    model["replies"] = [GOOD_DAILY, GOOD_DAILY]
+    # Минск — тот же UTC+3, дата всегда совпадает с московской; пояс другой.
+    base = f"/api/v1/chart/{chart.id}/forecast/day?date={_today_msk()}"
+    assert client.get(base + "&tz=Europe/Moscow", headers=auth_headers_free).status_code == 200
+    assert client.get(base + "&tz=Europe/Minsk", headers=auth_headers_free).status_code == 200
+    assert model["calls"] == 2, "второй пояс получил текст первого из кэша"
 
 
 def test_tomorrow_opens_only_from_19(client, db, user_free, auth_headers_free, model, monkeypatch):
