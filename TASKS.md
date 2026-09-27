@@ -57,6 +57,18 @@
 
 ---
 
+## Перевыпустить токен серверного бота (@Aristeatimebot)
+
+Отложено владельцем 27.09.2026. До `104ba98` httpx писал URL запросов к
+Telegram с токеном в `docker compose logs api`; 27.09.2026 токен попал в
+вывод диагностики и в переписку с Claude Code. Утечка в лог закрыта, сам
+токен — нет. Команда: `cd /opt/astro/app && git pull --ff-only && bash
+scripts/rotate_bot_token.sh`; Uptime Kuma хранит свой токен отдельно — там
+менять руками (`scripts/find_bot_tokens.sh`). После — тестовое сообщение в
+@aristeatimesupport (`scripts/check_support_bot.sh`, шаги 4 и 5 — `OK`).
+
+---
+
 ## Отписка в письмах: общая ссылка ведёт на несуществующую страницу
 
 Найдено 27.09.2026. Футер базового шаблона писем (`_base`,
