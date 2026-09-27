@@ -62,6 +62,11 @@ celery_app.conf.update(
             "task": "tasks.expire_subscriptions",
             "schedule": crontab(hour=5, minute=0),
         },
+        # Просроченные анонимные карты гостей приложения (7 дней) — 07:20 МСК.
+        "purge-expired-anonymous-charts-daily": {
+            "task": "tasks.purge_expired_anonymous_charts",
+            "schedule": crontab(hour=4, minute=20),
+        },
         # Письма онбординга и после покупки — раз в час, 06:15–18:15 UTC
         # (09:15–21:15 МСК), решение владельца 23.09.2026. Ежечасно, а не раз
         # в сутки: деплой в 06:15 не стоит суток задержки. Повтор прогона

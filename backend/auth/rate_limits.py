@@ -386,6 +386,28 @@ def feedback_key(request: Request) -> str:
     return f"feedback:ip:{client_ip(request)}"
 
 
+# Гость приложения (анонимная карта, 27.09.2026): карта и прогноз без входа.
+# Каждая анонимная карта — это ещё и прогноз модели на каждый день, то есть
+# расход бюджета DeepSeek, который никто не оплачивает. Поэтому у гостя свой
+# суточный потолок по IP; вошедшим он не мешает — у них ключ по user_id и
+# лимит заведомо недостижимый (их держат тарифные лимиты).
+GUEST_UNLIMITED = "10000/day"
+
+
+def guest_key(request: Request) -> str:
+    user_id = _token_user_id(request)
+    if user_id:
+        return f"guest:user:{user_id}"
+    return f"guest:ip:{client_ip(request)}"
+
+
+def guest_limit(daily: str):
+    """Лимит slowapi, зависящий от ключа: `daily` — только гостю (ключ по IP)."""
+    def provider(key: str) -> str:
+        return daily if key.startswith("guest:ip:") else GUEST_UNLIMITED
+    return provider
+
+
 # Регистрация: троттлинг по email закрывает повторную отправку на один адрес, но
 # не мешает гнать письма на тысячи разных. Ключ по IP закрывает именно это.
 def register_send_key(request: Request) -> str:

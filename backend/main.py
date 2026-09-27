@@ -107,7 +107,7 @@ from backend.database import SessionLocal
 from backend.auth.dependencies import get_current_user_optional, get_current_user
 from backend.auth.rate_limits import (
     tier_limiter, get_tier_limits, CHART_CREATION_ABUSE_LIMIT, check_chart_rate_limit,
-    transits_date_window, planner_offset_window,
+    transits_date_window, planner_offset_window, guest_key, guest_limit,
 )
 from sqlalchemy import func as sa_func
 from backend.models import User
@@ -521,6 +521,31 @@ def resolve_chart_access(
     raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
 
 
+def _ensure_chart_slot(user: User, db: Session) -> None:
+    """403, если все слоты карт тарифа заняты (profiles_limit). Общая для
+    построения карты и привязки анонимной (claim_chart): привязка тоже
+    занимает слот, и без проверки через гостевой режим обходился бы лимит."""
+    tier = user.tier or "free"
+    profiles_limit = get_tier_limits(tier).get("profiles_limit")
+    if profiles_limit is None:
+        return
+    total_charts = (
+        db.query(sa_func.count(NatalChart.id))
+        .filter(NatalChart.user_id == user.id)
+        .scalar() or 0
+    )
+    if total_charts >= profiles_limit:
+        from backend.email_service import TIER_NAMES
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Достигнут лимит сохранённых карт ({profiles_limit}) для тарифа "
+                f"{TIER_NAMES.get(tier, tier.capitalize())}. Удали ненужную карту, чтобы "
+                f"освободить место, или перейди на старший тариф."
+            ),
+        )
+
+
 def chart_token(request: Request) -> str | None:
     """Capability-токен анонимной карты из заголовка X-Chart-Token."""
     return request.headers.get("X-Chart-Token")
@@ -538,6 +563,10 @@ def chart_token(request: Request) -> str | None:
     summary="Calculate natal chart",
 )
 @limiter.limit(settings.rate_limit_anon)
+# Гостю — не больше 20 анонимных карт в сутки с одного IP (rate_limits.guest_key).
+# ⚠️ Лимит общий с веб-лендингом (он тоже строит анонимные карты), а за одним
+# IP мобильного оператора (CGNAT) сидят многие — поэтому не меньше 20.
+@limiter.limit(guest_limit("20/day"), key_func=guest_key)
 async def calculate_chart(
     request: Request,
     data: BirthDataInput,
@@ -677,23 +706,7 @@ async def calculate_chart(
         # пользователей ещё нет). Проверяется ПЕРЕД защитой от ботов ниже —
         # это тот лимит, что реально описан на /pricing, и единственный,
         # где «удалите карту» — рабочий совет пользователю.
-        profiles_limit = limits.get("profiles_limit")
-        if profiles_limit is not None:
-            total_charts = (
-                db.query(sa_func.count(NatalChart.id))
-                .filter(NatalChart.user_id == user.id)
-                .scalar() or 0
-            )
-            if total_charts >= profiles_limit:
-                from backend.email_service import TIER_NAMES
-                raise HTTPException(
-                    status_code=403,
-                    detail=(
-                        f"Достигнут лимит сохранённых карт ({profiles_limit}) для тарифа "
-                        f"{TIER_NAMES.get(tier, tier.capitalize())}. Удали ненужную карту, чтобы "
-                        f"освободить место, или перейди на старший тариф."
-                    ),
-                )
+        _ensure_chart_slot(user, db)
 
         # Защита от ботов/скриптов — не тарифная фича, нигде не описана и не
         # обещана (20.08.2026, решение владельца). Одно число на все тарифы:
@@ -795,6 +808,41 @@ def _ambiguous_time_http(e: AmbiguousTimeError) -> HTTPException:
             "type": "ambiguous_time",
         },
     )
+
+
+@app.post("/api/v1/chart/{chart_id}/claim", tags=["chart"], summary="Привязать анонимную карту к аккаунту")
+async def claim_chart(
+    chart_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Гость приложения построил карту до регистрации — после входа она
+    переходит на аккаунт ТОЙ ЖЕ строкой (27.09.2026).
+
+    ⚠️ Не `save-anonymous`: тот пересчитывает карту заново и создаёт вторую
+    строку, а анонимная остаётся висеть до чистки — дубль в метриках и лишний
+    пересчёт. Здесь меняется владелец, id карты прежний: лента, кэш прогноза и
+    разбор на устройстве продолжают работать без перезапроса.
+
+    Токен доступа и срок гасятся: после привязки карта — обычная карта
+    аккаунта, и старый токен с устройства (или из утёкшего лога) её больше
+    не открывает. Повторный вызов владельцем — 200 без изменений.
+    """
+    chart = db.query(NatalChart).filter(NatalChart.id == chart_id).first()
+    if chart is not None and chart.user_id == user.id:
+        return {"id": chart.id, "claimed": False}
+    # Право — только по токену анонимной карты: чужая или просроченная — 404.
+    chart = resolve_chart_access(chart_id, None, chart_token(request), db)
+    _ensure_chart_slot(user, db)
+    chart.user_id = user.id
+    chart.access_token = None
+    chart.expires_at = None
+    if not user.primary_chart_id:
+        user.primary_chart_id = chart.id
+    db.commit()
+    logger.info("Chart %s claimed by user %s", chart.id, user.id)
+    return {"id": chart.id, "claimed": True}
 
 
 @app.post(

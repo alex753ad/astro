@@ -26,7 +26,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import get_current_user
+from backend.auth.dependencies import get_current_user, get_current_user_optional
+from backend.auth.rate_limits import guest_key, guest_limit
 from backend.cache import budget_tracker, interpretation_cache
 from backend.config import get_settings
 from backend.database import get_db
@@ -57,9 +58,11 @@ TTL_TODAY = 2 * 86400
 TTL_LUNATION = 45 * 86400
 
 
-def _owned_chart(chart_id: str, user: User, db: Session):
-    from backend.main import resolve_chart_access   # отложенно: main подключает этот роутер
-    return resolve_chart_access(chart_id, user, None, db)
+def _owned_chart(chart_id: str, user: User | None, db: Session, request: Request | None = None):
+    """Карта владельца либо — у прогнозов — анонимная карта гостя по
+    `X-Chart-Token` (27.09.2026: гость видит прогноз до регистрации)."""
+    from backend.main import chart_token, resolve_chart_access   # отложенно: main подключает этот роутер
+    return resolve_chart_access(chart_id, user, chart_token(request) if request else None, db)
 
 
 async def _ask_model(prompt: str, *, contour: str, json_mode: bool, max_tokens: int) -> str:
@@ -213,13 +216,15 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
 
 @router.get("/chart/{chart_id}/forecast/day", summary="Прогноз на день (приложение)")
 @limiter.limit("20/minute")
+# Гостю — потолок в сутки по IP: его прогнозы никто не оплачивает (rate_limits.guest_key).
+@limiter.limit(guest_limit("30/day"), key_func=guest_key)
 async def get_forecast_day(
     request: Request,
     chart_id: str,
     on_date: str = Query(..., alias="date"),
     tz: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """`date` — местная дата, YYYY-MM-DD. Открыты сегодня и — с 19:00 по
     местному времени — завтра; остальное (в том числе вчера) 404. Не 403: закрыто не тарифом,
@@ -232,7 +237,7 @@ async def get_forecast_day(
         day = date.fromisoformat(on_date)
     except ValueError:
         raise HTTPException(status_code=422, detail="date: YYYY-MM-DD.")
-    chart = _owned_chart(chart_id, user, db)
+    chart = _owned_chart(chart_id, user, db, request)
     tz_obj = F.resolve_tz(tz, chart.timezone)
     if day not in allowed_days(datetime.now(timezone.utc).astimezone(tz_obj)):
         raise HTTPException(status_code=404, detail="Прогноз на эту дату недоступен.")
@@ -294,6 +299,7 @@ async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) 
 
 @router.get("/chart/{chart_id}/forecast/lunation", summary="Прогноз на новолуние/полнолуние (приложение)")
 @limiter.limit("20/minute")
+@limiter.limit(guest_limit("30/day"), key_func=guest_key)
 async def get_forecast_lunation(
     request: Request,
     chart_id: str,
@@ -301,7 +307,7 @@ async def get_forecast_lunation(
     on_date: str = Query(..., alias="date"),
     tz: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User | None = Depends(get_current_user_optional),
 ):
     """`date` — местная дата события из ленты (`moon_phase.at`), YYYY-MM-DD."""
     if phase not in ("new_moon", "full_moon"):
@@ -310,7 +316,7 @@ async def get_forecast_lunation(
         near = date.fromisoformat(on_date)
     except ValueError:
         raise HTTPException(status_code=422, detail="date: YYYY-MM-DD.")
-    chart = _owned_chart(chart_id, user, db)
+    chart = _owned_chart(chart_id, user, db, request)
     return await lunation_forecast(chart, phase, near, tz)
 
 

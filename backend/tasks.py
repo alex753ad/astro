@@ -424,6 +424,45 @@ def send_broadcast_auto_task() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════
+# ANONYMOUS CHARTS
+# ═══════════════════════════════════════════════════════════
+
+@celery_app.task(name="tasks.purge_expired_anonymous_charts")
+def purge_expired_anonymous_charts() -> dict:
+    """Удалить анонимные карты без владельца, чей 7-дневный срок истёк
+    (решение владельца 27.09.2026).
+
+    Такая карта уже недоступна никому (`resolve_chart_access` отбивает
+    просроченный токен), а в ней лежат дата и место рождения человека,
+    который так и не зарегистрировался, — хранить их незачем. Привязанные
+    карты (`claim_chart`) срок теряют и сюда не попадают.
+
+    Удаление через ORM, а не одним DELETE: у карты есть зависимые строки
+    (разборы и т. п.), их каскад описан на связях модели — как в
+    `DELETE /profile/charts/{id}`.
+    """
+    from backend.models import NatalChart
+    from backend.time_utils import utcnow
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(NatalChart)
+            .filter(NatalChart.user_id.is_(None),
+                    NatalChart.expires_at.isnot(None),
+                    NatalChart.expires_at < utcnow())
+            .all()
+        )
+        for chart in rows:
+            db.delete(chart)
+        db.commit()
+    finally:
+        db.close()
+    logger.info("purge_expired_anonymous_charts: deleted=%d", len(rows))
+    return {"deleted": len(rows)}
+
+
+# ═══════════════════════════════════════════════════════════
 # SUBSCRIPTIONS
 # ═══════════════════════════════════════════════════════════
 
