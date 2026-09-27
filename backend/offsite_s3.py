@@ -25,12 +25,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import http.client
 import os
+import re
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
 PREFIX = "daily_"
@@ -78,23 +77,30 @@ def sign_v4(method: str, host: str, path: str, query: dict, headers: dict, paylo
 def _request(cfg: dict, method: str, key: str = "", query: dict | None = None, body: bytes = b"",
              timeout: float = 60.0) -> bytes:
     u = urllib.parse.urlsplit(cfg["endpoint"])
+    # Только HTTPS и http.client, а не urlopen: urlopen открыл бы и file://
+    # (bandit B310 в CI), а ключи и бэкапы в открытом виде не ходят.
+    if u.scheme != "https":
+        raise RuntimeError(f"BACKUP_S3_ENDPOINT должен быть https://, а не {u.scheme}://")
     path = "/" + cfg["bucket"] + ("/" + key if key else "")
     query = query or {}
     headers = sign_v4(method, u.netloc, path, query, {}, hashlib.sha256(body).hexdigest(),
                       cfg["access_key_id"], cfg["secret_access_key"], cfg["region"], datetime.now(timezone.utc))
-    url = f"{u.scheme}://{u.netloc}{_quote(path, safe='/-_.~')}"
+    target = _quote(path, safe="/-_.~")
     if query:
-        url += "?" + "&".join(f"{_quote(k)}={_quote(str(v))}" for k, v in sorted(query.items()))
+        target += "?" + "&".join(f"{_quote(k)}={_quote(str(v))}" for k, v in sorted(query.items()))
     headers.pop("host")
-    req = urllib.request.Request(url, data=body if method == "PUT" else None, method=method, headers=headers)
+    conn = http.client.HTTPSConnection(u.netloc, timeout=timeout)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as e:
+        conn.request(method, target, body=body if method == "PUT" else None, headers=headers)
+        resp = conn.getresponse()
+        data = resp.read()
+    finally:
+        conn.close()
+    if resp.status >= 300:
         # Текст ошибки хранилища (AccessDenied, NoSuchBucket…) — без него
-        # «HTTP Error 403» ничего не объясняет. Секретов в ответе нет.
-        detail = e.read()[:300].decode("utf-8", "replace")
-        raise RuntimeError(f"HTTP {e.code}: {detail}") from None
+        # «HTTP 403» ничего не объясняет. Секретов в ответе нет.
+        raise RuntimeError(f"HTTP {resp.status}: {data[:300].decode('utf-8', 'replace')}")
+    return data
 
 
 def put_object(cfg: dict, key: str, data: bytes) -> None:
@@ -109,13 +115,19 @@ def list_objects(cfg: dict, prefix: str = PREFIX) -> list[tuple[str, datetime]]:
         q = {"list-type": "2", "prefix": prefix}
         if token:
             q["continuation-token"] = token
-        root = ET.fromstring(_request(cfg, "GET", query=q))
-        ns = root.tag.split("}")[0] + "}" if root.tag.startswith("{") else ""
-        for c in root.findall(f"{ns}Contents"):
-            ts = c.findtext(f"{ns}LastModified").replace("Z", "+00:00")
-            out.append((c.findtext(f"{ns}Key"), datetime.fromisoformat(ts)))
-        token = root.findtext(f"{ns}NextContinuationToken")
-        if (root.findtext(f"{ns}IsTruncated") or "").lower() != "true" or not token:
+        # Четыре поля регулярками, без XML-парсера: ElementTree на ответе
+        # сети bandit считает небезопасным (B314), а defusedxml — лишняя
+        # зависимость на хосте. Имена бэкапов — daily_<дата>…age, без
+        # спецсимволов XML; &amp; и прочее в ключах тут не встречается.
+        text = _request(cfg, "GET", query=q).decode("utf-8", "replace")
+        for block in re.findall(r"<Contents>(.*?)</Contents>", text, re.S):
+            key = re.search(r"<Key>(.*?)</Key>", block, re.S).group(1)
+            ts = re.search(r"<LastModified>(.*?)</LastModified>", block, re.S).group(1)
+            out.append((key, datetime.fromisoformat(ts.replace("Z", "+00:00"))))
+        m = re.search(r"<NextContinuationToken>(.*?)</NextContinuationToken>", text, re.S)
+        token = m.group(1) if m else None
+        truncated = re.search(r"<IsTruncated>\s*true\s*</IsTruncated>", text, re.I)
+        if not truncated or not token:
             break
     return out
 
