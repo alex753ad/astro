@@ -24,6 +24,12 @@ notify_telegram() {
 echo "Docker image prune (образы без контейнеров, старше 168ч)"
 docker image prune -af --filter "until=168h"
 
+# Кэш сборки image prune не трогает: 27.09.2026 его набралось 15 ГБ (909
+# записей) при 5.6 ГБ образов. Срок тот же — 7 суток: свежий кэш ускоряет
+# следующий деплой, старше недели он уже не совпадёт с lock-файлом.
+echo "Docker builder prune (кэш сборки старше 168ч)"
+docker builder prune -af --filter "until=168h"
+
 used_pct="$(df --output=pcent / | tail -1 | tr -dc '0-9')"
 free_pct=$((100 - used_pct))
 echo "Свободно на /: ${free_pct}%"

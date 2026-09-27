@@ -204,18 +204,18 @@ if [[ "$MODE" != "frontend" ]]; then
   # в ТОМ ЖЕ запуске.
   log "Синхронизирую копии деплой-скриптов из $APP_DIR/deploy/opt-astro/ (temp + atomic mv)"
   dest_dir="$(pwd)"
-  for f in 05-update.sh 04-frontend-deploy.sh docker-compose.yml 07-backup-cron.sh; do
+  for f in 05-update.sh 04-frontend-deploy.sh docker-compose.yml 07-backup-cron.sh prune-and-diskcheck.sh; do
     tmp="$(mktemp "${dest_dir}/.${f}.XXXXXX")"
     if ! cp "$APP_DIR/deploy/opt-astro/$f" "$tmp"; then
       rm -f "$tmp"
       die "не удалось скопировать $f во временный файл — рабочая копия не тронута."
     fi
     case "$f" in
-      05-update.sh|04-frontend-deploy.sh|07-backup-cron.sh) chmod +x "$tmp" ;;
+      05-update.sh|04-frontend-deploy.sh|07-backup-cron.sh|prune-and-diskcheck.sh) chmod +x "$tmp" ;;
     esac
     mv -f "$tmp" "${dest_dir}/$f"
   done
-  echo "  синхронизировано: 05-update.sh, 04-frontend-deploy.sh, docker-compose.yml, 07-backup-cron.sh"
+  echo "  синхронизировано: 05-update.sh, 04-frontend-deploy.sh, docker-compose.yml, 07-backup-cron.sh, prune-and-diskcheck.sh"
 fi
 
 # ---------------------------------------------------------------------------

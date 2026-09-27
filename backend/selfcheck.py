@@ -82,7 +82,12 @@ TITLES = {
     "payments_api": "Оплата: сверка с ЮKassa не прошла",
     "payment_no_tier": "Оплата: деньги есть — тарифа нет",
     "payment_credit_failed": "Оплата: сверка не смогла начислить",
+    "offsite_backup": "Бэкапы: копия вне сервера",
 }
+
+# Бэкап ложится около 03:30–03:47 UTC, утренняя проверка — 04:30 UTC: у
+# свежего возраст около часа, у пропущенного — больше суток.
+OFFSITE_MAX_AGE_HOURS = 24
 
 # Лунные события ленты: проход Луны по дому, фаза, затмение.
 _LUNAR_KINDS = ("planner_moon_house", "moon_phase", "eclipse")
@@ -344,8 +349,58 @@ def feedback_line(fb: dict) -> str:
 
 # ── Инциденты ───────────────────────────────────────────────
 
+def problem_offsite(now: datetime | None = None) -> str | None:
+    """Последний бэкап в хранилище вне сервера не старше суток (backend/offsite_s3.py).
+
+    Не настроено — тоже проблема: бэкапы тогда только на диске сервера, и
+    отказ диска уносит базу вместе с ними.
+    """
+    import os
+    from backend import offsite_s3
+    cfg = offsite_s3.config_from_env(os.environ)
+    if cfg is None:
+        return "копия вне сервера не настроена (BACKUP_S3_* в .env) — бэкапы только на диске сервера"
+    try:
+        items = offsite_s3.list_objects(cfg)
+    except Exception as e:
+        return f"хранилище не ответило на список: {type(e).__name__}: {e}"[:400]
+    if not items:
+        return f"бакет {cfg['bucket']} пуст — ни одного бэкапа"
+    key, ts = max(items, key=lambda kv: kv[1])
+    age = (now or datetime.now(timezone.utc)) - ts
+    if age > timedelta(hours=OFFSITE_MAX_AGE_HOURS):
+        return f"последний бэкап в хранилище — {key} от {ts:%d.%m %H:%M} UTC, старше суток"
+    return None
+
+
+def record_run(kind: str, results: dict, unsent: list, db=None) -> None:
+    """Итог прогона — в БД (selfcheck_runs, миграция 061).
+
+    Логи контейнеров стираются при каждом деплое, канал в Telegram может
+    молчать — таблица остаётся. Пишутся только найденные проблемы и то, что
+    не ушло в Telegram; чистый прогон — строка с пустыми полями, по ней видно,
+    что проверка вообще шла. Своя сессия, если не передали: задачи Celery
+    живут без запроса. Ошибка записи — ERROR, но прогон не роняет.
+    """
+    from backend.models import SelfcheckRun
+    own = db is None
+    try:
+        if own:
+            from backend.database import SessionLocal
+            db = SessionLocal()
+        try:
+            db.add(SelfcheckRun(kind=kind, problems={k: v for k, v in results.items() if v} or None,
+                                unsent=list(unsent) or None))
+            db.commit()
+        finally:
+            if own:
+                db.close()
+    except Exception as e:
+        logger.error("selfcheck: итог прогона %s не записан в БД: %s", kind, e)
+
+
 async def settle(redis, name: str, problem: str | None, *, send=None, details: str = "") -> str | None:
-    """Свести провал/норму к сигналу. Возвращает 'opened' | 'resolved' | None."""
+    """Свести провал/норму к сигналу. Возвращает 'opened' | 'resolved' | 'unsent' | None."""
     if send is None:
         from backend.notifications.telegram import send_support_message as send
     key = _INCIDENT_PREFIX + name
@@ -357,13 +412,19 @@ async def settle(redis, name: str, problem: str | None, *, send=None, details: s
             text = f"🔴 {title}\n{problem}" + (f"\n{details}" if details else "")
             if not await send(text):
                 redis.delete(key)
-                return None
+                # ⚠️ Текст проблемы — в ERROR (→ Sentry), иначе он не остаётся
+                # нигде: инцидент снят ради повтора, а логи контейнера стираются
+                # при каждом деплое. Так с 24.09 по 27.09.2026 всё, что нашла
+                # самопроверка, пропало вместе с каналом (не тот бот в канале).
+                logger.error("selfcheck: сигнал не доставлен — %s: %s", title, problem)
+                return "unsent"
             return "opened"
         if not redis.delete(key):
             return None
         if not await send(f"✅ Починилось: {title}"):
             redis.set(key, "ожидает сообщения «починилось»")
-            return None
+            logger.error("selfcheck: сигнал «починилось» не доставлен — %s", title)
+            return "unsent"
         return "resolved"
     except Exception as e:
         logger.warning("selfcheck: инцидент %s не обработан: %s", name, e)
@@ -381,12 +442,17 @@ def _is_open(redis, name: str) -> bool:
 
 async def run_daily(redis) -> dict:
     results = await run_steps(list(STEPS))
+    results["offsite_backup"] = await asyncio.to_thread(problem_offsite)
+    unsent = []
     for name, problem in results.items():
-        await settle(redis, name, problem)
+        if await settle(redis, name, problem) == "unsent":
+            unsent.append(name)
     fb = read_feedback()
     if fb is not None:
         results["dislike_share"] = problem_dislike_share(fb)
-        await settle(redis, "dislike_share", results["dislike_share"], details=feedback_line(fb))
+        if await settle(redis, "dislike_share", results["dislike_share"], details=feedback_line(fb)) == "unsent":
+            unsent.append("dislike_share")
+    record_run("daily", results, unsent)
     return results
 
 
@@ -418,13 +484,17 @@ async def run_hourly(redis) -> dict:
         out["model_down"] = await probe_model()
     out["fallback_share"] = problem_fallback_share(summary)
 
+    unsent = []
     for name, problem in out.items():
-        await settle(redis, name, problem, details=details)
+        if await settle(redis, name, problem, details=details) == "unsent":
+            unsent.append(name)
 
     reopen = [n for n in STEPS if _is_open(redis, n)]
     if reopen:
         results = await run_steps(reopen)
         for name, problem in results.items():
-            await settle(redis, name, problem)
+            if await settle(redis, name, problem) == "unsent":
+                unsent.append(name)
         out.update(results)
+    record_run("hourly", out, unsent)
     return out

@@ -693,6 +693,23 @@ class Feedback(Base):
     created_at = Column(DateTime, default=utcnow, index=True)
 
 
+class SelfcheckRun(Base):
+    """Итог прогона самопроверки и сверки (миграция 061).
+
+    Нужна потому, что всё остальное эфемерно: логи контейнеров стираются при
+    деплое, инцидент в Redis снимается при неудачной отправке, канал в Telegram
+    может молчать (так было 02–27.09.2026). kind — daily | hourly | reconcile;
+    problems — {проверка: текст} только найденного, unsent — какие сигналы не
+    ушли в Telegram. Чистый прогон — строка с NULL в обоих: видно, что шёл.
+    """
+    __tablename__ = "selfcheck_runs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    kind = Column(String(16), nullable=False)
+    ran_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    problems = Column(JSON, nullable=True)
+    unsent = Column(JSON, nullable=True)
+
+
 class ExitReason(Base):
     __tablename__ = "exit_reasons"
     id = Column(Integer, primary_key=True, autoincrement=True)

@@ -129,7 +129,19 @@ echo "OK: $ENC_FILE ($(du -h "$ENC_FILE" | cut -f1))"
 # Выгрузка за пределы хоста. Бэкап на том же диске, что и БД, не спасает от
 # самого частого сценария — отказа или компрометации этого диска.
 # ---------------------------------------------------------------------------
-if [[ -n "$S3_TARGET" ]]; then
+if [[ -n "$(get_env_var BACKUP_S3_BUCKET)" ]]; then
+  # S3 по BACKUP_S3_* (Yandex Object Storage, 27.09.2026): загрузка stdlib-модулем
+  # из репозитория — ни aws-cli, ни rclone на хосте не нужны. Переменные
+  # экспортируются, а не передаются аргументами: аргументы видны в `ps`.
+  # Ключи умеют только PutObject + ListBucket — после PUT модуль сам
+  # проверяет, что объект есть в списке.
+  for _k in ENDPOINT REGION BUCKET ACCESS_KEY_ID SECRET_ACCESS_KEY; do
+    export "BACKUP_S3_${_k}=$(get_env_var "BACKUP_S3_${_k}")"
+  done
+  _out="$(python3 app/backend/offsite_s3.py put "$ENC_FILE" 2>&1)" \
+    || fail "выгрузка в хранилище не удалась: ${_out}"
+  echo "Выгружено: ${_out}"
+elif [[ -n "$S3_TARGET" ]]; then
   if command -v rclone >/dev/null 2>&1 && [[ "$S3_TARGET" != s3://* ]]; then
     rclone copy "$ENC_FILE" "$S3_TARGET" --quiet \
       || fail "rclone copy в $S3_TARGET не удался"

@@ -77,6 +77,21 @@ class Outbox:
         return self.ok
 
 
+REAL_RECORD_RUN = S.record_run
+REAL_PROBLEM_OFFSITE = S.problem_offsite
+
+
+@pytest.fixture(autouse=True)
+def _isolated(monkeypatch):
+    """Прогоны не ходят в хранилище бэкапов и не пишут в боевую БД; что
+    записалось бы — в S.recorded. Настоящие функции проверены отдельно ниже."""
+    recorded = []
+    monkeypatch.setattr(S, "problem_offsite", lambda now=None: None)
+    monkeypatch.setattr(S, "record_run", lambda kind, results, unsent, db=None: recorded.append((kind, results, unsent)))
+    S.recorded = recorded
+    yield
+
+
 # ── Самопроверка краснеет там, где снаружи всё «работает» ────
 
 GOOD_DAY = {"date": TODAY.isoformat(), "source": "model", "paragraphs": ["Спокойный день."]}
@@ -401,3 +416,71 @@ def test_daily_run_signals_dislikes(monkeypatch):
     monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
     asyncio.run(S.run_daily(r))
     assert len(box.sent) == 1 and "👎" in box.sent[0] and "модель 👍 5 👎 5" in box.sent[0]
+
+
+# ── Недоставленный сигнал и итог прогона переживают деплой (27.09.2026) ──
+
+def test_unsent_signal_is_logged_with_problem_text(caplog):
+    import logging
+    r = FakeRedis()
+    with caplog.at_level(logging.ERROR, logger="astro.selfcheck"):
+        status = asyncio.run(S.settle(r, "feed", "лента пустая", send=Outbox(ok=False)))
+    assert status == "unsent"
+    assert "лента пустая" in caplog.text and "лента" in caplog.text
+
+
+def test_daily_records_problems_and_unsent(monkeypatch):
+    async def steps(names):
+        return {n: ("пусто" if n == "feed" else None) for n in names}
+
+    monkeypatch.setattr(S, "run_steps", steps)
+    monkeypatch.setattr(S, "read_feedback", lambda **k: None)
+    monkeypatch.setattr(S, "problem_offsite", lambda now=None: "копия вне сервера не настроена")
+    monkeypatch.setattr("backend.notifications.telegram.send_support_message", Outbox(ok=False))
+    asyncio.run(S.run_daily(FakeRedis()))
+    kind, results, unsent = S.recorded[-1]
+    assert kind == "daily"
+    assert results["feed"] == "пусто" and results["offsite_backup"] == "копия вне сервера не настроена"
+    assert set(unsent) == {"feed", "offsite_backup"}
+
+
+def test_record_run_writes_row(db):
+    from backend.models import SelfcheckRun
+    REAL_RECORD_RUN("hourly", {"no_key": "нет ключа", "budget_low": None}, ["no_key"], db=db)
+    REAL_RECORD_RUN("daily", {"feed": None}, [], db=db)
+    rows = db.query(SelfcheckRun).order_by(SelfcheckRun.id).all()
+    assert (rows[0].kind, rows[0].problems, rows[0].unsent) == ("hourly", {"no_key": "нет ключа"}, ["no_key"])
+    assert (rows[1].problems, rows[1].unsent) == (None, None)
+
+
+def _offsite_env(monkeypatch):
+    for k in ("ENDPOINT", "REGION", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY"):
+        monkeypatch.setenv("BACKUP_S3_" + k, "https://s.example" if k == "ENDPOINT" else "x")
+
+
+def test_offsite_not_configured_is_a_problem(monkeypatch):
+    for k in ("ENDPOINT", "REGION", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY"):
+        monkeypatch.delenv("BACKUP_S3_" + k, raising=False)
+    assert "не настроена" in REAL_PROBLEM_OFFSITE()
+
+
+def test_offsite_fresh_and_stale(monkeypatch):
+    from backend import offsite_s3
+    _offsite_env(monkeypatch)
+    now = datetime(2026, 9, 28, 4, 30, tzinfo=timezone.utc)
+    items = [("daily_20260927.age", datetime(2026, 9, 27, 3, 44, tzinfo=timezone.utc)),
+             ("daily_20260928.age", datetime(2026, 9, 28, 3, 40, tzinfo=timezone.utc))]
+    monkeypatch.setattr(offsite_s3, "list_objects", lambda cfg, prefix="daily_": items)
+    assert REAL_PROBLEM_OFFSITE(now) is None
+    items.pop()
+    assert "старше суток" in REAL_PROBLEM_OFFSITE(now)
+
+
+def test_offsite_unreachable(monkeypatch):
+    from backend import offsite_s3
+    _offsite_env(monkeypatch)
+
+    def boom(cfg, prefix="daily_"):
+        raise RuntimeError("HTTP 403: AccessDenied")
+    monkeypatch.setattr(offsite_s3, "list_objects", boom)
+    assert "AccessDenied" in REAL_PROBLEM_OFFSITE()

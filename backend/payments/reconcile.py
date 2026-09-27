@@ -112,6 +112,7 @@ async def run_reconciliation(
                  "API ЮKassa не ответил при сверке платежей — начисления не проверены",
                  send=send)
     if payments is None:
+        _record(db, {"payments_api": "API ЮKassa не ответил"})
         return summary
 
     for payment in payments:
@@ -153,4 +154,15 @@ async def run_reconciliation(
                 logger.warning("Сверка: сообщение о начислении %s не отправлено", pid)
 
     logger.info("Сверка: %s", {k: (v if isinstance(v, int) else len(v)) for k, v in summary.items()})
+    _record(db, summary)
     return summary
+
+
+def _record(db: Session, found: dict) -> None:
+    """Итог сверки — в selfcheck_runs: лог worker стирается при деплое, и
+    27.09.2026 на вопрос «были ли расхождения» ответить было нечем."""
+    from backend.selfcheck import record_run
+    problems = {k: v for k, v in found.items() if v and k != "checked"}
+    if problems:
+        problems["checked"] = found.get("checked", 0)
+    record_run("reconcile", problems, [], db=db)

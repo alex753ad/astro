@@ -2264,7 +2264,7 @@ SPA-фолбэк); include’ы `csp.conf`, `security-headers.conf` и
 
 | Кто | Что копирует | Куда |
 |---|---|---|
-| `05-update.sh` | `05-update.sh`, `04-frontend-deploy.sh`, `docker-compose.yml`, `07-backup-cron.sh` | `/opt/astro/` |
+| `05-update.sh` | `05-update.sh`, `04-frontend-deploy.sh`, `docker-compose.yml`, `07-backup-cron.sh`, `prune-and-diskcheck.sh` (с 27.09.2026) | `/opt/astro/` |
 | `04-frontend-deploy.sh` | `nginx/snippets/*.conf` | `/etc/nginx/snippets/` |
 | — то же — | `nginx/conf.d/00-astro-hardening.conf` | `/etc/nginx/conf.d/` |
 | — то же — | `frontend/nginx-routes.conf` (**генерируется сборкой**) | `/etc/nginx/conf.d/10-astro-routes.conf` |
@@ -2492,8 +2492,8 @@ python-строки доезжает как литеральные символ�
    сообщает владельцу и сам прод не чинит.
 5. **Владелец**: проверить результат по чек-листу приёмки.
 
-`05-update.sh`, `04-frontend-deploy.sh`, `docker-compose.yml` и
-`07-backup-cron.sh` больше не нужно
+`05-update.sh`, `04-frontend-deploy.sh`, `docker-compose.yml`,
+`07-backup-cron.sh` и `prune-and-diskcheck.sh` больше не нужно
 копировать руками — `05-update.sh` сам синхронизирует их из
 `app/deploy/opt-astro/` поверх рабочих копий в `/opt/astro` сразу после
 `git pull`, при каждом запуске (обычном и `--backend-only`). Исключение:
@@ -2526,6 +2526,33 @@ Settings → Deploy keys репозитория (только чтение). Н�
   Не «чинить» обратно на pipe.
 - `BACKUP_S3_TARGET` не задан — копии только на этом сервере. Открытый риск:
   отказ диска уносит базу и бэкапы разом.
+
+**Аудит 27.09.2026** (`scripts/audit_since_0209.sh`): бэкап был КАЖДЫЙ день
+02–27.09, но (1) закрытый ключ лежал на сервере рядом с бэкапами —
+`scripts/check_backups.sh` проверяет расшифровку и пишет метку,
+`scripts/remove_backup_key.sh` удаляет ключ только по ней и при совпадении
+публичных ключей; (2) расшифровку зашифрованного файла не проверял никто с
+13.08 — сам бэкап-скрипт проверяет дамп ДО шифрования.
+
+**Копия вне сервера — Yandex Object Storage** (решение владельца 27.09.2026),
+переменные `BACKUP_S3_*` (пример — `deploy/opt-astro/.env.example`), загрузка
+— `backend/offsite_s3.py`, только stdlib: работает на хосте из
+`07-backup-cron.sh`, где нет ни boto3, ни aws-cli. ⚠️ Ключи умеют ТОЛЬКО
+PutObject + ListBucket (политика бакета): взломанный сервер не должен ни
+читать, ни стирать копии. 30 дней держит правило жизненного цикла бакета, не
+код. Подпись SigV4 своя — проверена эталонами AWS в `test_offsite_s3.py`;
+без этого теста «403 SignatureDoesNotMatch» выглядел бы как молча не уехавший
+бэкап. Самопроверка (утренняя) — `offsite_backup`: не настроено, хранилище не
+отвечает или новейший объект старше 24 ч — сигнал.
+
+**Итоги самопроверки и сверки — в таблице `selfcheck_runs`** (миграция 061):
+логи контейнеров стираются при деплое, и 27.09 ответить, что самопроверка
+находила 24–27.09, было нечем. Недоставленный сигнал теперь ещё и ERROR с
+текстом проблемы (→ Sentry). Таблица не чистится — строк ~25 в сутки.
+
+`prune-and-diskcheck.sh` с 27.09 чистит и кэш сборки (`docker builder prune`,
+7 суток): его набралось 15 ГБ. Скрипт теперь синхронизирует `05-update.sh` —
+до этого правки в нём до сервера не доезжали вовсе.
 
 ### Прод-гварды платежей — вернулись под ЮKassa
 
