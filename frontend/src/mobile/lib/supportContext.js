@@ -29,6 +29,16 @@ export function appVersionLabel(release = RELEASE) {
 }
 
 /**
+ * «aristea-mobile@0.1.0+abc1234» → «0.1.0» — для экрана «Настройки».
+ * Хеш человеку ничего не говорит; он нужен только поддержке и уходит с
+ * обращением через appVersionLabel (решение владельца 27.09.2026).
+ */
+export function appVersionShort(release = RELEASE) {
+  const m = /@([^+]+)/.exec(release || '');
+  return m ? m[1] : 'dev';
+}
+
+/**
  * Модель из user-agent Android WebView: «…(Linux; Android 14; SM-A515F Build/…)».
  * ⚠️ Урезанный UA (Chrome UA reduction) вместо модели пишет «K» — тогда
  * отдаём только версию Android, а не выдуманную модель.

@@ -72,6 +72,7 @@ import OfflineNote from '../components/OfflineNote';
 import SupportLink from '../components/SupportLink';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
 import { forecastDates, pickAnchorDate, withDates } from '../lib/feedAnchor';
+import { returnTarget, topVisibleDay } from '../lib/feedReturn';
 import FeedDayForecastCard from '../components/FeedDayForecastCard';
 import { shiftDays } from '../lib/feedTime';
 import { splitDayEvents } from '../lib/feedDayOrder';
@@ -233,6 +234,10 @@ export default function FeedScreen({
   const anchorDateRef = useRef(null);
   // Развёрнутая полоса «сейчас»: за её уходом с экрана следит хук ниже.
   const nowStripRef = useRef(null);
+  // Где человек оставил ленту: { date, offset } дня у верхней кромки. Нужен
+  // при возврате с другой вкладки — разбор в lib/feedReturn.js.
+  const savedPosRef = useRef(null);
+  const daysRef = useRef([]);
 
   /**
    * `silent` — обновление жестом, без смены состояния на 'loading'.
@@ -350,6 +355,8 @@ export default function FeedScreen({
   useEffect(() => {
     if (seenChartsVersion.current === chartsVersion) return;
     seenChartsVersion.current = chartsVersion;
+    // Позиция относилась к событиям прежней карты — возврат пойдёт на сегодня.
+    savedPosRef.current = null;
     load();
   }, [chartsVersion, load]);
 
@@ -381,6 +388,7 @@ export default function FeedScreen({
   const withForecast = forecastDates(today, new Date(serverNow()).getHours());
   const days = withDates(groupByDay(events), withForecast, feed?.horizon || {});
   const forecastLabel = { [today]: 'сегодня', [shiftDays(today, 1)]: 'завтра' };
+  daysRef.current = days;
 
   // Жест обновления. Гейт по `active` обязателен: все три экрана
   // смонтированы одновременно и делят ОДИН скроллер (TabShell.jsx) — без
@@ -528,6 +536,48 @@ export default function FeedScreen({
 
     return () => { cancelled = true; cancelAnimationFrame(raf); };
   }, [status, days.length]);
+
+  /**
+   * Запоминаем день у верхней кромки на каждой прокрутке, пока лента видна.
+   *
+   * ⚠️ Проверка видимости — не лишняя. Уход на другую вкладку прячет ленту
+   * `display: none`, скроллер прижимает позицию к нулю и шлёт scroll; если
+   * записать его, запомнится начало окна — ровно тот дефект, который здесь
+   * лечится. У спрятанного узла `offsetParent === null`.
+   */
+  useEffect(() => {
+    const el = scrollRef?.current;
+    if (!active || !el) return undefined;
+    const save = () => {
+      const list = daysRef.current;
+      const nodes = list.map((d) => dayRefs.current.get(d.date)).filter(Boolean);
+      if (nodes.length === 0 || nodes[0].offsetParent === null) return;
+      const tops = list
+        .filter((d) => dayRefs.current.get(d.date))
+        .map((d) => ({ date: d.date, top: dayRefs.current.get(d.date).getBoundingClientRect().top }));
+      savedPosRef.current = topVisibleDay(tops, el.getBoundingClientRect().top);
+    };
+    el.addEventListener('scroll', save, { passive: true });
+    return () => el.removeEventListener('scroll', save);
+  }, [active, scrollRef]);
+
+  /**
+   * Возврат на вкладку — на тот же день (lib/feedReturn.js). Первое
+   * открытие ведёт якорный эффект выше, поэтому первый показ пропускается.
+   * layout-эффект: вкладка уже `display: flex` в этом же коммите, и прыжок
+   * успевает до кадра — человек не видит начала окна даже мельком.
+   */
+  const wasActiveRef = useRef(active);
+  useLayoutEffect(() => {
+    const returning = active && !wasActiveRef.current;
+    wasActiveRef.current = active;
+    if (!returning || status !== 'ready') return;
+    const el = scrollRef?.current;
+    const target = returnTarget(savedPosRef.current, daysRef.current, localToday());
+    const node = target && dayRefs.current.get(target.date);
+    if (!el || !node) return;
+    el.scrollTop += node.getBoundingClientRect().top - el.getBoundingClientRect().top + target.offset;
+  }, [active, status, scrollRef]);
 
   if (status === 'loading') {
     return <div style={PAGE_PADDING}><FeedSkeleton /></div>;

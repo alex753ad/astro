@@ -116,9 +116,11 @@ export async function createChart(form) {
  * срок (`share_router.py:195-201`) — то есть кнопку можно нажимать сколько
  * угодно, вечной ссылка от этого не станет.
  */
-export async function createShareLink(chartId) {
+export async function createShareLink(chartId, { showBirth = false } = {}) {
+  // Флаг уходит КАЖДЫМ вызовом: без него сервер скрывает дату и место
+  // (lib/shareRules.js, шапка).
   const resp = await authFetchWithTimeout(
-    `${API_BASE}/charts/${chartId}/share`,
+    `${API_BASE}/charts/${chartId}/share${showBirth ? '?show_birth=true' : ''}`,
     { method: 'POST' },
   );
 

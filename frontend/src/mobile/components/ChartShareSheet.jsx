@@ -24,11 +24,12 @@
  */
 
 import SupportLink from './SupportLink';
+import MoreSwitch from './MoreSwitch';
 import React, { useCallback, useState } from 'react';
 import { createShareLink } from '../lib/chartApi';
 import { openInBrowser } from '../lib/openInBrowser';
 import {
-  SHARE_DISCLOSURE,
+  shareDisclosure,
   SHARE_STEPS,
   disclosureVisible,
   mayRunShareAction,
@@ -49,13 +50,16 @@ export default function ChartShareSheet({ chartId, onClose }) {
   const [step, setStep] = useState(SHARE_STEPS.DISCLOSURE);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  // Выключено при каждом открытии листа: дата и место уходят только по
+  // выбору в этот раз (решение владельца 27.09.2026).
+  const [showBirth, setShowBirth] = useState(false);
 
   const run = useCallback(async (use) => {
     if (!mayRunShareAction(step)) return;
     setStep(SHARE_STEPS.WORKING);
     setError('');
     try {
-      const links = await createShareLink(chartId);
+      const links = await createShareLink(chartId, { showBirth });
       await use(links);
       setStep(SHARE_STEPS.DISCLOSURE);
     } catch (err) {
@@ -65,7 +69,7 @@ export default function ChartShareSheet({ chartId, onClose }) {
       setError(err?.message || 'Не удалось создать ссылку.');
       setStep(SHARE_STEPS.ERROR);
     }
-  }, [chartId, step]);
+  }, [chartId, step, showBirth]);
 
   const copy = useCallback(() => run(async ({ shareUrl }) => {
     try {
@@ -108,11 +112,26 @@ export default function ChartShareSheet({ chartId, onClose }) {
           Поделиться картой
         </p>
 
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setShowBirth((v) => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            padding: '11px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)', color: 'var(--text-primary)',
+            fontFamily: 'var(--font-body)', fontSize: 14.5, textAlign: 'left',
+          }}
+        >
+          <span>Показать дату и место рождения</span>
+          <MoreSwitch on={showBirth} />
+        </button>
+
         {/* Предупреждение стоит ВЫШЕ кнопок и рендерится всегда, пока лист
-            открыт — см. disclosureVisible. */}
+            открыт — см. disclosureVisible. Текст следует за переключателем. */}
         {disclosureVisible(step) && (
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {SHARE_DISCLOSURE.map((line) => (
+            {shareDisclosure(showBirth).map((line) => (
               <li key={line} style={{ display: 'flex', gap: 7, fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
                 <span aria-hidden="true">·</span>
                 <span>{line}</span>

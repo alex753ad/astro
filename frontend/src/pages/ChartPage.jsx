@@ -10,14 +10,12 @@ import { authFetch } from '../api/client';
 import { API_BASE, BACKEND_BASE } from '../config';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
-import AspectTableWrapper from '../components/AspectTableWrapper';
 import AspectTable from '../components/AspectTable';
 import Interpretation from '../components/Interpretation';
 import { useWebTier } from '../lib/webTier';
+import { shareDisclosure } from '../mobile/lib/shareRules';
 import TransitTimeline from '../components/TransitTimeline';
-import ExpertModeToggle from '../components/ExpertModeToggle';
 import AspectGrid from '../components/AspectGrid';
-import { useExpertMode } from '../hooks/useExpertMode.js';
 import useIsMobile from '../hooks/useIsMobile';
 import { TIER_NAMES } from '../constants';
 import { todayLocalISO } from '../utils/dateISO';
@@ -389,11 +387,15 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
+  // Дата и место рождения по ссылке — только по выбору перед отправкой
+  // (решение владельца 27.09.2026, mobile/lib/shareRules.js). Флаг уходит
+  // каждым запросом: без него сервер их скрывает.
+  const [shareShowBirth, setShareShowBirth] = useState(false);
+  const shareQuery = shareShowBirth ? '?show_birth=true' : '';
   const [hoverPlanet, setHoverPlanet]  = useState(null); // cross-highlight: планета под курсором в таблице
   const [hoverAspect, setHoverAspect]  = useState(null); // cross-highlight: аспект под курсором в таблице ("A|B")
   const [chartForExport, setChartForExport] = useState(false); // светлая тема при PNG-экспорте
 
-  const { expertMode, toggleExpertMode } = useExpertMode(currentUser?.id ?? null);
   const { streak, isNew } = useStreak();
   const isMobile = useIsMobile(900);
 
@@ -428,7 +430,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     setShareLoading(true);
     try {
       const resp = await fetch(
-        `${API_BASE}/charts/${chartId}/share`,
+        `${API_BASE}/charts/${chartId}/share${shareQuery}`,
         { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
       );
       if (!resp.ok) throw new Error('Ошибка генерации ссылки');
@@ -450,18 +452,17 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   async function handleDownloadCard() {
     const token = localStorage.getItem('astro_access_token');
     if (!token) { toast.info('Войди, чтобы скачать карточку'); return; }
-    // получаем токен если нет
-    let url = shareUrl;
-    if (!url) {
-      const resp = await fetch(
-        `${API_BASE}/charts/${chartId}/share`,
-        { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (resp.ok) {
-        const data = await resp.json();
-        setShareUrl(data.share_url);
-        url = data.share_url;
-      }
+    // Запрос каждый раз, а не прежняя ссылка из состояния: он же ставит флаг
+    // «дата и место», и картинка обязана соответствовать выбору сейчас.
+    let url = null;
+    const resp = await fetch(
+      `${API_BASE}/charts/${chartId}/share${shareQuery}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      setShareUrl(data.share_url);
+      url = data.share_url;
     }
     if (!url) return;
     const shareToken = url.split('/').pop();
@@ -927,6 +928,13 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                 >
                   <span>{shareLoading ? '⏳' : copied ? '✓ Скопировано' : 'Поделиться'}</span>
                 </MotionButton>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={shareShowBirth} onChange={(e) => setShareShowBirth(e.target.checked)} />
+                  Показать дату и место рождения
+                </label>
+                <p style={{ margin: '4px auto 0', maxWidth: 360, fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+                  {shareDisclosure(shareShowBirth)[0]}
+                </p>
               </div>
             </div>
           </div>

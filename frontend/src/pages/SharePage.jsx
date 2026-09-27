@@ -14,6 +14,16 @@ const SIGN_RU = {
   Sagittarius: 'Стрелец', Capricorn: 'Козерог', Aquarius: 'Водолей', Pisces: 'Рыбы',
 };
 
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+/** «1984-08-02» → «2 августа 1984»; непонятное — как есть. Пара ru_date в
+ *  share_router.py (карточка). */
+function ruDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? `${Number(m[3])} ${MONTHS_GEN[Number(m[2]) - 1]} ${m[1]}` : (iso || '');
+}
+
 function getPlanet(planets, name) {
   return planets?.find(p => p.name === name);
 }
@@ -90,7 +100,11 @@ export default function SharePage() {
         {/* Заголовок */}
         <div style={s.titleBlock}>
           <h1 style={s.title}>{chart.share_name || 'Натальная карта'}</h1>
-          <p style={s.subtitle}>{chart.birth_date} · {chart.birth_place}</p>
+          {/* Дата, место и колесо приходят только если человек выбрал их
+              показать при отправке (share_router.py, share_data). */}
+          {chart.show_birth && (
+            <p style={s.subtitle}>{ruDate(chart.birth_date)} · {chart.birth_place}</p>
+          )}
         </div>
 
         {/* Бейджи планет */}
@@ -108,6 +122,7 @@ export default function SharePage() {
         </div>
 
         {/* SVG карта */}
+        {chart.show_birth && (
         <div style={s.chartWrap}>
           <NatalChart
             planets={chart.planets}
@@ -119,6 +134,7 @@ export default function SharePage() {
             transitPlanets={[]}
           />
         </div>
+        )}
 
         {/* Приглашение построить свою карту */}
         <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>

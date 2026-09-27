@@ -14,7 +14,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  SHARE_DISCLOSURE,
+  shareDisclosure,
   SHARE_STEPS,
   SHARE_TTL_DAYS,
   disclosureVisible,
@@ -55,11 +55,17 @@ describe('предупреждение показывается ДО дейст�
 });
 
 describe('текст предупреждения называет то, что действительно уходит', () => {
-  const text = SHARE_DISCLOSURE.join(' ');
+  const text = shareDisclosure(true).join(' ');
 
-  it('дата и место рождения названы', () => {
+  it('с переключателем — дата и место рождения названы', () => {
     expect(text).toMatch(/дата/i);
     expect(text).toMatch(/место рождения/i);
+  });
+
+  it('без переключателя — сказано, что даты и места нет', () => {
+    const hidden = shareDisclosure(false).join(' ');
+    expect(hidden).toMatch(/только знаки/i);
+    expect(hidden).toMatch(/без даты и места/i);
   });
 
   it('срок назван и совпадает с числом из константы', () => {

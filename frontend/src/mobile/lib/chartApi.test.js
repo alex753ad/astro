@@ -81,6 +81,17 @@ describe('createShareLink — успех', () => {
     expect(calls[0].url).toMatch(/\/charts\/abc-123\/share$/);
     expect(calls[0].options.method).toBe('POST');
   });
+
+  it('дата и место — только по явному выбору', async () => {
+    nextResponse = jsonResponse(200, {
+      share_url: 'https://aristeatime.ru/share/TOK',
+      card_url: 'https://aristeatime.ru/share/TOK/card.png',
+    });
+
+    await createShareLink('abc-123', { showBirth: true });
+
+    expect(calls[0].url).toMatch(/\/charts\/abc-123\/share\?show_birth=true$/);
+  });
 });
 
 describe('createShareLink — отказ', () => {

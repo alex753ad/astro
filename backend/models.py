@@ -34,6 +34,8 @@ class User(Base):
     stripe_customer_id = Column(String(255), nullable=True, unique=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    # Потребителя нет: переключатель убран из приложения и с веба 27.09.2026,
+    # поле оставлено до решения «сделать или удалить» (TASKS.md).
     expert_mode = Column(Boolean, default=False, nullable=False, server_default="false")
 
     # Админ-доступ (038) — роль в БД, а не список email из окружения:
@@ -156,6 +158,10 @@ class NatalChart(Base):
     # NULL = бессрочная legacy-ссылка, выданная до появления поля.
     public_token_expires_at = Column(DateTime, nullable=True)
     share_name   = Column(String(100), nullable=True)  # имя для публичной страницы
+    # Дата, место и колесо на публичной странице — только по выбору человека
+    # перед отправкой (062, решение владельца 27.09.2026). Умолчание false,
+    # уже выданные ссылки миграция перевела в «только знаки».
+    share_show_birth = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Capability-токен анонимной карты (user_id IS NULL): доступ к своей карте
     # до привязки к аккаунту. Не путать с public_token — тот открывает публичную

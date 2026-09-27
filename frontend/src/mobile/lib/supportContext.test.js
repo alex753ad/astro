@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { appVersionLabel, deviceLabel, scrubErrorText } from './supportContext';
+import { appVersionLabel, appVersionShort, deviceLabel, scrubErrorText } from './supportContext';
 
 describe('scrubErrorText', () => {
   const cases = [
@@ -59,5 +59,13 @@ describe('appVersionLabel', () => {
   });
   it('вне сборки приложения — dev', () => {
     expect(appVersionLabel('')).toBe('dev');
+  });
+});
+
+describe('appVersionShort', () => {
+  it('без хеша сборки', () => {
+    expect(appVersionShort('aristea-mobile@0.1.0+abc1234')).toBe('0.1.0');
+    expect(appVersionShort('aristea-mobile@0.1.0')).toBe('0.1.0');
+    expect(appVersionShort('')).toBe('dev');
   });
 });

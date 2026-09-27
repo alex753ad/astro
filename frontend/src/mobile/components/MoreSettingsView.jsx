@@ -1,29 +1,38 @@
 /**
  * MoreSettingsView.jsx — «Настройки» (SPEC_MORE_SCREEN.md §6).
  *
- * Два поля с сервера: `expert_mode` и `digest_day_of_week`. ⚠️ Асимметрия
- * имён в API: GET отдаёт `digest_day_of_week`, PATCH принимает `digest_day`
+ * Поле с сервера одно — `digest_day_of_week`. ⚠️ Асимметрия имён в API: GET
+ * отдаёт `digest_day_of_week`, PATCH принимает `digest_day`
  * (backend/profile/settings_router.py) — не опечатка здесь, а два разных
  * поля схемы на бэкенде.
+ *
+ * ⚠️ Переключателя «Экспертный режим» здесь нет намеренно (решение владельца
+ * 27.09.2026): поле `expert_mode` на сервере есть, но его не читал никто —
+ * ни приложение, ни веб, то есть переключатель ничего не делал. Поле
+ * оставлено; «сделать или удалить» — пункт TASKS.md. Не возвращать
+ * переключатель, пока у флага нет потребителя.
+ *
+ * День дайджеста виден только на Лире и Орионе (lib/digestAccess.js).
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
-import MoreSwitch from './MoreSwitch';
 import { fetchProfileSettings, updateProfileSettings } from '../lib/moreApi';
-import { appVersionLabel } from '../lib/supportContext';
+import { appVersionShort } from '../lib/supportContext';
+import { showsDigestDay } from '../lib/digestAccess';
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 // Версия видна и при отказе загрузки настроек: её спрашивают именно тогда,
-// когда что-то не работает. Та же строка уходит с обращением в поддержку.
+// когда что-то не работает. Здесь — без хеша сборки; с хешем она уходит с
+// обращением в поддержку (appVersionLabel).
 const VERSION = (
   <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
-    Версия {appVersionLabel()}
+    Версия {appVersionShort()}
   </p>
 );
 
-export default function MoreSettingsView() {
+export default function MoreSettingsView({ tier }) {
   const [status, setStatus] = useState('loading');
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState('');
@@ -50,16 +59,6 @@ export default function MoreSettingsView() {
     return <><MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} support="more-settings" />{VERSION}</>;
   }
 
-  const toggleExpert = async () => {
-    const prev = settings.expert_mode;
-    setSettings({ ...settings, expert_mode: !prev });
-    try {
-      await updateProfileSettings({ expert_mode: !prev });
-    } catch {
-      setSettings({ ...settings, expert_mode: prev });
-    }
-  };
-
   const setDay = async (dayIndex) => {
     const prev = settings.digest_day_of_week;
     setSettings({ ...settings, digest_day_of_week: dayIndex });
@@ -72,29 +71,12 @@ export default function MoreSettingsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 8 }}>
-      <button
-        type="button"
-        onClick={toggleExpert}
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '13px 15px',
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          color: 'var(--text-primary)',
-          fontFamily: 'var(--font-body)',
-          fontSize: 14.5,
-        }}
-      >
-        <span>Экспертный режим</span>
-        <MoreSwitch on={settings.expert_mode} />
-      </button>
-
+      {showsDigestDay(tier) && (
       <div>
-        <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-secondary)' }}>День недельного дайджеста</p>
+        <p style={{ margin: '0 0 2px', fontSize: 13, color: 'var(--text-primary)' }}>День недельного дайджеста</p>
+        <p style={{ margin: '0 0 8px', fontSize: 12, lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+          Раз в неделю в этот день пришлём на почту главные события недели по твоей карте
+        </p>
         <div style={{ display: 'flex', gap: 6 }}>
           {DAYS.map((label, i) => (
             <button
@@ -118,6 +100,7 @@ export default function MoreSettingsView() {
           ))}
         </div>
       </div>
+      )}
       {VERSION}
     </div>
   );

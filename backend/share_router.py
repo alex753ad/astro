@@ -40,6 +40,12 @@ APP_URL = os.getenv("APP_URL", "https://aristeatime.ru")
 # NULL в колонке = бессрочная legacy-ссылка, выданная до миграции 041.
 SHARE_TTL_SECONDS = 90 * 24 * 3600
 
+# Карточка не кэшируется (решение владельца 27.09.2026): переключатель «Показать
+# дату и место» меняет картинку по той же ссылке, и час кэша означал бы час,
+# когда дата видна после того, как человек её скрыл. ⚠️ Мессенджеры держат
+# превью у себя независимо от этого заголовка — на их кэш мы не влияем.
+CARD_CACHE_CONTROL = "no-store"
+
 
 def _ensure_chart_not_expired(chart: NatalChart) -> None:
     """Срок ссылки из БД. NULL = legacy-ссылка без срока (не ломаем старые).
@@ -169,12 +175,83 @@ def _sign_label(planets: list[dict], name: str) -> str:
     return f"{emoji} {ru}"
 
 
+# ── формат для карточки и страницы ───────────────────────────────────────────
+
+_RU_MONTHS_GEN = (
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+)
+
+
+def ru_date(value) -> str:
+    """«1984-08-02» или date → «2 августа 1984».
+
+    Не strftime("%B"): он пишет месяц по локали процесса, а в контейнере это
+    C/английский — на карточке выходило «September». Непонятная строка
+    возвращается как есть: пустая дата хуже сырой.
+    """
+    if isinstance(value, date_type):
+        d = value
+    else:
+        try:
+            d = date_type.fromisoformat(str(value)[:10])
+        except (TypeError, ValueError):
+            return str(value or "")
+    return f"{d.day} {_RU_MONTHS_GEN[d.month - 1]} {d.year}"
+
+
+_REGION_WORDS = ("область", "край", "республика", "автономный", "автономная")
+
+
+def short_place(place: str | None) -> str:
+    """Строка Nominatim → «город, регион».
+
+    birth_place — это display_name Nominatim целиком: «Новочеркасск,
+    городской округ Новочеркасск, Ростовская область, Южный федеральный
+    округ, Россия». На карточке 1080 px это не помещалось и уходило за
+    правый край. Берём первую часть и регион («область» → «обл.»); региона
+    нет (заграница) — первую часть и страну.
+    """
+    parts = [s.strip() for s in (place or "").split(",") if s.strip()]
+    if len(parts) <= 1:
+        return parts[0] if parts else ""
+    city = parts[0]
+    region = next((s for s in parts[1:] if any(w in s.lower() for w in _REGION_WORDS)), None)
+    if region:
+        return f"{city}, {region.replace(' область', ' обл.')}"
+    return f"{city}, {parts[-1]}"
+
+
+def wrap_to_width(text: str, measure, max_width: int, max_lines: int = 2) -> list[str]:
+    """Перенос по ширине в пикселях (measure(str) → px), не больше max_lines;
+    не влезло — последняя строка с многоточием. Страховка поверх short_place:
+    длинное название без запятых иначе снова ушло бы за край."""
+    lines: list[str] = []
+    cur = ""
+    for word in text.split():
+        cand = f"{cur} {word}".strip()
+        if measure(cand) <= max_width or not cur:
+            cur = cand
+        else:
+            lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    if len(lines) <= max_lines:
+        return lines
+    last = " ".join(lines[max_lines - 1:])
+    while last and measure(last + "…") > max_width:
+        last = last[:-1].rstrip()
+    return lines[:max_lines - 1] + [last + "…"]
+
+
 # ── генерация токена ──────────────────────────────────────────────────────────
 
 @router.post("/api/v1/charts/{chart_id}/share")
 async def create_share_link(
     chart_id: str,
     share_name: str | None = None,
+    show_birth: bool = False,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
@@ -203,6 +280,13 @@ async def create_share_link(
     if share_name:
         chart.share_name = share_name[:100]
 
+    # Дата, место и колесо — только по выбору человека в момент отправки
+    # (решение владельца 27.09.2026). Флаг ставится КАЖДЫМ вызовом, умолчание
+    # — скрыть: токен у карты один, и последняя отправка решает за все ранее
+    # разосланные копии ссылки. Закрыть дату можно, поделившись заново без
+    # переключателя; открыть её, не нажав его, — нельзя.
+    chart.share_show_birth = bool(show_birth)
+
     db.commit()
     db.refresh(chart)
 
@@ -223,6 +307,7 @@ async def create_share_link(
         "share_url": f"{APP_URL}/share/{chart.public_token}",
         "card_url":  f"{APP_URL}/share/{chart.public_token}/card.png",
         "token":     chart.public_token,
+        "show_birth": chart.share_show_birth,
     }
 
 
@@ -235,7 +320,22 @@ async def share_data(token: str, db: Session = Depends(get_db)):
     if not chart:
         raise HTTPException(status_code=404, detail="Chart not found")
     _ensure_chart_not_expired(chart)
+    if not chart.share_show_birth:
+        # ⚠️ Колесо уходит вместе с датой, а не отдельно: по градусам планет
+        # момент рождения восстанавливается однозначно, и скрыть одну строку
+        # даты значило бы не скрыть ничего. Остаются только знаки.
+        planets = chart.planets or []
+        return {
+            "share_name": chart.share_name,
+            "show_birth": False,
+            "planets": [
+                {"name": n, "sign": p.get("sign")}
+                for n in ("Sun", "Moon") if (p := _get_planet(planets, n))
+            ],
+            "ascendant": {"sign": chart.ascendant.get("sign")} if chart.ascendant else None,
+        }
     return {
+        "show_birth":  True,
         "share_name":  chart.share_name,
         "birth_date":  chart.birth_date,
         "birth_place": chart.birth_place,
@@ -492,7 +592,7 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
     if request.method == "HEAD":
         return Response(
             media_type="image/png",
-            headers={"Cache-Control": "public, max-age=3600"},
+            headers={"Cache-Control": CARD_CACHE_CONTROL},
         )
 
     planets = chart.planets or []
@@ -511,7 +611,7 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
     moon_emoji = SIGN_EMOJI.get(moon.get("sign", ""), "")  if moon else ""
     asc_emoji  = SIGN_EMOJI.get(asc.get("sign", ""), "")
 
-    today_str = date_type.today().strftime("%-d %B %Y")
+    today_str = ru_date(date_type.today())
 
     W, H = 1080, 1920
     img = Image.new("RGB", (W, H))
@@ -617,15 +717,21 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
         draw.text((ML, y_row + 42), value, font=font_planet, fill=C_DARK)
         y_row += row_h
 
-    # ── дата + место ──
-    place = (chart.birth_place or "")[:60]
-    birth = chart.birth_date or ""
+    # ── дата + место: только если человек выбрал их показать ──
     info_y = y_row + 20
-    if birth:
-        draw.text((ML, info_y), birth, font=font_small, fill=C_MUTED)
-        info_y += 40
-    if place:
-        draw.text((ML, info_y), place, font=font_small, fill=C_MUTED)
+    if chart.share_show_birth:
+        birth = ru_date(chart.birth_date) if chart.birth_date else ""
+        place_lines = wrap_to_width(
+            short_place(chart.birth_place),
+            lambda s: draw.textlength(s, font=font_small),
+            CONTENT_W,
+        )
+        if birth:
+            draw.text((ML, info_y), birth, font=font_small, fill=C_MUTED)
+            info_y += 40
+        for line in place_lines:
+            draw.text((ML, info_y), line, font=font_small, fill=C_MUTED)
+            info_y += 40
 
     # ── юмористическая фраза (по центру свободной зоны между местом и CTA) ──
     bar_h = 150
@@ -652,5 +758,5 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
     return Response(
         content=buf.read(),
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": CARD_CACHE_CONTROL},
     )

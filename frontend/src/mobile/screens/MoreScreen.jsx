@@ -272,7 +272,7 @@ export default function MoreScreen({ onChartsChanged }) {
         {view === 'history' && <MoreHistoryView chartsById={chartsById} />}
         {view === 'referral' && <MoreReferralView />}
         {view === 'notifications' && <MoreNotificationsView />}
-        {view === 'settings' && <MoreSettingsView />}
+        {view === 'settings' && <MoreSettingsView tier={subscription?.tier} />}
         {view === 'payments' && <MorePaymentsView />}
       </MoreSubScreen>
     );
