@@ -34,6 +34,8 @@ import useReconnect from '../lib/useReconnect';
 import OfflineNote from '../components/OfflineNote';
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 import { openPaySheet } from '../lib/paySheetBus';
+import { openSupport } from '../lib/supportBus';
+import SupportLink from '../components/SupportLink';
 import { getSubscription } from '../lib/tierSource';
 import { birthDateWords } from '../lib/chartFormat';
 import { pickPrimaryChartId } from '../lib/feedApi';
@@ -253,6 +255,7 @@ export default function MoreScreen({ onChartsChanged }) {
       <MoreCenteredNotice
         title="Не удалось загрузить профиль"
         text={error}
+        support="more"
         action="Повторить"
         onAction={load}
         /* Без сети выход не предлагаем — см. FeedScreen. */
@@ -369,8 +372,9 @@ export default function MoreScreen({ onChartsChanged }) {
           {chartsError}
         </p>
       )}
+      {chartsError && <SupportLink screen="more-charts" error={chartsError} style={{ marginTop: -12 }} />}
 
-      <MoreMenuList onOpen={setView} />
+      <MoreMenuList onOpen={(id) => (id === 'support' ? openSupport({ screen: 'more' }) : setView(id))} />
 
       <ThemeToggle />
 

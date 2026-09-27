@@ -44,6 +44,7 @@ import TabBar from './TabBar';
 import AristeaFab from './AristeaFab';
 import HintOverlay from './HintOverlay';
 import PaySheet from './PaySheet';
+import SupportSheet from './SupportSheet';
 import useChatAccess from '../lib/useChatAccess';
 import { chatHint } from '../lib/onboardingCopy';
 import { chatHintKey, isSeen, markSeen } from '../lib/onboardingFlags';
@@ -294,6 +295,8 @@ export default function TabShell() {
       {/* Оплата и экран ожидания — один лист на всё приложение
           (lib/paySheetBus.js), открывается и сам при возврате из браузера. */}
       <PaySheet />
+      {/* Поддержка — тоже один лист (lib/supportBus.js), поверх оплаты. */}
+      <SupportSheet />
     </div>
   );
 }

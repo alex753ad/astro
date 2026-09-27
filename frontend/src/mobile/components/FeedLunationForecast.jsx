@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cachedLunationForecast, fetchLunationForecast } from '../lib/forecastApi';
 import { errorText, isConnectivity } from '../lib/netError';
+import SupportLink from './SupportLink';
 import useReconnect from '../lib/useReconnect';
 import { lunationPhase } from '../lib/lunationPhase';
 import ForecastRating from './ForecastRating';
@@ -88,6 +89,7 @@ export default function FeedLunationForecast({ chartId, event }) {
         <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => load()}>
           Повторить
         </button>
+        <SupportLink screen="forecast-lunation" error={errorText(state.error, '')} style={{ alignSelf: 'flex-start' }} />
       </div>
     );
   }

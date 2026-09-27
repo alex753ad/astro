@@ -69,6 +69,7 @@ import { prefetchLunation } from '../lib/forecastPrefetch';
 import { errorText, isConnectivity, netKind } from '../lib/netError';
 import useReconnect from '../lib/useReconnect';
 import OfflineNote from '../components/OfflineNote';
+import SupportLink from '../components/SupportLink';
 import { dateShort, groupByDay, localToday, timePart, weekdayShort } from '../lib/feedTime';
 import { forecastDates, pickAnchorDate, withDates } from '../lib/feedAnchor';
 import FeedDayForecastCard from '../components/FeedDayForecastCard';
@@ -102,7 +103,7 @@ const HEADER_COLLAPSE_PX = 24;
  */
 const PAGE_PADDING = { padding: '0 16px 96px' };
 
-function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
+function CenteredNotice({ title, text, action, onAction, secondary, onSecondary, support }) {
   return (
     <div
       style={{
@@ -139,6 +140,7 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
           {secondary}
         </button>
       )}
+      {support && <SupportLink screen={support} error={text} />}
     </div>
   );
 }
@@ -538,6 +540,7 @@ export default function FeedScreen({
       <CenteredNotice
         title="Не удалось загрузить ленту"
         text={error}
+        support="feed"
         action="Повторить"
         onAction={load}
         secondary={offlineError ? undefined : 'Войти заново'}

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
@@ -21,6 +22,7 @@ from backend.models import Feedback, User
 from backend.auth.dependencies import get_current_user_optional
 from backend.admin.admin_router import require_admin
 from backend.limiter import limiter
+from backend.auth.rate_limits import feedback_key
 from backend.metrics import log_event  # для метрик трения (E11)
 from backend.notifications.telegram import send_support_message
 
@@ -51,24 +53,39 @@ _EXT_BY_MIME = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"
 
 class FeedbackOut(BaseModel):
     id: int
+    user_id: Optional[str] = None
     screen: Optional[str] = None
     url: Optional[str] = None
     message: Optional[str] = None
     user_agent: Optional[str] = None
+    context: Optional[dict] = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
 
-def _format_report(row: Feedback, user: Optional[User]) -> str:
-    who = user.email if user else "аноним"
-    return (
-        f"Новая жалоба\n"
-        f"Экран: {row.screen or '—'}\n"
-        f"URL: {row.url or '—'}\n"
-        f"Пользователь: {who}\n"
-        f"Устройство: {row.user_agent or '—'}\n\n"
-        f"{row.message or ''}"
-    )
+def _format_report(row: Feedback, user: Optional[User], app: Optional[dict] = None) -> str:
+    """Сигнал владельцу в Telegram.
+
+    `app` — обращение из приложения (SupportSheet.jsx): версия, телефон и
+    очищенный на клиенте текст ошибки. Номер аккаунта и email берутся из
+    токена, не из формы: email нужен, чтобы ответить, — человеку он показан
+    открыто («Ответим на почту …»).
+    """
+    who = f"#{user.id} {user.email}" if user else "аноним"
+    head = "Обращение в поддержку" if app else "Новая жалоба"
+    lines = [head, f"Экран: {row.screen or '—'}"]
+    if row.url:
+        lines.append(f"URL: {row.url}")
+    lines.append(f"Пользователь: {who}")
+    if app:
+        lines.append(f"Версия: {app.get('version') or '—'}")
+        lines.append(f"Телефон: {app.get('device') or '—'}")
+        if app.get("error"):
+            lines.append(f"Ошибка: {app['error']}")
+    else:
+        lines.append(f"Устройство: {row.user_agent or '—'}")
+    return chr(10).join(lines) + chr(10) + chr(10) + (row.message or "")
 
 
 # Экран «Написать в поддержку» из раздела оплаты (приложение и веб). Для него
@@ -93,8 +110,17 @@ def _payment_context(db: Session, user: User) -> str:
     return chr(10).join(lines)
 
 
+async def _notify_owner(feedback_id: int, text: str) -> None:
+    """Сигнал владельцу. Обращение к этому моменту уже в БД; неудача
+    Telegram — ошибка уровня ERROR, то есть событие в Sentry
+    (LoggingIntegration в sentry_setup.py): иначе недоставленное обращение
+    заметили бы только по жалобе «написал — тишина»."""
+    if not await send_support_message(text):
+        logger.error("Обращение #%s не доставлено в Telegram (в БД сохранено)", feedback_id)
+
+
 @router.post("", status_code=201)
-@limiter.limit("5/hour")
+@limiter.limit("5/hour", key_func=feedback_key)
 async def create_feedback(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -102,6 +128,9 @@ async def create_feedback(
     url: Optional[str] = Form(None),
     message: Optional[str] = Form(None),
     user_agent: Optional[str] = Form(None),
+    app_version: Optional[str] = Form(None),
+    device: Optional[str] = Form(None),
+    error_text: Optional[str] = Form(None),
     screenshot: Optional[UploadFile] = File(None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
@@ -122,12 +151,18 @@ async def create_feedback(
             f.write(header)
             f.write(rest)
 
+    app = None
+    if app_version or device:
+        app = {"version": (app_version or "")[:60], "device": (device or "")[:120],
+               "error": (error_text or "")[:300]}
+
     row = Feedback(
         user_id=user.id if user else None,
         screen=(screen or "")[:120] or None,
         url=(url or "")[:500] or None,
         message=message,
         user_agent=(user_agent or "")[:300] or None,
+        context=app,
     )
     db.add(row)
     db.commit()
@@ -136,7 +171,7 @@ async def create_feedback(
     # событие трения — считаем, где чаще всего жмут «что-то не так»
     log_event(db, user.id if user else None, "feedback_reported", {"screen": row.screen})
 
-    text = _format_report(row, user)
+    text = _format_report(row, user, app)
     if row.screen == PAYMENT_SCREEN and user is not None:
         text += _payment_context(db, user)
 
@@ -152,11 +187,12 @@ async def create_feedback(
             except OSError:
                 pass
         if not sent:
+            logger.error("Обращение #%s не доставлено в Telegram (в БД сохранено)", row.id)
             return {"id": row.id, "message": "Скриншот не отправился, но текст мы получили"}
         return {"id": row.id, "message": "Спасибо — жалоба получена"}
 
     # Без скриншота результат отправки не влияет на ответ — шлём в фоне.
-    background_tasks.add_task(send_support_message, text)
+    background_tasks.add_task(_notify_owner, row.id, text)
     return {"id": row.id, "message": "Спасибо — жалоба получена"}
 
 

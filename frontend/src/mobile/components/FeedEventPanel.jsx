@@ -24,6 +24,7 @@ import { isLocked, isPlannerEvent } from './FeedEventCard';
 import { dateRangeShort, eventTitle, moonRangeShort, periodRange, signRu, timePart } from '../lib/feedTime';
 import { transitTeaserText } from '../lib/transitTeaser';
 import { lockedPlannerText, upgradeOpensIt } from '../lib/plannerAccess';
+import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
 import {
   canInterpretTransit,
@@ -327,6 +328,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
                 Повторить
               </button>
             )}
+            <SupportLink screen="feed-event" error={failure.text} style={{ alignSelf: 'flex-start' }} />
           </div>
         )}
 

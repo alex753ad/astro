@@ -12,8 +12,9 @@
  */
 
 import React from 'react';
+import SupportLink from './SupportLink';
 
-export default function MoreCenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
+export default function MoreCenteredNotice({ title, text, action, onAction, secondary, onSecondary, support }) {
   return (
     <div
       style={{
@@ -50,6 +51,7 @@ export default function MoreCenteredNotice({ title, text, action, onAction, seco
           {secondary}
         </button>
       )}
+      {support && <SupportLink screen={support} error={text} />}
     </div>
   );
 }

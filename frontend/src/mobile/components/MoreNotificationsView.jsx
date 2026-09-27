@@ -156,7 +156,7 @@ export default function MoreNotificationsView() {
   }
 
   if (status === 'error') {
-    return <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} />;
+    return <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} support="more-notifications" />;
   }
 
   const toggle = async (key) => {

@@ -23,6 +23,7 @@
  *     работает (DownloadListener не зарегистрирован).
  */
 
+import SupportLink from './SupportLink';
 import React, { useCallback, useState } from 'react';
 import { createShareLink } from '../lib/chartApi';
 import { openInBrowser } from '../lib/openInBrowser';
@@ -121,7 +122,10 @@ export default function ChartShareSheet({ chartId, onClose }) {
         )}
 
         {error && (
-          <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>
+          <>
+            <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>
+            <SupportLink screen="chart-share" error={error} style={{ alignSelf: 'flex-start' }} />
+          </>
         )}
 
         <button type="button" style={ACTION_STYLE} disabled={busy} onClick={copy}>

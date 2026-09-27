@@ -29,13 +29,14 @@ import { cachedChart, fetchChart, resolvePrimaryChartId } from '../lib/chartApi'
 import { errorText, isConnectivity, netKind } from '../lib/netError';
 import useReconnect from '../lib/useReconnect';
 import OfflineNote from '../components/OfflineNote';
+import SupportLink from '../components/SupportLink';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
 import { CHART_HINTS } from '../lib/onboardingCopy';
 import useHints from '../lib/useHints';
 import useAuth from '../../hooks/useAuth.jsx';
 import { utcOffsetLabel } from '../../lib/utcOffset';
 
-function CenteredNotice({ title, text, action, onAction, secondary, onSecondary }) {
+function CenteredNotice({ title, text, action, onAction, secondary, onSecondary, support }) {
   return (
     <div
       style={{
@@ -68,6 +69,7 @@ function CenteredNotice({ title, text, action, onAction, secondary, onSecondary 
           {secondary}
         </button>
       )}
+      {support && <SupportLink screen={support} error={text} />}
     </div>
   );
 }
@@ -331,6 +333,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
       <CenteredNotice
         title="Не удалось загрузить карту"
         text={error}
+        support="chart"
         action="Повторить"
         onAction={load}
         /* Без сети выход не предлагаем — см. FeedScreen. */

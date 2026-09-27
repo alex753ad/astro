@@ -21,7 +21,7 @@ const KEPT_CRUMBS = new Set(['fetch', 'xhr', 'navigation']);
 const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 
 const stripQuery = (url) => (typeof url === 'string' ? url.split('?')[0] : url);
-const maskEmails = (s) => (typeof s === 'string' ? s.replace(EMAIL, '[email]') : s);
+export const maskEmails = (s) => (typeof s === 'string' ? s.replace(EMAIL, '[email]') : s);
 
 export function scrubEvent(event) {
   delete event.user;

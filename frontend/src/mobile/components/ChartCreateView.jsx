@@ -23,6 +23,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MoreSwitch from './MoreSwitch';
+import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
 import { displayToIso, maskDateInput } from '../lib/dateMask';
 import { searchPlaces } from '../lib/placeSearch';
@@ -353,6 +354,7 @@ export default function ChartCreateView({ onCancel, onCreated }) {
                 Открыть тарифы
               </button>
             )}
+            <SupportLink screen="chart-create" error={failure.text} style={{ alignSelf: 'flex-start', padding: 0 }} />
           </div>
         )}
 

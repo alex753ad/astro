@@ -42,17 +42,6 @@ export async function fetchPaymentHistory() {
   return resp.json();
 }
 
-/** Сообщение в поддержку — тот же канал, что жалобы (`POST /feedback`). */
-export async function sendSupportMessage(message) {
-  const form = new FormData();
-  form.append('screen', 'payment');
-  form.append('message', message);
-  form.append('user_agent', typeof navigator !== 'undefined' ? navigator.userAgent : '');
-  const resp = await authFetchWithTimeout(`${API_BASE}/feedback`, { method: 'POST', body: form });
-  if (!resp.ok) throw new Error(await responseErrorText(resp, 'Не удалось отправить сообщение.'));
-  return resp.json();
-}
-
 // ── Ожидающий платёж ──────────────────────────────────────
 // Хранится на устройстве, чтобы экран ожидания пережил уход в браузер,
 // выгрузку приложения системой и перезапуск. localStorage, а не Preferences:

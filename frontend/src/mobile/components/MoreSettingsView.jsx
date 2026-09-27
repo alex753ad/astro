@@ -11,8 +11,17 @@ import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
 import MoreSwitch from './MoreSwitch';
 import { fetchProfileSettings, updateProfileSettings } from '../lib/moreApi';
+import { appVersionLabel } from '../lib/supportContext';
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+// Версия видна и при отказе загрузки настроек: её спрашивают именно тогда,
+// когда что-то не работает. Та же строка уходит с обращением в поддержку.
+const VERSION = (
+  <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
+    Версия {appVersionLabel()}
+  </p>
+);
 
 export default function MoreSettingsView() {
   const [status, setStatus] = useState('loading');
@@ -38,7 +47,7 @@ export default function MoreSettingsView() {
   }
 
   if (status === 'error') {
-    return <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} />;
+    return <><MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} support="more-settings" />{VERSION}</>;
   }
 
   const toggleExpert = async () => {
@@ -109,6 +118,7 @@ export default function MoreSettingsView() {
           ))}
         </div>
       </div>
+      {VERSION}
     </div>
   );
 }

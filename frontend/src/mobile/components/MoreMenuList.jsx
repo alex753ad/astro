@@ -43,6 +43,15 @@ const ITEMS = [
     ),
   },
   {
+    id: 'support',
+    label: 'Написать в поддержку',
+    icon: (
+      <>
+        <path d="M4 5h16v11H9l-5 4z" />
+      </>
+    ),
+  },
+  {
     id: 'settings',
     label: 'Настройки',
     icon: (

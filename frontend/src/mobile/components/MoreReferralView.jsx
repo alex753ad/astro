@@ -50,7 +50,7 @@ export default function MoreReferralView() {
   }
 
   if (status === 'error') {
-    return <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} />;
+    return <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} support="more-referral" />;
   }
 
   return (

@@ -47,6 +47,7 @@ import {
   shouldStickToBottom,
 } from '../lib/chatRules';
 import { CHAT_GREETING, CHAT_SUGGESTIONS } from '../../lib/chatSuggestions';
+import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
 
 const MAX_QUESTION_LEN = 1000;   // столько же принимает сервер (rag_router.py)
@@ -332,6 +333,7 @@ export default function AristeaChat({ chart, onClose }) {
                   </button>
                 </div>
               )}
+              <div style={{ marginTop: 6 }}><SupportLink screen="chat" error={failure.text} /></div>
             </div>
           )}
         </div>

@@ -28,6 +28,7 @@ import {
   upsellForTier,
 } from '../lib/interpretRules';
 import useTier from '../lib/useTier';
+import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
 
 /**
@@ -293,6 +294,7 @@ export default function InterpretView({ chartId, onBack }) {
                 Повторить
               </button>
             )}
+            <SupportLink screen="interpret" error={failure.text} style={{ alignSelf: 'flex-start' }} />
           </div>
         )}
       </div>

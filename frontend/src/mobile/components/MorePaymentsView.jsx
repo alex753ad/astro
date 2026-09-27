@@ -2,7 +2,7 @@
  * MorePaymentsView.jsx — «Оплата и поддержка»: тариф и срок, история
  * платежей, сообщение в поддержку.
  *
- * Поддержка — тот же канал, что жалобы (`POST /feedback`, экран `payment`):
+ * Поддержка — общий лист (SupportSheet.jsx) с экраном `payment`:
  * сервер сам приклеивает к сообщению тариф и последние платежи
  * (backend/feedback/router.py, `_payment_context`) — человек номер платежа не
  * знает, и спрашивать его об этом значит отложить ответ на переписку.
@@ -15,7 +15,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreCenteredNotice from './MoreCenteredNotice';
 import { TIER_NAMES } from '../../constants';
-import { fetchPaymentHistory, sendSupportMessage } from '../lib/payApi';
+import { fetchPaymentHistory } from '../lib/payApi';
+import { openSupport } from '../lib/supportBus';
 import { errorText } from '../lib/netError';
 
 const KIND_LABEL = { payment: 'Оплата', refund: 'Возврат', review: 'На проверке' };
@@ -31,9 +32,6 @@ export default function MorePaymentsView() {
   const [status, setStatus] = useState('loading');
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState('');
 
   const load = useCallback(async () => {
     setStatus('loading'); setError('');
@@ -48,20 +46,6 @@ export default function MorePaymentsView() {
 
   useEffect(() => { load(); }, [load]);
 
-  const send = async () => {
-    if (!message.trim()) return;
-    setSending(true); setSent('');
-    try {
-      await sendSupportMessage(message.trim());
-      setMessage('');
-      setSent('Отправили. Ответим на почту, которой ты входишь в приложение.');
-    } catch (err) {
-      setSent(errorText(err, 'Не удалось отправить сообщение.', { write: true }));
-    } finally {
-      setSending(false);
-    }
-  };
-
   const card = { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px' };
 
   return (
@@ -70,7 +54,7 @@ export default function MorePaymentsView() {
         <div className="mobile-skeleton" style={{ height: 120, borderRadius: 'var(--radius-lg)', background: 'var(--bg-deeper)' }} />
       )}
       {status === 'error' && (
-        <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} />
+        <MoreCenteredNotice title="Не удалось загрузить" text={error} action="Повторить" onAction={load} support="payment" />
       )}
       {status === 'ready' && data && (
         <section style={card}>
@@ -98,19 +82,10 @@ export default function MorePaymentsView() {
         <p style={{ margin: '0 0 8px', fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
           Если деньги списались, а тариф не включился, — напиши. Номер платежа и тариф мы увидим сами.
         </p>
-        <textarea
-          className="mobile-input"
-          rows={4}
-          value={message}
-          maxLength={2000}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Что случилось?"
-          style={{ width: '100%', resize: 'vertical' }}
-        />
-        <button type="button" className="mobile-btn-primary" disabled={sending || !message.trim()} style={{ height: 44, fontSize: 14, marginTop: 8, width: '100%' }} onClick={send}>
-          {sending ? 'Отправляем…' : 'Отправить'}
+        <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14, width: '100%' }}
+          onClick={() => openSupport({ screen: 'payment', error: status === 'error' ? error : '' })}>
+          Написать
         </button>
-        {sent && <p role="status" style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>{sent}</p>}
       </section>
     </div>
   );

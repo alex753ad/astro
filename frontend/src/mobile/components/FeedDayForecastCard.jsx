@@ -20,6 +20,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { cachedDayForecast, fetchDayForecast } from '../lib/forecastApi';
 import { errorText, isConnectivity } from '../lib/netError';
+import SupportLink from './SupportLink';
 import useReconnect from '../lib/useReconnect';
 import ForecastRating from './ForecastRating';
 
@@ -92,6 +93,7 @@ export default function FeedDayForecastCard({ chartId, date, label, open, onTogg
           <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => load()}>
             Повторить
           </button>
+          <SupportLink screen="forecast-day" error={errorText(state.error, '')} style={{ alignSelf: 'flex-start' }} />
         </div>
       )}
 

@@ -50,7 +50,7 @@ export default function MoreHistoryView({ chartsById }) {
   }
 
   if (status === 'error') {
-    return <MoreCenteredNotice title="Не удалось загрузить историю" text={error} action="Повторить" onAction={load} />;
+    return <MoreCenteredNotice title="Не удалось загрузить историю" text={error} action="Повторить" onAction={load} support="more-history" />;
   }
 
   if (items.length === 0) {

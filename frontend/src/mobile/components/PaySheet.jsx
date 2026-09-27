@@ -29,6 +29,7 @@ import { MAX_POLLS, POLL_MS, describePayment } from '../lib/paymentState';
 import { getSubscription } from '../lib/tierSource';
 import { isConnectivity, errorText } from '../lib/netError';
 import useTier from '../lib/useTier';
+import SupportLink from './SupportLink';
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 
 const SELLABLE = ['lite', 'pro'];
@@ -174,11 +175,6 @@ export default function PaySheet() {
               {view.title}
             </p>
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{view.text}</p>
-            {view.kind === 'later' && (
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                Написать в поддержку: «Ещё» → «Оплата и поддержка».
-              </p>
-            )}
             {view.kind === 'fail' && (
               <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => setMode('choose')}>
                 Попробовать ещё раз
@@ -187,6 +183,7 @@ export default function PaySheet() {
           </>
         )}
 
+        <SupportLink screen="payment" error={mode === 'choose' ? error : (['later', 'fail'].includes(view?.kind) ? view.text : '')} />
         <button type="button" className="mobile-link" onClick={close} style={{ alignSelf: 'center' }}>
           {mode === 'status' && view && !view.done ? 'Свернуть — проверим сами' : 'Закрыть'}
         </button>

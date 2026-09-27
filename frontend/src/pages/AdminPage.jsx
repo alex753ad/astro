@@ -780,6 +780,13 @@ function TabPilot({ authFetch }) {
                   <span className="text-gray-400 text-[11px]">{f.url}</span>
                 </div>
                 {f.message && <div className="text-[13px] text-gray-600 mt-1">{f.message}</div>}
+                {f.context && (
+                  <div className="text-[11px] text-gray-400 mt-1">
+                    {[f.context.version && `версия ${f.context.version}`, f.context.device,
+                      f.user_id && `аккаунт ${f.user_id}`].filter(Boolean).join(' · ')}
+                    {f.context.error && <div>Ошибка: {f.context.error}</div>}
+                  </div>
+                )}
               </div>
             ))}
           </div>

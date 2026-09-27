@@ -687,6 +687,9 @@ class Feedback(Base):
     url = Column(String(500), nullable=True)
     message = Column(Text, nullable=True)
     user_agent = Column(String(300), nullable=True)
+    # Обращение из приложения: версия, телефон и очищенный на клиенте текст
+    # ошибки (миграция 060). У жалоб с веба — NULL.
+    context = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=utcnow, index=True)
 
 

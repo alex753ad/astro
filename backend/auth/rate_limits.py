@@ -373,6 +373,19 @@ def rag_chat_key(request: Request) -> str:
     return f"rag:{_base_id(request)}"
 
 
+# Обращения в поддержку и жалобы (POST /feedback, 27.09.2026). Вошедший —
+# по user_id: за общим NAT (мобильный оператор, офис) лимит по IP делили бы
+# все, и пятое за час чужое обращение отбивало бы твоё. Аноним — по IP, и
+# именно client_ip, а не `_base_id`: ручка открыта без входа, и ключ по
+# строке неподписанного токена позволял бы получать новое ведро на каждый
+# запрос, просто меняя мусор в заголовке.
+def feedback_key(request: Request) -> str:
+    user_id = _token_user_id(request)
+    if user_id:
+        return f"feedback:user:{user_id}"
+    return f"feedback:ip:{client_ip(request)}"
+
+
 # Регистрация: троттлинг по email закрывает повторную отправку на один адрес, но
 # не мешает гнать письма на тысячи разных. Ключ по IP закрывает именно это.
 def register_send_key(request: Request) -> str:
