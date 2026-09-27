@@ -55,5 +55,12 @@ async def send_support_message(text: str, photo_path: str | None = None) -> bool
             resp.raise_for_status()
             return True
     except Exception as e:
-        logger.warning("Telegram support notify failed: %s", e)
+        # %r, а не %s: у сетевых исключений httpx (ConnectTimeout, ConnectError,
+        # ReadTimeout) str() бывает ПУСТЫМ. 27.09.2026 лог на проде гласил
+        # «Telegram support notify failed:» — и больше ничего: ни типа, ни
+        # причины, разбор начался вслепую.
+        # ⚠️ Токен вырезается: HTTPStatusError несёт URL запроса, а в нём
+        # /bot<токен>/ — прежняя строка писала токен в лог на каждом 4xx.
+        detail = repr(e).replace(token, "***")
+        logger.warning("Telegram support notify failed: %s: %s", type(e).__name__, detail)
         return False

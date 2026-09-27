@@ -47,6 +47,20 @@ def call(m, **p):
 print("bot:", call("getMe").get("result", {}).get("username"))
 r = call("getChat", chat_id=c)
 print("getChat:", r.get("ok"), (r.get("result") or {}).get("title") or (r.get("result") or {}).get("username"), r.get("description"))
+r = call("getChat", chat_id="@aristeatimesupport")
+print("getChat @aristeatimesupport:", r.get("ok"), (r.get("result") or {}).get("id"), (r.get("result") or {}).get("type"), r.get("description"))
+print("proxy env:", {k: v for k, v in os.environ.items() if "proxy" in k.lower()} or "нет")
+import httpx
+async def via_httpx():
+    # Тот же клиент, что у send_support_message: urllib выше дошёл до
+    # Telegram, а httpx 27.09.2026 падал с пустым текстом ошибки.
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as cl:
+            resp = await cl.get("https://api.telegram.org/bot" + t + "/getMe")
+            return resp.status_code
+    except Exception as e:
+        return type(e).__name__ + ": " + repr(e).replace(t, "***")
+print("httpx getMe:", asyncio.run(via_httpx()))
 from backend.notifications.telegram import send_support_message
 print("send_support_message:", asyncio.run(send_support_message("Проверка: тест send_support_message с сервера (diag_support.sh)")))
 PYEOF
