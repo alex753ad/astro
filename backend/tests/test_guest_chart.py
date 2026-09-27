@@ -177,3 +177,18 @@ def test_claim_welcome_sent_once_and_only_for_first_chart(db, user_free, monkeyp
     db.query(EmailSentLog).delete()
     db.commit()
     assert tasks.send_claim_welcome_task(user_free.id, second.id) is False, "у аккаунта уже была карта"
+
+
+# ── Демо-карта: данные серверные ─────────────────────────
+
+def test_demo_chart_uses_server_data_and_is_anonymous(client, db, mock_geo, user_free, auth_headers_free):
+    resp = client.post("/api/v1/chart/demo", headers=auth_headers_free)
+    assert resp.status_code == 200, resp.text
+    chart = db.get(NatalChart, resp.json()["id"])
+    assert chart.user_id is None, "демо заняло слот тарифа вошедшего"
+    assert chart.birth_date == "1996-05-28" and chart.name == "Александр"
+    assert chart.consent_given_at is None
+
+
+def test_save_anonymous_is_gone(client, auth_headers_free):
+    assert client.post("/api/v1/chart/save-anonymous", json={}, headers=auth_headers_free).status_code in (404, 405)

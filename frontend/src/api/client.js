@@ -394,11 +394,21 @@ export async function calculateChart(birthData) {
   });
 }
 
-export async function saveAnonymousChart(birthData) {
-  return request('/chart/save-anonymous', {
+/**
+ * Анонимная карта → аккаунт после входа той же строкой (`POST /chart/{id}/claim`,
+ * backend/CLAUDE.md «Гость приложения»). До 27.09.2026 здесь звался
+ * `save-anonymous`: он пересчитывал карту и создавал вторую строку — дубль.
+ */
+export async function claimAnonymousChart(chartId, token) {
+  return request(`/chart/${chartId}/claim`, {
     method: 'POST',
-    body: JSON.stringify(birthData),
+    headers: { 'X-Chart-Token': token },
   });
+}
+
+/** Демо-карта: данные серверные, клиент шлёт только сам запрос. */
+export async function demoChart() {
+  return request('/chart/demo', { method: 'POST' });
 }
 
 export async function getChart(chartId) {

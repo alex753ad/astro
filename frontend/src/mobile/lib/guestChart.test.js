@@ -54,9 +54,10 @@ describe('карта гостя', () => {
 describe('экраны у гостя', () => {
   const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf-8');
 
-  it('лента: закрытые события и карточка горизонта гостю не показываются', () => {
+  it('лента: закрытые события и карточка горизонта гостю не показываются, полоса планет — вся', () => {
     const src = read('../screens/FeedScreen.jsx');
-    expect(src).toMatch(/filter\(\(e\) => !\(guest && e\.locked\)\)/);
+    expect(src).toMatch(/const allEvents = feed\?\.events \|\| \[\];/);
+    expect(src).toMatch(/!\(guest && e\.locked\)\)/);
     expect(src).toMatch(/\{!guest && <FeedHorizonCard/);
   });
 

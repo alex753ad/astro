@@ -27,7 +27,7 @@ import {
   onSessionExpired,
   onTokensRefreshed,
   refreshSession,
-  saveAnonymousChart,
+  claimAnonymousChart,
 } from '../api/client';
 import {
   AUTH_CREDENTIALS,
@@ -237,20 +237,22 @@ function useAuthInternal() {
     // Bind anonymous chart after login/registration.
     // Возвращаем id привязанной карты через newUser.boundChartId, чтобы
     // AuthModal мог сразу перевести пользователя в его планер.
+    //
+    // В `anonymous_chart` лежат id и токен анонимной карты (HomePage.jsx), и
+    // она переходит на аккаунт ТОЙ ЖЕ строкой — без пересчёта и без дубля.
+    // Запись старого формата (данные рождения, до 27.09.2026) привязать
+    // нечем — она просто стирается. В приложении этого ключа нет: там гость
+    // живёт в mobile/lib/guestChart.js и привязывается ClaimGate.
     const savedChart = localStorage.getItem('anonymous_chart');
     if (savedChart) {
       try {
-        const { data: chartData, expiresAt } = JSON.parse(savedChart);
-        if (Date.now() < expiresAt) {
-          const saved = await saveAnonymousChart(chartData);
-          localStorage.removeItem('anonymous_chart');
-          if (saved?.id) newUser.boundChartId = saved.id;
-        } else {
-          localStorage.removeItem('anonymous_chart');
+        const { id, token, expiresAt } = JSON.parse(savedChart);
+        if (id && token && Date.now() < expiresAt) {
+          await claimAnonymousChart(id, token);
+          newUser.boundChartId = id;
         }
-      } catch {
-        localStorage.removeItem('anonymous_chart');
-      }
+      } catch { /* просрочена, чужая или нет слота — карта остаётся анонимной */ }
+      localStorage.removeItem('anonymous_chart');
     }
 
     return newUser;

@@ -385,9 +385,14 @@ export default function FeedScreen({
   // Гость тарифов не видит (решение владельца 27.09.2026): закрытые события
   // и карточка края горизонта — это витрина тарифа, а тарифы показываем не
   // раньше, чем человек увидел ценность. После регистрации — как у всех.
+  //
+  // ⚠️ Закрытые убираются только из ПОТОКА, а полоса «Планеты сейчас в домах»
+  // (FeedNowStrip, из allEvents) у гостя та же, что у free: приёмка
+  // 27.09.2026 — у гостя в полосе было две планеты вместо всех. Значок
+  // периода — факт неба, а не платное (docs/feed.md, «Полоса планет»).
   const guest = isGuest();
-  const allEvents = (feed?.events || []).filter((e) => !(guest && e.locked));
-  const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
+  const allEvents = feed?.events || [];
+  const events = allEvents.filter((e) => e.kind !== 'planner_longterm' && !(guest && e.locked));
   // Дни с карточкой прогноза (сегодня, с 19:00 — завтра) есть в
   // списке всегда, даже без событий (lib/feedAnchor.js → withDates, там же про
   // следствие для якоря). Час — по часам телефона, как и граница на сервере.

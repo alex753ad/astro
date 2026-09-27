@@ -247,7 +247,7 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
  * формулировка, что в приложении (mobile/lib/guestConsent.js), решение
  * владельца 27.09.2026.
  */
-export default function BirthForm({ onSubmit, loading, requireConsent = false }) {
+export default function BirthForm({ onSubmit, onDemo, loading, requireConsent = false }) {
   const [consent, setConsent]     = useState(false);
   const [form, setForm]           = useState(DEFAULT_FORM);
   const [placeValue, setPlaceValue] = useState(DEFAULT_PLACE_FULL);
@@ -264,15 +264,10 @@ export default function BirthForm({ onSubmit, loading, requireConsent = false })
     setPlaceValue(DEFAULT_PLACE_FULL);
     setTimeUnknown(false);
     setErrors({});
-    setTimeout(() => {
-      onSubmit({
-        name:         DEFAULT_FORM.name,
-        birth_date:   DEFAULT_FORM.birth_date,
-        birth_time:   DEFAULT_FORM.birth_time,
-        birth_place:  DEFAULT_PLACE_FULL,
-        house_system: DEFAULT_FORM.house_system,
-      });
-    }, 100);
+    // Демо строит сервер по своим данным (POST /chart/demo): поля выше
+    // только показывают, чья это карта. Согласия не нужно — данных человека
+    // в запросе нет.
+    setTimeout(() => { onDemo?.(); }, 100);
   };
 
   const validate = () => {

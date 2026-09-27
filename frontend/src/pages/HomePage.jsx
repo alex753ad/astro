@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import BirthForm from '../components/BirthForm';
-import { calculateChart } from '../api/client';
+import { calculateChart, demoChart } from '../api/client';
 import { ambiguousChoices } from '../lib/utcOffset';
 
 export default function HomePage({ currentUser, onShowAuth }) {
@@ -15,11 +15,15 @@ export default function HomePage({ currentUser, onShowAuth }) {
     try {
       const chart = await calculateChart(data);
       if (!currentUser) {
-        localStorage.setItem('anonymous_chart', JSON.stringify({
-          data: data,
-          timestamp: Date.now(),
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-        }));
+        // Для привязки после входа — id и токен, а не данные рождения
+        // (useAuth.jsx, claimAnonymousChart). Срок — как у токена на сервере.
+        if (chart.id && chart.access_token) {
+          localStorage.setItem('anonymous_chart', JSON.stringify({
+            id: chart.id,
+            token: chart.access_token,
+            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          }));
+        }
         sessionStorage.setItem('anonymous_chart_result', JSON.stringify(chart));
         // Capability-токен: даёт анонимной карте доступ к планеру и транзитам.
         if (chart.access_token) {
@@ -40,6 +44,24 @@ export default function HomePage({ currentUser, onShowAuth }) {
       } else {
         setError(err.message || 'Ошибка расчёта. Попробуй ещё раз.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Демо: карта по серверным данным (POST /chart/demo), согласие не нужно —
+  // данных человека в запросе нет. Всегда анонимная и к аккаунту НЕ
+  // привязывается (в anonymous_chart не пишется): это чужая карта.
+  const handleDemo = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const chart = await demoChart();
+      sessionStorage.setItem('anonymous_chart_result', JSON.stringify(chart));
+      if (chart.access_token) sessionStorage.setItem('chart_token', chart.access_token);
+      navigate(`/chart/${chart.id}`);
+    } catch (err) {
+      setError(err.message || 'Ошибка расчёта. Попробуй ещё раз.');
     } finally {
       setLoading(false);
     }
@@ -92,7 +114,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
       </div>
 
       {/* Form */}
-      <BirthForm onSubmit={handleSubmit} loading={loading} requireConsent={!currentUser} />
+      <BirthForm onSubmit={handleSubmit} onDemo={handleDemo} loading={loading} requireConsent={!currentUser} />
 
       {/* Error */}
       {error && (

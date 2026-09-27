@@ -96,28 +96,6 @@ class TestChartNameCalculate:
         assert row.name == "Гостевая карта"
 
 
-class TestChartNameSaveAnonymous:
-    def test_name_is_persisted_and_reads_back(self, client, db, mock_calculator, mock_geo, auth_headers_free):
-        resp = client.post(
-            "/api/v1/chart/save-anonymous",
-            json={
-                "name": "Ребёнок",
-                "birth_date": "2015-06-01",
-                "birth_time": "08:00",
-                "birth_place": "Moscow",
-                "house_system": "placidus",
-            },
-            headers=auth_headers_free,
-        )
-        assert resp.status_code == 200, resp.text
-        data = resp.json()
-        assert data["name"] == "Ребёнок"
-
-        row = db.query(NatalChart).filter(NatalChart.id == data["id"]).first()
-        assert row.name == "Ребёнок"
-        assert row.label is None
-
-
 class TestChartNameGet:
     def test_name_returned_by_get_chart(self, client, mock_calculator, mock_geo, auth_headers_free):
         # Полный круг: создали с именем — прочитали ОТДЕЛЬНЫМ запросом

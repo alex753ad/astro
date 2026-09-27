@@ -13,6 +13,7 @@ export const SIGNUP_REASONS = {
   'transit-interpretation': 'Разбор события — после регистрации.',
   chat: 'Чат с Аристеей — после регистрации.',
   notifications: 'Уведомления о прогнозе — после регистрации.',
+  'locked-period': 'Сохрани карту — после регистрации будет видно, какие периоды откроются.',
 };
 
 export function askSignup(navigate, reason) {

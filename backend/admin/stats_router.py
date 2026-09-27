@@ -59,14 +59,13 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
     made_chart = db.query(func.count(func.distinct(NatalChart.user_id))).filter(NatalChart.user_id.isnot(None)).scalar() or 0
 
     # Анонимные карты — верх воронки: построено без регистрации.
-    # user_id IS NULL — единственный признак (models.py:108). Строки живут
-    # вечно: удаления natal_charts нет нигде в бэкенде, expires_at (models.py:138)
-    # только закрывает доступ в resolve_chart_access, саму запись не трогает.
-    # Поэтому история полная, с самого начала.
+    # user_id IS NULL — единственный признак.
     #
-    # Конверсия «аноним → регистрация» отсюда НЕ считается: /chart/save-anonymous
-    # пересчитывает карту заново и вставляет новую строку, а анонимную не
-    # привязывает и никак не помечает (см. CLAUDE.md). Связи между записями нет.
+    # ⚠️ С 27.09.2026 это НЕ полная история: непривязанные анонимные карты
+    # удаляются через 7 дней (tasks.purge_expired_anonymous_charts), а
+    # привязанные (POST /chart/{id}/claim) становятся картами аккаунта и
+    # отсюда уходят. Число — «гостевые карты, живущие сейчас», а не воронка.
+    # Прежний save-anonymous (дубль вместо привязки) удалён.
     anon_total = db.query(func.count(NatalChart.id)).filter(NatalChart.user_id.is_(None)).scalar() or 0
     anon_30d = db.query(func.count(NatalChart.id)).filter(
         NatalChart.user_id.is_(None), NatalChart.created_at >= day30,

@@ -578,6 +578,31 @@ async def calculate_chart(
     Accepts date, optional time, and place of birth.
     Returns full chart with planets, houses, aspects, ASC, MC.
     """
+    return await _build_chart(request, data, db, user)
+
+
+# Демо-карта веб-лендинга («Показать пример»). Данные — серверные: клиент
+# шлёт только сам факт демо (решение владельца 27.09.2026). Согласие на
+# обработку здесь не нужно — данных человека в запросе нет. Флага «пропусти
+# проверку согласия» у calculate нет намеренно: им обходилась бы проверка.
+DEMO_BIRTH = BirthDataInput(
+    name="Александр", birth_date=datetime(1996, 5, 28).date(), birth_time="11:50",
+    birth_place="Москва, Россия", house_system="placidus",
+)
+
+
+@app.post("/api/v1/chart/demo", response_model=NatalChartResponse, tags=["chart"],
+          summary="Демо-карта по серверным данным")
+@limiter.limit(settings.rate_limit_anon)
+@limiter.limit(guest_limit("20/day"), key_func=guest_key)
+async def demo_chart(request: Request, db: Session = Depends(get_db)):
+    """Всегда анонимная — и у вошедшего: чужая демонстрационная карта не
+    должна занимать слот его тарифа."""
+    return await _build_chart(request, DEMO_BIRTH, db, None, demo=True)
+
+
+async def _build_chart(request: Request, data: BirthDataInput, db: Session,
+                       user: User | None, *, demo: bool = False):
     await check_chart_rate_limit(user, request)
 
     warnings: list[str] = []
@@ -824,7 +849,7 @@ async def claim_chart(
     """Гость приложения построил карту до регистрации — после входа она
     переходит на аккаунт ТОЙ ЖЕ строкой (27.09.2026).
 
-    ⚠️ Не `save-anonymous`: тот пересчитывает карту заново и создаёт вторую
+    ⚠️ Прежний `save-anonymous` (удалён 27.09.2026) пересчитывал карту заново и создавал вторую
     строку, а анонимная остаётся висеть до чистки — дубль в метриках и лишний
     пересчёт. Здесь меняется владелец, id карты прежний: лента, кэш прогноза и
     разбор на устройстве продолжают работать без перезапроса.
@@ -855,117 +880,6 @@ async def claim_chart(
     except Exception as e:  # noqa: BLE001 — письмо не должно ронять привязку
         logger.warning("claim welcome not queued: %s", e)
     return {"id": chart.id, "claimed": True}
-
-
-@app.post(
-    "/api/v1/chart/save-anonymous",
-    response_model=NatalChartResponse,
-    tags=["chart"],
-    summary="Save an anonymous chart to user account",
-)
-async def save_anonymous_chart(
-    request: Request,
-    data: BirthDataInput,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """Re-calculate and save a chart that was previously computed anonymously.
-
-    Called by frontend after login/registration when localStorage has anonymous chart data.
-    """
-    from backend.ephemeris.calculator import calculate_full_chart as _calc
-
-    geo = await geocode_place(data.birth_place)
-    # До 24.09.2026 неоднозначное время здесь не ловилось и давало 500.
-    try:
-        utc_dt, time_unknown, _ = resolve_utc_datetime(
-            birth_date=str(data.birth_date),
-            birth_time=data.birth_time,
-            timezone=geo.timezone,
-            utc_offset_minutes=data.utc_offset_minutes,
-        )
-    except AmbiguousTimeError as e:
-        raise _ambiguous_time_http(e)
-    (chart_data, aspects) = await asyncio.to_thread(
-        _calc,
-        utc_dt=utc_dt,
-        latitude=geo.latitude,
-        longitude=geo.longitude,
-        house_system=data.house_system,
-        time_unknown=time_unknown,
-    )
-
-    planets_resp = [
-        PlanetPosition(
-            name=p.name, longitude=p.longitude, sign=p.sign,
-            degree_in_sign=p.degree_in_sign,
-            house=p.house if not time_unknown else None,
-            retrograde=p.retrograde,
-        ) for p in chart_data.planets
-    ]
-    houses_resp = [
-        HouseData(number=h.number, sign=h.sign, degree=h.degree)
-        for h in chart_data.houses
-    ]
-    aspects_resp = [
-        AspectData(
-            planet1=a.planet1, planet2=a.planet2, aspect_type=a.aspect_type,
-            angle=a.angle, orb=a.orb, applying=a.applying,
-            importance=getattr(a, "importance", "low"),
-        ) for a in aspects
-    ]
-    asc_resp = PointData(
-        sign=chart_data.ascendant.sign, degree=chart_data.ascendant.degree,
-        longitude=chart_data.ascendant.longitude,
-    ) if chart_data.ascendant else None
-    mc_resp = PointData(
-        sign=chart_data.midheaven.sign, degree=chart_data.midheaven.degree,
-        longitude=chart_data.midheaven.longitude,
-    ) if chart_data.midheaven else None
-
-    chart_record = NatalChart(
-        user_id=user.id,
-        name=data.name,
-        birth_date=str(data.birth_date),
-        birth_time=data.birth_time,
-        birth_place=geo.display_name,
-        latitude=geo.latitude,
-        longitude=geo.longitude,
-        timezone=geo.timezone,
-        utc_datetime=utc_dt,
-        utc_offset_manual=data.utc_offset_minutes is not None,
-        time_unknown=time_unknown,
-        house_system=data.house_system,
-        planets=[p.model_dump() for p in planets_resp],
-        houses=[h.model_dump() for h in houses_resp],
-        aspects=[a.model_dump() for a in aspects_resp],
-        ascendant=asc_resp.model_dump() if asc_resp else None,
-        midheaven=mc_resp.model_dump() if mc_resp else None,
-    )
-    db.add(chart_record)
-    db.commit()
-    db.refresh(chart_record)
-
-    return NatalChartResponse(
-        id=chart_record.id,
-        name=chart_record.name,
-        birth_date=str(data.birth_date),
-        birth_time=data.birth_time,
-        birth_place=geo.display_name,
-        latitude=geo.latitude,
-        longitude=geo.longitude,
-        timezone=geo.timezone,
-        utc_offset_minutes=applied_utc_offset_minutes(str(data.birth_date), data.birth_time, utc_dt),
-        utc_offset_source="manual" if data.utc_offset_minutes is not None else "place",
-        time_unknown=time_unknown,
-        house_system=data.house_system,
-        planets=planets_resp,
-        houses=houses_resp,
-        aspects=aspects_resp,
-        ascendant=asc_resp,
-        midheaven=mc_resp,
-        warnings=[],
-    )
 
 
 @app.get(

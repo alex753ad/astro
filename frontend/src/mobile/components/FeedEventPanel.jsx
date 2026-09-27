@@ -387,7 +387,19 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             тоже — расшифровка идёт на четыре недели вперёд у всех. Там
             покупать нечего, и решает это upgradeOpensIt (lib/plannerAccess.js),
             а не флаг. */}
-        {!isTransit && isLocked(event) && (!planner || upgradeOpensIt(event, tier, known)) && (
+        {/* Гость: тариф ему неизвестен и не показывается — закрытый период
+            (значок в полосе) ведёт на «Сохранить карту». */}
+        {!isTransit && isLocked(event) && isGuest() && (
+          <>
+            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+              Расшифровка этого периода пока закрыта. Сохрани карту — после регистрации будет видно, что откроется.
+            </p>
+            <button type="button" className="mobile-btn-primary" onClick={() => { onClose?.(); askSignup(navigate, 'locked-period'); }}>
+              Сохранить карту
+            </button>
+          </>
+        )}
+        {!isTransit && isLocked(event) && !isGuest() && (!planner || upgradeOpensIt(event, tier, known)) && (
           <button
             type="button"
             className="mobile-btn-primary"
