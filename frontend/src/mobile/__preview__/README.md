@@ -22,7 +22,7 @@
    Email и пароль лежат в **корневом `.env` проекта**, переменные
    `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD`. Не в этом README, не в
    команде, не в чате — только по имени переменной. Это тот же аккаунт,
-   которым снята разведка по экрану «Карта» (`CHART_API_RECON.md`).
+   которым снята разведка по экрану «Карта» (`docs/archive/CHART_API_RECON.md`).
 2. `GET /api/v1/profile/charts` — список карт аккаунта. Карта, снимок
    которой лежит в фикстуре, — `b1ae94f2-d64f-4f31-81e2-8555ca8a1e37`
    (первая из двух карт аккаунта; какая именно — не принципиально, важно
@@ -66,4 +66,4 @@ PASSWORD = os.environ["TEST_ACCOUNT_PASSWORD"]
   это дата запуска скрипта, не дата в файле. Если снимки должны показывать
   конкретный день — регенерировать в этот же день.
 - `chart_fixture.json` (для `ChartScreen`) генерируется тем же приёмом,
-  другой ручкой (см. `ChartPreview.jsx` и `CHART_API_RECON.md`).
+  другой ручкой (см. `ChartPreview.jsx` и `docs/archive/CHART_API_RECON.md`).

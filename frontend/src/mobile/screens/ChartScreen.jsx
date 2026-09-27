@@ -3,13 +3,13 @@
  *
  * Шапка, колесо на всю ширину, шторка с тремя таблицами. Данных ровно
  * два запроса (§2), тарифных состояний нет вовсе: на free карта приходит
- * полной, блюрить нечего (CHART_API_RECON.md §3).
+ * полной, блюрить нечего (docs/archive/CHART_API_RECON.md §3).
  *
  * ⚠️ Колесо — ВЕБОВСКИЙ компонент `components/NatalChart.jsx`, а не своя
  * реализация. В нём уже сделаны тригонометрия, щипковый зум с поворотом,
  * сброс по двойному тапу и подключение шрифта значков, а CSS-токены, на
  * которых он стоит, совпадают с мобильными до имени. Довод и разбор
- * альтернативы — CHART_API_RECON.md §6.
+ * альтернативы — docs/archive/CHART_API_RECON.md §6.
  *
  * ⚠️ Прокрутки у этого экрана нет: колесо и шторка делят высоту, список
  * внутри шторки прокручивается сам. Поэтому здесь, в отличие от ленты,
@@ -361,7 +361,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
       <OfflineNote savedAt={stale?.at} kind={stale?.kind} />
       <header style={{ padding: '12px 16px 4px', flexShrink: 0 }}>
         {/* name сегодня приходит null на обеих картах служебного аккаунта
-            (CHART_API_RECON.md §2), но поле в ответе есть — если карту
+            (docs/archive/CHART_API_RECON.md §2), но поле в ответе есть — если карту
             назвали, показываем имя, иначе запасной заголовок. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h1 style={{ margin: 0, flex: 1, minWidth: 0, fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--text-primary)' }}>

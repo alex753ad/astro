@@ -88,7 +88,7 @@ class TestKeysAreWindowIndependent:
     calculate_transits ищет пик ВНУТРИ переданного диапазона, и у окна, куда
     настоящий пик не попал, возвращает край окна. Проверено боем на трёх
     перекрывающихся окнах: peak_date разошёлся у 4 транзитов из 31,
-    peak_orb — у тех же четырёх (FEED_API_RECON_2026-09-04.md).
+    peak_orb — у тех же четырёх (docs/archive/FEED_API_RECON_2026-09-04.md).
 
     Лента лечит это месячной сеткой — см. шапку builder.py.
     """

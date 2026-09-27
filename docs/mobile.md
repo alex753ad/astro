@@ -129,7 +129,7 @@ https://support.google.com/googleplay/android-developer/answer/9858738
 Переименование Астрея → Аристея (документация подтянута 06.09.2026, см.
 раздел «Склонение…» выше) не тронуло имя артефакта в
 `.github/workflows/mobile-build.yml` (`upload-artifact: name:
-astrea-debug-apk`) и его упоминания в `MOBILE_APK_2026-09-04.md` и
+astrea-debug-apk`) и его упоминания в `docs/archive/MOBILE_APK_2026-09-04.md` и
 `frontend/CAPACITOR.md`. Это осознанно: имя артефакта — технический
 идентификатор, на который ссылаются командой `gh run download -n
 astrea-debug-apk`; переименование ничего не даёт продукту (пользователь

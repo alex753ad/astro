@@ -5,7 +5,7 @@
  * заменить «короткой формой»: боевая регистрация двухшаговая, а
  * `useAuth().register()` зовёт legacy-ручку `/register`, закрытую в проде
  * (404 вне debug/testing) и не принимающую ни `consent`, ни `name`. Полный
- * разбор контракта — REGISTER_API_RECON.md.
+ * разбор контракта — docs/archive/REGISTER_API_RECON.md.
  *
  * ⚠️ Запросы идут через `useAuth().sendRegisterCode` / `verifyRegisterCode`,
  * то есть через `apiFetch`, а НЕ голым `fetch`, как это делает `AuthModal.jsx`

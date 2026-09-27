@@ -442,7 +442,7 @@ function _connectSSE(buildUrl, onChunk, onDone, onError) {
 
   // Разбор разметки <section> живёт в общем файле lib/sectionStream.js —
   // он однопроходный и одинаково переживает все три пути отдачи
-  // (INTERPRET_SSE_RECON.md). Прежний локальный flushBuffer разбирал буфер
+  // (docs/archive/INTERPRET_SSE_RECON.md). Прежний локальный flushBuffer разбирал буфер
   // двумя проходами и придерживал незакрытый хвост по порогу длины в 19
   // символов — короче открывающего тега, из-за чего на живой генерации
   // section_start не приходил вовсе.

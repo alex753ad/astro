@@ -74,7 +74,7 @@ function renderMarkdown(text) {
     // SECTION_TITLES_RU. Он и маскировал дефект flushBuffer на живой
     // генерации — утёкшие обрывки тегов склеивались в тексте обратно, и
     // заголовки рисовались отсюда, а не из sec.title (разбор —
-    // INTERPRET_SSE_RECON.md §3). Словарь удалён вместе с ним: заголовки
+    // docs/archive/INTERPRET_SSE_RECON.md §3). Словарь удалён вместе с ним: заголовки
     // секций берутся ровно из одного места — SECTION_TITLES, который с
     // 08.09.2026 лежит в lib/sectionStream.js (там же причина переноса).
     const line = stripSectionTags(raw);

@@ -1,7 +1,7 @@
 /**
  * sectionStream.test.js — проверка однопроходного разборщика секций на ТРЁХ
  * записанных последовательностях событий, по одной на каждый путь отдачи
- * `/chart/{id}/interpret` (INTERPRET_SSE_RECON.md §2, §7).
+ * `/chart/{id}/interpret` (docs/archive/INTERPRET_SSE_RECON.md §2, §7).
  *
  * ⚠️ Одной живой последовательности здесь принципиально мало. Путь 2
  * (Redis-кэш) проходит через любой разумный парсер — теги там уже отделены
@@ -28,7 +28,7 @@ const DOC = DOC_SECTIONS.map(s => `<section name="${s.name}">\n${s.text}\n</sect
 
 // ── Путь 1: живая генерация ─────────────────────────────────────────────
 // Теги разрезаны ровно так, как записано в боевом замере
-// (CHART_API_RECON.md:366-377): '<section', ' name', '="', имя, '">\n' и
+// (docs/archive/CHART_API_RECON.md:366-377): '<section', ' name', '="', имя, '">\n' и
 // '</', 'section', '>'. Текст — по словам, как приходит по токенам.
 function livePath() {
   const events = [];

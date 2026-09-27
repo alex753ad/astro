@@ -1,7 +1,7 @@
 # Спецификация экрана «Ещё» (мобильное приложение)
 
 Версия 1.0, 06.09.2026. Составлена по прототипу `aristea-mobile.html`
-(ЭКРАН 3) и разведке `MORE_API_RECON.md` — все утверждения о данных ниже
+(ЭКРАН 3) и разведке `docs/archive/MORE_API_RECON.md` — все утверждения о данных ниже
 опираются на боевые ответы оттуда, а не на схемы. Формат документа — тот
 же, что в `SPEC_CHART_SCREEN.md`.
 
@@ -131,7 +131,7 @@ nextTierId = TIERS[TIERS.findIndex(t => t.id === currentTier) + 1]?.id ?? null
 
 `TIER_FLAGS["free"]["transits_months"]` равен `0`, но реальный горизонт
 транзитов free — 3 месяца через отдельную константу
-`FREE_TRANSITS_TEASER_MONTHS`, мимо флага (`MORE_API_RECON.md` §4).
+`FREE_TRANSITS_TEASER_MONTHS`, мимо флага (`docs/archive/MORE_API_RECON.md` §4).
 
 > **Обновление 08.09.2026.** Расхождение закрыто на бэкенде: флаг у free
 > поднят до `3`, серверная константа убрана, `features.transits_months`
@@ -214,7 +214,7 @@ tierFeatures(nextId).filter(f => !f.startsWith('Транзиты')).slice(0, 4)
 существуют (`models.py:108-109`), схема `BirthDataInput` принимает
 `name` от клиента (`schemas.py:17`), но ни `POST /chart/calculate`, ни
 `POST /chart/save-anonymous` не передают его при создании записи, и
-**ни одно место в бэкенде** это поле не пишет (`MORE_API_RECON.md` §3,
+**ни одно место в бэкенде** это поле не пишет (`docs/archive/MORE_API_RECON.md` §3,
 проверено grep'ом по всему `backend/`). Значение — всегда `NULL`,
 подтверждено дважды: в самом списке карт и в `/profile/export`.
 
@@ -251,7 +251,7 @@ tierFeatures(nextId).filter(f => !f.startsWith('Транзиты')).slice(0, 4)
 
 ## 6. Пункты меню
 
-Ручки живые под все пункты (`MORE_API_RECON.md` §1) — заглушек «нет
+Ручки живые под все пункты (`docs/archive/MORE_API_RECON.md` §1) — заглушек «нет
 API» не будет. Но не у всех пунктов есть куда вести по тапу дальше
 самого списка данных. Пятый пункт из разведки, «Скачать мои данные»,
 здесь не пунктом меню — решение и причина в §6.2.
@@ -371,7 +371,7 @@ Capacitor как origin приложения, этой разведкой не �
 `push.js` подписывается связкой `navigator.serviceWorker` +
 `PushManager` + `Notification` (Web Push). Работает ли эта связка внутри
 Android WebView Capacitor — **не проверено этой разведкой и не
-проверяется без устройства** (`MORE_API_RECON.md` §3).
+проверяется без устройства** (`docs/archive/MORE_API_RECON.md` §3).
 
 Экран не должен показывать переключатели уведомлений как будто это
 обычный веб-toggle, который просто «может быть выключен пользователем».
