@@ -603,6 +603,16 @@ async def demo_chart(request: Request, db: Session = Depends(get_db)):
 
 async def _build_chart(request: Request, data: BirthDataInput, db: Session,
                        user: User | None, *, demo: bool = False):
+    # Без входа дата, время и место рождения обрабатываются до флажка на
+    # регистрации — нужна галочка согласия (решение владельца 27.09.2026).
+    # Включено после выката галочки в обеих формах (приложение, веб-лендинг).
+    # Демо не проверяется: данных человека в нём нет (DEMO_BIRTH), и признак
+    # демо клиент не присылает — это отдельная ручка, обойти ею нечего.
+    if user is None and not demo and not data.consent:
+        raise HTTPException(
+            status_code=422,
+            detail="Отметь согласие на обработку даты, времени и места рождения.",
+        )
     await check_chart_rate_limit(user, request)
 
     warnings: list[str] = []

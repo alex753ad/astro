@@ -192,3 +192,13 @@ def test_demo_chart_uses_server_data_and_is_anonymous(client, db, mock_geo, user
 
 def test_save_anonymous_is_gone(client, auth_headers_free):
     assert client.post("/api/v1/chart/save-anonymous", json={}, headers=auth_headers_free).status_code in (404, 405)
+
+
+def test_anonymous_calculate_requires_consent(client, mock_geo):
+    resp = client.post("/api/v1/chart/calculate", json=GUEST_PAYLOAD)
+    assert resp.status_code == 422
+    assert "согласие" in resp.json()["detail"]
+
+
+def test_signed_in_calculate_needs_no_consent(client, mock_geo, auth_headers_free):
+    assert client.post("/api/v1/chart/calculate", json=GUEST_PAYLOAD, headers=auth_headers_free).status_code == 200

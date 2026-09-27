@@ -89,6 +89,7 @@ class TestChartNameCalculate:
                 "birth_time": "12:00",
                 "birth_place": "Moscow",
                 "house_system": "placidus",
+                "consent": True,
             },
         )
         assert resp.status_code == 200, resp.text

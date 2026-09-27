@@ -138,6 +138,8 @@ class TestChartCalculateEndpoint:
         "birth_time": "10:30",
         "birth_place": "Moscow, Russia",
         "house_system": "placidus",
+        # Без входа нужна галочка согласия (backend/CLAUDE.md, «Гость»).
+        "consent": True,
     }
 
     def test_calculate_returns_200(self, client, mock_calculator, mock_geo):
@@ -347,7 +349,7 @@ class TestAuthAndChartPermissions:
         """Анонимный пользователь может создать карту (согласно архитектуре)."""
         payload = {
             "name": "Аноним", "birth_date": "1990-06-15", "birth_time": "10:30",
-            "birth_place": "Moscow",
+            "birth_place": "Moscow", "consent": True,
         }
         resp = client.post("/api/v1/chart/calculate", json=payload)
         # Либо 200 (если анонимный доступ разрешён), либо 401

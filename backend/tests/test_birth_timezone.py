@@ -64,7 +64,7 @@ def test_unknown_time_offset_is_taken_at_noon():
 
 class TestApi:
     def test_ambiguous_then_pick_builds_chart(self, client, mock_geo):
-        body = {"birth_date": "2010-10-31", "birth_time": "02:30", "birth_place": "Moscow"}
+        body = {"birth_date": "2010-10-31", "birth_time": "02:30", "birth_place": "Moscow", "consent": True}
         r = client.post("/api/v1/chart/calculate", json=body)
         assert r.status_code == 400
         detail = r.json()["detail"]
@@ -77,7 +77,7 @@ class TestApi:
         assert data["utc_offset_source"] == "manual"
 
     def test_place_offset_is_reported(self, client, mock_geo):
-        body = {"birth_date": "1985-07-15", "birth_time": "12:00", "birth_place": "Moscow"}
+        body = {"birth_date": "1985-07-15", "birth_time": "12:00", "birth_place": "Moscow", "consent": True}
         r = client.post("/api/v1/chart/calculate", json=body)
         assert r.status_code == 200, r.text
         data = r.json()
