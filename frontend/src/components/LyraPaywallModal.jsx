@@ -298,7 +298,9 @@ export default function LyraPaywallModal({
                 marginBottom: 10,
               }}
             >
-              <motion.button
+              {/* Без обработчика кнопки промокода нет: промокоды не подключены
+                  (docs/payments.md), и пустая кнопка выглядела бы рабочей. */}
+              {onEnterPromo && <><motion.button
                 type="button"
                 onClick={onEnterPromo}
                 whileHover={{ color: "var(--accent-glow)" }}
@@ -313,7 +315,7 @@ export default function LyraPaywallModal({
               >
                 Ввести промокод
               </motion.button>
-              <span style={{ color: "var(--border)" }}>·</span>
+              <span style={{ color: "var(--border)" }}>·</span></>}
               <motion.button
                 type="button"
                 onClick={onContinueFree}

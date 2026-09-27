@@ -119,6 +119,32 @@ export function classifyTransitError(signal) {
  *
  * @param {{tier: string|null, known: boolean, finished: boolean, failed: boolean}} state
  */
+/**
+ * Отказ по тарифу у разбора транзита — это предложение, а не ошибка
+ * (решение владельца 27.09.2026): текст нейтральный, тариф — по правилу
+ * lib/offerRule.js (free → Вега, рядом Лира; Вега без лимита → Лира).
+ * Текст сервера здесь не показывается: он был «Оформи Лира» — мимо Веги и
+ * без падежа, а у старых версий приложения остаётся запасным.
+ *
+ * @returns {{feature: string, text: string}|null} null — отказ не тарифный
+ */
+export function transitOffer(outcome) {
+  if (outcome === TRANSIT_OUTCOMES.NOT_SIGNIFICANT) {
+    return {
+      feature: 'transit',
+      text: 'На бесплатном тарифе открыт разбор 2 самых значимых транзитов. '
+        + 'Разбор этого — на Веге (3 в месяц) и на Лире (без лимита).',
+    };
+  }
+  if (outcome === TRANSIT_OUTCOMES.RATE_LIMIT) {
+    return {
+      feature: 'transit_limit',
+      text: 'Разборы транзитов на этот месяц закончились — обновятся 1-го числа. Без лимита — на Лире.',
+    };
+  }
+  return null;
+}
+
 export function transitUpsellFor({ tier, known, finished, failed }) {
   if (!finished || failed) return null;
   if (!known || !tier) return null;

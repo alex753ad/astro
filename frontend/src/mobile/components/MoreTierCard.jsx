@@ -26,14 +26,22 @@
  */
 
 import React from 'react';
-import { TIERS, TIER_NAMES, tierFeatures } from '../../constants';
-import { tierAccusative } from '../lib/ruDeclension';
+import { TIER_NAMES } from '../../constants';
+import { APP_TIER_FEATURES, APP_TIER_SITE } from '../lib/appTiers';
+import { APP_SELLABLE, TIER_ORDER } from '../../lib/offerRule';
+import { tierInRu } from '../lib/ruDeclension';
 import { openPaySheet } from '../lib/paySheetBus';
 
+/**
+ * Следующий тариф, который можно купить ЗДЕСЬ. Орион в приложении не
+ * продаётся (lib/offerRule.js, APP_SELLABLE) — до 27.09.2026 карточка на Лире
+ * звала «На Орион дополнительно», а лист оплаты отвечал «у тебя уже старший из
+ * доступных». Одно противоречило другому.
+ */
 function nextTierId(currentTier) {
-  const idx = TIERS.findIndex((t) => t.id === currentTier);
+  const idx = TIER_ORDER.indexOf(currentTier);
   if (idx === -1) return null;
-  return TIERS[idx + 1]?.id ?? null;
+  return TIER_ORDER.slice(idx + 1).find((t) => APP_SELLABLE.includes(t)) ?? null;
 }
 
 /** «до 24.10.2026» из ISO; пусто — срока нет (free) или прочитать нельзя. */
@@ -52,9 +60,9 @@ export default function MoreTierCard({ tier, highlight, activeUntil, onPayments 
   const currentName = TIER_NAMES[tier] || tier;
   const nextId = nextTierId(tier);
   const nextName = nextId ? TIER_NAMES[nextId] : null;
-  const features = nextId
-    ? tierFeatures(nextId).filter((f) => !f.startsWith('Транзиты')).slice(0, 4)
-    : [];
+  // Что даст следующий тариф В ПРИЛОЖЕНИИ (lib/appTiers.js), сайт — строкой.
+  const features = nextId ? APP_TIER_FEATURES[nextId] || [] : [];
+  const site = nextId ? APP_TIER_SITE[nextId] : null;
 
   return (
     <section
@@ -87,7 +95,8 @@ export default function MoreTierCard({ tier, highlight, activeUntil, onPayments 
       {nextId && (
         <div>
           <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-            На {tierAccusative(nextName)} дополнительно:
+            {/* Предложный падеж: «На Веге», «На Лире» (ruDeclension.js). */}
+            На {tierInRu(nextName)} дополнительно:
           </p>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
             {features.map((f) => (
@@ -97,6 +106,7 @@ export default function MoreTierCard({ tier, highlight, activeUntil, onPayments 
               </li>
             ))}
           </ul>
+          {site && <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.4, color: 'var(--text-secondary)' }}>{site}</p>}
         </div>
       )}
 

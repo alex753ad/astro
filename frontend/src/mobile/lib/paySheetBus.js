@@ -9,7 +9,16 @@
 
 const listeners = new Set();
 
-/** @param {{mode?: 'choose'|'status'}} [opts] */
+/**
+ * @param {{mode?: 'choose'|'status', focus?: string, alt?: string|null,
+ *          context?: string, returnTo?: object}} [opts]
+ * `focus`/`alt` — какой тариф предложить (lib/offerRule.js), `context` —
+ * строка «что откроется», `returnTo` — куда вернуться после оплаты
+ * (lib/afterPay.js). Без них — все продаваемые старше текущего.
+ *
+ * ⚠️ Звать только по нажатию человека на закрытое (решение владельца
+ * 27.09.2026): листов с предложением, открывающихся сами, нет.
+ */
 export function openPaySheet(opts = {}) {
   for (const fn of [...listeners]) fn({ mode: 'choose', ...opts });
 }

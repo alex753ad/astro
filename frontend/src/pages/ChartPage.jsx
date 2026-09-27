@@ -17,7 +17,7 @@ import { shareDisclosure } from '../mobile/lib/shareRules';
 import TransitTimeline from '../components/TransitTimeline';
 import AspectGrid from '../components/AspectGrid';
 import useIsMobile from '../hooks/useIsMobile';
-import { TIER_NAMES } from '../constants';
+import { TIER_NAMES, tierPriceLabel } from '../constants';
 import { todayLocalISO } from '../utils/dateISO';
 import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
@@ -31,7 +31,7 @@ import {
   apiErrorText,
 } from '../api/client';
 import { useToast } from '../components/Toast';
-import PlanComparisonModal from '../components/PlanComparisonModal';
+import LyraPaywallModal from '../components/LyraPaywallModal';
 import { utcOffsetLabel } from '../lib/utcOffset';
 import { rememberWebPayment } from '../lib/webPayment';
 import { withTz } from '../lib/deviceTimezone';
@@ -343,7 +343,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [authRequired, setAuthRequired] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallContext, setPaywallContext] = useState('free_to_lite');
-  const [showChatPlans, setShowChatPlans] = useState(false); // чат: двухтарифная Вега/Лира вместо PaywallModal
+  // Чат: окно только с Лирой (решение владельца 27.09.2026, lib/offerRule.js).
+  // До этого было сравнение Веги и Лиры — а на Веге чата нет.
+  const [showChatPlans, setShowChatPlans] = useState(false);
   const [chatCheckoutLoading, setChatCheckoutLoading] = useState(false);
 
   async function handleChatPlanCheckout(tier) {
@@ -1049,13 +1051,15 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
       )}
 
-      <PlanComparisonModal
+      <LyraPaywallModal
         open={showChatPlans}
         onClose={() => setShowChatPlans(false)}
-        onChooseVega={() => handleChatPlanCheckout('lite')}
-        onChooseLyra={() => handleChatPlanCheckout('pro')}
+        onSubscribe={() => handleChatPlanCheckout('pro')}
         onContinueFree={() => setShowChatPlans(false)}
         contextLabel="Чат с астрологом Аристеей"
+        title="Чат с Аристеей"
+        subtitle="Вопросы о твоей карте и о том, что идёт сейчас. Аристея отвечает с учётом твоей натальной карты и текущих транзитов."
+        price={tierPriceLabel('pro')}
       />
 
     </div>

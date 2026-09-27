@@ -67,7 +67,10 @@ describe('ожидающий платёж на устройстве', () => {
 
   it('переживает перезапуск и забывается через сутки', () => {
     rememberPending('p1', 'lite', 1000);
-    expect(readPending(2000)).toEqual({ id: 'p1', tier: 'lite', at: 1000 });
+    expect(readPending(2000)).toEqual({ id: 'p1', tier: 'lite', at: 1000, returnTo: null });
+    // Адрес возврата (lib/afterPay.js) переживает перезапуск вместе с платежом.
+    rememberPending('p2', 'pro', 1000, { path: '/app/feed', kind: 'chat', feature: 'chat' });
+    expect(readPending(2000).returnTo).toEqual({ path: '/app/feed', kind: 'chat', feature: 'chat' });
     expect(readPending(1000 + PENDING_TTL_MS)).toBeNull();
   });
 

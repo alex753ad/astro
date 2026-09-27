@@ -82,6 +82,11 @@ import useAuth from '../../hooks/useAuth.jsx';
 import { serverNow } from '../../lib/serverClock';
 import { isGuest } from '../lib/guestChart';
 import GuestSaveNote from '../components/GuestSaveNote';
+import { openPaySheet } from '../lib/paySheetBus';
+import { featureOfEvent, onAfterPay } from '../lib/afterPay';
+import { offerFor } from '../../lib/offerRule';
+import useTier from '../lib/useTier';
+import { lockedPlannerText } from '../lib/plannerAccess';
 
 // ⚠️ Нижний запас — ЗДЕСЬ, а не только на скроллере (TabShell.jsx). Приёмка
 // 15.09.2026: последние строки ленты уходили под кнопку чата. Замер при
@@ -216,6 +221,26 @@ export default function FeedScreen({
     });
   }, []);
   const [chartId, setChartId] = useState(null);
+  const { tier, known } = useTier();
+
+  /**
+   * «Открыть доступ» у закрытого события — лист оплаты сразу на тарифе,
+   * который его открывает (lib/offerRule.js), и с адресом возврата.
+   *
+   * ⚠️ До 27.09.2026 обработчика не было вовсе, а кнопка стояла с
+   * `disabled={!onUpgrade}` — выглядела бледной и не нажималась.
+   */
+  const upgrade = useCallback((event) => {
+    const feature = featureOfEvent(event);
+    const o = feature && offerFor(feature, known ? tier : 'free');
+    if (!o) return;
+    openPaySheet({
+      focus: o.primary,
+      alt: o.alt,
+      context: lockedPlannerText(event, tier, known),
+      returnTo: { path: '/app/feed', kind: 'event', key: event.key, feature },
+    });
+  }, [tier, known]);
   const anchorRef = useRef(null);
   // Якорь подсветки для чипов домов (SPEC_ONBOARDING.md §11). Остальные два
   // шага переиспользуют `anchorRef` — секцию сегодняшнего дня.
@@ -333,6 +358,18 @@ export default function FeedScreen({
   }, [onChartResolved]);
 
   useEffect(() => { load(); }, [load]);
+
+  // После оплаты (lib/afterPay.js): тариф сменился — лента перезагружается
+  // (у событий другой `locked`), и открывается то событие, с которого платили.
+  useEffect(() => onAfterPay((target) => {
+    if (target?.kind !== 'event') return;
+    load({ silent: true })
+      .catch(() => {})
+      .then(() => {
+        const ev = (feedRef.current?.events || []).find((e) => e.key === target.key);
+        if (ev) setSelected(ev);
+      });
+  }), [load]);
 
   // Сохранённое на экране или «нет сети» — перезапрашиваем сами.
   const waiting = Boolean(stale) || (status === 'error' && offlineError);
@@ -834,7 +871,7 @@ export default function FeedScreen({
 
       {!guest && <FeedHorizonCard horizon={feed?.horizon} />}
 
-      <FeedEventPanel event={selected} chartId={chartId} onClose={() => setSelected(null)} />
+      <FeedEventPanel event={selected} chartId={chartId} onClose={() => setSelected(null)} onUpgrade={upgrade} />
 
       {hints.open && (
         <HintOverlay

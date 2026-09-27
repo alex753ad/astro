@@ -19,7 +19,11 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TIERS, TIER_NAMES, tierFeatures, tierPriceLabel } from '../../constants';
+import { TIERS, TIER_NAMES, tierPriceLabel } from '../../constants';
+import { useNavigate } from 'react-router-dom';
+import { APP_TIER_FEATURES, APP_TIER_SITE } from '../lib/appTiers';
+import { emitAfterPay, returnAfterPay } from '../lib/afterPay';
+import { tierAccusative } from '../lib/ruDeclension';
 import { openInBrowser } from '../lib/openInBrowser';
 import { onPaySheet } from '../lib/paySheetBus';
 import {
@@ -49,6 +53,9 @@ export default function PaySheet() {
   const { tier } = useTier();
   const timer = useRef(null);
   const pending = useRef(null);
+  // Что предложить и куда вернуться — из openPaySheet (lib/paySheetBus.js).
+  const [offer, setOffer] = useState(null);
+  const navigate = useNavigate();
 
   const stop = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
 
@@ -58,9 +65,10 @@ export default function PaySheet() {
     setMode('status'); setStatus(null); setOffline(false); setPolls(0); setOpen(true);
   }, []);
 
-  useEffect(() => onPaySheet(({ mode: m }) => {
+  useEffect(() => onPaySheet(({ mode: m, focus, alt, context, returnTo }) => {
     setError('');
     if (m === 'status') { showStatus(); return; }
+    setOffer(focus ? { focus, alt: alt || null, context: context || '', returnTo: returnTo || null } : null);
     setMode('choose'); setOpen(true);
   }), [showStatus]);
 
@@ -101,7 +109,7 @@ export default function PaySheet() {
     try {
       const { checkout_url: url, payment_id: pid } = await createAppCheckout(id);
       if (!url || !pid) throw new Error('Платёжный сервис вернул неожиданный ответ.');
-      rememberPending(pid, id);
+      rememberPending(pid, id, Date.now(), offer?.returnTo || null);
       pending.current = readPending();
       setMode('status'); setStatus(null); setPolls(0); setOffline(false);
       await openInBrowser(url);
@@ -113,11 +121,23 @@ export default function PaySheet() {
   };
 
   if (!open) return null;
-  const close = () => { stop(); setOpen(false); };
+  const okView = mode === 'status' && describePayment(status, { offline, polls, tier: pending.current?.tier }).kind === 'ok';
+  // Оплата прошла — вернуть туда, откуда нажали, и открыть элемент, если
+  // купленный тариф его открывает (lib/afterPay.js).
+  const goBack = () => {
+    const paid = pending.current;
+    const { path, open: target } = returnAfterPay(paid?.returnTo || null, paid?.tier);
+    if (path) navigate(path, { replace: true });
+    if (target) setTimeout(() => emitAfterPay(target), 0);
+  };
+  const close = () => { stop(); setOpen(false); if (okView) goBack(); };
   const view = mode === 'status'
     ? describePayment(status, { offline, polls, tier: pending.current?.tier })
     : null;
-  const offers = SELLABLE.filter((id) => rank(id) > rank(tier || 'free'));
+  const above = SELLABLE.filter((id) => rank(id) > rank(tier || 'free'));
+  // Из закрытого элемента — ровно предложенные тарифы, первым самый дешёвый
+  // из открывающих (lib/offerRule.js). Из карточки тарифа — все старше.
+  const offers = offer ? [offer.focus, offer.alt].filter((id) => id && above.includes(id)) : above;
 
   return (
     <div
@@ -140,6 +160,9 @@ export default function PaySheet() {
             <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
               Тарифы
             </p>
+            {offer?.context && (
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--text-primary)' }}>{offer.context}</p>
+            )}
             <AnnouncementBanner />
             {offers.length === 0 && (
               <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)' }}>
@@ -151,13 +174,17 @@ export default function PaySheet() {
                 <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
                   {TIER_NAMES[id]} · {tierPriceLabel(id)} в месяц
                 </p>
+                {/* Что тариф даёт в ПРИЛОЖЕНИИ (lib/appTiers.js); сайт — строкой ниже. */}
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {tierFeatures(id, 4).map((f) => (
+                  {(APP_TIER_FEATURES[id] || []).map((f) => (
                     <li key={f} style={{ fontSize: 13, lineHeight: 1.4, color: 'var(--text-secondary)' }}>· {f}</li>
                   ))}
                 </ul>
+                {APP_TIER_SITE[id] && (
+                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'var(--text-secondary)' }}>{APP_TIER_SITE[id]}</p>
+                )}
                 <button type="button" className="mobile-btn-primary" disabled={busy} style={{ height: 44, fontSize: 14 }} onClick={() => pay(id)}>
-                  {busy ? 'Открываем оплату…' : `Оплатить ${tierPriceLabel(id)}`}
+                  {busy ? 'Открываем оплату…' : `Оформить ${tierAccusative(TIER_NAMES[id])} · ${tierPriceLabel(id)}`}
                 </button>
               </section>
             ))}
@@ -175,6 +202,11 @@ export default function PaySheet() {
               {view.title}
             </p>
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{view.text}</p>
+            {view.kind === 'ok' && pending.current?.returnTo && (
+              <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={close}>
+                Продолжить
+              </button>
+            )}
             {view.kind === 'fail' && (
               <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => setMode('choose')}>
                 Попробовать ещё раз

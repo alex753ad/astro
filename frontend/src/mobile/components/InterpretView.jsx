@@ -27,6 +27,7 @@ import {
   shouldRefetchOnResume,
   upsellForTier,
 } from '../lib/interpretRules';
+import { offerFor } from '../../lib/offerRule';
 import useTier from '../lib/useTier';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
@@ -187,6 +188,11 @@ export default function InterpretView({ chartId, onBack }) {
   // показывалась приписка ветки free. Пока тариф неизвестен (`known: false`)
   // приписки нет вовсе — незнание не то же самое, что бесплатный тариф.
   const { tier, known } = useTier();
+  // Больше объёма — соседний тариф (lib/offerRule.js): free → Вега, Вега → Лира.
+  const askMore = () => {
+    const o = offerFor('interpretation', known ? tier : 'free');
+    openPaySheet(o ? { focus: o.primary } : {});
+  };
   const upsell = upsellForTier({ tier, known, finished, failed: !!failure });
 
   return (
@@ -248,7 +254,7 @@ export default function InterpretView({ chartId, onBack }) {
             <button
               type="button"
               className="mobile-link"
-              onClick={() => openPaySheet()}
+              onClick={askMore}
             >
               {upsell.cta}
             </button>
@@ -269,7 +275,7 @@ export default function InterpretView({ chartId, onBack }) {
               type="button"
               className="mobile-btn-primary"
               style={{ height: 44, fontSize: 13.5 }}
-              onClick={() => openPaySheet()}
+              onClick={askMore}
             >
               {upsell.cta}
             </button>
@@ -285,7 +291,7 @@ export default function InterpretView({ chartId, onBack }) {
               {failure.text}
             </p>
             {failure.showPricing && (
-              <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => openPaySheet()}>
+              <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={askMore}>
                 Открыть тарифы
               </button>
             )}

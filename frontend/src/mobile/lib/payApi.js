@@ -47,8 +47,9 @@ export async function fetchPaymentHistory() {
 // выгрузку приложения системой и перезапуск. localStorage, а не Preferences:
 // потеря записи безопасна — тариф всё равно включит вебхук или сверка.
 
-export function rememberPending(paymentId, tier, now = Date.now()) {
-  try { localStorage.setItem(PENDING_KEY, JSON.stringify({ id: paymentId, tier, at: now })); } catch { /* только память */ }
+/** `returnTo` — откуда нажали оплату (lib/afterPay.js): туда и вернёмся. */
+export function rememberPending(paymentId, tier, now = Date.now(), returnTo = null) {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify({ id: paymentId, tier, at: now, returnTo })); } catch { /* только память */ }
 }
 
 export function readPending(now = Date.now()) {

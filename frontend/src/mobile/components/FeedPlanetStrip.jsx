@@ -67,13 +67,17 @@ export default function FeedPlanetStrip({ items, onOpen, compact = false, innerR
         const meta = event.meta || {};
         const openable = typeof onOpen === 'function';
         const color = planetDotColor(meta.planet);
+        // Закрытая расшифровка видна сразу, до нажатия (решение владельца
+        // 27.09.2026): кружок приглушён и с замком. Значок при этом остаётся —
+        // период идёт, закрыт только разбор (docs/feed.md, «Полоса планет»).
+        const locked = Boolean(event.locked);
         return (
           <button
             key={event.key}
             type="button"
             onClick={openable ? () => onOpen(event) : undefined}
             disabled={!openable}
-            aria-label={`${meta.planet_name || ''} в ${meta.house} доме`}
+            aria-label={`${meta.planet_name || ''} в ${meta.house} доме${locked ? ', расшифровка закрыта' : ''}`}
             style={{
               flexShrink: 0,
               display: 'flex',
@@ -96,17 +100,35 @@ export default function FeedPlanetStrip({ items, onOpen, compact = false, innerR
             */}
             <span
               style={{
+                position: 'relative',
                 width: ring,
                 height: ring,
                 flexShrink: 0,
                 borderRadius: '50%',
-                border: `1.5px solid ${color}`,
+                border: `1.5px ${locked ? 'dashed' : 'solid'} ${color}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <span style={{ ...glyphStyle, fontSize: glyphSize, color }}>{glyph(meta.planet)}</span>
+              <span style={{ ...glyphStyle, fontSize: glyphSize, color, opacity: locked ? 0.45 : 1 }}>{glyph(meta.planet)}</span>
+              {locked && (
+                <svg
+                  aria-hidden="true"
+                  width={compact ? 9 : 11}
+                  height={compact ? 9 : 11}
+                  viewBox="0 0 24 24"
+                  style={{ position: 'absolute', right: -3, bottom: -3, background: 'var(--bg-page)', borderRadius: '50%', padding: 1 }}
+                  fill="none"
+                  stroke="var(--text-secondary)"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </svg>
+              )}
             </span>
             {/* Только число: слово «дом» не влезает ни в липкую строку из
                 десяти планет, ни в развёрнутую на узком экране. Что это дом,

@@ -26,6 +26,10 @@ import { transitTeaserText } from '../lib/transitTeaser';
 import { lockedPlannerText, upgradeOpensIt } from '../lib/plannerAccess';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
+import { TIER_NAMES } from '../../constants';
+import { offerFor } from '../../lib/offerRule';
+import { tierAccusative } from '../lib/ruDeclension';
+import { transitOffer } from '../lib/transitInterpretRules';
 import { isGuest } from '../lib/guestChart';
 import { askSignup } from '../lib/signupPrompt';
 import { useNavigate } from 'react-router-dom';
@@ -305,7 +309,33 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
 
         {/* Отказ — ПОД уже набранным текстом: то, что успело прийти, человек
             уже прочитал, и убирать это нельзя. */}
-        {failure && (
+        {/* Отказ по тарифу — предложение, нейтральным цветом и с тарифом по
+            правилу (lib/offerRule.js), а не красная ошибка с текстом сервера. */}
+        {failure && transitOffer(failure.outcome) && (() => {
+          const t = transitOffer(failure.outcome);
+          const o = offerFor(t.feature, known ? tier : 'free');
+          const ask = (id) => openPaySheet({
+            focus: id,
+            context: t.text,
+            returnTo: { path: '/app/feed', kind: 'event', key: event.key, feature: t.feature },
+          });
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{t.text}</p>
+              {o && (
+                <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => ask(o.primary)}>
+                  Оформить {tierAccusative(TIER_NAMES[o.primary])}
+                </button>
+              )}
+              {o?.alt && (
+                <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => ask(o.alt)}>
+                  Оформить {tierAccusative(TIER_NAMES[o.alt])}
+                </button>
+              )}
+            </div>
+          );
+        })()}
+        {failure && !transitOffer(failure.outcome) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p
               role="alert"

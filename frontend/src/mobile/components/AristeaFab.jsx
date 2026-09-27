@@ -26,26 +26,34 @@
  * измеренной высоты `TabBar`, а не магическим числом.
  */
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import useChatAccess from '../lib/useChatAccess';
+import useTier from '../lib/useTier';
+import { onAfterPay } from '../lib/afterPay';
 import AristeaChat from './AristeaChat';
+import ChatOfferSheet from './ChatOfferSheet';
 
 export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
   const hasAccess = useChatAccess();
-  const navigate = useNavigate();
+  const { tier } = useTier();
   const [chatOpen, setChatOpen] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+
+  // Оплатили из листа чата — после возврата открыть чат (lib/afterPay.js).
+  useEffect(() => onAfterPay((target) => {
+    if (target?.kind === 'chat') setChatOpen(true);
+  }), []);
 
   // Тариф неизвестен (нет сети, ещё грузится) — ни замка, ни чата
   // (useChatAccess.js, chatAccessFrom).
   if (!visible || hasAccess === null) return null;
 
+  // Замок: сначала что такое чат, потом тариф (ChatOfferSheet.jsx). До
+  // 27.09.2026 замок уводил в «Ещё» с подсветкой карточки следующего тарифа —
+  // на free это была Вега, у которой чата нет.
   const onClick = () => {
-    if (hasAccess) {
-      setChatOpen(true);
-    } else {
-      navigate('/app/more', { replace: true, state: { highlightTier: true } });
-    }
+    if (hasAccess) setChatOpen(true);
+    else setOfferOpen(true);
   };
 
   return (
@@ -95,6 +103,7 @@ export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
       </button>
 
       {chatOpen && <AristeaChat chart={chart} onClose={() => setChatOpen(false)} />}
+      {offerOpen && <ChatOfferSheet tier={tier} onClose={() => setOfferOpen(false)} />}
     </>
   );
 }

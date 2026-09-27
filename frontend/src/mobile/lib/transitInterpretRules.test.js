@@ -142,3 +142,19 @@ describe('приписка под готовым разбором', () => {
     expect(transitUpsellFor({ ...base, tier: 'free', failed: true })).toBeNull();
   });
 });
+
+describe('отказ по тарифу — предложение по правилу, не текст сервера', async () => {
+  const { transitOffer } = await import('./transitInterpretRules');
+  it('free: Вега и Лира, без «Оформи Лира»', () => {
+    const o = transitOffer(TRANSIT_OUTCOMES.NOT_SIGNIFICANT);
+    expect(o.feature).toBe('transit');
+    expect(o.text).toMatch(/на Веге .*на Лире/);
+    expect(o.text).not.toMatch(/Оформи Лира/);
+  });
+  it('Вега без лимита: Лира', () => {
+    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT).feature).toBe('transit_limit');
+  });
+  it('обрыв — не предложение', () => {
+    expect(transitOffer(TRANSIT_OUTCOMES.BROKEN)).toBeNull();
+  });
+});
