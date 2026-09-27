@@ -34,6 +34,9 @@ import { birthDateWords, shortPlace } from '../lib/chartFormat';
 import { CHART_HINTS } from '../lib/onboardingCopy';
 import useHints from '../lib/useHints';
 import useAuth from '../../hooks/useAuth.jsx';
+import { isGuest } from '../lib/guestChart';
+import { askSignup } from '../lib/signupPrompt';
+import { useNavigate } from 'react-router-dom';
 import { utcOffsetLabel } from '../../lib/utcOffset';
 
 function CenteredNotice({ title, text, action, onAction, secondary, onSecondary, support }) {
@@ -150,7 +153,12 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   const zoomHintRef = useRef(null);
   const hintAnchors = { wheel: wheelRef, zoomHint: zoomHintRef };
 
-  const hints = useHints('chart', active && status === 'ready');
+  // Сами не открываются (решение владельца 27.09.2026) — только кнопкой «?».
+  const hints = useHints('chart', active && status === 'ready', { auto: false });
+  const navigate = useNavigate();
+  // Гость: действия, которым нужен аккаунт, ведут на «Сохранить карту».
+  const guest = isGuest();
+  const needAccount = (reason) => askSignup(navigate, reason);
 
   // Кнопка чата прячется на время подсказок — этим ведает TabShell.
   useEffect(() => {
@@ -378,7 +386,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
               действие пойдёт внутрь листа, а не рядом. */}
           <button
             type="button"
-            onClick={() => setShareOpen(true)}
+            onClick={() => (guest ? needAccount('share') : setShareOpen(true))}
             aria-label="Поделиться картой"
             style={{
               width: 32, height: 32, flexShrink: 0, borderRadius: '50%',
@@ -396,7 +404,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
           </button>
           <button
             type="button"
-            onClick={() => setView('create')}
+            onClick={() => (guest ? needAccount('second-chart') : setView('create'))}
             aria-label="Построить новую карту"
             style={{
               width: 32, height: 32, flexShrink: 0, borderRadius: '50%',
@@ -513,7 +521,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
           в шапке: там уже три и место кончилось (см. комментарий у «+»). */}
       <button
         type="button"
-        onClick={() => setView('interpret')}
+        onClick={() => (guest ? needAccount('interpretation') : setView('interpret'))}
         className="mobile-link"
         style={{ flexShrink: 0, alignSelf: 'center', padding: '8px 0 4px', fontSize: 14 }}
       >

@@ -92,7 +92,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
       </div>
 
       {/* Form */}
-      <BirthForm onSubmit={handleSubmit} loading={loading} />
+      <BirthForm onSubmit={handleSubmit} loading={loading} requireConsent={!currentUser} />
 
       {/* Error */}
       {error && (

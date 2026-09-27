@@ -20,15 +20,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { HINTS_KEYS, isSeen, markSeen } from './onboardingFlags';
 
-export default function useHints(screen, ready) {
+/**
+ * `auto` — открываться ли самим при первом показе. С 27.09.2026 (решение
+ * владельца) сами открываются только подсказки «Ленты»; «Карта» — по кнопке «?».
+ */
+export default function useHints(screen, ready, { auto = true } = {}) {
   const key = HINTS_KEYS[screen];
   const [open, setOpen] = useState(false);
 
   // Автопоказ — один раз, при первом переходе экрана в готовое состояние.
   // Флаг проверяется здесь, а не в рендере: isSeen ходит в localStorage.
   useEffect(() => {
-    if (ready && !isSeen(key)) setOpen(true);
-  }, [ready, key]);
+    if (auto && ready && !isSeen(key)) setOpen(true);
+  }, [auto, ready, key]);
 
   // ⚠️ Флаг ставится при ЗАКРЫТИИ (последний шаг, «Понятно»), а не при
   // показе: свернувший приложение на середине увидит подсказки снова

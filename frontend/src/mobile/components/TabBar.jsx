@@ -46,7 +46,7 @@ const TABS = [
 // включающую его собственный safe-area отступ) и ставит по ней кнопку
 // чата (AristeaFab, position: fixed) ровно над панелью, без магического
 // числа, которое разошлось бы на устройстве с другим safe-area.
-const TabBar = React.forwardRef(function TabBar({ active }, ref) {
+const TabBar = React.forwardRef(function TabBar({ active, guest = false }, ref) {
   const navigate = useNavigate();
 
   return (
@@ -82,7 +82,8 @@ const TabBar = React.forwardRef(function TabBar({ active }, ref) {
           >
             {ICONS[tab.key]}
             <span style={{ fontSize: 11, fontFamily: 'var(--font-body)', fontWeight: 600 }}>
-              {tab.label}
+              {/* У гостя вместо «Ещё» — «Сохранить» (GuestSaveScreen.jsx). */}
+              {guest && tab.key === 'more' ? 'Сохранить' : tab.label}
             </span>
           </button>
         );

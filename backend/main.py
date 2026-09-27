@@ -748,6 +748,10 @@ async def calculate_chart(
         # регистрации. При регистрации карта привязывается к пользователю.
         chart_record.access_token = secrets.token_urlsafe(32)
         chart_record.expires_at = utcnow() + timedelta(days=7)
+        if data.consent:
+            from backend.auth.consent import CURRENT_PRIVACY_VERSION
+            chart_record.consent_given_at = utcnow()
+            chart_record.consent_privacy_version = CURRENT_PRIVACY_VERSION
         db.add(chart_record)
         db.commit()
         db.refresh(chart_record)
@@ -842,6 +846,14 @@ async def claim_chart(
         user.primary_chart_id = chart.id
     db.commit()
     logger.info("Chart %s claimed by user %s", chart.id, user.id)
+    # Приветственное письмо «первая карта» — как после построения, один раз
+    # (журнал email_sent_log). Через Celery: send_once синхронный и сам
+    # запускает event loop, из этого обработчика его звать нельзя.
+    try:
+        from backend.tasks import send_claim_welcome_task
+        send_claim_welcome_task.delay(user.id, chart.id)
+    except Exception as e:  # noqa: BLE001 — письмо не должно ронять привязку
+        logger.warning("claim welcome not queued: %s", e)
     return {"id": chart.id, "claimed": True}
 
 

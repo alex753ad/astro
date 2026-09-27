@@ -24,12 +24,10 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BIRTH_FORM_URL,
   WELCOME_BUTTONS,
   WELCOME_SCREENS,
 } from '../lib/onboardingCopy';
 import { WELCOME_KEY, markSeen } from '../lib/onboardingFlags';
-import { openInBrowser } from '../lib/openInBrowser';
 
 // Порог свайпа. Меньше — и обычный тап с дрожанием пальца начнёт листать;
 // больше — жест перестаёт срабатывать у тех, кто ведёт коротко.
@@ -70,16 +68,12 @@ export default function WelcomeScreen() {
     navigate(to, { replace: true });
   };
 
+  // Форма — в приложении, без регистрации (решение владельца 27.09.2026).
+  // До этого кнопка открывала сайт во внешнем браузере, а приложение уходило
+  // на экран входа: карта, построенная на сайте, в приложение не попадала.
   const build = () => {
     markSeen(WELCOME_KEY);
-    // Форма ввода данных рождения живёт на сайте, в приложении её нет
-    // (SPEC_ONBOARDING.md §2). Системный браузер, а не window.open —
-    // единственная точка выхода наружу, см. lib/openInBrowser.js.
-    openInBrowser(BIRTH_FORM_URL);
-    // Уходим на вход, не оставаясь на приветствии: человек вернётся из
-    // браузера в приложение, и приветствие, которое он уже прошёл, встретило
-    // бы его снова.
-    navigate('/login', { replace: true });
+    navigate('/guest/new', { replace: true });
   };
 
   const onTouchStart = (e) => {

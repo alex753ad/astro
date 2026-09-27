@@ -189,6 +189,7 @@ export function chatHint(hasAccess, tierName) {
 export const HINT_BUTTONS = {
   next: 'Далее',
   done: 'Понятно',
+  skip: 'Пропустить',
 };
 
 /** Подпись кнопки «?» для скринридера — сама кнопка рисует только знак. */

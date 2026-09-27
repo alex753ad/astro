@@ -14,6 +14,7 @@
  * источник правды — сервер, а пропавшая подсветка ничего не ломает.
  */
 import React, { useState } from 'react';
+import { isGuest } from '../lib/guestChart';
 import { sendForecastFeedback } from '../lib/forecastApi';
 import { errorText } from '../lib/netError';
 
@@ -40,7 +41,8 @@ export default function ForecastRating({ chartId, kind, refKey, data }) {
   const [rating, setRating] = useState(() => readSaved(key));
   const [error, setError] = useState(null);
 
-  if (!data) return null;
+  // Гость: оценка пишется от аккаунта (ручка требует входа) — кнопок нет.
+  if (!data || isGuest()) return null;
 
   async function vote(value) {
     if (value === rating) return;

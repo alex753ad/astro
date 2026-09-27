@@ -20,6 +20,7 @@
 
 import { API_BASE } from '../../config';
 import { failWith, getWithRetry } from './authFetchTimeout';
+import { getGuestChart, isGuest } from './guestChart';
 import { localToday, shiftDays } from './feedTime';
 import { offlineCache, rememberCharts, trimFeed } from './offlineCache';
 import { withTz } from '../../lib/deviceTimezone';
@@ -53,6 +54,11 @@ export function feedWindow(today = localToday()) {
  * и так был причиной отдельного разбора (CLAUDE.md, «Холодный старт»).
  */
 export async function resolvePrimaryChart() {
+  // Гость: карта одна и известна — списка карт у него нет (ручка требует входа).
+  if (isGuest()) {
+    const g = getGuestChart();
+    return { id: g.id, name: g.name };
+  }
   const resp = await getWithRetry(`${API_BASE}/profile/charts`);
   if (!resp.ok) await failWith(resp, 'Не удалось получить список карт.');
   const data = await resp.json();

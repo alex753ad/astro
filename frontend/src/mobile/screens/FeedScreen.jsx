@@ -80,6 +80,8 @@ import { isMajorEvent } from '../lib/feedRank';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
 import { serverNow } from '../../lib/serverClock';
+import { isGuest } from '../lib/guestChart';
+import GuestSaveNote from '../components/GuestSaveNote';
 
 // ⚠️ Нижний запас — ЗДЕСЬ, а не только на скроллере (TabShell.jsx). Приёмка
 // 15.09.2026: последние строки ленты уходили под кнопку чата. Замер при
@@ -380,7 +382,11 @@ export default function FeedScreen({
   // не дублирование правила, а две независимые выборки из одного массива:
   // тут нужны все, КРОМЕ долгосрочных, там — не только они, а весь список
   // (полосе ещё нужны период Солнца и ближайшая фаза Луны, §6).
-  const allEvents = feed?.events || [];
+  // Гость тарифов не видит (решение владельца 27.09.2026): закрытые события
+  // и карточка края горизонта — это витрина тарифа, а тарифы показываем не
+  // раньше, чем человек увидел ценность. После регистрации — как у всех.
+  const guest = isGuest();
+  const allEvents = (feed?.events || []).filter((e) => !(guest && e.locked));
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm');
   // Дни с карточкой прогноза (сегодня, с 19:00 — завтра) есть в
   // списке всегда, даже без событий (lib/feedAnchor.js → withDates, там же про
@@ -654,6 +660,7 @@ export default function FeedScreen({
     <div style={PAGE_PADDING}>
       <PullIndicator state={pull.state} ready={pull.ready} innerRef={pull.indicatorRef} />
       <OfflineNote savedAt={stale?.at} kind={stale?.kind} />
+      {guest && <GuestSaveNote />}
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}
@@ -820,7 +827,7 @@ export default function FeedScreen({
         );
       })}
 
-      <FeedHorizonCard horizon={feed?.horizon} />
+      {!guest && <FeedHorizonCard horizon={feed?.horizon} />}
 
       <FeedEventPanel event={selected} chartId={chartId} onClose={() => setSelected(null)} />
 

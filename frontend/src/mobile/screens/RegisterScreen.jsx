@@ -237,7 +237,7 @@ export default function RegisterScreen() {
                   style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                  Согласен на обработку персональных данных и принимаю условия оферты
+                  Даю согласие на обработку персональных данных и принимаю условия оферты
                 </span>
               </label>
 

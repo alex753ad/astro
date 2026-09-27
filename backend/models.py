@@ -176,6 +176,12 @@ class NatalChart(Base):
     # страницу шаринга. Гасится при claim.
     access_token = Column(String(64), nullable=True, unique=True, index=True)
     expires_at   = Column(DateTime, nullable=True, index=True)
+    # Согласие гостя на обработку даты, времени и места рождения (064): гость
+    # вводит их до регистрации, то есть до флажка согласия на регистрации.
+    # Остаётся на карте и после привязки к аккаунту (claim_chart) — повторно
+    # про эти данные не спрашиваем (решение владельца 27.09.2026).
+    consent_given_at        = Column(DateTime, nullable=True)
+    consent_privacy_version = Column(String(20), nullable=True)
 
     created_at = Column(DateTime, default=utcnow)
 

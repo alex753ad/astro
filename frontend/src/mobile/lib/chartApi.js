@@ -140,3 +140,14 @@ export async function createShareLink(chartId, { showBirth = false } = {}) {
 
   return { shareUrl: data.share_url, cardUrl: data.card_url };
 }
+
+/**
+ * Привязать карту гостя к аккаунту — `POST /chart/{id}/claim` (вход +
+ * X-Chart-Token, заголовок добавляет authFetchWithTimeout по guestChart.js).
+ * Та же строка карты переходит на аккаунт, дубля нет (backend/CLAUDE.md).
+ */
+export async function claimGuestChart(chartId) {
+  const resp = await authFetchWithTimeout(`${API_BASE}/chart/${chartId}/claim`, { method: 'POST' });
+  if (!resp.ok) await failWith(resp, 'Не удалось сохранить карту в аккаунт.');
+  return resp.json();
+}

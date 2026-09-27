@@ -51,6 +51,8 @@ import { chatHintKey, isSeen, markSeen } from '../lib/onboardingFlags';
 import { TIER_NAMES } from '../../constants';
 import useTier from '../lib/useTier';
 import { syncLocalNotifications } from '../lib/localNotificationsSync';
+import { isGuest } from '../lib/guestChart';
+import GuestSaveScreen from '../screens/GuestSaveScreen';
 
 const TAB_KEYS = ['feed', 'chart', 'more'];
 
@@ -60,9 +62,13 @@ export default function TabShell() {
     ? location.pathname.split('/')[2]
     : 'feed';
 
+  // Гость — карта без входа (lib/guestChart.js). После входа ClaimGate
+  // монтирует оболочку заново, так что признак на жизнь экземпляра постоянен.
+  const guest = isGuest();
   // Кнопка чата — на «Ленте» и «Карте», не на «Ещё» (там ей нечего делать
-  // рядом со своим собственным блоком тарифа).
-  const showFab = active === 'feed' || active === 'chart';
+  // рядом со своим собственным блоком тарифа). У гостя её нет: чат требует
+  // аккаунта, а замок на кнопке — та же витрина тарифа.
+  const showFab = !guest && (active === 'feed' || active === 'chart');
 
   // Какой экран сейчас показывает подсказки (SPEC_ONBOARDING.md §8). Хранится
   // ключ экрана, а не булев флаг: все три экрана смонтированы одновременно и
@@ -99,8 +105,8 @@ export default function TabShell() {
   }, []);
 
   // Локальные уведомления перепланируются при каждом заходе в приложение и
-  // при каждом возврате из фона — здесь, потому что TabShell монтируется
-  // только вошедшему (RequireAuth), а ручка /push/upcoming требует токен.
+  // при каждом возврате из фона — здесь, потому что TabShell — корень
+  // вкладок, а ручка /push/upcoming требует токен (гость выходит сразу).
   //
   // ⚠️ Момент выбран не «на всякий случай». План лежит в системе Android, а
   // не в приложении, и расходится с реальностью сам собой: транзиты
@@ -112,6 +118,8 @@ export default function TabShell() {
   // syncLocalNotifications; разрешение она не спрашивает никогда — его
   // спрашивают только по тапу на тумблер в «Ещё → Уведомления».
   useEffect(() => {
+    // Гостю планировать нечего: /push/upcoming требует входа.
+    if (isGuest()) return undefined;
     syncLocalNotifications();
     function onVisible() {
       if (document.visibilityState === 'visible') syncLocalNotifications();
@@ -254,7 +262,7 @@ export default function TabShell() {
           />
         </div>
         <div style={{ display: active === 'more' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <MoreScreen onChartsChanged={handleChartsChanged} />
+          {guest ? <GuestSaveScreen /> : <MoreScreen onChartsChanged={handleChartsChanged} />}
         </div>
       </div>
 
@@ -290,7 +298,7 @@ export default function TabShell() {
         />
       )}
 
-      <TabBar ref={tabBarRef} active={active} />
+      <TabBar ref={tabBarRef} active={active} guest={guest} />
 
       {/* Оплата и экран ожидания — один лист на всё приложение
           (lib/paySheetBus.js), открывается и сам при возврате из браузера. */}

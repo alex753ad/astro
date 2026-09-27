@@ -151,10 +151,18 @@ export default function HintOverlay({ steps, anchors, onClose }) {
           <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
             {index + 1} / {steps.length}
           </span>
+          {/* «Пропустить» — на каждом шаге, кроме последнего (решение владельца
+              27.09.2026): подсказки не должны держать экран. Закрытие ставит
+              флаг «видел» так же, как «Понятно» (useHints.close). */}
+          {!isLast && (
+            <button type="button" className="mobile-link" style={{ marginLeft: 'auto', fontSize: 13 }} onClick={onClose}>
+              {HINT_BUTTONS.skip}
+            </button>
+          )}
           <button
             type="button"
             className="mobile-btn-primary"
-            style={{ marginLeft: 'auto', width: 'auto', padding: '10px 20px' }}
+            style={{ marginLeft: isLast ? 'auto' : 0, width: 'auto', padding: '10px 20px' }}
             onClick={finish}
           >
             {isLast ? HINT_BUTTONS.done : HINT_BUTTONS.next}

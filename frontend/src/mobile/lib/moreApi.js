@@ -55,7 +55,11 @@ async function getAndRemember(path, fallback, name) {
 
 export const fetchMe = () => getAndRemember('/auth/me', 'Не удалось загрузить профиль.', 'me');
 
-export const fetchSubscription = () => getAndRemember('/profile/subscription', 'Не удалось загрузить тариф.', 'sub');
+// Без входа тарифа нет: у гостя запрос дал бы только 401 (lib/guestChart.js).
+// Отказ, а не free: «неизвестен» не включает пейволлов (offlineNoPaywall.test.js).
+export const fetchSubscription = () => (localStorage.getItem('astro_access_token')
+  ? getAndRemember('/profile/subscription', 'Не удалось загрузить тариф.', 'sub')
+  : Promise.reject(new Error('Тариф без входа неизвестен.')));
 
 /** Сохранённое экраном «Ещё»: `{ me, sub, charts, savedAt }` или null, если чего-то нет. */
 export async function cachedMore() {

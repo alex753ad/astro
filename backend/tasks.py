@@ -427,6 +427,39 @@ def send_broadcast_auto_task() -> dict:
 # ANONYMOUS CHARTS
 # ═══════════════════════════════════════════════════════════
 
+WELCOME_CLAIM_KIND = "welcome_first_chart"
+
+
+# ignore_result=True несущее: задачу ставит запрос (claim_chart), а без флага
+# .delay() при недоступном Redis бесконечно переподключается к бэкенду
+# результатов и вешает API (docs/payments.md, send_purchase_welcome_task).
+@celery_app.task(name="tasks.send_claim_welcome_task", ignore_result=True)
+def send_claim_welcome_task(user_id: str, chart_id: str) -> bool:
+    """Приветственное письмо после привязки карты гостя — если это первая и
+    единственная карта аккаунта, и только один раз (email_sent_log).
+
+    Та же проверка «первая карта», что у построения в calculate_chart: гость,
+    у которого карты на аккаунте уже были, приветствия второй раз не получит.
+    """
+    from backend.email_service import send_welcome_email
+    from backend.lifecycle_emails import send_once
+    from backend.models import NatalChart, User
+
+    db = SessionLocal()
+    try:
+        user = db.get(User, user_id)
+        chart = db.get(NatalChart, chart_id)
+        if not user or not chart or chart.user_id != user_id:
+            return False
+        if db.query(NatalChart).filter(NatalChart.user_id == user_id).count() != 1:
+            return False
+        planets = chart.planets or []
+        return send_once(db, user_id, WELCOME_CLAIM_KIND, "",
+                         lambda: send_welcome_email(to=user.email, planets=planets))
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.purge_expired_anonymous_charts")
 def purge_expired_anonymous_charts() -> dict:
     """Удалить анонимные карты без владельца, чей 7-дневный срок истёк

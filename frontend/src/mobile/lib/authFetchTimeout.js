@@ -26,6 +26,7 @@
 
 import { authFetch, responseErrorText } from '../../api/client';
 import { NetError, isFetchFailure } from './netError';
+import { guestHeaders } from './guestChart';
 
 export const REQUEST_TIMEOUT_MS = 15000;
 
@@ -53,7 +54,9 @@ export function authFetchWithTimeout(url, options, timeoutMs = REQUEST_TIMEOUT_M
   const t = timeout(timeoutMs, write);
   // Отказ fetch без связи — TypeError «Failed to fetch»; переводим в NetError,
   // чтобы экран сказал «нет сети», а не показал текст браузера.
-  const req = authFetch(url, options).catch((err) => {
+  // Гость (lib/guestChart.js): к запросам про его карту — токен карты.
+  const opts = { ...(options || {}), headers: { ...guestHeaders(url), ...(options?.headers || {}) } };
+  const req = authFetch(url, opts).catch((err) => {
     throw isFetchFailure(err) ? new NetError('offline', undefined, { write }) : err;
   });
   return Promise.race([req, t.promise]).finally(t.clear);

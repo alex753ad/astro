@@ -30,6 +30,8 @@ import { searchPlaces } from '../lib/placeSearch';
 import { createChart } from '../lib/chartApi';
 import { describeCreateError, validateBirthForm } from '../lib/chartCreateRules';
 import { UTC_OFFSET_CHOICES, formatUtcOffset } from '../../lib/utcOffset';
+import { GUEST_CONSENT, PRIVACY_URL } from '../lib/guestConsent';
+import { openInBrowser } from '../lib/openInBrowser';
 
 const EMPTY = {
   name: '',
@@ -63,8 +65,12 @@ function Field({ id, label, hint, error, children }) {
   );
 }
 
-export default function ChartCreateView({ onCancel, onCreated }) {
+export default function ChartCreateView({ onCancel, onCreated, guest = false }) {
   const [form, setForm] = useState(EMPTY);
+  // Галочка согласия — только у гостя (решение владельца 27.09.2026): он вводит
+  // дату и место рождения до регистрации. По умолчанию снята, без неё кнопка
+  // неактивна — согласие по 152-ФЗ должно быть однозначным.
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   // Отказ в форме `describeCreateError`: у него есть вид, поле и варианты —
   // одной строкой текста этого не выразить (§7, §8 спецификации).
@@ -119,16 +125,17 @@ export default function ChartCreateView({ onCancel, onCreated }) {
     setBusy(true);
     setFailure(null);
     try {
-      const chart = await createChart(payload);
+      const chart = await createChart(guest ? { ...payload, consent: true } : payload);
       // Отдаём id наверх: экран покажет ИМЕННО эту карту, не трогая ту,
-      // что человек закрепил основной (§6 спецификации).
-      onCreated(chart.id);
+      // что человек закрепил основной (§6 спецификации). Второй аргумент —
+      // ответ целиком: гостю из него нужен токен карты.
+      onCreated(chart.id, chart);
     } catch (err) {
       if (aliveRef.current) setFailure(describeCreateError(err));
     } finally {
       if (aliveRef.current) setBusy(false);
     }
-  }, [form, onCreated]);
+  }, [form, onCreated, guest]);
 
   const fieldError = (name) => (failure?.field === name ? failure.text : null);
 
@@ -358,7 +365,30 @@ export default function ChartCreateView({ onCancel, onCreated }) {
           </div>
         )}
 
-        <button type="submit" className="mobile-btn-primary" disabled={busy} style={{ marginTop: 4 }}>
+        {guest && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+              {GUEST_CONSENT.before}
+              <button
+                type="button"
+                className="mobile-link"
+                style={{ padding: 0, fontSize: 12, display: 'inline' }}
+                onClick={(e) => { e.preventDefault(); openInBrowser(PRIVACY_URL); }}
+              >
+                {GUEST_CONSENT.link}
+              </button>
+              .
+            </span>
+          </label>
+        )}
+
+        <button type="submit" className="mobile-btn-primary" disabled={busy || (guest && !consent)} style={{ marginTop: 4 }}>
           {busy ? 'Строю карту…' : 'Построить карту'}
         </button>
         {busy && (

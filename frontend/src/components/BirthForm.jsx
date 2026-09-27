@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { GUEST_CONSENT } from '../mobile/lib/guestConsent';
 import MotionButton from './MotionButton';
 import { todayLocalISO } from '../utils/dateISO';
 import { UTC_OFFSET_CHOICES, formatUtcOffset } from '../lib/utcOffset';
@@ -240,7 +241,14 @@ function PlaceInput({ value, onChange, error, defaultQuery }) {
   );
 }
 
-export default function BirthForm({ onSubmit, loading }) {
+/**
+ * `requireConsent` — не вошедший: карта строится анонимной, и дата с местом
+ * рождения обрабатываются до флажка на регистрации. Галочка — та же
+ * формулировка, что в приложении (mobile/lib/guestConsent.js), решение
+ * владельца 27.09.2026.
+ */
+export default function BirthForm({ onSubmit, loading, requireConsent = false }) {
+  const [consent, setConsent]     = useState(false);
   const [form, setForm]           = useState(DEFAULT_FORM);
   const [placeValue, setPlaceValue] = useState(DEFAULT_PLACE_FULL);
   const [timeUnknown, setTimeUnknown] = useState(false);
@@ -289,6 +297,7 @@ export default function BirthForm({ onSubmit, loading }) {
       birth_place:  placeValue,
       house_system: form.house_system,
       ...(utcOffset !== null ? { utc_offset_minutes: utcOffset } : {}),
+      ...(requireConsent && consent ? { consent: true } : {}),
     });
   };
 
@@ -407,22 +416,37 @@ export default function BirthForm({ onSubmit, loading }) {
           </select>
         </Field>
 
+        {requireConsent && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '4px 0 14px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={e => setConsent(e.target.checked)}
+              style={{ accentColor: 'var(--accent)', width: 16, height: 16, marginTop: 2, flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+              {GUEST_CONSENT.before}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-fg)' }}>{GUEST_CONSENT.link}</a>.
+            </span>
+          </label>
+        )}
+
         <MotionButton
           level="primary"
           type="submit"
-          disabled={loading}
+          disabled={loading || (requireConsent && !consent)}
           style={{
             width: '100%',
             padding: '15px',
             borderRadius: 'var(--radius-full)',
             border: 'none',
-            background: loading
+            background: (loading || (requireConsent && !consent))
               ? 'rgba(var(--accent-rgb), 0.5)'
               : 'var(--accent)',
             color: '#fff',
             fontSize: 16,
             fontWeight: 700,
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: (loading || (requireConsent && !consent)) ? 'not-allowed' : 'pointer',
             fontFamily: 'var(--font-display)',
             letterSpacing: '0.01em',
             marginTop: 8,

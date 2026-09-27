@@ -109,6 +109,9 @@ export function buildChartPayload(form) {
     // по поясу места рождения, с историей поясов.
     ...(typeof form?.utcOffsetMinutes === 'number'
       ? { utc_offset_minutes: form.utcOffsetMinutes } : {}),
+    // Согласие гостя (галочка под формой, lib/guestConsent.js). Вошедший дал
+    // согласие при регистрации — ему поле не шлём.
+    ...(form?.consent ? { consent: true } : {}),
   };
 }
 

@@ -26,6 +26,9 @@ import { transitTeaserText } from '../lib/transitTeaser';
 import { lockedPlannerText, upgradeOpensIt } from '../lib/plannerAccess';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
+import { isGuest } from '../lib/guestChart';
+import { askSignup } from '../lib/signupPrompt';
+import { useNavigate } from 'react-router-dom';
 import {
   canInterpretTransit,
   streamTransitInterpretation,
@@ -43,6 +46,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   // панели. Поэтому проверка на пустое событие живёт ниже, а не первой
   // строкой, как было до появления разбора.
   const { tier, known } = useTier();
+  const navigate = useNavigate();
   const [text, setText] = useState('');
   const [status, setStatus] = useState('idle');   // idle | loading | done | failed
   const [failure, setFailure] = useState(null);
@@ -360,7 +364,12 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             Доступ решает сервер: своей копии тарифной сетки клиент не держит и
             заранее ничего не запрещает. */}
         {canAsk && status === 'idle' && (
-          <button type="button" className="mobile-btn-primary" onClick={start}>
+          <button
+            type="button"
+            className="mobile-btn-primary"
+            // Гость: разбор пишется в аккаунт — ведём на «Сохранить карту».
+            onClick={isGuest() ? () => { onClose?.(); askSignup(navigate, 'transit-interpretation'); } : start}
+          >
             Разобрать транзит
           </button>
         )}

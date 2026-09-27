@@ -12,6 +12,7 @@
  */
 
 import React, { useState } from 'react';
+import { getGuestChart } from '../lib/guestChart';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth.jsx';
 import PasswordInput from '../../components/PasswordInput.jsx';
@@ -111,6 +112,13 @@ export default function LoginScreen() {
         <div style={{ textAlign: 'center', marginTop: 20 }}>
           <Link to="/register" className="mobile-link">
             Нет аккаунта? Зарегистрироваться
+          </Link>
+        </div>
+        {/* Карта без регистрации (решение владельца 27.09.2026); у гостя с
+            картой — возврат к ней. */}
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <Link to={getGuestChart() ? '/app/feed' : '/guest/new'} className="mobile-link" style={{ fontSize: 13 }}>
+            {getGuestChart() ? 'Вернуться к своей карте' : 'Построить карту без регистрации'}
           </Link>
         </div>
       </div>

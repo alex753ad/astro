@@ -120,3 +120,60 @@ def test_purge_removes_only_expired_anonymous(db, user_free, monkeypatch):
     assert tasks.purge_expired_anonymous_charts() == {"deleted": 1}
     left = {c.id for c in db.query(NatalChart).filter(NatalChart.id.in_(ids))}
     assert left == {alive.id, owned.id}
+
+
+# ── Заход (b): согласие гостя и письмо при привязке ──────
+
+GUEST_PAYLOAD = {"birth_date": "1990-06-15", "birth_time": "10:30",
+                 "birth_place": "Moscow, Russia", "house_system": "placidus"}
+
+
+def test_guest_consent_is_recorded_on_chart(client, db, mock_geo):
+    from backend.auth.consent import CURRENT_PRIVACY_VERSION
+    resp = client.post("/api/v1/chart/calculate", json={**GUEST_PAYLOAD, "consent": True})
+    assert resp.status_code == 200, resp.text
+    chart = db.get(NatalChart, resp.json()["id"])
+    assert chart.consent_given_at is not None
+    assert chart.consent_privacy_version == CURRENT_PRIVACY_VERSION
+
+
+def test_consent_stays_on_chart_after_claim(client, db, user_free, auth_headers_free, monkeypatch):
+    from backend import tasks
+    monkeypatch.setattr(tasks.send_claim_welcome_task, "delay", lambda *a: None)
+    chart = _guest_chart(db)
+    chart.consent_given_at = utcnow()
+    chart.consent_privacy_version = "2026-09-02"
+    db.commit()
+    client.post(f"/api/v1/chart/{chart.id}/claim", headers={**auth_headers_free, "X-Chart-Token": "guest-tok"})
+    db.refresh(chart)
+    assert chart.user_id == user_free.id and chart.consent_privacy_version == "2026-09-02"
+
+
+def test_claim_queues_welcome(client, db, user_free, auth_headers_free, monkeypatch):
+    from backend import tasks
+    queued = []
+    monkeypatch.setattr(tasks.send_claim_welcome_task, "delay", lambda *a: queued.append(a))
+    chart = _guest_chart(db)
+    client.post(f"/api/v1/chart/{chart.id}/claim", headers={**auth_headers_free, "X-Chart-Token": "guest-tok"})
+    assert queued == [(user_free.id, chart.id)]
+
+
+def test_claim_welcome_sent_once_and_only_for_first_chart(db, user_free, monkeypatch):
+    from unittest.mock import AsyncMock
+    from backend import email_service, tasks
+    from backend.models import EmailSentLog
+    sent = AsyncMock(return_value=True)
+    monkeypatch.setattr(email_service, "send_welcome_email", sent)
+    monkeypatch.setattr(tasks, "SessionLocal", lambda: db)
+    monkeypatch.setattr(db, "close", lambda: None)
+    chart = _make_chart(db, user_id=user_free.id)
+
+    assert tasks.send_claim_welcome_task(user_free.id, chart.id) is True
+    assert tasks.send_claim_welcome_task(user_free.id, chart.id) is False
+    assert sent.await_count == 1
+    assert db.query(EmailSentLog).filter_by(user_id=user_free.id, kind=tasks.WELCOME_CLAIM_KIND).count() == 1
+
+    second = _make_chart(db, user_id=user_free.id)
+    db.query(EmailSentLog).delete()
+    db.commit()
+    assert tasks.send_claim_welcome_task(user_free.id, second.id) is False, "у аккаунта уже была карта"
