@@ -13,6 +13,13 @@ import httpx
 
 logger = logging.getLogger("astro.notifications.telegram")
 
+# ⚠️ Токен бота — часть ПУТИ запроса (/bot<токен>/sendMessage), а httpx на
+# уровне INFO пишет каждый запрос с полным URL. `main.py` ставит корню INFO,
+# и 27.09.2026 токен оказался в `docker compose logs api` — и в выводе
+# диагностики, который владелец вставил в чат. Уровень поднимается здесь, а
+# не в main.py: этим модулем шлют и api, и worker (самопроверка), и beat.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 _API_BASE = "https://api.telegram.org"
 
 
@@ -53,6 +60,15 @@ async def send_support_message(text: str, photo_path: str | None = None) -> bool
             if resp.status_code >= 400:
                 logger.warning("Telegram API response: %s", resp.text)
             resp.raise_for_status()
+            # Факт доставки: номер сообщения в чате. 27.09.2026 «не дошло»
+            # разбиралось по логу, где было видно только «200 OK», — ни в
+            # какой чат и каким сообщением, сказать было нечем.
+            try:
+                result = resp.json().get("result") or {}
+            except ValueError:
+                result = {}
+            logger.info("Telegram: доставлено в чат %s, message_id=%s",
+                        (result.get("chat") or {}).get("id", chat_id), result.get("message_id"))
             return True
     except Exception as e:
         # %r, а не %s: у сетевых исключений httpx (ConnectTimeout, ConnectError,

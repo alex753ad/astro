@@ -29,6 +29,7 @@
 from __future__ import annotations
 
 import os
+import re
 
 from backend.log_utils import _EMAIL_RE
 
@@ -39,8 +40,15 @@ def _redact_emails(text: str) -> str:
     return _EMAIL_RE.sub("[email]", text)
 
 
+_BOT_TOKEN_IN_PATH = re.compile(r"/bot[^/?#]+")
+
+
 def _strip_query(url):
-    return url.split("?", 1)[0] if isinstance(url, str) else url
+    """Без query string и без токена Telegram в пути (/bot<токен>/…):
+    хлебная крошка httpx-запроса к Telegram иначе уносит токен в Sentry."""
+    if not isinstance(url, str):
+        return url
+    return _BOT_TOKEN_IN_PATH.sub("/bot***", url.split("?", 1)[0])
 
 
 def scrub(event, hint=None):
