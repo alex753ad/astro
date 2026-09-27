@@ -6,7 +6,7 @@
  * (мои карты). Одна упавшая — весь экран уходит в состояние ошибки, не
  * только свой блок (§8): частично собранный экран хуже явного отказа.
  *
- * Разделы меню (История, Друзья, Уведомления, Настройки) переключаются
+ * Разделы меню (История, Друзья, Уведомления) переключаются
  * локальным состоянием `view` — отдельного роутера у приложения нет,
  * это просто подмена содержимого внутри той же вкладки.
  *
@@ -24,7 +24,6 @@ import MoreSubScreen from '../components/MoreSubScreen';
 import MoreHistoryView from '../components/MoreHistoryView';
 import MoreReferralView from '../components/MoreReferralView';
 import MoreNotificationsView from '../components/MoreNotificationsView';
-import MoreSettingsView from '../components/MoreSettingsView';
 import MorePaymentsView from '../components/MorePaymentsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
@@ -35,6 +34,7 @@ import OfflineNote from '../components/OfflineNote';
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 import { openPaySheet } from '../lib/paySheetBus';
 import { openSupport } from '../lib/supportBus';
+import { appVersionShort } from '../lib/supportContext';
 import SupportLink from '../components/SupportLink';
 import { getSubscription } from '../lib/tierSource';
 import { birthDateWords } from '../lib/chartFormat';
@@ -47,9 +47,17 @@ const SUB_TITLES = {
   history: 'История разборов',
   referral: 'Друзья',
   notifications: 'Уведомления',
-  settings: 'Настройки',
   payments: 'Оплата и поддержка',
 };
+
+// Версия — последней строкой «Ещё» и на экране отказа: её спрашивают именно
+// тогда, когда что-то не работает. Без хеша сборки; с хешем она уходит в
+// обращении в поддержку (appVersionLabel, lib/supportContext.js).
+const VERSION = (
+  <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
+    Версия {appVersionShort()}
+  </p>
+);
 
 /** Скелет: строка шапки, прямоугольник тарифа, 2 плейсхолдера карт, 5 строк меню (§8). */
 function MoreLoading() {
@@ -237,7 +245,7 @@ export default function MoreScreen({ onChartsChanged }) {
 
   // Жест обновления — на собственном скроллере экрана (в отличие от
   // «Ленты», которая делит скроллер с TabShell). Только в корневом виде:
-  // под-разделы (История, Друзья, Уведомления, Настройки) монтируются при
+  // под-разделы (История, Друзья, Уведомления) монтируются при
   // каждом заходе и грузят себя сами — устаревать им негде.
   const scrollRef = useRef(null);
   const refresh = useCallback(() => load({ silent: true }), [load]);
@@ -252,16 +260,19 @@ export default function MoreScreen({ onChartsChanged }) {
 
   if (status === 'error') {
     return (
-      <MoreCenteredNotice
-        title="Не удалось загрузить профиль"
-        text={error}
-        support="more"
-        action="Повторить"
-        onAction={load}
-        /* Без сети выход не предлагаем — см. FeedScreen. */
-        secondary={offlineError ? undefined : 'Войти заново'}
-        onSecondary={logout}
-      />
+      <>
+        <MoreCenteredNotice
+          title="Не удалось загрузить профиль"
+          text={error}
+          support="more"
+          action="Повторить"
+          onAction={load}
+          /* Без сети выход не предлагаем — см. FeedScreen. */
+          secondary={offlineError ? undefined : 'Войти заново'}
+          onSecondary={logout}
+        />
+        {VERSION}
+      </>
     );
   }
 
@@ -272,7 +283,6 @@ export default function MoreScreen({ onChartsChanged }) {
         {view === 'history' && <MoreHistoryView chartsById={chartsById} />}
         {view === 'referral' && <MoreReferralView />}
         {view === 'notifications' && <MoreNotificationsView />}
-        {view === 'settings' && <MoreSettingsView tier={subscription?.tier} />}
         {view === 'payments' && <MorePaymentsView />}
       </MoreSubScreen>
     );
@@ -399,6 +409,7 @@ export default function MoreScreen({ onChartsChanged }) {
       >
         Выйти из аккаунта
       </button>
+      {VERSION}
     </div>
   );
 }

@@ -64,15 +64,23 @@ class User(Base):
     tg_user_id = Column(String(32), nullable=True, unique=True, index=True)
     referred_by   = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
-    # Digest settings (012)
+    # Digest settings (012). 0 = понедельник. Выбора дня в интерфейсе нет с
+    # 27.09.2026 (решение владельца): новые получают дайджест в понедельник,
+    # у выбравших другой день раньше он сохранён.
     digest_day_of_week = Column(Integer, nullable=False, default=0, server_default="0")
+    # Отписка от дайджеста по ссылке из письма (063, profile/digest_unsubscribe.py).
+    digest_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
+    email_unsub_token = Column(String(64), nullable=True, unique=True, index=True)
 
     # Push notification preferences (031)
     push_daily_forecast = Column(Boolean, nullable=False, default=True, server_default="true")
     push_daily_time     = Column(String(5), nullable=False, default="08:00", server_default="08:00")  # "HH:MM", локально по поясу устройства (device_timezone), иначе главной карты
     push_planner        = Column(Boolean, nullable=False, default=True, server_default="true")
     push_key_transits   = Column(Boolean, nullable=False, default=True, server_default="true")
-    push_moon_phases    = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Все четыре вида включены у нового пользователя (решение владельца
+    # 27.09.2026; фазы Луны до 063 были выключены). Уже заведённым 063
+    # значение не меняла. Системное разрешение — отдельно, на устройстве.
+    push_moon_phases    = Column(Boolean, nullable=False, default=True, server_default="true")
     # Верхняя граница окна отправки, парная к push_daily_time. До 10.09.2026
     # границы не было вовсе: планировщик проверял только "локальное время уже
     # наступило", то есть тик в 23:45 условие проходил. Значение читается той

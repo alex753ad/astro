@@ -93,7 +93,7 @@ def _settings_of(user: User) -> PushSettings:
         quiet_from=str(getattr(user, "push_quiet_from", "22:00") or "22:00"),
         planner=bool(getattr(user, "push_planner", True)),
         key_transits=bool(getattr(user, "push_key_transits", True)),
-        moon_phases=bool(getattr(user, "push_moon_phases", False)),
+        moon_phases=bool(getattr(user, "push_moon_phases", True)),
         timezone=getattr(user, "device_timezone", None),
     )
 

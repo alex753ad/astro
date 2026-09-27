@@ -61,8 +61,15 @@ LOGO_URL       = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5
 
 # ───────────────────────────── base template ─────────────────────────────────
 
-def _base(title: str, preview: str, body: str) -> str:
-    """Универсальный базовый шаблон: хедер + контент + футер."""
+def _base(title: str, preview: str, body: str, unsubscribe_url: str | None = None) -> str:
+    """Универсальный базовый шаблон: хедер + контент + футер.
+
+    `unsubscribe_url` — рабочая ссылка отписки (пока только у дайджеста).
+    ⚠️ Без неё в футере остаётся прежняя ссылка на `{APP_URL}/unsubscribe`,
+    а такой страницы у сайта НЕТ — это 404 (TASKS.md, «Отписка в письмах»).
+    """
+    unsub_href = unsubscribe_url or f"{APP_URL}/unsubscribe"
+    unsub_text = "Отписаться от дайджеста" if unsubscribe_url else "Отписаться"
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -113,8 +120,8 @@ def _base(title: str, preview: str, body: str) -> str:
                     Aristea Timeline
                   </a>
                   &nbsp;·&nbsp;aristeatime.ru<br/>
-                  <a href="{APP_URL}/unsubscribe" style="color:#b0a0d0;text-decoration:none;">
-                    Отписаться
+                  <a href="{unsub_href}" style="color:#b0a0d0;text-decoration:none;">
+                    {unsub_text}
                   </a>
                 </td>
               </tr>
@@ -803,10 +810,13 @@ async def send_weekly_digest(user, db) -> bool:
     else:
         subject = f"✦ Твоя неделя {week_label} — что важно и что делать · Aristea"
 
+    from backend.profile.digest_unsubscribe import ensure_unsub_token
+    unsub_url = f"{PUBLIC_API_URL}/api/v1/email/digest/unsubscribe/{ensure_unsub_token(user, db)}"
     return await _send(
         user.email,
         subject,
-        _base(f"Дайджест {week_label}", "Твои главные транзиты на неделю", body),
+        _base(f"Дайджест {week_label}", "Твои главные транзиты на неделю", body,
+              unsubscribe_url=unsub_url),
     )
 
 

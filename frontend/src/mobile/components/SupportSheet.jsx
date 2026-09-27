@@ -3,9 +3,12 @@
  * (lib/supportBus.js). Открывается из меню «Ещё», с листа оплаты и с экранов
  * ошибок.
  *
- * Под полем ввода — всё, что уйдёт вместе с сообщением, и почта, на которую
- * придёт ответ. Человек видит это ДО отправки: версию, телефон, номер
- * аккаунта и очищенный текст ошибки (lib/supportContext.js).
+ * Под полем ввода — почта, на которую придёт ответ, и одна фраза о том, ЧТО
+ * уйдёт вместе с сообщением: версия приложения, модель телефона и номер
+ * аккаунта. Самих значений человек не видит (решение владельца 27.09.2026 —
+ * хеш сборки и номер аккаунта ему ничего не говорят), но уходят они как
+ * прежде, с хешем (supportBus.js). Текст ошибки чистится scrubErrorText
+ * (lib/supportContext.js) и тоже уходит.
  *
  * ⚠️ Черновик переживает закрытие листа и отказ сети (localStorage): без
  * сети текст не теряется, а строка отказа — из NET_WRITE_TEXT
@@ -19,7 +22,7 @@
 import React, { useEffect, useState } from 'react';
 import useAuth from '../../hooks/useAuth.jsx';
 import { onSupport, sendSupportMessage } from '../lib/supportBus';
-import { appVersionLabel, deviceLabel, scrubErrorText } from '../lib/supportContext';
+import { scrubErrorText } from '../lib/supportContext';
 import { errorText } from '../lib/netError';
 
 const DRAFT_KEY = 'aristea_support_draft';
@@ -111,9 +114,7 @@ export default function SupportSheet() {
             />
             {email && <p style={{ ...small, color: 'var(--text-primary)' }}>Ответим на почту {email}</p>}
             <p style={small}>
-              Вместе с сообщением уйдёт: версия {appVersionLabel()}, телефон {deviceLabel()}
-              {user?.id ? `, номер аккаунта ${user.id}` : ''}
-              {ctx.error ? `, текст ошибки: «${ctx.error}»` : ''}.
+              Вместе с сообщением уйдут версия приложения, модель телефона и номер аккаунта — так быстрее разберёмся
             </p>
             {failure && <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>{failure}</p>}
             <button

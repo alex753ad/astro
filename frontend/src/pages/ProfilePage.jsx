@@ -979,7 +979,7 @@ function TabNotifications({ authFetch }) {
       .then(setSettings)
       .catch(() => setSettings({
         daily_forecast: true, daily_time: '08:00', quiet_from: '22:00',
-        planner: true, key_transits: true, moon_phases: false,
+        planner: true, key_transits: true, moon_phases: true,
       }));
   }, [authFetch]);
 

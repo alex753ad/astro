@@ -212,6 +212,7 @@ def send_weekly_digest_task() -> dict:
             User.tier.in_(["pro", "premium"]),
             User.digest_day_of_week == today_weekday,
             User.is_active == True,
+            User.digest_opt_out == False,  # noqa: E712 — отписка из письма (063)
         ).all()
         for user in users:
             try:

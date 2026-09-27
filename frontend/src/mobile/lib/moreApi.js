@@ -108,8 +108,6 @@ export async function forgetDeviceToken(token) {
   if (!resp.ok) throw new Error(await responseErrorText(resp, 'Не удалось отвязать устройство.'));
 }
 
-export const fetchProfileSettings = () => getJson('/profile/settings', 'Не удалось загрузить настройки.');
-export const updateProfileSettings = (patch) => patchJson('/profile/settings', patch, 'Не удалось сохранить настройки.');
 
 /**
  * Удаление карты — `DELETE /profile/charts/{id}` (`profile/router.py:157`).
