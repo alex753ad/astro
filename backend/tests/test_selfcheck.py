@@ -461,7 +461,20 @@ def _offsite_env(monkeypatch):
 def test_offsite_not_configured_is_a_problem(monkeypatch):
     for k in ("ENDPOINT", "REGION", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY"):
         monkeypatch.delenv("BACKUP_S3_" + k, raising=False)
+    monkeypatch.setattr(S, "OFFSITE_DEFERRED", False)
     assert "не настроена" in REAL_PROBLEM_OFFSITE()
+
+
+def test_offsite_deferred_is_silent_only_while_unconfigured(monkeypatch):
+    """Отложено (27.09.2026): ненастроенное молчит, настроенное — проверяется."""
+    from backend import offsite_s3
+    for k in ("ENDPOINT", "REGION", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY"):
+        monkeypatch.delenv("BACKUP_S3_" + k, raising=False)
+    monkeypatch.setattr(S, "OFFSITE_DEFERRED", True)
+    assert REAL_PROBLEM_OFFSITE() is None
+    _offsite_env(monkeypatch)
+    monkeypatch.setattr(offsite_s3, "list_objects", lambda cfg, prefix="daily_": [])
+    assert "пуст" in REAL_PROBLEM_OFFSITE()
 
 
 def test_offsite_fresh_and_stale(monkeypatch):

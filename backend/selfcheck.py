@@ -89,6 +89,13 @@ TITLES = {
 # свежего возраст около часа, у пропущенного — больше суток.
 OFFSITE_MAX_AGE_HOURS = 24
 
+# Копия вне сервера отложена владельцем 27.09.2026 до первой публикации в
+# RuStore или первого платящего клиента (TASKS.md). Пока True, НЕнастроенное
+# хранилище не сигналит каждое утро; настроенное проверяется как обычно.
+# ⚠️ Снять вместе с настройкой хранилища — иначе забытая настройка снова
+# станет невидимой.
+OFFSITE_DEFERRED = True
+
 # Лунные события ленты: проход Луны по дому, фаза, затмение.
 _LUNAR_KINDS = ("planner_moon_house", "moon_phase", "eclipse")
 
@@ -359,6 +366,8 @@ def problem_offsite(now: datetime | None = None) -> str | None:
     from backend import offsite_s3
     cfg = offsite_s3.config_from_env(os.environ)
     if cfg is None:
+        if OFFSITE_DEFERRED:
+            return None
         return "копия вне сервера не настроена (BACKUP_S3_* в .env) — бэкапы только на диске сервера"
     try:
         items = offsite_s3.list_objects(cfg)
