@@ -153,6 +153,6 @@ df -i / | tail -1 | awk '{print "inode занято: " $5}'
 du -sh backups 2>/dev/null
 docker system df 2>&1
 echo "== журнал astro-prune с $SINCE"
-journalctl -u astro-prune.service --since "$SINCE" --no-pager -o short-iso 2>&1 | grep -E "свободного|free|Reclaimed|освобожд|⚠|ERROR|No journal|Permission" | tail -15
+journalctl -u astro-prune.service --since "$SINCE" --no-pager -o short-iso 2>&1 | grep -iE "свободного|reclaimed|Docker image prune|⚠|ERROR|No journal|Permission" | tail -15
 
 echo "== конец. Лог: /opt/astro/$LOG"
