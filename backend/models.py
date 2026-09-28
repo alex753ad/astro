@@ -227,6 +227,12 @@ class Subscription(Base):
     status = Column(String(50), nullable=False, default="active")
     tier = Column(String(20), nullable=False, default="free")
     current_period_end = Column(DateTime, nullable=True)
+    # Начало цепочки оплат: от него идут 30-дневные окна счётчиков платного
+    # тарифа (rate_limits.usage_window, миграция 065). Ставится при новой
+    # покупке и смене тарифа; продление того же тарифа его не трогает — срок
+    # прибавляется в конец, и следующее окно начинается ровно там, где
+    # кончилось оплаченное.
+    usage_anchor = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -598,7 +604,9 @@ class UsageCounter(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     kind = Column(String(32), nullable=False)       # "interpretation" | "transit_ai"
-    period_ym = Column(String(7), nullable=False)   # "YYYY-MM"
+    # «ГГГГ-ММ» (бесплатный тариф), «ALL» (пробные навсегда) или ключ окна
+    # оплаченного периода «ггммддЧЧММ.k» (платные, миграция 065).
+    period_ym = Column(String(32), nullable=False)
     count = Column(Integer, nullable=False, default=0, server_default="0")
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 

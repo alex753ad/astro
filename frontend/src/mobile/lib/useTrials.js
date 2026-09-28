@@ -10,8 +10,9 @@
 
 import { useEffect, useState } from 'react';
 import { getSubscription, onSubscription, peekSubscription } from './tierSource';
+import { usageDatesFrom } from '../../lib/tierCatalog';
 
-const EMPTY = { transitLeft: null, chatLeft: null, chatPeriod: null, resetsOn: null, known: false };
+const EMPTY = { transitLeft: null, chatLeft: null, chatPeriod: null, dates: null, known: false };
 
 export function trialsFrom(sub) {
   if (!sub) return EMPTY;
@@ -20,8 +21,8 @@ export function trialsFrom(sub) {
     transitLeft: t.transit_trials_left ?? null,
     chatLeft: t.chat_left ?? null,
     chatPeriod: t.chat_period ?? null,
-    // Когда обнулятся месячные счётчики — дата сервера, клиент её не считает.
-    resetsOn: sub.usage_resets_on ?? null,
+    // Даты лимитов — с сервера (usageDatesFrom), клиент их не считает.
+    dates: usageDatesFrom(sub),
     known: true,
   };
 }

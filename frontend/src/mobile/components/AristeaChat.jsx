@@ -50,6 +50,7 @@ import { CHAT_GREETING, CHAT_SUGGESTIONS } from '../../lib/chatSuggestions';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
 import { chatLimitOffer } from '../lib/chatRules';
+import { usageDatesFrom } from '../../lib/tierCatalog';
 import useTier from '../lib/useTier';
 import useTrials, { leftLabel, refreshTrials } from '../lib/useTrials';
 import { offerFor } from '../../lib/offerRule';
@@ -217,7 +218,7 @@ export default function AristeaChat({ chart, onClose }) {
   const chatLeft = quota ? quota.left : trials.chatLeft;
   const chatPeriod = quota ? quota.period : trials.chatPeriod;
   const outOfMessages = ((quota || trials.known) && chatLeft === 0) || failure?.outcome === 'tier';
-  const limitOffer = chatLimitOffer(known ? tier : 'free', quota?.resets_on ?? trials.resetsOn);
+  const limitOffer = chatLimitOffer(known ? tier : 'free', quota?.period === 'month' ? usageDatesFrom(quota) : trials.dates);
   const limitTiers = offerFor(limitOffer.feature, known ? tier : 'free');
   const askTier = (id) => openPaySheet({
     focus: id,

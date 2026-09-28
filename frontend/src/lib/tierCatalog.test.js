@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  CATALOG_TIERS, ITEMS, LIMITS, catalogItem, quotaEndedText, resetDateWords, tierCard,
+  CATALOG_TIERS, ITEMS, LIMITS, catalogItem, quotaEndedText, resetDateWords, tierCard, usageDatesFrom,
 } from './tierCatalog';
 import { TIER_WORDS } from './interpretationUpsell';
 
@@ -99,16 +99,25 @@ describe('карточка тарифа', () => {
   });
 });
 
-describe('«обновятся …» — дата только от бэкенда', () => {
+describe('«обновятся …» / «доступ до …» — даты только от бэкенда', () => {
   it('дата словами', () => {
     expect(resetDateWords('2026-10-01')).toBe('1 октября');
     expect(resetDateWords(null)).toBeNull();
   });
 
-  it('без даты хвоста нет, с датой — есть', () => {
-    expect(quotaEndedText('chat_limit', 'month', null)).toBe('Сообщения этого месяца закончились');
-    expect(quotaEndedText('chat', 'month', '2026-10-01')).toBe('Сообщения этого месяца закончились — обновятся 1 октября');
+  it('без дат хвоста нет; новое окно — «обновятся», без продления — «доступ до»', () => {
+    expect(quotaEndedText('chat_limit', 'month', null)).toBe('Сообщения закончились');
+    expect(quotaEndedText('chat', 'month', { resetsOn: '2026-10-01' })).toBe('Сообщения закончились — обновятся 1 октября');
+    expect(quotaEndedText('chat', 'month', { resetsOn: null, accessUntil: '2026-10-29' }))
+      .toBe('Сообщения закончились — новые после продления, доступ до 29 октября');
     expect(quotaEndedText('chat', 'trial')).toBe('Пробные сообщения закончились');
-    expect(quotaEndedText('transit', 'month', '2026-11-01')).toContain('обновятся 1 ноября');
+    expect(quotaEndedText('transit', 'month', { resetsOn: '2026-11-01' })).toContain('обновятся 1 ноября');
+  });
+
+  it('даты читаются и из профиля, и из кадра чата', () => {
+    expect(usageDatesFrom({ usage_resets_on: null, usage_access_until: '2026-10-29' }))
+      .toEqual({ resetsOn: null, accessUntil: '2026-10-29' });
+    expect(usageDatesFrom({ resets_on: '2026-10-29', access_until: '2026-11-28' }))
+      .toEqual({ resetsOn: '2026-10-29', accessUntil: '2026-11-28' });
   });
 });

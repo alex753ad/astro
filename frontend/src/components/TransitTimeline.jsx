@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
 import { TIER_NAMES, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
-import { LIMITS, quotaEndedText } from "../lib/tierCatalog";
+import { LIMITS, quotaEndedText, usageDatesFrom } from "../lib/tierCatalog";
 import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
 import { rememberWebPayment } from '../lib/webPayment';
 import { readSseLines } from "../lib/sseLines";
@@ -724,7 +724,7 @@ function transitLabel(e) {
 }
 
 // Тексты — по каталогу витрины (lib/tierCatalog.js): числа из LIMITS, дата
-// «обновятся …» — из usage_resets_on сервера, без даты хвоста нет.
+// «обновятся …» / «новые после продления» — даты сервера (usageDatesFrom).
 function LockedTransitPanel({ event, reason = "free", resetsOn, onClose, onOpenAccess }) {
   const key = transitLabel(event);
   const intro = `${quotaEndedText("transit", reason === "lite-limit" ? "month" : "trial", resetsOn)}.`;
@@ -811,7 +811,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         const limit = data?.limits?.transits_ai_per_month ?? 0;
         const used  = data?.usage?.transit_ai_this_month ?? 0;
         setTransitAiUsage({ used, limit });
-        setResetsOn(data?.usage_resets_on || null);
+        setResetsOn(usageDatesFrom(data));
       })
       .catch(() => {});
   }, [isLite]);
@@ -819,7 +819,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   // Free: остаток пробных разборов транзитов (null — пока не пришло).
   const [freeTrialsLeft, setFreeTrialsLeft] = useState(null);
-  // Дата сброса месячных счётчиков — с сервера (usage_resets_on).
+  // Даты лимитов с сервера: когда обновятся или до какого дня доступ.
   const [resetsOn, setResetsOn] = useState(null);
   useEffect(() => {
     if (!isFree) { setFreeTrialsLeft(null); return; }

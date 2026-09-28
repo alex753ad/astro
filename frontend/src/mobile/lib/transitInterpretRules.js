@@ -131,7 +131,7 @@ export function classifyTransitError(signal) {
  */
 export const TRANSIT_TRIALS_USED_TEXT = `Пробные разборы транзитов закончились. На Веге — ${LIMITS.lite.transits} в месяц, на Лире — без лимита.`;
 
-export function transitOffer(outcome, resetsOn = null) {
+export function transitOffer(outcome, dates = null) {
   // 403 у разбора транзита с 28.09.2026 — кончились 2 пробных разбора free
   // (check_transit_trial); «значимых» транзитов больше нет.
   if (outcome === TRANSIT_OUTCOMES.NOT_SIGNIFICANT) {
@@ -140,8 +140,8 @@ export function transitOffer(outcome, resetsOn = null) {
   if (outcome === TRANSIT_OUTCOMES.RATE_LIMIT) {
     return {
       feature: 'transit_limit',
-      // Дата — из usage_resets_on сервера; без неё хвоста «обновятся …» нет.
-      text: `${quotaEndedText('transit', 'month', resetsOn)}. Без лимита — на Лире.`,
+      // Даты — с сервера (usageDatesFrom); без них хвоста нет.
+      text: `${quotaEndedText('transit', 'month', dates)}. Без лимита — на Лире.`,
     };
   }
   return null;

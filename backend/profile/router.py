@@ -315,7 +315,7 @@ async def get_subscription(
         .scalar() or 0
     )
 
-    from backend.auth.rate_limits import get_tier_limits, quota_resets_on
+    from backend.auth.rate_limits import get_tier_limits, usage_dates
     features = get_feature_flags(user)
     limits = get_tier_limits(tier)
 
@@ -341,9 +341,12 @@ async def get_subscription(
         # Остатки для «Осталось N» в листах транзита и чата (28.09.2026).
         # None — у тарифа нет лимита (или пробных нет).
         "trials": _trials(db, user),
-        # Когда обнулятся месячные счётчики (1-е число, UTC). Клиент пишет
-        # «обновятся 1 октября» по этой дате и сам её не вычисляет.
-        "usage_resets_on": quota_resets_on(),
+        # Когда обнулятся счётчики (дата по МСК): у платного — начало
+        # следующего окна оплаченного периода, None — новые только после
+        # продления; у бесплатного — 1-е число. access_until — конец
+        # оплаченного доступа. Клиент пишет по ним «обновятся 1 октября» /
+        # «новые после продления, доступ до 29 октября» и сам не вычисляет.
+        **{f"usage_{k}": v for k, v in usage_dates(db, str(user.id)).items()},
     }
 
 

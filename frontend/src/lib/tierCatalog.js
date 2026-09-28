@@ -25,6 +25,14 @@ import { TIER_WORDS } from './interpretationUpsell';
 
 export const CATALOG_TIERS = ['free', 'lite', 'pro', 'premium'];
 
+/**
+ * Срок оплаты — одна формулировка на веб и приложение. Бэкенд даёт 30 дней
+ * с даты оплаты (payments/common.PERIOD_DAYS), продление прибавляет 30 дней
+ * к концу срока. До 29.09.2026 на вебе было «на 1 месяц», в приложении —
+ * «за 30 дней».
+ */
+export const ACCESS_TERM = 'Доступ на 30 дней, без автопродления';
+
 /** Числа тарифов. null — без лимита. Сверка с TIER_FLAGS — в тесте. */
 export const LIMITS = {
   //        сохранённые  разборы карты      разборы транзитов  чат           горизонт   лунный кал.
@@ -228,28 +236,51 @@ export function tierFeatures(tierId, n) {
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
   'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
-/** «2026-10-01» → «1 октября». Дату присылает бэкенд (usage_resets_on). */
+/** «2026-10-01» → «1 октября». Даты присылает бэкенд, уже по МСК. */
 export function resetDateWords(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
   return m ? `${Number(m[3])} ${MONTHS_GEN[Number(m[2]) - 1]}` : null;
 }
 
 /**
- * Что случилось — вторая строка окна предложения, когда кончился лимит.
- * period: 'trial' | 'month'; resetsOn — дата из ответа бэкенда. Без даты хвост
- * «обновятся …» не пишется: вычислять её на клиенте нельзя (решение владельца
- * 28.09.2026) — сброс определяет сервер.
+ * Даты лимитов из ответа сервера: /profile/subscription (usage_resets_on,
+ * usage_access_until) или кадр quota чата (resets_on, access_until).
+ * resetsOn — счётчик обновится сам (оплачено продление или бесплатный месяц);
+ * null — новые только после продления, тогда accessUntil — конец доступа.
  */
-export function quotaEndedText(feature, period, resetsOn) {
+export function usageDatesFrom(src) {
+  if (!src) return { resetsOn: null, accessUntil: null };
+  return {
+    resetsOn: src.usage_resets_on ?? src.resets_on ?? null,
+    accessUntil: src.usage_access_until ?? src.access_until ?? null,
+  };
+}
+
+/** « — обновятся 1 октября» / « — новые после продления, доступ до 29 октября». */
+export function quotaTail(dates) {
+  const d = typeof dates === 'string' ? { resetsOn: dates } : (dates || {});
+  const resets = resetDateWords(d.resetsOn);
+  if (resets) return ` — обновятся ${resets}`;
+  const until = resetDateWords(d.accessUntil);
+  return until ? ` — новые после продления, доступ до ${until}` : '';
+}
+
+/**
+ * Что случилось — вторая строка окна предложения, когда кончился лимит.
+ * period: 'trial' | 'month'; dates — usageDatesFrom(ответ сервера). Счётчики
+ * платных — за оплаченный период (30 дней от оплаты), не за календарный
+ * месяц, поэтому «этого месяца» здесь не пишется. Даты на клиенте не
+ * вычисляются (решение владельца 28.09.2026): без них хвоста нет.
+ */
+export function quotaEndedText(feature, period, dates) {
   const item = catalogItem(feature);
   if (!item) return null;
-  const when = resetDateWords(resetsOn);
-  const tail = when ? ` — обновятся ${when}` : '';
+  const tail = quotaTail(dates);
   if (item.key === 'chat') {
-    return period === 'trial' ? 'Пробные сообщения закончились' : `Сообщения этого месяца закончились${tail}`;
+    return period === 'trial' ? 'Пробные сообщения закончились' : `Сообщения закончились${tail}`;
   }
   if (item.key === 'transit') {
-    return period === 'trial' ? 'Пробные разборы транзитов закончились' : `Разборы транзитов этого месяца закончились${tail}`;
+    return period === 'trial' ? 'Пробные разборы транзитов закончились' : `Разборы транзитов закончились${tail}`;
   }
   return null;
 }

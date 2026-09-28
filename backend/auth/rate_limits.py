@@ -22,7 +22,8 @@ middleware для этого не требуется, FastAPI даёт прав�
 
 from __future__ import annotations
 
-import time
+import math
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException, Request, status
@@ -523,30 +524,105 @@ def export_key(request: Request) -> str:
 # ═══════════════════════════════════════════════════════════
 
 # Счётчики «на всё время аккаунта» (пробные разборы и сообщения free) живут в
-# той же таблице UsageCounter с этим периодом вместо месяца. 3 символа при
-# колонке String(7) — миграция не нужна.
+# той же таблице UsageCounter с этим периодом вместо месяца.
 TRIAL_PERIOD = "ALL"
+
+# ── Окно счётчика: оплаченный период, а не календарный месяц (065) ──────────
+#
+# Решение владельца 28.09.2026. Доступ даётся на 30 дней с даты оплаты
+# (payments/common.PERIOD_DAYS), а счётчики обнулялись 1-го числа: купивший
+# 29 сентября получал два лимита за несколько дней. Теперь у платного тарифа
+# окно — 30 дней от `Subscription.usage_anchor`:
+#   * новая покупка и смена тарифа (Вега → Лира) ставят якорь «сейчас» —
+#     свежий счётчик;
+#   * продление того же тарифа якорь не трогает: срок прибавляется в конец,
+#     и следующее окно начинается ровно там, где кончилось оплаченное;
+#   * бонусные дни (реферал) удлиняют доступ, окна остаются по 30 дней.
+# Бесплатный тариф (1 PDF в месяц) — по-прежнему календарный месяц; пробные
+# free — TRIAL_PERIOD, навсегда, их это не касается.
+#
+# ⚠️ Ключ окна содержит якорь: «ггммддЧЧММ.k». Смена тарифа меняет якорь, и
+# счётчик начинается с нуля даже при том же номере окна k.
+PAID_WINDOW = timedelta(days=30)
+MSK = timedelta(hours=3)
+
+
+def _now() -> datetime:
+    """Текущее время UTC без пояса — как в колонках БД. Отдельной функцией,
+    чтобы тесты окон (покупка 29-го, продление) подменяли время."""
+    return datetime.utcnow()
 
 
 def _current_period_ym() -> str:
     """Текущий календарный месяц в формате 'YYYY-MM' (UTC)."""
-    return time.strftime("%Y-%m", time.gmtime())
+    return _now().strftime("%Y-%m")
 
 
-def quota_resets_on() -> str:
-    """Дата сброса месячных счётчиков, 'YYYY-MM-DD': 1-е число следующего
-    месяца. Сброс — по календарному месяцу UTC (`_current_period_ym`), а НЕ по
-    дате оплаты тарифа: оплата на 30 дней и месяц счётчиков — разные вещи.
-    Граница — 00:00 UTC, то есть 03:00 МСК того же 1-го числа, поэтому дата по
-    Москве та же.
+def _active_subscription(db, user_id: str, now: datetime):
+    from backend.models import Subscription
+    return (
+        db.query(Subscription)
+        .filter(Subscription.user_id == str(user_id), Subscription.status == "active",
+                Subscription.current_period_end > now)
+        .order_by(Subscription.current_period_end.desc())
+        .first()
+    )
 
-    Клиенты берут дату отсюда (`/profile/subscription` → `usage_resets_on`,
-    кадр `quota` в чате) и сами её не вычисляют (решение владельца
-    28.09.2026): правило сброса живёт в одном месте.
+
+def _derived_anchor(end: datetime, now: datetime) -> datetime:
+    """Якорь для подписки без записанного: окна кончаются ровно в end."""
+    n = max(1, math.ceil((end - now) / PAID_WINDOW))
+    return end - n * PAID_WINDOW
+
+
+def usage_window(db, user_id: str, now: datetime | None = None) -> dict | None:
+    """Текущее окно счётчика платного тарифа; None — оплаченного срока нет
+    (бесплатный тариф или срок истёк) и считается календарный месяц.
+
+    key          — значение period_ym счётчиков этого окна;
+    fresh_at     — когда начнётся новое окно, если оно ещё внутри оплаченного
+                   срока (оплачено продление); None — новые только после
+                   продления;
+    access_until — конец оплаченного доступа.
     """
-    y, m = map(int, _current_period_ym().split("-"))
-    y, m = (y + 1, 1) if m == 12 else (y, m + 1)
-    return f"{y:04d}-{m:02d}-01"
+    now = now or _now()
+    sub = _active_subscription(db, user_id, now)
+    if sub is None:
+        return None
+    anchor = sub.usage_anchor or _derived_anchor(sub.current_period_end, now)
+    k = max(0, int((now - anchor) // PAID_WINDOW))
+    window_end = anchor + (k + 1) * PAID_WINDOW
+    return {
+        "key": f"{anchor:%y%m%d%H%M}.{k}",
+        "fresh_at": window_end if window_end < sub.current_period_end else None,
+        "access_until": sub.current_period_end,
+    }
+
+
+def current_period_key(db, user_id: str) -> str:
+    w = usage_window(db, user_id)
+    return w["key"] if w else _current_period_ym()
+
+
+def msk_date(dt: datetime | None) -> str | None:
+    """UTC-время из базы → дата по Москве 'YYYY-MM-DD' (так её показывают клиенты)."""
+    return (dt + MSK).date().isoformat() if dt else None
+
+
+def usage_dates(db, user_id: str) -> dict:
+    """Даты для текста «закончились — …», одинаковые для API и отказов.
+
+    resets_on    — когда счётчик обновится сам (МСК); None — только после
+                   продления;
+    access_until — до какого дня оплачен доступ (МСК); None — у бесплатного.
+    Клиенты эти даты не вычисляют (решение владельца 28.09.2026).
+    """
+    w = usage_window(db, user_id)
+    if w is None:
+        y, m = map(int, _current_period_ym().split("-"))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        return {"resets_on": f"{y:04d}-{m:02d}-01", "access_until": None}
+    return {"resets_on": msk_date(w["fresh_at"]), "access_until": msk_date(w["access_until"])}
 
 
 def ru_day_month(iso: str) -> str:
@@ -557,16 +633,28 @@ def ru_day_month(iso: str) -> str:
     return f"{d} {months[m - 1]}"
 
 
+def ended_tail(db, user_id: str) -> str:
+    """«— обновятся 1 октября» или «— новые после продления, доступ до 29
+    октября». Общий хвост текстов отказа по месячным лимитам."""
+    d = usage_dates(db, user_id)
+    if d["resets_on"]:
+        return f" — обновятся {ru_day_month(d['resets_on'])}"
+    if d["access_until"]:
+        return f" — новые после продления, доступ до {ru_day_month(d['access_until'])}"
+    return ""
+
+
 def get_monthly_usage(db, user_id: str, kind: str, period: str | None = None) -> int:
-    """Сколько единиц `kind` израсходовано пользователем в текущем месяце
-    (или в `period`, например TRIAL_PERIOD — за всё время)."""
+    """Сколько единиц `kind` израсходовано в текущем окне (оплаченный период
+    у платного, календарный месяц у бесплатного) или в `period`, например
+    TRIAL_PERIOD — за всё время."""
     from backend.models import UsageCounter
     row = (
         db.query(UsageCounter)
         .filter(
             UsageCounter.user_id == user_id,
             UsageCounter.kind == kind,
-            UsageCounter.period_ym == (period or _current_period_ym()),
+            UsageCounter.period_ym == (period or current_period_key(db, user_id)),
         )
         .first()
     )
@@ -574,9 +662,9 @@ def get_monthly_usage(db, user_id: str, kind: str, period: str | None = None) ->
 
 
 def increment_monthly_usage(db, user_id: str, kind: str, period: str | None = None) -> int:
-    """Атомарно +1 к счётчику текущего месяца (или `period`). Возвращает новое значение."""
+    """Атомарно +1 к счётчику текущего окна (или `period`). Возвращает новое значение."""
     from backend.models import UsageCounter
-    period = period or _current_period_ym()
+    period = period or current_period_key(db, user_id)
     row = (
         db.query(UsageCounter)
         .filter(
@@ -676,9 +764,9 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Разборы карты этого месяца закончились ({limit} на тарифе "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())}) — обновятся "
-                    f"{ru_day_month(quota_resets_on())}. Или оформи тариф повыше."
+                    f"Разборы карты закончились ({limit} за оплаченный период на тарифе "
+                    f"{TIER_NAMES.get(tier, tier.capitalize())}){ended_tail(db, str(user.id))}. "
+                    "Или оформи тариф повыше."
                 ),
             )
 
@@ -767,8 +855,8 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Разборы транзитов этого месяца закончились ({quota} на тарифе "
-                    f"{TIER_NAMES['lite']}) — обновятся {ru_day_month(quota_resets_on())}. "
+                    f"Разборы транзитов закончились ({quota} за оплаченный период на тарифе "
+                    f"{TIER_NAMES['lite']}){ended_tail(db, str(user.id))}. "
                     f"На {TIER_NAMES['pro']} — без лимита."
                 ),
             )
@@ -807,8 +895,7 @@ class TierRateLimiter:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     ("Пробные сообщения закончились. " if period == "trial"
-                     else "Сообщения этого месяца закончились — обновятся "
-                          f"{ru_day_month(quota_resets_on())}. ")
+                     else f"Сообщения закончились{ended_tail(db, str(user.id))}. ")
                     + f"На тарифе {TIER_NAMES['lite']} — {TIER_FLAGS['lite']['chat_per_month']} в месяц, "
                     f"на {TIER_NAMES['pro']} — без лимита."
                 ),
@@ -888,8 +975,9 @@ class TierRateLimiter:
                 # «Лимит 1 PDF-отчётов». «{quota} в месяц» верно для любого
                 # числа и не потребует правки при следующей смене сетки.
                 detail=(
-                    "PDF-отчёты на этот месяц закончились: тариф "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())} даёт {quota} в месяц. "
+                    f"PDF-отчёты закончились{ended_tail(db, str(user.id))}. Тариф "
+                    f"{TIER_NAMES.get(tier, tier.capitalize())} даёт {quota} "
+                    f"{'в месяц' if tier == 'free' else 'за оплаченный период'}. "
                     "Оформи тариф повыше."
                 ),
             )

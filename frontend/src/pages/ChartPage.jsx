@@ -28,7 +28,7 @@ import {
 } from '../api/client';
 import { useToast } from '../components/Toast';
 import TierOfferModal from '../components/TierOfferModal';
-import { quotaEndedText } from '../lib/tierCatalog';
+import { quotaEndedText, usageDatesFrom } from '../lib/tierCatalog';
 import { utcOffsetLabel } from '../lib/utcOffset';
 import { rememberWebPayment } from '../lib/webPayment';
 import { withTz } from '../lib/deviceTimezone';
@@ -345,14 +345,14 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [offer, setOffer] = useState(null); // { feature, state }
   const [chatCheckoutLoading, setChatCheckoutLoading] = useState(false);
 
-  // Кончились сообщения чата. Дата «обновятся …» — из usage_resets_on сервера.
+  // Кончились сообщения чата. Даты «обновятся …» / «доступ до …» — с сервера.
   function openChatOffer() {
     const feature = effectiveTier === 'lite' ? 'chat_limit' : 'chat';
     setOffer({ feature, state: null });
     getSubscription(localStorage.getItem('astro_access_token'))
       .then((sub) => {
         const t = sub?.trials || {};
-        const state = quotaEndedText('chat', t.chat_period, sub?.usage_resets_on);
+        const state = quotaEndedText('chat', t.chat_period, usageDatesFrom(sub));
         setOffer((cur) => (cur?.feature === feature ? { feature, state } : cur));
       })
       .catch(() => {});

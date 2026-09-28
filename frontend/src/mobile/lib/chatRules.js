@@ -76,15 +76,15 @@ export const CHAT_STREAM_ERROR_CODES = Object.freeze([
 /**
  * Лимит сообщений тарифа (403, check_chat_limit): текст по тарифу, без
  * формулировки сервера (решение владельца 28.09.2026). Free — пробные за всё
- * время; Вега — месячные. Дата «обновятся …» — `resetsOn` из ответа сервера
- * (кадр quota чата или usage_resets_on), на клиенте не вычисляется; без неё
- * хвоста нет. Тексты и числа — из каталога витрины (lib/tierCatalog.js).
+ * время; Вега — за оплаченный период. Даты — `dates` из ответа сервера
+ * (usageDatesFrom: кадр quota чата или /profile/subscription), на клиенте не
+ * вычисляются; без них хвоста нет. Тексты и числа — из каталога витрины (lib/tierCatalog.js).
  */
-export function chatLimitOffer(tier, resetsOn = null) {
+export function chatLimitOffer(tier, dates = null) {
   if (tier === 'lite') {
     return {
       feature: 'chat_limit',
-      text: `${quotaEndedText('chat', 'month', resetsOn)}. Без лимита — на Лире.`,
+      text: `${quotaEndedText('chat', 'month', dates)}. Без лимита — на Лире.`,
     };
   }
   return {

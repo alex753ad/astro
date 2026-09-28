@@ -341,7 +341,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             уже прочитал, и убирать это нельзя. */}
         {/* Отказ по тарифу — предложение, нейтральным цветом и с тарифом по
             правилу (lib/offerRule.js), а не красная ошибка с текстом сервера. */}
-        {failure && transitOffer(failure.outcome) && offerBlock(transitOffer(failure.outcome, trials.resetsOn))}
+        {failure && transitOffer(failure.outcome) && offerBlock(transitOffer(failure.outcome, trials.dates))}
         {failure && !transitOffer(failure.outcome) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p

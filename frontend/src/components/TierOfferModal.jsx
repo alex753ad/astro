@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { TIER_NAMES, tierPriceLabel } from "../constants";
 import { offerFor } from "../lib/offerRule";
-import { catalogItem, tierCard } from "../lib/tierCatalog";
+import { ACCESS_TERM, catalogItem, tierCard } from "../lib/tierCatalog";
 import { tierAccusative } from "../mobile/lib/ruDeclension";
 
 /*
@@ -238,7 +238,7 @@ export default function TierOfferModal({ open, onClose, feature, tier, state, co
                 Не сейчас
               </button>
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-secondary)" }}>
-                Доступ на 1 месяц · без автопродления
+                {ACCESS_TERM}
               </p>
             </div>
           </motion.div>

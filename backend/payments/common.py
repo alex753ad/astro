@@ -209,11 +209,17 @@ def activate_subscription(
 
     user.tier = tier
 
+    # Новая покупка и смена тарифа — свежий счётчик с сегодняшнего дня
+    # (якорь = сейчас). Продление того же тарифа якорь не трогает: срок
+    # прибавлен в конец, и новое окно начнётся там, где кончилось оплаченное
+    # (rate_limits.usage_window).
     if sub:
         sub.tier             = tier
         sub.status           = "active"
         sub.stripe_price_id  = f"{tier}_{period}"
         sub.current_period_end = period_end
+        if not renewal:
+            sub.usage_anchor = now
     else:
         sub = Subscription(
             user_id=user.id,
@@ -221,6 +227,7 @@ def activate_subscription(
             status="active",
             tier=tier,
             current_period_end=period_end,
+            usage_anchor=now,
         )
         db.add(sub)
 

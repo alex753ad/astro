@@ -53,16 +53,18 @@ class TestMonthArithmetic:
 
 
 class TestMonthlyUsageKey:
-    """Лимиты «в месяц» — календарный месяц UTC (докстринг _current_period_ym).
+    """Бесплатный тариф (1 PDF в месяц) — календарный месяц UTC. Платные с
+    28.09.2026 считаются за оплаченный период (test_usage_paid_period.py).
     По Москве новый месяц счётчика начинается в 03:00 1-го числа — это
     закреплено, а не случайность: сменить пояс счётчика — решение владельца."""
 
     def test_rolls_over_at_utc_midnight(self):
         from backend.auth import rate_limits
-        with patch.object(rate_limits.time, "gmtime", return_value=NY.astimezone(pytz.utc).timetuple()):
+        naive = lambda dt: dt.astimezone(pytz.utc).replace(tzinfo=None)  # noqa: E731
+        with patch.object(rate_limits, "_now", return_value=naive(NY)):
             assert rate_limits._current_period_ym() == "2026-12"
         after = pytz.utc.localize(datetime(2027, 1, 1, 0, 30))
-        with patch.object(rate_limits.time, "gmtime", return_value=after.timetuple()):
+        with patch.object(rate_limits, "_now", return_value=naive(after)):
             assert rate_limits._current_period_ym() == "2027-01"
 
 

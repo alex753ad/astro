@@ -76,6 +76,7 @@ async def admin_set_tier(
             sub.tier = tier
             sub.status = "active"
             sub.current_period_end = period_end
+            sub.usage_anchor = utcnow()
         else:
             db.add(Subscription(
                 user_id=target.id,
@@ -83,6 +84,7 @@ async def admin_set_tier(
                 status="active",
                 tier=tier,
                 current_period_end=period_end,
+                usage_anchor=utcnow(),
             ))
 
     # Аудит в БД, а не только в лог: docker-логи ротируются по 10 МБ, а выдача

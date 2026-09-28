@@ -1,4 +1,5 @@
 /* zodiac data-color, intentional — OrionPage mirrors LandingPage's fixed light-theme design */
+import { ACCESS_TERM } from '../lib/tierCatalog';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -209,7 +210,7 @@ function OrionOfferModal({ onClose, onActivate }) {
             textAlign: 'center',
           }}
         >
-          Доступ на 1 месяц · Без автопродления
+          {ACCESS_TERM}
         </button>
       </motion.div>
     </motion.div>

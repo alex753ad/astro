@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TIERS, TIER_NAMES, tierPriceLabel } from '../../constants';
 import { useNavigate } from 'react-router-dom';
-import { catalogItem, tierCard } from '../../lib/tierCatalog';
+import { ACCESS_TERM, catalogItem, tierCard } from '../../lib/tierCatalog';
 import { emitAfterPay, returnAfterPay } from '../lib/afterPay';
 import { tierAccusative } from '../lib/ruDeclension';
 import { openInBrowser } from '../lib/openInBrowser';
@@ -212,7 +212,7 @@ export default function PaySheet() {
               );
             })}
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-              Оплата разовая, за 30 дней, без автопродления. Откроется страница ЮKassa в браузере —
+              {ACCESS_TERM}. Оплата разовая. Откроется страница ЮKassa в браузере —
               после оплаты вернись в приложение, тариф включится сам.
             </p>
             {error && <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>{error}</p>}
