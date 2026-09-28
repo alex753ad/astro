@@ -32,6 +32,7 @@ import RegisterScreen from './screens/RegisterScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import TabShell from './components/TabShell';
 import GuestCreateScreen from './screens/GuestCreateScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import { clearGuestChart, getGuestChart } from './lib/guestChart';
 import { claimGuestChart } from './lib/chartApi';
 import { errorText } from './lib/netError';
@@ -147,6 +148,7 @@ function MobileRouter() {
         <Route path="/login" element={<RequireGuest><LoginScreen /></RequireGuest>} />
         <Route path="/register" element={<RequireGuest><RegisterScreen /></RequireGuest>} />
         <Route path="/guest/new" element={<RequireGuest><GuestCreateScreen /></RequireGuest>} />
+        <Route path="/forgot" element={<RequireGuest><ForgotPasswordScreen /></RequireGuest>} />
         <Route path="/app/*" element={<RequireAuth><TabShell /></RequireAuth>} />
         <Route path="*" element={<Navigate to={initial} replace />} />
       </Routes>

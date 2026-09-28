@@ -1083,6 +1083,28 @@ async def send_premium_welcome(to: str, name: str | None = None) -> bool:
 # OTP — ПОДТВЕРЖДЕНИЕ EMAIL ПРИ РЕГИСТРАЦИИ
 # ═══════════════════════════════════════════════════════════
 
+async def send_password_code_email(to: str, code: str) -> bool:
+    """Код сброса пароля (приложение, 28.09.2026) — то же оформление, что у
+    кода регистрации, другой текст."""
+    body = (
+        _h2("Сброс пароля")
+        + _p("Для смены пароля в <strong>Aristea Timeline</strong> введи код:")
+        + (
+            '<div style="text-align:center;margin:28px 0;">'
+            f'<span style="font-size:40px;font-weight:800;letter-spacing:14px;'
+            f'color:#7C6CFF;font-family:monospace;background:rgba(124,108,255,0.08);'
+            f'padding:16px 28px;border-radius:12px;display:inline-block;">'
+            f'{code}</span></div>'
+        )
+        + _p("Код действителен <strong>10 минут</strong>. Если это не ты — просто проигнорируй письмо, пароль не изменится.")
+    )
+    return await _send(
+        to,
+        f"Код для смены пароля: {code} — Aristea Timeline",
+        _base("Сброс пароля", f"Код для смены пароля: {code}", body),
+    )
+
+
 async def send_otp_email(to: str, code: str) -> bool:
     """Отправить 6-значный OTP-код для подтверждения email при регистрации."""
     body = (

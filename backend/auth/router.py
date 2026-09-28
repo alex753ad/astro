@@ -97,12 +97,14 @@ def _gen_otp() -> str:
     return "".join(secrets.choice(string.digits) for _ in range(6))
 
 
-def _otp_key(identifier: str) -> str:
-    return f"reg_otp:{identifier}"
+def _otp_key(identifier: str, kind: str = "reg") -> str:
+    """kind: "reg" — регистрация, "pwd" — сброс пароля (28.09.2026). Ключи
+    раздельные: код регистрации не должен сбрасывать пароль и наоборот."""
+    return f"{kind}_otp:{identifier}"
 
 
-def _resend_key(identifier: str) -> str:
-    return f"reg_otp_resend:{identifier}"
+def _resend_key(identifier: str, kind: str = "reg") -> str:
+    return f"{kind}_otp_resend:{identifier}"
 
 
 async def _store_otp(
@@ -122,16 +124,18 @@ async def _store_otp(
     await r.set(_resend_key(identifier), "1", ex=OTP_RESEND_TTL)
 
 
-async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
-    """Проверяет OTP: при успехе удаляет из Redis и возвращает данные."""
-    raw = await r.get(_otp_key(identifier))
+async def _consume_otp(r: aioredis.Redis, identifier: str, code: str, kind: str = "reg") -> dict:
+    """Проверяет OTP: при успехе удаляет из Redis и возвращает данные.
+    Срок (OTP_TTL) и число попыток (MAX_OTP_ATTEMPTS) — общие у регистрации и
+    сброса пароля (решение владельца 28.09.2026)."""
+    raw = await r.get(_otp_key(identifier, kind))
     if not raw:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Код устарел. Запроси новый.")
 
     data = json.loads(raw)
 
     if data["attempts"] >= MAX_OTP_ATTEMPTS:
-        await r.delete(_otp_key(identifier))
+        await r.delete(_otp_key(identifier, kind))
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Превышено число попыток. Запроси новый код.",
@@ -140,14 +144,14 @@ async def _consume_otp(r: aioredis.Redis, identifier: str, code: str) -> dict:
     if data["code"] != code:
         data["attempts"] += 1
         remaining = MAX_OTP_ATTEMPTS - data["attempts"]
-        ttl = max(await r.ttl(_otp_key(identifier)), 1)
-        await r.set(_otp_key(identifier), json.dumps(data), ex=ttl)
+        ttl = max(await r.ttl(_otp_key(identifier, kind)), 1)
+        await r.set(_otp_key(identifier, kind), json.dumps(data), ex=ttl)
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             f"Неверный код. Осталось попыток: {remaining}.",
         )
 
-    await r.delete(_otp_key(identifier))
+    await r.delete(_otp_key(identifier, kind))
     return data
 
 
@@ -868,3 +872,94 @@ async def logout_all(
     _clear_refresh_cookie(response)
     logger.info("All sessions revoked: %s (%s)", mask_email(user.email), user.id)
     return MessageResponse(message="Выход выполнен на всех устройствах.")
+
+
+# ═══════════════════════════════════════════════════════════
+# СБРОС ПАРОЛЯ КОДОМ (приложение, 28.09.2026)
+# ═══════════════════════════════════════════════════════════
+# Приложение не уводит в браузер: «Забыл пароль» → почта → код → новый пароль
+# дважды → вход. Механизм кода — тот же, что при регистрации (_store_otp /
+# _consume_otp, срок OTP_TTL, попытки MAX_OTP_ATTEMPTS, пауза OTP_RESEND_TTL),
+# ключи — свои (kind="pwd"). Веб пока остаётся со ссылкой (/forgot-password,
+# /reset-password) — перевод на код в TASKS.
+#
+# ⚠️ Ответ одинаковый, есть такая почта или нет: и текст, и пауза перед
+# повторной отправкой ставятся в обоих случаях, иначе по ответу можно было бы
+# перебирать, чьи почты зарегистрированы.
+
+PWD_CODE_SENT = "Если аккаунт с такой почтой есть, мы отправили на неё код."
+
+
+class PasswordCodeRequest(_BM):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def _norm(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class PasswordCodeVerify(_BM):
+    email: str
+    code: str
+    new_password: str
+
+    @field_validator("email")
+    @classmethod
+    def _norm(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+@router.post("/password/reset-code", response_model=MessageResponse, summary="Сброс пароля — код на почту")
+@limiter.limit("5/hour", key_func=register_send_key)
+async def password_reset_code(
+    request: Request,
+    data: PasswordCodeRequest,
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    r = await _get_redis()
+    if await r.exists(_resend_key(data.email, "pwd")):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Подожди минуту перед повторной отправкой.")
+    await r.set(_resend_key(data.email, "pwd"), "1", ex=OTP_RESEND_TTL)
+
+    user = find_user_by_email(db, data.email)
+    if user and user.hashed_password and user.is_active:
+        code = _gen_otp()
+        await r.set(_otp_key(data.email, "pwd"), json.dumps({"code": code, "attempts": 0}), ex=OTP_TTL)
+        try:
+            from backend.email_service import send_password_code_email
+            await send_password_code_email(data.email, code)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Password code email failed for %s: %s", mask_email(data.email), exc)
+        logger.info("Password reset code sent: %s", mask_email(data.email))
+    return MessageResponse(message=PWD_CODE_SENT)
+
+
+@router.post("/password/reset-verify", response_model=TokenResponse, summary="Сброс пароля — код и новый пароль")
+@limiter.limit("10/minute")
+async def password_reset_verify(
+    request: Request,
+    response: Response,
+    data: PasswordCodeVerify,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    # Пароль проверяем ДО кода: неподходящий пароль не должен сжигать попытку.
+    try:
+        validate_password(data.new_password)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    r = await _get_redis()
+    # Нет аккаунта — кода в Redis тоже нет, и ответ тот же «Код устарел».
+    await _consume_otp(r, data.email, data.code, "pwd")
+    user = find_user_by_email(db, data.email)
+    if not user or not user.is_active:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Код устарел. Запроси новый.")
+    user.hashed_password = hash_password(data.new_password)
+    # Смена пароля отзывает прежние сессии — как у сброса по ссылке.
+    user.token_version = (user.token_version or 0) + 1
+    db.commit()
+    await login_guard.reset(normalize_email(data.email))
+    logger.info("Password reset by code: %s (%s)", mask_email(user.email), user.id)
+    return _build_token_response(
+        user, user.email, response, db, echo_refresh_in_body=_is_mobile_client(request),
+    )

@@ -114,6 +114,11 @@ export default function LoginScreen() {
             Нет аккаунта? Зарегистрироваться
           </Link>
         </div>
+        {/* Сброс кодом в приложении, без браузера (28.09.2026). «Не помню», а не
+            «Забыл»: текст не угадывает пол (правило «ты» без рода, CLAUDE.md). */}
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <Link to="/forgot" className="mobile-link" style={{ fontSize: 13 }}>Не помню пароль</Link>
+        </div>
         {/* Карта без регистрации (решение владельца 27.09.2026); у гостя с
             картой — возврат к ней. */}
         <div style={{ textAlign: 'center', marginTop: 12 }}>

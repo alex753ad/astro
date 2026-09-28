@@ -451,6 +451,20 @@ function useAuthInternal() {
     return applyTokenResponse(data);
   }, [applyTokenResponse]);
 
+  // Сброс пароля кодом (приложение, 28.09.2026): тот же механизм, что код
+  // регистрации. Ответ первого шага одинаков для любой почты.
+  const sendPasswordCode = useCallback(({ email }) => (
+    apiFetch('/password/reset-code', { method: 'POST', body: JSON.stringify({ email }) })
+  ), []);
+
+  const verifyPasswordCode = useCallback(async ({ email, code, newPassword }) => {
+    const data = await apiFetch('/password/reset-verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, new_password: newPassword }),
+    });
+    return applyTokenResponse(data);
+  }, [applyTokenResponse]);
+
   const loginWithGoogle = useCallback(async (code, redirectUri) => {
     setLoading(true);
     setError(null);
@@ -576,6 +590,8 @@ function useAuthInternal() {
     login,
     sendRegisterCode,
     verifyRegisterCode,
+    sendPasswordCode,
+    verifyPasswordCode,
     loginWithGoogle,
     applyTokenResponse,
     logout,
