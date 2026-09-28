@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TIERS, TIER_NAMES, tierPriceLabel } from '../../constants';
 import { useNavigate } from 'react-router-dom';
-import { APP_TIER_FEATURES, APP_TIER_SITE } from '../lib/appTiers';
+import { catalogItem, tierCard } from '../../lib/tierCatalog';
 import { emitAfterPay, returnAfterPay } from '../lib/afterPay';
 import { tierAccusative } from '../lib/ruDeclension';
 import { openInBrowser } from '../lib/openInBrowser';
@@ -65,10 +65,13 @@ export default function PaySheet() {
     setMode('status'); setStatus(null); setOffline(false); setPolls(0); setOpen(true);
   }, []);
 
-  useEffect(() => onPaySheet(({ mode: m, focus, alt, context, returnTo }) => {
+  useEffect(() => onPaySheet(({ mode: m, focus, alt, feature, context, returnTo }) => {
     setError('');
     if (m === 'status') { showStatus(); return; }
-    setOffer(focus ? { focus, alt: alt || null, context: context || '', returnTo: returnTo || null } : null);
+    setOffer(focus ? {
+      focus, alt: alt || null, context: context || '', returnTo: returnTo || null,
+      feature: feature || returnTo?.feature || null,
+    } : null);
     setMode('choose'); setOpen(true);
   }), [showStatus]);
 
@@ -138,6 +141,9 @@ export default function PaySheet() {
   // Из закрытого элемента — ровно предложенные тарифы, первым самый дешёвый
   // из открывающих (lib/offerRule.js). Из карточки тарифа — все старше.
   const offers = offer ? [offer.focus, offer.alt].filter((id) => id && above.includes(id)) : above;
+  // Лист начинается с того, что человек пытался открыть (каталог витрины,
+  // общий с вебом): заголовок — пункт, дальше что случилось и пояснение.
+  const item = offer?.feature ? catalogItem(offer.feature) : null;
 
   return (
     <div
@@ -158,10 +164,13 @@ export default function PaySheet() {
         {mode === 'choose' && (
           <>
             <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Тарифы
+              {item ? item.title : 'Тарифы'}
             </p>
             {offer?.context && (
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--text-primary)' }}>{offer.context}</p>
+            )}
+            {item?.about && (
+              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{item.about}</p>
             )}
             <AnnouncementBanner />
             {offers.length === 0 && (
@@ -169,25 +178,39 @@ export default function PaySheet() {
                 У тебя уже старший из доступных тарифов.
               </p>
             )}
-            {offers.map((id) => (
+            {offers.map((id) => {
+              // Что тариф даёт В ПРИЛОЖЕНИИ (lib/tierCatalog.js); сайт — строкой
+              // ниже. Пункт, ради которого открыли лист, — первой строкой.
+              const card = tierCard(id, { surface: 'app', focus: offer?.feature });
+              const [first, ...rest] = card.lines;
+              const hl = first?.hl ? first : null;
+              return (
               <section key={id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
                   {TIER_NAMES[id]} · {tierPriceLabel(id)} в месяц
                 </p>
-                {/* Что тариф даёт в ПРИЛОЖЕНИИ (lib/appTiers.js); сайт — строкой ниже. */}
+                {hl && (
+                  <p style={{ margin: 0, padding: '7px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--accent-muted)', color: 'var(--accent)', fontSize: 13.5, fontWeight: 600, lineHeight: 1.4 }}>
+                    {hl.text}
+                  </p>
+                )}
+                {card.from && (
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{card.from}</p>
+                )}
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {(APP_TIER_FEATURES[id] || []).map((f) => (
-                    <li key={f} style={{ fontSize: 13, lineHeight: 1.4, color: 'var(--text-secondary)' }}>· {f}</li>
+                  {(hl ? rest : card.lines).map((l) => (
+                    <li key={l.key} style={{ fontSize: 13, lineHeight: 1.4, color: 'var(--text-secondary)' }}>· {l.text}</li>
                   ))}
                 </ul>
-                {APP_TIER_SITE[id] && (
-                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'var(--text-secondary)' }}>{APP_TIER_SITE[id]}</p>
+                {card.site && (
+                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'var(--text-secondary)' }}>{card.site}</p>
                 )}
                 <button type="button" className="mobile-btn-primary" disabled={busy} style={{ height: 44, fontSize: 14 }} onClick={() => pay(id)}>
                   {busy ? 'Открываем оплату…' : `Оформить ${tierAccusative(TIER_NAMES[id])} · ${tierPriceLabel(id)}`}
                 </button>
               </section>
-            ))}
+              );
+            })}
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
               Оплата разовая, за 30 дней, без автопродления. Откроется страница ЮKassa в браузере —
               после оплаты вернись в приложение, тариф включится сам.

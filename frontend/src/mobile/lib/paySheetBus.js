@@ -11,10 +11,12 @@ const listeners = new Set();
 
 /**
  * @param {{mode?: 'choose'|'status', focus?: string, alt?: string|null,
- *          context?: string, returnTo?: object}} [opts]
- * `focus`/`alt` — какой тариф предложить (lib/offerRule.js), `context` —
- * строка «что откроется», `returnTo` — куда вернуться после оплаты
- * (lib/afterPay.js). Без них — все продаваемые старше текущего.
+ *          feature?: string, context?: string, returnTo?: object}} [opts]
+ * `focus`/`alt` — какой тариф предложить (lib/offerRule.js), `feature` — что
+ * человек пытался открыть (ключ offerRule; по умолчанию `returnTo.feature`):
+ * с него начинается лист, и он первой строкой в карточке тарифа; `context` —
+ * что случилось; `returnTo` — куда вернуться после оплаты (lib/afterPay.js).
+ * Без них — все продаваемые старше текущего.
  *
  * ⚠️ Звать только по нажатию человека на закрытое (решение владельца
  * 27.09.2026): листов с предложением, открывающихся сами, нет.

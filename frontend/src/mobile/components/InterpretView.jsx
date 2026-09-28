@@ -191,7 +191,7 @@ export default function InterpretView({ chartId, onBack }) {
   // Больше объёма — соседний тариф (lib/offerRule.js): free → Вега, Вега → Лира.
   const askMore = () => {
     const o = offerFor('interpretation', known ? tier : 'free');
-    openPaySheet(o ? { focus: o.primary } : {});
+    openPaySheet(o ? { focus: o.primary, feature: 'interpretation' } : {});
   };
   const upsell = upsellForTier({ tier, known, finished, failed: !!failure });
 

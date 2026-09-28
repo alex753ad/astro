@@ -1,17 +1,17 @@
 /**
  * MoreTierCard.jsx — блок тарифа на экране «Ещё» (SPEC_MORE_SCREEN.md §4).
  *
- * Название следующего тарифа и его 4 пункта — статический `TIERS` из
- * `constants.js`, НЕ `horizon.next_tier` с сервера: то поле приходит из
+ * Название следующего тарифа и что он добавляет — статический каталог
+ * `lib/tierCatalog.js` (общий с вебом), НЕ `horizon.next_tier` с сервера: то поле приходит из
  * ленты и требует chart_id, а у аккаунта без карт (реальное состояние,
  * §8) этот блок обязан работать и без него (§4.1).
  *
  * ⚠️ Текущие лимиты тарифа здесь НЕ показываются числом — ни разу. Число
  * из живых `features`/`limits` в этот блок не подставлять: только
- * статический текст `tierFeatures()` (SPEC_MORE_SCREEN.md §4.2).
+ * статический текст каталога (SPEC_MORE_SCREEN.md §4.2).
  *
- * ⚠️ Пункт «Транзиты: горизонт N месяцев…» из списка «На … дополнительно»
- * ИСКЛЮЧЁН намеренно, не по ошибке. Копий горизонта транзитов стало две
+ * ⚠️ Пункт «Транзиты вперёд» в приложении не показывается (в каталоге он
+ * `where: 'web'`, уходит строкой «На сайте») — намеренно, не по ошибке. Копий горизонта транзитов стало две
  * вместо трёх — 08.09.2026 серверное исключение для free
  * (FREE_TRANSITS_TEASER_MONTHS в rate_limits.py) убрано, флаг поднят до 3,
  * и `features.transits_months` для free больше не врёт. Осталась пара
@@ -27,7 +27,7 @@
 
 import React from 'react';
 import { TIER_NAMES } from '../../constants';
-import { APP_TIER_FEATURES, APP_TIER_SITE } from '../lib/appTiers';
+import { tierCard } from '../../lib/tierCatalog';
 import { APP_SELLABLE, TIER_ORDER } from '../../lib/offerRule';
 import { tierInRu } from '../lib/ruDeclension';
 import { openPaySheet } from '../lib/paySheetBus';
@@ -60,9 +60,10 @@ export default function MoreTierCard({ tier, highlight, activeUntil, onPayments 
   const currentName = TIER_NAMES[tier] || tier;
   const nextId = nextTierId(tier);
   const nextName = nextId ? TIER_NAMES[nextId] : null;
-  // Что даст следующий тариф В ПРИЛОЖЕНИИ (lib/appTiers.js), сайт — строкой.
-  const features = nextId ? APP_TIER_FEATURES[nextId] || [] : [];
-  const site = nextId ? APP_TIER_SITE[nextId] : null;
+  // Что добавит следующий тариф В ПРИЛОЖЕНИИ (lib/tierCatalog.js), сайт — строкой.
+  const card = nextId ? tierCard(nextId, { surface: 'app' }) : null;
+  const features = card ? card.lines.map((l) => l.text) : [];
+  const site = card?.site || null;
 
   return (
     <section

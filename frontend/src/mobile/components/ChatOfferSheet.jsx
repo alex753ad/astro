@@ -2,20 +2,19 @@
  * ChatOfferSheet.jsx — нажали на замок у кнопки чата (решение владельца
  * 27.09.2026): сначала что такое чат, потом предложение тарифа, как на вебе.
  *
- * Тариф — по правилу lib/offerRule.js: чат открывает только Лира (на Веге чата
- * нет, и предлагать её здесь значило бы продать то, что чата не даст).
- * «Не сейчас» просто закрывает. Сам лист не открывается никогда — только по
+ * Тариф — по правилу lib/offerRule.js, текст о чате — из каталога витрины
+ * (lib/tierCatalog.js). «Не сейчас» просто закрывает. Сам лист не открывается никогда — только по
  * нажатию на замок.
  */
 
 import React from 'react';
 import { TIER_NAMES, tierPriceLabel } from '../../constants';
 import { offerFor } from '../../lib/offerRule';
+import { catalogItem } from '../../lib/tierCatalog';
 import { openPaySheet } from '../lib/paySheetBus';
 import { tierAccusative, tierInRu } from '../lib/ruDeclension';
 
-export const CHAT_ABOUT = 'Чат с Аристеей — вопросы о твоей карте и о том, что идёт сейчас. '
-  + 'Аристея отвечает с учётом твоей натальной карты и текущих транзитов.';
+export const CHAT_ABOUT = catalogItem('chat').about;
 
 export default function ChatOfferSheet({ tier, onClose }) {
   const o = offerFor('chat', tier || 'free');
@@ -25,7 +24,8 @@ export default function ChatOfferSheet({ tier, onClose }) {
     onClose();
     openPaySheet({
       focus: id,
-      context: CHAT_ABOUT,
+      alt: o?.alt,
+      feature: 'chat',
       returnTo: { path: '/app/feed', kind: 'chat', feature: 'chat' },
     });
   };
