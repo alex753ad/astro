@@ -26,7 +26,6 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { CHAT_PRIVACY_NOTE } from '../mobile/lib/chatRules';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { API_BASE } from '../config';
 import { CHAT_SUGGESTIONS as SUGGESTIONS } from '../lib/chatSuggestions';
@@ -138,6 +137,8 @@ function decodeTopic(topic) {
 }
 
 export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
+  // Остаток сообщений из ответа сервера (кадр quota) — для «Осталось N».
+  const [quota, setQuota] = useState(null);
   const [messages, setMessages]     = useState([]);
   const [input, setInput]           = useState('');
   const [loading, setLoading]       = useState(false);
@@ -204,9 +205,13 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
       });
 
       if (resp.status === 403) {
-        const body = await resp.json().catch(() => ({}));
+        // С 28.09.2026 403 у чата — кончились сообщения тарифа (пробные у
+        // free, месячные у Веги). Какое окно показать, решает страница по
+        // правилу offerRule.js; раньше здесь всегда открывалось окно Лиры.
+        await resp.json().catch(() => ({}));
         setMessages(prev => prev.slice(0, -1)); // убираем пустой assistant
-        onPaywall?.('lite_to_pro');
+        setQuota(q => ({ ...(q || {}), left: 0 }));
+        onPaywall?.('chat_limit');
         return;
       }
       if (!resp.ok) {
@@ -246,6 +251,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
               streamDone = true;
               break;
             }
+            if (parsed.quota) { setQuota(parsed.quota); continue; }
             if (parsed.text) {
               setMessages(prev => {
                 const next = [...prev];
@@ -396,9 +402,9 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
         </button>
       </div>
       <p style={s.hint}>Enter — отправить · Shift+Enter — новая строка</p>
-      {/* Куда уходят сообщения — та же строка, что в приложении (решение
-          владельца 28.09.2026). */}
-      <p style={s.hint}>{CHAT_PRIVACY_NOTE}</p>
+      {quota?.period === 'trial' && quota.left > 0 && (
+        <p style={s.hint}>{`Осталось ${quota.left} ${quota.left === 1 ? 'сообщение' : quota.left < 5 ? 'сообщения' : 'сообщений'}`}</p>
+      )}
     </div>
   );
 }

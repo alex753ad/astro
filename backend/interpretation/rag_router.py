@@ -522,8 +522,14 @@ async def _sse_generator(
     question: str = "",
     history: list[dict] | None = None,
     turn: dict | None = None,
+    quota_after: dict | None = None,
 ):
     """Стримит ответ от DeepSeek как SSE и дописывает диалог в серверную историю.
+
+    `quota_after` — остаток сообщений ПОСЛЕ этого ответа ({left, period}): уходит
+    кадром перед [DONE]. Само списание — фоном после потока (_finish_turn), и
+    перезапрос остатка клиентом успевал раньше него — счётчик отставал на одно
+    сообщение (приёмка 28.09.2026).
 
     20.08.2026: узел, где раньше терялся текст молча. finish_reason и факт
     reasoning_content логируются на пустом ответе — единственная зацепка,
@@ -616,6 +622,8 @@ async def _sse_generator(
             # значение (см. докстринг _update_memory).
             if turn is not None:
                 turn["answer"] = answer
+            if quota_after is not None:
+                yield f"data: {json.dumps({'quota': quota_after}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
 
     except asyncio.TimeoutError:
@@ -676,6 +684,9 @@ async def rag_chat(
 
     # Лимит сообщений тарифа — до модели; списание фоном после ответа.
     tier_limiter.check_chat_limit(user, db)
+    from backend.auth.rate_limits import chat_quota
+    _left, _period = chat_quota(db, user)
+    quota_after = {"left": _left - 1, "period": _period} if _left is not None else None
 
     # Дневной бюджет AI — общий с остальными интерпретациями.
     if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "deepseek"):
@@ -776,6 +787,7 @@ async def rag_chat(
             question=question,
             history=history,
             turn=turn,
+            quota_after=quota_after,
         ),
         media_type="text/event-stream",
         headers={

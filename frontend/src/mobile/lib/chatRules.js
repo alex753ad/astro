@@ -89,9 +89,6 @@ export function chatLimitOffer(tier) {
   };
 }
 
-/** Строка под полем ввода: куда уходят сообщения (решение владельца 28.09.2026). */
-export const CHAT_PRIVACY_NOTE = 'Сообщения обрабатывает сторонний сервис за рубежом — не пиши паспортные данные, телефоны и адреса.';
-
 export function classifyChatError(signal) {
   const status = signal?.status;
   const detail = typeof signal?.detail === 'string' ? signal.detail.trim() : '';

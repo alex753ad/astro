@@ -132,6 +132,12 @@ def _validate_consent(v: bool) -> bool:
 
 class RegisterRequest(BaseModel):
     email: str = Field(..., description="Email пользователя")
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
+
     password: str = Field(..., min_length=8, max_length=128)
     ref_code: Optional[str] = Field(None, max_length=16)
     # По умолчанию True: эта схема — только тестовый/legacy-путь (закрыт в
@@ -198,6 +204,12 @@ class VerifyEmailOTPRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    # Почта без учёта регистра и пробелов (backend/auth/emails.py).
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 class RefreshRequest(BaseModel):

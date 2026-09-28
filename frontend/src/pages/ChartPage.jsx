@@ -32,6 +32,7 @@ import {
 } from '../api/client';
 import { useToast } from '../components/Toast';
 import LyraPaywallModal from '../components/LyraPaywallModal';
+import PlanComparisonModal from '../components/PlanComparisonModal';
 import { utcOffsetLabel } from '../lib/utcOffset';
 import { rememberWebPayment } from '../lib/webPayment';
 import { withTz } from '../lib/deviceTimezone';
@@ -746,14 +747,18 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           {currentUser ? (
             <RagChat
               chartId={chartId}
-              onPaywall={(ctx) => openPaywall(ctx || _upsellCtx('pro'))}
+              // Кончились сообщения: free — сравнение Веги и Лиры, Вега — окно
+              // Лиры (правило offerRule.js, как в приложении).
+              onPaywall={(ctx) => (ctx === 'chat_limit' ? setShowChatPlans(true) : openPaywall(ctx || _upsellCtx('pro')))}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>Астролог Аристея</div>
-              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Аристея знает твою карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который тебя уже знает. Открывается на тарифе {TIER_NAMES.pro}.</div>
-              <MotionButton level="primary" onClick={() => setShowChatPlans(true)} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 'var(--radius-full)', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                Открыть доступ
+              <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Аристея знает твою карту и отвечает на вопросы по ней — периоды, аспекты, сферы жизни. Как астролог, который тебя уже знает. Войди — 3 сообщения на пробу бесплатно.</div>
+              {/* Сюда попадает только не вошедший: чат с 28.09.2026 на всех
+                  тарифах, нужен лишь аккаунт. */}
+              <MotionButton level="primary" onClick={() => onShowAuth?.()} style={{ marginTop: 8, padding: '10px 24px', borderRadius: 'var(--radius-full)', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                Войти
               </MotionButton>
             </div>
           )}
@@ -1054,16 +1059,29 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
       )}
 
-      <LyraPaywallModal
-        open={showChatPlans}
-        onClose={() => setShowChatPlans(false)}
-        onSubscribe={() => handleChatPlanCheckout('pro')}
-        onContinueFree={() => setShowChatPlans(false)}
-        contextLabel="Чат с астрологом Аристеей"
-        title="Чат с Аристеей"
-        subtitle="Вопросы о твоей карте и о том, что идёт сейчас. Аристея отвечает с учётом твоей натальной карты и текущих транзитов."
-        price={tierPriceLabel('pro')}
-      />
+      {/* Кончились сообщения чата — предложение по offerRule.js: free —
+          Вега (30 в месяц) и Лира (без лимита), Вега — только Лира. */}
+      {effectiveTier === 'lite' ? (
+        <LyraPaywallModal
+          open={showChatPlans}
+          onClose={() => setShowChatPlans(false)}
+          onSubscribe={() => handleChatPlanCheckout('pro')}
+          onContinueFree={() => setShowChatPlans(false)}
+          contextLabel="Чат с астрологом Аристеей"
+          title="Сообщения этого месяца закончились"
+          subtitle="Обновятся 1-го числа. На Лире чат с Аристеей — без лимита."
+          price={tierPriceLabel('pro')}
+        />
+      ) : (
+        <PlanComparisonModal
+          open={showChatPlans}
+          onClose={() => setShowChatPlans(false)}
+          onChooseVega={() => handleChatPlanCheckout('lite')}
+          onChooseLyra={() => handleChatPlanCheckout('pro')}
+          onContinueFree={() => setShowChatPlans(false)}
+          contextLabel="Пробные сообщения закончились. На Веге — 30 в месяц, на Лире — без лимита"
+        />
+      )}
 
     </div>
   );

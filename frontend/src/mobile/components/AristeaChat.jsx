@@ -49,7 +49,7 @@ import {
 import { CHAT_GREETING, CHAT_SUGGESTIONS } from '../../lib/chatSuggestions';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
-import { CHAT_PRIVACY_NOTE, chatLimitOffer } from '../lib/chatRules';
+import { chatLimitOffer } from '../lib/chatRules';
 import useTier from '../lib/useTier';
 import useTrials, { leftLabel, refreshTrials } from '../lib/useTrials';
 import { offerFor } from '../../lib/offerRule';
@@ -181,6 +181,8 @@ export default function AristeaChat({ chart, onClose }) {
           gotTextRef.current = true;
           setMessages((prev) => appendToAnswer(prev, chunk));
         },
+        // Остаток от сервера сразу после ответа — счётчик не ждёт перезапроса.
+        onQuota: (q) => setQuota(q),
       });
     } catch (err) {
       failed = classifyChatError({
@@ -201,15 +203,20 @@ export default function AristeaChat({ chart, onClose }) {
     // Пузырёк трогаем только теперь, когда поток точно кончился: пустой
     // убираем, с текстом — оставляем как есть, даже если ответ оборвался.
     setMessages((prev) => dropEmptyAnswer(prev));
-    // Сервер списал сообщение после ответа — обновить остаток.
-    if (gotTextRef.current && !failed) refreshTrials();
+    // Общий источник подтянется позже (списание фоном) — экран уже знает остаток.
+    if (gotTextRef.current && !failed) setTimeout(refreshTrials, 1500);
   }, [input, streaming, chartId]);
 
   // Лимит сообщений тарифа: 403 от сервера или известный нулевой остаток —
   // вместо поля ввода серое предложение (lib/offerRule.js).
   const { tier, known } = useTier();
   const trials = useTrials();
-  const outOfMessages = (trials.known && trials.chatLeft === 0) || failure?.outcome === 'tier';
+  // Остаток из последнего ответа (кадр quota) главнее общего источника: тот
+  // обновляется только после фонового списания.
+  const [quota, setQuota] = useState(null);
+  const chatLeft = quota ? quota.left : trials.chatLeft;
+  const chatPeriod = quota ? quota.period : trials.chatPeriod;
+  const outOfMessages = ((quota || trials.known) && chatLeft === 0) || failure?.outcome === 'tier';
   const limitOffer = chatLimitOffer(known ? tier : 'free');
   const limitTiers = offerFor(limitOffer.feature, known ? tier : 'free');
   const askTier = (id) => openPaySheet({
@@ -379,12 +386,11 @@ export default function AristeaChat({ chart, onClose }) {
         {/* Поле ввода */}
         {!outOfMessages && (
         <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '6px 16px 0' }}>
-          {trials.known && trials.chatPeriod === 'trial' && trials.chatLeft > 0 && (
+          {chatPeriod === 'trial' && chatLeft > 0 && (
             <p style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--text-secondary)' }}>
-              {leftLabel(trials.chatLeft, ['пробное сообщение', 'пробных сообщения', 'пробных сообщений'])}
+              {leftLabel(chatLeft, ['сообщение', 'сообщения', 'сообщений'])}
             </p>
           )}
-          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: 'var(--text-secondary)' }}>{CHAT_PRIVACY_NOTE}</p>
         </div>
         )}
         {!outOfMessages && (

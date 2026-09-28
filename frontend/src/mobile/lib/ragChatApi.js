@@ -129,6 +129,8 @@ export function parseChatLine(line) {
       return { type: 'error', code: payload.error, text: payload.text || '' };
     }
     if (payload?.text) return { type: 'text', text: payload.text };
+    // Остаток сообщений после ответа — кадр перед [DONE] (rag_router, quota_after).
+    if (payload?.quota) return { type: 'quota', quota: payload.quota };
     return null;
   } catch {
     // Не JSON — на этой ручке не встречается, но глотать молча нельзя.
@@ -145,7 +147,7 @@ export function parseChatLine(line) {
  * @returns {Promise<void>} завершается по `[DONE]` или концу тела
  * @throws {ChatError} — до потока со статусом, внутри потока с кодом в `detail`
  */
-export async function streamChatAnswer(chartId, question, { onText }) {
+export async function streamChatAnswer(chartId, question, { onText, onQuota }) {
   const resp = await authFetchWithTimeout(
     `${API_BASE}/chart/${chartId}/rag-chat`,
     {
@@ -184,6 +186,7 @@ export async function streamChatAnswer(chartId, question, { onText }) {
         // повторить. Текст сервера тоже несём, он человеческий.
         throw new ChatError(parsed.text, undefined, parsed.code);
       }
+      if (parsed.type === 'quota') { onQuota?.(parsed.quota); continue; }
       onText(parsed.text);
     }
   }

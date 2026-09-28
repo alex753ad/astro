@@ -48,6 +48,7 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.log_utils import mask_email
 from backend.models import User, Partner
+from backend.auth.emails import find_user_by_email, normalize_email
 from backend.schemas import (
     GoogleOAuthRequest,
     LoginRequest,
@@ -344,7 +345,7 @@ async def register_email_send(
             "Подожди минуту перед повторной отправкой.",
         )
 
-    existing = db.query(User).filter(User.email == data.email).first()
+    existing = find_user_by_email(db, data.email)
 
     # Хеширование выполняется в любом случае — bcrypt занимает сотни
     # миллисекунд и иначе разница во времени ответа выдавала бы ветку.
@@ -394,7 +395,7 @@ async def register_email_verify(
     r = await _get_redis()
     otp_data = await _consume_otp(r, data.email, data.code)
 
-    if db.query(User).filter(User.email == data.email).first():
+    if find_user_by_email(db, data.email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Аккаунт с таким email уже существует.")
 
     # Второй раз проверяем явно (первый раз — Pydantic-валидатор на шаге 1):
@@ -435,7 +436,7 @@ async def register_legacy(
     _s = get_settings()
     if not (_s.testing or _s.debug):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
-    if db.query(User).filter(User.email == data.email).first():
+    if find_user_by_email(db, data.email):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already exists. Аккаунт с таким email уже существует.")
 
     from backend.auth.consent import CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION
@@ -477,23 +478,23 @@ async def login(
 ) -> TokenResponse:
     # Лимит по IP не мешает перебору одного аккаунта с ботнета — считаем
     # неудачи ещё и по email.
-    if await login_guard.is_locked(data.email):
+    if await login_guard.is_locked(normalize_email(data.email)):
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             "Слишком много неудачных попыток входа. Попробуй чуть позже.",
         )
 
-    user = db.query(User).filter(User.email == data.email).first()
+    user = find_user_by_email(db, data.email)
     if user is None or user.hashed_password is None:
-        await login_guard.record_failure(data.email)
+        await login_guard.record_failure(normalize_email(data.email))
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not verify_password(data.password, user.hashed_password):
-        await login_guard.record_failure(data.email)
+        await login_guard.record_failure(normalize_email(data.email))
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials. Неверный email или пароль.")
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Аккаунт заблокирован.")
 
-    await login_guard.reset(data.email)
+    await login_guard.reset(normalize_email(data.email))
     return _build_token_response(
         user, user.email, response, db, echo_refresh_in_body=_is_mobile_client(request),
     )
@@ -631,7 +632,7 @@ async def google_oauth(
             "Google не подтвердил email этого аккаунта.",
         )
 
-    user = db.query(User).filter(User.email == google_user.email).first()
+    user = find_user_by_email(db, google_user.email)
     if user is None:
         # consent обязателен только тут — при создании НОВОГО аккаунта, не
         # при входе уже существующего. Сегодня этот путь не вызывается ни
@@ -758,11 +759,17 @@ async def create_sse_ticket(user: User = Depends(get_current_user)) -> dict:
 # СБРОС ПАРОЛЯ
 # ═══════════════════════════════════════════════════════════
 
-from pydantic import BaseModel as _BM
+from pydantic import BaseModel as _BM, field_validator
 
 
 class ForgotPasswordRequest(_BM):
     email: str
+
+    # Без учёта регистра и пробелов, как вход (backend/auth/emails.py).
+    @field_validator("email")
+    @classmethod
+    def _norm(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 class ResetPasswordRequest(_BM):
@@ -777,7 +784,7 @@ async def forgot_password(
     data: ForgotPasswordRequest,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
-    user = db.query(User).filter(User.email == data.email).first()
+    user = find_user_by_email(db, data.email)
     if user and user.hashed_password:
         token = create_password_reset_token(user.id, user.email, user.token_version or 0)
         reset_url = f"{get_settings().frontend_url}/reset-password?token={token}"
