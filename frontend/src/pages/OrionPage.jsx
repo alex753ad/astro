@@ -69,7 +69,7 @@ function FeatureGroup({ title, items }) {
   );
 }
 
-// Модалка-оффер перед редиректом — стиль как LyraPaywallModal, без эмодзи/иконок.
+// Модалка-оффер перед редиректом — стиль как TierOfferModal, без эмодзи/иконок.
 function OrionOfferModal({ onClose, onActivate }) {
   const reduce = useReducedMotion();
 

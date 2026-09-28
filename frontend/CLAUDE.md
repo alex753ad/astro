@@ -46,8 +46,9 @@ client.js», grep обязателен по всему `frontend/src` на са�
 рывком или не появится. Ошибки при этом нет нигде — ни в консоли, ни в тестах,
 ни в сборке.
 
-Затронуто сегодня три места: `MotionButton.jsx` (`hover`),
-`LyraPaywallModal.jsx` и `PlanComparisonModal.jsx` (`whileHover`). Статические
+Затронуто два места: `MotionButton.jsx` (`hover`),
+`TierOfferModal.jsx` (`whileHover`; до 28.09.2026 — `LyraPaywallModal.jsx` и
+`PlanComparisonModal.jsx`, заменены им). Статические
 `style={{}}` этого ограничения не имеют — там `var()` внутри строки разбирает
 браузер, и вложенная форма законна; ограничение касается только значений,
 которые анимирует Framer.

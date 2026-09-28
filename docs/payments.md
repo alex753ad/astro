@@ -160,7 +160,7 @@
 
 | Звено | Состояние |
 |---|---|
-| Поле ввода промокода, `PaywallModal.jsx` (~175-192) | Есть, живое |
+| Поле ввода промокода | Убрано 28.09.2026 вместе с `PaywallModal`/`LyraPaywallModal` (окно предложения теперь `TierOfferModal`, без промокода) |
 | `validatePromoCode` → `GET /api/v1/payments/promo-validate` | **Эндпоинта в бэкенде нет вовсе** → всегда 404 → поле ВСЕГДА показывает «Промокод не найден или истёк» |
 | `createCheckoutSession` шлёт `promo_code` | Бэкенд принимает и игнорирует: `CheckoutRequest` объявлен с `extra: "ignore"` |
 | `POST /admin/coupons/apply` | Вызывающих нет. С 23.08.2026 — `require_admin` |

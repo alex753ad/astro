@@ -32,7 +32,6 @@ const BACKEND_ROUTER = "backend/payments/yookassa_router.py";
 
 // Места, которые получают ссылку через createCheckoutSession() из api/client.js
 const CLIENT_CALLERS = [
-  "frontend/src/components/PaywallModal.jsx",
   "frontend/src/components/TransitTimeline.jsx",
   "frontend/src/pages/ChartPage.jsx",
   "frontend/src/pages/PlannerPage.jsx",

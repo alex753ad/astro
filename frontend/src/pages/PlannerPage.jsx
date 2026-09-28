@@ -1094,7 +1094,7 @@ export default function PlannerPage() {
     if (checkoutLoading) return;
     setCheckoutLoading(true);
     try {
-      // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
+      // checkout_url, не url — контракт держит api/checkoutContract.test.js.
       const { checkout_url: checkoutUrl } = await createCheckoutSession(tier, "monthly", id, promoCode);
       if (!checkoutUrl) {
         toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.");

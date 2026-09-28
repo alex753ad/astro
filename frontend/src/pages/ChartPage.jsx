@@ -4,7 +4,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
 import { authFetch, getSubscription } from '../api/client';
 import { API_BASE, BACKEND_BASE } from '../config';
@@ -18,8 +17,6 @@ import TransitTimeline from '../components/TransitTimeline';
 import AspectGrid from '../components/AspectGrid';
 import useIsMobile from '../hooks/useIsMobile';
 import { todayLocalISO } from '../utils/dateISO';
-import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
-import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
 import OnboardingTooltips from '../components/OnboardingTooltips';
 import StreakBadge from '../components/StreakBadge';
 import useStreak from '../hooks/useStreak';
@@ -341,21 +338,22 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [authRequired, setAuthRequired] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [paywallContext, setPaywallContext] = useState('free_to_lite');
-  // Кончились сообщения чата — окно предложения (TierOfferModal): заголовок
-  // «Чат с Аристеей», что случилось, тарифы по lib/offerRule.js (free — Вега
-  // и Лира, Вега — Лира). Дата «обновятся …» — из usage_resets_on сервера.
-  const [chatOffer, setChatOffer] = useState(null);
+  // Окно предложения (TierOfferModal) — одно на странице: что человек
+  // пытался открыть (пункт каталога) и что случилось. Тарифы — по
+  // lib/offerRule.js. До 28.09.2026 здесь было три окна (PaywallModal,
+  // PlanComparisonModal, LyraPaywallModal) со своими списками пунктов.
+  const [offer, setOffer] = useState(null); // { feature, state }
   const [chatCheckoutLoading, setChatCheckoutLoading] = useState(false);
 
+  // Кончились сообщения чата. Дата «обновятся …» — из usage_resets_on сервера.
   function openChatOffer() {
-    setChatOffer({ state: null });
+    const feature = effectiveTier === 'lite' ? 'chat_limit' : 'chat';
+    setOffer({ feature, state: null });
     getSubscription(localStorage.getItem('astro_access_token'))
       .then((sub) => {
         const t = sub?.trials || {};
         const state = quotaEndedText('chat', t.chat_period, sub?.usage_resets_on);
-        setChatOffer((cur) => (cur ? { state } : cur));
+        setOffer((cur) => (cur?.feature === feature ? { feature, state } : cur));
       })
       .catch(() => {});
   }
@@ -364,7 +362,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (chatCheckoutLoading) return;
     setChatCheckoutLoading(true);
     try {
-      // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
+      // checkout_url, не url — контракт держит api/checkoutContract.test.js.
       const { checkout_url: checkoutUrl, payment_id: paymentId } = await createCheckoutSession(tier, 'monthly', chartId, null);
       if (!checkoutUrl) {
         toast.error('Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.');
@@ -379,23 +377,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     }
   }
 
-  // E4: показ активной модалки с ограничением частоты.
-  // forced=true — явное намерение (кнопка «Перейти на Pro»), лимит не применяется.
-  function openPaywall(context, forced = false) {
-    if (context) setPaywallContext(context);
-    if (!forced && !canShowPaywall()) return;
-    setShowPaywall(true);
-    if (!forced) markPaywallShown();
-  }
-  function closePaywall() {
-    setShowPaywall(false);
-    markPaywallDismissed();
-  }
-  // required — тариф, который реально нужен фиче (не «следующая ступень» от
-  // текущего тарифа): чат и разбор транзитов требуют pro независимо от того,
-  // free пользователь или lite — иначе купив lite, доступа он не получит.
-  const _upsellCtx = (required = 'lite') =>
-    getPaywallContext({ error: 'tier_required', current: effectiveTier, required }) || 'free_to_lite';
   const [pdfLoading, setPdfLoading]   = useState(false);
   const [pdfConfirm, setPdfConfirm]   = useState(false);
   const [copied, setCopied]           = useState(false);
@@ -917,9 +898,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                       </div>
                     </div>
                   ) : effectiveTier === 'lite' ? (
-                    <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => openPaywall('lite_to_pro', true)} />
+                    <Interpretation chartId={chartId} userTier="lite" onUpgrade={() => setOffer({ feature: 'interpretation', state: null })} />
                   ) : (
-                    <Interpretation chartId={chartId} userTier={effectiveTier} onUpgrade={() => openPaywall('free_to_lite', true)} />
+                    <Interpretation chartId={chartId} userTier={effectiveTier} onUpgrade={() => setOffer({ feature: 'interpretation', state: null })} />
                   )}
                 </div>
               )}
@@ -1023,17 +1004,12 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
       )}
 
-      <AnimatePresence>
-        {showPaywall && (
-          <PaywallModal context={paywallContext} chartId={chartId} onClose={closePaywall} />
-        )}
-      </AnimatePresence>
 
       {/* Готового диалога подтверждения в проекте нет: все существующие
           подтверждения — системный window.confirm (AdminPage, CRMPage) либо
           инлайн-переключение кнопок на месте (ProfilePage, gdprConfirm).
           Инлайн сюда не встаёт — это одна кнопка в шапке, а текста три
-          предложения; поэтому взята форма модалки, как у PaywallModal:
+          предложения; поэтому взята форма модалки, как у окна предложения:
           оверлей, карточка, объяснение, основная кнопка и «Отмена». */}
       {pdfConfirm && (
         <div style={s.confirmOverlay} onClick={() => setPdfConfirm(false)}>
@@ -1071,11 +1047,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       )}
 
       <TierOfferModal
-        open={!!chatOffer}
-        onClose={() => setChatOffer(null)}
-        feature={effectiveTier === 'lite' ? 'chat_limit' : 'chat'}
+        open={!!offer}
+        onClose={() => setOffer(null)}
+        feature={offer?.feature}
         tier={effectiveTier}
-        state={chatOffer?.state}
+        state={offer?.state}
         onChoose={handleChatPlanCheckout}
         busy={chatCheckoutLoading}
       />
@@ -1444,7 +1420,7 @@ const s = {
     padding: 20,
   },
   // Диалог подтверждения перед PDF, который израсходует бесплатный разбор.
-  // Геометрия и цвета повторяют PaywallModal — отдельного языка для модалок
+  // Геометрия и цвета повторяют окно предложения — отдельного языка для модалок
   // в проекте нет, и заводить второй ради одного диалога незачем.
   confirmOverlay: {
     position: 'fixed', inset: 0, background: 'rgba(30,26,46,0.55)',

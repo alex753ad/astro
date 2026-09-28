@@ -850,7 +850,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   // факт просмотра. 31.08.2026: витрина сокращена с 12 до 3 мес — платный
   // тариф не может быть хуже бесплатного по видимому горизонту, а Вега
   // теперь видит 6 месяцев (было 1). 3 мес здесь — чтобы под блюром
-  // (FreePlanBanner/PlanComparisonModal) было что показать.
+  // (FreePlanBanner/TierOfferModal) было что показать.
   const maxMonths = isFree ? FREE_TRANSITS_TEASER_MONTHS : (tierTransitsMonths ?? (isPremium ? 24 : (isLite ? 6 : 12)));
   const horizonEnd = useMemo(() => monthEndISO(todayISO(), maxMonths), [maxMonths]);
 
@@ -1110,7 +1110,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     if (checkoutLoading) return;
     setCheckoutLoading(true);
     try {
-      // checkout_url, не url — см. комментарий в PaywallModal.handleUpgrade.
+      // checkout_url, не url — контракт держит api/checkoutContract.test.js.
       const { checkout_url: checkoutUrl, payment_id: paymentId } = await createCheckoutSession(tier, "monthly", chartId, promoCode);
       if (!checkoutUrl) {
         toast.error("Платёжный сервис не вернул ссылку на оплату. Попробуй чуть позже.");
