@@ -1572,7 +1572,9 @@ async def interpret_transits(
                     continue
                 try:
                     streamed = False
+                    collected: list[str] = []   # для детектора родовых форм
                     async for chunk in eng.stream(interp_request):
+                        collected.append(chunk)
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
                     if streamed:
@@ -1583,6 +1585,8 @@ async def interpret_transits(
                         )
                         # Списываем AI-транзит только при реальной работе AI-движка (Lite-квота)
                         tier_limiter.commit_transit_ai(user, db)
+                        from backend.interpretation.gender_check import report as _gender_report
+                        _gender_report("".join(collected), "transit")
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:
@@ -1785,6 +1789,8 @@ async def interpret_transit_event(
                             {"content": "".join(collected), "engine": eng.name},
                         )
                         tier_limiter.commit_transit_ai(user, db)
+                        from backend.interpretation.gender_check import report as _gender_report
+                        _gender_report("".join(collected), "transit")
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:

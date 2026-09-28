@@ -1,0 +1,63 @@
+"""Детектор родовых форм при обращении на «ты» (interpretation/gender_check.py).
+
+Решение владельца 28.09.2026: только лог и число в сводке. Тест держит сам
+поиск: что ловится — и что обязано пройти молча, иначе счётчик превратится
+в шум, на который перестанут смотреть.
+"""
+import pytest
+
+from backend.interpretation.gender_check import gendered_you, report
+
+CAUGHT = [
+    "Люди видят тебя уверенной и тёплой.",          # из разбора карты 80605fbf
+    "но внутри ты скорее спокойный наблюдатель",    # оттуда же
+    "Ты сделала выбор.",
+    "ты уже решил",
+    "Ты уверен в своих силах.",
+    "будь осторожна с решениями",
+    "Ты — сильная натура.",
+    "ты кажешься сдержанной",
+    "считают тебя сильным",
+    "ты не готова к переменам",
+]
+
+CLEAN = [
+    "У тебя большой потенциал.",
+    "Для тебя важной становится тема дома.",
+    "Ты чувствуешь внутренний покой.",
+    "Ты ищешь тепла и поддержки.",
+    "В тебе видят уверенность и тепло.",
+    "Береги себя, тебя не было пять дней.",
+    "Ты не из тех, кто действует наобум.",
+    "Твоя энергия зависит от ритма.",
+    "Ты можешь по-настоящему раскрыться.",
+    "Тебе подходят сферы, где нужна польза.",
+    "ты другой человек, чем год назад",  # «другой» — в исключениях: род не угадывает
+]
+
+
+@pytest.mark.parametrize("text", CAUGHT)
+def test_gendered_forms_are_caught(text):
+    assert gendered_you(text), text
+
+
+@pytest.mark.parametrize("text", CLEAN)
+def test_neutral_text_passes(text):
+    assert gendered_you(text) == [], text
+
+
+def test_report_counts_and_never_raises(monkeypatch):
+    seen = []
+    monkeypatch.setattr("backend.forecast.stats.incr", lambda field, **kw: seen.append(field))
+    assert report("Люди видят тебя уверенной.", "interpretation") == 1
+    assert report("Береги себя.", "interpretation") == 0
+    assert report(None, "chat") == 0
+    assert seen == ["gendered_you"]
+
+
+def test_stats_line_shows_the_count():
+    from backend.forecast.stats import summarize
+    from backend.selfcheck import stats_line
+    s = summarize({"gendered_you": 4})
+    assert s["gendered_you"] == 4
+    assert "родовых форм в текстах 4" in stats_line(s, 0.1, 10.0)

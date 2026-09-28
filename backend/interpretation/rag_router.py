@@ -810,6 +810,8 @@ async def _finish_turn(user_id: str, tier: str, question: str, history: list, tu
     await _update_memory(user_id, question, history, turn)
     if not turn.get("answer"):
         return
+    from backend.interpretation.gender_check import report as gender_report
+    gender_report(turn["answer"], "chat")
     db = SessionLocal()
     try:
         tier_limiter.commit_chat(user_id, tier, db)

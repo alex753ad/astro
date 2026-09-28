@@ -27,6 +27,7 @@ import time
 from typing import AsyncIterator
 
 from backend.async_utils import iter_with_deadline, replay_as_stream
+from backend.interpretation.gender_check import report as gender_report
 
 # Теги секций, которые нельзя склеивать с соседним текстом при воспроизведении
 # кэша. Совпадает с разбором на фронте (`api/client.js`, flushBuffer).
@@ -330,6 +331,8 @@ class InterpretationRouter:
                         ttl=30 * 24 * 3600,
                     )
                     cost = self._track_spend(engine.name, result.tokens_used)
+                    if engine.name != "template":
+                        gender_report(result.content, request.context or "interpretation")
                     _log_ai_request(
                         engine=engine.name,
                         latency_ms=latency_ms,
@@ -459,6 +462,8 @@ class InterpretationRouter:
                 # либо шаблон, у которого его нет). Только теперь называем
                 # движок: вызывающая сторона по нему решает, что записывать.
                 request.engine_used = engine.name
+                if engine.name != "template":
+                    gender_report("".join(collected), request.context or "interpretation")
                 # У шаблона своего finish_reason нет — он детерминирован и
                 # всегда полон, поэтому "stop". У модели берём настоящее
                 # значение: сюда доходим только при "stop" (иначе выше

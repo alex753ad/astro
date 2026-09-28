@@ -16,7 +16,8 @@ from backend.interpretation.address import ADDRESS_RULE
 # которая должна заменить уже закэшированные тексты. Обзор периода версии не
 # требует: он идёт через `custom_prompt`, и ключ меняется с хешем промпта сам.
 # 2 — переход на «ты», 24.09.2026.
-TRANSIT_PROMPT_VERSION = 2
+# 3 — род через прилагательные (ADDRESS_RULE), 28.09.2026.
+TRANSIT_PROMPT_VERSION = 3
 
 ASPECT_LABELS_RU = {
     "conjunction": "соединение", "sextile": "секстиль",

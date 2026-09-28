@@ -307,7 +307,9 @@ def stats_line(summary: dict, spent: float, limit: float) -> str:
         f"(нет ключа {r['no_key']}, бюджет {r['budget']}, ошибка модели {r['model_error']}, "
         f"отбракованы {r['rejected']}); отбраковано ответов {summary['rejected_answers']} "
         f"(из них по тону {summary['rejected_tone']}), "
-        f"ошибок DeepSeek {summary['deepseek_errors']}. Бюджет: ${spent:.2f} из ${limit:.2f}."
+        f"ошибок DeepSeek {summary['deepseek_errors']}; "
+        f"родовых форм в текстах {summary.get('gendered_you', 0)}. "
+        f"Бюджет: ${spent:.2f} из ${limit:.2f}."
     )
 
 

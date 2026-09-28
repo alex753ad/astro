@@ -268,7 +268,8 @@ def _compact_natal(natal_profile: dict) -> str:
 # ПОДНИМАТЬ РУКАМИ при любом изменении build_general_calendar_prompt —
 # смена номера меняет ключ, то есть сбрасывает кэш сразу и для всех месяцев.
 # 2 — переход на «ты» (ADDRESS_RULE, символические действия), 24.09.2026.
-GENERAL_CALENDAR_PROMPT_VERSION = 2
+# 3 — род через прилагательные (ADDRESS_RULE), 28.09.2026.
+GENERAL_CALENDAR_PROMPT_VERSION = 3
 
 
 def build_general_calendar_prompt(

@@ -96,5 +96,9 @@ def summarize(counts: dict[str, int]) -> dict:
         # это единственная отбраковка, где виноват не формат, а тон модели.
         "rejected_tone": counts.get("rejected_tone", 0),
         "deepseek_errors": counts.get("deepseek_error", 0),
+        # Родовые формы в текстах модели на «ты» (interpretation/gender_check.py):
+        # разбор карты, транзита, чат. Только число — сигнала нет (решение
+        # владельца 28.09.2026).
+        "gendered_you": counts.get("gendered_you", 0),
         "total": model + fallback,
     }
