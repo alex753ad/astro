@@ -30,7 +30,7 @@ export const LIMITS = {
   //        сохранённые  разборы карты      разборы транзитов  чат           горизонт   лунный кал.
   //        карты        (free — на карту)  (free — на пробу)  (free — проба) транзитов  месяцев
   free:    { charts: 2,    readings: 1,    transits: 2,    chat: 3,    horizon: FREE_TRANSITS_TEASER_MONTHS, lunar: 1 },
-  lite:    { charts: 5,    readings: 5,    transits: 3,    chat: 30,   horizon: 6,  lunar: 12 },
+  lite:    { charts: 5,    readings: 5,    transits: 15,   chat: 30,   horizon: 6,  lunar: 12 },
   pro:     { charts: 15,   readings: 15,   transits: null, chat: null, horizon: 12, lunar: 12 },
   premium: { charts: null, readings: null, transits: null, chat: null, horizon: 24, lunar: null },
 };

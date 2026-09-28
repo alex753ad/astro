@@ -92,7 +92,10 @@ TIER_FLAGS: dict[str, dict] = {
         "charts_per_day": None,
         "transits_months": 6,                  # 31.08.2026: было 1 — решение владельца, платный не хуже free-витрины
         "transits_ai": False,                  # полный AI-доступ — нет
-        "transits_ai_per_month": 3,            # 3.4a: тизер Pro — 3 AI-транзита/мес
+        # 28.09.2026: было 3 — решение владельца. Разбор стоит ≈0,35–0,7 ₽
+        # (DeepSeek Pro, ≈2500 токенов входа и ≈1000 выхода), 15 в месяц — до
+        # ≈11 ₽ при цене тарифа 790 ₽. «Без лимита» остаётся отличием Лиры.
+        "transits_ai_per_month": 15,
         "chat_per_month": 30,                  # 28.09.2026: чат открыт Веге
         "profiles_limit": 5,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,                    # на год
@@ -530,6 +533,30 @@ def _current_period_ym() -> str:
     return time.strftime("%Y-%m", time.gmtime())
 
 
+def quota_resets_on() -> str:
+    """Дата сброса месячных счётчиков, 'YYYY-MM-DD': 1-е число следующего
+    месяца. Сброс — по календарному месяцу UTC (`_current_period_ym`), а НЕ по
+    дате оплаты тарифа: оплата на 30 дней и месяц счётчиков — разные вещи.
+    Граница — 00:00 UTC, то есть 03:00 МСК того же 1-го числа, поэтому дата по
+    Москве та же.
+
+    Клиенты берут дату отсюда (`/profile/subscription` → `usage_resets_on`,
+    кадр `quota` в чате) и сами её не вычисляют (решение владельца
+    28.09.2026): правило сброса живёт в одном месте.
+    """
+    y, m = map(int, _current_period_ym().split("-"))
+    y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return f"{y:04d}-{m:02d}-01"
+
+
+def ru_day_month(iso: str) -> str:
+    """'2026-10-01' → '1 октября'."""
+    months = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+              "августа", "сентября", "октября", "ноября", "декабря")
+    y, m, d = map(int, iso.split("-"))
+    return f"{d} {months[m - 1]}"
+
+
 def get_monthly_usage(db, user_id: str, kind: str, period: str | None = None) -> int:
     """Сколько единиц `kind` израсходовано пользователем в текущем месяце
     (или в `period`, например TRIAL_PERIOD — за всё время)."""
@@ -604,7 +631,7 @@ class TierRateLimiter:
             # анонимы — только превью, блокируется на уровне эндпоинта
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Войди в аккаунт, чтобы получить интерпретацию.",
+                detail="Войди в аккаунт, чтобы получить разбор карты.",
             )
 
         tier = user.tier
@@ -625,7 +652,7 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    "Бесплатная интерпретация уже использована. "
+                    "Бесплатный разбор этой карты уже использован. "
                     f"Оформи {TIER_NAMES['lite']}, чтобы разбирать карты дальше."
                 ),
             )
@@ -634,7 +661,7 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Интерпретации недоступны на {TIER_NAMES['free']} плане. Оформи {TIER_NAMES['lite']}.",
+                detail=f"Разбор карты недоступен на тарифе {TIER_NAMES['free']}. Оформи {TIER_NAMES['lite']}.",
             )
 
         if limit is None:
@@ -649,8 +676,9 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Лимит {limit} интерпретаций в месяц исчерпан для тарифа "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())}. Оформи тариф повыше."
+                    f"Разборы карты этого месяца закончились ({limit} на тарифе "
+                    f"{TIER_NAMES.get(tier, tier.capitalize())}) — обновятся "
+                    f"{ru_day_month(quota_resets_on())}. Или оформи тариф повыше."
                 ),
             )
 
@@ -722,14 +750,14 @@ class TierRateLimiter:
             from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Расшифровка транзитов доступна на {TIER_NAMES['pro']} и выше.",
+                detail=f"Разбор транзитов доступен на тарифе {TIER_NAMES['lite']} и выше.",
             )
 
         # Lite — квота в месяц
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Войди в аккаунт, чтобы получить расшифровку транзита.",
+                detail="Войди в аккаунт, чтобы получить разбор транзита.",
             )
         if db is None:
             return
@@ -739,8 +767,9 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Использовано {quota} расшифровок транзитов в этом месяце "
-                    f"на тарифе {TIER_NAMES['lite']}. Перейди на {TIER_NAMES['pro']} для безлимита."
+                    f"Разборы транзитов этого месяца закончились ({quota} на тарифе "
+                    f"{TIER_NAMES['lite']}) — обновятся {ru_day_month(quota_resets_on())}. "
+                    f"На {TIER_NAMES['pro']} — без лимита."
                 ),
             )
 
@@ -759,8 +788,9 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    f"Бесплатные разборы транзитов использованы. На тарифе {TIER_NAMES['lite']} — "
-                    f"3 в месяц, на {TIER_NAMES['pro']} — без лимита."
+                    f"Пробные разборы транзитов закончились. На тарифе {TIER_NAMES['lite']} — "
+                    f"{TIER_FLAGS['lite']['transits_ai_per_month']} в месяц, "
+                    f"на {TIER_NAMES['pro']} — без лимита."
                 ),
             )
 
@@ -777,8 +807,10 @@ class TierRateLimiter:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     ("Пробные сообщения закончились. " if period == "trial"
-                     else "Сообщения этого месяца закончились — обновятся 1-го числа. ")
-                    + f"На тарифе {TIER_NAMES['lite']} — 30 в месяц, на {TIER_NAMES['pro']} — без лимита."
+                     else "Сообщения этого месяца закончились — обновятся "
+                          f"{ru_day_month(quota_resets_on())}. ")
+                    + f"На тарифе {TIER_NAMES['lite']} — {TIER_FLAGS['lite']['chat_per_month']} в месяц, "
+                    f"на {TIER_NAMES['pro']} — без лимита."
                 ),
             )
 

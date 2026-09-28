@@ -26,6 +26,7 @@
  */
 
 import { interpretationUpsell } from '../../lib/interpretationUpsell';
+import { LIMITS } from '../../lib/tierCatalog';
 
 /** Что показать, когда сервер не сказал ничего: оборвалась связь. */
 export const TRANSIT_BROKEN_TEXT =
@@ -128,7 +129,7 @@ export function classifyTransitError(signal) {
  *
  * @returns {{feature: string, text: string}|null} null — отказ не тарифный
  */
-export const TRANSIT_TRIALS_USED_TEXT = 'Бесплатные разборы использованы. На Веге — 3 в месяц, на Лире — без лимита.';
+export const TRANSIT_TRIALS_USED_TEXT = `Пробные разборы транзитов закончились. На Веге — ${LIMITS.lite.transits} в месяц, на Лире — без лимита.`;
 
 export function transitOffer(outcome) {
   // 403 у разбора транзита с 28.09.2026 — кончились 2 пробных разбора free

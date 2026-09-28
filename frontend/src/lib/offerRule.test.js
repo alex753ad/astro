@@ -54,7 +54,7 @@ describe('правило предложения тарифа — все соче
     const src = readFileSync(fileURLToPath(new URL('../../../backend/auth/rate_limits.py', import.meta.url)), 'utf-8');
     const block = (t, next) => src.slice(src.indexOf(`"${t}": {`), next ? src.indexOf(`"${next}": {`) : undefined);
     const blocks = { free: block('free', 'lite'), lite: block('lite', 'pro'), pro: block('pro', 'premium') };
-    expect(blocks.lite).toMatch(/"transits_ai_per_month":\s*3/);
+    expect(blocks.lite).toMatch(/"transits_ai_per_month":\s*15/);
     expect(blocks.pro).toMatch(/"transits_ai_per_month":\s*None/);
     // Чат: пробные у free, 30 в месяц у Веги, без лимита у Лиры.
     expect(blocks.free).toMatch(/"chat_trial":\s*3/);

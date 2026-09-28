@@ -684,9 +684,11 @@ async def rag_chat(
 
     # Лимит сообщений тарифа — до модели; списание фоном после ответа.
     tier_limiter.check_chat_limit(user, db)
-    from backend.auth.rate_limits import chat_quota
+    from backend.auth.rate_limits import chat_quota, quota_resets_on
     _left, _period = chat_quota(db, user)
     quota_after = {"left": _left - 1, "period": _period} if _left is not None else None
+    if quota_after and _period == "month":
+        quota_after["resets_on"] = quota_resets_on()
 
     # Дневной бюджет AI — общий с остальными интерпретациями.
     if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "deepseek"):

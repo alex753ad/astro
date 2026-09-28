@@ -59,7 +59,7 @@ def clear_transit_interp_cache():
 
 @pytest.fixture
 def user_lite(db, user_free):
-    """Вега: частичный доступ — transits_ai_per_month = 3."""
+    """Вега: частичный доступ — transits_ai_per_month в месяц."""
     user_free.tier = "lite"
     db.commit()
     return user_free

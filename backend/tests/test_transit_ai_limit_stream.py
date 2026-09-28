@@ -20,7 +20,7 @@ api/client.js:317), где resp.status и тело доступны JS. Там 4
 
 import pytest
 
-from backend.auth.rate_limits import increment_monthly_usage
+from backend.auth.rate_limits import TIER_FLAGS, increment_monthly_usage
 from backend.tests.test_chart_access import _make_chart
 from backend.tests.test_free_interpretation import _error_of, _events
 
@@ -49,7 +49,7 @@ def no_engines(monkeypatch):
 
 @pytest.fixture
 def user_lite(db, user_free):
-    """Вега: частичный доступ — transits_ai_per_month = 3."""
+    """Вега: частичный доступ — transits_ai_per_month в месяц."""
     user_free.tier = "lite"
     db.commit()
     return user_free
@@ -84,10 +84,10 @@ class TestFreeRefusalReachesTheUser:
 
 
 class TestLiteQuotaExhausted:
-    """Вега: квота 3 в месяц. Исчерпание — 429, оно так же не доезжало."""
+    """Вега: месячная квота (transits_ai_per_month). Исчерпание — 429, оно так же не доезжало."""
 
     def _exhaust(self, db, user):
-        for _ in range(3):
+        for _ in range(TIER_FLAGS["lite"]["transits_ai_per_month"]):
             increment_monthly_usage(db, str(user.id), "transit_ai")
 
     def test_exhausted_quota_returns_200_with_error_event(

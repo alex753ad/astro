@@ -39,7 +39,9 @@ def test_free_transit_trials_any_transit_then_403(client, db, user_free, auth_he
     transit_interp_cache.clear()
     r = _post_event(client, chart.id, auth_headers_free)
     assert r.status_code == 403
-    assert "Бесплатные разборы транзитов использованы" in r.json()["detail"]
+    detail = r.json()["detail"]
+    assert "Пробные разборы транзитов закончились" in detail
+    assert f"{TIER_FLAGS['lite']['transits_ai_per_month']} в месяц" in detail
 
 
 def test_subscription_shows_trials(client, db, user_free, auth_headers_free):
@@ -95,3 +97,20 @@ def test_crm_prompts_have_no_name_or_birth_data():
         assert "client_name" not in params and "birth_info" not in params, fn.__name__
     text = build_brief_prompt(natal_profile={"planets": [{"name": "Sun", "sign": "Leo"}]})
     assert "ДАННЫЕ РОЖДЕНИЯ" not in text and "по имени" not in text
+
+
+def test_quota_resets_on_is_first_of_next_utc_month(monkeypatch):
+    """Счётчики — по календарному месяцу UTC, не от даты оплаты. Клиент берёт
+    дату сброса из ответа (usage_resets_on) и не вычисляет её сам."""
+    from backend.auth import rate_limits
+    monkeypatch.setattr(rate_limits, "_current_period_ym", lambda: "2026-09")
+    assert rate_limits.quota_resets_on() == "2026-10-01"
+    monkeypatch.setattr(rate_limits, "_current_period_ym", lambda: "2026-12")
+    assert rate_limits.quota_resets_on() == "2027-01-01"
+    assert rate_limits.ru_day_month("2026-10-01") == "1 октября"
+
+
+def test_subscription_has_reset_date(client, auth_headers_free):
+    from backend.auth.rate_limits import quota_resets_on
+    data = client.get("/api/v1/profile/subscription", headers=auth_headers_free).json()
+    assert data["usage_resets_on"] == quota_resets_on()

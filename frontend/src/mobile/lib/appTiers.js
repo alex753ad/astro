@@ -14,7 +14,7 @@ export const APP_LIMITS = {
   // free: 1 разбор карты, 2 разбора транзитов и 3 сообщения чата — на пробу,
   // за всё время аккаунта (решение владельца 28.09.2026).
   free: { charts: 2, interpretations: 1, transits: 2, chat: 3 },
-  lite: { charts: 5, interpretations: 5, transits: 3, chat: 30 },
+  lite: { charts: 5, interpretations: 5, transits: 15, chat: 30 },
   pro: { charts: 15, interpretations: 15, transits: null, chat: null },
 };
 
