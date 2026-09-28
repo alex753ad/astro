@@ -6,7 +6,7 @@ import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import TierOfferModal from "../components/TierOfferModal";
-import { lockText } from "../lib/tierCatalog";
+import { lockShort, lockText } from "../lib/tierCatalog";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -555,6 +555,10 @@ const styles = `
     display: flex; gap: 6px; align-items: flex-start;
   }
   .locked-trigger .lk { flex-shrink: 0; }
+  .locked-open {
+    background: none; border: none; padding: 0; font: inherit; font-weight: 600;
+    color: var(--accent); text-decoration: underline; cursor: pointer;
+  }
 
   .error-box {
     background: var(--bg-card); border: 1px solid var(--color-danger);
@@ -911,33 +915,27 @@ function MonthSection({ section, onUpgrade }) {
         title={section.planet_name}
         subtitle={section.planet_subtitle}
       />
-      {(() => {
-        const periods = section.periods || [];
-        let bannerShown = false;
-        return periods.map((p, pi) => {
-          const showBanner = p.locked && !bannerShown;
-          if (showBanner) bannerShown = true;
-          return (
-            <Fragment key={pi}>
-              {showBanner && (
-                <LockedGroupHint onUpgrade={onUpgrade}>
-                  {lockText("planner_period", "free")}
-                </LockedGroupHint>
-              )}
-              <PeriodBlock planet={section.planet}
-                badgeText={`Период ${p.period}`}
-                theme={p.theme} subtitle={p.subtitle} notes={p.notes} groups={p.groups || []}
-                locked={p.locked} />
-            </Fragment>
-          );
-        });
-      })()}
+      {(section.periods || []).map((p, pi) => (
+        <PeriodBlock key={pi} planet={section.planet}
+          badgeText={`Период ${p.period}`}
+          theme={p.theme} subtitle={p.subtitle} notes={p.notes} groups={p.groups || []}
+          locked={p.locked}
+          lock={PLANET_GEN[section.planet] && lockShort("planner_period", "free", `Период ${PLANET_GEN[section.planet]}`)}
+          onUpgrade={onUpgrade} />
+      ))}
     </div>
   );
 }
 
 // E1 — блюр-тизер для заблокированных блоков Free (текст не приходит с бэка)
-function LockedTeaser({ trigger }) {
+// Родительный падеж для «Период Меркурия — на Веге». Ключи — planet_key
+// сервера (house_passages.py).
+const PLANET_GEN = {
+  sun: "Солнца", mercury: "Меркурия", venus: "Венеры", mars: "Марса", jupiter: "Юпитера",
+  saturn: "Сатурна", uranus: "Урана", neptune: "Нептуна", pluto: "Плутона",
+};
+
+function LockedTeaser({ trigger, onUpgrade }) {
   return (
     <div className="locked-teaser">
       <ul className="period-items decoy" aria-hidden="true">
@@ -945,7 +943,12 @@ function LockedTeaser({ trigger }) {
         <li><span className="dot" style={{ background: "var(--border)" }} />Ключевые действия окна</li>
         <li><span className="dot" style={{ background: "var(--border)" }} />Рекомендации по сферам</li>
       </ul>
-      {trigger && <div className="locked-trigger"><span className="lk">🔒</span><span>{trigger}</span></div>}
+      {trigger && (
+        <div className="locked-trigger">
+          <span className="lk">🔒</span>
+          <span>{trigger}{onUpgrade && <> · <button type="button" className="locked-open" onClick={onUpgrade}>Открыть доступ</button></>}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -984,7 +987,7 @@ function datesInWords(text) {
   });
 }
 
-function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warning, locked }) {
+function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warning, locked, lock, onUpgrade }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
@@ -998,7 +1001,7 @@ function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warnin
       {theme && <div className="period-subtitle">{theme}</div>}
       {subtitle && <div className="period-planet-subtitle" style={{ color }}>{subtitle}</div>}
       {locked ? (
-        <LockedTeaser />
+        <LockedTeaser trigger={lock} onUpgrade={onUpgrade} />
       ) : (
         <>
           {notes && notes.length > 0 && (
@@ -1268,8 +1271,8 @@ export default function PlannerPage() {
           {(isFree || userTier === "lite") && (
             <LockedGroupHint onUpgrade={() => openPaywall(isFree ? "planner_period" : "planner_longterm")}>
               {isFree
-                ? <>✦ Сейчас открыт твой период Солнца — главная тема этого времени. {lockText("planner_period", "free")}</>
-                : <>✦ Месяц и неделя открыты полностью. {lockText("planner_longterm", "lite")}</>}
+                ? <>Сейчас открыт твой период Солнца — главная тема этого времени. {lockText("planner_period", "free")}</>
+                : <>Месяц и неделя открыты полностью. {lockText("planner_longterm", "lite")}</>}
             </LockedGroupHint>
           )}
 
@@ -1352,33 +1355,20 @@ export default function PlannerPage() {
               {tab === "longterm" && (
                 <div>
                   <SectionHeader emoji="🪐" title={planData?.longterm_title || "Долгосрочные транзиты"} subtitle="Социальные и высшие планеты — тренды на годы" />
-                  {(() => {
-                    const items = planData?.longterm || [];
-                    let bannerShown = false;
-                    return items.map((lt, i) => {
-                      const showBanner = lt.locked && !bannerShown;
-                      if (showBanner) bannerShown = true;
-                      return (
-                        <Fragment key={i}>
-                          {showBanner && (
-                            <LockedGroupHint onUpgrade={() => openPaywall("planner_longterm")}>
-                              Дальше — медленные планеты задают твои большие темы на месяцы и годы вперёд. {lockText("planner_longterm", userTier)}
-                            </LockedGroupHint>
-                          )}
-                          <div style={{ marginBottom: 20 }}>
-                            <SectionHeader planet={lt.planet}
-                              title={`${lt.planet_name} в ${lt.house} Доме`}
-                              subtitle={lt.planet_subtitle} />
-                            <PeriodBlock planet={lt.planet}
-                              badgeText={lt.period}
-                              theme={lt.theme} subtitle={lt.subtitle} notes={lt.notes} groups={lt.groups || []}
-                              warning={lt.warning}
-                              locked={lt.locked} />
-                          </div>
-                        </Fragment>
-                      );
-                    });
-                  })()}
+                  {(planData?.longterm || []).map((lt, i) => (
+                    <div key={i} style={{ marginBottom: 20 }}>
+                      <SectionHeader planet={lt.planet}
+                        title={`${lt.planet_name} в ${lt.house} Доме`}
+                        subtitle={lt.planet_subtitle} />
+                      <PeriodBlock planet={lt.planet}
+                        badgeText={lt.period}
+                        theme={lt.theme} subtitle={lt.subtitle} notes={lt.notes} groups={lt.groups || []}
+                        warning={lt.warning}
+                        locked={lt.locked}
+                        lock={PLANET_GEN[lt.planet] && lockShort("planner_longterm", userTier, `Период ${PLANET_GEN[lt.planet]}`)}
+                        onUpgrade={() => openPaywall("planner_longterm")} />
+                    </div>
+                  ))}
                 </div>
               )}
 

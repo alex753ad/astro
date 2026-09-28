@@ -23,6 +23,7 @@ import {
 } from '../constants';
 import { offerFor } from './offerRule';
 import { TIER_WORDS } from './interpretationUpsell';
+import { tierInRu } from '../mobile/lib/ruDeclension';
 
 export const CATALOG_TIERS = ['free', 'lite', 'pro', 'premium'];
 
@@ -298,6 +299,16 @@ export function lockText(feature, tier) {
   const v = item.value(o.primary);
   const what = v && v !== true ? `${item.title}: ${v}` : item.title;
   return `${what} — на тарифе ${TIER_NAMES[o.primary]}.`;
+}
+
+/**
+ * Короткий замок у размытой карточки: «Период Меркурия — на Веге». Тариф —
+ * по тому же offerRule, что и lockText (решение владельца 28.09.2026: вверху
+ * страницы одна общая строка, у карточек — коротко, без повтора списка).
+ */
+export function lockShort(feature, tier, what) {
+  const o = offerFor(feature, tier || 'free', { sellable: ['lite', 'pro'] });
+  return o ? `${what} — на ${tierInRu(TIER_NAMES[o.primary])}` : '';
 }
 
 /** Первые n строк карточки — для старых окон сравнения, пока их не заменило
