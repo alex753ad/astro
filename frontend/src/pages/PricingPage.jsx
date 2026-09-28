@@ -6,12 +6,25 @@
 import { Link, useNavigate } from 'react-router-dom';
 import MotionButton from '../components/MotionButton';
 import { TIERS } from '../constants';
+import { tierCard } from '../lib/tierCatalog';
 
 const DISPLAY = "var(--font-display)";
 const BODY = "var(--font-body)";
 
 export default function PricingPage({ currentUser, onShowAuth }) {
   const navigate = useNavigate();
+  // Пояснение термина — при ПЕРВОМ упоминании на странице (решение владельца
+  // 28.09.2026), дальше пункт идёт без него.
+  const explained = new Set();
+  const cards = TIERS.map((t) => {
+    const card = tierCard(t.id);
+    const lines = card.lines.map((l) => {
+      const about = l.about && !explained.has(l.key) ? l.about : null;
+      explained.add(l.key);
+      return { ...l, about };
+    });
+    return { ...t, from: card.from, lines };
+  });
 
   const handleChoose = () => {
     if (currentUser) navigate('/profile');
@@ -29,17 +42,20 @@ export default function PricingPage({ currentUser, onShowAuth }) {
         </p>
 
         <div style={s.grid}>
-          {TIERS.map((t) => (
+          {cards.map((t) => (
             <div key={t.id} style={s.card(t.recommended)}>
               {t.recommended && <span style={s.badge}>Рекомендуем</span>}
               <div style={s.tierName}>{t.label}</div>
               <div style={s.price}>{t.price}</div>
-              {t.upsellFrom && <div style={s.upsell}>{t.upsellFrom}</div>}
+              {t.from && <div style={s.upsell}>{t.from}</div>}
               <ul style={s.features}>
-                {t.features.map((f) => (
-                  <li key={f} style={s.featureItem}>
+                {t.lines.map((l) => (
+                  <li key={l.key} style={s.featureItem}>
                     <span style={s.checkIcon}>✓</span>
-                    <span>{f}</span>
+                    <span>
+                      {l.text}
+                      {l.about && <span style={s.about}>{l.about}</span>}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -167,6 +183,13 @@ const s = {
     lineHeight: 1.45,
   },
   checkIcon: { color: 'var(--accent)', flexShrink: 0 },
+  about: {
+    display: 'block',
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: 'var(--text-secondary)',
+  },
   ctaPrimary: {
     width: '100%',
     height: 44,

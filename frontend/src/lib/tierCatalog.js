@@ -218,6 +218,13 @@ export function tierCard(tier, { surface = 'web', focus, full = false } = {}) {
   };
 }
 
+/** Первые n строк карточки — для старых окон сравнения, пока их не заменило
+ * одно окно предложения (TierOfferModal). */
+export function tierFeatures(tierId, n) {
+  const lines = tierCard(tierId).lines.map((l) => l.text);
+  return n ? lines.slice(0, n) : lines;
+}
+
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
   'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 

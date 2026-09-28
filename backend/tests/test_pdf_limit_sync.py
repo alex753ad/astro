@@ -80,23 +80,14 @@ class TestPdfLimitSync:
         assert _parse_frontend_pdf_limits()["free"] == TIER_FLAGS["free"]["pdf_per_month"]
 
     def test_storefront_line_is_derived_not_typed(self):
-        """В features пункт PDF должен быть вызовом, а не строкой.
+        """Пункт PDF на витрине выводится из TIER_PDF_PER_MONTH, а не набран.
 
-        Смотрим только внутрь объявления TIERS: та же подстрока законно
-        встречается выше — в комментариях и в самом pdfFeatureLabel, который
-        её и собирает. Первая версия теста проверяла весь файл и падала на
-        собственном комментарии.
+        С 28.09.2026 пункты тарифов живут в lib/tierCatalog.js (не в TIERS):
+        значение пункта «PDF-отчёт по карте» обязано браться из константы,
+        которую сверяет тест выше.
         """
-        src = CONSTANTS_JS.read_text(encoding="utf-8")
-        marker = "export const TIERS = ["
-        assert marker in src, "TIERS не найден — изменился формат объявления?"
-        tiers_block = src[src.index(marker) + len(marker):]
-
-        assert "PDF-экспорт" not in tiers_block, (
-            "число PDF снова набрано прозой в features — оно обязано выводиться "
-            "из TIER_PDF_PER_MONTH через pdfFeatureLabel"
-        )
-        for tier in TIER_FLAGS:
-            assert f"pdfFeatureLabel('{tier}')" in tiers_block, (
-                f"пункт PDF для {tier} не выводится из флага"
-            )
+        catalog = (CONSTANTS_JS.parent / "lib" / "tierCatalog.js").read_text(encoding="utf-8")
+        item = catalog[catalog.index("key: 'pdf'"):]
+        item = item[: item.index("},")]
+        assert "TIER_PDF_PER_MONTH[t]" in item, "пункт PDF не выводится из TIER_PDF_PER_MONTH"
+        assert not any(ch.isdigit() for ch in item), "число PDF набрано в пункте литералом"

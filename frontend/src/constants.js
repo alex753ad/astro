@@ -112,82 +112,12 @@ export const TIER_PDF_PER_MONTH = {
   premium: null,
 };
 
-// «карта / карты / карт» — склонение по числу, как в русском счёте.
-function chartsWord(n) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'карта';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'карты';
-  return 'карт';
-}
-
-// "PDF-экспорт (5 карт)" — пункт витрины, выведенный из сетки, а не набранный.
-export function pdfFeatureLabel(tierId) {
-  const n = TIER_PDF_PER_MONTH[tierId];
-  if (n === null || n === undefined) return 'PDF-экспорт без лимита';
-  return `PDF-экспорт (${n} ${chartsWord(n)})`;
-}
-
-// Состав тарифов — единый источник для страницы /pricing, вкладки «Подписка»
-// в личном кабинете (ProfilePage) и модалок сравнения тарифов. Подача
-// накопительная: каждый следующий тариф — «всё из предыдущего плюс…».
+// Тарифы по порядку: название, цена, «Рекомендуем». ЧТО тариф даёт — не
+// здесь, а в lib/tierCatalog.js (решение владельца 28.09.2026): список пунктов
+// здесь и второй в mobile/lib/appTiers.js разошлись словами и числами.
 export const TIERS = [
-  {
-    id: 'free', label: TIER_NAMES.free, price: `${tierPriceLabel('free')}/мес`,
-    features: [
-      '2 сохранённые карты',
-      '1 бесплатная интерпретация карты навсегда',
-      // Пробные — за всё время аккаунта (решение владельца 28.09.2026).
-      `Транзиты: горизонт ${FREE_TRANSITS_TEASER_MONTHS} месяца, 2 разбора транзитов на пробу`,
-      'Чат с Аристеей — 3 сообщения на пробу',
-      'Планер: Луна по домам — текущая неделя и все прошедшие периоды',
-      'Лунный календарь текущего месяца',
-      pdfFeatureLabel('free'),
-    ],
-  },
-  {
-    id: 'lite', label: TIER_NAMES.lite, price: `${tierPriceLabel('lite')}/мес`,
-    upsellFrom: `Всё из ${TIER_NAMES_GENITIVE.free}, плюс:`,
-    features: [
-      'До 5 сохранённых карт одновременно',
-      '5 интерпретаций в месяц',
-      'Планер: рекомендации на месяц, Луна по домам на весь горизонт ленты',
-      'Транзиты: горизонт 6 месяцев + разбор аспектов (15 в месяц)',
-      'Чат с Аристеей — 30 сообщений в месяц',
-      'Лунный календарь на год',
-      'Google Calendar',
-      pdfFeatureLabel('lite'),
-    ],
-  },
-  {
-    id: 'pro', label: TIER_NAMES.pro, price: `${tierPriceLabel('pro')}/мес`, recommended: true,
-    upsellFrom: `Всё из ${TIER_NAMES_GENITIVE.lite}, плюс:`,
-    features: [
-      'До 15 сохранённых карт одновременно',
-      '15 интерпретаций в месяц',
-      'Планер: + долгосрочные периоды',
-      'Транзиты: горизонт 12 месяцев + разбор аспектов без лимита',
-      'Чат с Аристеей без лимита',
-      pdfFeatureLabel('pro'),
-    ],
-  },
-  {
-    id: 'premium', label: TIER_NAMES.premium, price: `${tierPriceLabel('premium')}/мес`,
-    upsellFrom: `Всё из ${TIER_NAMES_GENITIVE.pro}, плюс:`,
-    features: [
-      'Безлимит карт',
-      'Безлимит интерпретаций',
-      'Транзиты: горизонт 24 месяца',
-      pdfFeatureLabel('premium'),
-      'Рабочий кабинет астролога',
-    ],
-  },
+  { id: 'free', label: TIER_NAMES.free, price: `${tierPriceLabel('free')}/мес` },
+  { id: 'lite', label: TIER_NAMES.lite, price: `${tierPriceLabel('lite')}/мес` },
+  { id: 'pro', label: TIER_NAMES.pro, price: `${tierPriceLabel('pro')}/мес`, recommended: true },
+  { id: 'premium', label: TIER_NAMES.premium, price: `${tierPriceLabel('premium')}/мес` },
 ];
-
-// Сокращённый список фич тарифа — для модалок, которым нужен только
-// заголовок из общего массива, а не отдельный текст (первые n пунктов).
-export function tierFeatures(tierId, n) {
-  const tier = TIERS.find((t) => t.id === tierId);
-  if (!tier) return [];
-  return n ? tier.features.slice(0, n) : tier.features;
-}

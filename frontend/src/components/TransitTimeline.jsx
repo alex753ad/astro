@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
-import { TIER_NAMES, tierPriceLabel, tierFeatures, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
+import { TIER_NAMES, tierPriceLabel, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
+import { tierFeatures } from "../lib/tierCatalog";
 import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
 import { rememberWebPayment } from '../lib/webPayment';
 import { readSseLines } from "../lib/sseLines";

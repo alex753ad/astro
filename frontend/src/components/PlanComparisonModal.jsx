@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { tierPriceLabel, tierFeatures } from "../constants";
+import { tierPriceLabel } from "../constants";
+import { tierFeatures } from "../lib/tierCatalog";
 
 /*
   PlanComparisonModal — окно для пользователей на Free.

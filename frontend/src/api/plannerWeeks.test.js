@@ -31,6 +31,8 @@ const read = (p) => readFileSync(repoRoot + p, "utf-8");
 
 const BACKEND = "backend/auth/rate_limits.py";
 const FRONTEND = "frontend/src/constants.js";
+// Тексты тарифов — в каталоге витрины с 28.09.2026.
+const CATALOG = "frontend/src/lib/tierCatalog.js";
 
 /** TIER_FLAGS[tier]["planner_weeks_ahead"] из rate_limits.py. */
 function backendWeeks(tier) {
@@ -68,8 +70,8 @@ describe("недельный планер: витрина и тарифная с
   it("витрина платных обещает весь горизонт, а не недели", () => {
     // Число из константы больше не подставляется — подставлять нечего.
     // Проверка держит то же самое: текст не разъезжается с флагом.
-    const src = read(FRONTEND);
-    expect(src).toContain("Луна по домам на весь горизонт ленты");
+    const src = read(CATALOG);
+    expect(src).toContain("'на весь горизонт ленты'");
     expect(src).not.toContain("PLANNER_WEEKS_AHEAD.lite}");
   });
 
@@ -77,6 +79,6 @@ describe("недельный планер: витрина и тарифная с
     // Прошлое открыто всем мимо этого числа (is_moon_week_locked). Текст,
     // называющий одну текущую неделю, недодавал бы человеку то, что у него
     // уже есть, — и делал бы это незаметно.
-    expect(read(FRONTEND)).toContain("текущая неделя и все прошедшие периоды");
+    expect(read(CATALOG)).toContain("текущая неделя и все прошедшие периоды");
   });
 });

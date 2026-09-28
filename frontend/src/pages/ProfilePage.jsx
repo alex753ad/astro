@@ -17,6 +17,7 @@ import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 import MotionButton from '../components/MotionButton';
 import { TIER_NAMES, TIERS } from '../constants';
+import { resetDateWords, tierCard } from '../lib/tierCatalog';
 import { rememberWebPayment } from '../lib/webPayment';
 import PaymentHistory from '../components/PaymentHistory';
 
@@ -559,16 +560,16 @@ function buildFeatureRows(feat = {}, lim = {}) {
       value: feat.transits ? `${transitsMonths} мес${feat.transits_ai ? ' + разбор' : ''}` : null,
     },
     { label: 'Лунный календарь', ok: lunarMonths === null || lunarMonths === undefined || lunarMonths > 0 },
-    { label: 'Google Calendar', ok: !!feat.google_calendar },
+    { label: 'Экспорт в Google Календарь', ok: !!feat.google_calendar },
     {
-      label: 'Карты',
+      label: 'Сохранённые карты',
       ok: true,
       value: (profilesLimit === null || profilesLimit === undefined) ? '∞' : `${profilesLimit}`,
     },
-    { label: 'RAG-чат', ok: !!feat.rag_chat },
-    { label: 'PDF', ok: !!feat.pdf_reports },
-    { label: 'CRM', ok: !!feat.crm },
-    { label: 'Безлим. интерпретации', ok: !!feat.unlimited_interpretations },
+    { label: 'Чат с Аристеей', ok: !!feat.rag_chat },
+    { label: 'PDF-отчёт по карте', ok: !!feat.pdf_reports },
+    { label: 'Кабинет астролога', ok: !!feat.crm },
+    { label: 'Разбор карты без лимита', ok: !!feat.unlimited_interpretations },
   ];
 }
 
@@ -628,7 +629,9 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
   if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Загрузка…</div>;
 
   const currentTierIdx = TIER_ORDER.indexOf(user?.tier || 'free');
-  const availableTiers = TIERS.filter(t => TIER_ORDER.indexOf(t.id) > currentTierIdx);
+  const availableTiers = TIERS
+    .filter(t => TIER_ORDER.indexOf(t.id) > currentTierIdx)
+    .map(t => ({ ...t, card: tierCard(t.id) }));
 
   return (
     <div>
@@ -705,7 +708,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                 отвечает на вопрос «разбирал ли пользователь хоть раз». */}
             {tier !== 'free' && (
               <UsageBar
-                label="Интерпретации"
+                label="Разбор карты"
                 used={interpUsed}
                 limit={interpUnlimited ? null : interpLimit}
                 tierColor={tierColor}
@@ -715,7 +718,7 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             {/* AI-транзиты показываем только там, где есть квота (lite) или безлимит (pro/premium) */}
             {(transitAiLimit === null || transitAiLimit > 0) && (
               <UsageBar
-                label="Расшифровки транзитов"
+                label="Разбор транзитов"
                 used={transitAiUsed}
                 limit={transitAiLimit}
                 tierColor={tierColor}
@@ -737,7 +740,9 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             {/* Мягкий апсейл при исчерпании */}
             {tier !== 'premium' && !interpUnlimited && interpLimit > 0 && interpUsed >= interpLimit && (
               <div style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: 4 }}>
-                Лимит интерпретаций исчерпан — перейди на тариф выше, чтобы продолжить.
+                Разборы карты этого месяца закончились
+                {resetDateWords(subscription.usage_resets_on) ? ` — обновятся ${resetDateWords(subscription.usage_resets_on)}` : ''}.
+                Или перейди на тариф выше.
               </div>
             )}
           </div>
@@ -769,13 +774,13 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
                       </span>
                     )}
                   </div>
-                  {t.upsellFrom && (
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{t.upsellFrom}</div>
+                  {t.card.from && (
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{t.card.from}</div>
                   )}
                   <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {t.features.map((f, i) => (
-                      <li key={i} style={{ display: 'flex', gap: 6, fontSize: 11.5, lineHeight: 1.4, color: 'var(--text-secondary)' }}>
-                        <span style={{ color: TIER_COLORS[t.id], flexShrink: 0 }}>·</span>{f}
+                    {t.card.lines.map((l) => (
+                      <li key={l.key} style={{ display: 'flex', gap: 6, fontSize: 11.5, lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                        <span style={{ color: TIER_COLORS[t.id], flexShrink: 0 }}>·</span>{l.text}
                       </li>
                     ))}
                   </ul>
