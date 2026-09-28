@@ -187,7 +187,25 @@ def test_daily_run_twice_signals_once(monkeypatch):
     monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
     asyncio.run(S.run_daily(r))
     asyncio.run(S.run_daily(r))
-    assert len(box.sent) == 1 and "прогноз на день" in box.sent[0]
+    signals = [t for t in box.sent if not t.startswith(("✅ Утренняя", "🟡 Утренняя"))]
+    assert len(signals) == 1 and "прогноз на день" in signals[0]
+    # Итог утра — каждый прогон, с числом проблем.
+    assert [t for t in box.sent if "Утренняя самопроверка: проблем — 1" in t] and len(box.sent) == 3
+
+
+def test_clean_morning_sends_exactly_one_message(monkeypatch):
+    """Чистое утро — ровно одно сообщение (решение владельца 28.09.2026)."""
+    r, box = FakeRedis(), Outbox()
+
+    async def steps(names):
+        return {n: None for n in names}
+
+    monkeypatch.setattr(S, "run_steps", steps)
+    monkeypatch.setattr(S, "read_feedback", lambda **k: None)
+    monkeypatch.setattr(stats, "read_window", lambda **k: {"gendered_you": 3})
+    monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
+    asyncio.run(S.run_daily(r))
+    assert box.sent == ["✅ Утренняя самопроверка: всё в порядке\nРодовые формы за 24 ч: 3"]
 
 
 # ── Часовая проверка ────────────────────────────────────────
@@ -415,7 +433,8 @@ def test_daily_run_signals_dislikes(monkeypatch):
     monkeypatch.setattr(S, "read_feedback", lambda **k: _fb(model_up=5, model_down=5))
     monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
     asyncio.run(S.run_daily(r))
-    assert len(box.sent) == 1 and "👎" in box.sent[0] and "модель 👍 5 👎 5" in box.sent[0]
+    assert len(box.sent) == 2 and "👎" in box.sent[0] and "модель 👍 5 👎 5" in box.sent[0]
+    assert box.sent[1].startswith("🟡 Утренняя самопроверка: проблем — 1")
 
 
 # ── Недоставленный сигнал и итог прогона переживают деплой (27.09.2026) ──
@@ -441,7 +460,8 @@ def test_daily_records_problems_and_unsent(monkeypatch):
     kind, results, unsent = S.recorded[-1]
     assert kind == "daily"
     assert results["feed"] == "пусто" and results["offsite_backup"] == "копия вне сервера не настроена"
-    assert set(unsent) == {"feed", "offsite_backup"}
+    # Недоставленное утреннее сообщение тоже попадает в итог прогона.
+    assert set(unsent) == {"feed", "offsite_backup", "morning_summary"}
 
 
 def test_record_run_writes_row(db):

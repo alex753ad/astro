@@ -463,8 +463,41 @@ async def run_daily(redis) -> dict:
         results["dislike_share"] = problem_dislike_share(fb)
         if await settle(redis, "dislike_share", results["dislike_share"], details=feedback_line(fb)) == "unsent":
             unsent.append("dislike_share")
+    if not await send_morning_summary(results):
+        unsent.append("morning_summary")
     record_run("daily", results, unsent)
     return results
+
+
+def morning_text(results: dict, gendered: int) -> str:
+    """Итог утра одним сообщением: «всё в порядке» или число проблем с
+    названиями, и счётчик родовых форм за сутки (gender_check)."""
+    names = [TITLES.get(n) or TITLES.get(n.split(":")[0], n) for n, p in results.items() if p]
+    head = ("✅ Утренняя самопроверка: всё в порядке" if not names
+            else f"🟡 Утренняя самопроверка: проблем — {len(names)} ({', '.join(names)})")
+    return f"{head}\nРодовые формы за 24 ч: {gendered}"
+
+
+async def send_morning_summary(results: dict, *, send=None) -> bool:
+    """Решение владельца 28.09.2026: каждое утро ровно одно сообщение в канал,
+    даже если всё чисто, — тишина иначе неотличима от упавшей самопроверки.
+    Сигналы о проблемах (settle) остаются как были, это сообщение — сверх них.
+    Родовые формы — окно stats (24 ч), то же число, что в часовой сводке."""
+    if send is None:
+        from backend.notifications.telegram import send_support_message as send
+    from backend.forecast import stats
+    try:
+        gendered = stats.summarize(stats.read_window()).get("gendered_you", 0)
+    except Exception:
+        gendered = 0
+    text = morning_text(results, gendered)
+    try:
+        if await send(text):
+            return True
+    except Exception as e:
+        logger.warning("selfcheck: утреннее сообщение не ушло: %s", e)
+    logger.error("selfcheck: утреннее сообщение не доставлено — %s", text)
+    return False
 
 
 async def run_hourly(redis) -> dict:
