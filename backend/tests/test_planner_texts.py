@@ -1,0 +1,66 @@
+"""Тексты планера: словарь продукта (задание владельца 28.09.2026, раздел 4).
+
+Сканирует ВСЕ строки methodology.json и заголовки планет ленты
+(house_passages.PLANET_SUBTITLES):
+* нет «ИИ»/«AI» (голос продукта), эзотерики («эзотерик», «чакр», «карм»,
+  «магическ», «Вселенн»), «т.д» без пробела, «беременн»;
+* нет обрыва заголовка: строка не кончается предлогом или «в темах» — так
+  висели «…получения удовольствия через» и «…ремонта в темах».
+
+Правки текстов — docs/planner_texts_review.md; свои тексты противоположных
+домов Урана, Нептуна и Плутона — TASKS.md.
+"""
+import json
+import re
+from pathlib import Path
+
+import pytest
+
+from backend.transit.house_passages import PLANET_SUBTITLES
+
+SRC = Path(__file__).resolve().parents[1] / "transit" / "methodology.json"
+
+FORBIDDEN = re.compile(r"\bИИ\b|\bAI\b|эзотерик|чакр|карм|магическ|Вселенн|т\.д|беременн", re.I)
+# Предлоги, на которых строка обрываться не может, и «в темах».
+DANGLING = re.compile(
+    r"(?:\s(?:в|во|на|по|через|для|к|ко|с|со|о|об|от|из|у|за|при|про|без|до|над|под)|в темах)\s*$",
+    re.I,
+)
+
+
+def _strings():
+    def walk(x, path):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                yield from walk(v, f"{path}/{k}")
+        elif isinstance(x, list):
+            for i, v in enumerate(x):
+                yield from walk(v, f"{path}/{i}")
+        elif isinstance(x, str) and x:
+            yield path, x
+    yield from walk(json.loads(SRC.read_text(encoding="utf-8")), "")
+    for k, v in PLANET_SUBTITLES.items():
+        yield f"PLANET_SUBTITLES/{k}", v
+
+
+STRINGS = list(_strings())
+
+
+def test_scanner_sees_the_texts():
+    assert len(STRINGS) > 800
+
+
+@pytest.mark.parametrize("path,text", STRINGS, ids=[p for p, _ in STRINGS])
+def test_no_forbidden_words(path, text):
+    assert not FORBIDDEN.search(text), f"{path}: {text}"
+
+
+@pytest.mark.parametrize("path,text", STRINGS, ids=[p for p, _ in STRINGS])
+def test_no_dangling_heading(path, text):
+    assert not DANGLING.search(text), f"{path}: {text}"
+
+
+def test_scanner_catches_known_breaks():
+    assert DANGLING.search("Лучшее время для наполнения ресурсом, получения удовольствия через")
+    assert DANGLING.search("…наведения порядка и ремонта в темах")
+    assert FORBIDDEN.search("Используй ИИ для работы") and FORBIDDEN.search("родовой кармой")
