@@ -75,7 +75,7 @@ describe('lockedPlannerText — текст соответствует тому, 
 
   it('у долгосрочного периода своя строка — он про старший тариф, а не про неделю', () => {
     const text = lockedPlannerText(ev('planner_longterm'), 'lite');
-    expect(text).toMatch(/старшем тарифе/);
+    expect(text).toMatch(/Долгосрочные периоды: Юпитер, Сатурн.* — на тарифе Лира/);
     expect(text).not.toMatch(/недел/);
   });
 

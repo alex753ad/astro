@@ -10,7 +10,7 @@ PLANET_RU: dict[str, str] = {
     "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
     "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн", "Uranus": "Уран",
     "Neptune": "Нептун", "Pluto": "Плутон",
-    "North Node": "Сев. Узел", "South Node": "Юж. Узел",
+    "North Node": "Сев. узел", "South Node": "Юж. узел",
     "Ascendant": "Асцендент", "Midheaven": "MC",
     "Descendant": "Десцендент", "IC": "IC",
 }

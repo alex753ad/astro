@@ -31,6 +31,21 @@ export function toDMS(decimalDegrees) {
 }
 
 /**
+ * `28.27` → `28°16′` — градусы и минуты, как в PDF (backend/natal_pdf.dms).
+ * Лента показывала «28.3°»: десятые доли градуса человек не читает, а в
+ * астрологии принят формат с минутами (решение владельца 29.09.2026).
+ * Перенос при округлении: 28.999 → 29°00′, а не «28°60′».
+ */
+export function toDM(decimalDegrees) {
+  if (typeof decimalDegrees !== 'number' || Number.isNaN(decimalDegrees)) return '';
+  const total = Math.abs(decimalDegrees);
+  let deg = Math.floor(total);
+  let min = Math.round((total - deg) * 60);
+  if (min === 60) { min = 0; deg += 1; }
+  return `${deg}°${String(min).padStart(2, '0')}′`;
+}
+
+/**
  * Градус куспида внутри знака.
  *
  * ⚠️ У дома `degree` — АБСОЛЮТНАЯ долгота 0–360, а у планеты

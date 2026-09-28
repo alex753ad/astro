@@ -38,6 +38,8 @@ const LONGTERM_TIERS = ['pro', 'premium'];
  * показать заплатившему предложение купить хуже, чем не показать его
  * бесплатному — второе он увидит на витрине и без нас.
  */
+import { lockText } from '../../lib/tierCatalog';
+
 export function upgradeOpensIt(event, tier, known = true) {
   if (!event?.locked || !known) return false;
   if (tier === 'free') return true;
@@ -58,9 +60,10 @@ export function upgradeOpensIt(event, tier, known = true) {
  */
 export function lockedPlannerText(event, tier, known = true) {
   if (upgradeOpensIt(event, tier, known)) {
-    return event?.kind === 'planner_longterm'
-      ? 'Долгосрочные периоды с разбором открываются на старшем тарифе.'
-      : 'Рекомендации на этот период открываются на платном тарифе. Прошедшие периоды и текущая неделя открыты всегда.';
+    // Что и на каком тарифе — из каталога витрины через offerRule, как на вебе.
+    const feature = { planner_longterm: 'planner_longterm', planner_moon_house: 'planner_moon' }[event?.kind] || 'planner_period';
+    const tail = feature === 'planner_moon' ? ' Прошедшие периоды и текущая неделя открыты всегда.' : '';
+    return `${lockText(feature, tier)}${tail}`;
   }
   // ⚠️ Пусто, а не общая фраза. Сюда попадает только расхождение сетки между
   // сервером и клиентом (см. upgradeOpensIt): сказать «откроется на платном»

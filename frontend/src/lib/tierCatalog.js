@@ -19,8 +19,9 @@
  */
 
 import {
-  FREE_TRANSITS_TEASER_MONTHS, TIER_NAMES_GENITIVE, TIER_PDF_PER_MONTH,
+  FREE_TRANSITS_TEASER_MONTHS, TIER_NAMES, TIER_NAMES_GENITIVE, TIER_PDF_PER_MONTH,
 } from '../constants';
+import { offerFor } from './offerRule';
 import { TIER_WORDS } from './interpretationUpsell';
 
 export const CATALOG_TIERS = ['free', 'lite', 'pro', 'premium'];
@@ -272,6 +273,24 @@ export function tierCard(tier, { surface = 'web', focus, full = false, brief = f
     lines,
     site: site.length ? `На сайте: ${site.join(', ')}` : null,
   };
+}
+
+/**
+ * Текст замка: что закрыто и на каком тарифе открывается — пункт каталога,
+ * его значение на том тарифе и сам тариф по offerRule. Решение владельца
+ * 29.09.2026: замок в планере писал «периоды Марса, Венеры, Сатурна… на
+ * тарифе Вега», а Сатурн — долгосрочные периоды, и они на Лире. Своих
+ * перечислений планет в замках больше нет.
+ *
+ * «Долгосрочные периоды: Юпитер, Сатурн, Уран, Нептун, Плутон — на тарифе Лира.»
+ */
+export function lockText(feature, tier) {
+  const item = catalogItem(feature);
+  const o = offerFor(feature, tier || 'free', { sellable: ['lite', 'pro'] });
+  if (!item || !o) return '';
+  const v = item.value(o.primary);
+  const what = v && v !== true ? `${item.title}: ${v}` : item.title;
+  return `${what} — на тарифе ${TIER_NAMES[o.primary]}.`;
 }
 
 /** Первые n строк карточки — для старых окон сравнения, пока их не заменило

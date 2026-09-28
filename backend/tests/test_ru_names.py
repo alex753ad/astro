@@ -3,7 +3,7 @@
 Раньше PLANET_RU/NATAL_RU были продублированы по нескольким файлам и каждая
 копия покрывала только часть точек — из-за этого узлы (North Node/South Node)
 и местами Плутон оставались непереведёнными в письмах и пушах (латиница
-"North Node" вместо "Сев. Узел"). backend/ephemeris/ru_names.py — теперь
+"North Node" вместо "Сев. узел"). backend/ephemeris/ru_names.py — теперь
 единственный источник; этот тест проверяет, что он покрывает всё, что может
 реально прийти как transit_planet/natal_planet из calculate_transits.
 """

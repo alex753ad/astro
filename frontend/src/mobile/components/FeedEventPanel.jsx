@@ -16,6 +16,7 @@
  * отрисована по спецификации, но неактивна, пока не передан `onUpgrade`.
  */
 
+import { toDM } from '../lib/chartFormat';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FeedLockMark from './FeedLockMark';
 import FeedLunationForecast from './FeedLunationForecast';
@@ -153,7 +154,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   );
   const plannerGroups = planner && !event.locked && Array.isArray(meta.groups) ? meta.groups : [];
   const degree = typeof meta.transit_degree === 'number'
-    ? `${meta.transit_degree.toFixed(1)}° `
+    ? `${toDM(meta.transit_degree)} `
     : '';
 
   return (

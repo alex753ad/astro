@@ -29,9 +29,9 @@
 import React from 'react';
 import BlurredHint from './BlurredHint';
 import FeedLockMark from './FeedLockMark';
-import FeedOrbChip from './FeedOrbChip';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { daysBetween, eventTitle, localToday, periodRangeFull, planetRu, signRu } from '../lib/feedTime';
+import { daysBetween, eventTitle, localToday, natalLabel, periodRangeFull, planetRu, signRu } from '../lib/feedTime';
+import { toDM } from '../lib/chartFormat';
 import { planetDotColor } from '../lib/feedTimelineDot';
 import { splitItemLabel } from '../lib/plannerItemLabel';
 import { hasLunationForecast } from '../lib/lunationPhase';
@@ -123,13 +123,11 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
   // Строка знаков — только когда пришли оба знака: у не-транзитов их нет.
   const hasSigns = meta.transit_sign && meta.natal_sign;
   const degree = typeof meta.transit_degree === 'number'
-    ? `${meta.transit_degree.toFixed(1)}° `
+    ? `${toDM(meta.transit_degree)} `
     : '';
 
-  // Орб приходит только у транзита; вид чипа (и правило «точный») живут в
-  // FeedOrbChip.jsx — он же рисует этот чип в сжатой строке дня
-  // (FeedEventRow.jsx), поэтому правило здесь не повторяется.
-  const hasOrb = typeof meta.peak_orb === 'number';
+  // Чипа орба больше нет (29.09.2026): событие стоит в момент пика, то есть
+  // точного аспекта, и чип у каждого транзита показывал одно и то же «0.0°».
 
   // Формула («☽ △ ♆   Луна — Нептун», §4 SPEC_FEED_VISUAL.md) заменяет
   // словесный заголовок только у транзита и только когда есть чем её
@@ -280,7 +278,7 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
           <span style={{ ...glyphStyle, fontSize: glyphSize, color: aspectColor(formula.aspect_type) }}>
             {aspectSymbol(formula.aspect_type)}
           </span>
-          <span style={{ ...glyphStyle, fontSize: glyphSize }}>{glyph(formula.natal_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: glyphSize }}>{formula.node_axis ? '☊☋' : glyph(formula.natal_planet)}</span>
           <span
             style={{
               fontSize: wordSize,
@@ -301,9 +299,9 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
               overflowWrap: 'anywhere',
             }}
           >
-            {planetRu(formula.transit_planet)} — {planetRu(formula.natal_planet)}
+            {planetRu(formula.transit_planet)} — {natalLabel(formula)}
           </span>
-          {(openInterpretation || hasOrb) && (
+          {openInterpretation && (
             <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
               {/* Рамки нет (см. boxed выше), поэтому «разбор открыт» переехал
                   сюда — раньше эта точка объясняла подсвеченную рамку
@@ -315,7 +313,6 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
                   style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}
                 />
               )}
-              {hasOrb && <FeedOrbChip meta={meta} />}
             </span>
           )}
         </div>

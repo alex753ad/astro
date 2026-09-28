@@ -81,8 +81,8 @@ export function signRu(sign) {
 export const PLANET_RU = {
   Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
   Mars: 'Марс', Jupiter: 'Юпитер', Saturn: 'Сатурн', Uranus: 'Уран',
-  Neptune: 'Нептун', Pluto: 'Плутон', 'North Node': 'Сев. Узел',
-  'South Node': 'Юж. Узел',
+  Neptune: 'Нептун', Pluto: 'Плутон', 'North Node': 'Сев. узел',
+  'South Node': 'Юж. узел',
 };
 
 export function planetRu(planet) {
@@ -339,4 +339,13 @@ export function groupByDay(events) {
     current.events.push(event);
   }
   return days;
+}
+
+/**
+ * Ось узлов (29.09.2026): лента склеивает аспект к Сев. и Юж. узлу в одно
+ * событие (`meta.node_axis`, backend/feed/builder.py). Подпись и значок —
+ * оси, а не одного узла.
+ */
+export function natalLabel(meta) {
+  return meta?.node_axis ? 'ось узлов' : planetRu(meta?.natal_planet);
 }

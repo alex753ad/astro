@@ -315,7 +315,7 @@ class TestCelebrityCharts:
         assert mercury.retrograde is True
 
     def test_north_node_always_retrograde(self):
-        """Средний Северный Узел всегда ретроградный."""
+        """Средний Северный узел всегда ретроградный."""
         dt = datetime(2000, 1, 1, 12, 0, 0)
         planets = calculate_planets(dt)
         node = next(p for p in planets if p.name == "North Node")

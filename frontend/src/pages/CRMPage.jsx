@@ -146,7 +146,7 @@ const S = {
 const PLANET_RU = {
   Sun: 'Солнце', Moon: 'Луна', Mercury: 'Меркурий', Venus: 'Венера',
   Mars: 'Марс', Jupiter: 'Юпитер', Saturn: 'Сатурн', Uranus: 'Уран',
-  Neptune: 'Нептун', Pluto: 'Плутон', 'North Node': 'Сев. Узел',
+  Neptune: 'Нептун', Pluto: 'Плутон', 'North Node': 'Сев. узел',
 };
 const ASPECT_RU = {
   conjunction: 'соединение', opposition: 'оппозиция', square: 'квадрат',

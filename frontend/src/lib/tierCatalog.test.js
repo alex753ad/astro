@@ -142,3 +142,14 @@ describe('«обновятся …» / «доступ до …» — даты т
       .toEqual({ resetsOn: '2026-10-29', accessUntil: '2026-11-28' });
   });
 });
+
+describe('текст замка — из каталога через offerRule', () => {
+  it('периоды Солнца–Марса — Вега, без Сатурна; долгосрочные — Лира', async () => {
+    const { lockText } = await import('./tierCatalog');
+    const period = lockText('planner_period', 'free');
+    expect(period).toContain('на тарифе Вега');
+    expect(period).not.toMatch(/Сатурн/);
+    expect(lockText('planner_longterm', 'free')).toMatch(/Сатурн.*на тарифе Лира/);
+    expect(lockText('planner_longterm', 'pro')).toBe('');
+  });
+});

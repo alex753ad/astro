@@ -35,10 +35,9 @@
 
 import React from 'react';
 import FeedLockMark from './FeedLockMark';
-import FeedOrbChip from './FeedOrbChip';
 import { isLocked, isOpenable } from './FeedEventCard';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
-import { eventTitle, moonRangeShort, planetRu } from '../lib/feedTime';
+import { eventTitle, moonRangeShort, natalLabel, planetRu } from '../lib/feedTime';
 
 /**
  * Высота первой строки заголовка строки события.
@@ -150,7 +149,7 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
           <span style={{ ...glyphStyle, fontSize: quiet ? 12 : 13, color: aspectColor(formula.aspect_type) }}>
             {aspectSymbol(formula.aspect_type)}
           </span>
-          <span style={{ ...glyphStyle, fontSize: quiet ? 12 : 13 }}>{glyph(formula.natal_planet)}</span>
+          <span style={{ ...glyphStyle, fontSize: quiet ? 12 : 13 }}>{formula.node_axis ? '☊☋' : glyph(formula.natal_planet)}</span>
           <span
             style={{
               fontSize: quiet ? 12 : 13,
@@ -169,7 +168,7 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
               // съедала ВТОРУЮ планету целиком («Меркурий — Ма…», «Венера —
               // Сев. …»), то есть половину содержания аспекта: по первой
               // планете событие не опознать. Сокращать слова тоже нельзя —
-              // «Сев. Узел» уже сокращение. Строка на два ряда дороже
+              // «Сев. узел» уже сокращение. Строка на два ряда дороже
               // высотой, но дешевле потерянного смысла.
               //
               // ⚠️ Это НЕ отменяет правило §5 «однострочные сводки не
@@ -179,7 +178,7 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
               overflowWrap: 'anywhere',
             }}
           >
-            {planetRu(formula.transit_planet)} — {planetRu(formula.natal_planet)}
+            {planetRu(formula.transit_planet)} — {natalLabel(formula)}
           </span>
         </>
       ) : (
@@ -225,7 +224,6 @@ export default function FeedEventRow({ event, onOpen, quiet = false }) {
             style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}
           />
         )}
-        <FeedOrbChip meta={meta} />
       </span>
     </div>
   );

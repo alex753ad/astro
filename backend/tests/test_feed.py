@@ -667,14 +667,14 @@ class TestTierAndTemplates:
         web_planets = {
             "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий", "Venus": "Венера",
             "Mars": "Марс", "Jupiter": "Юпитер", "Saturn": "Сатурн", "Uranus": "Уран",
-            "Neptune": "Нептун", "Pluto": "Плутон", "North Node": "Сев. Узел",
+            "Neptune": "Нептун", "Pluto": "Плутон", "North Node": "Сев. узел",
         }
         assert TEMPLATES["aspects"] == web_aspects
         for eng, ru in web_planets.items():
             assert TEMPLATES["natal_labels"][eng] == ru, eng
-        # Юж. Узел приходит как натальная точка, но в словаре веба его нет
+        # Юж. узел приходит как натальная точка, но в словаре веба его нет
         # вовсе — там подпись просто не отрисуется. В ленте она есть.
-        assert TEMPLATES["natal_labels"]["South Node"] == "Юж. Узел"
+        assert TEMPLATES["natal_labels"]["South Node"] == "Юж. узел"
 
     def test_templates_cover_every_combination_(self):
         """Каркас обязан покрывать все комбинации, иначе часть транзитов
@@ -910,3 +910,29 @@ class TestPeakDateIsNotDerivedFromAt:
         for e in transits:
             assert e["meta"].get("peak_date"), e["meta"]
             assert date.fromisoformat(e["meta"]["peak_date"])
+
+
+class TestNodeAxisMerged:
+    """Аспект к Сев. и Юж. узлу — одно событие «… на оси узлов» (29.09.2026)."""
+
+    @staticmethod
+    def _ev(natal, aspect, peak="2026-10-10", tp="Mars"):
+        return {"key": f"t:{natal}", "kind": "transit", "text": "x",
+                "meta": {"transit_planet": tp, "natal_planet": natal,
+                         "aspect_type": aspect, "peak_date": peak}}
+
+    def test_pair_becomes_one_axis_event(self):
+        from backend.feed.builder import _merge_node_axis
+        out = _merge_node_axis([self._ev("North Node", "conjunction"), self._ev("South Node", "opposition")])
+        assert len(out) == 1
+        assert out[0]["meta"]["natal_planet"] == "North Node"   # в разбор — как раньше
+        assert out[0]["meta"]["node_axis"] is True
+        assert out[0]["text"] == "Марс на оси узлов"
+
+    def test_lone_node_and_other_dates_stay(self):
+        from backend.feed.builder import _merge_node_axis
+        evs = [self._ev("North Node", "trine"), self._ev("South Node", "sextile", peak="2026-11-01"),
+               self._ev("Sun", "square")]
+        out = _merge_node_axis(evs)
+        assert len(out) == 3
+        assert not any(e["meta"].get("node_axis") for e in out)

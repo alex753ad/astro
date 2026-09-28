@@ -374,6 +374,45 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                     "significant": e["significant"],
                 },
             })
+    return _merge_node_axis(out)
+
+
+# Узлы противоположны: аспект к Северному — это всегда аспект к Южному с тем же
+# моментом пика (соединение ↔ оппозиция, трин ↔ секстиль, квадрат ↔ квадрат).
+# Лента показывала два события про одно и то же. Решение владельца 29.09.2026:
+# одно событие «Марс на оси узлов». Остаётся событие к Северному узлу — его
+# natal_planet и аспект уходят в разбор транзита, как раньше; клиенту —
+# `meta.node_axis`, по нему подпись «ось узлов» и значок ☊☋.
+_AXIS_TEXT = {
+    "conjunction": "{t} на оси узлов",
+    "opposition": "{t} на оси узлов",
+    "square": "{t} в квадрате к оси узлов",
+    "trine": "{t} в гармонии с осью узлов",
+    "sextile": "{t} в гармонии с осью узлов",
+}
+
+
+def _merge_node_axis(events: list[dict]) -> list[dict]:
+    south = {
+        (e["meta"]["transit_planet"], e["meta"]["peak_date"])
+        for e in events if e["meta"].get("natal_planet") == "South Node"
+    }
+    north = {
+        (e["meta"]["transit_planet"], e["meta"]["peak_date"])
+        for e in events if e["meta"].get("natal_planet") == "North Node"
+    }
+    both = south & north
+    out = []
+    for e in events:
+        m = e["meta"]
+        pair = (m["transit_planet"], m["peak_date"])
+        if pair in both and m.get("natal_planet") == "South Node":
+            continue
+        if pair in both:
+            m["node_axis"] = True
+            transit = TEMPLATES.get("transit_planets", {}).get(m["transit_planet"], m["transit_planet"])
+            e["text"] = _AXIS_TEXT.get(m["aspect_type"], "{t} и ось узлов").format(t=transit)
+        out.append(e)
     return out
 
 

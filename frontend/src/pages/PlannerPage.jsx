@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import TierOfferModal from "../components/TierOfferModal";
+import { lockText } from "../lib/tierCatalog";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -920,7 +921,7 @@ function MonthSection({ section, onUpgrade }) {
             <Fragment key={pi}>
               {showBanner && (
                 <LockedGroupHint onUpgrade={onUpgrade}>
-                  Дальше по месяцу — периоды Марса, Венеры, Сатурна с датами и разбором. Открывается на тарифе {TIER_NAMES.lite}.
+                  {lockText("planner_period", "free")}
                 </LockedGroupHint>
               )}
               <PeriodBlock planet={section.planet}
@@ -969,6 +970,20 @@ function LockedGroupHint({ children, onUpgrade }) {
 
 // Единая карточка периода — используется в разделах "Месяц", "Неделя" и "Долгосрочно",
 // чтобы визуально не отличались (заголовок-бейдж + theme → subtitle → notes → группы).
+// «23.09 — 01.12» → «23 сентября — 1 декабря», «02.07.2026» → «2 июля 2026».
+// Сервер отдаёт даты периода строкой в числовом виде (house_passages
+// _fmt_period), и эту же строку получает промпт планера — поэтому формат
+// меняется только при показе, а не в источнике (решение владельца 29.09.2026).
+const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+  "августа", "сентября", "октября", "ноября", "декабря"];
+function datesInWords(text) {
+  return String(text || "").replace(/\b(\d{2})\.(\d{2})(?:\.(\d{4}))?\b/g, (m, d, mo, y) => {
+    const name = MONTHS_GEN[Number(mo) - 1];
+    if (!name) return m;
+    return `${Number(d)} ${name}${y ? ` ${y}` : ""}`;
+  });
+}
+
 function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warning, locked }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
@@ -977,7 +992,7 @@ function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warnin
       <div className="period-card-header">
         <PlanetDot type={planet} size={20} />
         <span className="period-badge" style={{ color, background: `${color}18` }}>
-          {badgeText}
+          {datesInWords(badgeText)}
         </span>
       </div>
       {theme && <div className="period-subtitle">{theme}</div>}
@@ -1253,8 +1268,8 @@ export default function PlannerPage() {
           {(isFree || userTier === "lite") && (
             <LockedGroupHint onUpgrade={() => openPaywall(isFree ? "planner_period" : "planner_longterm")}>
               {isFree
-                ? <>✦ Сейчас открыт твой период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по твоей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.</>
-                : <>✦ Месяц и неделя открыты полностью. Долгосрочные периоды — тренды на месяцы и годы вперёд — открываются на тарифе {TIER_NAMES.pro}.</>}
+                ? <>✦ Сейчас открыт твой период Солнца — главная тема этого времени. {lockText("planner_period", "free")}</>
+                : <>✦ Месяц и неделя открыты полностью. {lockText("planner_longterm", "lite")}</>}
             </LockedGroupHint>
           )}
 
@@ -1319,7 +1334,7 @@ export default function PlannerPage() {
                           {showBanner && (
                             <LockedGroupHint onUpgrade={() => openPaywall("planner_moon")}>
                               Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям.
-                              Прошедшие периоды и текущая неделя открыты всегда; всё окно вперёд — на тарифе {TIER_NAMES.lite}.
+                              Прошедшие периоды и текущая неделя открыты всегда. {lockText("planner_moon", "free")}
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
@@ -1347,7 +1362,7 @@ export default function PlannerPage() {
                         <Fragment key={i}>
                           {showBanner && (
                             <LockedGroupHint onUpgrade={() => openPaywall("planner_longterm")}>
-                              Дальше — медленные планеты задают твои большие темы на месяцы и годы вперёд. Открывается на тарифе {TIER_NAMES.pro}.
+                              Дальше — медленные планеты задают твои большие темы на месяцы и годы вперёд. {lockText("planner_longterm", userTier)}
                             </LockedGroupHint>
                           )}
                           <div style={{ marginBottom: 20 }}>
