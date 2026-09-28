@@ -4,9 +4,8 @@ import MotionButton from "../components/MotionButton";
 import { authFetch, createCheckoutSession, apiErrorText } from "../api/client";
 import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
-import { PLANNER_WEEKS_AHEAD, TIER_NAMES } from "../constants";
-import LyraPaywallModal from "../components/LyraPaywallModal";
-import PlanComparisonModal from "../components/PlanComparisonModal";
+import { TIER_NAMES } from "../constants";
+import TierOfferModal from "../components/TierOfferModal";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -1053,11 +1052,13 @@ export default function PlannerPage() {
   // смысл на текущем месяце). При явном клике по стрелке храним индекс недели
   // от начала отображаемого месяца (см. week_nav в ответе бэкенда).
   const [weekOffset, setWeekOffset]           = useState(null);
-  const [showPaywall, setShowPaywall]         = useState(false);
+  // Что человек пытался открыть — пункт каталога витрины (planner_period,
+  // planner_moon, planner_longterm): с него начинается окно предложения.
+  const [offerFeature, setOfferFeature]       = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
-  function openPaywall() {
-    setShowPaywall(true);
+  function openPaywall(feature) {
+    setOfferFeature(feature);
   }
 
   // Смена месяца — сбрасываем неделю в одном рендере, а не отдельным эффектом,
@@ -1107,10 +1108,6 @@ export default function PlannerPage() {
     }
   }
 
-  function handleEnterPromo() {
-    const code = window.prompt("Введи промокод:");
-    if (code && code.trim()) handleCheckout("pro", code.trim());
-  }
 
   const { exportEvents, status: gcalStatus } = useGcalExport();
 
@@ -1208,9 +1205,9 @@ export default function PlannerPage() {
   })();
 
   const gcalLabel = {
-    idle:    "📅 Экспортировать в Google Calendar",
+    idle:    "📅 Экспортировать события в Google Календарь",
     loading: "⏳ Экспортируем…",
-    success: "✅ Добавлено в Google Calendar",
+    success: "✅ Добавлено в Google Календарь",
     error:   "❌ Ошибка — попробуй снова",
   }[gcalStatus];
 
@@ -1239,7 +1236,7 @@ export default function PlannerPage() {
           </div>
 
           {(isFree || userTier === "lite") && (
-            <LockedGroupHint onUpgrade={openPaywall}>
+            <LockedGroupHint onUpgrade={() => openPaywall(isFree ? "planner_period" : "planner_longterm")}>
               {isFree
                 ? <>✦ Сейчас открыт твой период Солнца — главная тема этого времени. Марс, Венера, Сатурн уже движутся по твоей карте — их периоды и компенсации открываются на тарифе {TIER_NAMES.lite}.</>
                 : <>✦ Месяц и неделя открыты полностью. Долгосрочные периоды — тренды на месяцы и годы вперёд — открываются на тарифе {TIER_NAMES.pro}.</>}
@@ -1267,7 +1264,7 @@ export default function PlannerPage() {
               <TabBar tabs={tabs} active={tab} onChange={setTab} />
 
               {tab === "month" && (planData?.month_sections || []).map((section, si) => (
-                <MonthSection key={si} section={section} onUpgrade={openPaywall} />
+                <MonthSection key={si} section={section} onUpgrade={() => openPaywall("planner_period")} />
               ))}
 
               {tab === "week" && (
@@ -1305,9 +1302,9 @@ export default function PlannerPage() {
                       return (
                         <Fragment key={i}>
                           {showBanner && (
-                            <LockedGroupHint onUpgrade={openPaywall}>
+                            <LockedGroupHint onUpgrade={() => openPaywall("planner_moon")}>
                               Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям.
-                              Прошедшие периоды и текущая неделя открыты всегда; ещё {PLANNER_WEEKS_AHEAD.lite - 1} недели вперёд — на тарифе {TIER_NAMES.lite}.
+                              Прошедшие периоды и текущая неделя открыты всегда; всё окно вперёд — на тарифе {TIER_NAMES.lite}.
                             </LockedGroupHint>
                           )}
                           <PeriodBlock planet="moon"
@@ -1334,7 +1331,7 @@ export default function PlannerPage() {
                       return (
                         <Fragment key={i}>
                           {showBanner && (
-                            <LockedGroupHint onUpgrade={openPaywall}>
+                            <LockedGroupHint onUpgrade={() => openPaywall("planner_longterm")}>
                               Дальше — медленные планеты задают твои большие темы на месяцы и годы вперёд. Открывается на тарифе {TIER_NAMES.pro}.
                             </LockedGroupHint>
                           )}
@@ -1361,9 +1358,9 @@ export default function PlannerPage() {
                   className={`gcal-btn${!isFree && gcalStatus === "success" ? " success" : ""}${!isFree && gcalStatus === "error" ? " error" : ""}`}
                   disabled={isFree || gcalStatus === "loading"}
                   onClick={() => { if (!isFree) exportEvents(buildExportEvents()); }}
-                  title={isFree ? `Экспорт в Google Calendar доступен на тарифе ${TIER_NAMES.lite} и выше` : undefined}
+                  title={isFree ? `Экспорт событий в Google Календарь — на тарифе ${TIER_NAMES.lite} и выше` : undefined}
                 >
-                  {isFree ? `Экспорт в Google Calendar — на тарифе ${TIER_NAMES.lite} и выше` : gcalLabel}
+                  {isFree ? `Экспорт событий в Google Календарь — на тарифе ${TIER_NAMES.lite} и выше` : gcalLabel}
                 </MotionButton>
               </div>
             </>
@@ -1372,24 +1369,14 @@ export default function PlannerPage() {
         </div>
       </div>
 
-      {isFree && (
-        <PlanComparisonModal
-          open={showPaywall}
-          onClose={() => setShowPaywall(false)}
-          onChooseVega={() => handleCheckout("lite")}
-          onChooseLyra={() => handleCheckout("pro")}
-          onContinueFree={() => setShowPaywall(false)}
-        />
-      )}
-      {userTier === "lite" && (
-        <LyraPaywallModal
-          open={showPaywall}
-          onClose={() => setShowPaywall(false)}
-          onSubscribe={() => handleCheckout("pro")}
-          onEnterPromo={handleEnterPromo}
-          onContinueFree={() => setShowPaywall(false)}
-        />
-      )}
+      <TierOfferModal
+        open={!!offerFeature}
+        onClose={() => setOfferFeature(null)}
+        feature={offerFeature}
+        tier={userTier || "free"}
+        onChoose={(t) => handleCheckout(t)}
+        busy={checkoutLoading}
+      />
     </>
   );
 }
