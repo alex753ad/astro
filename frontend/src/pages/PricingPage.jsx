@@ -5,6 +5,7 @@
 
 import { Link, useNavigate } from 'react-router-dom';
 import MotionButton from '../components/MotionButton';
+import { openFeedback } from '../components/FeedbackButton';
 import { TIERS } from '../constants';
 import { tierCard } from '../lib/tierCatalog';
 import { tierAccusative } from '../mobile/lib/ruDeclension';
@@ -94,6 +95,14 @@ export default function PricingPage({ currentUser, onShowAuth }) {
             на aristeatime.ru. Ничего скачивать и ждать не нужно.
           </p>
         </div>
+        {/* Плавающей кнопки поддержки на этой странице нет (FeedbackButton
+            HIDDEN_ON) — вопрос по оплате задают отсюда, та же форма. */}
+        <p style={s.support}>
+          Вопрос по оплате?{' '}
+          <button type="button" style={s.supportLink} onClick={() => openFeedback('payment')}>
+            Написать в поддержку
+          </button>
+        </p>
 
         <p style={s.legal}>
           Оплата разовая, без автопродления. При переходе на другой тариф
@@ -259,6 +268,22 @@ const s = {
     lineHeight: 1.6,
     color: 'var(--text-secondary)',
     margin: 0,
+  },
+  support: {
+    fontSize: 14,
+    color: 'var(--text-secondary)',
+    textAlign: 'center',
+    margin: '-8px auto 24px',
+  },
+  supportLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    color: 'var(--accent)',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   legal: {
     fontSize: 13,

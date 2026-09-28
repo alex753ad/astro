@@ -153,3 +153,15 @@ describe('текст замка — из каталога через offerRule',
     expect(lockText('planner_longterm', 'pro')).toBe('');
   });
 });
+
+describe('планер — конкретный срок вместо «горизонта ленты»', () => {
+  it('Вега — 6 месяцев вперёд, Лира — 12; free — прошедший месяц', () => {
+    const moon = ITEMS.find((i) => i.key === 'planner_moon');
+    const period = ITEMS.find((i) => i.key === 'planner_period');
+    expect(moon.value('lite')).toBe('на 6 месяцев вперёд');
+    expect(moon.value('pro')).toBe('на 12 месяцев вперёд');
+    expect(period.value('lite')).toBe('все, на 6 месяцев вперёд');
+    expect(moon.value('free')).toBe('текущая неделя и прошедший месяц');
+    expect(period.about).not.toMatch(/Периоды Солнца, Меркурия/);
+  });
+});

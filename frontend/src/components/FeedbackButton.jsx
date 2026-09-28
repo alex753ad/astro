@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { BACKEND_BASE as API_BASE } from "../config";
 
 // E8 — «Здесь что-то не так». Плавающая кнопка на каждом экране.
@@ -16,17 +17,38 @@ function screenFromPath(path) {
   return path.split("/")[1] || "unknown";
 }
 
+// Экраны без плавающей кнопки. /pricing — решение владельца 28.09.2026: круг
+// перекрывал кнопку последней карточки; вместо него строка «Вопрос по оплате?
+// Написать в поддержку» под «Как получить доступ», которая открывает эту же
+// форму событием openFeedback('payment').
+const HIDDEN_ON = ["/pricing"];
+
+/** Открыть форму с другого места страницы. topic уходит в поле screen. */
+export function openFeedback(topic) {
+  window.dispatchEvent(new CustomEvent("aristea:feedback", { detail: { topic } }));
+}
+
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 export default function FeedbackButton() {
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [topic, setTopic] = useState(null);
   const [message, setMessage] = useState("");
   const [screenshot, setScreenshot] = useState(null); // File
   const [screenshotPreview, setScreenshotPreview] = useState(null); // object URL
   const [fileError, setFileError] = useState("");
   const [state, setState] = useState("idle"); // idle | sending | done | error
   const [doneMessage, setDoneMessage] = useState("Спасибо — записали. Это помогает нам чинить.");
+
+  useEffect(() => {
+    const onOpen = (e) => { setTopic(e.detail?.topic || null); setOpen(true); };
+    window.addEventListener("aristea:feedback", onOpen);
+    return () => window.removeEventListener("aristea:feedback", onOpen);
+  }, []);
+
+  function close() { setOpen(false); setState("idle"); setTopic(null); }
 
   function pickFile(file) {
     setFileError("");
@@ -55,7 +77,7 @@ export default function FeedbackButton() {
     try {
       const token = localStorage.getItem("astro_access_token");
       const form = new FormData();
-      form.append("screen", screenFromPath(window.location.pathname));
+      form.append("screen", topic || screenFromPath(window.location.pathname));
       form.append("url", window.location.href);
       if (message.trim()) form.append("message", message.trim());
       form.append("user_agent", navigator.userAgent);
@@ -72,7 +94,7 @@ export default function FeedbackButton() {
       setState("done");
       setMessage("");
       clearFile();
-      setTimeout(() => { setOpen(false); setState("idle"); }, 2200);
+      setTimeout(close, 2200);
     } catch {
       setState("error");
     }
@@ -82,7 +104,7 @@ export default function FeedbackButton() {
     <>
       <style>{fbStyles}</style>
 
-      {!open && (
+      {!open && !HIDDEN_ON.includes(pathname) && (
         <button className="fb-fab" onClick={() => setOpen(true)}
                 aria-label="Здесь что-то не так">
           <span className="fb-fab-full">⚠️ Здесь что-то не так</span>
@@ -96,7 +118,9 @@ export default function FeedbackButton() {
             <div className="fb-done">{doneMessage}</div>
           ) : (
             <>
-              <div className="fb-title">Что не так на этом экране?</div>
+              <div className="fb-title">
+                {topic === "payment" ? "Вопрос по оплате" : "Что не так на этом экране?"}
+              </div>
               <textarea
                 className="fb-input"
                 placeholder="Опиши проблему (необязательно)"
@@ -124,10 +148,10 @@ export default function FeedbackButton() {
               {fileError && <div className="fb-err">{fileError}</div>}
 
               {state === "error" && (
-                <div className="fb-err">Не отправилось. Попробуйте ещё раз.</div>
+                <div className="fb-err">Не отправилось. Попробуй ещё раз.</div>
               )}
               <div className="fb-actions">
-                <button className="fb-cancel" onClick={() => { setOpen(false); setState("idle"); }}>
+                <button className="fb-cancel" onClick={close}>
                   Отмена
                 </button>
                 <button className="fb-send" disabled={state === "sending"} onClick={submit}>
