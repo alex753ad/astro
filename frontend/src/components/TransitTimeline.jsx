@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import MotionButton from "./MotionButton";
 import { API_BASE } from "../config";
-import { TIER_NAMES, tierPriceLabel, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
-import { tierFeatures } from "../lib/tierCatalog";
+import { TIER_NAMES, FREE_TRANSITS_TEASER_MONTHS } from "../constants";
+import { LIMITS, quotaEndedText } from "../lib/tierCatalog";
 import { createCheckoutSession, getSubscription, authFetch, apiErrorText, responseErrorText } from "../api/client";
 import { rememberWebPayment } from '../lib/webPayment';
 import { readSseLines } from "../lib/sseLines";
 import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
-import LyraPaywallModal from "./LyraPaywallModal";
-import PlanComparisonModal from "./PlanComparisonModal";
+import TierOfferModal from "./TierOfferModal";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -474,8 +473,12 @@ function StatsSummary({ events }) {
 // ═══════════════════════════════════════════════════════════
 
 function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
-  let headline = `✨ Открыт разбор 2 самых значимых транзитов`;
-  let sub = `Ещё ${lockedCount} транзитов с разбором — на тарифе ${TIER_NAMES.pro}`;
+  // Показывается free, когда пробные разборы закончились. До 28.09.2026 текст
+  // обещал «разбор 2 самых значимых» и звал сразу на Лиру — оба правила
+  // отменены (docs/tariffs.md): пробные — на любые транзиты, зовём на Вегу.
+  const offer = `На ${TIER_NAMES.lite} — ${LIMITS.lite.transits} разборов в месяц, на ${TIER_NAMES.pro} — без лимита`;
+  let headline = "Пробные разборы транзитов закончились";
+  let sub = `Ещё ${lockedCount} транзитов ждут разбора. ${offer}.`;
 
   if (featuredTransit) {
     const tp = `${PLANET_GLYPHS[featuredTransit.transit_planet] || "★"} ${PLANET_LABELS_RU[featuredTransit.transit_planet] || featuredTransit.transit_planet}`;
@@ -485,7 +488,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
       ? "один из лучших периодов месяца"
       : "важный период — Аристея подскажет, как пройти его мягче";
     headline = `${tp} ${asp} ${np} в твоей карте — ${tail}`;
-    sub = `Разбор этого и ещё ${lockedCount} периодов — на тарифе ${TIER_NAMES.pro}`;
+    sub = `Разбор этого и ещё ${lockedCount} периодов: ${offer.charAt(0).toLowerCase()}${offer.slice(1)}.`;
   }
 
   return (
@@ -511,7 +514,7 @@ function FreePlanBanner({ lockedCount, featuredTransit, onUpgrade }) {
           cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
           boxShadow: "0 4px 12px -2px rgba(144,96,200,0.4)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */
         }}>
-          Открыть {TIER_NAMES.pro}
+          Тарифы
         </button>
       </div>
     </div>
@@ -716,31 +719,18 @@ function InterpretationPanel({ event, chartId, onClose }) {
 // LOCKED TRANSIT PANEL (inline тизер вместо разбора)
 // ═══════════════════════════════════════════════════════════
 
-// Транзит-контекстные тарифы для PlanComparisonModal — features берутся из
-// общего constants.js (см. DEFAULT_VEGA/DEFAULT_LYRA в модалке), не отдельным текстом.
-const TRANSIT_VEGA_PLAN = {
-  name: "Вега",
-  price: tierPriceLabel("lite"),
-  features: tierFeatures("lite", 4),
-};
+function transitLabel(e) {
+  return `${PLANET_LABELS_RU[e.transit_planet] || e.transit_planet} ${ASPECT_LABELS_RU[e.aspect_type] || e.aspect_type} ${PLANET_LABELS_RU[e.natal_planet] || e.natal_planet}`;
+}
 
-const TRANSIT_LYRA_PLAN = {
-  name: "Лира",
-  price: tierPriceLabel("pro"),
-  recommended: true,
-  features: tierFeatures("pro", 4),
-};
-
-function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpenAccess }) {
-  const key = `${PLANET_LABELS_RU[event.transit_planet] || event.transit_planet} ${ASPECT_LABELS_RU[event.aspect_type] || event.aspect_type} ${PLANET_LABELS_RU[event.natal_planet] || event.natal_planet}`;
-
-  const intro = reason === "lite-limit"
-    ? `Разборы транзитов на этот месяц закончились${remaining ? ` (${remaining.used} из ${remaining.limit})` : ""}. Лимит обновится 1-го числа.`
-    : "Бесплатные разборы транзитов использованы.";
-
+// Тексты — по каталогу витрины (lib/tierCatalog.js): числа из LIMITS, дата
+// «обновятся …» — из usage_resets_on сервера, без даты хвоста нет.
+function LockedTransitPanel({ event, reason = "free", resetsOn, onClose, onOpenAccess }) {
+  const key = transitLabel(event);
+  const intro = `${quotaEndedText("transit", reason === "lite-limit" ? "month" : "trial", resetsOn)}.`;
   const outro = reason === "lite-limit"
-    ? "А разбор этого периода уже ждёт тебя на Лире."
-    : "На Веге — 3 разбора в месяц, на Лире — без лимита.";
+    ? `На ${TIER_NAMES.pro} — без лимита.`
+    : `На ${TIER_NAMES.lite} — ${LIMITS.lite.transits} в месяц, на ${TIER_NAMES.pro} — без лимита.`;
 
   return (
     <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
@@ -779,7 +769,7 @@ function fetchTransits(url) {
   });
 }
 
-export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, onUpgrade, focusEventKey }) {
+export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, focusEventKey }) {
   const toast = useToast();
   const [events,        setEvents]        = useState([]);
   const [loadError,     setLoadError]     = useState(false);  // явная ошибка загрузки — не путать с "0 транзитов"
@@ -821,6 +811,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         const limit = data?.limits?.transits_ai_per_month ?? 0;
         const used  = data?.usage?.transit_ai_this_month ?? 0;
         setTransitAiUsage({ used, limit });
+        setResetsOn(data?.usage_resets_on || null);
       })
       .catch(() => {});
   }, [isLite]);
@@ -828,6 +819,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
 
   // Free: остаток пробных разборов транзитов (null — пока не пришло).
   const [freeTrialsLeft, setFreeTrialsLeft] = useState(null);
+  // Дата сброса месячных счётчиков — с сервера (usage_resets_on).
+  const [resetsOn, setResetsOn] = useState(null);
   useEffect(() => {
     if (!isFree) { setFreeTrialsLeft(null); return; }
     const token = typeof localStorage !== 'undefined' ? localStorage.getItem('astro_access_token') : null;
@@ -1108,9 +1101,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     });
   }, [events, activeDate, focusRange]);
 
-  const handleUpgrade = useCallback(() => {
-    if (onUpgrade) onUpgrade('lite_to_pro');
-  }, [onUpgrade]);
+  // Баннер free после пробных — то же окно предложения, что по транзиту.
+  const handleUpgrade = useCallback(() => setPaywallEvent({}), []);
 
   // Апселл конкретного транзита: тариф-цель не зависит от того, что именно
   // закрыто — какую модалку показать решает ТЕКУЩИЙ тариф юзера (см. рендер ниже).
@@ -1133,10 +1125,6 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     }
   }
 
-  function handleEnterPromo() {
-    const code = window.prompt("Введи промокод:");
-    if (code && code.trim()) handleCheckout("pro", code.trim());
-  }
 
   // Free по закрытому транзиту и Lite по истечении месячной квоты не видят
   // реальный разбор — вместо модалки открывается инлайн-тизер
@@ -1313,7 +1301,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
                 <LockedTransitPanel
                   event={selectedEvent}
                   reason="lite-limit"
-                  remaining={transitAiUsage}
+                  resetsOn={resetsOn}
                   onClose={() => setSelectedEvent(null)}
                   onOpenAccess={() => setPaywallEvent(selectedEvent)}
                 />
@@ -1349,30 +1337,16 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         </div>
       )}
 
-      {paywallEvent && (() => {
-        const contextLabel = `${PLANET_LABELS_RU[paywallEvent.transit_planet] || paywallEvent.transit_planet} ${ASPECT_LABELS_RU[paywallEvent.aspect_type] || paywallEvent.aspect_type} ${PLANET_LABELS_RU[paywallEvent.natal_planet] || paywallEvent.natal_planet}`;
-        return isFree ? (
-          <PlanComparisonModal
-            open
-            onClose={() => setPaywallEvent(null)}
-            onChooseVega={() => handleCheckout("lite")}
-            onChooseLyra={() => handleCheckout("pro")}
-            onContinueFree={() => setPaywallEvent(null)}
-            contextLabel={contextLabel}
-            vega={TRANSIT_VEGA_PLAN}
-            lyra={TRANSIT_LYRA_PLAN}
-          />
-        ) : (
-          <LyraPaywallModal
-            open
-            onClose={() => setPaywallEvent(null)}
-            onSubscribe={() => handleCheckout("pro")}
-            onEnterPromo={handleEnterPromo}
-            onContinueFree={() => setPaywallEvent(null)}
-            contextLabel={contextLabel}
-          />
-        );
-      })()}
+      <TierOfferModal
+        open={!!paywallEvent}
+        onClose={() => setPaywallEvent(null)}
+        feature={isLite ? "transit_limit" : "transit"}
+        tier={userTier || "free"}
+        contextLabel={paywallEvent?.transit_planet ? transitLabel(paywallEvent) : null}
+        state={quotaEndedText("transit", isLite ? "month" : "trial", resetsOn)}
+        onChoose={(t) => handleCheckout(t)}
+        busy={checkoutLoading}
+      />
     </div>
   );
 }
