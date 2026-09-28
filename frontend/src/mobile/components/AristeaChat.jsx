@@ -217,7 +217,7 @@ export default function AristeaChat({ chart, onClose }) {
   const chatLeft = quota ? quota.left : trials.chatLeft;
   const chatPeriod = quota ? quota.period : trials.chatPeriod;
   const outOfMessages = ((quota || trials.known) && chatLeft === 0) || failure?.outcome === 'tier';
-  const limitOffer = chatLimitOffer(known ? tier : 'free');
+  const limitOffer = chatLimitOffer(known ? tier : 'free', quota?.resets_on ?? trials.resetsOn);
   const limitTiers = offerFor(limitOffer.feature, known ? tier : 'free');
   const askTier = (id) => openPaySheet({
     focus: id,

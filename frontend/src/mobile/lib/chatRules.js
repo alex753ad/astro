@@ -24,6 +24,8 @@
  * копировать сюда «2490 ₽» значило бы завести второй источник цены.
  */
 
+import { LIMITS, quotaEndedText } from '../../lib/tierCatalog';
+
 /** Что показать, когда сервер не сказал ничего: оборвалась связь. */
 export const CHAT_BROKEN_TEXT =
   'Ответ не дошёл. Проверь связь и попробуй ещё раз.';
@@ -74,18 +76,20 @@ export const CHAT_STREAM_ERROR_CODES = Object.freeze([
 /**
  * Лимит сообщений тарифа (403, check_chat_limit): текст по тарифу, без
  * формулировки сервера (решение владельца 28.09.2026). Free — пробные за всё
- * время; Вега — месячные, обновятся 1-го числа.
+ * время; Вега — месячные. Дата «обновятся …» — `resetsOn` из ответа сервера
+ * (кадр quota чата или usage_resets_on), на клиенте не вычисляется; без неё
+ * хвоста нет. Тексты и числа — из каталога витрины (lib/tierCatalog.js).
  */
-export function chatLimitOffer(tier) {
+export function chatLimitOffer(tier, resetsOn = null) {
   if (tier === 'lite') {
     return {
       feature: 'chat_limit',
-      text: 'Сообщения этого месяца закончились — обновятся 1-го числа. Без лимита — на Лире.',
+      text: `${quotaEndedText('chat', 'month', resetsOn)}. Без лимита — на Лире.`,
     };
   }
   return {
     feature: 'chat',
-    text: 'Пробные сообщения закончились. На Веге — 30 в месяц, на Лире — без лимита.',
+    text: `${quotaEndedText('chat', 'trial')}. На Веге — ${LIMITS.lite.chat} в месяц, на Лире — без лимита.`,
   };
 }
 

@@ -26,7 +26,7 @@
  */
 
 import { interpretationUpsell } from '../../lib/interpretationUpsell';
-import { LIMITS } from '../../lib/tierCatalog';
+import { LIMITS, quotaEndedText } from '../../lib/tierCatalog';
 
 /** Что показать, когда сервер не сказал ничего: оборвалась связь. */
 export const TRANSIT_BROKEN_TEXT =
@@ -131,7 +131,7 @@ export function classifyTransitError(signal) {
  */
 export const TRANSIT_TRIALS_USED_TEXT = `Пробные разборы транзитов закончились. На Веге — ${LIMITS.lite.transits} в месяц, на Лире — без лимита.`;
 
-export function transitOffer(outcome) {
+export function transitOffer(outcome, resetsOn = null) {
   // 403 у разбора транзита с 28.09.2026 — кончились 2 пробных разбора free
   // (check_transit_trial); «значимых» транзитов больше нет.
   if (outcome === TRANSIT_OUTCOMES.NOT_SIGNIFICANT) {
@@ -140,7 +140,8 @@ export function transitOffer(outcome) {
   if (outcome === TRANSIT_OUTCOMES.RATE_LIMIT) {
     return {
       feature: 'transit_limit',
-      text: 'Разборы транзитов на этот месяц закончились — обновятся 1-го числа. Без лимита — на Лире.',
+      // Дата — из usage_resets_on сервера; без неё хвоста «обновятся …» нет.
+      text: `${quotaEndedText('transit', 'month', resetsOn)}. Без лимита — на Лире.`,
     };
   }
   return null;

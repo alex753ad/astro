@@ -158,3 +158,15 @@ describe('отказ по тарифу — предложение по прав�
     expect(transitOffer(TRANSIT_OUTCOMES.BROKEN)).toBeNull();
   });
 });
+
+describe('месячный лимит: «обновятся …» — только с датой сервера', async () => {
+  const { transitOffer } = await import('./transitInterpretRules');
+  const { chatLimitOffer } = await import('./chatRules');
+  it('с датой — хвост есть, без даты — нет, «1-го числа» не пишется никогда', () => {
+    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT, '2026-10-01').text).toContain('обновятся 1 октября');
+    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT).text).not.toContain('обновятся');
+    expect(chatLimitOffer('lite', '2026-10-01').text).toContain('обновятся 1 октября');
+    expect(chatLimitOffer('lite').text).not.toMatch(/1-го числа|обновятся/);
+    expect(chatLimitOffer('free').text).toContain('На Веге — 30 в месяц');
+  });
+});
