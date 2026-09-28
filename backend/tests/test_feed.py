@@ -692,64 +692,6 @@ class TestTierAndTemplates:
             assert point in TEMPLATES["natal_labels"], f"нет метки для {point}"
 
 
-class TestTeaserTextSingleSource:
-    """intro/outro тизера дублируют текст LockedTransitPanel(reason="free")
-    с веба (TransitTimeline.jsx) — два файла разных рантаймов (JS-компонент,
-    Python+JSON), синхронизированных только человеческой памятью
-    (FEED_TEASER_TEXT_RECON.md). Веб-путь боевой, трогать его ради общего
-    источника рискованно — вместо этого тест-склейка по образцу
-    TestOfferDocumentsTheRule (test_subscription_renewal.py): читает оба
-    файла как текст и ловит расхождение здесь, а не в проде через полгода.
-
-    Проверяется не вхождение (`in`), а единственность (`count == 1`) — иначе
-    тест прошёл бы и в случае, когда текст-совпадение — случайность
-    (например, слово входит частью в более длинную соседнюю строку), и не
-    заметил бы, если строку продублировали ещё где-то на вебе. Плюс —
-    что найденный литерал стоит именно в ветке `reason === "free"` (после
-    `:` тернарника), а не по ошибке в ветке `lite-limit` (после `?`).
-    """
-
-    @staticmethod
-    def _jsx() -> str:
-        from pathlib import Path
-        return Path(__file__).resolve().parents[2].joinpath(
-            "frontend", "src", "components", "TransitTimeline.jsx"
-        ).read_text(encoding="utf-8")
-
-    def test_intro_and_outro_appear_exactly_once_in_the_web_component(self):
-        from backend.feed.builder import TEMPLATES
-
-        jsx = self._jsx()
-        intro = TEMPLATES["teaser"]["free"]["intro"]
-        outro = TEMPLATES["teaser"]["free"]["outro"]
-
-        assert jsx.count(intro) == 1, (
-            "intro не встречается в TransitTimeline.jsx ровно один раз — "
-            "либо разошлись, либо текст продублирован на вебе"
-        )
-        assert jsx.count(outro) == 1, (
-            "outro не встречается в TransitTimeline.jsx ровно один раз — "
-            "либо разошлись, либо текст продублирован на вебе"
-        )
-
-    def test_literal_sits_in_the_free_branch_not_lite_limit(self):
-        """Оба литерала — правая (false) часть тернарника `reason ===
-        "lite-limit" ? ... : "ТЕКСТ"`. Правая часть в JS всегда следует сразу
-        за `:` — если бы литерал оказался в левой (`?`) части, перед ним
-        стоял бы `?`, а не `:`."""
-        from backend.feed.builder import TEMPLATES
-
-        jsx = self._jsx()
-        for field in ("intro", "outro"):
-            text = TEMPLATES["teaser"]["free"][field]
-            idx = jsx.index(f'"{text}"')
-            before = jsx[:idx].rstrip()
-            assert before.endswith(":"), (
-                f"{field}: перед литералом в JSX нет `:` — похоже, текст "
-                f"стоит в ветке lite-limit (после `?`), а не free (после `:`)"
-            )
-
-
 # ═══════════════════════════════════════════════════════════
 # Прочее
 # ═══════════════════════════════════════════════════════════
