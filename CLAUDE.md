@@ -174,3 +174,4 @@ JSON и JS/JSX без комментариев на «вы/ваш», «-йте»
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Цвета, шрифты, токены, приёмка со светлой темы |
 | [docs/decisions.md](docs/decisions.md) | Почему решили так: история и разборы инцидентов |
 | [TASKS.md](TASKS.md) | Открытые задачи и чек-листы запуска |
+| [docs/SESSION_SUMMARY.md](docs/SESSION_SUMMARY.md) | Начало сессии: что сделано в прошлой, что не принято, что за владельцем |
