@@ -160,7 +160,7 @@ export default function SharePage() {
         </div>
 
         <p style={s.promo}>
-          Персональные натальные карты, транзиты и интерпретации — <strong>aristeatime.ru</strong>
+          Персональные натальные карты, транзиты и разборы — <strong>aristeatime.ru</strong>
         </p>
       </main>
     </div>

@@ -1167,7 +1167,7 @@ async def interpret_chart(
             # Обрезано по длине или связь оборвалась после части текста —
             # не [DONE], не засчитываем попытку (см. router.stream()).
             logger.warning("Interpretation stream incomplete for chart=%s", chart_id)
-            yield f"data: {json.dumps({'error': 'Не удалось получить полный текст интерпретации. Попробуй ещё раз.'})}\n\n"
+            yield f"data: {json.dumps({'error': 'Не удалось получить полный текст разбора. Попробуй ещё раз.'})}\n\n"
         except Exception as e:
             logger.exception("Streaming interpretation failed")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

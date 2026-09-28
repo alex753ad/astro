@@ -21,7 +21,7 @@ import { useToast } from './Toast';
 const STAGES = [
   'Рассчитываем позиции планет...',
   'Строим аспекты...',
-  'Готовим интерпретацию...',
+  'Готовим разбор карты...',
 ];
 
 function StreamingProgress() {
@@ -224,7 +224,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: 'var(--accent)' }}>✦</span>
-            Интерпретация
+            Разбор карты
           </h2>
         </div>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
@@ -242,7 +242,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             transition: 'all 0.2s',
           }}
         >
-          Создать интерпретацию
+          Получить разбор карты
         </button>
       </div>
     );
@@ -268,7 +268,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--accent)' }}>✦</span>
-          Интерпретация
+          Разбор карты
         </h2>
         
       </div>
@@ -284,7 +284,7 @@ export default function Interpretation({ chartId, userTier, onUpgrade }) {
             background: 'var(--accent)',
             animation: 'pulse 1.2s ease infinite',
           }} />
-          Генерирую интерпретацию…
+          Готовлю разбор карты…
           <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
         </div>
       )}

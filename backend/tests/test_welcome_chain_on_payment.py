@@ -170,7 +170,7 @@ class TestEmailsMatchTheGrid:
         # письма лежит логотип строкой data:image/png;base64, и эти две буквы
         # встречаются в ней случайно. Такая проверка падает на здоровом письме
         # и ловится только чтением 53 строк base64 в выводе.
-        assert f"{TIER_FLAGS['pro']['interpretations_per_month']} интерпретаци" in html
+        assert f"{TIER_FLAGS['pro']['interpretations_per_month']} разборов карты" in html
 
     async def test_pro_welcome_does_not_name_a_wrong_model(self):
         """Движок один на все тарифы; тариф регулирует глубину, а не модель."""

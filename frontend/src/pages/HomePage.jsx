@@ -80,7 +80,7 @@ export default function HomePage({ currentUser, onShowAuth }) {
       priceCurrency: 'RUB',
       description: 'Бесплатный тариф с базовыми функциями',
     },
-    description: 'Натальные карты, интерпретации транзитов и персональный астро-планер на основе Swiss Ephemeris.',
+    description: 'Натальные карты, разборы транзитов и персональный астро-планер на основе Swiss Ephemeris.',
   };
 
   return (

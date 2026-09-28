@@ -442,7 +442,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
         _h2(greeting)
         + _p("Твоя натальная карта рассчитана. Вот первый инсайт — специально для тебя:")
         + sun_block
-        + _p("Открой карту, чтобы увидеть все планеты, дома и интерпретацию.")
+        + _p("Открой карту, чтобы увидеть все планеты, дома и разбор карты.")
         + _btn("✦ Открыть мою карту", APP_URL)
     )
     return await _send(
@@ -459,7 +459,7 @@ async def send_retention_day2(to: str, transit_text: str) -> bool:
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
           f'{transit_text}</div>'
-        + _p("Открой Aristea Timeline, чтобы увидеть все активные транзиты и интерпретацию.")
+        + _p("Открой Aristea Timeline, чтобы увидеть все активные транзиты и их разбор.")
         + _btn("Смотреть полный прогноз", APP_URL)
     )
     return await _send(
@@ -484,7 +484,7 @@ async def send_retention_day7(to: str, locked_count: int) -> bool:
         )
         + _p(
             f"С планом <strong>{TIER_NAMES['pro']}</strong> ты видишь полный прогноз и получаешь "
-            "интерпретацию каждого периода."
+            "разбор каждого периода."
         )
         + _btn(f"Попробовать {TIER_NAMES['pro']}", f"{APP_URL}/pricing")
     )
@@ -509,7 +509,7 @@ async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAME
             f"Триальный период заканчивается {days_str}."
         )
         + _p(
-            "Чтобы сохранить доступ к полным транзитам, интерпретациям и еженедельным "
+            "Чтобы сохранить доступ к полным транзитам, разборам и еженедельным "
             "дайджестам — продли подписку сейчас."
         )
         + f'<div style="background:#fff8e1;border:1px solid #ffc107;border-radius:10px;'
@@ -598,8 +598,8 @@ async def send_transit_alert_email(
           f'  </div>'
           f'  <div style="color:#5a4a7a;font-size:14px;line-height:1.7;">{description}</div>'
           f'</div>'
-        + _p("Открой приложение, чтобы получить полную интерпретацию этого транзита.")
-        + _btn("Читать интерпретацию →", link)
+        + _p("Открой приложение, чтобы получить полный разбор этого транзита.")
+        + _btn("Читать разбор →", link)
     )
     return await _send(
         to,
@@ -996,15 +996,15 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
           f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>Чат с Аристеей</strong> — она знает твою карту, задай любой вопрос</span></td></tr>'
           f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
           f'<span style="color:#9060C8;font-weight:700;">🪐</span>'
-          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>Разборы транзитов</strong> — персональная расшифровка каждого периода</span></td></tr>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>Разборы транзитов</strong> — что каждый период значит для тебя</span></td></tr>'
           f'<tr><td style="padding:8px 0;border-bottom:1px solid #ece7f8;">'
           f'<span style="color:#9060C8;font-weight:700;">📄</span>'
           f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>PDF-отчёты</strong> — {_pro_pdf} в месяц, для скачивания и печати</span></td></tr>'
           f'<tr><td style="padding:8px 0;">'
           f'<span style="color:#9060C8;font-weight:700;">🔭</span>'
-          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>{_pro_int} {_plural(_pro_int, "интерпретация", "интерпретации", "интерпретаций")}</strong> в месяц</span></td></tr>'
+          f'<span style="color:#3d3060;font-size:15px;margin-left:10px;"><strong>{_pro_int} {_plural(_pro_int, "разбор карты", "разбора карты", "разборов карты")}</strong> в месяц</span></td></tr>'
           f'</table>'
-        + _p("Совет: начни с вкладки «Транзиты» на своей карте — нажми на любой период, чтобы получить расшифровку.")
+        + _p("Совет: начни с вкладки «Транзиты» на своей карте — нажми на любой период, чтобы получить разбор.")
         + _btn("Открыть мою карту →", f"{APP_URL}/profile")
     )
     return await _send(
@@ -1029,7 +1029,7 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
           f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
           f'letter-spacing:1px;margin-bottom:6px;">👥 Для астрологов — {TIER_NAMES["premium"]}</div>'
           f'<div style="color:#2D2540;font-size:15px;line-height:1.7;">'
-          f'CRM клиентов, безлимитные интерпретации, брендированные PDF-отчёты. '
+          f'кабинет астролога, разбор карты без лимита, PDF-отчёты с твоим именем. '
           f'Один клиент окупает подписку.</div>'
           f'</div>'
         + _btn(f"Посмотреть {TIER_NAMES['premium']} →", f"{APP_URL}/pricing")
@@ -1067,7 +1067,7 @@ async def send_premium_welcome(to: str, name: str | None = None) -> bool:
           f'На обложке будет указано твоё имя как автора.</div></td></tr>'
           f'<tr><td style="padding:10px 0;vertical-align:top;">'
           f'<div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:4px;">Шаг 3 — разборы без лимитов</div>'
-          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Безлимитные интерпретации — '
+          f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">Разбор карты без лимита — '
           f'хватит на всех активных клиентов.</div></td></tr>'
           f'</table>'
         + _btn("Открыть CRM клиентов →", f"{APP_URL}/dashboard/clients")

@@ -507,7 +507,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
         }
       }
     } catch (e) {
-      setAiText('Ошибка загрузки интерпретации.');
+      setAiText('Не удалось загрузить разбор карты.');
     }
     setAiLoading(false);
   };
@@ -558,7 +558,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
   };
 
   const tabs = ['chart', 'transits', 'ai', 'notes', 'consultations'];
-  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'Интерпретация', notes: 'Заметки', consultations: 'Консультации' };
+  const tabLabels = { chart: 'Карта', transits: 'Транзиты', ai: 'Разбор карты', notes: 'Заметки', consultations: 'Консультации' };
 
   return (
     <div>
@@ -747,9 +747,9 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
       {tab === 'ai' && (
         <div style={S.card}>
           {!aiText && !aiLoading && (
-            <MotionButton level="primary" style={S.btn('primary')} onClick={loadAI}>Получить интерпретацию</MotionButton>
+            <MotionButton level="primary" style={S.btn('primary')} onClick={loadAI}>Получить разбор карты</MotionButton>
           )}
-          {aiLoading && <div style={S.muted}>Генерирую интерпретацию…</div>}
+          {aiLoading && <div style={S.muted}>Готовлю разбор карты…</div>}
           {aiText && (() => {
             // Убираем XML-теги <section ...> и </section>, рендерим чистый текст
             const cleaned = aiText

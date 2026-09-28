@@ -1157,7 +1157,7 @@ function DataExport({ authFetch }) {
     <div style={{ ...S.card, marginTop: 8 }}>
       <p style={S.cardTitle}>Мои данные</p>
       <p style={{ ...S.muted, marginBottom: 14 }}>
-        Скачай все данные, которые мы храним о тебе: карты, интерпретации, историю платежей и согласий.
+        Скачай все данные, которые мы храним о тебе: карты, разборы, историю платежей и согласий.
       </p>
       <MotionButton level="ghost" style={S.btn('ghost')} onClick={handleExport} disabled={loading}>
         {loading ? 'Формируем файл…' : 'Скачать мои данные'}
@@ -1185,7 +1185,7 @@ function DangerZone({ authFetch, logout, navigate }) {
     <div style={{ ...S.card, border: '1px solid rgba(239,68,68,0.2)', marginTop: 8 }}>
       <p style={{ ...S.cardTitle, color: 'var(--color-danger)' }}>Удаление данных (GDPR)</p>
       <p style={{ ...S.muted, marginBottom: 14 }}>
-        Удалит все карты, интерпретации и данные подписки. Аккаунт (email) сохраняется. Необратимо.
+        Удалит все карты, разборы и данные подписки. Аккаунт (email) сохраняется. Необратимо.
       </p>
       {gdprConfirm ? (
         <div style={{ display: 'flex', gap: 8 }}>

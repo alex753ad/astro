@@ -183,7 +183,7 @@ const LEFT_BTNS = [
   { key: 'aspects',        label: 'Таблица аспектов',      icon: '△' },
 ];
 const LEFT_BTNS_BOTTOM = [
-  { key: 'interpretation', label: 'Интерпретация',   icon: '' },
+  { key: 'interpretation', label: 'Разбор карты',    icon: '' },
   { key: 'chat',           label: 'Астролог Аристея', icon: '', minTier: 'pro' },
 ];
 
@@ -884,7 +884,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           <div style={{ ...s.centerCol, ...(isMobile ? { order: 2 } : {}) }}>
             {isAnon && <SunPeakBanner chart={chart} sunPeriod={sunPeriod} />}
             <div style={s.wheelCard}>
-              {/* Интерпретация — поверх карты */}
+              {/* Разбор карты — поверх карты */}
               {leftPanel === 'interpretation' && (
                 <div style={s.wheelOverlay}>
                   {isAnon ? (
@@ -893,7 +893,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
                         <Interpretation chartId={chartId} userTier="free" onUpgrade={() => {}} />
                       </div>
                       <div style={s.overlayLogin}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>Войди, чтобы прочитать интерпретацию</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>Войди, чтобы прочитать разбор карты</div>
                         <MotionButton level="primary" onClick={handleShowAuth} style={s.overlayLoginBtn}>Войти / Регистрация</MotionButton>
                       </div>
                     </div>

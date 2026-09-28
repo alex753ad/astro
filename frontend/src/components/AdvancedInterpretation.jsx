@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect } from 'react';
 import MotionButton from './MotionButton';
 
-export default function AdvancedInterpretation({ start, buttonLabel = 'Получить интерпретацию', disabled }) {
+export default function AdvancedInterpretation({ start, buttonLabel = 'Получить разбор', disabled }) {
   const [text,      setText]      = useState('');
   const [streaming, setStreaming] = useState(false);
   const [started,   setStarted]   = useState(false);

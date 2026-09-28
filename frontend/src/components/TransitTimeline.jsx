@@ -593,7 +593,7 @@ function EventCard({ event, index, isSelected, onClick }) {
             transition: "all 0.2s ease",
           }}
         >
-          Интерпретация
+          Разбор
         </MotionButton>
       </div>
     </div>
@@ -645,7 +645,7 @@ function InterpretationPanel({ event, chartId, onClose }) {
 
     if (!chartId) {
       setTimeout(() => {
-        setText(`Интерпретация транзита: ${key}.\n\nЭтот аспект влияет на сферу жизни, связанную с натальной планетой. Рекомендуется обратить внимание на события этого периода.`);
+        setText(`Разбор транзита: ${key}.\n\nЭтот аспект влияет на сферу жизни, связанную с натальной планетой. Рекомендуется обратить внимание на события этого периода.`);
         setLoading(false);
       }, 800);
       return;
@@ -780,7 +780,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const [loadedFrom,    setLoadedFrom]    = useState(null);   // from_date самого раннего загруженного месяца
   const [reachedEnd,    setReachedEnd]    = useState(false);  // догрузили до горизонта тарифа
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [paywallEvent,  setPaywallEvent]  = useState(null);  // клик «Интерпретация» на закрытом транзите — апселл с контекстом аспекта
+  const [paywallEvent,  setPaywallEvent]  = useState(null);  // клик «Разбор» на закрытом транзите — апселл с контекстом аспекта
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [planetFilter,  setPlanetFilter]  = useState([]);
   const [aspectFilter,  setAspectFilter]  = useState([]);
@@ -1333,7 +1333,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       {!loading && (
         <div style={{ marginTop: 32, padding: "16px 0", borderTop: "1px solid var(--accent-hairline)", fontSize: 12, color: "var(--text-secondary)", textAlign: "center", opacity: 0.8 }}>
           Транзитные орбы: соединение/оппозиция ≤ 2° · квадрат ≤ 2° · трин/секстиль ≤ 1.5°<br />
-          Нажми на транзит для интерпретации
+          Нажми на транзит, чтобы открыть разбор
         </div>
       )}
 

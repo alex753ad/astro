@@ -66,7 +66,7 @@ export function interpretationUpsell(tier) {
   if (tier === 'lite') {
     return {
       kind: 'lite',
-      title: 'Получить расширенную интерпретацию',
+      title: 'Получить разбор подробнее',
       subtitle: `Открывается на тарифе ${TIER_NAMES.pro}`,
       cta: `НА ${TIER_WORDS.pro} СЛОВ`,
     };
@@ -74,7 +74,7 @@ export function interpretationUpsell(tier) {
   if (!tier || tier === 'free') {
     return {
       kind: 'free',
-      text: `Хочешь разбор подробнее? На тарифе ${TIER_NAMES.lite} интерпретация примерно на ${TIER_WORDS.lite} слов.`,
+      text: `Хочешь разбор подробнее? На тарифе ${TIER_NAMES.lite} разбор карты примерно на ${TIER_WORDS.lite} слов.`,
       cta: 'Тарифы →',
     };
   }

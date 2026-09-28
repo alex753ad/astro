@@ -188,6 +188,6 @@ class TemplateEngine(InterpretationEngine):
                 )
 
         if not parts:
-            parts.append("Интерпретация временно недоступна. Попробуй чуть позже.")
+            parts.append("Разбор временно недоступен. Попробуй чуть позже.")
 
         return "\n\n".join(parts)
