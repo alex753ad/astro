@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import MotionButton from '../components/MotionButton';
-import { authFetch } from '../api/client';
+import { authFetch, getSubscription } from '../api/client';
 import { API_BASE, BACKEND_BASE } from '../config';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
@@ -17,7 +17,6 @@ import { shareDisclosure } from '../mobile/lib/shareRules';
 import TransitTimeline from '../components/TransitTimeline';
 import AspectGrid from '../components/AspectGrid';
 import useIsMobile from '../hooks/useIsMobile';
-import { TIER_NAMES, tierPriceLabel } from '../constants';
 import { todayLocalISO } from '../utils/dateISO';
 import PaywallModal, { getPaywallContext } from '../components/PaywallModal';
 import { canShowPaywall, markPaywallShown, markPaywallDismissed } from '../lib/paywallGate';
@@ -31,8 +30,8 @@ import {
   apiErrorText,
 } from '../api/client';
 import { useToast } from '../components/Toast';
-import LyraPaywallModal from '../components/LyraPaywallModal';
-import PlanComparisonModal from '../components/PlanComparisonModal';
+import TierOfferModal from '../components/TierOfferModal';
+import { quotaEndedText } from '../lib/tierCatalog';
 import { utcOffsetLabel } from '../lib/utcOffset';
 import { rememberWebPayment } from '../lib/webPayment';
 import { withTz } from '../lib/deviceTimezone';
@@ -344,10 +343,22 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   const [authRequired, setAuthRequired] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallContext, setPaywallContext] = useState('free_to_lite');
-  // Чат: окно только с Лирой (решение владельца 27.09.2026, lib/offerRule.js).
-  // До этого было сравнение Веги и Лиры — а на Веге чата нет.
-  const [showChatPlans, setShowChatPlans] = useState(false);
+  // Кончились сообщения чата — окно предложения (TierOfferModal): заголовок
+  // «Чат с Аристеей», что случилось, тарифы по lib/offerRule.js (free — Вега
+  // и Лира, Вега — Лира). Дата «обновятся …» — из usage_resets_on сервера.
+  const [chatOffer, setChatOffer] = useState(null);
   const [chatCheckoutLoading, setChatCheckoutLoading] = useState(false);
+
+  function openChatOffer() {
+    setChatOffer({ state: null });
+    getSubscription(localStorage.getItem('astro_access_token'))
+      .then((sub) => {
+        const t = sub?.trials || {};
+        const state = quotaEndedText('chat', t.chat_period, sub?.usage_resets_on);
+        setChatOffer((cur) => (cur ? { state } : cur));
+      })
+      .catch(() => {});
+  }
 
   async function handleChatPlanCheckout(tier) {
     if (chatCheckoutLoading) return;
@@ -749,7 +760,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               chartId={chartId}
               // Кончились сообщения: free — сравнение Веги и Лиры, Вега — окно
               // Лиры (правило offerRule.js, как в приложении).
-              onPaywall={(ctx) => (ctx === 'chat_limit' ? setShowChatPlans(true) : openPaywall(ctx || _upsellCtx('pro')))}
+              onPaywall={openChatOffer}
             />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 480, gap: 12, color: 'var(--text-secondary)' }}>
@@ -1059,29 +1070,15 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
       )}
 
-      {/* Кончились сообщения чата — предложение по offerRule.js: free —
-          Вега (30 в месяц) и Лира (без лимита), Вега — только Лира. */}
-      {effectiveTier === 'lite' ? (
-        <LyraPaywallModal
-          open={showChatPlans}
-          onClose={() => setShowChatPlans(false)}
-          onSubscribe={() => handleChatPlanCheckout('pro')}
-          onContinueFree={() => setShowChatPlans(false)}
-          contextLabel="Чат с астрологом Аристеей"
-          title="Сообщения этого месяца закончились"
-          subtitle="Обновятся 1-го числа. На Лире чат с Аристеей — без лимита."
-          price={tierPriceLabel('pro')}
-        />
-      ) : (
-        <PlanComparisonModal
-          open={showChatPlans}
-          onClose={() => setShowChatPlans(false)}
-          onChooseVega={() => handleChatPlanCheckout('lite')}
-          onChooseLyra={() => handleChatPlanCheckout('pro')}
-          onContinueFree={() => setShowChatPlans(false)}
-          contextLabel="Пробные сообщения закончились. На Веге — 30 в месяц, на Лире — без лимита"
-        />
-      )}
+      <TierOfferModal
+        open={!!chatOffer}
+        onClose={() => setChatOffer(null)}
+        feature={effectiveTier === 'lite' ? 'chat_limit' : 'chat'}
+        tier={effectiveTier}
+        state={chatOffer?.state}
+        onChoose={handleChatPlanCheckout}
+        busy={chatCheckoutLoading}
+      />
 
     </div>
   );

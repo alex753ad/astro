@@ -3,7 +3,7 @@
  *
  * Props:
  *   chartId     string   — ID карты
- *   onPaywall   fn       — вызвать PaywallModal при 403
+ *   onPaywall   fn       — 403: кончились сообщения тарифа, окно предложения (TierOfferModal)
  */
 
 /**
