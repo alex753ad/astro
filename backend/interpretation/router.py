@@ -83,9 +83,35 @@ class IncompleteInterpretation(Exception):
 
 _COST_PER_1K_TOKENS = {
     "gpt4o": 0.005,
-    "deepseek": 0.0003,
     "template": 0.0,
 }
+
+# DeepSeek V4 Pro (цены с 16.08.2026): $0.66 вход / $1.98 выход за миллион, в
+# часы пик — вдвое. До 28.09.2026 здесь стояло $0.30 за миллион — цена старой
+# модели, в 4–9 раз ниже реальной: суточный бюджет считал расход заниженным.
+#
+# Токены у нас одним числом (total_tokens), без деления на вход и выход, —
+# поэтому ставка средняя 1:1. У натального разбора и разбора транзита вход и
+# выход одного порядка (≈2500 на ≈1000–2500), ошибка усреднения — десятки
+# процентов, а не разы. Чат на Flash считается по той же ставке — завышено, но
+# в безопасную сторону (см. track_engine_spend).
+_DEEPSEEK_PER_1K = (0.66 + 1.98) / 2 / 1000
+# Пик по UTC, будни: 01:00–04:00 и 06:00–10:00. Праздники Китая не учитываем —
+# в эти дни расход завышается, направление безопасное.
+_DEEPSEEK_PEAK_HOURS = frozenset([1, 2, 3, 6, 7, 8, 9])
+
+
+def _deepseek_cost_per_1k(now=None) -> float:
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    peak = now.weekday() < 5 and now.hour in _DEEPSEEK_PEAK_HOURS
+    return _DEEPSEEK_PER_1K * (2 if peak else 1)
+
+
+def _cost_per_1k(engine_name: str) -> float:
+    if engine_name == "deepseek":
+        return _deepseek_cost_per_1k()
+    return _COST_PER_1K_TOKENS.get(engine_name, 0)
 
 # Прогнозы и общий астрокалендарь (main.py) ходят в Anthropic напрямую, мимо
 # InterpretationRouter, поэтому их расход раньше не попадал в бюджет вовсе:
@@ -131,7 +157,7 @@ def track_claude_spend(data: dict | None, contour: str) -> float:
 def track_engine_spend(engine_name: str, tokens: int, contour: str) -> float:
     """Списание для контуров, которые зовут движок мимо InterpretationRouter.
 
-    Цена — из той же таблицы _COST_PER_1K_TOKENS, что и у вызовов через
+    Цена — та же _cost_per_1k, что и у вызовов через
     роутер. engine_name обязан совпадать с ключом, по которому в том же месте
     делается проверка бюджета: разойдутся — счётчик будет расти в одной
     корзине, а проверяться в другой.
@@ -146,7 +172,7 @@ def track_engine_spend(engine_name: str, tokens: int, contour: str) -> float:
         logger.warning("%s: ответ без usage — расход не записан", contour)
         return 0.0
 
-    cost = (tokens / 1000) * _COST_PER_1K_TOKENS.get(engine_name, 0)
+    cost = (tokens / 1000) * _cost_per_1k(engine_name)
     new_total = budget_tracker.add_spend(cost)
     logger.info(
         "Spent $%.4f on %s/%s (%d tokens). Daily total: $%.4f",
@@ -526,7 +552,7 @@ class InterpretationRouter:
     def _track_spend(self, engine_name: str, tokens_used: int) -> float:
         if engine_name == "template" or tokens_used == 0:
             return 0.0
-        cost = (tokens_used / 1000) * _COST_PER_1K_TOKENS.get(engine_name, 0)
+        cost = (tokens_used / 1000) * _cost_per_1k(engine_name)
         new_total = budget_tracker.add_spend(cost)
         logger.info(
             "Spent $%.4f on %s (%d tokens). Daily total: $%.4f",
