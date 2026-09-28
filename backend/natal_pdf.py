@@ -1,652 +1,308 @@
 """
 Natal chart PDF generator — backend module.
-Called by the /api/v1/chart/{chart_id}/pdf endpoint.
+Called by the /api/v1/chart/{chart_id}/pdf endpoint (и CRM, портал клиента).
 
 Usage:
     from backend.natal_pdf import generate_pdf_bytes
     pdf_bytes = generate_pdf_bytes(chart_record, interpretation_text)
+
+Оформление переделано 28.09.2026 по DESIGN_SYSTEM.md (светлая тема веба,
+Literata — заголовки и проза, Golos Text — интерфейс и таблицы). Что было не
+так и почему сделано именно так — в комментариях по месту; коротко:
+
+* Всё по-русски: планеты, знаки, аспекты, система домов, дата («8 мая 2000»),
+  место — сокращённо, как на карточке «Поделиться» (`share_router`).
+* Страница БЕЛАЯ, а не сиреневатая: картинка колеса с сайта приходит на белом
+  непрозрачном фоне и на цветной странице печаталась белым прямоугольником.
+  Поля вокруг колеса обрезаются (`_trim_png`), колесо стоит сразу под шапкой —
+  раньше оно было отцентровано по странице и сверху оставалось ~6 см пустоты.
+* Звёзды и туманности убраны: ложились поверх текста таблиц (и расходуют
+  краску при печати). «Космос, не эзотерика» — DESIGN_SYSTEM §1.
+* Значки — отдельным шрифтом по цепочке: Noto Sans Symbols (как в
+  приложении), затем DejaVu. В текстовых шрифтах астрозначков нет вовсе, а в
+  DejaVu нет ⚹ и ⚻ — их раньше подменяли звёздочкой. Любой символ, которого
+  нет в шрифте строки, уходит в первый шрифт цепочки, где он есть
+  (`_runs`, `_para_markup`); тест проверяет, что квадратиков нет.
+* Таблицы и разбор текут по страницам (`_Flow`): до правки список аспектов не
+  переносился и при 20+ аспектах уходил за нижний край.
+* «стр. N из M»: M известно только после раскладки, поэтому документ
+  собирается дважды — первый проход считает страницы.
 """
 
 import base64
 import io
 import math
-import random
+import os as _os
+import re
+from xml.sax.saxutils import escape as _xml_escape
 
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, Frame
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.utils import ImageReader
-
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-import os as _os
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph
 
-# Шрифт с астросимволами и кириллицей, лежащий в самом репозитории —
-# гарантирует значки планет/знаков/аспектов в PDF на любом сервере.
-_ASSET_FONT = _os.path.join(_os.path.dirname(__file__), "assets", "fonts", "DejaVuSans.ttf")
+from backend.ephemeris.ru_names import (
+    ASPECT_RU, HOUSE_SYSTEM_RU, PLANET_RU, SIGN_IN_RU, SIGN_RU,
+)
 
+_FONTS_DIR = _os.path.join(_os.path.dirname(__file__), "assets", "fonts")
 
-def _register_fonts():
-    """Register Unicode fonts for Cyrillic + astrological symbols."""
-    # Main font (Cyrillic)
-    main_candidates = [
-        ("C:/Windows/Fonts/arial.ttf",       "C:/Windows/Fonts/arialbd.ttf"),
-        ("C:/Windows/Fonts/calibri.ttf",     "C:/Windows/Fonts/calibrib.ttf"),
-        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-         "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
-        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
-        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-        # Запасной шрифт из репозитория (кириллица) — если системных нет
-        (_ASSET_FONT, _ASSET_FONT),
-    ]
-    font_name = None
-    for regular, bold in main_candidates:
-        if _os.path.exists(regular):
-            try:
-                pdfmetrics.registerFont(TTFont("MainFont", regular))
-                if _os.path.exists(bold):
-                    pdfmetrics.registerFont(TTFont("MainFont-Bold", bold))
-                else:
-                    pdfmetrics.registerFont(TTFont("MainFont-Bold", regular))
-                font_name = "MainFont"
-                break
-            except Exception:
-                continue
+# ── Шрифты ─────────────────────────────────────────────────
+# Literata и Golos Text урезаны до латиницы и кириллицы (≈40–60 КБ), лицензия
+# OFL лежит рядом. Статические начертания, а не вариативные woff2 фронтенда:
+# ReportLab вариативные шрифты не читает.
+_TEXT_FONTS = {
+    "Literata": "Literata-Regular.ttf",
+    "Literata-SemiBold": "Literata-SemiBold.ttf",
+    "Golos": "GolosText-Regular.ttf",
+    "Golos-SemiBold": "GolosText-SemiBold.ttf",
+}
+# Цепочка для символов: первый шрифт, где символ есть. Noto — начертание
+# значков как в приложении; DejaVu закрывает ☉ △ □ ℞, которых в Noto нет.
+_SYMBOL_FONTS = {
+    "SymNoto": "NotoSansSymbols-astro.ttf",
+    "SymDejaVu": "DejaVuSans.ttf",
+}
 
-    # Символьный шрифт с астро/зодиакальными глифами.
-    # Первый кандидат — встроенный в репозиторий DejaVuSans (есть на любом сервере).
-    sym_candidates = [
-        _ASSET_FONT,
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
-        "C:/Windows/Fonts/seguisym.ttf",
-    ]
-    global _SYMBOL_FONT
-    _SYMBOL_FONT = None
-    for path in sym_candidates:
-        if _os.path.exists(path):
-            try:
-                pdfmetrics.registerFont(TTFont("SymFont", path))
-                _SYMBOL_FONT = "SymFont"
-                break
-            except Exception:
-                continue
+for _name, _file in {**_TEXT_FONTS, **_SYMBOL_FONTS}.items():
+    pdfmetrics.registerFont(TTFont(_name, _os.path.join(_FONTS_DIR, _file)))
+pdfmetrics.registerFontFamily("Literata", normal="Literata", bold="Literata-SemiBold",
+                              italic="Literata", boldItalic="Literata-SemiBold")
+pdfmetrics.registerFontFamily("Golos", normal="Golos", bold="Golos-SemiBold",
+                              italic="Golos", boldItalic="Golos-SemiBold")
 
-    return font_name
-
-_SYMBOL_FONT = None
-_FONT_NAME = _register_fonts() or "Helvetica"
-_FONT_BOLD = (_FONT_NAME + "-Bold") if _FONT_NAME != "Helvetica" else "Helvetica-Bold"
+SERIF, SERIF_B = "Literata", "Literata-SemiBold"
+SANS, SANS_B = "Golos", "Golos-SemiBold"
+SYMBOL_CHAIN = tuple(_SYMBOL_FONTS)
 
 
-def _draw_glyph(c, x, y, glyph, size, color):
-    """Draw astrological glyph using symbol font if available, else ASCII fallback."""
-    if _SYMBOL_FONT:
-        c.setFillColor(color)
-        c.setFont(_SYMBOL_FONT, size)
-        # ⚹ (U+26B9) отсутствует в DejaVu — рисуем совместимую шестилучевую звезду
-        glyph = "✶" if glyph == "⚹" else glyph
-        c.drawCentredString(x, y - size * 0.35, glyph)
-    else:
-        # ASCII fallbacks
-        FALLBACK = {
-            "☉": "Su", "☽": "Mo", "☿": "Me", "♀": "Ve", "♂": "Ma",
-            "♃": "Ju", "♄": "Sa", "♅": "Ur", "♆": "Ne", "♇": "Pl",
-            "☊": "NN", "☋": "SN",
-            "♈": "Ar", "♉": "Ta", "♊": "Ge", "♋": "Cn", "♌": "Le",
-            "♍": "Vi", "♎": "Li", "♏": "Sc", "♐": "Sg", "♑": "Cp",
-            "♒": "Aq", "♓": "Pi",
-            "☌": "cn", "☍": "op", "△": "tr", "□": "sq", "⚹": "sx",
-        }
-        text = FALLBACK.get(glyph, glyph)
-        c.setFillColor(color)
-        c.setFont(_FONT_BOLD, size * 0.7)
-        c.drawCentredString(x, y - size * 0.25, text)
+def _has(font: str, ch: str) -> bool:
+    return ord(ch) in pdfmetrics.getFont(font).face.charToGlyph
 
 
+def _symbol_font(ch: str) -> str | None:
+    return next((f for f in SYMBOL_CHAIN if _has(f, ch)), None)
+
+
+def _runs(text: str, font: str) -> list[tuple[str, str]]:
+    """Разбить строку на куски по шрифтам: символ, которого нет в `font`,
+    уходит в первый шрифт цепочки, где он есть. Символа нет нигде — он
+    выбрасывается (пустое место лучше квадратика)."""
+    out: list[tuple[str, str]] = []
+    for ch in text:
+        f = font if (ch in " \n" or _has(font, ch)) else _symbol_font(ch)
+        if f is None:
+            continue
+        if out and out[-1][0] == f:
+            out[-1] = (f, out[-1][1] + ch)
+        else:
+            out.append((f, ch))
+    return out
+
+
+def _text_width(text: str, font: str, size: float) -> float:
+    return sum(pdfmetrics.stringWidth(t, f, size) for f, t in _runs(text, font))
+
+
+def _draw(c, x: float, y: float, text: str, font: str, size: float, color, align: str = "left"):
+    """drawString с запасными шрифтами. align: left | center | right."""
+    w = _text_width(text, font, size)
+    if align == "center":
+        x -= w / 2
+    elif align == "right":
+        x -= w
+    c.setFillColor(color)
+    for f, t in _runs(text, font):
+        c.setFont(f, size)
+        c.drawString(x, y, t)
+        x += pdfmetrics.stringWidth(t, f, size)
+    return w
+
+
+# ── Палитра: светлая тема веба (DESIGN_SYSTEM.md §2) ────────
 W, H = A4
+C_PAGE = colors.white                     # см. шапку: белый, а не --bg
+C_TEXT = colors.HexColor("#1E1A2E")       # --text-primary
+C_MUTED = colors.HexColor("#6B6885")      # --text-secondary
+C_LINE = colors.HexColor("#EDE8F5")       # --border
+C_ACCENT = colors.HexColor("#7C6CFF")     # --accent
+C_ACCENT_BG = colors.HexColor("#F6F1FE")  # --accent-muted на белом (8 %)
+# Семантические цвета светлой темы: гармоничные / нейтральные / напряжённые.
+C_HARMONY = colors.HexColor("#059669")
+C_NEUTRAL = colors.HexColor("#D97706")
+C_TENSION = colors.HexColor("#DC2626")
 
-C_BG      = colors.HexColor("#FDFBFF")
-C_GOLD    = colors.HexColor("#7B5EA7")
-C_GOLD2   = colors.HexColor("#5B3E87")
-C_SILVER  = colors.HexColor("#8890A0")
-C_ACCENT  = colors.HexColor("#7B5EA7")
-C_TEXT    = colors.HexColor("#1A1230")
-C_MUTED   = colors.HexColor("#6B6080")
-C_BORDER  = colors.HexColor("#D8D0F0")
-C_STAR    = colors.HexColor("#7B5EA7")
-C_RETRO   = colors.HexColor("#CC6655")
-C_TRINE   = colors.HexColor("#4A9060")
-C_SQUARE  = colors.HexColor("#CC5544")
-C_SEXTILE = colors.HexColor("#4A7090")
-C_CONJ    = colors.HexColor("#C9A84C")
+MARGIN = 48
+CONTENT_W = W - 2 * MARGIN
+TOP = H - 56
+BOTTOM = 64            # над подвалом
 
 PLANET_GLYPHS = {
-    "Sun":"☉","Moon":"☽","Mercury":"☿","Venus":"♀","Mars":"♂",
-    "Jupiter":"♃","Saturn":"♄","Uranus":"♅","Neptune":"♆","Pluto":"♇",
-    "North Node":"☊","South Node":"☋",
-    "Солнце":"☉","Луна":"☽","Меркурий":"☿","Венера":"♀","Марс":"♂",
-    "Юпитер":"♃","Сатурн":"♄","Уран":"♅","Нептун":"♆","Плутон":"♇",
-    "Северный узел":"☊","Южный узел":"☋",
+    "Sun": "☉", "Moon": "☽", "Mercury": "☿", "Venus": "♀", "Mars": "♂",
+    "Jupiter": "♃", "Saturn": "♄", "Uranus": "♅", "Neptune": "♆", "Pluto": "♇",
+    "North Node": "☊", "South Node": "☋",
 }
 SIGN_GLYPHS = {
-    "Aries":"♈","Taurus":"♉","Gemini":"♊","Cancer":"♋","Leo":"♌","Virgo":"♍",
-    "Libra":"♎","Scorpio":"♏","Sagittarius":"♐","Capricorn":"♑","Aquarius":"♒","Pisces":"♓",
-    "Овен":"♈","Телец":"♉","Близнецы":"♊","Рак":"♋","Лев":"♌","Дева":"♍",
-    "Весы":"♎","Скорпион":"♏","Стрелец":"♐","Козерог":"♑","Водолей":"♒","Рыбы":"♓",
+    "Aries": "♈", "Taurus": "♉", "Gemini": "♊", "Cancer": "♋", "Leo": "♌", "Virgo": "♍",
+    "Libra": "♎", "Scorpio": "♏", "Sagittarius": "♐", "Capricorn": "♑", "Aquarius": "♒", "Pisces": "♓",
 }
 ASPECT_SYMBOLS = {
-    "conjunction":"☌","opposition":"☍","trine":"△","square":"□","sextile":"⚹","quincunx":"⚻",
-    "соединение":"☌","оппозиция":"☍","тригон":"△","квадрат":"□","секстиль":"⚹","квинконс":"⚻",
+    "conjunction": "☌", "opposition": "☍", "trine": "△", "square": "□",
+    "sextile": "⚹", "quincunx": "⚻",
 }
 ASPECT_COLORS = {
-    "conjunction":C_CONJ,"trine":C_TRINE,"sextile":C_SEXTILE,
-    "square":C_SQUARE,"opposition":C_SQUARE,"quincunx":C_MUTED,
-    "соединение":C_CONJ,"тригон":C_TRINE,"секстиль":C_SEXTILE,
-    "квадрат":C_SQUARE,"оппозиция":C_SQUARE,"квинконс":C_MUTED,
+    "conjunction": C_NEUTRAL, "trine": C_HARMONY, "sextile": C_HARMONY,
+    "square": C_TENSION, "opposition": C_TENSION, "quincunx": C_MUTED,
 }
+# Группы таблицы аспектов: так её читает человек без подготовки — «что
+# помогает, что напрягает», а не сплошной список по орбу.
+ASPECT_GROUPS = (
+    ("Соединения", ("conjunction",)),
+    ("Гармоничные — трин и секстиль", ("trine", "sextile")),
+    ("Напряжённые — квадрат и оппозиция", ("square", "opposition")),
+)
+# Узлы в эфемериде «ретроградны» всегда (средний узел) — метка ℞ у них шум.
+_NODES = ("North Node", "South Node")
+RETRO = "℞"
+
+DISCLAIMER = "Документ носит ознакомительный характер. Астрология — язык символов и архетипов."
+
+SECTION_TITLES = (
+    ("general", "Общий портрет"),
+    ("career", "Карьера и призвание"),
+    ("relationships", "Отношения и партнёрство"),
+    ("health", "Здоровье и энергия"),
+    ("finance", "Финансы"),
+    ("spirituality", "Внутренний рост"),
+)
 
 
-# ── Drawing helpers ────────────────────────────────────────
+# ── Формат ─────────────────────────────────────────────────
 
-def _stars(c, seed, count):
-    rng = random.Random(seed)
-    for _ in range(count):
-        x = rng.uniform(0, W); y = rng.uniform(0, H)
-        size = rng.choice([0.4, 0.6, 0.8, 1.0, 1.4, 1.8])
-        alpha = rng.uniform(0.15, 0.75)
-        col = colors.Color(C_STAR.red, C_STAR.green, C_STAR.blue, alpha=alpha)
-        c.setFillColor(col); c.setStrokeColor(col)
-        if size >= 1.4:
-            arm = size * 2.5; c.setLineWidth(0.4)
-            c.line(x-arm, y, x+arm, y); c.line(x, y-arm, x, y+arm)
-        c.circle(x, y, size, fill=1, stroke=0)
+def _field(obj, key, default=None):
+    return obj.get(key, default) if isinstance(obj, dict) else getattr(obj, key, default)
 
 
-def _nebula(c, cx, cy, rx, ry, col, alpha=0.04):
-    for i in range(6, 0, -1):
-        f = i / 6
-        g = colors.Color(col.red, col.green, col.blue, alpha=alpha * f * 0.7)
-        c.setFillColor(g)
-        c.ellipse(cx-rx*f, cy-ry*f, cx+rx*f, cy+ry*f, fill=1, stroke=0)
+def dms(deg: float) -> str:
+    """17.7 → «17°42′»."""
+    deg = float(deg or 0) % 30
+    d = int(deg)
+    m = int(round((deg - d) * 60))
+    if m == 60:
+        d, m = d + 1, 0
+    return f"{d}°{m:02d}′"
 
 
-def _border(c, x, y, w, h, lw=0.6):
-    gap = 3
-    c.setStrokeColor(C_GOLD); c.setLineWidth(lw)
-    c.rect(x, y, w, h, fill=0, stroke=1)
-    c.setLineWidth(lw*0.5)
-    c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.4))
-    c.rect(x+gap, y+gap, w-gap*2, h-gap*2, fill=0, stroke=1)
+def planet_ru(name: str) -> str:
+    return PLANET_RU.get(name, name)
 
 
-def _corner(c, cx, cy, size):
-    c.setFillColor(C_GOLD); c.setLineWidth(0.4)
-    for angle in range(0, 360, 90):
-        rad = math.radians(angle + 45)
-        ex = cx + math.cos(rad)*size; ey = cy + math.sin(rad)*size
-        c.setStrokeColor(C_GOLD); c.line(cx, cy, ex, ey)
-        c.circle(ex, ey, size*0.15, fill=1, stroke=0)
-    c.circle(cx, cy, size*0.2, fill=1, stroke=0)
+def sign_ru(sign: str) -> str:
+    return SIGN_RU.get(sign, sign)
 
 
-def _divider(c, x, y, width, alpha=1.0):
-    col = colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha)
-    mid = x + width/2
-    c.setStrokeColor(col); c.setLineWidth(0.5)
-    c.line(x, y, mid-6, y); c.line(mid+6, y, x+width, y)
-    c.setFillColor(col)
-    p = c.beginPath()
-    p.moveTo(mid, y+3); p.lineTo(mid+3, y); p.lineTo(mid, y-3); p.lineTo(mid-3, y); p.close()
-    c.drawPath(p, fill=1, stroke=0)
-    for dx in [-10, 10]: c.circle(mid+dx, y, 1, fill=1, stroke=0)
+def aspect_ru(kind: str) -> str:
+    return ASPECT_RU.get(kind, {"quincunx": "квинконс"}.get(kind, kind))
 
 
-def _section_header(c, x, y, title, width):
-    c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.12))
-    c.roundRect(x, y-4, width, 16, 4, fill=1, stroke=0)
-    c.setFillColor(C_GOLD); c.rect(x, y-4, 2.5, 16, fill=1, stroke=0)
-    c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 9)
-    c.drawString(x+8, y+2, title.upper())
+def _birth_line(d: dict) -> str:
+    """«8 мая 2000 · 13:25 · Рим, Италия» — как на карточке «Поделиться»."""
+    from backend.share_router import ru_date, short_place  # тяжёлый модуль — лениво
+    parts = [ru_date(d.get("birth_date"))]
+    if d.get("birth_time") and not d.get("time_unknown"):
+        parts.append(str(d["birth_time"])[:5])
+    place = short_place(d.get("birth_place"))
+    if place:
+        parts.append(place)
+    return " · ".join(p for p in parts if p)
 
 
-def _page_num(c, n, total):
-    c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7)
-    c.drawCentredString(W/2, 14*mm, f"— {n} / {total} —")
+# ── Картинка колеса ────────────────────────────────────────
+
+def _trim_png(png_bytes: bytes) -> bytes:
+    """Срезать белые поля вокруг колеса: экспорт с сайта квадратный, а колесо
+    внутри меньше кадра — поля съедали место под шапкой."""
+    try:
+        from PIL import Image, ImageChops
+        img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        box = ImageChops.difference(img, bg).convert("L").point(lambda v: 255 if v > 12 else 0).getbbox()
+        if not box:
+            return png_bytes
+        pad = 6
+        box = (max(0, box[0] - pad), max(0, box[1] - pad), min(img.width, box[2] + pad), min(img.height, box[3] + pad))
+        out = io.BytesIO()
+        img.crop(box).save(out, format="PNG")
+        return out.getvalue()
+    except Exception:
+        return png_bytes
+
+
+def _draw_wheel_png(c, cx, top_y, max_size, wheel_png_b64: str) -> float | None:
+    """Колесо сверху вниз от top_y, вписанное в max_size. Возвращает нижний
+    край или None, если картинку прочитать нельзя."""
+    try:
+        png = _trim_png(base64.b64decode(wheel_png_b64))
+        img = ImageReader(io.BytesIO(png))
+        iw, ih = img.getSize()
+        scale = max_size / max(iw, ih)
+        w, h = iw * scale, ih * scale
+        c.drawImage(img, cx - w / 2, top_y - h, width=w, height=h, mask="auto")
+        return top_y - h
+    except Exception:
+        return None
 
 
 def _wheel(c, cx, cy, r, planets=None, ascendant=None, aspects=None):
-    """Draw zodiac wheel. If planets provided, place them at real positions."""
-    sign_glyphs = list(SIGN_GLYPHS.values())[:12]
-    seg_colors = [
-        colors.HexColor("#C04040"), colors.HexColor("#6AAF3A"),
-        colors.HexColor("#3A72C4"), colors.HexColor("#C49A2A"),
-    ] * 3
-    # Ascendant longitude — rotate wheel so ASC is on left (180°)
-    asc_lon = 0.0
-    if ascendant and isinstance(ascendant, dict):
-        asc_lon = ascendant.get("longitude", 0.0) or 0.0
+    """Колесо векторно — когда картинку с сайта не прислали (CRM, портал)."""
+    asc_lon = float(_field(ascendant or {}, "longitude", 0.0) or 0.0)
+    signs = list(SIGN_GLYPHS)
+    elem = [colors.HexColor(x) for x in ("#E74C3C", "#27AE60", "#3498DB", "#2980B9")]  # --color-fire/earth/air/water
+    for i, sign in enumerate(signs):
+        start = 180 + (i * 30 - asc_lon)
+        col = elem[i % 4]
+        c.setFillColor(colors.Color(col.red, col.green, col.blue, alpha=0.14))
+        c.setStrokeColor(C_LINE)
+        c.setLineWidth(0.6)
+        c.wedge(cx - r, cy - r, cx + r, cy + r, start, 30, fill=1, stroke=1)
+        a = math.radians(start + 15)
+        _draw(c, cx + r * 0.93 * math.cos(a), cy + r * 0.93 * math.sin(a) - 4, SIGN_GLYPHS[sign], SANS, 10, col, "center")
+    c.setFillColor(C_PAGE)
+    c.setStrokeColor(C_LINE)
+    c.circle(cx, cy, r * 0.86, fill=1, stroke=1)
 
-    r_sign_inner = r * 0.88  # inner edge of zodiac sign ring (narrow)
-
-    for i in range(12):
-        # Each sign sector starts at its ecliptic longitude
-        sign_start_lon = i * 30
-        # Convert to drawing angle: ASC at left (angle 180°)
-        start_angle = 180 + (sign_start_lon - asc_lon)
-        seg = colors.Color(seg_colors[i].red, seg_colors[i].green, seg_colors[i].blue, alpha=0.45)
-        c.setFillColor(seg)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.3))
-        c.setLineWidth(0.4)
-        c.wedge(cx-r, cy-r, cx+r, cy+r, start_angle, 30, fill=1, stroke=1)
-        mid_a = math.radians(start_angle + 15)
-        gx = cx + r*0.94*math.cos(mid_a); gy = cy + r*0.94*math.sin(mid_a)
-        _draw_glyph(c, gx, gy, sign_glyphs[i], 9, C_GOLD2)
-
-    for radius, alpha in [(r_sign_inner, 0.5), (r, 0.6)]:
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=alpha))
-        c.setLineWidth(0.5 if radius < r else 0.8)
-        c.circle(cx, cy, radius, fill=0, stroke=1)
-    c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.92))
-    c.circle(cx, cy, r*0.85, fill=1, stroke=0)
-
-    # Aspect lines — по истинной долготе (не по «раздвинутым» позициям глифов),
-    # рисуются под планетами, внутри круга.
-    if planets and aspects:
-        r_aspect = r * 0.62
-        aspect_pts = {}
-        for pl in planets:
-            lon = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
-            name = pl.get("name", "") if isinstance(pl, dict) else getattr(pl, "name", "")
-            a = math.radians(180 + (lon - asc_lon))
-            aspect_pts[name] = (cx + r_aspect * math.cos(a), cy + r_aspect * math.sin(a))
-
-        for asp in aspects:
-            p1 = asp.get("planet1", "") if isinstance(asp, dict) else getattr(asp, "planet1", "")
-            p2 = asp.get("planet2", "") if isinstance(asp, dict) else getattr(asp, "planet2", "")
-            at = asp.get("aspect_type", "") if isinstance(asp, dict) else getattr(asp, "aspect_type", "")
-            if p1 in aspect_pts and p2 in aspect_pts:
-                col = ASPECT_COLORS.get(at, C_MUTED)
-                x1, y1 = aspect_pts[p1]
-                x2, y2 = aspect_pts[p2]
-                c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.35))
-                c.setLineWidth(0.6)
-                c.line(x1, y1, x2, y2)
-
-    # Draw planets at real positions
-    if planets:
-        planet_colors_map = {
-            "Sun": C_GOLD2, "Moon": colors.HexColor("#A0B0C8"),
-            "Mercury": colors.HexColor("#A090D0"), "Venus": colors.HexColor("#D08090"),
-            "Mars": colors.HexColor("#D06050"), "Jupiter": colors.HexColor("#6090D0"),
-            "Saturn": colors.HexColor("#909080"), "Uranus": colors.HexColor("#60A8B8"),
-            "Neptune": colors.HexColor("#8880C0"), "Pluto": colors.HexColor("#B03030"),
-            "North Node": colors.HexColor("#60B878"),
-        }
-        r_planet = r * 0.76  # ring just inside sign ring
-        # Spread overlapping planets
-        positions = []
-        for pl in planets:
-            lon = pl.get("longitude", 0) if isinstance(pl, dict) else getattr(pl, "longitude", 0)
-            name = pl.get("name", "") if isinstance(pl, dict) else getattr(pl, "name", "")
-            positions.append({"name": name, "lon": lon, "disp": lon})
-        # Simple push-apart
-        for _ in range(30):
-            moved = False
-            for i in range(len(positions)):
-                for j in range(i+1, len(positions)):
-                    diff = positions[j]["disp"] - positions[i]["disp"]
-                    while diff > 180: diff -= 360
-                    while diff < -180: diff += 360
-                    if abs(diff) < 7:
-                        push = (7 - abs(diff)) / 2 + 0.1
-                        if diff >= 0:
-                            positions[i]["disp"] -= push; positions[j]["disp"] += push
-                        else:
-                            positions[i]["disp"] += push; positions[j]["disp"] -= push
-                        moved = True
-            if not moved:
-                break
-
-        for pos in positions:
-            draw_angle = math.radians(180 + (pos["disp"] - asc_lon))
-            px = cx + r_planet * math.cos(draw_angle)
-            py = cy + r_planet * math.sin(draw_angle)
-            col = planet_colors_map.get(pos["name"], C_GOLD2)
-            # Circle background — подогнан под увеличенный глиф (15pt)
-            c.setFillColor(colors.Color(C_BG.red, C_BG.green, C_BG.blue, alpha=0.85))
-            c.circle(px, py, 10, fill=1, stroke=0)
-            c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.7))
-            c.setLineWidth(0.7)
-            c.circle(px, py, 10, fill=0, stroke=1)
-            # Glyph — крупнее, чтобы заполнял кружок (как на экранном эталоне)
-            glyph = PLANET_GLYPHS.get(pos["name"], "?")
-            _draw_glyph(c, px, py, glyph, 15, col)
+    pts = {}
+    for pl in planets or []:
+        lon = float(_field(pl, "longitude", 0) or 0)
+        a = math.radians(180 + (lon - asc_lon))
+        pts[_field(pl, "name", "")] = (lon, a)
+    for asp in aspects or []:
+        p1, p2 = _field(asp, "planet1", ""), _field(asp, "planet2", "")
+        if p1 in pts and p2 in pts:
+            col = ASPECT_COLORS.get(_field(asp, "aspect_type", ""), C_MUTED)
+            c.setStrokeColor(colors.Color(col.red, col.green, col.blue, alpha=0.45))
+            c.setLineWidth(0.6)
+            (_, a1), (_, a2) = pts[p1], pts[p2]
+            c.line(cx + r * 0.6 * math.cos(a1), cy + r * 0.6 * math.sin(a1),
+                   cx + r * 0.6 * math.cos(a2), cy + r * 0.6 * math.sin(a2))
+    for name, (_, a) in pts.items():
+        _draw(c, cx + r * 0.74 * math.cos(a), cy + r * 0.74 * math.sin(a) - 5,
+              PLANET_GLYPHS.get(name, "•"), SANS, 13, C_TEXT, "center")
 
 
-def _bg(c):
-    c.setFillColor(C_BG); c.rect(0, 0, W, H, fill=1, stroke=0)
-
-
-# ── Pages ─────────────────────────────────────────────────
-
-def _page_cover(c, d):
-    c.saveState()
-    _bg(c)
-
-    m = 12*mm
-    _border(c, m, m, W-2*m, H-2*m, lw=0.7)
-    o = m+4
-    for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]: _corner(c, cx2, cy2, 8)
-
-    # Заголовок и данные сверху
-    ty = H - m - 22
-    c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 9)
-    c.drawCentredString(W/2, ty, "НАТАЛЬНАЯ КАРТА")
-    _divider(c, W*0.2, ty-8, W*0.6)
-
-    c.setFillColor(C_TEXT); c.setFont(_FONT_BOLD, 22)
-    c.drawCentredString(W/2, ty-32, d["name"])
-
-    c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 8)
-    parts = [d["birth_date"]]
-    if d.get("birth_time"): parts.append(d["birth_time"])
-    parts.append(d["birth_place"])
-    c.drawCentredString(W/2, ty-50, "  ·  ".join(parts))
-
-    # Колесо по центру страницы
-    wheel_size = min(W, H) * 0.60
-    wr = wheel_size / 2
-    wcx = W / 2
-    wcy = H * 0.46
-    if not (d.get("wheel_png") and _draw_wheel_png(c, wcx, wcy, wheel_size, d["wheel_png"])):
-        _wheel(c, wcx, wcy, wr, planets=d.get("planets", []), ascendant=d.get("ascendant"), aspects=d.get("aspects", []))
-
-    # ASC / MC под колесом — ширина бейджа считается по фактическому тексту,
-    # чтобы глиф/подпись не наезжали друг на друга и не вылезали за бейдж.
-    by = wcy - wr - 22
-    badge_h = 18
-    pad_x = 6
-    gap = 4
-    glyph_box = 10
-    gap_badges = 10
-
-    entries = []
-    for label, key in [("ASC", "ascendant"), ("MC", "midheaven")]:
-        val = d.get(key) or {}
-        sign = val.get("sign", ""); deg = val.get("degree", 0)
-        value_text = f"{sign[:3]} {deg:.1f}"
-        label_w = c.stringWidth(label, _FONT_BOLD, 7)
-        value_w = c.stringWidth(value_text, _FONT_NAME, 7)
-        width = pad_x * 2 + label_w + gap + glyph_box + gap + value_w
-        entries.append((label, sign, value_text, width, label_w))
-
-    total_w = entries[0][3] + gap_badges + entries[1][3]
-    bx = W / 2 - total_w / 2
-    for label, sign, value_text, width, label_w in entries:
-        g = SIGN_GLYPHS.get(sign, "")
-        c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.2))
-        c.roundRect(bx, by-6, width, badge_h, 4, fill=1, stroke=0)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.4))
-        c.setLineWidth(0.4); c.roundRect(bx, by-6, width, badge_h, 4, fill=0, stroke=1)
-        c.setFillColor(C_GOLD); c.setFont(_FONT_BOLD, 7)
-        c.drawString(bx+pad_x, by+5, label)
-        glyph_cx = bx + pad_x + label_w + gap + glyph_box / 2
-        _draw_glyph(c, glyph_cx, by+10, g, 9, C_GOLD2)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
-        c.drawString(bx + pad_x + label_w + gap + glyph_box + gap, by+5, value_text)
-        bx += width + gap_badges
-
-    _divider(c, W*0.25, by-16, W*0.5)
-    c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
-    hs = d.get("house_system", "Placidus").capitalize()
-    astrologer = d.get("astrologer_name")
-    footer_text = (
-        f"Система домов: {hs}  ·  Подготовлено: {astrologer}"
-        if astrologer
-        else f"Система домов: {hs}  ·  Aristea Timeline"
-    )
-    c.drawCentredString(W/2, by-28, footer_text)
-
-    c.restoreState()
-
-
-def _page_data(c, d):
-    c.saveState()
-    _bg(c)
-    _nebula(c, W*0.1, H*0.9, 120, 80, C_ACCENT, alpha=0.04)
-    _nebula(c, W*0.9, H*0.1, 100, 70, C_ACCENT, alpha=0.04)
-    _stars(c, 13, 120)
-
-    m = 12*mm
-    _border(c, m, m, W-2*m, H-2*m, lw=0.6)
-    o = m+4
-    for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]: _corner(c, cx2, cy2, 6)
-
-    c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 10)
-    c.drawCentredString(W/2, H-m-10, "ПЛАНЕТЫ · ДОМА · АСПЕКТЫ")
-    _divider(c, m+10, H-m-18, W-2*m-20)
-
-    cw = (W-2*m-16)/2 - 6
-    cl = m+8; cr = W/2+4
-
-    # Planets
-    py = H-m-34
-    _section_header(c, cl, py, "Положение планет", cw); py -= 22
-    for pl in d["planets"]:
-        br = 7; bx = cl
-        c.setFillColor(colors.Color(C_ACCENT.red, C_ACCENT.green, C_ACCENT.blue, alpha=0.18))
-        c.circle(bx+br, py, br, fill=1, stroke=0)
-        c.setStrokeColor(colors.Color(C_GOLD.red, C_GOLD.green, C_GOLD.blue, alpha=0.5))
-        c.setLineWidth(0.5); c.circle(bx+br, py, br, fill=0, stroke=1)
-        _draw_glyph(c, bx+br, py, PLANET_GLYPHS.get(pl["name"],"?"), 10, C_GOLD2)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_BOLD, 8)
-        c.drawString(bx+br*2+5, py-3, pl["name"])
-        sg = SIGN_GLYPHS.get(pl["sign"],"")
-        deg = pl.get("degree_in_sign", pl.get("degree", 0))
-        _draw_glyph(c, bx+95, py+3, sg, 9, C_GOLD)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 8)
-        c.drawString(bx+105, py-3, f"{pl['sign']}  {deg:.1f}")
-        c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
-        if pl.get("house"): c.drawString(bx+195, py-3, f"Дом {pl['house']}")
-        if pl.get("retrograde"):
-            c.setFillColor(C_RETRO); c.setFont(_FONT_BOLD, 7)
-            c.drawString(bx+235, py-3, "R")
-        c.setStrokeColor(colors.Color(C_BORDER.red, C_BORDER.green, C_BORDER.blue, alpha=0.6))
-        c.setLineWidth(0.3); c.line(cl, py-9, cl+cw, py-9); py -= 20
-
-    # Houses
-    py -= 6
-    _section_header(c, cl, py, "Дома", cw); py -= 16
-    houses = d.get("houses", []); half = len(houses)//2
-    for i in range(half):
-        h1 = houses[i]; h2 = houses[i+half]
-        c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7.5)
-        c.drawString(cl, py, f"Дом {h1['number']:2d}")
-        _draw_glyph(c, cl+36, py+5, SIGN_GLYPHS.get(h1["sign"],""), 9, C_GOLD)
-        c.setFillColor(C_TEXT); c.drawString(cl+44, py, h1["sign"])
-        c.setFillColor(C_MUTED); c.drawString(cl+cw/2+4, py, f"Дом {h2['number']:2d}")
-        _draw_glyph(c, cl+cw/2+40, py+5, SIGN_GLYPHS.get(h2["sign"],""), 9, C_GOLD)
-        c.setFillColor(C_TEXT); c.drawString(cl+cw/2+48, py, h2["sign"]); py -= 13
-
-    # Aspects
-    ay = H-m-34
-    _section_header(c, cr, ay, "Аспекты", cw); ay -= 22
-    for asp in d.get("aspects", []):
-        p1 = asp.get("planet1",""); p2 = asp.get("planet2","")
-        at = asp.get("aspect_type", asp.get("aspect",""))
-        orb = asp.get("orb", 0)
-        sym = ASPECT_SYMBOLS.get(at,"·")
-        acol = ASPECT_COLORS.get(at, C_MUTED)
-        _draw_glyph(c, cr+5, ay+4, PLANET_GLYPHS.get(p1,"?"), 10, C_GOLD2)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
-        c.drawString(cr+11, ay, p1)
-        _draw_glyph(c, cr+88, ay+4, sym, 10, acol)
-        c.setFillColor(C_SILVER); c.setFont(_FONT_NAME, 7)
-        c.drawCentredString(cr+88, ay-9, at)
-        _draw_glyph(c, cr+108, ay+4, PLANET_GLYPHS.get(p2,"?"), 10, C_GOLD2)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7.5)
-        c.drawString(cr+114, ay, p2)
-        c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 7)
-        c.drawRightString(cr+175, ay, f"орб {orb:.1f}")
-        c.setStrokeColor(colors.Color(C_BORDER.red, C_BORDER.green, C_BORDER.blue, alpha=0.5))
-        c.setLineWidth(0.3); c.line(cr, ay-13, cr+cw, ay-13); ay -= 26
-
-    # Legend
-    ay -= 8
-    _section_header(c, cr, ay, "Условные обозначения", cw); ay -= 16
-    legend = [
-        ("соединение ☌", C_CONJ), ("тригон △", C_TRINE),
-        ("секстиль ⚹", C_SEXTILE), ("квадрат □", C_SQUARE),
-        ("оппозиция ☍", C_SQUARE), ("R — ретроградность", C_RETRO),
-    ]
-    for i, (label, col) in enumerate(legend):
-        rx = cr + (i%2)*(cw/2+2); ry = ay - (i//2)*13
-        c.setFillColor(col); c.circle(rx+3, ry+2, 2.5, fill=1, stroke=0)
-        c.setFillColor(C_TEXT); c.setFont(_FONT_NAME, 7)
-        c.drawString(rx+9, ry-1, label)
-
-    c.restoreState()
-
-
-def _interp_page_begin(c, page_num_placeholder):
-    """Draw background + header for an interpretation page. Returns (cx, cw, iy)."""
-    m = 12*mm
-    _bg(c)
-    _nebula(c, W*0.5, H*0.5, 250, 300, C_ACCENT, alpha=0.03)
-    _stars(c, 99 + page_num_placeholder, 80)
-    _border(c, m, m, W-2*m, H-2*m, lw=0.6)
-    o = m+4
-    for cx2, cy2 in [(o,o),(W-o,o),(o,H-o),(W-o,H-o)]:
-        _corner(c, cx2, cy2, 6)
-    c.setFillColor(C_GOLD2); c.setFont(_FONT_BOLD, 10)
-    c.drawCentredString(W/2, H-m-10, "ИНТЕРПРЕТАЦИЯ НАТАЛЬНОЙ КАРТЫ")
-    _divider(c, m+10, H-m-18, W-2*m-20)
-    return m+10, W-2*m-20, H-m-34
-
-
-def _page_interp(c, d, first_page_num=3):
-    """Render interpretation — auto-expands to as many pages as needed."""
-    interp = d.get("interpretation", {})
-    if isinstance(interp, str):
-        sections = _parse_interp_string(interp)
-    else:
-        sections = interp or {}
-
-    section_titles = [
-        ("general",       "✦  Общий портрет личности"),
-        ("career",        "✦  Карьера и призвание"),
-        ("relationships", "✦  Отношения и партнёрство"),
-        ("health",        "✦  Здоровье и энергия"),
-        ("finance",       "✦  Финансы"),
-        ("spirituality",  "✦  Духовное развитие"),
-    ]
-
-    style = ParagraphStyle(
-        "body", fontName=_FONT_NAME, fontSize=8.5, leading=13.5,
-        textColor=C_TEXT, alignment=TA_JUSTIFY, spaceAfter=4,
-    )
-    head_style = ParagraphStyle(
-        "head", fontName=_FONT_BOLD, fontSize=9, leading=14,
-        textColor=C_GOLD2, spaceAfter=4,
-    )
-
-    m = 12*mm
-    page_idx = 0
-    cx_col, cw_col, iy = _interp_page_begin(c, page_idx)
-    bottom_margin = m + 22
-
-    def new_page():
-        nonlocal page_idx, cx_col, cw_col, iy
-        # footer on current page
-        c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
-        c.drawCentredString(W/2, m+6,
-            "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
-        c.showPage()
-        page_idx += 1
-        cx_col, cw_col, iy = _interp_page_begin(c, page_idx)
-
-    for key, title in section_titles:
-        text = sections.get(key, "")
-        if not text:
-            continue
-
-        # Section header — 20pt height
-        if iy - 20 < bottom_margin:
-            new_page()
-
-        _section_header(c, cx_col, iy, title, cw_col)
-        iy -= 22
-
-        # Split text into paragraphs and flow across pages
-        raw_paras = [p.strip() for p in text.split("\n\n") if p.strip()]
-        if not raw_paras:
-            raw_paras = [text]
-
-        for raw in raw_paras:
-            para = Paragraph(raw, style)
-            _pw, ph = para.wrap(cw_col, iy - bottom_margin)
-
-            if ph > iy - bottom_margin and ph < (H - 2*m - 60):
-                # Paragraph fits on a fresh page but not here → new page
-                new_page()
-                _pw, ph = para.wrap(cw_col, iy - bottom_margin)
-
-            if ph > iy - bottom_margin:
-                # Paragraph is larger than a full page — split manually
-                words = raw.split()
-                chunk_words = []
-                for w in words:
-                    chunk_words.append(w)
-                    test = Paragraph(" ".join(chunk_words), style)
-                    _tw, th = test.wrap(cw_col, iy - bottom_margin)
-                    if th > iy - bottom_margin:
-                        chunk_words.pop()
-                        if chunk_words:
-                            chunk_para = Paragraph(" ".join(chunk_words), style)
-                            _cw2, ch = chunk_para.wrap(cw_col, iy - bottom_margin)
-                            chunk_para.drawOn(c, cx_col, iy - ch)
-                            iy -= ch + 4
-                        new_page()
-                        chunk_words = [w]
-                if chunk_words:
-                    chunk_para = Paragraph(" ".join(chunk_words), style)
-                    _cw2, ch = chunk_para.wrap(cw_col, iy - bottom_margin)
-                    chunk_para.drawOn(c, cx_col, iy - ch)
-                    iy -= ch + 4
-            else:
-                para.drawOn(c, cx_col, iy - ph)
-                iy -= ph + 4
-
-        # Divider between sections
-        if iy - 14 > bottom_margin:
-            _divider(c, cx_col + cw_col*0.3, iy, cw_col*0.4, alpha=0.35)
-            iy -= 14
-
-    # Footer on last page
-    c.setFillColor(C_MUTED); c.setFont(_FONT_NAME, 6.5)
-    c.drawCentredString(W/2, m+6,
-        "Данный документ носит ознакомительный характер. Астрология — язык символов и архетипов.")
-
-    return page_idx  # number of extra interp pages added
-
+# ── Разбор: секции из текста модели ─────────────────────────
 
 def _parse_interp_string(text: str) -> dict:
     """Parse interpretation text — supports <section name="..."> tags and ### markdown headers."""
-    import re
-
-    # Format 1: <section name="general">...</section>
     tag_sections = re.findall(r'<section name="([^"]+)">(.*?)</section>', text, re.DOTALL)
     if tag_sections:
         return {name: content.strip() for name, content in tag_sections}
 
-    # Format 2: ### Heading markdown
     section_map = {
         "общий": "general", "портрет": "general", "личност": "general", "personality": "general",
         "карьер": "career", "призван": "career", "career": "career",
@@ -655,49 +311,288 @@ def _parse_interp_string(text: str) -> dict:
         "финанс": "finance", "материал": "finance", "finance": "finance",
         "духовн": "spirituality", "внутренн": "spirituality", "spiritual": "spirituality",
     }
-    sections = {}
+    sections: dict = {}
     current_key = "general"
-    current_lines = []
-
+    current_lines: list = []
     for line in text.split("\n"):
         if line.startswith("### ") or line.startswith("## "):
             if current_lines:
                 sections[current_key] = "\n\n".join(current_lines).strip()
             title_lower = re.sub(r'#+\s*', '', line).lower()
-            current_key = next(
-                (v for k, v in section_map.items() if k in title_lower), "general"
-            )
+            current_key = next((v for k, v in section_map.items() if k in title_lower), "general")
             current_lines = []
         else:
             stripped = line.strip()
             if stripped:
                 current_lines.append(stripped)
-
     if current_lines:
         prev = sections.get(current_key, "")
         sections[current_key] = (prev + "\n\n" + "\n\n".join(current_lines)).strip()
-
-    # Format 3: no markers — treat entire text as "general"
     if not sections:
         sections["general"] = text.strip()
-
     return sections
 
 
-# ── Public API ─────────────────────────────────────────────
+def _para_markup(text: str, font: str) -> str:
+    """Текст модели → разметка Paragraph: экранирование (& и < в тексте ломали
+    разбор), **жирный** → <b>, символы вне шрифта — <font> из цепочки."""
+    out = []
+    for f, chunk in _runs(text, font):
+        esc = _xml_escape(chunk)
+        out.append(esc if f == font else f'<font name="{f}">{esc}</font>')
+    s = "".join(out)
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
 
-def _draw_wheel_png(c, cx, cy, size, wheel_png_b64: str) -> bool:
-    """Вставляет PNG колеса по центру (cx, cy) с заданным size.
-    Возвращает True при успехе, False при ошибке."""
-    try:
-        png_bytes = base64.b64decode(wheel_png_b64)
-        img_reader = ImageReader(io.BytesIO(png_bytes))
-        x = cx - size / 2
-        y = cy - size / 2
-        c.drawImage(img_reader, x, y, width=size, height=size, mask='auto')
-        return True
-    except Exception:
+
+# ── Раскладка ──────────────────────────────────────────────
+
+class _Flow:
+    """Страницы после обложки: курсор сверху вниз, новая страница, когда
+    блок не влезает. Подвал рисуется при закрытии страницы."""
+
+    def __init__(self, c, footer):
+        self.c = c
+        self.footer = footer
+        self.y = TOP
+
+    def need(self, h: float) -> bool:
+        if self.y - h < BOTTOM:
+            self.new_page()
+            return True
         return False
+
+    def new_page(self):
+        self.footer(self.c)
+        self.c.showPage()
+        self.y = TOP
+
+    def title(self, text: str, size: float = 18, gap_after: float = 14):
+        self.need(size + gap_after + 60)   # заголовок не остаётся один внизу
+        _draw(self.c, MARGIN, self.y - size, text, SERIF_B, size, C_TEXT)
+        self.y -= size + gap_after
+
+    def subtitle(self, text: str):
+        self.need(40)
+        self.y -= 6
+        _draw(self.c, MARGIN, self.y - 11, text, SANS_B, 10.5, C_MUTED)
+        self.y -= 11 + 8
+
+    def rule(self):
+        self.c.setStrokeColor(C_LINE)
+        self.c.setLineWidth(0.6)
+        self.c.line(MARGIN, self.y, W - MARGIN, self.y)
+
+
+def _planets_table(fl: _Flow, planets):
+    row = 20
+    cols = (MARGIN, MARGIN + 150, MARGIN + 300, MARGIN + 400)  # планета · знак · градус · дом
+    fl.need(row * 2)
+    for x, head in zip(cols, ("Планета", "Знак", "Положение", "Дом")):
+        _draw(fl.c, x, fl.y - 10, head, SANS, 8.5, C_MUTED)
+    fl.y -= 16
+    fl.rule()
+    for pl in planets:
+        if fl.need(row):
+            fl.rule()
+        name = _field(pl, "name", "")
+        sign = _field(pl, "sign", "")
+        base = fl.y - 14
+        _draw(fl.c, cols[0], base, PLANET_GLYPHS.get(name, "•"), SANS, 11, C_ACCENT)
+        _draw(fl.c, cols[0] + 18, base, planet_ru(name), SANS_B, 10, C_TEXT)
+        _draw(fl.c, cols[1], base, SIGN_GLYPHS.get(sign, ""), SANS, 10.5, C_MUTED)
+        _draw(fl.c, cols[1] + 16, base, sign_ru(sign), SANS, 10, C_TEXT)
+        deg = _field(pl, "degree_in_sign", _field(pl, "degree", 0))
+        pos = dms(deg)
+        if _field(pl, "retrograde") and name not in _NODES:
+            pos += f"  {RETRO}"
+        _draw(fl.c, cols[2], base, pos, SANS, 10, C_TEXT)
+        house = _field(pl, "house")
+        if house:
+            _draw(fl.c, cols[3], base, str(house), SANS, 10, C_TEXT)
+        fl.y -= row
+        fl.rule()
+    fl.y -= 6
+    has_retro = any(_field(p, "retrograde") and _field(p, "name") not in _NODES for p in planets)
+    if has_retro:
+        _draw(fl.c, MARGIN, fl.y - 10, f"{RETRO} — ретроградное движение", SANS, 8.5, C_MUTED)
+        fl.y -= 16
+
+
+def _houses_table(fl: _Flow, houses):
+    row = 19
+    half = (len(houses) + 1) // 2
+    fl.need(row * half + 10)
+    col_w = CONTENT_W / 2
+    for i, h in enumerate(houses):
+        col, r = divmod(i, half)
+        x = MARGIN + col * col_w
+        base = fl.y - 14 - r * row
+        sign = _field(h, "sign", "")
+        _draw(fl.c, x, base, f"{_field(h, 'number', i + 1)} дом", SANS, 10, C_MUTED)
+        _draw(fl.c, x + 52, base, SIGN_GLYPHS.get(sign, ""), SANS, 10.5, C_MUTED)
+        _draw(fl.c, x + 68, base, sign_ru(sign), SANS, 10, C_TEXT)
+        _draw(fl.c, x + 160, base, dms(_field(h, "degree", 0)), SANS, 10, C_TEXT)
+    fl.y -= half * row + 10
+
+
+def _aspects_table(fl: _Flow, aspects):
+    row = 19
+    groups = []
+    for title, kinds in ASPECT_GROUPS:
+        items = [a for a in aspects if _field(a, "aspect_type") in kinds]
+        if items:
+            groups.append((title, sorted(items, key=lambda a: float(_field(a, "orb", 0) or 0))))
+    rest = [a for a in aspects if _field(a, "aspect_type") not in {k for _, ks in ASPECT_GROUPS for k in ks}]
+    if rest:
+        groups.append(("Прочие", rest))
+    x_p1, x_asp, x_p2, x_orb = MARGIN, MARGIN + 150, MARGIN + 290, W - MARGIN
+    for title, items in groups:
+        fl.subtitle(title)
+        for a in items:
+            if fl.need(row):
+                fl.subtitle(f"{title} (продолжение)")
+            base = fl.y - 13
+            p1, p2 = _field(a, "planet1", ""), _field(a, "planet2", "")
+            kind = _field(a, "aspect_type", "")
+            col = ASPECT_COLORS.get(kind, C_MUTED)
+            _draw(fl.c, x_p1, base, PLANET_GLYPHS.get(p1, "•"), SANS, 11, C_ACCENT)
+            _draw(fl.c, x_p1 + 18, base, planet_ru(p1), SANS, 10, C_TEXT)
+            _draw(fl.c, x_asp, base, ASPECT_SYMBOLS.get(kind, "·"), SANS, 11, col)
+            _draw(fl.c, x_asp + 18, base, aspect_ru(kind), SANS, 10, col)
+            _draw(fl.c, x_p2, base, PLANET_GLYPHS.get(p2, "•"), SANS, 11, C_ACCENT)
+            _draw(fl.c, x_p2 + 18, base, planet_ru(p2), SANS, 10, C_TEXT)
+            _draw(fl.c, x_orb, base, f"орб {dms(_field(a, 'orb', 0))}", SANS, 9, C_MUTED, "right")
+            fl.y -= row
+            fl.rule()
+
+
+def _interpretation(fl: _Flow, interp):
+    sections = _parse_interp_string(interp) if isinstance(interp, str) else (interp or {})
+    body = ParagraphStyle("body", fontName=SERIF, fontSize=10.5, leading=16.5,
+                          textColor=C_TEXT, alignment=TA_LEFT, spaceAfter=0)
+    first = True
+    for key, title in SECTION_TITLES:
+        text = (sections.get(key) or "").strip()
+        if not text:
+            continue
+        if first:
+            fl.new_page()
+            fl.title("Разбор карты", 22, 18)
+            first = False
+        fl.need(80)
+        _draw(fl.c, MARGIN, fl.y - 14, title, SERIF_B, 14, C_TEXT)
+        fl.c.setStrokeColor(C_ACCENT)
+        fl.c.setLineWidth(1.2)
+        fl.c.line(MARGIN, fl.y - 20, MARGIN + 28, fl.y - 20)
+        fl.y -= 32
+        for raw in [p.strip() for p in text.split("\n\n") if p.strip()]:
+            para = Paragraph(_para_markup(raw, SERIF), body)
+            while para is not None:
+                avail = fl.y - BOTTOM
+                _, h = para.wrap(CONTENT_W, avail)
+                if h <= avail:
+                    para.drawOn(fl.c, MARGIN, fl.y - h)
+                    fl.y -= h + 8
+                    para = None
+                    continue
+                parts = para.split(CONTENT_W, avail)
+                if len(parts) >= 2:
+                    _, h0 = parts[0].wrap(CONTENT_W, avail)
+                    parts[0].drawOn(fl.c, MARGIN, fl.y - h0)
+                    fl.new_page()
+                    para = parts[1]
+                else:
+                    fl.new_page()   # не делится (одна строка) — на следующую
+        fl.y -= 10
+
+
+def _cover(c, d):
+    y = H - 64
+    name = (d.get("name") or "").strip()
+    if name:
+        _draw(c, W / 2, y, "НАТАЛЬНАЯ КАРТА", SANS_B, 9, C_MUTED, "center")
+        y -= 34
+        _draw(c, W / 2, y, name, SERIF_B, 26, C_TEXT, "center")
+    else:
+        # Имени у карты нет — заголовок ОДИН. До 28.09.2026 здесь стояло
+        # «НАТАЛЬНАЯ КАРТА» и под ним имя-заглушка «Натальная карта».
+        y -= 20
+        _draw(c, W / 2, y, "Натальная карта", SERIF_B, 26, C_TEXT, "center")
+    y -= 22
+    _draw(c, W / 2, y, _birth_line(d), SANS, 11, C_MUTED, "center")
+    y -= 20
+
+    size = CONTENT_W * 0.92
+    bottom = None
+    if d.get("wheel_png"):
+        bottom = _draw_wheel_png(c, W / 2, y, size, d["wheel_png"])
+    if bottom is None:
+        r = size / 2
+        _wheel(c, W / 2, y - r, r, planets=d.get("planets", []),
+               ascendant=d.get("ascendant"), aspects=d.get("aspects", []))
+        bottom = y - size
+
+    # «Большая тройка»: Солнце, Луна, Асцендент — с чего начинают читать карту.
+    by_name = {_field(p, "name"): p for p in d.get("planets", [])}
+    trio = []
+    for key, label in (("Sun", "Солнце"), ("Moon", "Луна")):
+        p = by_name.get(key)
+        if p:
+            trio.append((label, _field(p, "sign", ""), _field(p, "degree_in_sign", 0)))
+    asc = d.get("ascendant")
+    if asc and not d.get("time_unknown"):
+        trio.append(("Асцендент", _field(asc, "sign", ""), _field(asc, "degree", 0)))
+    y = bottom - 30
+    if trio:
+        col_w = CONTENT_W / len(trio)
+        for i, (label, sign, deg) in enumerate(trio):
+            cx = MARGIN + col_w * (i + 0.5)
+            _draw(c, cx, y, label, SANS, 9, C_MUTED, "center")
+            _draw(c, cx, y - 20, f"{SIGN_GLYPHS.get(sign, '')} {SIGN_IN_RU.get(sign, sign)}", SERIF_B, 13, C_TEXT, "center")
+            _draw(c, cx, y - 36, dms(deg), SANS, 10, C_MUTED, "center")
+        y -= 60
+    hs = HOUSE_SYSTEM_RU.get(str(d.get("house_system") or "placidus").lower(), d.get("house_system"))
+    if not d.get("time_unknown"):
+        _draw(c, W / 2, y, f"Система домов: {hs}", SANS, 9, C_MUTED, "center")
+
+
+def _render(c, d: dict, total: int | None) -> int:
+    """Весь документ; возвращает число страниц. total=None — проход подсчёта."""
+    page = [1]
+    brand = d.get("astrologer_name") or "Aristea Timeline"
+
+    def footer(cv, last=False):
+        cv.setStrokeColor(C_LINE)
+        cv.setLineWidth(0.6)
+        cv.line(MARGIN, 40, W - MARGIN, 40)
+        # Под брендом астролога адреса сервиса нет — это его документ.
+        _draw(cv, MARGIN, 26, brand if d.get("astrologer_name") else f"{brand} · aristeatime.ru", SANS, 8.5, C_MUTED)
+        if total:
+            _draw(cv, W - MARGIN, 26, f"стр. {page[0]} из {total}", SANS, 8.5, C_MUTED, "right")
+        if last:
+            _draw(cv, W / 2, 48, DISCLAIMER, SANS, 8, C_MUTED, "center")
+        page[0] += 1
+
+    c.setFillColor(C_PAGE)
+    _cover(c, d)
+    footer(c)
+    c.showPage()
+
+    fl = _Flow(c, footer)
+    fl.title("Планеты")
+    _planets_table(fl, d.get("planets", []))
+    if d.get("houses") and not d.get("time_unknown"):
+        fl.y -= 10
+        fl.title("Дома")
+        _houses_table(fl, d["houses"])
+    if d.get("aspects"):
+        fl.y -= 10
+        fl.title("Аспекты")
+        _aspects_table(fl, d["aspects"])
+    _interpretation(fl, d.get("interpretation"))
+    footer(c, last=True)
+    c.showPage()
+    return page[0] - 1
 
 
 def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | None = None, wheel_png: str | None = None) -> bytes:
@@ -707,50 +602,38 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     Args:
         chart: NatalChart SQLAlchemy model instance (or any object/dict with the right fields)
         interpretation: Full interpretation text (markdown string) or dict of sections
-        astrologer_name: Premium-only — astrologer display name shown on cover page
-
-    Returns:
-        PDF file as bytes
+        astrologer_name: Premium-only — astrologer display name shown in the footer
+        wheel_png: base64 PNG колеса с сайта; нет — колесо рисуется векторно
     """
-    # Normalise chart to dict
-    if hasattr(chart, "__dict__"):
+    if hasattr(chart, "__dict__") and not isinstance(chart, dict):
         ch = chart
         data = {
-            "name": "Натальная карта",
+            "name": getattr(ch, "name", None) or "",
             "birth_date": ch.birth_date or "",
             "birth_time": ch.birth_time or "",
             "birth_place": ch.birth_place or "",
-            "house_system": ch.house_system or "Placidus",
+            "time_unknown": bool(getattr(ch, "time_unknown", False)),
+            "house_system": ch.house_system or "placidus",
             "ascendant": ch.ascendant,
             "midheaven": ch.midheaven,
             "planets": ch.planets or [],
             "houses": ch.houses or [],
             "aspects": ch.aspects or [],
-            "interpretation": interpretation,
-            "astrologer_name": astrologer_name,
-            "wheel_png": wheel_png,
         }
     else:
         data = dict(chart)
-        data.setdefault("interpretation", interpretation)
-        data.setdefault("astrologer_name", astrologer_name)
-        data["wheel_png"] = wheel_png
+    data["interpretation"] = data.get("interpretation") or interpretation
+    data["astrologer_name"] = data.get("astrologer_name") or astrologer_name
+    data["wheel_png"] = wheel_png
+
+    # Проход 1 — только считаем страницы для «стр. N из M».
+    total = _render(canvas.Canvas(io.BytesIO(), pagesize=A4), data, None)
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f"Натальная карта — {data['birth_place']}")
-    author = astrologer_name or "Aristea Timeline"
-    c.setAuthor(author)
-
-    _page_cover(c, data)
-    c.showPage()
-    _page_data(c, data)
-    c.showPage()
-    _page_interp(c, data)
-    # _page_interp calls c.showPage() internally for extra pages;
-    # the last interp page is NOT followed by showPage, so we add it here.
-    c.showPage()
-
+    title_name = data.get("name") or _birth_line(data)
+    c.setTitle(f"Натальная карта — {title_name}")
+    c.setAuthor(astrologer_name or "Aristea Timeline")
+    _render(c, data, total)
     c.save()
-    buf.seek(0)
-    return buf.read()
+    return buf.getvalue()
