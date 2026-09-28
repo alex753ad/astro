@@ -133,7 +133,9 @@ export const ITEMS = [
   {
     key: 'transit_horizon',
     title: 'Транзиты вперёд',
-    where: 'web',
+    // И на сайте, и в ленте приложения: лента кончается там же, где
+    // тарифный горизонт транзитов (backend/feed/horizon.py).
+    where: 'both',
     value: (t) => `на ${months(LIMITS[t].horizon)}`,
   },
   {
@@ -198,6 +200,33 @@ export function lineText(item, tier) {
 }
 
 /**
+ * Главные пункты тарифа — то, что окно предложения показывает под
+ * подсвеченной строкой (решение владельца 29.09.2026: 3–4 пункта и ссылка
+ * «Все возможности тарифа», полный список — только на /pricing). Порядок —
+ * порядок показа. Пункт, ради которого открыли окно, из списка выпадает:
+ * он уже стоит первым.
+ */
+export const OFFER_MAIN = {
+  lite: ['chart_reading', 'transit', 'chat', 'planner_period'],
+  pro: ['chat', 'transit', 'planner_longterm', 'chart_reading'],
+  premium: ['crm', 'chart_reading', 'charts'],
+};
+const OFFER_MAIN_MAX = 4;   // вместе с подсвеченной строкой
+
+// Куда ведёт «Все возможности тарифа» из приложения (там нет роутера сайта).
+export const PRICING_URL = 'https://aristeatime.ru/pricing';
+
+function fromLine(prev) {
+  if (!prev) return null;
+  return prev === 'free' ? 'Всё, что есть бесплатно, плюс:' : `Всё из ${TIER_NAMES_GENITIVE[prev]}, плюс:`;
+}
+
+/** «pdf-отчёт…» не пишем: латиница в начале остаётся заглавной. */
+function lowerFirst(t) {
+  return /^[А-ЯЁ]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t;
+}
+
+/**
  * Карточка тарифа.
  *
  * @param {string} tier
@@ -205,10 +234,12 @@ export function lineText(item, tier) {
  *   focus — что человек пытался открыть (ключ offerRule.js или каталога):
  *     этот пункт встаёт первой строкой с `hl: true`, даже если тариф его не
  *     меняет, — предложение начинается с того, за чем человек пришёл;
- *   full — все пункты тарифа, а не только новые (карточка текущего тарифа).
+ *   full — все пункты тарифа, а не только новые (карточка текущего тарифа);
+ *   brief — окно предложения: подсвеченная строка + главные пункты
+ *     (OFFER_MAIN), всего не больше четырёх.
  * @returns {{from: string|null, lines: {key, text, hl, about}[], site: string|null}}
  */
-export function tierCard(tier, { surface = 'web', focus, full = false } = {}) {
+export function tierCard(tier, { surface = 'web', focus, full = false, brief = false } = {}) {
   const idx = CATALOG_TIERS.indexOf(tier);
   const prev = idx > 0 && !full ? CATALOG_TIERS[idx - 1] : null;
   const shown = (i) => i.where === 'both' || i.where === surface;
@@ -222,16 +253,25 @@ export function tierCard(tier, { surface = 'web', focus, full = false } = {}) {
   if (focusItem && shown(focusItem) && focusItem.value(tier) !== null) {
     lines.push({ key: focusItem.key, text: lineText(focusItem, tier), hl: true, about: focusItem.about || null });
   }
-  for (const i of own) {
+  const rest = brief
+    ? (OFFER_MAIN[tier] || []).map((k) => BY_KEY[k]).filter((i) => i && i.value(tier) !== null)
+    : own;
+  for (const i of rest) {
     if (!shown(i) || i === focusItem) continue;
+    if (brief && lines.length >= OFFER_MAIN_MAX) break;
     lines.push({ key: i.key, text: lineText(i, tier), hl: false, about: i.about || null });
   }
 
-  const siteLines = surface === 'app' ? own.filter((i) => i.where === 'web').map((i) => lineText(i, tier)) : [];
+  // В приложении то, что есть только на сайте, — одной короткой строкой из
+  // названий, без значений: «На сайте: лунный календарь, PDF-отчёт по карте».
+  // До 29.09.2026 здесь была сплошная строка значений через «;».
+  const site = surface === 'app' && !brief
+    ? own.filter((i) => i.where === 'web').map((i) => lowerFirst(i.title))
+    : [];
   return {
-    from: prev ? `Всё из ${TIER_NAMES_GENITIVE[prev]}, плюс:` : null,
+    from: fromLine(prev),
     lines,
-    site: siteLines.length ? `На сайте: ${siteLines.join('; ')}` : null,
+    site: site.length ? `На сайте: ${site.join(', ')}` : null,
   };
 }
 

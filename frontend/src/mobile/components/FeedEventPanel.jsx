@@ -29,7 +29,7 @@ import { openPaySheet } from '../lib/paySheetBus';
 import { TIER_NAMES } from '../../constants';
 import { offerFor } from '../../lib/offerRule';
 import { tierAccusative } from '../lib/ruDeclension';
-import { TRANSIT_TRIALS_USED_TEXT, transitOffer } from '../lib/transitInterpretRules';
+import { transitOffer } from '../lib/transitInterpretRules';
 import useTrials, { leftLabel, refreshTrials } from '../lib/useTrials';
 import { isGuest } from '../lib/guestChart';
 import { askSignup } from '../lib/signupPrompt';
@@ -108,6 +108,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
     const ask = (id) => openPaySheet({
       focus: id,
       context: t.text,
+      state: t.state,
       returnTo: { path: '/app/feed', kind: 'event', key: event.key, feature: t.feature },
     });
     return (
@@ -403,7 +404,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
         {/* Free: пробные разборы (2 за всё время, решение владельца
             28.09.2026). Кончились — сразу серое предложение, без запроса. */}
         {canAsk && status === 'idle' && freeTrial && trials.transitLeft === 0 && !failure
-          && offerBlock({ feature: 'transit', text: TRANSIT_TRIALS_USED_TEXT })}
+          && offerBlock(transitOffer(TRANSIT_OUTCOMES.NOT_SIGNIFICANT))}
         {canAsk && status === 'idle' && freeTrial && trials.transitLeft > 0 && (
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
             {leftLabel(trials.transitLeft, ['бесплатный разбор', 'бесплатных разбора', 'бесплатных разборов'])}

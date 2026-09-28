@@ -1,4 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { TIER_NAMES, tierPriceLabel } from "../constants";
 import { offerFor } from "../lib/offerRule";
 import { ACCESS_TERM, catalogItem, tierCard } from "../lib/tierCatalog";
@@ -39,7 +40,9 @@ function Svg({ children, size = 20 }) {
 }
 
 function PlanCard({ tier, feature, recommended, onChoose, busy, reduce }) {
-  const card = tierCard(tier, { focus: feature });
+  // Кратко: подсвеченная строка + главные пункты (OFFER_MAIN в каталоге),
+  // полный список — на /pricing по ссылке под ними.
+  const card = tierCard(tier, { focus: feature, brief: true });
   const [first, ...rest] = card.lines;
   const hl = first?.hl ? first : null;
   const others = hl ? rest : card.lines;
@@ -86,7 +89,7 @@ function PlanCard({ tier, feature, recommended, onChoose, busy, reduce }) {
       {card.from && (
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6 }}>{card.from}</div>
       )}
-      <ul style={{ listStyle: "none", margin: "0 0 16px", padding: 0, display: "flex", flexDirection: "column", gap: 6, flexGrow: 1 }}>
+      <ul style={{ listStyle: "none", margin: "0 0 10px", padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
         {others.map((l) => (
           <li key={l.key} style={{ display: "flex", gap: 8, fontSize: 13, lineHeight: 1.45, color: "var(--text-primary)" }}>
             <span style={{ color: "var(--accent)", flexShrink: 0, marginTop: 1 }}>
@@ -96,6 +99,9 @@ function PlanCard({ tier, feature, recommended, onChoose, busy, reduce }) {
           </li>
         ))}
       </ul>
+      <Link to="/pricing" style={{ fontSize: 13, fontWeight: 600, color: "var(--accent-fg)", marginBottom: 16, flexGrow: 1 }}>
+        Все возможности тарифа
+      </Link>
 
       <motion.button
         type="button"

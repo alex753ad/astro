@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import MotionButton from '../components/MotionButton';
 import { TIERS } from '../constants';
 import { tierCard } from '../lib/tierCatalog';
+import { tierAccusative } from '../mobile/lib/ruDeclension';
 
 const DISPLAY = "var(--font-display)";
 const BODY = "var(--font-body)";
@@ -69,7 +70,7 @@ export default function PricingPage({ currentUser, onShowAuth }) {
                 onClick={t.id === 'premium' ? undefined : handleChoose}
                 disabled={t.id === 'premium'}
               >
-                {t.id === 'premium' ? 'Скоро' : t.id === 'free' ? 'Начать бесплатно' : `Выбрать «${t.label}»`}
+                {t.id === 'premium' ? 'Скоро' : t.id === 'free' ? 'Начать бесплатно' : `Оформить ${tierAccusative(t.label)}`}
               </MotionButton>
             </div>
           ))}

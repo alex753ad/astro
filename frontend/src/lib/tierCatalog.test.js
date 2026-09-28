@@ -87,11 +87,29 @@ describe('карточка тарифа', () => {
     expect(tierCard('lite', { focus: 'transit_limit' }).lines[0].key).toBe('transit');
   });
 
-  it('в приложении веб-пункты — строкой «На сайте», а не пунктами', () => {
+  it('в приложении веб-пункты — одной короткой строкой «На сайте», без значений', () => {
     const app = tierCard('lite', { surface: 'app' });
     expect(app.lines.map((l) => l.text).join(' ')).not.toMatch(/Google|PDF|Лунный календарь/);
-    expect(app.site).toMatch(/^На сайте: /);
-    expect(app.site).toContain('Google Календарь');
+    expect(app.site).toBe('На сайте: лунный календарь, экспорт событий в Google Календарь, PDF-отчёт по карте');
+    // Горизонт транзитов действует и в ленте приложения — это не «на сайте».
+    expect(app.lines.map((l) => l.key)).toContain('transit_horizon');
+  });
+
+  it('«Всё, что есть бесплатно, плюс:» у Веги', () => {
+    expect(tierCard('lite').from).toBe('Всё, что есть бесплатно, плюс:');
+  });
+
+  it('окно предложения — подсвеченная строка и главные пункты, всего не больше четырёх', () => {
+    for (const t of ['lite', 'pro']) {
+      for (const focus of [undefined, 'chat', 'transit_limit', 'planner_longterm', 'interpretation']) {
+        const c = tierCard(t, { focus, brief: true });
+        expect(c.lines.length, `${t} × ${focus}`).toBeLessThanOrEqual(4);
+        expect(c.lines.length).toBeGreaterThanOrEqual(3);
+      }
+    }
+    const lyra = tierCard('pro', { focus: 'chat', brief: true }).lines.map((l) => l.key);
+    expect(lyra[0]).toBe('chat');
+    expect(lyra).toEqual(['chat', 'transit', 'planner_longterm', 'chart_reading']);
   });
 
   it('у каждого пункта из offerRule есть строка каталога', () => {

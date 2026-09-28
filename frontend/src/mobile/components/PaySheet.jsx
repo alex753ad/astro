@@ -21,7 +21,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TIERS, TIER_NAMES, tierPriceLabel } from '../../constants';
 import { useNavigate } from 'react-router-dom';
-import { ACCESS_TERM, catalogItem, tierCard } from '../../lib/tierCatalog';
+import { ACCESS_TERM, PRICING_URL, catalogItem, tierCard } from '../../lib/tierCatalog';
+import { offerFor } from '../../lib/offerRule';
 import { emitAfterPay, returnAfterPay } from '../lib/afterPay';
 import { tierAccusative } from '../lib/ruDeclension';
 import { openInBrowser } from '../lib/openInBrowser';
@@ -65,11 +66,11 @@ export default function PaySheet() {
     setMode('status'); setStatus(null); setOffline(false); setPolls(0); setOpen(true);
   }, []);
 
-  useEffect(() => onPaySheet(({ mode: m, focus, alt, feature, context, returnTo }) => {
+  useEffect(() => onPaySheet(({ mode: m, focus, alt, feature, context, state, returnTo }) => {
     setError('');
     if (m === 'status') { showStatus(); return; }
     setOffer(focus ? {
-      focus, alt: alt || null, context: context || '', returnTo: returnTo || null,
+      focus, alt: alt || null, context: state || context || '', returnTo: returnTo || null,
       feature: feature || returnTo?.feature || null,
     } : null);
     setMode('choose'); setOpen(true);
@@ -138,9 +139,14 @@ export default function PaySheet() {
     ? describePayment(status, { offline, polls, tier: pending.current?.tier })
     : null;
   const above = SELLABLE.filter((id) => rank(id) > rank(tier || 'free'));
-  // Из закрытого элемента — ровно предложенные тарифы, первым самый дешёвый
-  // из открывающих (lib/offerRule.js). Из карточки тарифа — все старше.
-  const offers = offer ? [offer.focus, offer.alt].filter((id) => id && above.includes(id)) : above;
+  // Из закрытого элемента — тарифы по lib/offerRule.js, первым самый дешёвый
+  // из открывающих. Если известна функция, пара считается здесь же, а не
+  // берётся от вызывающего: до 29.09.2026 часть кнопок передавала один тариф,
+  // и бесплатный в приложении видел одну Вегу, а на вебе — Вегу и Лиру.
+  // Из карточки тарифа — все старше.
+  const rule = offer?.feature ? offerFor(offer.feature, tier || 'free') : null;
+  const picked = rule ? [rule.primary, rule.alt] : offer ? [offer.focus, offer.alt] : above;
+  const offers = picked.filter((id, i, a) => id && above.includes(id) && a.indexOf(id) === i);
   // Лист начинается с того, что человек пытался открыть (каталог витрины,
   // общий с вебом): заголовок — пункт, дальше что случилось и пояснение.
   const item = offer?.feature ? catalogItem(offer.feature) : null;
@@ -179,9 +185,9 @@ export default function PaySheet() {
               </p>
             )}
             {offers.map((id) => {
-              // Что тариф даёт В ПРИЛОЖЕНИИ (lib/tierCatalog.js); сайт — строкой
-              // ниже. Пункт, ради которого открыли лист, — первой строкой.
-              const card = tierCard(id, { surface: 'app', focus: offer?.feature });
+              // Кратко, как окно на вебе: пункт, ради которого открыли лист,
+              // и главные пункты тарифа (OFFER_MAIN); полный список — на сайте.
+              const card = tierCard(id, { surface: 'app', focus: offer?.feature, brief: true });
               const [first, ...rest] = card.lines;
               const hl = first?.hl ? first : null;
               return (
@@ -202,11 +208,11 @@ export default function PaySheet() {
                     <li key={l.key} style={{ fontSize: 13, lineHeight: 1.4, color: 'var(--text-secondary)' }}>· {l.text}</li>
                   ))}
                 </ul>
-                {card.site && (
-                  <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'var(--text-secondary)' }}>{card.site}</p>
-                )}
+                <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start', fontSize: 13 }} onClick={() => openInBrowser(PRICING_URL)}>
+                  Все возможности тарифа
+                </button>
                 <button type="button" className="mobile-btn-primary" disabled={busy} style={{ height: 44, fontSize: 14 }} onClick={() => pay(id)}>
-                  {busy ? 'Открываем оплату…' : `Оформить ${tierAccusative(TIER_NAMES[id])} · ${tierPriceLabel(id)}`}
+                  {busy ? 'Открываем оплату…' : `Оформить ${tierAccusative(TIER_NAMES[id])}`}
                 </button>
               </section>
               );

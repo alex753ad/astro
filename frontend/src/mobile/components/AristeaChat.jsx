@@ -223,6 +223,7 @@ export default function AristeaChat({ chart, onClose }) {
   const askTier = (id) => openPaySheet({
     focus: id,
     context: limitOffer.text,
+    state: limitOffer.state,
     returnTo: { path: '/app/feed', kind: 'chat', feature: limitOffer.feature },
   });
 

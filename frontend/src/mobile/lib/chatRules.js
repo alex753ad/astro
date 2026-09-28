@@ -85,11 +85,15 @@ export function chatLimitOffer(tier, dates = null) {
     return {
       feature: 'chat_limit',
       text: `${quotaEndedText('chat', 'month', dates)}. Без лимита — на Лире.`,
+      // Строка над карточками листа оплаты — как на вебе, без повтора
+      // лимитов: они и так в карточках.
+      state: quotaEndedText('chat', 'month', dates),
     };
   }
   return {
     feature: 'chat',
     text: `${quotaEndedText('chat', 'trial')}. На Веге — ${LIMITS.lite.chat} в месяц, на Лире — без лимита.`,
+    state: quotaEndedText('chat', 'trial'),
   };
 }
 

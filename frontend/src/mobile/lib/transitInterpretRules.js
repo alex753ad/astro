@@ -135,13 +135,14 @@ export function transitOffer(outcome, dates = null) {
   // 403 у разбора транзита с 28.09.2026 — кончились 2 пробных разбора free
   // (check_transit_trial); «значимых» транзитов больше нет.
   if (outcome === TRANSIT_OUTCOMES.NOT_SIGNIFICANT) {
-    return { feature: 'transit', text: TRANSIT_TRIALS_USED_TEXT };
+    return { feature: 'transit', text: TRANSIT_TRIALS_USED_TEXT, state: quotaEndedText('transit', 'trial') };
   }
   if (outcome === TRANSIT_OUTCOMES.RATE_LIMIT) {
     return {
       feature: 'transit_limit',
       // Даты — с сервера (usageDatesFrom); без них хвоста нет.
       text: `${quotaEndedText('transit', 'month', dates)}. Без лимита — на Лире.`,
+      state: quotaEndedText('transit', 'month', dates),
     };
   }
   return null;
