@@ -117,3 +117,29 @@ def test_subscription_endpoint_reports_dates(client, db, user_free, auth_headers
     data = client.get("/api/v1/profile/subscription", headers=auth_headers_free).json()
     assert data["usage_resets_on"] is None
     assert data["usage_access_until"] == "2026-10-29"
+
+
+# ── PDF при переходе с бесплатного (задание 28.09.2026, раздел 3) ──────────
+# Free считает PDF по календарному месяцу (ключ «ГГГГ-ММ»), платные — по окну
+# оплаченного срока. После покупки ключ счётчика — ключ нового окна, лимит —
+# TIER_FLAGS нового тарифа: бесплатный «1 в месяц» не должен остаться.
+
+@pytest.mark.parametrize("tier, quota", [("lite", 5), ("pro", 15)])
+def test_pdf_quota_switches_at_once_after_purchase_from_free(db, user_free, clock, tier, quota):
+    from fastapi import HTTPException
+    from backend.auth.rate_limits import tier_limiter
+
+    _use(db, user_free, "pdf")                          # бесплатный PDF этого месяца
+    with pytest.raises(HTTPException):
+        tier_limiter.check_pdf_limit(user_free, db)     # на free — исчерпан
+
+    _buy(db, user_free, tier)
+    db.refresh(user_free)
+    assert user_free.tier == tier
+    assert get_monthly_usage(db, str(user_free.id), "pdf") == 0
+    for _ in range(quota):
+        tier_limiter.check_pdf_limit(user_free, db)     # не бросает
+        _use(db, user_free, "pdf")
+    with pytest.raises(HTTPException) as exc:
+        tier_limiter.check_pdf_limit(user_free, db)
+    assert f"{quota} PDF-отчётов на этот срок закончились" in exc.value.detail
