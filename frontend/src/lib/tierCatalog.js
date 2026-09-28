@@ -317,44 +317,61 @@ export function resetDateWords(iso) {
 }
 
 /**
- * Даты лимитов из ответа сервера: /profile/subscription (usage_resets_on,
- * usage_access_until) или кадр quota чата (resets_on, access_until).
- * resetsOn — счётчик обновится сам (оплачено продление или бесплатный месяц);
- * null — новые только после продления, тогда accessUntil — конец доступа.
+ * Даты и числа лимитов из ответа сервера: /profile/subscription
+ * (usage_resets_on, usage_access_until, limits) или кадр quota чата
+ * (resets_on, access_until, limit). resetsOn — счётчик обновится сам
+ * (оплачено продление или бесплатный месяц); null — новые только после
+ * продления, тогда accessUntil — конец доступа. Клиент ни дату, ни число не
+ * вычисляет (решение владельца 28.09.2026).
  */
 export function usageDatesFrom(src) {
   if (!src) return { resetsOn: null, accessUntil: null };
   return {
     resetsOn: src.usage_resets_on ?? src.resets_on ?? null,
     accessUntil: src.usage_access_until ?? src.access_until ?? null,
+    limit: src.limit ?? null,
+    limits: src.limits ?? null,
   };
 }
 
-/** « — обновятся 1 октября» / « — новые после продления, доступ до 29 октября». */
-export function quotaTail(dates) {
-  const d = typeof dates === 'string' ? { resetsOn: dates } : (dates || {});
-  const resets = resetDateWords(d.resetsOn);
-  if (resets) return ` — обновятся ${resets}`;
-  const until = resetDateWords(d.accessUntil);
-  return until ? ` — новые после продления, доступ до ${until}` : '';
-}
+// Пункт каталога → поле TIER_FLAGS в `limits` ответа и формы числа (1, 2–4,
+// 5+) с глаголом для «1 …». Те же формы — rate_limits.ENDED_NOUNS на сервере.
+const ENDED = {
+  chat: ['chat_per_month', ['сообщение', 'сообщения', 'сообщений'], 'закончилось'],
+  transit: ['transits_ai_per_month', ['разбор транзитов', 'разбора транзитов', 'разборов транзитов'], 'закончился'],
+  chart_reading: ['interpretations_per_month', ['разбор карты', 'разбора карты', 'разборов карты'], 'закончился'],
+  pdf: ['pdf_per_month', ['PDF-отчёт', 'PDF-отчёта', 'PDF-отчётов'], 'закончился'],
+};
+const ENDED_PLAIN = {
+  chat: 'Сообщения', transit: 'Разборы транзитов', chart_reading: 'Разборы карты', pdf: 'PDF-отчёты',
+};
 
 /**
  * Что случилось — вторая строка окна предложения, когда кончился лимит.
- * period: 'trial' | 'month'; dates — usageDatesFrom(ответ сервера). Счётчики
- * платных — за оплаченный период (30 дней от оплаты), не за календарный
- * месяц, поэтому «этого месяца» здесь не пишется. Даты на клиенте не
- * вычисляются (решение владельца 28.09.2026): без них хвоста нет.
+ * period: 'trial' | 'month'; dates — usageDatesFrom(ответ сервера).
+ *
+ * «30 сообщений на этот срок закончились. Следующие — с 28 октября, после
+ * продления» (решение владельца 28.09.2026). «После продления» — только если
+ * продление не оплачено (resetsOn нет). Без числа — «Сообщения на этот срок
+ * закончились», без даты — без второй фразы. Бесплатный месяц (PDF) — «в
+ * этом месяце»: срока у него нет (accessUntil пуст). Точки в конце нет —
+ * вызывающий дописывает предложение тарифа.
  */
 export function quotaEndedText(feature, period, dates) {
   const item = catalogItem(feature);
-  if (!item) return null;
-  const tail = quotaTail(dates);
-  if (item.key === 'chat') {
-    return period === 'trial' ? 'Пробные сообщения закончились' : `Сообщения закончились${tail}`;
+  if (!item || !ENDED[item.key]) return null;
+  if (period === 'trial') {
+    if (item.key === 'chat') return 'Пробные сообщения закончились';
+    if (item.key === 'transit') return 'Пробные разборы транзитов закончились';
   }
-  if (item.key === 'transit') {
-    return period === 'trial' ? 'Пробные разборы транзитов закончились' : `Разборы транзитов закончились${tail}`;
-  }
-  return null;
+  const d = typeof dates === 'string' ? { resetsOn: dates } : (dates || {});
+  const [flag, forms, oneVerb] = ENDED[item.key];
+  const n = d.limit ?? d.limits?.[flag] ?? null;
+  const term = d.resetsOn && !d.accessUntil ? 'в этом месяце' : 'на этот срок';
+  let text = n
+    ? `${n} ${plural(n, forms)} ${term} ${plural(n, [oneVerb, 'закончились', 'закончились'])}`
+    : `${ENDED_PLAIN[item.key]} ${term} закончились`;
+  const when = resetDateWords(d.resetsOn || d.accessUntil);
+  if (when) text += `. Следующие — с ${when}${d.resetsOn ? '' : ', после продления'}`;
+  return text;
 }

@@ -17,7 +17,7 @@ import useAuth from '../hooks/useAuth';
 import { enablePush, pushSupported } from '../push';
 import MotionButton from '../components/MotionButton';
 import { TIER_NAMES, TIERS } from '../constants';
-import { quotaTail, tierCard, usageDatesFrom } from '../lib/tierCatalog';
+import { quotaEndedText, tierCard, usageDatesFrom } from '../lib/tierCatalog';
 import { rememberWebPayment } from '../lib/webPayment';
 import PaymentHistory from '../components/PaymentHistory';
 
@@ -740,8 +740,8 @@ function TabSubscription({ user, subscription, loading, authFetch }) {
             {/* Мягкий апсейл при исчерпании */}
             {tier !== 'premium' && !interpUnlimited && interpLimit > 0 && interpUsed >= interpLimit && (
               <div style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: 4 }}>
-                Разборы карты закончились{quotaTail(usageDatesFrom(subscription))}.
-                Или перейди на тариф выше.
+                {quotaEndedText('chart_reading', 'month', usageDatesFrom(subscription))}.
+                Больше — на тарифе выше.
               </div>
             )}
           </div>

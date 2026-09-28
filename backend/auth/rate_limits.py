@@ -640,15 +640,34 @@ def ru_day_month(iso: str) -> str:
     return f"{d} {months[m - 1]}"
 
 
-def ended_tail(db, user_id: str) -> str:
-    """«— обновятся 1 октября» или «— новые после продления, доступ до 29
-    октября». Общий хвост текстов отказа по месячным лимитам."""
+# Существительные текста исчерпания: (1, 2–4, 5+), род глагола для «1 …».
+# Те же формы — у клиента (tierCatalog.js ENDED_NOUNS), держит тест.
+ENDED_NOUNS = {
+    "chat": (("сообщение", "сообщения", "сообщений"), "закончилось"),
+    "transit_ai": (("разбор транзитов", "разбора транзитов", "разборов транзитов"), "закончился"),
+    "interpretation": (("разбор карты", "разбора карты", "разборов карты"), "закончился"),
+    "pdf": (("PDF-отчёт", "PDF-отчёта", "PDF-отчётов"), "закончился"),
+}
+
+
+def ended_text(db, user_id: str, kind: str, limit: int) -> str:
+    """«30 сообщений на этот срок закончились. Следующие — с 28 октября, после
+    продления.» Решение владельца 28.09.2026: число и дату даёт сервер, «после
+    продления» — только если продление не оплачено. Дата — начало следующего
+    окна (resets_on) или конец оплаченного доступа: новые начнутся там же,
+    если человек продлит. У бесплатного (PDF) — 1-е число месяца."""
+    from backend.email_service import _plural
+    forms, one_verb = ENDED_NOUNS[kind]
+    verb = one_verb if _plural(limit, "1", "2", "5") == "1" else "закончились"
     d = usage_dates(db, user_id)
-    if d["resets_on"]:
-        return f" — обновятся {ru_day_month(d['resets_on'])}"
-    if d["access_until"]:
-        return f" — новые после продления, доступ до {ru_day_month(d['access_until'])}"
-    return ""
+    # Бесплатный (PDF) считается по календарному месяцу — «срока» у него нет.
+    term = "на этот срок" if d["access_until"] else "в этом месяце"
+    text = f"{limit} {_plural(limit, *forms)} {term} {verb}."
+    when = d["resets_on"] or d["access_until"]
+    if when:
+        after = "" if d["resets_on"] else ", после продления"
+        text += f" Следующие — с {ru_day_month(when)}{after}."
+    return text
 
 
 def get_monthly_usage(db, user_id: str, kind: str, period: str | None = None) -> int:
@@ -767,13 +786,11 @@ class TierRateLimiter:
             return
         used = get_monthly_usage(db, str(user.id), "interpretation")
         if used >= limit:
-            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Разборы карты закончились ({limit} за оплаченный период на тарифе "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())}){ended_tail(db, str(user.id))}. "
-                    "Или оформи тариф повыше."
+                    f"{ended_text(db, str(user.id), 'interpretation', limit)} "
+                    "Больше — на тарифе выше."
                 ),
             )
 
@@ -858,13 +875,11 @@ class TierRateLimiter:
             return
         used = get_monthly_usage(db, str(user.id), "transit_ai")
         if used >= quota:
-            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
-                    f"Разборы транзитов закончились ({quota} за оплаченный период на тарифе "
-                    f"{TIER_NAMES['lite']}){ended_tail(db, str(user.id))}. "
-                    f"На {TIER_NAMES['pro']} — без лимита."
+                    f"{ended_text(db, str(user.id), 'transit_ai', quota)} "
+                    "Без лимита — на Лире."
                 ),
             )
 
@@ -901,10 +916,11 @@ class TierRateLimiter:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
-                    ("Пробные сообщения закончились. " if period == "trial"
-                     else f"Сообщения закончились{ended_tail(db, str(user.id))}. ")
-                    + f"На тарифе {TIER_NAMES['lite']} — {TIER_FLAGS['lite']['chat_per_month']} в месяц, "
-                    f"на {TIER_NAMES['pro']} — без лимита."
+                    f"Пробные сообщения закончились. На тарифе {TIER_NAMES['lite']} — "
+                    f"{TIER_FLAGS['lite']['chat_per_month']} в месяц, на {TIER_NAMES['pro']} — без лимита."
+                    if period == "trial" else
+                    f"{ended_text(db, str(user.id), 'chat', TIER_FLAGS[user.tier]['chat_per_month'])} "
+                    "Без лимита — на Лире."
                 ),
             )
 
@@ -974,19 +990,11 @@ class TierRateLimiter:
             return
         used = get_monthly_usage(db, str(user.id), "pdf")
         if used >= quota:
-            from backend.email_service import TIER_NAMES
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                # Формулировка без согласования числа с существительным:
-                # при quota = 1 (free с 30.08.2026) прежний текст читался как
-                # «Лимит 1 PDF-отчётов». «{quota} в месяц» верно для любого
-                # числа и не потребует правки при следующей смене сетки.
-                detail=(
-                    f"PDF-отчёты закончились{ended_tail(db, str(user.id))}. Тариф "
-                    f"{TIER_NAMES.get(tier, tier.capitalize())} даёт {quota} "
-                    f"{'в месяц' if tier == 'free' else 'за оплаченный период'}. "
-                    "Оформи тариф повыше."
-                ),
+                # Число согласует ended_text: при quota = 1 (free) — «1
+                # PDF-отчёт … закончился», а не «1 PDF-отчётов».
+                detail=f"{ended_text(db, str(user.id), 'pdf', quota)} Больше — на тарифе выше.",
             )
 
     def commit_pdf(self, user: Optional[User], db) -> None:

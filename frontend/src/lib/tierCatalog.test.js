@@ -126,20 +126,27 @@ describe('«обновятся …» / «доступ до …» — даты т
     expect(resetDateWords(null)).toBeNull();
   });
 
-  it('без дат хвоста нет; новое окно — «обновятся», без продления — «доступ до»', () => {
-    expect(quotaEndedText('chat_limit', 'month', null)).toBe('Сообщения закончились');
-    expect(quotaEndedText('chat', 'month', { resetsOn: '2026-10-01' })).toBe('Сообщения закончились — обновятся 1 октября');
-    expect(quotaEndedText('chat', 'month', { resetsOn: null, accessUntil: '2026-10-29' }))
-      .toBe('Сообщения закончились — новые после продления, доступ до 29 октября');
+  it('«N … на этот срок закончились. Следующие — с …» — число и дата от сервера', () => {
+    const lite = { chat_per_month: 30, transits_ai_per_month: 15, pdf_per_month: 5 };
+    expect(quotaEndedText('chat_limit', 'month', null)).toBe('Сообщения на этот срок закончились');
+    expect(quotaEndedText('chat', 'month', { resetsOn: null, accessUntil: '2026-10-28', limits: lite }))
+      .toBe('30 сообщений на этот срок закончились. Следующие — с 28 октября, после продления');
+    // Продление оплачено — без «после продления».
+    expect(quotaEndedText('transit', 'month', { resetsOn: '2026-10-28', accessUntil: '2026-11-27', limits: lite }))
+      .toBe('15 разборов транзитов на этот срок закончились. Следующие — с 28 октября');
+    expect(quotaEndedText('chat', 'month', { resetsOn: null, accessUntil: '2026-10-28', limit: 30 }))
+      .toContain('30 сообщений');
+    // Бесплатный PDF — календарный месяц.
+    expect(quotaEndedText('pdf', 'month', { resetsOn: '2026-10-01', accessUntil: null, limits: { pdf_per_month: 1 } }))
+      .toBe('1 PDF-отчёт в этом месяце закончился. Следующие — с 1 октября');
     expect(quotaEndedText('chat', 'trial')).toBe('Пробные сообщения закончились');
-    expect(quotaEndedText('transit', 'month', { resetsOn: '2026-11-01' })).toContain('обновятся 1 ноября');
   });
 
   it('даты читаются и из профиля, и из кадра чата', () => {
     expect(usageDatesFrom({ usage_resets_on: null, usage_access_until: '2026-10-29' }))
-      .toEqual({ resetsOn: null, accessUntil: '2026-10-29' });
+      .toEqual({ resetsOn: null, accessUntil: '2026-10-29', limit: null, limits: null });
     expect(usageDatesFrom({ resets_on: '2026-10-29', access_until: '2026-11-28' }))
-      .toEqual({ resetsOn: '2026-10-29', accessUntil: '2026-11-28' });
+      .toEqual({ resetsOn: '2026-10-29', accessUntil: '2026-11-28', limit: null, limits: null });
   });
 });
 

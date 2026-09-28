@@ -159,14 +159,16 @@ describe('отказ по тарифу — предложение по прав�
   });
 });
 
-describe('месячный лимит: «обновятся …» — только с датой сервера', async () => {
+describe('месячный лимит: «Следующие — с …» — только с датой сервера', async () => {
   const { transitOffer } = await import('./transitInterpretRules');
   const { chatLimitOffer } = await import('./chatRules');
   it('с датой — хвост есть, без даты — нет, «1-го числа» не пишется никогда', () => {
-    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT, '2026-10-01').text).toContain('обновятся 1 октября');
-    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT).text).not.toContain('обновятся');
-    expect(chatLimitOffer('lite', '2026-10-01').text).toContain('обновятся 1 октября');
-    expect(chatLimitOffer('lite').text).not.toMatch(/1-го числа|обновятся/);
+    const dates = { resetsOn: null, accessUntil: '2026-10-28', limits: { chat_per_month: 30, transits_ai_per_month: 15 } };
+    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT, dates).text).toContain('Следующие — с 28 октября, после продления');
+    expect(transitOffer(TRANSIT_OUTCOMES.RATE_LIMIT).text).not.toContain('Следующие');
+    expect(chatLimitOffer('lite', dates).text)
+      .toBe('30 сообщений на этот срок закончились. Следующие — с 28 октября, после продления. Без лимита — на Лире.');
+    expect(chatLimitOffer('lite').text).not.toMatch(/1-го числа|Следующие/);
     expect(chatLimitOffer('free').text).toContain('На Веге — 30 в месяц');
   });
 });

@@ -82,7 +82,18 @@ def test_dates_are_moscow_and_say_after_renewal(db, user_free, clock):
     _buy(db, user_free)
     d = usage_dates(db, str(user_free.id))
     assert d == {"resets_on": None, "access_until": "2026-10-30"}
-    assert rate_limits.ended_tail(db, str(user_free.id)) == " — новые после продления, доступ до 30 октября"
+    assert rate_limits.ended_text(db, str(user_free.id), "chat", 30) == (
+        "30 сообщений на этот срок закончились. Следующие — с 30 октября, после продления.")
+
+
+def test_ended_text_after_paid_renewal_has_no_renewal_clause(db, user_free, clock):
+    _buy(db, user_free)
+    clock["now"] = datetime(2026, 10, 20, 12, 0)
+    _buy(db, user_free)                                 # продление оплачено
+    assert rate_limits.ended_text(db, str(user_free.id), "transit_ai", 15) == (
+        "15 разборов транзитов на этот срок закончились. Следующие — с 29 октября.")
+    assert rate_limits.ended_text(db, str(user_free.id), "pdf", 1).startswith(
+        "1 PDF-отчёт на этот срок закончился.")
 
 
 def test_free_tier_keeps_calendar_month(db, user_free, clock):

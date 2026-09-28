@@ -689,6 +689,9 @@ async def rag_chat(
     quota_after = {"left": _left - 1, "period": _period} if _left is not None else None
     if quota_after and _period == "month":
         quota_after.update(usage_dates(db, str(user.id)))
+        # Число для «30 сообщений на этот срок закончились» — с сервера.
+        from backend.auth.rate_limits import TIER_FLAGS
+        quota_after["limit"] = TIER_FLAGS[user.tier]["chat_per_month"]
 
     # Дневной бюджет AI — общий с остальными интерпретациями.
     if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "deepseek"):

@@ -724,12 +724,12 @@ function transitLabel(e) {
 }
 
 // Тексты — по каталогу витрины (lib/tierCatalog.js): числа из LIMITS, дата
-// «обновятся …» / «новые после продления» — даты сервера (usageDatesFrom).
+// «Следующие — с …, после продления» — число и даты сервера (usageDatesFrom).
 function LockedTransitPanel({ event, reason = "free", resetsOn, onClose, onOpenAccess }) {
   const key = transitLabel(event);
   const intro = `${quotaEndedText("transit", reason === "lite-limit" ? "month" : "trial", resetsOn)}.`;
   const outro = reason === "lite-limit"
-    ? `На ${TIER_NAMES.pro} — без лимита.`
+    ? "Без лимита — на Лире."
     : `На ${TIER_NAMES.lite} — ${LIMITS.lite.transits} в месяц, на ${TIER_NAMES.pro} — без лимита.`;
 
   return (
