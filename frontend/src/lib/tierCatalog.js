@@ -35,12 +35,12 @@ export const ACCESS_TERM = 'Доступ на 30 дней, без автопро
 
 /** Числа тарифов. null — без лимита. Сверка с TIER_FLAGS — в тесте. */
 export const LIMITS = {
-  //        сохранённые  разборы карты      разборы транзитов  чат           горизонт   лунный кал.
-  //        карты        (free — на карту)  (free — на пробу)  (free — проба) транзитов  месяцев
-  free:    { charts: 2,    readings: 1,    transits: 2,    chat: 3,    horizon: FREE_TRANSITS_TEASER_MONTHS, lunar: 1 },
-  lite:    { charts: 5,    readings: 5,    transits: 15,   chat: 30,   horizon: 6,  lunar: 12 },
-  pro:     { charts: 15,   readings: 15,   transits: null, chat: null, horizon: 12, lunar: 12 },
-  premium: { charts: null, readings: null, transits: null, chat: null, horizon: 24, lunar: null },
+  //        сохранённые  разборы карты      разборы транзитов  чат           горизонт   лунный кал. Google
+  //        карты        (free — на карту)  (free — на пробу)  (free — проба) транзитов  месяцев     Календарь
+  free:    { charts: 2,    readings: 1,    transits: 2,    chat: 3,    horizon: FREE_TRANSITS_TEASER_MONTHS, lunar: 1, gcal: 0 },
+  lite:    { charts: 5,    readings: 5,    transits: 15,   chat: 30,   horizon: 6,  lunar: 12,   gcal: 1 },
+  pro:     { charts: 15,   readings: 15,   transits: null, chat: null, horizon: 12, lunar: 12,   gcal: null },
+  premium: { charts: null, readings: null, transits: null, chat: null, horizon: 24, lunar: null, gcal: null },
 };
 
 function plural(n, [one, few, many]) {
@@ -150,7 +150,15 @@ export const ITEMS = [
     key: 'gcal',
     title: 'Экспорт событий в Google Календарь',
     where: 'web',
-    value: (t) => (t === 'free' ? null : 'для одной карты'),
+    // До 29.09.2026 здесь было «для одной карты» у всех платных: у Лиры
+    // значение совпадало с Вегой, и пункт выпадал из её карточки — на
+    // /pricing Лира будто не давала экспорта вовсе. Число — TIER_FLAGS
+    // gcal_charts, сверяет тест.
+    value: (t) => {
+      const n = LIMITS[t].gcal;
+      if (n === 0) return null;
+      return n === null ? 'для всех карт' : 'для одной карты';
+    },
   },
   {
     key: 'pdf',
@@ -177,6 +185,7 @@ const FOCUS_ALIAS = {
   planner_period: 'planner_period',
   planner_moon: 'planner_moon',
   planner_longterm: 'planner_longterm',
+  gcal_all: 'gcal',
 };
 
 export function catalogItem(feature) {

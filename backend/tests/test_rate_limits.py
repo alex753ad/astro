@@ -307,6 +307,7 @@ class TestTierMonotonicity:
         "planner_months",
         "planner_weeks_ahead",
         "pdf_per_month",
+        "gcal_charts",
     ]
 
     # first_interpretation_free сюда намеренно не входит: это одноразовая

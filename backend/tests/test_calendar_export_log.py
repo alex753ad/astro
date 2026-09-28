@@ -67,3 +67,43 @@ def test_export_log_rejects_bad_status(client, auth_headers_free):
         headers=auth_headers_free,
     )
     assert resp.status_code == 422
+
+
+# ── Лимит карт для экспорта (29.09.2026): Вега — одна, Лира и Орион — все ──
+
+def _log(client, headers, chart_id, status="success"):
+    return client.post("/api/v1/calendar/export-log", headers=headers, json={
+        "month": "2026-10", "event_count": 3, "event_types": ["aspect"],
+        "status": status, "chart_id": chart_id,
+    })
+
+
+def _allowed(client, headers, chart_id):
+    return client.get(f"/api/v1/calendar/export-allowed?chart_id={chart_id}", headers=headers).json()
+
+
+def _set_tier(db, user, tier):
+    user.tier = tier
+    db.commit()
+
+
+def test_free_cannot_export(client, auth_headers_free):
+    assert _allowed(client, auth_headers_free, "a")["allowed"] is False
+
+
+def test_vega_one_chart_then_offers_lyra(client, db, user_free, auth_headers_free):
+    _set_tier(db, user_free, "lite")
+    assert _allowed(client, auth_headers_free, "a")["allowed"] is True
+    _log(client, auth_headers_free, "a")
+    assert _allowed(client, auth_headers_free, "a")["allowed"] is True      # ту же — можно
+    r = _allowed(client, auth_headers_free, "b")
+    assert r["allowed"] is False and "Лира" in r["reason"]
+    _log(client, auth_headers_free, "c", status="error")                   # неудачный не считается
+    assert _allowed(client, auth_headers_free, "a")["allowed"] is True
+
+
+def test_lyra_all_charts(client, db, user_free, auth_headers_free):
+    _set_tier(db, user_free, "pro")
+    for cid in ("a", "b", "c"):
+        _log(client, auth_headers_free, cid)
+    assert _allowed(client, auth_headers_free, "d")["allowed"] is True

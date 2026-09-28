@@ -30,6 +30,7 @@ const OPENED_BY = {
   transit_limit: ['pro', 'premium'],              // разбор без месячного лимита
   chat: ['lite', 'pro', 'premium'],               // сообщения в месяц (Вега — 30)
   chat_limit: ['pro', 'premium'],                 // без лимита
+  gcal_all: ['pro', 'premium'],                   // экспорт в Google Календарь для всех карт
 };
 
 const rank = (t) => TIER_ORDER.indexOf(t);

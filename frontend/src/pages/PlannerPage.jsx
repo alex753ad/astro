@@ -303,7 +303,7 @@ function useGcalExport() {
   // fire-and-forget: сбой журнала не должен ломать успешный экспорт, поэтому
   // без await и с проглоченной ошибкой. Неавторизованный сюда не дойдёт —
   // кнопка закрыта для free, а ручка требует JWT.
-  function _logExport(events, status, errorMsg) {
+  function _logExport(events, status, errorMsg, chartId) {
     // 03.09.2026: здесь стоял monthOffset — state из PlannerPage, вне scope
     // этого хука (useGcalExport — функция верхнего уровня, не вложена в
     // PlannerPage). ReferenceError бросался ДО вызова authFetch, то есть до
@@ -328,6 +328,7 @@ function useGcalExport() {
           event_types: [...new Set(events.map((e) => e.type).filter(Boolean))],
           status,
           error_msg: errorMsg || null,
+          chart_id: chartId || null,
         }),
       }).catch(() => {});
     } catch {
@@ -336,8 +337,19 @@ function useGcalExport() {
     }
   }
 
-  async function exportEvents(events) {
-    if (!events?.length) return;
+  // chartId — какую карту выгружаем. На Веге экспорт — для одной карты
+  // (TIER_FLAGS gcal_charts); выгрузка идёт из браузера прямо в Google,
+  // поэтому сервер спрашиваем ДО неё. Отказ — не ошибка: возвращаем причину,
+  // страница открывает окно предложения Лиры.
+  async function exportEvents(events, chartId) {
+    if (!events?.length) return null;
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/calendar/export-allowed?chart_id=${encodeURIComponent(chartId || "")}`);
+      const allowed = r.ok ? await r.json() : { allowed: true };
+      if (!allowed.allowed) return { blocked: allowed.reason };
+    } catch {
+      // сеть или сервер недоступны — не мешаем выгрузке, журнал всё равно запишет
+    }
     setStatus("loading");
     try {
       const token = await getToken();
@@ -373,7 +385,7 @@ function useGcalExport() {
       }
       setStatus("success");
       setTimeout(() => setStatus("idle"), 3500);
-      try { _logExport(events, "success"); } catch { /* fire-and-forget */ }
+      try { _logExport(events, "success", null, chartId); } catch { /* fire-and-forget */ }
     } catch (e) {
       console.error("[gcal]", e);
       setStatus("error");
@@ -382,7 +394,7 @@ function useGcalExport() {
       // (models.py, String(255)). Длиннее — падение вставки на Postgres
       // ровно в тот момент, когда журнал нужнее всего.
       try {
-        _logExport(events, "error", String(e?.message || e).slice(0, 255));
+        _logExport(events, "error", String(e?.message || e).slice(0, 255), chartId);
       } catch { /* fire-and-forget */ }
     }
   }
@@ -1053,12 +1065,15 @@ export default function PlannerPage() {
   // от начала отображаемого месяца (см. week_nav в ответе бэкенда).
   const [weekOffset, setWeekOffset]           = useState(null);
   // Что человек пытался открыть — пункт каталога витрины (planner_period,
-  // planner_moon, planner_longterm): с него начинается окно предложения.
+  // planner_moon, planner_longterm, gcal_all): с него начинается окно
+  // предложения; offerState — что случилось (отказ сервера по экспорту).
   const [offerFeature, setOfferFeature]       = useState(null);
+  const [offerState, setOfferState]           = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
-  function openPaywall(feature) {
+  function openPaywall(feature, state = null) {
     setOfferFeature(feature);
+    setOfferState(state);
   }
 
   // Смена месяца — сбрасываем неделю в одном рендере, а не отдельным эффектом,
@@ -1357,7 +1372,11 @@ export default function PlannerPage() {
                   level="secondary"
                   className={`gcal-btn${!isFree && gcalStatus === "success" ? " success" : ""}${!isFree && gcalStatus === "error" ? " error" : ""}`}
                   disabled={isFree || gcalStatus === "loading"}
-                  onClick={() => { if (!isFree) exportEvents(buildExportEvents()); }}
+                  onClick={async () => {
+                    if (isFree) return;
+                    const res = await exportEvents(buildExportEvents(), id);
+                    if (res?.blocked) openPaywall("gcal_all", res.blocked);
+                  }}
                   title={isFree ? `Экспорт событий в Google Календарь — на тарифе ${TIER_NAMES.lite} и выше` : undefined}
                 >
                   {isFree ? `Экспорт событий в Google Календарь — на тарифе ${TIER_NAMES.lite} и выше` : gcalLabel}
@@ -1374,6 +1393,7 @@ export default function PlannerPage() {
         onClose={() => setOfferFeature(null)}
         feature={offerFeature}
         tier={userTier || "free"}
+        state={offerState}
         onChoose={(t) => handleCheckout(t)}
         busy={checkoutLoading}
       />

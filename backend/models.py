@@ -567,6 +567,9 @@ class CalendarExportLog(Base):
     event_types= Column(JSON, nullable=False, default=list) # ["new_moon", "aspect", ...]
     status     = Column(String(10), nullable=False)         # "success" | "error"
     error_msg  = Column(String(255), nullable=True)
+    # Какую карту выгрузили (066): по успешным строкам считается лимит карт
+    # тарифа (TIER_FLAGS gcal_charts). У строк до 29.09.2026 — NULL.
+    chart_id   = Column(String(36), nullable=True, index=True)
     created_at = Column(DateTime, default=utcnow)
 
 

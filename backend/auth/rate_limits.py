@@ -67,6 +67,10 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_ai_trial": 2,
         "chat_trial": 3,
         "chat_per_month": 0,
+        # Экспорт событий в Google Календарь: сколько РАЗНЫХ карт можно
+        # выгружать (решение владельца 29.09.2026). 0 — нельзя, None — все.
+        # Держит /calendar/export-allowed; витрина — tierCatalog LIMITS.gcal.
+        "gcal_charts": 0,
         "profiles_limit": 2,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
@@ -98,6 +102,7 @@ TIER_FLAGS: dict[str, dict] = {
         # ≈11 ₽ при цене тарифа 790 ₽. «Без лимита» остаётся отличием Лиры.
         "transits_ai_per_month": 15,
         "chat_per_month": 30,                  # 28.09.2026: чат открыт Веге
+        "gcal_charts": 1,                      # одна карта
         "profiles_limit": 5,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
@@ -116,6 +121,7 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 12,                 # 31.08.2026: было 3 — решение владельца, платный не хуже free-витрины
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
+        "gcal_charts": None,                   # все карты
         "profiles_limit": 15,   # 19.08.2026: было 5 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,
         "planner_months": 12,
@@ -132,6 +138,7 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 24,                 # 3.2: было 12 — дифференциатор над Pro
         "transits_ai": True,
         "transits_ai_per_month": None,         # безлимит
+        "gcal_charts": None,
         "profiles_limit": None,
         "lunar_months": None,   # 19.08.2026: было 12 — «безлимит» по новой сетке (12 = как у Pro, не дифференциатор)
         "planner_months": 12,

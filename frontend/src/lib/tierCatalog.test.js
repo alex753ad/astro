@@ -26,6 +26,7 @@ describe('каталог тарифов — те же числа, что TIER_FL
       expect(LIMITS[t].lunar, `${t} лунный`).toBe(num(t, 'lunar_months'));
       expect(LIMITS[t].horizon, `${t} горизонт`).toBe(num(t, 'transits_months'));
       expect(TIER_WORDS[t], `${t} слова`).toBe(num(t, 'interpretation_word_limit'));
+      expect(LIMITS[t].gcal, `${t} Google Календарь`).toBe(num(t, 'gcal_charts'));
     }
     for (const t of ['lite', 'pro', 'premium']) {
       expect(LIMITS[t].readings, `${t} разборы карты`).toBe(num(t, 'interpretations_per_month'));
@@ -69,7 +70,9 @@ describe('карточка тарифа', () => {
     expect(lyra.from).toBe('Всё из Веги, плюс:');
     const texts = lyra.lines.map((l) => l.text).join('\n');
     expect(texts).toContain('Чат с Аристеей — без лимита');
-    expect(texts).not.toContain('Экспорт событий в Google Календарь'); // он с Веги
+    // Google Календарь: на Веге — одна карта, у Лиры — все, и это видно в её карточке.
+    expect(texts).toContain('Экспорт событий в Google Календарь — для всех карт');
+    expect(tierCard('lite').lines.map((l) => l.text)).toContain('Экспорт событий в Google Календарь — для одной карты');
   });
 
   it('то, что человек пытался открыть, — первой строкой и подсвечено', () => {
