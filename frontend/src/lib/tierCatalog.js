@@ -126,8 +126,7 @@ export const ITEMS = [
     where: 'both',
     value: (t) => {
       const n = LIMITS[t].charts;
-      if (n === null) return 'без лимита';
-      return t === 'free' ? String(n) : `до ${n}`;
+      return n === null ? 'без лимита' : `до ${n}`;
     },
   },
   {

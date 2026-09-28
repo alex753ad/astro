@@ -44,7 +44,17 @@ export default function PricingPage({ currentUser, onShowAuth }) {
         </p>
 
         <div style={s.grid}>
-          {cards.map((t) => (
+          {cards.map((t) => {
+            // Вошёл — у его тарифа «Текущий тариф» и кнопка неактивна; у
+            // бесплатного раньше стояло «Начать бесплатно» и тем, кто уже на
+            // нём (решение владельца 29.09.2026).
+            const current = !!currentUser && (currentUser.tier || 'free') === t.id;
+            const disabled = current || t.id === 'premium';
+            const label = current ? 'Текущий тариф'
+              : t.id === 'premium' ? 'Скоро'
+              : t.id === 'free' ? 'Начать бесплатно'
+              : `Оформить ${tierAccusative(t.label)}`;
+            return (
             <div key={t.id} style={s.card(t.recommended)}>
               {t.recommended && <span style={s.badge}>Рекомендуем</span>}
               <div style={s.tierName}>{t.label}</div>
@@ -64,16 +74,17 @@ export default function PricingPage({ currentUser, onShowAuth }) {
               <MotionButton
                 level={t.recommended ? 'primary' : 'secondary'}
                 style={{
-                  ...(t.recommended ? s.ctaPrimary : s.ctaSecondary),
-                  ...(t.id === 'premium' ? s.ctaDisabled : {}),
+                  ...(t.recommended && !disabled ? s.ctaPrimary : s.ctaSecondary),
+                  ...(disabled ? s.ctaDisabled : {}),
                 }}
-                onClick={t.id === 'premium' ? undefined : handleChoose}
-                disabled={t.id === 'premium'}
+                onClick={disabled ? undefined : handleChoose}
+                disabled={disabled}
               >
-                {t.id === 'premium' ? 'Скоро' : t.id === 'free' ? 'Начать бесплатно' : `Оформить ${tierAccusative(t.label)}`}
+                {label}
               </MotionButton>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={s.accessBlock}>
@@ -101,7 +112,10 @@ const s = {
     background: 'var(--bg)',
     color: 'var(--text-primary)',
     fontFamily: BODY,
-    padding: '48px 16px 64px',
+    // Снизу больше обычного: на мобильном плавающая кнопка «Здесь что-то не
+    // так» (FeedbackButton, круг 40 px у правого края) закрывала кнопку
+    // последней карточки.
+    padding: '48px 16px 112px',
   },
   inner: { maxWidth: 1080, margin: '0 auto' },
   h1: {
