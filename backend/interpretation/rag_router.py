@@ -26,8 +26,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.async_utils import iter_with_deadline
-from backend.auth.dependencies import get_current_user, require_tier
-from backend.auth.rate_limits import increment_monthly_usage, rag_chat_key
+from backend.auth.dependencies import get_current_user
+from backend.auth.rate_limits import increment_monthly_usage, rag_chat_key, tier_limiter
 from backend.interpretation.router import track_engine_spend
 from backend.cache import budget_tracker
 from backend.database import get_db, SessionLocal
@@ -657,10 +657,12 @@ async def rag_chat(
     request: Request,
     chart_id: str,
     body: RagChatRequest,
-    user: User = Depends(require_tier("pro")),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """RAG-чат по натальной карте. Доступен для Pro и Premium.
+    """RAG-чат по натальной карте. С 28.09.2026 — на всех тарифах: free —
+    3 сообщения на пробу, Вега — 30 в месяц, Лира и Орион — без лимита
+    (tier_limiter.check_chat_limit). Списание — после выданного ответа.
 
     Лимит 20/час на аккаунт: эндпоинт вызывает LLM на каждую реплику и не
     списывался ни в UsageCounter, ни в дневной бюджет — один Pro-аккаунт мог
@@ -671,6 +673,9 @@ async def rag_chat(
     question = body.question.strip()[:MAX_QUESTION_LEN]
     if not question:
         raise HTTPException(status_code=400, detail="Question is required")
+
+    # Лимит сообщений тарифа — до модели; списание фоном после ответа.
+    tier_limiter.check_chat_limit(user, db)
 
     # Дневной бюджет AI — общий с остальными интерпретациями.
     if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "deepseek"):
@@ -777,14 +782,33 @@ async def rag_chat(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
-        background=BackgroundTask(_update_memory, user.id, question, history, turn),
+        background=BackgroundTask(_finish_turn, user.id, user.tier, question, history, turn),
     )
+
+
+async def _finish_turn(user_id: str, tier: str, question: str, history: list, turn: dict) -> None:
+    """После ответа: свёртка памяти и списание сообщения.
+
+    ⚠️ Списываем только выданный ответ (`turn["answer"]` кладёт генератор
+    рядом с _persist_turn): обрыв, пустой ответ и таймаут сообщение не
+    съедают — так же, как разборы транзитов (commit_transit_ai).
+    """
+    await _update_memory(user_id, question, history, turn)
+    if not turn.get("answer"):
+        return
+    db = SessionLocal()
+    try:
+        tier_limiter.commit_chat(user_id, tier, db)
+    except Exception as e:  # noqa: BLE001 — расход не должен ронять фон
+        logger.warning("chat usage not committed user=%s: %s", user_id, e)
+    finally:
+        db.close()
 
 
 @router.get("/api/v1/chart/{chart_id}/rag-chat/history")
 async def rag_chat_history(
     chart_id: str,
-    user: User = Depends(require_tier("pro")),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Диалог, который сервер помнит по этой карте. Только для чтения.
@@ -816,7 +840,7 @@ async def rag_chat_history(
 
     Проверка владения картой — та же, что в POST, и по той же причине: без
     неё ручка стала бы оракулом чужих chart_id (200 с пустым списком там, где
-    карты нет вовсе). Тариф — тот же require_tier("pro").
+    карты нет вовсе). Тариф не проверяется: чат с 28.09.2026 на всех тарифах.
     """
     chart = db.query(NatalChart).filter(
         NatalChart.id == chart_id,

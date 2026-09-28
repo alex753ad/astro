@@ -721,14 +721,7 @@ async def generate_brief(
         {"date": last.date, "topic": last.topic, "notes": last.notes} if last else None
     )
 
-    birth_time = client.birth_time
-    if hasattr(birth_time, "strftime"):
-        birth_time = birth_time.strftime("%H:%M")
-    birth_info = f"{client.birth_date}" + (f" {birth_time}" if birth_time else "") + f", {client.birth_place}"
-
     brief_prompt = build_brief_prompt(
-        client_name=client.name,
-        birth_info=birth_info,
         natal_profile=profile,
         transits=transit_dicts,
         last_consultation=last_consultation,
@@ -829,14 +822,7 @@ async def client_summary(
         "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
         "ascendant": chart.ascendant, "midheaven": chart.midheaven, "time_unknown": chart.time_unknown,
     }
-    birth_time = client.birth_time
-    if hasattr(birth_time, "strftime"):
-        birth_time = birth_time.strftime("%H:%M")
-    birth_info = f"{client.birth_date}" + (f" {birth_time}" if birth_time else "") + f", {client.birth_place}"
-
     prompt = build_summary_prompt(
-        client_name=client.name,
-        birth_info=birth_info,
         natal_profile=profile,
         notes=client.notes or "",
         consultations=[

@@ -26,6 +26,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { CHAT_PRIVACY_NOTE } from '../mobile/lib/chatRules';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { API_BASE } from '../config';
 import { CHAT_SUGGESTIONS as SUGGESTIONS } from '../lib/chatSuggestions';
@@ -395,6 +396,9 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
         </button>
       </div>
       <p style={s.hint}>Enter — отправить · Shift+Enter — новая строка</p>
+      {/* Куда уходят сообщения — та же строка, что в приложении (решение
+          владельца 28.09.2026). */}
+      <p style={s.hint}>{CHAT_PRIVACY_NOTE}</p>
     </div>
   );
 }

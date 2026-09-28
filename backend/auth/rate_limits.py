@@ -60,6 +60,12 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 3,
         "transits_ai": False,
         "transits_ai_per_month": 0,
+        # Пробные разборы транзитов и сообщения чата — на всё время аккаунта,
+        # на любые транзиты (решение владельца 28.09.2026). Счёт с нуля: у
+        # free раньше счётчика не было. Период счётчика — TRIAL_PERIOD.
+        "transits_ai_trial": 2,
+        "chat_trial": 3,
+        "chat_per_month": 0,
         "profiles_limit": 2,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 1,                     # текущий месяц
         "planner_months": 0,
@@ -87,6 +93,7 @@ TIER_FLAGS: dict[str, dict] = {
         "transits_months": 6,                  # 31.08.2026: было 1 — решение владельца, платный не хуже free-витрины
         "transits_ai": False,                  # полный AI-доступ — нет
         "transits_ai_per_month": 3,            # 3.4a: тизер Pro — 3 AI-транзита/мес
+        "chat_per_month": 30,                  # 28.09.2026: чат открыт Веге
         "profiles_limit": 5,    # 19.08.2026: было 1 — «Карты» на /pricing, единственный источник этого числа
         "lunar_months": 12,                    # на год
         "planner_months": 3,                   # 3.4a: было 1
@@ -292,7 +299,9 @@ def get_feature_flags(user: Optional[User]) -> dict:
         "unlimited_charts": flags["profiles_limit"] is None and flags.get("charts_per_day") is None,
         "pdf_reports": flags["pdf_export"],
         "google_calendar": tier != "free",
-        "rag_chat": tier in ("pro", "premium"),
+        # С 28.09.2026 чат есть на всех тарифах: free — 3 сообщения на пробу,
+        # Вега — chat_per_month, Лира и Орион — без лимита (check_chat_limit).
+        "rag_chat": True,
         "crm": tier == "premium",
     }
 
@@ -510,30 +519,37 @@ def export_key(request: Request) -> str:
 # PERSISTENT MONTHLY USAGE COUNTERS (usage_counters table)
 # ═══════════════════════════════════════════════════════════
 
+# Счётчики «на всё время аккаунта» (пробные разборы и сообщения free) живут в
+# той же таблице UsageCounter с этим периодом вместо месяца. 3 символа при
+# колонке String(7) — миграция не нужна.
+TRIAL_PERIOD = "ALL"
+
+
 def _current_period_ym() -> str:
     """Текущий календарный месяц в формате 'YYYY-MM' (UTC)."""
     return time.strftime("%Y-%m", time.gmtime())
 
 
-def get_monthly_usage(db, user_id: str, kind: str) -> int:
-    """Сколько единиц `kind` израсходовано пользователем в текущем месяце."""
+def get_monthly_usage(db, user_id: str, kind: str, period: str | None = None) -> int:
+    """Сколько единиц `kind` израсходовано пользователем в текущем месяце
+    (или в `period`, например TRIAL_PERIOD — за всё время)."""
     from backend.models import UsageCounter
     row = (
         db.query(UsageCounter)
         .filter(
             UsageCounter.user_id == user_id,
             UsageCounter.kind == kind,
-            UsageCounter.period_ym == _current_period_ym(),
+            UsageCounter.period_ym == (period or _current_period_ym()),
         )
         .first()
     )
     return row.count if row else 0
 
 
-def increment_monthly_usage(db, user_id: str, kind: str) -> int:
-    """Атомарно +1 к счётчику текущего месяца. Возвращает новое значение."""
+def increment_monthly_usage(db, user_id: str, kind: str, period: str | None = None) -> int:
+    """Атомарно +1 к счётчику текущего месяца (или `period`). Возвращает новое значение."""
     from backend.models import UsageCounter
-    period = _current_period_ym()
+    period = period or _current_period_ym()
     row = (
         db.query(UsageCounter)
         .filter(
@@ -728,14 +744,64 @@ class TierRateLimiter:
                 ),
             )
 
+    def check_transit_trial(self, user: Optional[User], db) -> None:
+        """Free: пробные разборы транзитов — `transits_ai_trial` на всё время
+        аккаунта, на любые транзиты. Без входа — 403 (клиент зовёт войти)."""
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Войди в аккаунт, чтобы получить разбор транзита.",
+            )
+        if transit_trials_left(db, user) <= 0:
+            from backend.email_service import TIER_NAMES
+            # 403, а не 429: клиенты читают 403 как «отказ по тарифу» и
+            # показывают предложение; 429 у разбора — месячная квота Веги.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Бесплатные разборы транзитов использованы. На тарифе {TIER_NAMES['lite']} — "
+                    f"3 в месяц, на {TIER_NAMES['pro']} — без лимита."
+                ),
+            )
+
+    def check_chat_limit(self, user: User, db) -> None:
+        """Чат: free — `chat_trial` на всё время, Вега — `chat_per_month`,
+        Лира и Орион — без лимита. Отказ — 429 с понятным текстом; клиент
+        показывает своё предложение по правилу offerRule.js."""
+        left, period = chat_quota(db, user)
+        if left is not None and left <= 0:
+            from backend.email_service import TIER_NAMES
+            # 403, а не 429: 429 у чата — антифлуд slowapi (20 в час), и клиент
+            # обязан их различать — там «подожди», здесь «тариф» (chatRules.js).
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    ("Пробные сообщения закончились. " if period == "trial"
+                     else "Сообщения этого месяца закончились — обновятся 1-го числа. ")
+                    + f"На тарифе {TIER_NAMES['lite']} — 30 в месяц, на {TIER_NAMES['pro']} — без лимита."
+                ),
+            )
+
+    def commit_chat(self, user_id: str, tier: str, db) -> None:
+        """Списать сообщение ПОСЛЕ выданного ответа (фоном, rag_router)."""
+        flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+        if flags.get("chat_trial"):
+            increment_monthly_usage(db, user_id, "chat_trial", TRIAL_PERIOD)
+        elif flags.get("chat_per_month"):
+            increment_monthly_usage(db, user_id, "chat")
+
     def commit_transit_ai(self, user: Optional[User], db) -> None:
-        """Зафиксировать расход AI-транзита ПОСЛЕ успешной генерации (только Lite)."""
+        """Зафиксировать расход AI-транзита ПОСЛЕ успешной генерации: Lite —
+        месячная квота, free — пробные на всё время."""
         if user is None or db is None:
             return
         tier = user.tier
         flags = TIER_FLAGS.get(tier, TIER_FLAGS["free"])
         if flags["transits_ai"]:
             return  # безлимитным тарифам счётчик не нужен
+        if flags.get("transits_ai_trial"):
+            increment_monthly_usage(db, str(user.id), "transit_trial", TRIAL_PERIOD)
+            return
         quota = flags.get("transits_ai_per_month") or 0
         if quota <= 0:
             return
@@ -815,3 +881,27 @@ TIER_LIMITS = TIER_FLAGS
 
 def get_tier_limits(tier: str) -> dict:
     return TIER_FLAGS.get(tier, TIER_FLAGS["free"])
+
+
+# ═══════════════════════════════════════════════════════════
+# ОСТАТКИ ПРОБНЫХ И МЕСЯЧНЫХ (28.09.2026) — их же отдаёт /payments/subscription
+# ═══════════════════════════════════════════════════════════
+
+def transit_trials_left(db, user) -> Optional[int]:
+    """Сколько пробных разборов транзитов осталось; None — у тарифа их нет."""
+    trial = TIER_FLAGS.get(user.tier, TIER_FLAGS["free"]).get("transits_ai_trial")
+    if not trial:
+        return None
+    return max(0, trial - get_monthly_usage(db, str(user.id), "transit_trial", TRIAL_PERIOD))
+
+
+def chat_quota(db, user) -> tuple[Optional[int], Optional[str]]:
+    """(остаток, период): ("trial" — на всё время, "month" — в этом месяце).
+    (None, None) — без лимита."""
+    flags = TIER_FLAGS.get(user.tier, TIER_FLAGS["free"])
+    if flags.get("chat_trial"):
+        used = get_monthly_usage(db, str(user.id), "chat_trial", TRIAL_PERIOD)
+        return max(0, flags["chat_trial"] - used), "trial"
+    if flags.get("chat_per_month"):
+        return max(0, flags["chat_per_month"] - get_monthly_usage(db, str(user.id), "chat")), "month"
+    return None, None

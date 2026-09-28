@@ -1655,6 +1655,10 @@ async def interpret_transit_event(
     _tier = user.tier if user else "free"
     if _tier != "free":
         tier_limiter.check_transit_ai_limit(user, db)
+    else:
+        # Free: 2 пробных разбора на всё время, на любые транзиты (решение
+        # владельца 28.09.2026). Проверки «значимый» больше нет.
+        tier_limiter.check_transit_trial(user, db)
     from backend.transit.prompts import (
         TRANSIT_PROMPT_VERSION,
         build_transit_event_prompt,
@@ -1683,26 +1687,6 @@ async def interpret_transit_event(
     _ref_date_str = (body.get("peak_date") or body.get("date") or "")[:10]
     if not _ref_date_str:
         raise HTTPException(status_code=422, detail="Required field: peak_date (or date)")
-
-    # E2: Free получает AI-разбор только по значимым транзитам (медленная→личная).
-    # Топ-2 из них surface на клиенте; сервер допускает любой значимый.
-    if _tier == "free":
-        from backend.transit.engine import is_significant_pair
-        from backend.email_service import TIER_NAMES
-        if not is_significant_pair(transit_planet, natal_planet):
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    # Предлагается сначала Вега (3 разбора в месяц), рядом Лира —
-                    # правило frontend/src/lib/offerRule.js. До 27.09.2026 здесь
-                    # было «Оформи Лира»: мимо дешёвого тарифа и без падежа.
-                    # Новое приложение этот текст не показывает (свой, нейтральный);
-                    # он остаётся для старых версий.
-                    "На бесплатном тарифе открыт разбор 2 самых значимых транзитов. "
-                    f"Разбор этого — на тарифе {TIER_NAMES['lite']} (3 в месяц) "
-                    f"и {TIER_NAMES['pro']} (без лимита)."
-                ),
-            )
 
     profile = {
         "planets": chart.planets,

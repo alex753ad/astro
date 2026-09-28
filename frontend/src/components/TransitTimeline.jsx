@@ -735,11 +735,11 @@ function LockedTransitPanel({ event, reason = "free", remaining, onClose, onOpen
 
   const intro = reason === "lite-limit"
     ? `Разборы транзитов на этот месяц закончились${remaining ? ` (${remaining.used} из ${remaining.limit})` : ""}. Лимит обновится 1-го числа.`
-    : "Это активный период по одной из ключевых тем твоей карты — действия в это окно сильнее обычного.";
+    : "Бесплатные разборы транзитов использованы.";
 
   const outro = reason === "lite-limit"
     ? "А разбор этого периода уже ждёт тебя на Лире."
-    : "Полный разбор этого транзита — на Веге и Лире.";
+    : "На Веге — 3 разбора в месяц, на Лире — без лимита.";
 
   return (
     <div style={{ background: "var(--bg-card-veil)", borderRadius: 'var(--radius-lg)', border: "1px solid var(--accent-hairline)", boxShadow: "0 8px 24px -6px rgba(224,195,252,0.30)", /* леденец: тень держится за градиент-«леденец», удалить вместе с ним — DESIGN_SYSTEM.md §6 */ animation: "fadeSlideIn 0.3s ease" }}>
@@ -824,6 +824,17 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
       .catch(() => {});
   }, [isLite]);
   const liteTransitAiRemaining = transitAiUsage ? transitAiUsage.limit - transitAiUsage.used : null;
+
+  // Free: остаток пробных разборов транзитов (null — пока не пришло).
+  const [freeTrialsLeft, setFreeTrialsLeft] = useState(null);
+  useEffect(() => {
+    if (!isFree) { setFreeTrialsLeft(null); return; }
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('astro_access_token') : null;
+    if (!token) { setFreeTrialsLeft(0); return; }
+    getSubscription(token)
+      .then(data => setFreeTrialsLeft(data?.trials?.transit_trials_left ?? 0))
+      .catch(() => {});
+  }, [isFree, selectedEvent]);
 
   // Реальный горизонт тарифа — из TIER_FLAGS.transits_months на бэкенде
   // (через /profile/subscription), а не своя копия чисел здесь: раньше эта
@@ -999,12 +1010,14 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     });
   }, [events, twoWeeksFromNow, hasFullAccess, isLite]);
 
-  // E2: у Free AI-разбор открыт только у топ-2 значимых транзитов (free_unlocked с бэка).
-  // Сам список событий виден всегда — «visible» тут = «разбор разблокирован».
-  const isEventVisible = useCallback((event) => {
+  // Free: 2 пробных разбора на ЛЮБЫЕ транзиты за всё время аккаунта (решение
+  // владельца 28.09.2026) — вместо прежних «топ-2 значимых». Пока пробные
+  // есть, разбор открыт на каждом транзите; кончились — панель с Вегой и Лирой.
+  // Остаток — /profile/subscription (trials.transit_trials_left).
+  const isEventVisible = useCallback(() => {
     if (hasFullAccess || isLite) return true;
-    return !!event.free_unlocked;
-  }, [hasFullAccess, isLite]);
+    return (freeTrialsLeft ?? 0) > 0;
+  }, [hasFullAccess, isLite, freeTrialsLeft]);
 
   const filteredEvents = useMemo(() => {
     const filtered = events.filter(e => {

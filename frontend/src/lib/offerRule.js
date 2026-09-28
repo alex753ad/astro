@@ -23,9 +23,13 @@ const OPENED_BY = {
   planner_period: ['lite', 'pro', 'premium'],     // периоды Солнца–Марса
   planner_moon: ['lite', 'pro', 'premium'],       // Луна по домам вперёд
   planner_longterm: ['pro', 'premium'],           // Юпитер–Плутон
-  transit: ['lite', 'pro', 'premium'],            // разбор любого транзита (на free — 2 значимых)
+  // Разбор транзитов и чат — на free только на пробу (2 разбора и 3 сообщения
+  // за всё время, решение владельца 28.09.2026); «открывает» здесь значит
+  // «даёт регулярно»: Вега — в месяц, Лира — без лимита.
+  transit: ['lite', 'pro', 'premium'],
   transit_limit: ['pro', 'premium'],              // разбор без месячного лимита
-  chat: ['pro', 'premium'],
+  chat: ['lite', 'pro', 'premium'],               // сообщения в месяц (Вега — 30)
+  chat_limit: ['pro', 'premium'],                 // без лимита
 };
 
 const rank = (t) => TIER_ORDER.indexOf(t);
@@ -53,9 +57,11 @@ export function offerFor(feature, tier, { sellable = APP_SELLABLE } = {}) {
   const candidates = TIER_ORDER.filter((t) => above(t) && opensFeature(feature, t));
   if (candidates.length === 0) return null;
   const primary = candidates[0];
-  // Разбор транзита на free: Вега открывает 3 в месяц, Лира — без лимита.
-  const alt = feature === 'transit' && tier === 'free'
-    ? (TIER_ORDER.find((t) => above(t) && opensFeature('transit_limit', t) && t !== primary) || null)
+  // На free после пробных: Вега (в месяц) и рядом Лира (без лимита) — у
+  // разбора транзитов и у чата одинаково.
+  const unlimited = { transit: 'transit_limit', chat: 'chat_limit' }[feature];
+  const alt = unlimited && tier === 'free'
+    ? (TIER_ORDER.find((t) => above(t) && opensFeature(unlimited, t) && t !== primary) || null)
     : null;
   return { primary, alt };
 }

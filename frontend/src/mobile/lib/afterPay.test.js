@@ -15,9 +15,11 @@ describe('куда вернуться после оплаты', () => {
     expect(returnAfterPay(longterm, 'pro').open).toEqual({ kind: 'event', key: 'lt:saturn' });
   });
 
-  it('чат открывается только Лирой', () => {
-    expect(returnAfterPay(chat, 'lite').open).toBeNull();
-    expect(returnAfterPay(chat, 'pro')).toEqual({ path: '/app/chart', open: { kind: 'chat' } });
+  it('чат: после пробных Вега открывает (30 в месяц), после лимита Веги — только Лира', () => {
+    expect(returnAfterPay(chat, 'lite')).toEqual({ path: '/app/chart', open: { kind: 'chat' } });
+    const limit = { ...chat, feature: 'chat_limit' };
+    expect(returnAfterPay(limit, 'lite').open).toBeNull();
+    expect(returnAfterPay(limit, 'pro').open).toEqual({ kind: 'chat' });
   });
 
   it('транзит: Вега открывает разбор, лимит — только Лира', () => {

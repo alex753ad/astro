@@ -42,13 +42,15 @@ def _fmt_transits(transits: Optional[list[dict]]) -> str:
 
 def build_brief_prompt(
     *,
-    client_name: str,
-    birth_info: str,
     natal_profile: dict,
     transits: Optional[list[dict]] = None,
     last_consultation: Optional[dict] = None,
     author_context: str = "",
 ) -> str:
+    # ⚠️ Имени, даты и места рождения клиента в промпте нет (решение владельца
+    # 28.09.2026): модель — сторонний сервис за рубежом, а положения планет уже
+    # посчитаны. Заметки и ответы анкеты пока уходят — решить до запуска CRM
+    # (TASKS.md, «Чек-лист при запуске CRM»).
     planets_line = _fmt_planets(natal_profile.get("planets"))
     asc = (natal_profile.get("ascendant") or {}).get("sign")
 
@@ -61,11 +63,10 @@ def build_brief_prompt(
 
     return (
         "Ты — ассистент практикующего астролога. Подготовь краткий бриф к консультации "
-        f"с клиентом по имени {client_name}. Пиши по-русски, структурировано, по делу, без воды.\n"
+        "с клиентом. Пиши по-русски, структурировано, по делу, без воды.\n"
         "ПРАВИЛА РАБОТЫ С ФАКТАМИ: планеты, дома и транзиты ниже уже посчитаны точно — "
         "не вычисляй их сам. Используй только то, что есть в данных ниже; если чего-то там "
         "нет — не упоминай. Не называй дат, которых нет в данных.\n\n"
-        f"ДАННЫЕ РОЖДЕНИЯ: {birth_info}\n"
         f"АСЦЕНДЕНТ: {asc or 'неизвестен'}\n"
         f"ПЛАНЕТЫ: {planets_line}\n\n"
         f"АКТИВНЫЕ ТРАНЗИТЫ (ближайший месяц):\n{_fmt_transits(transits)}\n\n"

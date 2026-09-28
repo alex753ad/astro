@@ -221,9 +221,12 @@ def transit_teaser(tier: Optional[str], free_unlocked: bool) -> Optional[dict]:
     Здесь только текст-заглушка, чтобы бесплатный пользователь видел в ленте
     то же, что уже видит на сайте, а не пустое место.
     """
-    if tier in ("lite", "pro", "premium") or free_unlocked:
-        return None
-    return TEMPLATES.get("teaser", {}).get("free") or None
+    # С 28.09.2026 (решение владельца) у free 2 пробных разбора на ЛЮБЫЕ
+    # транзиты, а не «топ-2 значимых»: подводки-заглушки и флага «открыт» в
+    # ленте больше нет. Остаток пробных и предложение тарифа показывает панель
+    # события по /profile/subscription (trials.transit_trials_left).
+    # Сигнатура оставлена — функцию зовут тесты паритета с вебом.
+    return None
 
 
 # ── Транзиты ─────────────────────────────────────────────────────────────────
@@ -369,7 +372,6 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                     "peak_orb": e["peak_orb"],
                     "applying": e["applying"],
                     "significant": e["significant"],
-                    "free_unlocked": e["free_unlocked"],
                 },
             })
     return out

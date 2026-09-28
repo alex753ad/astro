@@ -740,7 +740,10 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       {/* AI Чат */}
       {leftPanel === 'chat' && (
         <div style={{ ...s.panelCard, padding: 0, minHeight: 480 }}>
-          {tierAllowed('pro') ? (
+          {/* Чат с 28.09.2026 на всех тарифах: free — 3 сообщения на пробу,
+              Вега — 30 в месяц, Лира — без лимита. Лимит держит сервер (403),
+              RagChat показывает предложение через onPaywall. */}
+          {currentUser ? (
             <RagChat
               chartId={chartId}
               onPaywall={(ctx) => openPaywall(ctx || _upsellCtx('pro'))}

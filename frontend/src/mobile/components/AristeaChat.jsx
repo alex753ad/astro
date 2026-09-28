@@ -49,6 +49,12 @@ import {
 import { CHAT_GREETING, CHAT_SUGGESTIONS } from '../../lib/chatSuggestions';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
+import { CHAT_PRIVACY_NOTE, chatLimitOffer } from '../lib/chatRules';
+import useTier from '../lib/useTier';
+import useTrials, { leftLabel, refreshTrials } from '../lib/useTrials';
+import { offerFor } from '../../lib/offerRule';
+import { TIER_NAMES } from '../../constants';
+import { tierAccusative } from '../lib/ruDeclension';
 
 const MAX_QUESTION_LEN = 1000;   // столько же принимает сервер (rag_router.py)
 
@@ -195,9 +201,24 @@ export default function AristeaChat({ chart, onClose }) {
     // Пузырёк трогаем только теперь, когда поток точно кончился: пустой
     // убираем, с текстом — оставляем как есть, даже если ответ оборвался.
     setMessages((prev) => dropEmptyAnswer(prev));
+    // Сервер списал сообщение после ответа — обновить остаток.
+    if (gotTextRef.current && !failed) refreshTrials();
   }, [input, streaming, chartId]);
 
-  const disabled = streaming || !input.trim() || !chartId;
+  // Лимит сообщений тарифа: 403 от сервера или известный нулевой остаток —
+  // вместо поля ввода серое предложение (lib/offerRule.js).
+  const { tier, known } = useTier();
+  const trials = useTrials();
+  const outOfMessages = (trials.known && trials.chatLeft === 0) || failure?.outcome === 'tier';
+  const limitOffer = chatLimitOffer(known ? tier : 'free');
+  const limitTiers = offerFor(limitOffer.feature, known ? tier : 'free');
+  const askTier = (id) => openPaySheet({
+    focus: id,
+    context: limitOffer.text,
+    returnTo: { path: '/app/feed', kind: 'chat', feature: limitOffer.feature },
+  });
+
+  const disabled = streaming || !input.trim() || !chartId || outOfMessages;
 
   return (
     <>
@@ -323,7 +344,7 @@ export default function AristeaChat({ chart, onClose }) {
 
           {streaming && <TypingDots />}
 
-          {failure && (
+          {failure && failure.outcome !== 'tier' && (
             <div role="alert" style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-secondary)', textAlign: 'center' }}>
               {failure.text}
               {failure.showPricing && (
@@ -338,10 +359,38 @@ export default function AristeaChat({ chart, onClose }) {
           )}
         </div>
 
+        {/* Лимит сообщений — серым, не ошибкой (решение владельца 28.09.2026). */}
+        {outOfMessages && (
+          <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{limitOffer.text}</p>
+            {limitTiers && (
+              <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => askTier(limitTiers.primary)}>
+                Оформить {tierAccusative(TIER_NAMES[limitTiers.primary])}
+              </button>
+            )}
+            {limitTiers?.alt && (
+              <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => askTier(limitTiers.alt)}>
+                Оформить {tierAccusative(TIER_NAMES[limitTiers.alt])}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Поле ввода */}
+        {!outOfMessages && (
+        <div style={{ flexShrink: 0, borderTop: '1px solid var(--border)', padding: '6px 16px 0' }}>
+          {trials.known && trials.chatPeriod === 'trial' && trials.chatLeft > 0 && (
+            <p style={{ margin: '0 0 4px', fontSize: 12, color: 'var(--text-secondary)' }}>
+              {leftLabel(trials.chatLeft, ['пробное сообщение', 'пробных сообщения', 'пробных сообщений'])}
+            </p>
+          )}
+          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.45, color: 'var(--text-secondary)' }}>{CHAT_PRIVACY_NOTE}</p>
+        </div>
+        )}
+        {!outOfMessages && (
         <div style={{
           flexShrink: 0,
-          borderTop: '1px solid var(--border)',
+          // Линия сверху — у блока подписи выше.
           padding: '10px 16px',
           paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
           display: 'flex',
@@ -368,6 +417,7 @@ export default function AristeaChat({ chart, onClose }) {
             ↑
           </button>
         </div>
+        )}
       </div>
     </>
   );

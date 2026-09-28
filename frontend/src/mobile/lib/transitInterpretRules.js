@@ -128,13 +128,13 @@ export function classifyTransitError(signal) {
  *
  * @returns {{feature: string, text: string}|null} null — отказ не тарифный
  */
+export const TRANSIT_TRIALS_USED_TEXT = 'Бесплатные разборы использованы. На Веге — 3 в месяц, на Лире — без лимита.';
+
 export function transitOffer(outcome) {
+  // 403 у разбора транзита с 28.09.2026 — кончились 2 пробных разбора free
+  // (check_transit_trial); «значимых» транзитов больше нет.
   if (outcome === TRANSIT_OUTCOMES.NOT_SIGNIFICANT) {
-    return {
-      feature: 'transit',
-      text: 'На бесплатном тарифе открыт разбор 2 самых значимых транзитов. '
-        + 'Разбор этого — на Веге (3 в месяц) и на Лире (без лимита).',
-    };
+    return { feature: 'transit', text: TRANSIT_TRIALS_USED_TEXT };
   }
   if (outcome === TRANSIT_OUTCOMES.RATE_LIMIT) {
     return {

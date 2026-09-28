@@ -71,6 +71,27 @@ export const CHAT_STREAM_ERROR_CODES = Object.freeze([
  *        `detail` — текст сервера либо, для потоковых ошибок, машинный код.
  * @returns {{outcome: string, text: string, showPricing: boolean, canRetry: boolean}}
  */
+/**
+ * Лимит сообщений тарифа (403, check_chat_limit): текст по тарифу, без
+ * формулировки сервера (решение владельца 28.09.2026). Free — пробные за всё
+ * время; Вега — месячные, обновятся 1-го числа.
+ */
+export function chatLimitOffer(tier) {
+  if (tier === 'lite') {
+    return {
+      feature: 'chat_limit',
+      text: 'Сообщения этого месяца закончились — обновятся 1-го числа. Без лимита — на Лире.',
+    };
+  }
+  return {
+    feature: 'chat',
+    text: 'Пробные сообщения закончились. На Веге — 30 в месяц, на Лире — без лимита.',
+  };
+}
+
+/** Строка под полем ввода: куда уходят сообщения (решение владельца 28.09.2026). */
+export const CHAT_PRIVACY_NOTE = 'Сообщения обрабатывает сторонний сервис за рубежом — не пиши паспортные данные, телефоны и адреса.';
+
 export function classifyChatError(signal) {
   const status = signal?.status;
   const detail = typeof signal?.detail === 'string' ? signal.detail.trim() : '';

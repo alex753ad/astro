@@ -3,15 +3,15 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { APP_SELLABLE, TIER_ORDER, offerFor, opensFeature } from './offerRule';
 
-const FEATURES = ['planner_period', 'planner_moon', 'planner_longterm', 'transit', 'transit_limit', 'chat', 'interpretation'];
+const FEATURES = ['planner_period', 'planner_moon', 'planner_longterm', 'transit', 'transit_limit', 'chat', 'chat_limit', 'interpretation'];
 
 describe('правило предложения тарифа — все сочетания', () => {
   it('таблица ожиданий', () => {
     const expected = {
-      free: { planner_period: 'lite', planner_moon: 'lite', planner_longterm: 'pro', transit: 'lite', transit_limit: 'pro', chat: 'pro', interpretation: 'lite' },
-      lite: { planner_period: null, planner_moon: null, planner_longterm: 'pro', transit: null, transit_limit: 'pro', chat: 'pro', interpretation: 'pro' },
-      pro: { planner_period: null, planner_moon: null, planner_longterm: null, transit: null, transit_limit: null, chat: null, interpretation: null },
-      premium: { planner_period: null, planner_moon: null, planner_longterm: null, transit: null, transit_limit: null, chat: null, interpretation: null },
+      free: { planner_period: 'lite', planner_moon: 'lite', planner_longterm: 'pro', transit: 'lite', transit_limit: 'pro', chat: 'lite', chat_limit: 'pro', interpretation: 'lite' },
+      lite: { planner_period: null, planner_moon: null, planner_longterm: 'pro', transit: null, transit_limit: 'pro', chat: null, chat_limit: 'pro', interpretation: 'pro' },
+      pro: { planner_period: null, planner_moon: null, planner_longterm: null, transit: null, transit_limit: null, chat: null, chat_limit: null, interpretation: null },
+      premium: { planner_period: null, planner_moon: null, planner_longterm: null, transit: null, transit_limit: null, chat: null, chat_limit: null, interpretation: null },
     };
     for (const tier of TIER_ORDER) {
       for (const f of FEATURES) {
@@ -20,8 +20,10 @@ describe('правило предложения тарифа — все соче
     }
   });
 
-  it('разбор транзита на free: Вега, и Лира рядом', () => {
+  it('разбор транзита и чат на free после пробных: Вега, и Лира рядом', () => {
     expect(offerFor('transit', 'free')).toEqual({ primary: 'lite', alt: 'pro' });
+    expect(offerFor('chat', 'free')).toEqual({ primary: 'lite', alt: 'pro' });
+    expect(offerFor('chat_limit', 'lite')).toEqual({ primary: 'pro', alt: null });
     expect(offerFor('transit_limit', 'lite')).toEqual({ primary: 'pro', alt: null });
   });
 
@@ -54,10 +56,9 @@ describe('правило предложения тарифа — все соче
     const blocks = { free: block('free', 'lite'), lite: block('lite', 'pro'), pro: block('pro', 'premium') };
     expect(blocks.lite).toMatch(/"transits_ai_per_month":\s*3/);
     expect(blocks.pro).toMatch(/"transits_ai_per_month":\s*None/);
-    // Чат на сервере — одна строка `"rag_chat": tier in ("pro", "premium")`.
-    const m = src.match(/"rag_chat":\s*tier in \(([^)]*)\)/);
-    expect(m, 'rag_chat в rate_limits.py').not.toBeNull();
-    const server = [...m[1].matchAll(/"(\w+)"/g)].map((x) => x[1]);
-    for (const t of TIER_ORDER) expect(server.includes(t), `чат у ${t}`).toBe(opensFeature('chat', t));
+    // Чат: пробные у free, 30 в месяц у Веги, без лимита у Лиры.
+    expect(blocks.free).toMatch(/"chat_trial":\s*3/);
+    expect(blocks.lite).toMatch(/"chat_per_month":\s*30/);
+    expect(blocks.free).toMatch(/"transits_ai_trial":\s*2/);
   });
 });

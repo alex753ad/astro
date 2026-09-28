@@ -484,8 +484,8 @@ class TestHistoryEndpoint:
         assert client.get(url, headers=auth_headers(other)).status_code == 404
         assert client.get(url, headers=auth_headers(owner)).status_code == 200
 
-    def test_free_tier_is_403(self, client: TestClient, db: Session, user_free, auth_headers_free):
-        """Тариф — тот же require_tier("pro"), что у самого чата."""
+    def test_free_tier_sees_own_history(self, client: TestClient, db: Session, user_free, auth_headers_free):
+        """С 28.09.2026 чат на всех тарифах (free — 3 сообщения на пробу), история тоже."""
         chart = make_chart(db, user_free.id)
 
         resp = client.get(
@@ -493,7 +493,7 @@ class TestHistoryEndpoint:
             headers=auth_headers_free,
         )
 
-        assert resp.status_code == 403
+        assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_leaks_neither_system_prompt_nor_knowledge_nor_memory(

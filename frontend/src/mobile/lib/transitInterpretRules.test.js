@@ -148,7 +148,7 @@ describe('отказ по тарифу — предложение по прав�
   it('free: Вега и Лира, без «Оформи Лира»', () => {
     const o = transitOffer(TRANSIT_OUTCOMES.NOT_SIGNIFICANT);
     expect(o.feature).toBe('transit');
-    expect(o.text).toMatch(/на Веге .*на Лире/);
+    expect(o.text).toMatch(/Бесплатные разборы использованы\. На Веге — 3 в месяц, на Лире — без лимита/);
     expect(o.text).not.toMatch(/Оформи Лира/);
   });
   it('Вега без лимита: Лира', () => {

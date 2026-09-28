@@ -29,7 +29,8 @@ import { openPaySheet } from '../lib/paySheetBus';
 import { TIER_NAMES } from '../../constants';
 import { offerFor } from '../../lib/offerRule';
 import { tierAccusative } from '../lib/ruDeclension';
-import { transitOffer } from '../lib/transitInterpretRules';
+import { TRANSIT_TRIALS_USED_TEXT, transitOffer } from '../lib/transitInterpretRules';
+import useTrials, { leftLabel, refreshTrials } from '../lib/useTrials';
 import { isGuest } from '../lib/guestChart';
 import { askSignup } from '../lib/signupPrompt';
 import { useNavigate } from 'react-router-dom';
@@ -51,6 +52,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   // строкой, как было до появления разбора.
   const { tier, known } = useTier();
   const navigate = useNavigate();
+  const trials = useTrials();
   const [text, setText] = useState('');
   const [status, setStatus] = useState('idle');   // idle | loading | done | failed
   const [failure, setFailure] = useState(null);
@@ -78,6 +80,8 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
         },
       });
       if (runIdRef.current === run) setStatus('done');
+      // Сервер списал пробный/месячный разбор — обновить «Осталось N».
+      refreshTrials();
     } catch (err) {
       if (runIdRef.current !== run) return;
       // authenticated: true — панель существует только внутри сессии; ветка
@@ -96,6 +100,32 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   const meta = event.meta || {};
   const isTransit = event.kind === 'transit';
   const canAsk = isTransit && !!chartId && canInterpretTransit(event);
+  // Пробные разборы free: известен и тариф, и остаток (useTrials).
+  const freeTrial = known && tier === 'free' && trials.known && trials.transitLeft !== null && !isGuest();
+  /** Серое предложение тарифа по правилу offerRule.js, с возвратом сюда после оплаты. */
+  const offerBlock = (t) => {
+    const o = offerFor(t.feature, known ? tier : 'free');
+    const ask = (id) => openPaySheet({
+      focus: id,
+      context: t.text,
+      returnTo: { path: '/app/feed', kind: 'event', key: event.key, feature: t.feature },
+    });
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{t.text}</p>
+        {o && (
+          <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => ask(o.primary)}>
+            Оформить {tierAccusative(TIER_NAMES[o.primary])}
+          </button>
+        )}
+        {o?.alt && (
+          <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => ask(o.alt)}>
+            Оформить {tierAccusative(TIER_NAMES[o.alt])}
+          </button>
+        )}
+      </div>
+    );
+  };
   const upsell = transitUpsellFor({
     tier, known, finished: status === 'done', failed: status === 'failed',
   });
@@ -311,30 +341,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
             уже прочитал, и убирать это нельзя. */}
         {/* Отказ по тарифу — предложение, нейтральным цветом и с тарифом по
             правилу (lib/offerRule.js), а не красная ошибка с текстом сервера. */}
-        {failure && transitOffer(failure.outcome) && (() => {
-          const t = transitOffer(failure.outcome);
-          const o = offerFor(t.feature, known ? tier : 'free');
-          const ask = (id) => openPaySheet({
-            focus: id,
-            context: t.text,
-            returnTo: { path: '/app/feed', kind: 'event', key: event.key, feature: t.feature },
-          });
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{t.text}</p>
-              {o && (
-                <button type="button" className="mobile-btn-primary" style={{ height: 44, fontSize: 14 }} onClick={() => ask(o.primary)}>
-                  Оформить {tierAccusative(TIER_NAMES[o.primary])}
-                </button>
-              )}
-              {o?.alt && (
-                <button type="button" className="mobile-link" style={{ alignSelf: 'flex-start' }} onClick={() => ask(o.alt)}>
-                  Оформить {tierAccusative(TIER_NAMES[o.alt])}
-                </button>
-              )}
-            </div>
-          );
-        })()}
+        {failure && transitOffer(failure.outcome) && offerBlock(transitOffer(failure.outcome))}
         {failure && !transitOffer(failure.outcome) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p
@@ -393,14 +400,23 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
         {/* «Разобрать транзит» — только у транзитов и только пока разбора нет.
             Доступ решает сервер: своей копии тарифной сетки клиент не держит и
             заранее ничего не запрещает. */}
-        {canAsk && status === 'idle' && (
+        {/* Free: пробные разборы (2 за всё время, решение владельца
+            28.09.2026). Кончились — сразу серое предложение, без запроса. */}
+        {canAsk && status === 'idle' && freeTrial && trials.transitLeft === 0 && !failure
+          && offerBlock({ feature: 'transit', text: TRANSIT_TRIALS_USED_TEXT })}
+        {canAsk && status === 'idle' && freeTrial && trials.transitLeft > 0 && (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+            {leftLabel(trials.transitLeft, ['бесплатный разбор', 'бесплатных разбора', 'бесплатных разборов'])}
+          </p>
+        )}
+        {canAsk && status === 'idle' && !(freeTrial && trials.transitLeft === 0) && (
           <button
             type="button"
             className="mobile-btn-primary"
             // Гость: разбор пишется в аккаунт — ведём на «Сохранить карту».
             onClick={isGuest() ? () => { onClose?.(); askSignup(navigate, 'transit-interpretation'); } : start}
           >
-            Разобрать транзит
+            {freeTrial ? 'Разобрать' : 'Разобрать транзит'}
           </button>
         )}
 

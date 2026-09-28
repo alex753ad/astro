@@ -22,6 +22,9 @@ describe('описания тарифов в приложении — те же 
       expect(APP_LIMITS[t].interpretations, `${t} разборы`).toBe(num(blocks[t], 'interpretations_per_month'));
       expect(APP_LIMITS[t].transits, `${t} транзиты`).toBe(num(blocks[t], 'transits_ai_per_month'));
     }
+    expect(APP_LIMITS.free.transits).toBe(num(blocks.free, 'transits_ai_trial'));
+    expect(APP_LIMITS.free.chat).toBe(num(blocks.free, 'chat_trial'));
+    expect(APP_LIMITS.lite.chat).toBe(num(blocks.lite, 'chat_per_month'));
   });
 
   it('в приложенческих описаниях нет того, чего в приложении не видно', () => {

@@ -640,30 +640,16 @@ class TestTierAndTemplates:
         missing = [e["meta"] for e in transits if not e["text"]]
         assert not missing, f"транзиты без подписи: {missing[:3]}"
 
-    def test_free_gets_the_same_teaser_as_the_web(self):
-        """Бесплатному вместо разбора — та же подводка, что на ChartPage."""
-        feed = _feed(date(2026, 8, 1), date(2026, 8, 31), tier="free")
-        teasers = [e["teaser"] for e in feed["events"]
-                   if e["kind"] == "transit" and e["teaser"]]
-        assert teasers, "на free подводка обязана быть"
-        assert teasers[0]["intro"].startswith("Это активный период по одной из ключевых тем")
-        assert "Веге" in teasers[0]["outro"]
-
-    def test_paid_tiers_get_no_teaser(self):
-        """Подводка — замена разбора. Тем, кому разбор открыт, она не нужна."""
-        feed = _feed(date(2026, 8, 1), date(2026, 8, 31), tier="pro")
-        assert all(e["teaser"] is None for e in feed["events"])
-
-    def test_free_unlocked_transits_get_no_teaser(self):
-        """Топ-2 значимых на free — разбор открыт, подводка не нужна.
-
-        Условие взято с фронта (isEventVisible в TransitTimeline.jsx).
-        """
-        feed = _feed(date(2026, 8, 1), date(2026, 8, 31), tier="free")
-        unlocked = [e for e in feed["events"]
-                    if e["kind"] == "transit" and e["meta"]["free_unlocked"]]
-        assert unlocked, "топ-2 значимых обязаны быть хотя бы в одном месяце"
-        assert all(e["teaser"] is None for e in unlocked)
+    def test_no_teaser_and_no_unlocked_flag_on_any_tier(self):
+        """С 28.09.2026 у free 2 пробных разбора на любые транзиты: подводки-
+        заглушки и флага «открыт» (free_unlocked) в ленте нет ни у кого.
+        Остаток пробных — /profile/subscription (trials)."""
+        for tier in ("free", "lite", "pro"):
+            feed = _feed(date(2026, 8, 1), date(2026, 8, 31), tier=tier)
+            transits = [e for e in feed["events"] if e["kind"] == "transit"]
+            assert transits
+            assert all(e["teaser"] is None for e in transits), tier
+            assert all("free_unlocked" not in e["meta"] for e in transits), tier
 
     def test_templates_match_the_web_dictionaries(self):
         """Файл — вторая копия словарей фронта, и она обязана им совпадать.

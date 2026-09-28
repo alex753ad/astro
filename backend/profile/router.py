@@ -244,6 +244,16 @@ async def interpretation_history(
 # SUBSCRIPTION INFO
 # ═══════════════════════════════════════════════════════════
 
+def _trials(db, user) -> dict:
+    from backend.auth.rate_limits import chat_quota, transit_trials_left
+    chat_left, chat_period = chat_quota(db, user)
+    return {
+        "transit_trials_left": transit_trials_left(db, user),
+        "chat_left": chat_left,
+        "chat_period": chat_period,   # "trial" | "month" | None
+    }
+
+
 @router.get(
     "/subscription",
     summary="Current subscription details with limits and usage",
@@ -328,6 +338,9 @@ async def get_subscription(
             "pdf_this_month": pdf_used,
             "charts_this_month": charts_used,
         },
+        # Остатки для «Осталось N» в листах транзита и чата (28.09.2026).
+        # None — у тарифа нет лимита (или пробных нет).
+        "trials": _trials(db, user),
     }
 
 
