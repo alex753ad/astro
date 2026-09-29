@@ -89,8 +89,10 @@ describe('карточка тарифа', () => {
 
   it('в приложении веб-пункты — одной короткой строкой «На сайте», без значений', () => {
     const app = tierCard('lite', { surface: 'app' });
-    expect(app.lines.map((l) => l.text).join(' ')).not.toMatch(/Google|PDF|Лунный календарь/);
-    expect(app.site).toBe('На сайте: лунный календарь, экспорт событий в Google Календарь, PDF-отчёт по карте');
+    expect(app.lines.map((l) => l.text).join(' ')).not.toMatch(/Google|Лунный календарь/);
+    // PDF с 29.09.2026 есть и в приложении — «на сайте» его больше нет.
+    expect(app.site).toBe('На сайте: лунный календарь, экспорт событий в Google Календарь');
+    expect(app.lines.map((l) => l.key)).toContain('pdf');
     // Горизонт транзитов действует и в ленте приложения — это не «на сайте».
     expect(app.lines.map((l) => l.key)).toContain('transit_horizon');
   });

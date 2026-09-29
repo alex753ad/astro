@@ -21,6 +21,7 @@ import NatalChart from '../../components/NatalChart';
 import ChartCreateView from '../components/ChartCreateView';
 import ChartSheet from '../components/ChartSheet';
 import ChartShareSheet from '../components/ChartShareSheet';
+import ChartPdfSheet from '../components/ChartPdfSheet';
 import InterpretView from '../components/InterpretView';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
@@ -112,6 +113,8 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   // Лист «Поделиться». Ссылка создаётся не здесь, а по действию внутри
   // листа — см. шапку ChartShareSheet.jsx.
   const [shareOpen, setShareOpen] = useState(false);
+  // Лист «PDF-отчёты» (components/ChartPdfSheet.jsx).
+  const [pdfOpen, setPdfOpen] = useState(false);
 
   /**
    * Какую карту показывать, если это решил не сервер, а сам человек прямо
@@ -517,16 +520,27 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
         </p>
       </div>
 
-      {/* Вход в разбор. Отдельной строкой под колесом, а не четвёртой кнопкой
-          в шапке: там уже три и место кончилось (см. комментарий у «+»). */}
-      <button
-        type="button"
-        onClick={() => (guest ? needAccount('interpretation') : setView('interpret'))}
-        className="mobile-link"
-        style={{ flexShrink: 0, alignSelf: 'center', padding: '8px 0 4px', fontSize: 14 }}
-      >
-        Разбор карты →
-      </button>
+      {/* Вход в разбор и в PDF-отчёты. Отдельной строкой под колесом, а не
+          кнопками в шапке: там уже три и место кончилось (см. комментарий
+          у «+»). */}
+      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 24, padding: '8px 0 4px' }}>
+        <button
+          type="button"
+          onClick={() => (guest ? needAccount('interpretation') : setView('interpret'))}
+          className="mobile-link"
+          style={{ padding: 0, fontSize: 14 }}
+        >
+          Разбор карты →
+        </button>
+        <button
+          type="button"
+          onClick={() => (guest ? needAccount('pdf') : setPdfOpen(true))}
+          className="mobile-link"
+          style={{ padding: 0, fontSize: 14 }}
+        >
+          PDF-отчёт →
+        </button>
+      </div>
 
       {/* Обновление жестом тянут за список шторки — единственное, что на
           этом экране прокручивается (разбор — в ChartSheet.jsx). */}
@@ -539,6 +553,8 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
       {shareOpen && (
         <ChartShareSheet chartId={chart.id} onClose={() => setShareOpen(false)} />
       )}
+
+      {pdfOpen && <ChartPdfSheet chart={chart} onClose={() => setPdfOpen(false)} />}
     </div>
   );
 }
