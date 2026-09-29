@@ -21,9 +21,11 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appVersion } from './appVersion.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const MANIFEST = path.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+const APP_GRADLE = path.join(root, 'android', 'app', 'build.gradle');
 
 let failed = false;
 
@@ -182,6 +184,41 @@ patch({
     t.includes('android.permission.POST_NOTIFICATIONS') &&
     t.includes('android.permission.RECEIVE_BOOT_COMPLETED'),
 });
+
+/**
+ * versionCode и versionName — номер прогона CI (scripts/appVersion.mjs).
+ *
+ * Шаблон Capacitor ставит `versionCode 1` и `versionName "1.0"`, и до
+ * 29.09.2026 так уезжал каждый APK: сборки не различались ничем, кроме хеша.
+ * Здесь не `patch()`: якорь — регулярка, а не строка, потому что при повторном
+ * запуске локально в файле уже стоит прошлый номер, а не шаблонная единица.
+ *
+ * Локально номера прогона нет — build.gradle не трогаем вовсе.
+ */
+const version = appVersion(JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf-8')).version);
+if (version.code === null) {
+  console.log('· версия: локальная сборка, номера прогона нет — не трогаем');
+} else if (!existsSync(APP_GRADLE)) {
+  console.error(`✗ версия: файла нет — ${APP_GRADLE}`);
+  failed = true;
+} else {
+  const text = readFileSync(APP_GRADLE, 'utf-8');
+  const codeRe = /versionCode \d+/g;
+  const nameRe = /versionName "[^"]*"/g;
+  const codes = text.match(codeRe) || [];
+  const names = text.match(nameRe) || [];
+  if (codes.length !== 1 || names.length !== 1) {
+    console.error(`✗ версия: versionCode найден ${codes.length} раз, versionName — ${names.length} (ожидалось по 1)`);
+    failed = true;
+  } else {
+    writeFileSync(
+      APP_GRADLE,
+      text.replace(codeRe, `versionCode ${version.code}`).replace(nameRe, `versionName "${version.name}"`),
+      'utf-8',
+    );
+    console.log(`✓ версия ${version.name} (versionCode ${version.code})`);
+  }
+}
 
 if (failed) {
   console.error('patch-android: правки не применены — сборка остановлена');

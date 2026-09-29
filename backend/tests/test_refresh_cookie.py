@@ -85,25 +85,7 @@ class TestRefreshFromCookie:
         assert client.post("/api/v1/auth/refresh", json={}).status_code == 401
 
 
-class TestLegacyBodyStillAccepted:
-    """Совместимость со сборками фронта, кэшированными в браузерах.
-
-    Без этой ветки в момент деплоя разлогинились бы все, у кого открыта вкладка
-    со старым бандлом.
-    """
-
-    def test_body_token_accepted_and_echoed(self, client, user_free):
-        login = client.post(
-            "/api/v1/auth/login",
-            json={"email": user_free.email, "password": "Password123!"},
-        )
-        token = login.cookies.get(REFRESH_COOKIE_NAME)
-        client.cookies.clear()
-
-        resp = client.post("/api/v1/auth/refresh", json={"refresh_token": token})
-        assert resp.status_code == 200
-        # Старый клиент ждёт токен в теле — иначе он его потеряет.
-        assert resp.json()["refresh_token"]
+# Тело refresh у старых сборок — test_old_apk_contract.py::TestLegacyRefreshBody.
 
 
 class TestLogoutClearsCookie:

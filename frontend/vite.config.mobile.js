@@ -18,16 +18,18 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { renameSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { appVersion } from './scripts/appVersion.mjs';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const OUT_DIR = 'dist-mobile';
 
-// Версия приложения для Sentry: версия из package.json + коммит сборки.
+// Версия приложения для Sentry и «Настроек»: версия с номером прогона
+// (scripts/appVersion.mjs — тот же номер уходит в versionName APK) + коммит.
 // GITHUB_SHA есть в каждом прогоне Actions (mobile-build.yml); локально — «local».
 const pkg = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
-const APP_RELEASE = `aristea-mobile@${pkg.version}+${(process.env.GITHUB_SHA || 'local').slice(0, 7)}`;
+const APP_RELEASE = `aristea-mobile@${appVersion(pkg.version).name}+${(process.env.GITHUB_SHA || 'local').slice(0, 7)}`;
 
 /**
  * Rollup именует выходной HTML по имени входного, то есть на диск лёг бы

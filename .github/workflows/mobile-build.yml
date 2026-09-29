@@ -270,6 +270,23 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
+      # Номер версии проверяется по ФАКТУ собранного APK, а не по успеху
+      # patch-android.mjs: output-metadata.json пишет сам Gradle, то есть в нём
+      # то, что реально ушло в APK. versionCode 1 здесь значит, что патч
+      # версии не сработал, и APK снова неотличим от предыдущих.
+      - name: Проверить номер версии в APK
+        working-directory: frontend/android
+        run: |
+          meta=app/build/outputs/apk/debug/output-metadata.json
+          cat "$meta"
+          grep -q "\"versionCode\": *${GITHUB_RUN_NUMBER}[,}]" "$meta" || {
+            echo "versionCode в APK не равен номеру прогона ${GITHUB_RUN_NUMBER}"; exit 1; }
+          grep -q "\"versionName\": *\"[0-9.]*-${GITHUB_RUN_NUMBER}\"" "$meta" || {
+            echo "versionName в APK без номера прогона ${GITHUB_RUN_NUMBER}"; exit 1; }
+          grep -rqF -- "-${GITHUB_RUN_NUMBER}+" ../dist-mobile/assets/ || {
+            echo "в бандле нет версии с номером прогона — «Настройки» покажут не то"; exit 1; }
+          echo "версия: $(grep -o '"versionName": *"[^"]*"' "$meta")"
+
       # Доказательство, что плагин google-services РЕАЛЬНО отработал, а не был
       # пропущен тем самым try/catch. Он разворачивает конфигурацию в ресурсы;
       # нет их — значит подключения не было, каким бы зелёным ни был лог сборки.

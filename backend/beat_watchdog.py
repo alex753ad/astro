@@ -41,7 +41,10 @@ _MARKER_PREFIX = "astro:beat:last_success:"
 
 # Пока следим за одной задачей. Остальные три расписания (lunar-returns,
 # weekly-digest, broadcast) намеренно не подключены: сначала смотрим, как
-# механизм ведёт себя на одной — решение владельца 31.08.2026.
+# механизм ведёт себя на одной — решение владельца 31.08.2026. С 29.09.2026
+# (решение владельца) сторож проверяет ещё и доставку утреннего сообщения
+# самопроверки — `_check_morning` ниже; это отдельная отметка, а не вторая
+# задача в WATCHED_TASK.
 WATCHED_TASK = "tasks.expire_subscriptions"
 
 # 26 часов, а не 24. Задача идёт в 05:00 UTC, сторож — в 07:30 UTC (см. юниты
@@ -136,7 +139,8 @@ async def _read_marker_age(task_name: str) -> tuple[str, float | None, str | Non
 
 @router.post("/beat-watchdog")
 async def beat_watchdog() -> dict:
-    """Проверить, что `WATCHED_TASK` отработала не позже `MAX_AGE_SEC` назад.
+    """Две проверки: `WATCHED_TASK` отработала не позже `MAX_AGE_SEC` назад, и
+    утреннее сообщение самопроверки сегодня дошло в канал (`_check_morning`).
 
     Отвечает 200 в любом исходе, включая тревогу: 200 здесь значит «проверка
     выполнена», а не «всё хорошо». Не-2xx сделал бы systemd-юнит красным при
@@ -146,12 +150,19 @@ async def beat_watchdog() -> dict:
     `09-internal-cron.sh` в журнал юнита.
 
     Троттла нет, в отличие от `_notify_ip_reject` и обработчика падений: сторож
-    запускается раз в сутки, значит и сообщений будет максимум одно в сутки.
+    запускается раз в сутки, значит и сообщений будет максимум по одному на
+    проверку в сутки.
     Повтор здесь желателен — пока очередь не починили, напоминать надо каждый
     день, иначе единственное сообщение утонет в переписке.
     """
     from backend.notifications.telegram import send_support_message
 
+    result = await _check_expire(send_support_message)
+    result["morning"] = await _check_morning(send_support_message)
+    return result
+
+
+async def _check_expire(send_support_message) -> dict:
     try:
         state, age, _raw = await _read_marker_age(WATCHED_TASK)
     except Exception as exc:
@@ -198,6 +209,78 @@ async def beat_watchdog() -> dict:
         "task": WATCHED_TASK,
         "age_sec": int(age) if age is not None else None,
     }
+
+
+# ── Утреннее сообщение самопроверки (с 29.09.2026) ──────────────────────────
+#
+# `selfcheck.run_daily` в 07:30 МСК шлёт в канал одно сообщение каждое утро —
+# чтобы тишина отличалась от упавшей самопроверки. Но если прогон не случился
+# вовсе (beat или worker стоят), то нет ни сообщения, ни ERROR в логе, и тишина
+# снова ничем не отличается. Поэтому доставку подтверждает отметка в Redis, а
+# проверяет её этот сторож: он живёт вне очереди (см. шапку модуля) и идёт в
+# 07:30 UTC = 10:30 МСК, через три часа после самопроверки.
+#
+# Отметка — дата по Москве, а не время: «сегодня дошло» или нет. Без TTL, по
+# той же причине, что метка задачи выше.
+
+MORNING_KEY = "astro:selfcheck:morning_sent"
+MORNING_TZ = "Europe/Moscow"
+
+
+def morning_today(now=None) -> str:
+    """Сегодняшняя дата по Москве — значение отметки. `now` — наивный UTC."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+
+    now = now or utcnow()
+    return now.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(MORNING_TZ)).date().isoformat()
+
+
+def mark_morning_sent(redis) -> None:
+    """Отметить, что Telegram принял утреннее сообщение. Зовёт run_daily
+    синхронным клиентом воркера. Ошибка не поднимается: худшее — ложная
+    тревога от сторожа, а не упавшая самопроверка."""
+    try:
+        redis.set(MORNING_KEY, morning_today())
+    except Exception as exc:
+        logger.warning("beat watchdog: отметка утреннего сообщения не записана: %s", exc)
+
+
+async def _check_morning(send) -> str:
+    """ok | missing | redis_unavailable.
+
+    ⚠️ Тревога уходит ДВУМЯ путями: в канал и ERROR в лог (→ Sentry). Один из
+    двух отказов, который тут ловится, — сам канал (Telegram не принял
+    утреннее сообщение, как было с 02.09 по 27.09 из-за не того бота), и
+    тогда тревога в тот же канал тоже не дойдёт. Sentry — второй путь.
+
+    Недоступный Redis здесь молчит: о нём уже сказала проверка задачи выше,
+    второе сообщение о той же причине ничего не добавит.
+    """
+    from backend import redis_client
+
+    today = morning_today()
+    try:
+        raw = await redis_client.get_redis().get(MORNING_KEY)
+    except Exception as exc:
+        logger.warning("beat watchdog: отметку утреннего сообщения не прочитать: %s", exc)
+        return "redis_unavailable"
+    if raw == today:
+        return "ok"
+    logger.error(
+        "beat watchdog: утреннее сообщение самопроверки за %s в канал не дошло (последняя отметка: %s)",
+        today, raw or "нет",
+    )
+    await _alert(
+        send,
+        f"утреннее сообщение самопроверки (07:30 МСК) за {today} в канал не дошло.\n"
+        f"Последняя доставка: {raw or 'не отмечена ни разу'}.\n\n"
+        "Либо самопроверка не запускалась (beat или worker стоят), либо Telegram "
+        "не принял сообщение — тогда и это может не дойти, дубль ушёл в Sentry.\n\n"
+        "Проверить: docker compose ps beat worker; "
+        "docker compose logs --tail=200 worker | grep selfcheck",
+    )
+    return "missing"
 
 
 async def _alert(sender, body: str) -> None:

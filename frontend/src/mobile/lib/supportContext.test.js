@@ -68,4 +68,9 @@ describe('appVersionShort', () => {
     expect(appVersionShort('aristea-mobile@0.1.0')).toBe('0.1.0');
     expect(appVersionShort('')).toBe('dev');
   });
+
+  it('с номером прогона CI — «0.1.0-412» (scripts/appVersion.mjs)', () => {
+    expect(appVersionShort('aristea-mobile@0.1.0-412+abc1234')).toBe('0.1.0-412');
+    expect(appVersionLabel('aristea-mobile@0.1.0-412+abc1234')).toBe('0.1.0-412 (abc1234)');
+  });
 });
