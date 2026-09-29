@@ -66,6 +66,17 @@ def test_no_dangling_heading(path, text):
     assert not DANGLING.search(text), f"{path}: {text}"
 
 
+# После двоеточия в пунктах — строчная («Быт: покупка…», решение владельца
+# 29.09.2026). Имена собственные — исключение: «Осторожно: Венера здесь…».
+CAPITAL_AFTER_COLON = re.compile(r":\s+«?(?!Венер|Нептун|Меркури|Марс|Юпитер|Сатурн|Уран|Плутон|Солнц|Лун)[А-ЯЁ][а-яё]")
+ITEMS = [(p, t) for p, t in STRINGS if "/items/" in p]
+
+
+def test_lowercase_after_colon_in_items():
+    bad = [f"{p}: {t}" for p, t in ITEMS if CAPITAL_AFTER_COLON.search(t)]
+    assert len(ITEMS) > 400 and not bad, "\n".join(bad[:20])
+
+
 def test_scanner_catches_known_breaks():
     assert DANGLING.search("Лучшее время для наполнения ресурсом, получения удовольствия через")
     assert DANGLING.search("…наведения порядка и ремонта в темах")

@@ -37,7 +37,7 @@ const rank = (t) => TIER_ORDER.indexOf(t);
 
 /** Открывает ли тариф функцию. */
 export function opensFeature(feature, tier) {
-  if (feature === 'interpretation') return false;   // объём — всегда «ещё больше»
+  if (feature === 'interpretation' || feature === 'planner_horizon') return false;   // всегда «ещё больше»
   return (OPENED_BY[feature] || []).includes(tier);
 }
 
@@ -50,7 +50,10 @@ export function opensFeature(feature, tier) {
  */
 export function offerFor(feature, tier, { sellable = APP_SELLABLE } = {}) {
   const above = (t) => rank(t) > rank(tier) && sellable.includes(t);
-  if (feature === 'interpretation') {
+  // Объём (разбор) и горизонт планера — всегда «следующий тариф выше»:
+  // каждый даёт больше месяцев вперёд, чем предыдущий (решение владельца
+  // 29.09.2026), и «кто открывает» от запрошенного месяца не зависит.
+  if (feature === 'interpretation' || feature === 'planner_horizon') {
     const next = TIER_ORDER[rank(tier) + 1];
     return next && sellable.includes(next) ? { primary: next, alt: null } : null;
   }

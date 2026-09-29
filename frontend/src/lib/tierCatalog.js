@@ -195,6 +195,8 @@ const FOCUS_ALIAS = {
   transit_limit: 'transit',
   chat_limit: 'chat',
   planner_period: 'planner_period',
+  // Горизонт планера: значение пункта — «все, на N месяцев вперёд».
+  planner_horizon: 'planner_period',
   planner_moon: 'planner_moon',
   planner_longterm: 'planner_longterm',
   gcal_all: 'gcal',
@@ -301,6 +303,17 @@ export function lockText(feature, tier) {
   const v = item.value(o.primary);
   const what = v && v !== true ? `${item.title}: ${v}` : item.title;
   return `${what} — на тарифе ${TIER_NAMES[o.primary]}.`;
+}
+
+/**
+ * На сколько месяцев вперёд листается планер (решение владельца 29.09.2026):
+ * бесплатный — только текущий месяц, платные — горизонт транзитов тарифа
+ * (Вега 6, Лира 12, Орион 24). Сервер держит то же число —
+ * TIER_FLAGS.planner_months (planner_offset_window), тест в
+ * test_tier_horizon_gates.py.
+ */
+export function plannerMonthsAhead(tier) {
+  return tier === 'free' ? 0 : (LIMITS[tier]?.horizon ?? 0);
 }
 
 /**

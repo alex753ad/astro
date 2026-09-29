@@ -178,3 +178,10 @@ describe('планер — конкретный срок вместо «гори
     expect(period.about).not.toMatch(/Периоды Солнца, Меркурия/);
   });
 });
+
+describe('горизонт планера', () => {
+  it('free 0, Вега 6, Лира 12, Орион 24 — как TIER_FLAGS.planner_months', async () => {
+    const { plannerMonthsAhead } = await import('./tierCatalog');
+    expect(['free', 'lite', 'pro', 'premium'].map(plannerMonthsAhead)).toEqual([0, 6, 12, 24]);
+  });
+});

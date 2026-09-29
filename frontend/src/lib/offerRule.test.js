@@ -62,3 +62,12 @@ describe('правило предложения тарифа — все соче
     expect(blocks.free).toMatch(/"transits_ai_trial":\s*2/);
   });
 });
+
+describe('горизонт планера — следующий тариф выше', () => {
+  it('free → Вега, Вега → Лира; Лире на вебе предложить нечего', () => {
+    const web = { sellable: ['lite', 'pro'] };
+    expect(offerFor('planner_horizon', 'free', web)?.primary).toBe('lite');
+    expect(offerFor('planner_horizon', 'lite', web)?.primary).toBe('pro');
+    expect(offerFor('planner_horizon', 'pro', web)).toBeNull();
+  });
+});

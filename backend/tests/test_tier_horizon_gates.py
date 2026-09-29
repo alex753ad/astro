@@ -217,7 +217,7 @@ class TestTransitsEndpointGate:
 
 class TestPlannerOffsetWindow:
     @pytest.mark.parametrize("tier,expected_max", [
-        ("free", 0), ("lite", 3), ("pro", 12), ("premium", 12),
+        ("free", 0), ("lite", 6), ("pro", 12), ("premium", 24),
     ])
     def test_max_offset_is_the_tier_flag(self, tier, expected_max):
         assert planner_offset_window(tier)[1] == expected_max
@@ -265,3 +265,17 @@ class TestPlannerEndpointGate:
 
     def test_far_past_is_403(self, client, created_chart, auth_headers_free):
         assert _planner(client, created_chart, auth_headers_free, -99).status_code == 403
+
+
+@pytest.mark.parametrize("tier,max_offset", [("lite", 6), ("pro", 12), ("premium", 24)])
+def test_planner_horizon_per_paid_tier(client, db, user_pro, created_chart_pro, tier, max_offset):
+    """Решение владельца 29.09.2026: листать планер на горизонт тарифа —
+    Вега 6 месяцев вперёд, Лира 12, Орион 24; дальше — 403 на сервере, а не
+    только замок в интерфейсе. Бесплатный (0) — TestPlannerEndpointGate."""
+    from backend.auth.jwt import create_access_token
+    user_pro.tier = tier
+    db.commit()
+    headers = {"Authorization": "Bearer " + create_access_token(
+        user_id=user_pro.id, email=user_pro.email, tier=tier)}
+    assert _planner(client, created_chart_pro, headers, max_offset).status_code == 200
+    assert _planner(client, created_chart_pro, headers, max_offset + 1).status_code == 403

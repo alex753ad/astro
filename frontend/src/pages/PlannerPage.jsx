@@ -6,7 +6,8 @@ import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import TierOfferModal from "../components/TierOfferModal";
-import { lockBanner, lockShort, lockText } from "../lib/tierCatalog";
+import { lockBanner, lockShort, lockText, plannerMonthsAhead } from "../lib/tierCatalog";
+import { offerFor } from "../lib/offerRule";
 import { buildUpcoming, datesInWords, formatWeekRange, railPositions, shortDate } from "../lib/plannerDates";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -369,6 +370,7 @@ const styles = `
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.15s;
   }
+  .month-nav-btn.month-nav-locked { background: var(--accent-muted); }
   .month-nav-btn:hover { opacity: 0.85; }
   .month-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
   .month-nav-label {
@@ -547,13 +549,19 @@ const styles = `
      входит, и крайний узел обрезался (приёмка 29.09.2026). */
   .tl-scroll { position: relative; overflow-x: auto; overflow-y: hidden; padding: 8px 0 10px; scrollbar-width: thin; }
   .tl-rail { position: relative; height: 96px; }
+  .tl-scroll-wrap { position: relative; }
+  .tl-scroll-wrap::after {
+    content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 40px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--bg-card)); opacity: 0; transition: opacity 0.2s;
+  }
+  .tl-scroll-wrap.more::after { opacity: 1; }
   .tl-line {
     position: absolute; left: 0; right: 0; top: 50px; height: 2px;
     background: linear-gradient(90deg, transparent, var(--border), transparent);
   }
   .tl-node {
     position: absolute; top: 0; transform: translateX(-50%);
-    display: flex; flex-direction: column; align-items: center; width: 52px;
+    display: flex; flex-direction: column; align-items: center; width: 56px;
     background: none; border: none; padding: 0 0 6px; font: inherit; cursor: pointer;
     border-radius: var(--radius-lg); transition: background 0.15s ease;
   }
@@ -563,7 +571,7 @@ const styles = `
     width: 7px; height: 7px; border-radius: 50%;
     background: var(--accent); opacity: 0.4; pointer-events: none;
   }
-  .tl-date { height: 40px; display: flex; align-items: center; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .tl-date { height: 40px; display: flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
   .tl-ico { position: relative; margin-top: 22px; display: inline-flex; padding: 4px; }
   .tl-count {
     position: absolute; top: -2px; right: -8px;
@@ -593,6 +601,18 @@ const RAIL_NODE_PX = 56;   // физический зазор между сос�
 function Upcoming({ events }) {
   const [open, setOpen] = useState(null);   // { date, cx, top, bottom }
   const popRef = useRef(null);
+  const scrollRef = useRef(null);
+  // Затухание у правого края, пока рельс прокручивается дальше.
+  const [more, setMore] = useState(false);
+  const checkMore = () => {
+    const el = scrollRef.current;
+    setMore(!!el && el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  };
+  useEffect(() => {
+    checkMore();
+    window.addEventListener("resize", checkMore);
+    return () => window.removeEventListener("resize", checkMore);
+  }, [events]);
 
   useEffect(() => {
     if (!open) return;
@@ -627,21 +647,26 @@ function Upcoming({ events }) {
   const toggle = (g, el) => {
     if (open?.date === g.date) { setOpen(null); return; }
     const r = el.getBoundingClientRect();
+    // Границы подписи — край блока (решение владельца 29.09.2026), а не окна.
+    const card = el.closest(".tl-card")?.getBoundingClientRect();
     setOpen({ date: g.date, cx: r.left + r.width / 2, top: r.bottom, bottom: r.top,
+      minX: Math.max(8, card ? card.left : 8),
+      maxX: Math.min(window.innerWidth - 8, card ? card.right : window.innerWidth - 8),
       below: window.innerHeight - r.bottom > 200 });
   };
   const openGroup = open && groups.find((g) => g.date === open.date);
   let popStyle = null;
   if (openGroup) {
-    const W = Math.min(260, window.innerWidth - 16);
-    const left = Math.max(8, Math.min(open.cx - W / 2, window.innerWidth - W - 8));
+    const W = Math.min(260, open.maxX - open.minX);
+    const left = Math.max(open.minX, Math.min(open.cx - W / 2, open.maxX - W));
     popStyle = { position: "fixed", left, width: W, zIndex: 100,
       ...(open.below ? { top: open.top + 6 } : { bottom: window.innerHeight - open.bottom + 6 }) };
   }
 
   return (
     <>
-      <div className="tl-scroll">
+      <div className={`tl-scroll-wrap${more ? " more" : ""}`}>
+      <div className="tl-scroll" ref={scrollRef} onScroll={() => { checkMore(); setOpen(null); }}>
         <div className="tl-rail" style={{ minWidth }}>
           <div className="tl-line" />
           {groups.map((g, gi) => (
@@ -651,7 +676,11 @@ function Upcoming({ events }) {
               aria-label={g.evs.map((e) => `${shortDate(e.date)} · ${e.short}`).join("; ")}
               onClick={(e) => toggle(g, e.currentTarget)}>
               <span className="tl-dot" />
-              <span className="tl-date">{Number(g.date.slice(8, 10))}</span>
+              {/* У первой даты каждого месяца — месяц: «30 сен», «3 окт». */}
+              <span className="tl-date">
+                {gi === 0 || groups[gi - 1].date.slice(5, 7) !== g.date.slice(5, 7)
+                  ? shortDate(g.date) : Number(g.date.slice(8, 10))}
+              </span>
               <span className="tl-ico">
                 <PlanetDot {...g.evs[0].dot} />
                 {g.evs.length > 1 && <span className="tl-count">{g.evs.length}</span>}
@@ -659,6 +688,7 @@ function Upcoming({ events }) {
             </button>
           ))}
         </div>
+      </div>
       </div>
       {openGroup && (
         <div className="tl-pop" ref={popRef} style={popStyle}>
@@ -886,7 +916,6 @@ export default function PlannerPage() {
     try { return JSON.parse(userRaw)?.tier || "free"; } catch { return "free"; }
   })();
   const isFree = userTier === "free" || !userRaw;
-  const isPro  = userTier === "pro" || userTier === "premium";
 
   const [tab, setTab]               = useState("month");
   const [loading, setLoading]       = useState(true);
@@ -984,7 +1013,7 @@ export default function PlannerPage() {
     setLoading(true); setError(null); setPlanData(null);
     try {
       const params = new URLSearchParams();
-      if (isPro && monthOffset !== 0) params.set('month_offset', monthOffset);
+      if (monthOffset !== 0) params.set('month_offset', monthOffset);
       if (weekOffset !== null) params.set('week_offset', weekOffset);
       // Пояс браузера: «сегодня» и время проходов — по нему, не по месту рождения.
       if (deviceTimeZone()) params.set('tz', deviceTimeZone());
@@ -1069,15 +1098,25 @@ export default function PlannerPage() {
               <h1 className="planner-title">
                 {planData?.month_title || `Планер на ${getMonthName(new Date())}`}
               </h1>
-              {isPro && !isFree && (
-                <div className="month-nav">
+              {/* Листать — в пределах горизонта тарифа (plannerMonthsAhead, на
+                  сервере — planner_offset_window). За горизонтом — стрелка с
+                  замком и окно предложения; у Лиры и Ориона стрелки нет — Орион
+                  на вебе не продаётся, дальше предложить нечего. Назад — как раньше, только платным. */}
+              <div className="month-nav">
+                {!isFree && (
                   <MotionButton level="secondary" className="month-nav-btn" onClick={() => changeMonth(monthOffset - 1)}>‹</MotionButton>
-                  <span className="month-nav-label">{monthLabel}</span>
-                  {monthOffset < 11 && (
-                    <MotionButton level="secondary" className="month-nav-btn" onClick={() => changeMonth(monthOffset + 1)}>›</MotionButton>
-                  )}
-                </div>
-              )}
+                )}
+                <span className="month-nav-label">{monthLabel}</span>
+                {monthOffset < plannerMonthsAhead(isFree ? "free" : userTier) ? (
+                  <MotionButton level="secondary" className="month-nav-btn" onClick={() => changeMonth(monthOffset + 1)}>›</MotionButton>
+                ) : offerFor("planner_horizon", isFree ? "free" : userTier, { sellable: ["lite", "pro"] }) && (
+                  <MotionButton level="secondary" className="month-nav-btn month-nav-locked"
+                    aria-label={lockText("planner_horizon", isFree ? "free" : userTier)}
+                    onClick={() => openPaywall("planner_horizon")}>
+                    <LockMark color="var(--text-secondary)" />
+                  </MotionButton>
+                )}
+              </div>
             </div>
             <div className="planner-subtitle">Персональный астрологический план</div>
           </div>
