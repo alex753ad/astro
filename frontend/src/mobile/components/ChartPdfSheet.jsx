@@ -3,7 +3,9 @@
  *
  * Как на вебе (components/PdfReports.jsx): «Собрать PDF» ставит сборку на
  * сервере, пока она идёт — «Готовим PDF, это займёт до минуты» с прогрессом;
- * готовые — списком с датой, тарифом и «Скачать»; «Файл хранится 30 дней».
+ * готовые — списком с датой, тарифом, «Открыть» (системная читалка) и значком
+ * «Поделиться»; «Файл хранится 30 дней». Готовая сборка только встаёт в
+ * список — лист «Поделиться» сам не открывается (решение владельца 29.09.2026).
  * Закрыл лист — сборка не прерывается: отчёт будет в списке с отметкой
  * «Новый» (и пуш «PDF готов», если уведомления включены).
  *
@@ -12,7 +14,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import SupportLink from './SupportLink';
-import { ACTIVE, FAIL_TEXT, listPdf, pdfStatus, sharePdf, startPdf } from '../lib/pdfApi';
+import { ACTIVE, FAIL_TEXT, OPEN_FAIL, errorText, listPdf, openPdf, pdfStatus, sharePdf, startPdf } from '../lib/pdfApi';
 
 const POLL_MS = 2000;
 
@@ -44,15 +46,14 @@ export default function ChartPdfSheet({ chart, onClose }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const share = useCallback(async (r) => {
+  async function handOff(fn, r) {
     setError('');
     try {
-      await sharePdf(r.id, chart.name);
-      refresh();
-    } catch (e) {
-      setError(e?.message || 'Не удалось открыть файл');
+      if (await fn(r.id, chart.name)) refresh();   // false — уже идёт, молчим
+    } catch {
+      setError(OPEN_FAIL);
     }
-  }, [chart.name, refresh]);
+  }
 
   useEffect(() => {
     if (!job || !ACTIVE.includes(job.status)) return undefined;
@@ -62,10 +63,9 @@ export default function ChartPdfSheet({ chart, onClose }) {
         if (next.status === 'ready') {
           setJob(null);
           await refresh();
-          share(next);
         } else if (next.status === 'failed') {
           setJob(null);
-          setError(next.error || FAIL_TEXT);
+          setError(errorText({ message: next.error }, FAIL_TEXT));
         } else {
           setJob(next);
         }
@@ -74,7 +74,7 @@ export default function ChartPdfSheet({ chart, onClose }) {
       }
     }, POLL_MS);
     return () => clearTimeout(t);
-  }, [job, refresh, share]);
+  }, [job, refresh]);
 
   async function start() {
     if (busy || job) return;
@@ -84,12 +84,11 @@ export default function ChartPdfSheet({ chart, onClose }) {
       const r = await startPdf(chart.id);
       if (r.status === 'ready') {
         await refresh();
-        share(r);
       } else {
         setJob(r);
       }
     } catch (e) {
-      setError(e?.message || FAIL_TEXT);
+      setError(errorText(e, FAIL_TEXT));
     } finally {
       setBusy(false);
     }
@@ -155,9 +154,19 @@ export default function ChartPdfSheet({ chart, onClose }) {
                     </span>
                   )}
                 </span>
-                <button type="button" className="mobile-link" onClick={() => share(r)} style={{ fontSize: 14, fontWeight: 600, padding: 0 }}>
-                  Скачать
-                </button>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+                  <button type="button" className="mobile-link" onClick={() => handOff(openPdf, r)} style={{ fontSize: 14, fontWeight: 600, padding: 0 }}>
+                    Открыть
+                  </button>
+                  <button type="button" className="mobile-link" aria-label="Поделиться" onClick={() => handOff(sharePdf, r)}
+                    style={{ padding: 0, display: 'flex' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                      <path d="M16 6l-4-4-4 4" />
+                      <path d="M12 2v13" />
+                    </svg>
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
