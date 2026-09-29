@@ -190,7 +190,7 @@ export const ITEMS = [
   {
     key: 'pdf',
     title: 'PDF-отчёт по карте',
-    // С 29.09.2026 и в приложении: экран «Карта» → «PDF-отчёт →».
+    // И в приложении: экран «Карта» → «PDF-отчёт →» (дата — docs/mobile.md).
     where: 'both',
     value: (t) => (PDF_PARTS[t] ? `${perMonth(TIER_PDF_PER_MONTH[t])}: ${PDF_PARTS[t]}` : perMonth(TIER_PDF_PER_MONTH[t])),
   },
