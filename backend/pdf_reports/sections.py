@@ -34,8 +34,11 @@ TIER_RANK = {"free": 0, "lite": 1, "pro": 2, "premium": 3}
 # Версия промптов аспектов и транзитов: смена сбрасывает их кеш и отпечаток
 # готовых отчётов (новая сборка — с новым текстом).
 # 2 — краткие формы в ADDRESS_RULE («ты склонен»), 29.09.2026.
+# 3 (только транзиты) — настоящий конец транзита вместо горизонта тарифа
+# (29.09.2026): даты лежат в кеше вместе с текстом, без смены версии старые
+# остались бы на месяц.
 ASPECTS_PROMPT_VERSION = 2
-TRANSITS_PROMPT_VERSION = 2
+TRANSITS_PROMPT_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -319,10 +322,39 @@ def transit_title(tp: str, natal: str, asp: str) -> str:
     return f"{PLANET_RU[tp]} — {ASPECT_RU[asp]} {to}"
 
 
+# Насколько вперёд искать конец транзита, идущего за горизонтом тарифа.
+# Один проход Плутона с ретроградной петлёй укладывается в 2–2,5 года.
+_TAIL_DAYS = 3 * 365
+
+
+def _real_ends(natal, keys, horizon: date) -> dict[tuple, date | None]:
+    """Настоящий конец транзитов, не кончившихся к горизонту.
+
+    ⚠️ Без этого конец обрезался горизонтом тарифа и выглядел настоящим: один
+    и тот же «Юпитер — квадрат к Венере» у Веги шёл «до 3 апреля», у Лиры —
+    «до 3 июня» (задание владельца 29.09.2026). None — не кончился и за
+    _TAIL_DAYS, тогда пишется «продолжается и после».
+    """
+    from backend.transit.engine import calculate_transits
+    tail = horizon + timedelta(days=_TAIL_DAYS)
+    events = calculate_transits(
+        [p for p in natal if p["name"] in {k[1] for k in keys}], horizon, tail,
+        planet_filter=list({k[0] for k in keys}),
+    )
+    out: dict[tuple, date | None] = {k: None for k in keys}
+    for e in events:
+        k = (e.transit_planet, e.natal_planet, e.aspect_type)
+        # Проход, идущий через горизонт, открыт с первого дня поиска.
+        if k in out and e.start_date <= horizon.isoformat() and e.end_date < tail.isoformat():
+            out[k] = date.fromisoformat(e.end_date[:10])
+    return out
+
+
 def main_transits(planets, today: date, months: int, n: int) -> list[dict]:
     """Медленные планеты к личным натальным за `months` месяцев вперёд.
     Проходы одного транзита (ретроградные возвраты) склеиваются в один
-    отрезок; берутся n самых весомых, показываются по дате начала."""
+    отрезок; берутся n самых весомых, показываются по дате начала. Конец —
+    настоящий, а не горизонт тарифа (_real_ends)."""
     from backend.transit.engine import calculate_transits
 
     end = today + timedelta(days=round(months * 30.44))
@@ -342,14 +374,24 @@ def main_transits(planets, today: date, months: int, n: int) -> list[dict]:
         merged.items(),
         key=lambda kv: -(_W_PLANET[kv[0][0]] * _W_NATAL[kv[0][1]] * _W_ASPECT[kv[0][2]] + (1 if kv[1]["orb"] < 0.5 else 0)),
     )[:n]
+    # Движок досчитывает окно на 3 дня за to_date: конец не раньше горизонта
+    # значит, что транзит к нему не кончился.
+    cut = [k for k, m in ranked if m["end"][:10] >= end.isoformat()]
+    tails = _real_ends(natal, cut, end) if cut else {}
     out = []
     for (tp, np_, asp), m in sorted(ranked, key=lambda kv: kv[1]["start"]):
         s, e = date.fromisoformat(m["start"][:10]), date.fromisoformat(m["end"][:10])
+        if (tp, np_, asp) in tails:
+            e = tails[(tp, np_, asp)]
+        if e is None:
+            when = (f"с {day_words(s)}, " if s > today else "") + f"продолжается и после {day_words(end)}"
+        else:
+            when = range_words(s, e, today)
         exact = sorted({x for x in m["exact"] if today.isoformat() <= x <= end.isoformat()})
         out.append({
             "planet": tp, "natal": np_, "kind": asp,
             "title": transit_title(tp, np_, asp),
-            "when": range_words(s, e, today),
+            "when": when,
             "exact": ", ".join(day_words(date.fromisoformat(x)) for x in exact[:3]),
         })
     return out
