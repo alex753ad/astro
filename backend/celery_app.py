@@ -67,6 +67,11 @@ celery_app.conf.update(
             "task": "tasks.purge_expired_anonymous_charts",
             "schedule": crontab(hour=4, minute=20),
         },
+        # PDF-отчёты старше 30 дней (backend/pdf_reports/build.py) — 07:40 МСК.
+        "purge-pdf-reports-daily": {
+            "task": "tasks.purge_pdf_reports",
+            "schedule": crontab(hour=4, minute=40),
+        },
         # Письма онбординга и после покупки — раз в час, 06:15–18:15 UTC
         # (09:15–21:15 МСК), решение владельца 23.09.2026. Ежечасно, а не раз
         # в сутки: деплой в 06:15 не стоит суток задержки. Повтор прогона

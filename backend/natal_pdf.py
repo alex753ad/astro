@@ -486,23 +486,93 @@ def _interpretation(fl: _Flow, interp):
         fl.c.line(MARGIN, fl.y - 20, MARGIN + 28, fl.y - 20)
         fl.y -= 32
         for raw in [p.strip() for p in text.split("\n\n") if p.strip()]:
-            para = Paragraph(_para_markup(raw, SERIF), body)
-            while para is not None:
-                avail = fl.y - BOTTOM
-                _, h = para.wrap(CONTENT_W, avail)
-                if h <= avail:
-                    para.drawOn(fl.c, MARGIN, fl.y - h)
-                    fl.y -= h + 8
-                    para = None
-                    continue
-                parts = para.split(CONTENT_W, avail)
-                if len(parts) >= 2:
-                    _, h0 = parts[0].wrap(CONTENT_W, avail)
-                    parts[0].drawOn(fl.c, MARGIN, fl.y - h0)
-                    fl.new_page()
-                    para = parts[1]
-                else:
-                    fl.new_page()   # не делится (одна строка) — на следующую
+            _flow_para(fl, _para_markup(raw, SERIF), body)
+        fl.y -= 10
+
+
+def _flow_para(fl: _Flow, markup: str, style, gap: float = 8, x: float = MARGIN, width: float = CONTENT_W):
+    """Абзац с переносом через страницы."""
+    para = Paragraph(markup, style)
+    while para is not None:
+        avail = fl.y - BOTTOM
+        _, h = para.wrap(width, avail)
+        if h <= avail:
+            para.drawOn(fl.c, x, fl.y - h)
+            fl.y -= h + gap
+            return
+        parts = para.split(width, avail)
+        if len(parts) >= 2:
+            _, h0 = parts[0].wrap(width, avail)
+            parts[0].drawOn(fl.c, x, fl.y - h0)
+            fl.new_page()
+            para = parts[1]
+        else:
+            fl.new_page()   # не делится (одна строка) — на следующую
+
+
+# ── Разделы Веги и Лиры (backend/pdf_reports/sections.py) ───
+
+_BODY = ParagraphStyle("pbody", fontName=SERIF, fontSize=10.5, leading=16.5, textColor=C_TEXT, alignment=TA_LEFT)
+_ITEM = ParagraphStyle("pitem", parent=_BODY, fontSize=10, leading=15)
+_META = ParagraphStyle("pmeta", fontName=SANS, fontSize=9, leading=13, textColor=C_MUTED, alignment=TA_LEFT)
+_BOLD = ParagraphStyle("pbold", fontName=SANS_B, fontSize=10, leading=14, textColor=C_TEXT, alignment=TA_LEFT)
+
+
+def _entry_head(fl: _Flow, title: str, meta: str, color=C_ACCENT):
+    """Заголовок пункта раздела: цветная черта, название, строка дат или орба."""
+    fl.need(90)   # заголовок не остаётся без текста внизу страницы
+    fl.c.setFillColor(color)
+    fl.c.rect(MARGIN, fl.y - 16, 3, 14, fill=1, stroke=0)
+    _draw(fl.c, MARGIN + 10, fl.y - 14, title, SERIF_B, 12.5, C_TEXT)
+    fl.y -= 22
+    if meta:
+        _flow_para(fl, _para_markup(meta, SANS), _META, gap=4, x=MARGIN + 10, width=CONTENT_W - 10)
+    fl.y -= 2
+
+
+def _section_title(fl: _Flow, title: str, lead: str | None = None):
+    fl.new_page()
+    fl.title(title, 22, 12)
+    if lead:
+        _flow_para(fl, _para_markup(lead, SANS), _META, gap=14)
+
+
+def _aspects_section(fl: _Flow, items):
+    _section_title(fl, "Главные аспекты",
+                   "Самые точные сочетания планет в твоей карте — они звучат сильнее остальных.")
+    for a in items:
+        _entry_head(fl, a["title"], f"орб {dms(a.get('orb', 0))}", ASPECT_COLORS.get(a.get("kind"), C_ACCENT))
+        _flow_para(fl, _para_markup(a["text"], SERIF), _BODY, gap=14)
+
+
+def _transits_section(fl: _Flow, items, months: int):
+    _section_title(fl, f"Главные транзиты: следующие {months} месяцев",
+                   "Медленные планеты задевают точки твоей карты — это темы, которые идут неделями и месяцами.")
+    for t in items:
+        meta = t["when"] + (f" · точно: {t['exact']}" if t.get("exact") else "")
+        _entry_head(fl, t["title"], meta, ASPECT_COLORS.get(t.get("kind"), C_ACCENT))
+        if t.get("text"):
+            _flow_para(fl, _para_markup(t["text"], SERIF), _BODY, gap=14)
+
+
+def _longterm_section(fl: _Flow, items):
+    _section_title(fl, "Долгосрочные периоды",
+                   "Где сейчас идут медленные планеты — темы, которые длятся месяцы и годы.")
+    for lt in items:
+        _entry_head(fl, lt["title"], lt["when"])
+        for line, style in ((lt.get("lead"), _META), (lt.get("theme"), _BOLD), (lt.get("subtitle"), _ITEM)):
+            if line:
+                _flow_para(fl, _para_markup(line, style.fontName), style, gap=6)
+        for note in lt.get("notes") or []:
+            _flow_para(fl, _para_markup(note, SERIF), _ITEM, gap=6)
+        for g in lt.get("groups") or []:
+            if g.get("heading"):
+                fl.need(40)
+                _flow_para(fl, _para_markup(g["heading"], SANS_B), _BOLD, gap=4)
+            for item in g.get("items") or []:
+                _flow_para(fl, "•&nbsp;&nbsp;" + _para_markup(item, SERIF), _ITEM, gap=3,
+                           x=MARGIN + 8, width=CONTENT_W - 8)
+            fl.y -= 6
         fl.y -= 10
 
 
@@ -590,12 +660,21 @@ def _render(c, d: dict, total: int | None) -> int:
         fl.title("Аспекты")
         _aspects_table(fl, d["aspects"])
     _interpretation(fl, d.get("interpretation"))
+    extra = d.get("report")
+    if extra is not None:
+        if extra.aspects:
+            _aspects_section(fl, extra.aspects)
+        if extra.transits:
+            _transits_section(fl, extra.transits, extra.transit_months)
+        if extra.longterm:
+            _longterm_section(fl, extra.longterm)
     footer(c, last=True)
     c.showPage()
     return page[0] - 1
 
 
-def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | None = None, wheel_png: str | None = None) -> bytes:
+def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | None = None,
+                       wheel_png: str | None = None, report=None) -> bytes:
     """
     Generate a PDF and return it as bytes.
 
@@ -625,6 +704,9 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     data["interpretation"] = data.get("interpretation") or interpretation
     data["astrologer_name"] = data.get("astrologer_name") or astrologer_name
     data["wheel_png"] = wheel_png
+    # pdf_reports.sections.Report: аспекты, транзиты, долгосрочные периоды
+    # Веги и Лиры; None — отчёт как у бесплатного.
+    data["report"] = report
 
     # Проход 1 — только считаем страницы для «стр. N из M».
     total = _render(canvas.Canvas(io.BytesIO(), pagesize=A4), data, None)

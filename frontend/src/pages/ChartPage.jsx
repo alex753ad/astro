@@ -28,6 +28,7 @@ import {
 } from '../api/client';
 import { useToast } from '../components/Toast';
 import TierOfferModal from '../components/TierOfferModal';
+import { PdfReportsCard, savePdf, usePdfReports } from '../components/PdfReports';
 import { quotaEndedText, usageDatesFrom } from '../lib/tierCatalog';
 import { utcOffsetLabel } from '../lib/utcOffset';
 import { rememberWebPayment } from '../lib/webPayment';
@@ -378,7 +379,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
   }
 
   const [pdfLoading, setPdfLoading]   = useState(false);
-  const [pdfConfirm, setPdfConfirm]   = useState(false);
   const [copied, setCopied]           = useState(false);
   const [shareUrl, setShareUrl]        = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
@@ -468,71 +468,27 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     a.click();
   }
 
-  // PDF собирается вместе с разбором карты. Если разбора ещё нет, бэкенд
-  // сгенерирует его внутри запроса и погасит бесплатное право по этой карте
-  // (commit_interpretation) — человек об этом не знает, потому что текста на
-  // экране не видел. Предупреждаем ДО списания.
+  // PDF собирается в фоне (backend/pdf_reports, 29.09.2026): кнопка ставит
+  // сборку, прогресс и готовые файлы — в карточке «PDF-отчёты» ниже шапки.
+  // Своего тарифного гейта здесь нет: единственный источник — check_pdf_limit
+  // на бэкенде, его текст отказа показываем как есть.
   //
-  // Показываем строго когда списание действительно произойдёт. Оба поля
-  // приходят с бэкенда (GET /chart/{id}) — вычислить их на клиенте нечем:
-  // ни строки interpretations, ни флага карты он не видит.
-  const pdfWillSpendInterpretation =
-    effectiveTier === 'free' &&
-    chart?.has_interpretation === false &&
-    chart?.free_interpretation_used === false;
+  // Подтверждение «PDF израсходует бесплатный разбор» снято 29.09.2026:
+  // разбор для PDF больше не списывает квоту разборов (решение владельца).
+  const pdf = usePdfReports(chartId, !!currentUser && !!chart && chartId !== 'anonymous', {
+    onReady: (r) => savePdf(r, chart?.name).then(pdf.refresh).catch(() => {}),
+    onFail: (msg) => toast.error(msg || 'Не получилось собрать PDF, попробуй ещё раз'),
+  });
 
   async function handleDownloadPdf() {
-    if (pdfLoading) return;
-    const token = localStorage.getItem('astro_access_token');
-    if (!token) { toast.info('Войди, чтобы скачать PDF'); return; }
-    // Своего тарифного гейта здесь БОЛЬШЕ НЕТ, и это осознанно.
-    //
-    // Раньше стояло `if (!tierAllowed('lite')) openPaywall(...)`. Оно устарело
-    // в тот момент, когда free получил один PDF в месяц (08d7e2e): клиент
-    // продолжал считать PDF доступным только с Веги и подменял ЛЮБОЙ отказ
-    // общим модалом апселла — человек с исчерпанной квотой видел рекламу
-    // «Полного разбора натальной карты», который у него и так есть, и ни
-    // слова про PDF.
-    //
-    // Дублировать сетку на клиенте больше не будем: единственный источник
-    // истины — check_pdf_limit на бэкенде, он же возвращает читаемый текст
-    // отказа. Клиент этот текст показывает (см. runPdfDownload).
-    if (pdfWillSpendInterpretation) { setPdfConfirm(true); return; }
-    await runPdfDownload(token);
-  }
-
-  async function runPdfDownload(token) {
+    if (pdfLoading || pdf.job) return;
+    if (!localStorage.getItem('astro_access_token')) { toast.info('Войди, чтобы скачать PDF'); return; }
     setPdfLoading(true);
     try {
       const wheelPng = await captureChartPng(setChartForExport);
-      const body = wheelPng ? JSON.stringify({ wheel_png: wheelPng }) : undefined;
-      const resp = await fetch(`${API_BASE}/chart/${chartId}/pdf`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(wheelPng ? { 'Content-Type': 'application/json' } : {}),
-        },
-        body,
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        const msg = typeof err.detail === 'string' ? err.detail : err.detail?.message;
-        // Отказ по тарифу или лимиту — законченное объяснение с бэкенда, а не
-        // сбой. Показываем его как есть: под префиксом «Не удалось
-        // сгенерировать PDF:» текст про исчерпанный лимит читался бы как
-        // поломка, хотя человеку там сказано, что делать.
-        if (msg) { toast.error(msg); return; }
-        throw new Error(`HTTP ${resp.status}`);
-      }
-      const blob = await resp.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `natal_chart_${chartId.slice(0, 8)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await pdf.start(wheelPng);
     } catch (e) {
-      toast.error('Не удалось сгенерировать PDF: ' + e.message);
+      toast.error(apiErrorText(e, 'Не получилось собрать PDF, попробуй ещё раз'));
     } finally {
       setPdfLoading(false);
     }
@@ -799,11 +755,14 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
               Карточка
             </MotionButton>
           )}
-          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading ? 0.7 : 1 }}>
-            {pdfLoading ? 'Генерируем…' : 'PDF-отчёт'}
+          <MotionButton level="primary" onClick={handleDownloadPdf} disabled={pdfLoading || !!pdf.job} style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff', opacity: pdfLoading || pdf.job ? 0.7 : 1 }}>
+            {pdfLoading || pdf.job ? 'Готовим PDF…' : 'PDF-отчёт'}
           </MotionButton>
         </div>
       </header>
+
+      <PdfReportsCard reports={pdf.reports} job={pdf.job}
+        onDownload={(r) => savePdf(r, chart?.name).then(pdf.refresh).catch((e) => toast.error(apiErrorText(e, 'Не удалось скачать файл')))} />
 
       {/* ── Натальная карта: 3 колонки ── */}
       {topTab === 'chart' && (
@@ -1004,47 +963,6 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
         </div>
       )}
 
-
-      {/* Готового диалога подтверждения в проекте нет: все существующие
-          подтверждения — системный window.confirm (AdminPage, CRMPage) либо
-          инлайн-переключение кнопок на месте (ProfilePage, gdprConfirm).
-          Инлайн сюда не встаёт — это одна кнопка в шапке, а текста три
-          предложения; поэтому взята форма модалки, как у окна предложения:
-          оверлей, карточка, объяснение, основная кнопка и «Отмена». */}
-      {pdfConfirm && (
-        <div style={s.confirmOverlay} onClick={() => setPdfConfirm(false)}>
-          <div style={s.confirmCard} onClick={e => e.stopPropagation()}>
-            <p style={s.confirmTitle}>PDF соберётся вместе с разбором</p>
-            <p style={s.confirmText}>
-              У этой карты разбора ещё нет, поэтому он будет создан для отчёта —
-              и это израсходует единственный бесплатный разбор для неё.
-            </p>
-            <p style={s.confirmText}>
-              Текст не пропадёт внутри файла: после этого разбор можно будет
-              открыть и перечитать на экране.
-            </p>
-            <div style={s.confirmRow}>
-              <MotionButton
-                level="primary"
-                style={{ ...s.plannerLinkBtn, background: 'var(--accent)', color: '#fff' }}
-                onClick={() => {
-                  setPdfConfirm(false);
-                  runPdfDownload(localStorage.getItem('astro_access_token'));
-                }}
-              >
-                Скачать PDF
-              </MotionButton>
-              <MotionButton
-                level="ghost"
-                style={s.plannerLinkBtn}
-                onClick={() => setPdfConfirm(false)}
-              >
-                Отмена
-              </MotionButton>
-            </div>
-          </div>
-        </div>
-      )}
 
       <TierOfferModal
         open={!!offer}

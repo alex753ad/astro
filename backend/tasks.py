@@ -460,6 +460,26 @@ def send_claim_welcome_task(user_id: str, chart_id: str) -> bool:
         db.close()
 
 
+@celery_app.task(name="tasks.build_pdf_report", ignore_result=True,
+                 soft_time_limit=300, time_limit=330)
+def build_pdf_report(report_id: str, wheel_png: str | None = None) -> None:
+    """Собрать PDF-отчёт (backend/pdf_reports/build.py). Падение уходит
+    наружу — сигнал в канал даёт общий обработчик падений (celery_app)."""
+    from backend.pdf_reports.build import run
+    run(report_id, wheel_png)
+
+
+@celery_app.task(name="tasks.purge_pdf_reports")
+def purge_pdf_reports() -> dict:
+    """PDF-отчёты старше 30 дней — файл и строка (решение владельца 29.09.2026)."""
+    from backend.pdf_reports.build import purge_expired
+    db = SessionLocal()
+    try:
+        return {"deleted": purge_expired(db)}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.purge_expired_anonymous_charts")
 def purge_expired_anonymous_charts() -> dict:
     """Удалить анонимные карты без владельца, чей 7-дневный срок истёк

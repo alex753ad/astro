@@ -65,6 +65,18 @@ const ahead = (t) => `на ${months(LIMITS[t].horizon)} вперёд`;
  * `where`: 'both' | 'web' | 'app' — в приложении веб-пункты уходят строкой
  * «На сайте», чтобы не обещать там невидимое.
  */
+/**
+ * Что внутри PDF тарифа (решение владельца 29.09.2026). Состав собирает
+ * backend/pdf_reports/sections.py (PLANS): аспектов 5/7, транзиты на 6/12
+ * месяцев, у Лиры — долгосрочные периоды. Вне пункта `pdf`: число PDF в
+ * пункте выводится из TIER_PDF_PER_MONTH, и test_pdf_limit_sync.py не
+ * пускает туда цифры.
+ */
+const PDF_PARTS = {
+  lite: 'разбор, 5 аспектов, транзиты на полгода',
+  pro: 'подробный разбор, 7 аспектов, транзиты на год, долгосрочные периоды',
+};
+
 export const ITEMS = [
   {
     key: 'chart_reading',
@@ -179,7 +191,7 @@ export const ITEMS = [
     key: 'pdf',
     title: 'PDF-отчёт по карте',
     where: 'web',
-    value: (t) => perMonth(TIER_PDF_PER_MONTH[t]),
+    value: (t) => (PDF_PARTS[t] ? `${perMonth(TIER_PDF_PER_MONTH[t])}: ${PDF_PARTS[t]}` : perMonth(TIER_PDF_PER_MONTH[t])),
   },
   {
     key: 'crm',

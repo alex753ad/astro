@@ -554,6 +554,36 @@ export async function startPdfGeneration(chartId) {
   return request(`/chart/${chartId}/pdf`, { method: 'POST' });
 }
 
+// ── PDF-отчёты в фоне (backend/pdf_reports, 29.09.2026) ──
+// Старт возвращает отчёт: queued — новая сборка; идущая или уже готовая с тем
+// же содержимым — она же (лимит не списывается). Отказ по лимиту — ApiError
+// 429 с готовым текстом.
+
+export async function startPdfReport(chartId, wheelPng) {
+  return request(`/chart/${chartId}/pdf-reports`, {
+    method: 'POST',
+    body: JSON.stringify({ wheel_png: wheelPng || null }),
+  });
+}
+
+export async function listPdfReports(chartId) {
+  return (await request(`/chart/${chartId}/pdf-reports`)).reports || [];
+}
+
+export async function pdfReportStatus(reportId) {
+  return request(`/pdf-reports/${reportId}`);
+}
+
+/** Файл отчёта — Blob. Ссылкой не открыть: ручка требует токен. */
+export async function pdfReportFile(reportId) {
+  const resp = await authFetch(`${API_BASE}/pdf-reports/${reportId}/file`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new ApiError(body.detail || 'Файл не найден', resp.status, body);
+  }
+  return resp.blob();
+}
+
 export { ApiError };
 
 // ── Payments API ──

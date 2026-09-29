@@ -37,7 +37,11 @@ COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Run as non-root
-RUN useradd --create-home --uid 10001 appuser && \
+# data/pdf_reports — точка монтирования тома pdf_reports: пустой именованный
+# том при первом подключении берёт владельца каталога из образа, без него
+# каталог был бы root, и worker не смог бы записать PDF.
+RUN mkdir -p /app/data/pdf_reports && \
+    useradd --create-home --uid 10001 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 

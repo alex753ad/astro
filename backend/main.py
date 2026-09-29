@@ -427,6 +427,11 @@ app.include_router(feed_router)
 from backend.forecast.router import router as forecast_router  # noqa: E402
 app.include_router(forecast_router)
 
+# PDF-отчёты в фоне (backend/pdf_reports). Старый POST /chart/{id}/pdf ниже
+# остаётся для старых APK.
+from backend.pdf_reports.router import router as pdf_reports_router  # noqa: E402
+app.include_router(pdf_reports_router)
+
 
 # ═══════════════════════════════════════════════════════════
 # PROMETHEUS METRICS
@@ -1012,6 +1017,8 @@ def _save_chart_interpretation(db, chart, profile: dict, chunks: list[str], inte
             engine=getattr(interp_request, "engine_used", None) or "unknown",
             content=content,
             sections=None,
+            # Тариф разбора (067): PDF берёт разбор не короче тарифа человека.
+            tier=interp_request.tier,
         ))
         db.commit()
     except Exception:
@@ -2028,6 +2035,7 @@ async def start_pdf_generation(
                     engine=result.engine or "pdf",
                     content=interpretation_text,
                     sections=result.sections,
+                    tier=interp_req.tier,
                 ))
                 db.commit()
                 # Расход списывается только при реально выданном тексте и

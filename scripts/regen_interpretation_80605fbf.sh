@@ -13,6 +13,9 @@
 # ДОБАВЛЯЕТ новую строку в interpretations. Старая не удаляется: сайт и PDF
 # берут самую свежую, а откат — удалить новую строку (её id в выводе).
 # Квота разборов не списывается — это исправление, а не новый разбор.
+# Тариф разбора записывается (interpretations.tier, миграция 067): PDF берёт
+# разбор не короче тарифа человека — без тарифа строка ушла бы в вывод по
+# числу слов. Поэтому запускать после деплоя с 067.
 # Текст разбора в лог не пишется: только длина и найденные родовые обороты.
 
 set -uo pipefail
@@ -36,6 +39,8 @@ PREFIX = "80605fbf"
 
 if INTERPRETATION_PROMPT_VERSION < 3:
     raise SystemExit(f"версия промпта {INTERPRETATION_PROMPT_VERSION} — сначала деплой с версией 3")
+if not hasattr(Interpretation, "tier"):
+    raise SystemExit("в interpretations нет tier — сначала деплой с миграцией 067")
 
 db = SessionLocal()
 try:
@@ -63,11 +68,11 @@ try:
         raise SystemExit(f"модель не ответила (движок {result.engine}) — ничего не меняю")
 
     row = Interpretation(chart_id=chart.id, profile_hash=make_profile_hash(profile),
-                         engine=result.engine, content=text, sections=result.sections)
+                         engine=result.engine, content=text, sections=result.sections, tier=tier)
     db.add(row)
     db.commit()
     hits = gendered_you(text)
-    print(f"новый разбор: {row.id}, движок {result.engine}, {len(text)} симв., "
+    print(f"новый разбор: {row.id}, тариф {row.tier}, движок {result.engine}, {len(text)} симв., "
           f"родовых оборотов {len(hits)}{': ' + '; '.join(hits) if hits else ''}")
     print(f"откат: delete from interpretations where id = '{row.id}';")
 finally:

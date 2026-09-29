@@ -407,6 +407,12 @@ class InterpretationRouter:
             if engine.name != "template":
                 model_id = engine.model_for(request)
                 cache_key = f"stream:v{INTERPRETATION_PROMPT_VERSION}:{profile_hash}:{request.tier}:{model_id}:{wl_key}"
+                # Свой промпт — в ключ, как у generate(): разделы PDF
+                # (pdf_reports/sections.py) стримят аспекты и транзиты одной
+                # карты с одним word_limit, и без хеша второй получил бы из
+                # кеша текст первого.
+                if request.custom_prompt:
+                    cache_key += ":" + hashlib.sha256(request.custom_prompt.encode()).hexdigest()[:12]
                 cached = interpretation_cache.get(cache_key)
                 if cached:
                     logger.info(

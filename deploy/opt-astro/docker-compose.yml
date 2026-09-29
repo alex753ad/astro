@@ -78,6 +78,11 @@ services:
     environment:
       PORT: "8000"
       EPHE_PATH: /app/data/ephe
+    # PDF-отчёты (backend/pdf_reports): worker пишет, api отдаёт — том общий.
+    # В бэкап не входит намеренно (07-backup-cron.sh — только pg_dump):
+    # файлы живут 30 дней и пересобираются.
+    volumes:
+      - pdf_reports:/app/data/pdf_reports
     depends_on:
       postgres:
         condition: service_healthy
@@ -133,6 +138,8 @@ services:
     environment:
       SERVICE_ROLE: worker
       EPHE_PATH: /app/data/ephe
+    volumes:
+      - pdf_reports:/app/data/pdf_reports
     depends_on:
       postgres:
         condition: service_healthy
@@ -196,6 +203,7 @@ services:
 
 volumes:
   pgdata:
+  pdf_reports:
   redis_data:
   uptime_kuma_data:
 

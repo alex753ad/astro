@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     # ── Ephemeris ──
     ephe_path: str = "data/ephe"
 
+    # ── PDF-отчёты (backend/pdf_reports/build.py) ──
+    # В контейнере — том pdf_reports (docker-compose), общий у api и worker:
+    # worker пишет файл, api отдаёт. В бэкап не входит — файлы пересобираются.
+    pdf_dir: str = "data/pdf_reports"
+
     # ── Redis ──
     redis_url: str = "redis://localhost:6379/0"
 

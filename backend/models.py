@@ -211,6 +211,9 @@ class Interpretation(Base):
     engine = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
     sections = Column(JSON, nullable=True)
+    # Для какого тарифа написан (067). NULL у строк до 29.09.2026 — глубину
+    # тогда выводит pdf_reports.sections.interpretation_depth по числу слов.
+    tier = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=utcnow)
 
     chart = relationship("NatalChart", back_populates="interpretations")
@@ -556,6 +559,46 @@ class NoteTemplate(Base):
 
 
 # ── Calendar export log (017) ──
+
+class PdfReport(Base):
+    """PDF-отчёт, собранный в фоне (067). Файл — на диске (settings.pdf_dir),
+    здесь путь. Живёт 30 дней: чистка (tasks.purge_pdf_reports) удаляет файл
+    и строку. Устройство — backend/pdf_reports/."""
+    __tablename__ = "pdf_reports"
+
+    id          = Column(String(36), primary_key=True, default=gen_uuid)
+    user_id     = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    chart_id    = Column(String(36), ForeignKey("natal_charts.id", ondelete="CASCADE"), nullable=False, index=True)
+    tier        = Column(String(20), nullable=False)
+    status      = Column(String(10), nullable=False)     # queued | running | ready | failed
+    progress    = Column(Integer, nullable=False, default=0)
+    step        = Column(String(80), nullable=True)
+    # Из чего собран: разбор, версия аспектов, месяц транзитов. Готовый отчёт
+    # с тем же отпечатком отдаётся заново без сборки и без списания.
+    fingerprint = Column(String(200), nullable=True)
+    file_path   = Column(String(255), nullable=True)
+    pages       = Column(Integer, nullable=True)
+    cost_usd    = Column(Float, nullable=True)
+    charged     = Column(Boolean, nullable=False, default=False)
+    error       = Column(String(255), nullable=True)
+    created_at  = Column(DateTime, nullable=False, default=utcnow)
+    ready_at    = Column(DateTime, nullable=True)
+    expires_at  = Column(DateTime, nullable=False, index=True)
+    seen_at     = Column(DateTime, nullable=True)
+
+
+class PdfSectionCache(Base):
+    """Тексты разделов PDF по карте (067): «aspects:v<версия>:<N>»,
+    «transits:<ГГГГ-ММ>:<тариф>»."""
+    __tablename__ = "pdf_section_cache"
+    __table_args__ = (UniqueConstraint("chart_id", "key", name="uq_pdf_section_cache_chart_key"),)
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    chart_id   = Column(String(36), ForeignKey("natal_charts.id", ondelete="CASCADE"), nullable=False)
+    key        = Column(String(80), nullable=False)
+    content    = Column(JSON, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+
 
 class CalendarExportLog(Base):
     __tablename__ = "calendar_export_logs"
