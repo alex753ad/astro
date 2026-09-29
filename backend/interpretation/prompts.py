@@ -23,7 +23,8 @@ from backend.interpretation.address import ADDRESS_RULE
 # 2 — переход на «ты», 24.09.2026. Сохранённые в БД разборы не трогаются
 # (решение владельца) — они останутся в той форме, в какой были написаны.
 # 3 — род через прилагательные («видят тебя уверенной»), ADDRESS_RULE, 28.09.2026.
-INTERPRETATION_PROMPT_VERSION = 3
+# 4 — краткие формы («ты склонен», «будешь успешен»), ADDRESS_RULE, 29.09.2026.
+INTERPRETATION_PROMPT_VERSION = 4
 
 
 def resolve_word_limit(request: InterpretationRequest) -> int:
