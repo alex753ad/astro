@@ -483,10 +483,10 @@ def _interpretation(fl: _Flow, interp):
         if not text:
             continue
         if first:
-            fl.new_page()
+            _section_start(fl, 40 + 32 + 60)   # заголовок, первый подзаголовок, три строки
             fl.title("Разбор карты", 22, 18)
             first = False
-        fl.need(80)
+        fl.need(90)   # подзаголовок и три строки текста
         _draw(fl.c, MARGIN, fl.y - 14, title, SERIF_B, 14, C_TEXT)
         fl.c.setStrokeColor(C_ACCENT)
         fl.c.setLineWidth(1.2)
@@ -537,8 +537,19 @@ def _entry_head(fl: _Flow, title: str, meta: str, color=C_ACCENT):
     fl.y -= 2
 
 
+def _section_start(fl: _Flow, h: float):
+    """Раздел продолжает страницу, а не начинает новую (решение владельца
+    29.09.2026: при принудительном разрыве оставались страницы с двумя
+    строками). `h` — сколько должно поместиться вместе с заголовком, чтобы
+    он не остался внизу без текста; не помещается — всё на следующую."""
+    if fl.y < TOP:
+        fl.y -= 24   # отбивка от предыдущего раздела
+    fl.need(h)
+
+
 def _section_title(fl: _Flow, title: str, lead: str | None = None):
-    fl.new_page()
+    # Заголовок, вводная в две строки и начало первого пункта (_entry_head).
+    _section_start(fl, 34 + 40 + 90)
     fl.title(title, 22, 12)
     if lead:
         _flow_para(fl, _para_markup(lead, SANS), _META, gap=14)
@@ -574,7 +585,7 @@ def _longterm_section(fl: _Flow, items):
             _flow_para(fl, _para_markup(note, SERIF), _ITEM, gap=6)
         for g in lt.get("groups") or []:
             if g.get("heading"):
-                fl.need(40)
+                fl.need(60)   # подзаголовок группы и две строки под ним
                 _flow_para(fl, _para_markup(g["heading"], SANS_B), _BOLD, gap=4)
             for item in g.get("items") or []:
                 _flow_para(fl, "•&nbsp;&nbsp;" + _para_markup(item, SERIF), _ITEM, gap=3,

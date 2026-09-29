@@ -2,7 +2,7 @@
  * ChartPdfSheet.jsx — лист «PDF-отчёты» на экране «Карта» (29.09.2026).
  *
  * Как на вебе (components/PdfReports.jsx): «Собрать PDF» ставит сборку на
- * сервере, пока она идёт — «Готовим PDF, это займёт до минуты» с прогрессом;
+ * сервере, пока она идёт — «Готовим PDF, это займёт пару минут» с прогрессом;
  * готовые — списком с датой, тарифом, «Открыть» (системная читалка) и значком
  * «Поделиться»; «Файл хранится 30 дней». Готовая сборка только встаёт в
  * список — лист «Поделиться» сам не открывается (решение владельца 29.09.2026).
@@ -122,7 +122,7 @@ export default function ChartPdfSheet({ chart, wheelPng, onClose }) {
 
         {job ? (
           <div aria-live="polite">
-            <p style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--text-primary)' }}>Готовим PDF, это займёт до минуты</p>
+            <p style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--text-primary)' }}>Готовим PDF, это займёт пару минут</p>
             <div role="progressbar" aria-valuenow={job.progress} aria-valuemin={0} aria-valuemax={100}
               style={{ height: 6, borderRadius: 3, background: 'var(--accent-muted)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${Math.max(6, job.progress || 0)}%`, background: 'var(--accent)', transition: 'width 0.6s ease' }} />

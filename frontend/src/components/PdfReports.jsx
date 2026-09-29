@@ -4,7 +4,7 @@ import { listPdfReports, pdfReportFile, pdfReportStatus, startPdfReport } from "
 
 /*
   PDF-отчёты на вебе (решение владельца 29.09.2026): сборка идёт на сервере в
-  фоне, здесь — «Готовим PDF, это займёт до минуты» с прогрессом и список
+  фоне, здесь — «Готовим PDF, это займёт пару минут» с прогрессом и список
   «PDF-отчёты» в карточке карты: дата, тариф, «Скачать», «Файл хранится 30
   дней». Ушёл со страницы — отчёт соберётся всё равно: при следующем заходе
   он в списке с отметкой «Новый» (и пуш «PDF готов», если включены).
@@ -93,7 +93,7 @@ export function PdfReportsCard({ reports, job, onDownload }) {
       <h2 style={st.title}>PDF-отчёты</h2>
       {job && (
         <div style={st.job}>
-          <div style={st.jobText}>Готовим PDF, это займёт до минуты</div>
+          <div style={st.jobText}>Готовим PDF, это займёт пару минут</div>
           <div style={st.bar} role="progressbar" aria-valuenow={job.progress} aria-valuemin={0} aria-valuemax={100}>
             <div style={{ ...st.fill, width: `${Math.max(6, job.progress || 0)}%` }} />
           </div>

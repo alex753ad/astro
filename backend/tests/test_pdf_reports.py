@@ -160,6 +160,24 @@ def test_main_transits_are_in_russian_words():
     assert sections.transit_title("Jupiter", "Venus", "square") == "Юпитер — квадрат к Венере"
 
 
+_CROSSING = [{"name": n, "longitude": float(i * 67), "sign": "Aries"}
+             for i, n in enumerate(("Sun", "Moon", "Mercury", "Venus", "Mars"))]
+
+
+def test_transit_end_is_real_not_tier_horizon():
+    """Транзит, идущий за горизонт Веги, кончается той же датой, что у Лиры
+    (29.09.2026: раньше конец обрезался горизонтом тарифа)."""
+    vega = {t["title"]: t["when"] for t in sections.main_transits(_CROSSING, date(2026, 9, 29), 6, 6)}
+    lyra = {t["title"]: t["when"] for t in sections.main_transits(_CROSSING, date(2026, 9, 29), 12, 10)}
+    assert vega["Плутон — трин к Луне"] == lyra["Плутон — трин к Луне"] == "с 6 февраля по 18 августа 2027"
+
+
+def test_transit_without_end_in_sight(monkeypatch):
+    monkeypatch.setattr(sections, "_real_ends", lambda natal, keys, horizon: {k: None for k in keys})
+    whens = [t["when"] for t in sections.main_transits(_CROSSING, date(2026, 9, 29), 6, 6)]
+    assert "с 6 февраля 2027, продолжается и после 31 марта 2027" in whens
+
+
 # ── Сборка, кеш, лимит ─────────────────────────────────────
 
 @pytest.fixture
