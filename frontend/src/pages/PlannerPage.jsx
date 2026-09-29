@@ -469,10 +469,25 @@ const styles = `
   .upgrade-btn:hover { background: var(--accent-glow); }
 
   .free-hint {
+    display: flex; align-items: center; gap: 16px;
     background: var(--accent-muted);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md); padding: 10px 32px 10px 14px;
-    font-size: 12.5px; color: var(--accent); margin-bottom: 16px; line-height: 1.5;
+    border-radius: var(--radius-md); padding: 12px 14px;
+    font-size: 13.5px; margin-bottom: 16px; line-height: 1.5;
+  }
+  .free-hint-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .free-hint-open, .free-hint-locked { display: flex; align-items: center; gap: 8px; }
+  .free-hint-open { color: var(--text-primary); }
+  .free-hint-open svg { width: 20px; flex-shrink: 0; }
+  .free-hint-locked { color: var(--accent); }
+  .free-hint-locked .lk { flex-shrink: 0; }
+  .free-hint .free-hint-btn {
+    flex-shrink: 0; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    color: var(--accent); background: var(--bg-card);
+    border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  }
+  @media (max-width: 640px) {
+    .free-hint { flex-direction: column; align-items: flex-start; gap: 10px; }
   }
   .locked-teaser { position: relative; margin-top: 4px; }
   .locked-teaser .decoy {
@@ -801,20 +816,30 @@ function LockedTeaser({ trigger, onUpgrade, color }) {
   );
 }
 
-// Общая плашка над группой заблокированных периодов раздела (вместо повтора фразы в каждой карточке)
-function LockedGroupHint({ children, onUpgrade }) {
+// Плашка над страницей: строка «Открыто: …» обычным текстом со значком,
+// под ней закрытое — цветом акцента с тем же пунктирным замком, что у
+// карточек. Кнопка справа на десктопе, под строками на телефоне
+// (.free-hint в styles). Тексты — lockBanner из каталога.
+function LockedGroupHint({ banner, onUpgrade }) {
+  if (!banner) return null;
   return (
-    <div className="free-hint" style={{ position: "relative" }}>
-      <div>{children}</div>
-      {onUpgrade && (
-        <MotionButton
-          level="secondary"
-          onClick={onUpgrade}
-          style={{ marginTop: 10, padding: "6px 16px", fontSize: 12.5, borderRadius: 'var(--radius-sm)' }}
-        >
-          Открыть доступ
-        </MotionButton>
-      )}
+    <div className="free-hint">
+      <div className="free-hint-lines">
+        <div className="free-hint-open">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
+            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <span>{banner.open}</span>
+        </div>
+        <div className="free-hint-locked">
+          <LockMark color="var(--accent)" />
+          <span>{banner.locked}</span>
+        </div>
+      </div>
+      <MotionButton level="secondary" className="free-hint-btn" onClick={onUpgrade}>
+        Открыть доступ
+      </MotionButton>
     </div>
   );
 }
@@ -1077,7 +1102,11 @@ export default function PlannerPage() {
 
   const monthLabel = (() => {
     const d = new Date(); d.setMonth(d.getMonth() + monthOffset);
-    return monthOffset === 0 ? "Этот месяц" : d.toLocaleString("ru-RU", { month: "long", year: "numeric" });
+    // «Март 2027»: без «г.», который добавляет toLocaleString с year, и с
+    // заглавной (решение владельца 29.09.2026).
+    if (monthOffset === 0) return "Этот месяц";
+    const m = d.toLocaleString("ru-RU", { month: "long" });
+    return `${m.charAt(0).toUpperCase()}${m.slice(1)} ${d.getFullYear()}`;
   })();
 
   const gcalLabel = {
@@ -1122,11 +1151,9 @@ export default function PlannerPage() {
           </div>
 
           {(isFree || userTier === "lite") && (
-            <LockedGroupHint onUpgrade={() => openPaywall(isFree ? "planner_period" : "planner_longterm")}>
-              {isFree
-                ? lockBanner("planner_period", "free")
-                : <>Месяц и неделя открыты полностью. {lockText("planner_longterm", "lite")}</>}
-            </LockedGroupHint>
+            <LockedGroupHint
+              banner={lockBanner(isFree ? "planner_period" : "planner_longterm", isFree ? "free" : "lite")}
+              onUpgrade={() => openPaywall(isFree ? "planner_period" : "planner_longterm")} />
           )}
 
           {(loading ? (

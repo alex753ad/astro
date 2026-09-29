@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { TIER_NAMES, tierPriceLabel } from "../constants";
 import { offerFor } from "../lib/offerRule";
-import { ACCESS_TERM, catalogItem, tierCard } from "../lib/tierCatalog";
+import { ACCESS_TERM, catalogItem, offerHeading, tierCard } from "../lib/tierCatalog";
 import { tierAccusative } from "../mobile/lib/ruDeclension";
 
 /*
@@ -147,6 +147,7 @@ export default function TierOfferModal({ open, onClose, feature, tier, state, co
   const item = catalogItem(feature);
   const offer = offerFor(feature, tier || "free", { sellable: SELLABLE });
   const tiers = offer ? [offer.primary, offer.alt].filter(Boolean) : [];
+  const heading = offerHeading(feature, tier);
 
   return (
     <AnimatePresence>
@@ -166,7 +167,7 @@ export default function TierOfferModal({ open, onClose, feature, tier, state, co
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label={item.title}
+            aria-label={heading}
             onClick={(e) => e.stopPropagation()}
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
             animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
@@ -206,7 +207,7 @@ export default function TierOfferModal({ open, onClose, feature, tier, state, co
               </p>
             )}
             <h2 style={{ margin: "0 0 6px", paddingRight: 28, fontFamily: DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.3 }}>
-              {item.title}
+              {heading}
             </h2>
             {state && (
               <p style={{ margin: "0 0 6px", fontSize: 15, lineHeight: 1.5, color: "var(--text-primary)" }}>

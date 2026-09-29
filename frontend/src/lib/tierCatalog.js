@@ -114,8 +114,9 @@ export const ITEMS = [
     about: 'Солнце, Меркурий, Венера и Марс проходят по твоим домам — у каждого периода свои рекомендации.',
     where: 'both',
     value: (t) => (t === 'free' ? 'текущий период Солнца' : `все, ${ahead(t)}`),
-    // Верхняя строка планера на бесплатном (решение владельца 29.09.2026).
-    banner: (onTier) => `Бесплатно открыт твой период Солнца. Меркурий, Венера и Марс — на ${onTier}.`,
+    // Плашка планера на бесплатном — две строки: что открыто и что где
+    // открывается (решение владельца 29.09.2026).
+    banner: { open: 'Открыто: период Солнца', locked: (onTier) => `Меркурий, Венера, Марс — на ${onTier}` },
   },
   {
     key: 'planner_longterm',
@@ -123,6 +124,8 @@ export const ITEMS = [
     about: 'Медленные планеты: темы, которые длятся месяцы и годы.',
     where: 'both',
     value: (t) => (t === 'pro' || t === 'premium' ? 'Юпитер, Сатурн, Уран, Нептун, Плутон' : null),
+    // Плашка планера на Веге.
+    banner: { open: 'Открыто: месяц и неделя полностью', locked: (onTier) => `Долгосрочные периоды — на ${onTier}` },
   },
   {
     key: 'forecast',
@@ -187,7 +190,23 @@ export const ITEMS = [
   },
 ];
 
-const BY_KEY = Object.fromEntries(ITEMS.map((i) => [i.key, i]));
+/**
+ * Листание планера за горизонт тарифа — окно предложения со стрелки «›» с
+ * замком. Не пункт витрины (на /pricing срок уже стоит в значениях «Луны по
+ * домам» и периодов), поэтому вне ITEMS: только заголовок окна и подсвеченная
+ * строка. До 29.09.2026 окно брало пункт «Периоды Солнца–Марса» — человек
+ * листал месяцы, а заголовок говорил о планетах. heading — по тарифу, который
+ * окно предлагает первым: на Веге — «Планер на 12 месяцев вперёд».
+ */
+const PLANNER_HORIZON = {
+  key: 'planner_horizon',
+  title: 'Планер',
+  where: 'both',
+  value: (t) => (t === 'free' ? 'текущий месяц' : ahead(t)),
+  heading: (t) => `Планер ${ahead(t)}`,
+};
+
+const BY_KEY = Object.fromEntries([...ITEMS, PLANNER_HORIZON].map((i) => [i.key, i]));
 
 /** Ключи функций из offerRule.js → пункт каталога. */
 const FOCUS_ALIAS = {
@@ -195,8 +214,6 @@ const FOCUS_ALIAS = {
   transit_limit: 'transit',
   chat_limit: 'chat',
   planner_period: 'planner_period',
-  // Горизонт планера: значение пункта — «все, на N месяцев вперёд».
-  planner_horizon: 'planner_period',
   planner_moon: 'planner_moon',
   planner_longterm: 'planner_longterm',
   gcal_all: 'gcal',
@@ -317,14 +334,22 @@ export function plannerMonthsAhead(tier) {
 }
 
 /**
- * Верхняя строка страницы с замками: своя фраза пункта (banner), тариф — по
- * offerRule. Нет своей фразы — общий lockText.
+ * Плашка страницы с замками — две строки: open (что открыто) и locked (что
+ * закрыто и на каком тарифе, тариф — по offerRule). Нет своей плашки у
+ * пункта или предложить нечего — null.
  */
 export function lockBanner(feature, tier) {
   const item = catalogItem(feature);
   const o = offerFor(feature, tier || 'free', { sellable: ['lite', 'pro'] });
-  if (!item?.banner || !o) return lockText(feature, tier);
-  return item.banner(tierInRu(TIER_NAMES[o.primary]));
+  if (!item?.banner || !o) return null;
+  return { open: item.banner.open, locked: item.banner.locked(tierInRu(TIER_NAMES[o.primary])) };
+}
+
+/** Заголовок окна предложения: свой у пункта (heading по предлагаемому тарифу) или название. */
+export function offerHeading(feature, tier) {
+  const item = catalogItem(feature);
+  const o = offerFor(feature, tier || 'free', { sellable: ['lite', 'pro'] });
+  return item?.heading && o ? item.heading(o.primary) : item?.title || '';
 }
 
 /**

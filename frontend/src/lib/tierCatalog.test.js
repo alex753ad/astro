@@ -163,7 +163,19 @@ describe('текст замка — из каталога через offerRule',
   it('верхняя строка планера на бесплатном', async () => {
     const { lockBanner } = await import('./tierCatalog');
     expect(lockBanner('planner_period', 'free'))
-      .toBe('Бесплатно открыт твой период Солнца. Меркурий, Венера и Марс — на Веге.');
+      .toEqual({ open: 'Открыто: период Солнца', locked: 'Меркурий, Венера, Марс — на Веге' });
+    expect(lockBanner('planner_longterm', 'lite'))
+      .toEqual({ open: 'Открыто: месяц и неделя полностью', locked: 'Долгосрочные периоды — на Лире' });
+    expect(lockBanner('planner_longterm', 'pro')).toBeNull();
+  });
+
+  it('окно за горизонтом листания — про планер, не про периоды планет', async () => {
+    const { offerHeading } = await import('./tierCatalog');
+    expect(offerHeading('planner_horizon', 'lite')).toBe('Планер на 12 месяцев вперёд');
+    expect(offerHeading('planner_horizon', 'free')).toBe('Планер на 6 месяцев вперёд');
+    expect(offerHeading('chat', 'free')).toBe('Чат с Аристеей');
+    const hl = tierCard('pro', { focus: 'planner_horizon', brief: true }).lines[0];
+    expect(hl).toMatchObject({ hl: true, text: 'Планер — на 12 месяцев вперёд' });
   });
 });
 
