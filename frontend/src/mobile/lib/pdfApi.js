@@ -6,8 +6,10 @@
  * `a.download` его не взять (в Capacitor WebView нет DownloadListener, см.
  * шапку ChartShareSheet.jsx): он читается fetch'ем, пишется в кеш
  * приложения (@capacitor/filesystem) и уходит в системный лист «Поделиться»
- * (@capacitor/share) — оттуда человек сохраняет его или открывает в
- * читалке. FileProvider с cache-path в шаблоне Capacitor уже есть.
+ * (@capacitor/share) или открывается в системной читалке
+ * (@capawesome-team/capacitor-file-opener, решение владельца 29.09.2026).
+ * FileProvider с cache-path в шаблоне Capacitor уже есть — оба плагина
+ * отдают файл через него.
  *
  * ⚠️ Объекты плагинов не возвращаются и не await-ятся — только их методы
  * (frontend/src/mobile/CLAUDE.md, «Объект плагина Capacitor…»).
@@ -18,7 +20,16 @@ import { responseErrorText } from '../../api/client';
 import { authFetchWithTimeout, getWithRetry } from './authFetchTimeout';
 
 export const FAIL_TEXT = 'Не получилось собрать PDF, попробуй ещё раз';
+export const OPEN_FAIL = 'Не получилось открыть файл, попробуй ещё раз';
 export const ACTIVE = ['queued', 'running'];
+
+/** Текст ошибки для экрана. Плагины и WebView отвечают по-английски
+ * («Can't share while sharing is in progress») — человеку такое не
+ * показывается никогда; русский текст сервера проходит как есть. */
+export function errorText(e, fallback) {
+  const msg = String(e?.message || '');
+  return /[а-яё]/i.test(msg) ? msg : fallback;
+}
 
 async function json(resp, fallback) {
   if (!resp.ok) throw new Error(await responseErrorText(resp, fallback));
@@ -57,21 +68,54 @@ export function pdfFileName(chartName) {
   return name ? `Натальная карта — ${name}.pdf` : 'Натальная карта.pdf';
 }
 
-/** Скачать файл отчёта и отдать в системный лист «Поделиться». */
-export async function sharePdf(reportId, chartName) {
+async function cacheFile(reportId, chartName) {
   // 60 с: файл в сотни килобайт на медленной сети — не признак зависания.
   const resp = await authFetchWithTimeout(`${API_BASE}/pdf-reports/${reportId}/file`, undefined, 60000);
   if (!resp.ok) throw new Error(await responseErrorText(resp, 'Файл не найден — собери PDF заново'));
   const data = await blobToBase64(await resp.blob());
   const { Filesystem, Directory } = await import('@capacitor/filesystem');
-  const { Share } = await import('@capacitor/share');
   const { uri } = await Filesystem.writeFile({
     path: `pdf/${pdfFileName(chartName)}`, data, directory: Directory.Cache, recursive: true,
   });
+  return uri;
+}
+
+// ⚠️ Один вызов за раз на всё приложение. Share.share держит промис, пока
+// системный лист открыт, и второй вызов плагин отклоняет английским «Can't
+// share while sharing is in progress». Повторное нажатие в это время — не
+// ошибка, а ничего: возвращаем false, экран молчит.
+let inFlight = false;
+
+async function once(fn) {
+  if (inFlight) return false;
+  inFlight = true;
   try {
-    await Share.share({ title: pdfFileName(chartName), url: uri, dialogTitle: 'Сохранить или открыть PDF' });
-  } catch (e) {
-    // Закрыл лист, ничего не выбрав, — это не ошибка.
-    if (!/cancel/i.test(String(e?.message || e))) throw e;
+    await fn();
+    return true;
+  } finally {
+    inFlight = false;
   }
+}
+
+/** Открыть файл отчёта в системной читалке PDF. false — уже идёт другой вызов. */
+export function openPdf(reportId, chartName) {
+  return once(async () => {
+    const path = await cacheFile(reportId, chartName);
+    const { FileOpener } = await import('@capawesome-team/capacitor-file-opener');
+    await FileOpener.openFile({ path, mimeType: 'application/pdf' });
+  });
+}
+
+/** Отдать файл отчёта в системный лист «Поделиться». false — уже идёт другой вызов. */
+export function sharePdf(reportId, chartName) {
+  return once(async () => {
+    const url = await cacheFile(reportId, chartName);
+    const { Share } = await import('@capacitor/share');
+    try {
+      await Share.share({ title: pdfFileName(chartName), url, dialogTitle: 'Сохранить или отправить PDF' });
+    } catch (e) {
+      // Закрыл лист, ничего не выбрав, — это не ошибка.
+      if (!/cancel/i.test(String(e?.message || e))) throw e;
+    }
+  });
 }
