@@ -20,7 +20,13 @@ from backend.transit.house_passages import PLANET_SUBTITLES
 
 SRC = Path(__file__).resolve().parents[1] / "transit" / "methodology.json"
 
-FORBIDDEN = re.compile(r"\bИИ\b|\bAI\b|эзотерик|чакр|карм|магическ|Вселенн|т\.д|беременн", re.I)
+# С 29.09.2026 (вычитка Луны по домам): «гуру», «места силы», «нумеролог» —
+# эзотерика; «подруг» — угадывание пола; «он-лайн» — орфография.
+FORBIDDEN = re.compile(
+    r"\bИИ\b|\bAI\b|эзотерик|чакр|карм|магическ|Вселенн|т\.д|беременн"
+    r"|\bгуру\b|мест\w* силы|нумеролог|подруг|он-лайн",
+    re.I,
+)
 # Предлоги, на которых строка обрываться не может, и «в темах».
 DANGLING = re.compile(
     r"(?:\s(?:в|во|на|по|через|для|к|ко|с|со|о|об|от|из|у|за|при|про|без|до|над|под)|в темах)\s*$",
@@ -64,3 +70,4 @@ def test_scanner_catches_known_breaks():
     assert DANGLING.search("Лучшее время для наполнения ресурсом, получения удовольствия через")
     assert DANGLING.search("…наведения порядка и ремонта в темах")
     assert FORBIDDEN.search("Используй ИИ для работы") and FORBIDDEN.search("родовой кармой")
+    assert FORBIDDEN.search("Посещение мест силы") and FORBIDDEN.search("Встреча с подругами")

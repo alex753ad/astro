@@ -7,6 +7,7 @@ import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import TierOfferModal from "../components/TierOfferModal";
 import { lockBanner, lockShort, lockText } from "../lib/tierCatalog";
+import { buildUpcoming, datesInWords, formatWeekRange, railPositions, shortDate } from "../lib/plannerDates";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -16,15 +17,6 @@ function getMonthName(date) {
 }
 
 // "11–17 августа" (или "29 июля – 4 августа", если неделя между месяцами)
-function formatWeekRange(startIso, endIso) {
-  if (!startIso || !endIso) return "";
-  const start = new Date(`${startIso}T00:00:00`);
-  const end   = new Date(`${endIso}T00:00:00`);
-  const monthName = (d) => d.toLocaleString("ru-RU", { month: "long" });
-  return start.getMonth() === end.getMonth()
-    ? `${start.getDate()}–${end.getDate()} ${monthName(end)}`
-    : `${start.getDate()} ${monthName(start)} – ${end.getDate()} ${monthName(end)}`;
-}
 
 /* zodiac data-color, intentional */
 // Плоские акцентные цвета планет — для бордеров/бейджей (не для кружков, см. PlanetDot ниже).
@@ -113,81 +105,6 @@ function PlanetDot({ type, size = 18, retro = false, node }) {
   );
 }
 
-// ── «Ближайшие 30 дней» ───────────────────────────────────────────────────────
-//
-// Решение владельца 29.09.2026 вместо «Транзитного таймлайна»: скользящее окно
-// от сегодня, а не отображаемый месяц. Прежний рельс в текущем месяце почти
-// всегда пустовал (прошедшие периоды скрыты — hide_fully_past, у каждой
-// планеты оставался один период и переходов не было), а на 390 px обрезал
-// правый узел. Одинаково на всех тарифах: даты переходов и номер дома не
-// закрыты; меньше двух событий — блок не показываем, одинокая точка
-// выглядела поломкой.
-
-// Знак в предложный падеж («в Раке», «в Водолее»)
-const SIGN_PREP = {
-  "Овен": "Овне", "Телец": "Тельце", "Близнецы": "Близнецах", "Рак": "Раке",
-  "Лев": "Льве", "Дева": "Деве", "Весы": "Весах", "Скорпион": "Скорпионе",
-  "Стрелец": "Стрельце", "Козерог": "Козероге", "Водолей": "Водолее", "Рыбы": "Рыбах",
-};
-const signPrep = (s) => SIGN_PREP[s] || s || "";
-
-const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
-const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const shortDate = (iso) => `${Number(iso.slice(8, 10))} ${MONTHS_SHORT[Number(iso.slice(5, 7)) - 1]}`;
-const UPCOMING_DAYS = 30;   // = house_passages.UPCOMING_DAYS
-
-// planData.upcoming — переходы и развороты (house_passages.compute_upcoming);
-// lunar — ответы /calendar/lunar за этот и следующий месяц (фазы, затмения).
-function buildUpcoming(planData, lunar) {
-  const now = new Date();
-  const from = isoDay(now);
-  const to = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS));
-  const events = [];
-
-  (planData?.upcoming || []).forEach((e, i) => {
-    const planet = e.planet_name;
-    if (e.kind === "passage") {
-      const until = e.until ? ` и пробудет там до ${datesInWords(`${e.until.slice(8, 10)}.${e.until.slice(5, 7)}`)}` : "";
-      events.push({
-        id: `up-${i}`, date: e.date, dot: { type: e.planet },
-        short: `${planet} переходит в ${e.house} дом`,
-        detail: `${planet} входит в ${e.house} дом${until}.`,
-      });
-    } else {
-      const retro = e.status === "start";
-      events.push({
-        id: `up-${i}`, date: e.date, dot: { type: e.planet, retro },
-        short: `${planet} разворачивается`,
-        detail: retro
-          ? `${planet} останавливается и начинает попятное движение — ретроградность.`
-          : `${planet} заканчивает ретроградность и снова идёт вперёд.`,
-      });
-    }
-  });
-
-  (lunar || []).forEach((m) => {
-    (m.phases || []).forEach((ph) => {
-      const full = ph.type === "full_moon";
-      events.push({
-        id: `ph-${ph.date}`, date: ph.date, dot: { type: ph.type },
-        short: full ? "полнолуние" : "новолуние",
-        detail: `${full ? "Полнолуние" : "Новолуние"}${ph.sign ? ` в ${signPrep(ph.sign)}` : ""}, ${(ph.time || "").slice(0, 5)} по Москве.`,
-      });
-    });
-    (m.eclipses || []).forEach((ec) => {
-      const solar = ec.type === "solar";
-      events.push({
-        id: `ec-${ec.date}`, date: ec.date, dot: { type: solar ? "solar_eclipse" : "lunar_eclipse" },
-        short: solar ? "солнечное затмение" : "лунное затмение",
-        detail: `${solar ? "Солнечное" : "Лунное"} затмение, ${(ec.time || "").slice(0, 5)} по Москве.`,
-      });
-    });
-  });
-
-  return events
-    .filter((e) => e.date >= from && e.date <= to)
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
 
 // ── Google Calendar: авторизация через GIS + экспорт ──────────────────────────
 //
@@ -617,45 +534,146 @@ const styles = `
   .gcal-btn.success { background: rgba(5,150,105,0.08); border-color: var(--color-success); color: var(--color-success); }
   .gcal-btn.error   { background: rgba(220,38,38,0.08); border-color: var(--color-danger); color: var(--color-danger); }
 
-  /* ── Ближайшие 30 дней ── */
+  /* ── Ближайшие 30 дней: рельс ── */
   .tl-section { margin-bottom: 24px; }
   .tl-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-xl); padding: 18px 16px 10px;
+    border-radius: var(--radius-xl); padding: 20px 20px 12px;
   }
-  .tl-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
-  .up-list { list-style: none; margin: 0; padding: 0; }
-  .up-row {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    background: none; border: none; text-align: left; font: inherit; cursor: pointer;
-    padding: 8px 6px; border-radius: var(--radius-sm); color: var(--text-primary);
+  .tl-title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
+  /* Прокрутка внутри блока, полоса видна — на телефоне рельс шире экрана.
+     Отступы по краям — внутри самого рельса (left: calc(30px + …)), а не
+     padding контейнера прокрутки: правый padding в ширину прокрутки не
+     входит, и крайний узел обрезался (приёмка 29.09.2026). */
+  .tl-scroll { position: relative; overflow-x: auto; overflow-y: hidden; padding: 8px 0 10px; scrollbar-width: thin; }
+  .tl-rail { position: relative; height: 96px; }
+  .tl-line {
+    position: absolute; left: 0; right: 0; top: 50px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
   }
-  .up-row:hover, .up-row:focus-visible { background: var(--accent-muted); }
-  .up-date { flex-shrink: 0; min-width: 48px; font-size: 13px; font-weight: 700; }
-  .up-short { font-size: 13px; line-height: 1.4; }
-  .up-detail { margin: 0 6px 8px 64px; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+  .tl-node {
+    position: absolute; top: 0; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; width: 52px;
+    background: none; border: none; padding: 0 0 6px; font: inherit; cursor: pointer;
+    border-radius: var(--radius-lg); transition: background 0.15s ease;
+  }
+  .tl-node:hover, .tl-node:focus-visible, .tl-node[aria-expanded="true"] { background: var(--accent-muted); }
+  .tl-dot {
+    position: absolute; top: 47px; left: 50%; transform: translateX(-50%);
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); opacity: 0.4; pointer-events: none;
+  }
+  .tl-date { height: 40px; display: flex; align-items: center; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .tl-ico { position: relative; margin-top: 22px; display: inline-flex; padding: 4px; }
+  .tl-count {
+    position: absolute; top: -2px; right: -8px;
+    min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box;
+    border-radius: var(--radius-sm); background: var(--accent); color: #fff;
+    font-size: 9px; font-weight: 700; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--bg-card);
+  }
+  .tl-pop {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 10px 12px; box-shadow: var(--shadow-raised);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .tl-pop-item { display: flex; gap: 8px; align-items: flex-start; }
+  .tl-pop-short { font-size: 12.5px; font-weight: 700; color: var(--text-primary); line-height: 1.35; }
+  .tl-pop-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.45; margin-top: 2px; }
 `;
 
 // ── Вспомогательные компоненты ────────────────────────────────────────────────
 
-// Список, а не рельс: подпись «26 сен · полнолуние» целиком видна на любой
-// ширине — рельс на телефоне обрезал крайние узлы. По нажатию — подробности.
+// Рельс «Ближайших 30 дней»: цифры дат сверху, точки на линии, значки
+// снизу. По нажатию — подпись «26 окт · Полнолуние» и пояснение; несколько
+// событий в один день — все в одной подписи. Подпись — fixed и прижата к
+// краям окна: внутри блока с прокруткой она бы обрезалась.
+const RAIL_NODE_PX = 56;   // физический зазор между соседними узлами
 function Upcoming({ events }) {
-  const [open, setOpen] = useState(null);
+  const [open, setOpen] = useState(null);   // { date, cx, top, bottom }
+  const popRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      if (popRef.current?.contains(e.target) || e.target.closest?.(".tl-node")) return;
+      setOpen(null);
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(null); };
+    const close = () => setOpen(null);
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const groups = [];
+  for (const ev of events) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === ev.date) last.evs.push(ev);
+    else groups.push({ date: ev.date, evs: [ev] });
+  }
+  const { pos, gap } = railPositions(groups.map((g) => g.date));
+  // Ширина под зазор RAIL_NODE_PX: уже экрана — прокрутка, а не слипание.
+  const minWidth = Math.ceil(RAIL_NODE_PX / gap) + 60;
+
+  const toggle = (g, el) => {
+    if (open?.date === g.date) { setOpen(null); return; }
+    const r = el.getBoundingClientRect();
+    setOpen({ date: g.date, cx: r.left + r.width / 2, top: r.bottom, bottom: r.top,
+      below: window.innerHeight - r.bottom > 200 });
+  };
+  const openGroup = open && groups.find((g) => g.date === open.date);
+  let popStyle = null;
+  if (openGroup) {
+    const W = Math.min(260, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(open.cx - W / 2, window.innerWidth - W - 8));
+    popStyle = { position: "fixed", left, width: W, zIndex: 100,
+      ...(open.below ? { top: open.top + 6 } : { bottom: window.innerHeight - open.bottom + 6 }) };
+  }
+
   return (
-    <ul className="up-list">
-      {events.map((ev) => (
-        <li key={ev.id}>
-          <button type="button" className="up-row" aria-expanded={open === ev.id}
-            onClick={() => setOpen(open === ev.id ? null : ev.id)}>
-            <PlanetDot {...ev.dot} size={16} />
-            <span className="up-date">{shortDate(ev.date)}</span>
-            <span className="up-short">{ev.short}</span>
-          </button>
-          {open === ev.id && <p className="up-detail">{ev.detail}</p>}
-        </li>
-      ))}
-    </ul>
+    <>
+      <div className="tl-scroll">
+        <div className="tl-rail" style={{ minWidth }}>
+          <div className="tl-line" />
+          {groups.map((g, gi) => (
+            <button type="button" key={g.date} className="tl-node"
+              style={{ left: `calc(30px + (100% - 60px) * ${pos[gi]})` }}
+              aria-expanded={open?.date === g.date}
+              aria-label={g.evs.map((e) => `${shortDate(e.date)} · ${e.short}`).join("; ")}
+              onClick={(e) => toggle(g, e.currentTarget)}>
+              <span className="tl-dot" />
+              <span className="tl-date">{Number(g.date.slice(8, 10))}</span>
+              <span className="tl-ico">
+                <PlanetDot {...g.evs[0].dot} />
+                {g.evs.length > 1 && <span className="tl-count">{g.evs.length}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {openGroup && (
+        <div className="tl-pop" ref={popRef} style={popStyle}>
+          {openGroup.evs.map((ev) => (
+            <div key={ev.id} className="tl-pop-item">
+              <PlanetDot {...ev.dot} size={16} />
+              <div>
+                <div className="tl-pop-short">{shortDate(ev.date)} · {ev.short}</div>
+                <div className="tl-pop-detail">{ev.detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -773,19 +791,6 @@ function LockedGroupHint({ children, onUpgrade }) {
 
 // Единая карточка периода — используется в разделах "Месяц", "Неделя" и "Долгосрочно",
 // чтобы визуально не отличались (заголовок-бейдж + theme → subtitle → notes → группы).
-// «23.09 — 01.12» → «23 сентября — 1 декабря», «02.07.2026» → «2 июля 2026».
-// Сервер отдаёт даты периода строкой в числовом виде (house_passages
-// _fmt_period), и эту же строку получает промпт планера — поэтому формат
-// меняется только при показе, а не в источнике (решение владельца 29.09.2026).
-const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
-  "августа", "сентября", "октября", "ноября", "декабря"];
-function datesInWords(text) {
-  return String(text || "").replace(/\b(\d{2})\.(\d{2})(?:\.(\d{4}))?\b/g, (m, d, mo, y) => {
-    const name = MONTHS_GEN[Number(mo) - 1];
-    if (!name) return m;
-    return `${Number(d)} ${name}${y ? ` ${y}` : ""}`;
-  });
-}
 
 // «5 дом: творчество, любовь, радость, дети» (решение владельца 29.09.2026).
 // Тема в данных начинается с заглавной — после двоеточия её опускаем здесь,

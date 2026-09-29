@@ -114,3 +114,18 @@ def test_upcoming_empty_without_birth_time():
     from datetime import date
     from backend.transit.house_passages import compute_upcoming
     assert compute_upcoming({"houses": []}, date(2026, 9, 29)) == []
+
+
+def test_moon_week_has_no_duplicate_passages():
+    """Приёмка 29.09.2026: карточка Луны «3 окт 12:11 – 6 окт 03:03» стояла
+    дважды. Внутри одной недели проход встречается один раз; в соседней
+    неделе тот же проход законно повторяется, если пересекает границу недель
+    (окно — по проходам, см. _moon_passages_between)."""
+    from datetime import date
+    natal = {"houses": [{"number": i + 1, "degree": (i * 30 + 17) % 360} for i in range(12)]}
+    for wo in range(5):
+        r = compute_planner_periods(natal, date(2026, 10, 1), date(2026, 10, 31),
+                                    today=date(2026, 9, 29), user_timezone="Europe/Moscow",
+                                    week_offset=wo)
+        keys = [(p["start_dt"], p["house"]) for p in r["moon_week"]]
+        assert keys and len(keys) == len(set(keys)), (wo, keys)
