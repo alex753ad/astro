@@ -32,7 +32,6 @@ import json
 import pytest
 
 from backend.auth.router import REFRESH_COOKIE_NAME
-from backend.main import app
 from backend.tests.test_chart_access import _make_chart
 from backend.tests.test_interpret_finish_reason import (  # noqa: F401 — фикстура
     _events,
@@ -102,21 +101,29 @@ OLD_APK_ROUTES = [
 ]
 
 
-def _served() -> set[tuple[str, str]]:
+def _served(app) -> set[tuple[str, str]]:
     return {
-        (m, r.path)
-        for r in app.routes
-        for m in (getattr(r, "methods", None) or ())
+        (method.upper(), path)
+        for path, ops in app.openapi()["paths"].items()
+        for method in ops
     }
 
 
 @pytest.mark.parametrize("method,path", OLD_APK_ROUTES, ids=lambda v: v)
-def test_route_still_served(method, path):
+def test_route_still_served(client, method, path):
     """Маршрут с тем же методом и тем же шаблоном пути есть на сервере.
 
     Сравнение по шаблону, а не запросом: так не нужны ни база, ни данные, а
-    404 и 405 ловятся одинаково — переименованная ручка и сменённый метод."""
-    assert (method, API + path) in _served(), f"{method} {path} больше не обслуживается"
+    404 и 405 ловятся одинаково — переименованная ручка и сменённый метод.
+    Запросом нельзя ещё и потому, что 404 здесь отдают и живые ручки на чужую
+    карту.
+
+    ⚠️ По схеме OpenAPI, а не по `app.routes`: в CI список маршрутов
+    подключённых роутеров не содержит (тот же случай — test_lifecycle_emails,
+    test_debug_routes), и по нему этот тест дал 40 ложных падений 29.09.2026,
+    проходя локально. Цена: ручка с include_in_schema=False сюда не попадёт —
+    среди перечисленных таких нет."""
+    assert (method, API + path) in _served(client.app), f"{method} {path} больше не обслуживается"
 
 
 # ── Поведение, на которое опираются старые сборки ───────────────────────────
