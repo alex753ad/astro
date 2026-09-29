@@ -14,6 +14,7 @@ from typing import Optional
 
 from backend.transit.house_passages import (
     compute_planner_periods,
+    compute_upcoming,
     PLANET_NAMES_RU,
 )
 
@@ -189,6 +190,7 @@ def build_planner(
     tier: Optional[str] = None,
     week_offset: Optional[int] = None,
     now: Optional[datetime] = None,
+    with_upcoming: bool = False,
 ) -> dict:
     """Собрать планер полностью в Python без ИИ.
 
@@ -307,6 +309,9 @@ def build_planner(
         "longterm_title": "Долгосрочные транзиты",
         "longterm":       longterm,
         "retrogrades":    periods.get("retrogrades", []),
+        # «Ближайшие 30 дней» — окно от сегодня, от месяца не зависит;
+        # считается только для текущего месяца (with_upcoming).
+        "upcoming":       compute_upcoming(natal_profile, today) if with_upcoming else [],
     }
 
 

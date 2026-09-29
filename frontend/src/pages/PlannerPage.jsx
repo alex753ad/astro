@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, Fragment } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import MotionButton from "../components/MotionButton";
 import { authFetch, createCheckoutSession, apiErrorText } from "../api/client";
@@ -6,7 +6,7 @@ import { useToast } from "../components/Toast";
 import { BACKEND_BASE as API_BASE } from "../config";
 import { TIER_NAMES } from "../constants";
 import TierOfferModal from "../components/TierOfferModal";
-import { lockShort, lockText } from "../lib/tierCatalog";
+import { lockBanner, lockShort, lockText } from "../lib/tierCatalog";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -113,7 +113,15 @@ function PlanetDot({ type, size = 18, retro = false, node }) {
   );
 }
 
-// ── Таймлайн: события месяца ──────────────────────────────────────────────────
+// ── «Ближайшие 30 дней» ───────────────────────────────────────────────────────
+//
+// Решение владельца 29.09.2026 вместо «Транзитного таймлайна»: скользящее окно
+// от сегодня, а не отображаемый месяц. Прежний рельс в текущем месяце почти
+// всегда пустовал (прошедшие периоды скрыты — hide_fully_past, у каждой
+// планеты оставался один период и переходов не было), а на 390 px обрезал
+// правый узел. Одинаково на всех тарифах: даты переходов и номер дома не
+// закрыты; меньше двух событий — блок не показываем, одинокая точка
+// выглядела поломкой.
 
 // Знак в предложный падеж («в Раке», «в Водолее»)
 const SIGN_PREP = {
@@ -123,60 +131,62 @@ const SIGN_PREP = {
 };
 const signPrep = (s) => SIGN_PREP[s] || s || "";
 
-function phaseTooltip(type, sign, fallback) {
-  const inSign = sign ? ` в ${signPrep(sign)}` : "";
-  switch (type) {
-    case "new_moon":      return `Новолуние${inSign}`;
-    case "full_moon":     return `Полнолуние${inSign}`;
-    case "solar_eclipse": return `Солнечное затмение${inSign}`;
-    case "lunar_eclipse": return `Лунное затмение${inSign}`;
-    default:              return fallback || "";
-  }
-}
+const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const shortDate = (iso) => `${Number(iso.slice(8, 10))} ${MONTHS_SHORT[Number(iso.slice(5, 7)) - 1]}`;
+const UPCOMING_DAYS = 30;   // = house_passages.UPCOMING_DAYS
 
-// Тип A — переход планеты в дом (дата старта периода, кроме первого).
-// Тип B — фазы/затмения из /calendar/lunar + ретро (когда бэкенд начнёт отдавать).
-function buildTimeline(planData, phases) {
+// planData.upcoming — переходы и развороты (house_passages.compute_upcoming);
+// lunar — ответы /calendar/lunar за этот и следующий месяц (фазы, затмения).
+function buildUpcoming(planData, lunar) {
+  const now = new Date();
+  const from = isoDay(now);
+  const to = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS));
   const events = [];
 
-  (planData?.month_sections || []).forEach((sec) => {
-    (sec.periods || []).forEach((p, i) => {
-      if (i === 0) return; // старт месяца — не переход внутри месяца
-      const start = (p.period || "").split("—")[0].trim(); // "23.07"
-      const [dd, mm] = start.split(".").map(Number);
-      if (!dd) return;
+  (planData?.upcoming || []).forEach((e, i) => {
+    const planet = e.planet_name;
+    if (e.kind === "passage") {
+      const until = e.until ? ` и пробудет там до ${datesInWords(`${e.until.slice(8, 10)}.${e.until.slice(5, 7)}`)}` : "";
       events.push({
-        id: `${sec.planet}-${i}`, kind: "passage", date: start, day: dd, mon: mm,
-        planet: sec.planet, name: sec.planet_name, house: p.house,
+        id: `up-${i}`, date: e.date, dot: { type: e.planet },
+        short: `${planet} переходит в ${e.house} дом`,
+        detail: `${planet} входит в ${e.house} дом${until}.`,
+      });
+    } else {
+      const retro = e.status === "start";
+      events.push({
+        id: `up-${i}`, date: e.date, dot: { type: e.planet, retro },
+        short: `${planet} разворачивается`,
+        detail: retro
+          ? `${planet} останавливается и начинает попятное движение — ретроградность.`
+          : `${planet} заканчивает ретроградность и снова идёт вперёд.`,
+      });
+    }
+  });
+
+  (lunar || []).forEach((m) => {
+    (m.phases || []).forEach((ph) => {
+      const full = ph.type === "full_moon";
+      events.push({
+        id: `ph-${ph.date}`, date: ph.date, dot: { type: ph.type },
+        short: full ? "полнолуние" : "новолуние",
+        detail: `${full ? "Полнолуние" : "Новолуние"}${ph.sign ? ` в ${signPrep(ph.sign)}` : ""}, ${(ph.time || "").slice(0, 5)} по Москве.`,
+      });
+    });
+    (m.eclipses || []).forEach((ec) => {
+      const solar = ec.type === "solar";
+      events.push({
+        id: `ec-${ec.date}`, date: ec.date, dot: { type: solar ? "solar_eclipse" : "lunar_eclipse" },
+        short: solar ? "солнечное затмение" : "лунное затмение",
+        detail: `${solar ? "Солнечное" : "Лунное"} затмение, ${(ec.time || "").slice(0, 5)} по Москве.`,
       });
     });
   });
 
-  (phases || []).forEach((ph, i) => {
-    const [, mm, dd] = (ph.date || "").split("-").map(Number);
-    if (!dd) return;
-    events.push({
-      id: `phase-${i}`, kind: "phase", day: dd, mon: mm,
-      date: `${String(dd).padStart(2, "0")}.${String(mm).padStart(2, "0")}`,
-      phaseType: ph.type,
-      tooltip: phaseTooltip(ph.type, ph.sign, ph.description),
-    });
-  });
-
-  // Станции ретроградности: бэк отдаёт planet (слаг) вместе с датой станции —
-  // рисуем кружок ЭТОЙ планеты с меткой retro, отдельного ℞-узла больше нет.
-  (planData?.retrogrades || []).forEach((r, i) => {
-    const [dd, mm] = (r.date || "").split(".").map(Number);
-    if (!dd) return;
-    events.push({
-      id: `retro-${i}`, kind: "phase", day: dd, mon: mm, date: r.date, planet: r.planet,
-      // Запасная формулировка повторяет серверную (house_passages.py): если
-      // они разойдутся, разница будет видна только там, где label не пришёл.
-      tooltip: r.label || `${r.planet_name || ""}: ${r.status === "end" ? "конец" : "начало"} ретроградности`.trim(),
-    });
-  });
-
-  return events.sort((a, b) => (a.mon - b.mon) || (a.day - b.day));
+  return events
+    .filter((e) => e.date >= from && e.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ── Google Calendar: авторизация через GIS + экспорт ──────────────────────────
@@ -552,7 +562,7 @@ const styles = `
   .locked-teaser .decoy li { color: var(--text-secondary); }
   .locked-trigger {
     margin-top: 8px; font-size: 12.5px; color: var(--accent); line-height: 1.5;
-    display: flex; gap: 6px; align-items: flex-start;
+    display: flex; gap: 6px; align-items: center;
   }
   .locked-trigger .lk { flex-shrink: 0; }
   .locked-open {
@@ -607,274 +617,45 @@ const styles = `
   .gcal-btn.success { background: rgba(5,150,105,0.08); border-color: var(--color-success); color: var(--color-success); }
   .gcal-btn.error   { background: rgba(220,38,38,0.08); border-color: var(--color-danger); color: var(--color-danger); }
 
-  /* ── Таймлайн ── */
+  /* ── Ближайшие 30 дней ── */
   .tl-section { margin-bottom: 24px; }
   .tl-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-xl); padding: 20px 20px 16px;
+    border-radius: var(--radius-xl); padding: 18px 16px 10px;
   }
-  .tl-title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
-  .tl-scroll { position: relative; overflow-x: auto; overflow-y: visible; padding: 8px 48px 44px; scrollbar-width: none; -ms-overflow-style: none; }
-  .tl-scroll::-webkit-scrollbar { display: none; }
-  .tl-rail { position: relative; height: 104px; min-width: 480px; }
-  .tl-line {
-    position: absolute; left: 0; right: 0; top: 50px; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  .tl-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
+  .up-list { list-style: none; margin: 0; padding: 0; }
+  .up-row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    background: none; border: none; text-align: left; font: inherit; cursor: pointer;
+    padding: 8px 6px; border-radius: var(--radius-sm); color: var(--text-primary);
   }
-  .tl-node {
-    position: absolute; top: 0; transform: translateX(-50%);
-    display: flex; flex-direction: column; align-items: center; width: 60px;
-    border-radius: var(--radius-lg); padding-bottom: 6px; transition: background 0.15s ease;
-  }
-  .tl-node:hover, .tl-node:focus-within { background: var(--accent-muted); }
-  .tl-dot {
-    position: absolute; top: 47px; left: 50%; transform: translateX(-50%);
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--accent); opacity: 0.4; pointer-events: none;
-  }
-  .tl-date { height: 40px; display: flex; align-items: center; font-size: 14px; font-weight: 700; color: var(--text-primary); }
-  .tl-icowrap { position: relative; margin-top: 22px; display: flex; justify-content: center; }
-  .tl-ico {
-    font-size: 22px; line-height: 1; background: none; border: none; padding: 4px;
-    border-radius: 50%; transition: transform 0.15s; font-family: inherit;
-    display: inline-block;
-  }
-  .tl-ico.link { cursor: pointer; }
-  .tl-ico.link:hover { transform: scale(1.22); }
-  .tl-tip {
-    position: absolute; top: calc(100% + 12px);
-    background: var(--bg-card); color: var(--text-primary); font-size: 11px; font-weight: 600; white-space: nowrap;
-    padding: 7px 11px; border-radius: var(--radius-md); border: 1px solid var(--border); opacity: 0; pointer-events: none;
-    transition: opacity 0.15s; z-index: 30;
-  }
-  .tl-tip--right { left: 50%; }
-  .tl-tip--left  { right: 50%; }
-  .tl-tip::after {
-    content: ""; position: absolute; bottom: 100%;
-    border: 5px solid transparent; border-bottom-color: var(--bg-card);
-  }
-  .tl-tip--right::after { left: 12px; }
-  .tl-tip--left::after  { right: 12px; }
-  .tl-node.phase .tl-icowrap { cursor: default; }
-  .tl-node.phase:hover .tl-ico, .tl-node.phase:focus-within .tl-ico { transform: scale(1.22); }
-  .tl-node:hover .tl-tip, .tl-node:focus-within .tl-tip { opacity: 1; }
-
-  /* Стопка событий одного дня */
-  .tl-stack { position: relative; display: inline-flex; }
-  .tl-stack::before {
-    content: ""; position: absolute; inset: 0; border-radius: 50%;
-    background: var(--border); transform: translate(3px, 3px); z-index: 0;
-  }
-  .tl-stack > * { position: relative; z-index: 1; }
-  .tl-count {
-    position: absolute; top: -6px; right: -9px; z-index: 2;
-    min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box;
-    border-radius: var(--radius-sm); background: var(--accent); color: #fff;
-    font-size: 9px; font-weight: 700; line-height: 1;
-    display: flex; align-items: center; justify-content: center;
-    border: 1.5px solid var(--bg-card);
-  }
-  .tl-pop {
-    background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: var(--radius-md); padding: 6px; box-shadow: var(--shadow-raised);
-    display: flex; flex-direction: column; gap: 2px;
-  }
-  .tl-pop-day {
-    font-size: 10px; font-weight: 700; color: var(--text-secondary);
-    text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 8px 2px;
-  }
-  .tl-pop-item {
-    display: flex; align-items: center; gap: 8px; width: 100%;
-    background: none; border: none; text-align: left; font-family: inherit;
-    padding: 7px 8px; border-radius: var(--radius-sm); cursor: pointer;
-    font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.3;
-  }
-  .tl-pop-item:hover:not(:disabled), .tl-pop-item:focus-visible:not(:disabled) { background: var(--accent-muted); }
-  .tl-pop-item:disabled { cursor: default; }
+  .up-row:hover, .up-row:focus-visible { background: var(--accent-muted); }
+  .up-date { flex-shrink: 0; min-width: 48px; font-size: 13px; font-weight: 700; }
+  .up-short { font-size: 13px; line-height: 1.4; }
+  .up-detail { margin: 0 6px 8px 64px; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
 `;
 
 // ── Вспомогательные компоненты ────────────────────────────────────────────────
 
-// Пропсы кружка для события: фаза → тип фазы/планеты + флаг ретро; переход → планета.
-function dotPropsFor(ev) {
-  return ev.kind === "phase"
-    ? { type: ev.planet || ev.phaseType, retro: !!ev.planet }
-    : { type: ev.planet, retro: false };
-}
-
-// Подпись события для тултипа/поповера.
-function eventLabel(ev) {
-  return ev.kind === "phase" ? ev.tooltip : `${ev.name} — ${ev.house} дом`;
-}
-
-function Timeline({ events, onPlanet }) {
-  const [openDay, setOpenDay] = useState(null);
-  const [popPos, setPopPos] = useState(null); // { cx, top, bottom, place }
-  const popRef = useRef(null);
-
-  // Закрытие поповера: клик вне, Escape, скролл/ресайз окна.
-  useEffect(() => {
-    if (openDay == null) return;
-    const onDoc = (e) => {
-      if (popRef.current && popRef.current.contains(e.target)) return;
-      // клик по самому узлу-стопке обрабатывает его onClick (toggle), не гасим тут
-      if (e.target.closest && e.target.closest(".tl-node.stacked")) return;
-      setOpenDay(null);
-    };
-    const onKey = (e) => { if (e.key === "Escape") setOpenDay(null); };
-    const onMove = () => setOpenDay(null);
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onMove, true);
-    window.addEventListener("resize", onMove);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onMove, true);
-      window.removeEventListener("resize", onMove);
-    };
-  }, [openDay]);
-
-  if (!events.length) return null;
-
-  // ── Часть 1: группировка событий по дню (порядок внутри группы — как в данных) ──
-  const groupsMap = new Map();
-  for (const ev of events) {
-    if (!groupsMap.has(ev.day)) groupsMap.set(ev.day, []);
-    groupsMap.get(ev.day).push(ev);
-  }
-  const groups = [...groupsMap.entries()]
-    .map(([day, evs]) => ({ day, evs }))
-    .sort((a, b) => a.day - b.day);
-
-  const min = groups[0].day;
-  const max = groups[groups.length - 1].day;
-  const span = max - min || 1;
-
-  // ── Часть 2: базовая позиция по дате + защита от слипания соседей ──
-  const LO = 5, HI = 95, MIN_GAP = 9; // % ширины рельса
-  const pos = groups.map((g) => 6 + ((g.day - min) / span) * 88);
-  // прямой проход — раздвигаем налезающие вправо
-  for (let i = 1; i < pos.length; i++) {
-    if (pos[i] < pos[i - 1] + MIN_GAP) pos[i] = pos[i - 1] + MIN_GAP;
-  }
-  // обратный проход — если упёрлись в правый край, поджимаем соседей внутрь
-  if (pos.length && pos[pos.length - 1] > HI) pos[pos.length - 1] = HI;
-  for (let i = pos.length - 2; i >= 0; i--) {
-    if (pos[i] > pos[i + 1] - MIN_GAP) pos[i] = pos[i + 1] - MIN_GAP;
-  }
-  if (pos.length && pos[0] < LO) pos[0] = LO; // страховка от вылета за левый край
-
-  const toggleGroup = (day, el) => {
-    if (openDay === day) { setOpenDay(null); return; }
-    const rect = el.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    setPopPos({
-      cx: rect.left + rect.width / 2,
-      top: rect.bottom,
-      bottom: rect.top,
-      place: spaceBelow > 220 ? "below" : "above",
-    });
-    setOpenDay(day);
-  };
-
-  const openGroup = openDay != null ? groups.find((g) => g.day === openDay) : null;
-  const popStyle = (() => {
-    if (!openGroup || !popPos) return null;
-    const W = Math.min(230, window.innerWidth - 16);
-    let left = popPos.cx - W / 2;
-    left = Math.max(8, Math.min(left, window.innerWidth - W - 8));
-    const s = { position: "fixed", left, width: W, zIndex: 100 };
-    if (popPos.place === "below") s.top = popPos.top + 8;
-    else s.bottom = window.innerHeight - popPos.bottom + 8;
-    return s;
-  })();
-
+// Список, а не рельс: подпись «26 сен · полнолуние» целиком видна на любой
+// ширине — рельс на телефоне обрезал крайние узлы. По нажатию — подробности.
+function Upcoming({ events }) {
+  const [open, setOpen] = useState(null);
   return (
-    <>
-      <div className="tl-scroll" onScroll={() => setOpenDay(null)}>
-        <div className="tl-rail">
-          <div className="tl-line" />
-          {groups.map((g, gi) => {
-            const left = pos[gi];
-            const tipSide = left > 55 ? "left" : "right";
-
-            // Несколько событий в один день — узел-стопка с поповером.
-            if (g.evs.length > 1) {
-              const first = g.evs[0];
-              return (
-                <div className="tl-node stacked" key={`grp-${g.day}`} style={{ left: `${left}%` }}>
-                  <span className="tl-dot" />
-                  <span className="tl-date">{g.day}</span>
-                  <span className="tl-icowrap">
-                    <button
-                      className="tl-ico link"
-                      onClick={(e) => toggleGroup(g.day, e.currentTarget.closest(".tl-node"))}
-                      aria-expanded={openDay === g.day}
-                      aria-label={`События ${g.day} числа: ${g.evs.length}`}
-                    >
-                      <span className="tl-stack">
-                        <PlanetDot {...dotPropsFor(first)} />
-                        <span className="tl-count">{g.evs.length}</span>
-                      </span>
-                    </button>
-                  </span>
-                </div>
-              );
-            }
-
-            // Одно событие — как прежде.
-            const ev = g.evs[0];
-            if (ev.kind === "phase") {
-              return (
-                <div className="tl-node phase" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
-                  <span className="tl-dot" />
-                  <span className="tl-date">{ev.day}</span>
-                  <span className="tl-icowrap">
-                    <span className="tl-ico">
-                      <PlanetDot {...dotPropsFor(ev)} />
-                    </span>
-                    <span className={`tl-tip tl-tip--${tipSide}`}>{ev.tooltip}</span>
-                  </span>
-                </div>
-              );
-            }
-            return (
-              <div className="tl-node" key={ev.id} style={{ left: `${left}%` }} tabIndex={0}>
-                <span className="tl-dot" />
-                <span className="tl-date">{ev.day}</span>
-                <span className="tl-icowrap">
-                  <button className="tl-ico link" onClick={() => onPlanet(ev.planet)}>
-                    <PlanetDot type={ev.planet} />
-                  </button>
-                  <span className={`tl-tip tl-tip--${tipSide}`}>{ev.name} — {ev.house} дом</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {openGroup && popStyle && (
-        <div className="tl-pop" ref={popRef} style={popStyle}>
-          <div className="tl-pop-day">{openGroup.day} число · {openGroup.evs.length} события</div>
-          {openGroup.evs.map((ev) => {
-            const clickable = !!ev.planet; // переходы и ретро несут planet; лунные фазы — нет
-            return (
-              <button
-                key={ev.id}
-                className="tl-pop-item"
-                disabled={!clickable}
-                onClick={() => { if (clickable) { onPlanet(ev.planet); setOpenDay(null); } }}
-              >
-                <PlanetDot {...dotPropsFor(ev)} />
-                <span>{eventLabel(ev)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </>
+    <ul className="up-list">
+      {events.map((ev) => (
+        <li key={ev.id}>
+          <button type="button" className="up-row" aria-expanded={open === ev.id}
+            onClick={() => setOpen(open === ev.id ? null : ev.id)}>
+            <PlanetDot {...ev.dot} size={16} />
+            <span className="up-date">{shortDate(ev.date)}</span>
+            <span className="up-short">{ev.short}</span>
+          </button>
+          {open === ev.id && <p className="up-detail">{ev.detail}</p>}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -918,6 +699,7 @@ function MonthSection({ section, onUpgrade }) {
       {(section.periods || []).map((p, pi) => (
         <PeriodBlock key={pi} planet={section.planet}
           badgeText={`Период ${p.period}`}
+          house={p.house}
           theme={p.theme} subtitle={p.subtitle} notes={p.notes} groups={p.groups || []}
           locked={p.locked}
           lock={PLANET_GEN[section.planet] && lockShort("planner_period", "free", `Период ${PLANET_GEN[section.planet]}`)}
@@ -935,7 +717,25 @@ const PLANET_GEN = {
   saturn: "Сатурна", uranus: "Урана", neptune: "Нептуна", pluto: "Плутона",
 };
 
-function LockedTeaser({ trigger, onUpgrade }) {
+// Замок — как у закрытой планеты в полосе приложения (FeedPlanetStrip):
+// пунктирное кольцо в цвете планеты и контурный замок внутри, не эмодзи
+// (решение владельца 29.09.2026).
+function LockMark({ color }) {
+  return (
+    <span className="lk" aria-hidden="true" style={{
+      width: 20, height: 20, borderRadius: "50%", border: `1.5px dashed ${color}`,
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)"
+        strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="11" width="14" height="10" rx="2" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      </svg>
+    </span>
+  );
+}
+
+function LockedTeaser({ trigger, onUpgrade, color }) {
   return (
     <div className="locked-teaser">
       <ul className="period-items decoy" aria-hidden="true">
@@ -945,7 +745,7 @@ function LockedTeaser({ trigger, onUpgrade }) {
       </ul>
       {trigger && (
         <div className="locked-trigger">
-          <span className="lk">🔒</span>
+          <LockMark color={color} />
           <span>{trigger}{onUpgrade && <> · <button type="button" className="locked-open" onClick={onUpgrade}>Открыть доступ</button></>}</span>
         </div>
       )}
@@ -987,21 +787,32 @@ function datesInWords(text) {
   });
 }
 
-function PeriodBlock({ planet, badgeText, theme, subtitle, notes, groups, warning, locked, lock, onUpgrade }) {
+// «5 дом: творчество, любовь, радость, дети» (решение владельца 29.09.2026).
+// Тема в данных начинается с заглавной — после двоеточия её опускаем здесь,
+// а не в methodology.json: там же её берут лента и промпт планера.
+function themeWithHouse(house, theme) {
+  if (!theme || !house || theme.includes(`${house} доме`)) return theme;
+  return `${house} дом: ${theme.charAt(0).toLowerCase()}${theme.slice(1)}`;
+}
+
+function PeriodBlock({ planet, badgeText, house, theme, subtitle, notes, groups, warning, locked, lock, onUpgrade }) {
   const color = PLANET_COLORS[planet] || "var(--text-secondary)";
   return (
     <div className="period-card" style={{ borderLeftColor: color }}>
       {warning && <div className="lt-warning">⚠️ {warning}</div>}
       <div className="period-card-header">
         <PlanetDot type={planet} size={20} />
-        <span className="period-badge" style={{ color, background: `${color}18` }}>
+        {/* Текст плашки — --text-primary, цвет планеты — только фон и рамка.
+            Цветной текст на своей же подложке не проходил WCAG AA у 7 планет
+            из 10 (Солнце на белом — 1,3:1); так ≥ 9,6:1 в обеих темах. */}
+        <span className="period-badge" style={{ color: "var(--text-primary)", background: `${color}26`, boxShadow: `inset 0 0 0 1px ${color}66` }}>
           {datesInWords(badgeText)}
         </span>
       </div>
-      {theme && <div className="period-subtitle">{theme}</div>}
+      {theme && <div className="period-subtitle">{themeWithHouse(house, theme)}</div>}
       {subtitle && <div className="period-planet-subtitle" style={{ color }}>{subtitle}</div>}
       {locked ? (
-        <LockedTeaser trigger={lock} onUpgrade={onUpgrade} />
+        <LockedTeaser trigger={lock} onUpgrade={onUpgrade} color={color} />
       ) : (
         <>
           {notes && notes.length > 0 && (
@@ -1076,7 +887,7 @@ export default function PlannerPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [planData, setPlanData]     = useState(null);
-  const [phases, setPhases]         = useState([]);
+  const [lunar, setLunar]           = useState([]);
   const [monthOffset, setMonthOffset] = useState(0);
   // null = «неделя с сегодняшним днём» — бэкенд сам её находит (только имеет
   // смысл на текущем месяце). При явном клике по стрелке храним индекс недели
@@ -1145,26 +956,24 @@ export default function PlannerPage() {
   const { exportEvents, status: gcalStatus } = useGcalExport();
 
   // E1: Free тоже грузит план — витрина с блюром (текущий период Солнца открыт)
-  useEffect(() => { loadPhases(); }, [id, monthOffset]);
+  useEffect(() => { loadLunar(); }, []);
   useEffect(() => { loadPlan(); }, [id, monthOffset, weekOffset]);
 
-  async function loadPhases() {
-    try {
-      const d = new Date(); d.setMonth(d.getMonth() + monthOffset);
-      const y = d.getFullYear(), m = d.getMonth() + 1;
-      const r = await fetch(`${API_BASE}/api/v1/calendar/lunar?year=${y}&month=${m}`);
-      setPhases(r.ok ? ((await r.json()).phases || []) : []);
-    } catch { setPhases([]); }
+  // Фазы и затмения для «Ближайших 30 дней» — этот и следующий месяц от
+  // сегодня, от листания месяцев не зависят.
+  async function loadLunar() {
+    const d = new Date();
+    const months = [0, 1].map((k) => new Date(d.getFullYear(), d.getMonth() + k, 1));
+    const res = await Promise.all(months.map(async (m) => {
+      try {
+        const r = await fetch(`${API_BASE}/api/v1/calendar/lunar?year=${m.getFullYear()}&month=${m.getMonth() + 1}`);
+        return r.ok ? await r.json() : null;
+      } catch { return null; }
+    }));
+    setLunar(res.filter(Boolean));
   }
 
-  const timelineEvents = useMemo(() => buildTimeline(planData, phases), [planData, phases]);
-
-  function goToPlanet(planet) {
-    setTab("month");
-    setTimeout(() => {
-      document.getElementById(`plan-sec-${planet}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 60);
-  }
+  const upcoming = useMemo(() => buildUpcoming(planData, lunar), [planData, lunar]);
 
   async function loadPlan() {
     setLoading(true); setError(null); setPlanData(null);
@@ -1271,7 +1080,7 @@ export default function PlannerPage() {
           {(isFree || userTier === "lite") && (
             <LockedGroupHint onUpgrade={() => openPaywall(isFree ? "planner_period" : "planner_longterm")}>
               {isFree
-                ? <>Сейчас открыт твой период Солнца — главная тема этого времени. {lockText("planner_period", "free")}</>
+                ? lockBanner("planner_period", "free")
                 : <>Месяц и неделя открыты полностью. {lockText("planner_longterm", "lite")}</>}
             </LockedGroupHint>
           )}
@@ -1285,11 +1094,11 @@ export default function PlannerPage() {
             </div>
           ) : (
             <>
-              {timelineEvents.length > 0 && (
+              {monthOffset === 0 && upcoming.length >= 2 && (
                 <section className="tl-section">
                   <div className="tl-card">
-                    <h2 className="tl-title">Транзитный таймлайн</h2>
-                    <Timeline events={timelineEvents} onPlanet={goToPlanet} />
+                    <h2 className="tl-title">Ближайшие 30 дней</h2>
+                    <Upcoming events={upcoming} />
                   </div>
                 </section>
               )}
@@ -1320,35 +1129,21 @@ export default function PlannerPage() {
                       </div>
                     )}
                   </div>
-                  {(() => {
-                    const days = planData?.week_days || [];
-                    let bannerShown = false;
-                    return days.map((day, i) => {
-                      // ⚠️ Плашка апселла — только на free. У платных тарифов
-                      // закрытые недели тоже появляются (расшифровка идёт на
-                      // 4 недели вперёд у всех платных), но им переход на
-                      // Вегу ничего не даст: предлагать его значило бы продавать
-                      // то, что у человека уже есть. Сами карточки при этом
-                      // остаются закрытыми — видно, что дальше есть периоды.
-                      const showBanner = isFree && day.locked && !bannerShown;
-                      if (showBanner) bannerShown = true;
-                      return (
-                        <Fragment key={i}>
-                          {showBanner && (
-                            <LockedGroupHint onUpgrade={() => openPaywall("planner_moon")}>
-                              Луна проходит по домам каждые 2–3 дня — точные окна для решений по неделям.
-                              Прошедшие периоды и текущая неделя открыты всегда. {lockText("planner_moon", "free")}
-                            </LockedGroupHint>
-                          )}
-                          <PeriodBlock planet="moon"
-                            badgeText={day.time ? `${day.date} – ${day.time}` : day.date}
-                            theme={day.theme || `Луна в ${day.house} доме`}
-                            groups={day.groups || []}
-                            locked={day.locked} />
-                        </Fragment>
-                      );
-                    });
-                  })()}
+                  {(planData?.week_days || []).map((day, i) => (
+                    // Замок — у каждой закрытой карточки, как у периодов
+                    // (решение владельца 29.09.2026), и только на free: у
+                    // платных закрытые недели тоже приходят, но Вега им
+                    // ничего не откроет — продавать её значило бы продавать
+                    // то, что уже есть.
+                    <PeriodBlock key={i} planet="moon"
+                      badgeText={day.time ? `${day.date} – ${day.time}` : day.date}
+                      house={day.house}
+                      theme={day.locked ? "" : (day.theme || `Луна в ${day.house} доме`)}
+                      groups={day.groups || []}
+                      locked={day.locked}
+                      lock={isFree && lockShort("planner_moon", "free", `Луна в ${day.house} доме`)}
+                      onUpgrade={() => openPaywall("planner_moon")} />
+                  ))}
                 </div>
               )}
 
@@ -1362,6 +1157,7 @@ export default function PlannerPage() {
                         subtitle={lt.planet_subtitle} />
                       <PeriodBlock planet={lt.planet}
                         badgeText={lt.period}
+                        house={lt.house}
                         theme={lt.theme} subtitle={lt.subtitle} notes={lt.notes} groups={lt.groups || []}
                         warning={lt.warning}
                         locked={lt.locked}

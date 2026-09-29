@@ -209,7 +209,10 @@ export default function TierOfferModal({ open, onClose, feature, tier, state, co
               {item.title}
             </h2>
             {state && (
-              <p style={{ margin: "0 0 6px", fontSize: 15, lineHeight: 1.5, color: "var(--text-primary)" }}>{state}</p>
+              <p style={{ margin: "0 0 6px", fontSize: 15, lineHeight: 1.5, color: "var(--text-primary)" }}>
+                {/* quotaEndedText отдаётся без точки — её дописывает тот, кто продолжает фразу; здесь строка стоит одна. */}
+                {/[.!?…]$/.test(state) ? state : `${state}.`}
+              </p>
             )}
             {item.about && (
               <p style={{ margin: "0 0 18px", fontSize: 14, lineHeight: 1.55, color: "var(--text-secondary)" }}>{item.about}</p>

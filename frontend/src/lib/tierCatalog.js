@@ -114,6 +114,8 @@ export const ITEMS = [
     about: 'Солнце, Меркурий, Венера и Марс проходят по твоим домам — у каждого периода свои рекомендации.',
     where: 'both',
     value: (t) => (t === 'free' ? 'текущий период Солнца' : `все, ${ahead(t)}`),
+    // Верхняя строка планера на бесплатном (решение владельца 29.09.2026).
+    banner: (onTier) => `Бесплатно открыт твой период Солнца. Меркурий, Венера и Марс — на ${onTier}.`,
   },
   {
     key: 'planner_longterm',
@@ -299,6 +301,17 @@ export function lockText(feature, tier) {
   const v = item.value(o.primary);
   const what = v && v !== true ? `${item.title}: ${v}` : item.title;
   return `${what} — на тарифе ${TIER_NAMES[o.primary]}.`;
+}
+
+/**
+ * Верхняя строка страницы с замками: своя фраза пункта (banner), тариф — по
+ * offerRule. Нет своей фразы — общий lockText.
+ */
+export function lockBanner(feature, tier) {
+  const item = catalogItem(feature);
+  const o = offerFor(feature, tier || 'free', { sellable: ['lite', 'pro'] });
+  if (!item?.banner || !o) return lockText(feature, tier);
+  return item.banner(tierInRu(TIER_NAMES[o.primary]));
 }
 
 /**

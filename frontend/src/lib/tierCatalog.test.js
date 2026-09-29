@@ -159,6 +159,12 @@ describe('текст замка — из каталога через offerRule',
     expect(lockText('planner_longterm', 'free')).toMatch(/Сатурн.*на тарифе Лира/);
     expect(lockText('planner_longterm', 'pro')).toBe('');
   });
+
+  it('верхняя строка планера на бесплатном', async () => {
+    const { lockBanner } = await import('./tierCatalog');
+    expect(lockBanner('planner_period', 'free'))
+      .toBe('Бесплатно открыт твой период Солнца. Меркурий, Венера и Марс — на Веге.');
+  });
 });
 
 describe('планер — конкретный срок вместо «горизонта ленты»', () => {

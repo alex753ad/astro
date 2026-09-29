@@ -1904,6 +1904,7 @@ async def get_monthly_planner(
         user_timezone=_tz,
         tier=(user.tier if user else "free"),
         week_offset=week_offset,
+        with_upcoming=(month_offset == 0),
     )
 
     return {"planner": planner}

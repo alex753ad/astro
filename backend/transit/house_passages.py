@@ -53,14 +53,14 @@ PLANET_NAMES_RU = {
 # «…в темах», «…получения удовольствия через» (docs/planner_texts_review.md).
 PLANET_SUBTITLES = {
     "Sun":     "Приоритетные сферы месяца",
-    "Mercury": "Время собирать информацию, договариваться и наводить порядок — в делах этого дома",
-    "Venus":   "Время для удовольствия, красоты и выгодных решений — в делах этого дома",
-    "Mars":    "Время действовать первым и начинать — в делах этого дома",
-    "Jupiter": "Время расти и пробовать новое — в делах этого дома",
+    "Mercury": "Время собирать информацию, договариваться и наводить порядок — в сфере, которую он сейчас проходит",
+    "Venus":   "Время для удовольствия, красоты и выгодных решений — в сфере, которую она сейчас проходит",
+    "Mars":    "Время действовать первым и начинать — в сфере, которую он сейчас проходит",
+    "Jupiter": "Время расти и пробовать новое — в сфере, которую он сейчас проходит",
     "Saturn":  "Лучшее время для определения зоны ответственности, обретения власти и статуса",
-    "Uranus":  "Время перемен и неожиданных возможностей — в делах этого дома",
-    "Neptune": "Время не спешить с выводами и беречь личное — в делах этого дома",
-    "Pluto":   "Время отпустить отжившее и собрать новое — в делах этого дома",
+    "Uranus":  "Время перемен и неожиданных возможностей — в сфере, которую он сейчас проходит",
+    "Neptune": "Время не спешить с выводами и беречь личное — в сфере, которую он сейчас проходит",
+    "Pluto":   "Время отпустить отжившее и собрать новое — в сфере, которую он сейчас проходит",
 }
 
 
@@ -308,6 +308,9 @@ def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
                 going_retro = speed < 0  # директ→ретро
                 result.append({
                     "date": hi.strftime("%d.%m"),
+                    # С годом — для «Ближайших 30 дней» (compute_upcoming),
+                    # окно которых переходит через границу месяца и года.
+                    "date_iso": hi.date().isoformat(),
                     "status": "start" if going_retro else "end",
                     "planet": key,
                     "planet_name": name_ru,
@@ -327,6 +330,60 @@ def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
             prev_speed = speed
             dt = nxt
     return result
+
+
+UPCOMING_DAYS = 30
+
+
+def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS) -> list[dict]:
+    """«Ближайшие 30 дней» в планере: переходы планет (Солнце–Плутон) в
+    следующий дом и развороты (станции) — скользящее окно от `today`, не
+    отображаемый месяц (решение владельца 29.09.2026).
+
+    Фазы Луны сюда не входят: клиент берёт их из /calendar/lunar, открытой
+    всем, — второй расчёт фаз дал бы вторую сетку поясов (см. get_eclipses).
+
+    От тарифа не зависит: дата перехода и номер дома видны и на бесплатном
+    (текст периода закрыт отдельно, в build_planner).
+
+    Элементы: {"date": "ГГГГ-ММ-ДД", "kind": "passage"|"station",
+    "planet", "planet_name", "house", "until"} у перехода и
+    {..., "status": "start"|"end"} у станции.
+    """
+    cusps = _extract_cusps(natal_profile)
+    if all(c == 0.0 for c in cusps):
+        return []
+    start = datetime(today.year, today.month, today.day, 0, 0)
+    end = start + timedelta(days=days, hours=23, minutes=59)
+    out: list[dict] = []
+    for planet in ("Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
+        slow = planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+        passages = calculate_house_passages(planet, cusps, start, end, step_hours=72 if slow else None)
+        name_ru, key, _emoji = PLANET_NAMES_RU[planet]
+        # Первый период начинается краем окна, а не входом в дом — не переход.
+        for i, p in enumerate(passages[1:], start=1):
+            until = p["end_dt"]
+            if i == len(passages) - 1:
+                # Последний период обрезан краем окна: настоящий выход ищем
+                # дальше. Не нашли (медленная планета, долгий дом) — без даты.
+                step = timedelta(hours=72 if slow else STEP_HOURS.get(planet, 24))
+                exit_dt = _find_real_exit(PLANETS[planet], cusps, until, p["house"], step)
+                until = exit_dt - timedelta(minutes=1) if exit_dt != until else None
+            out.append({
+                "date": p["start_dt"].date().isoformat(),
+                "kind": "passage",
+                "planet": key,
+                "planet_name": name_ru,
+                "house": p["house"],
+                "until": until.date().isoformat() if until else None,
+            })
+    for r in compute_retrograde_stations(today, (start + timedelta(days=days)).date()):
+        out.append({
+            "date": r["date_iso"], "kind": "station", "planet": r["planet"],
+            "planet_name": r["planet_name"], "status": r["status"],
+        })
+    out.sort(key=lambda e: e["date"])
+    return out
 
 
 # Запас сканирования по обе стороны окна, в сутках.

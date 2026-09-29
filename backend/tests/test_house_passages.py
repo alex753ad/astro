@@ -93,3 +93,24 @@ def test_fast_planet_keeps_expired_period_when_browsing_past_month():
     sun = next(p for p in periods["fast_planets"] if p["planet_key"] == "sun")
     houses = [pp["house"] for pp in sun["periods"]]
     assert houses == [3], f"просмотр прошлого месяца не должен фильтроваться по today, получили {houses}"
+
+
+def test_upcoming_window_from_today_passages_and_stations():
+    """«Ближайшие 30 дней»: окно от today, даты ГГГГ-ММ-ДД, первый период
+    окна (начат его краем) переходом не считается."""
+    from datetime import date
+    from backend.transit.house_passages import compute_upcoming
+    natal = {"houses": [{"number": i + 1, "degree": (i * 30 + 17) % 360} for i in range(12)]}
+    events = compute_upcoming(natal, date(2026, 9, 29))
+    assert events == sorted(events, key=lambda e: e["date"])
+    assert all("2026-09-29" < e["date"] <= "2026-10-29" for e in events)
+    # Разворот Венеры 3 октября 2026 — от карты не зависит.
+    assert any(e["kind"] == "station" and e["planet"] == "venus" and e["status"] == "start"
+               and e["date"] == "2026-10-03" for e in events)
+    assert any(e["kind"] == "passage" and e["house"] and e["until"] for e in events)
+
+
+def test_upcoming_empty_without_birth_time():
+    from datetime import date
+    from backend.transit.house_passages import compute_upcoming
+    assert compute_upcoming({"houses": []}, date(2026, 9, 29)) == []
