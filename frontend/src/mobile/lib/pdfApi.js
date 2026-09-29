@@ -36,11 +36,13 @@ async function json(resp, fallback) {
   return resp.json();
 }
 
-export async function startPdf(chartId) {
+/** wheelPng — снимок колеса (lib/wheelPng.js); без него сервер рисует
+ * упрощённое колесо без домов, осей и раздвижки близких планет. */
+export async function startPdf(chartId, wheelPng) {
   const resp = await authFetchWithTimeout(`${API_BASE}/chart/${chartId}/pdf-reports`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify({ wheel_png: wheelPng || null }),
   });
   return json(resp, FAIL_TEXT);
 }
