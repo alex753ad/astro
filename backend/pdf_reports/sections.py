@@ -33,8 +33,9 @@ TIER_RANK = {"free": 0, "lite": 1, "pro": 2, "premium": 3}
 
 # Версия промптов аспектов и транзитов: смена сбрасывает их кеш и отпечаток
 # готовых отчётов (новая сборка — с новым текстом).
-ASPECTS_PROMPT_VERSION = 1
-TRANSITS_PROMPT_VERSION = 1
+# 2 — краткие формы в ADDRESS_RULE («ты склонен»), 29.09.2026.
+ASPECTS_PROMPT_VERSION = 2
+TRANSITS_PROMPT_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,15 @@ def interpretation_depth(row) -> str:
 
 
 def pick_interpretation(db, chart_id: str, tier: str):
-    """Самый свежий разбор не короче тарифа человека или None."""
+    """Самый свежий разбор не короче тарифа человека и без родовых форм, или
+    None — тогда пишется новый.
+
+    Родовые формы (решение владельца 29.09.2026): сохранённые разборы массово
+    не переписываются, и до правила от 28.09 модель писала «ты склонен».
+    На сайте такой разбор остаётся как есть, а в PDF — документ, который
+    хранят и пересылают, — берётся только чистый. Грязный не удаляется: PDF
+    пишет рядом новый (без квоты разборов), и тот становится самым свежим."""
+    from backend.interpretation.gender_check import gendered_you
     from backend.models import Interpretation
     rows = (
         db.query(Interpretation)
@@ -88,7 +97,8 @@ def pick_interpretation(db, chart_id: str, tier: str):
         .all()
     )
     need = TIER_RANK.get(tier, 0)
-    return next((r for r in rows if TIER_RANK.get(interpretation_depth(r), 0) >= need), None)
+    return next((r for r in rows
+                 if TIER_RANK.get(interpretation_depth(r), 0) >= need and not gendered_you(r.content)), None)
 
 
 def natal_profile(chart) -> dict:

@@ -273,7 +273,8 @@ def _compact_natal(natal_profile: dict) -> str:
 #     нумерология, карма, мистика (решение владельца 29.09.2026). В сам
 #     промпт календаря они не входят (он берёт NEWMOON_SIGN_RITUAL), но номер
 #     поднят по требованию владельца: сброс кэша календаря на сутки.
-GENERAL_CALENDAR_PROMPT_VERSION = 4
+# 5 — краткие формы («ты склонен», «будешь успешен»), ADDRESS_RULE, 29.09.2026.
+GENERAL_CALENDAR_PROMPT_VERSION = 5
 
 
 def build_general_calendar_prompt(

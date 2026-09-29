@@ -113,6 +113,26 @@ def test_pick_takes_newest_not_shorter_than_tier(db, user_free):
     assert sections.pick_interpretation(db, chart.id, "premium") is None
 
 
+def test_pick_skips_interpretation_with_gendered_forms(db, user_free):
+    """Разбор с «ты склонен» в PDF не идёт — пишется новый (решение 29.09.2026)."""
+    chart = _make_chart(db, user_id=user_free.id)
+    clean = _interp(db, chart, 800, tier="lite", minutes_ago=10)
+    dirty = _interp(db, chart, 800, tier="lite", minutes_ago=1)
+    dirty.content += " Ты склонен торопиться."
+    db.commit()
+    assert sections.pick_interpretation(db, chart.id, "lite").id == clean.id
+    db.delete(clean)
+    db.commit()
+    assert sections.pick_interpretation(db, chart.id, "lite") is None
+
+
+def test_vo_lve_in_pdf_text():
+    from backend.natal_pdf import SERIF, _para_markup
+    assert "Солнце во Льве" in _para_markup("Солнце в Льве", SERIF)
+    assert "Во Льве" in _para_markup("В Льве Луна", SERIF)
+    assert "Юпитер во Льве" in _para_markup("Юпитер во Льве", SERIF)
+
+
 def test_numbered_answer_must_have_every_paragraph():
     assert sections._parse_numbered("### 1\nПервый.\n### 2\nВторой\nабзац.", 2) == ["Первый.", "Второй абзац."]
     with pytest.raises(sections.SectionError):

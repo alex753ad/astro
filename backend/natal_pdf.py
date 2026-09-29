@@ -333,9 +333,16 @@ def _parse_interp_string(text: str) -> dict:
     return sections
 
 
+# «в Льве» → «во Льве»: так пишет модель. Правится здесь, при выводе в PDF:
+# общей обработки текста модели перед показом у сайта и приложения нет —
+# разбор уходит туда стримом по кускам, и слово может разорваться между ними.
+_VO_RE = re.compile(r"(?<![а-яёА-ЯЁ])([вВ]) (?=Льв)")
+
+
 def _para_markup(text: str, font: str) -> str:
     """Текст модели → разметка Paragraph: экранирование (& и < в тексте ломали
     разбор), **жирный** → <b>, символы вне шрифта — <font> из цепочки."""
+    text = _VO_RE.sub(lambda m: m.group(1) + "о ", text or "")
     out = []
     for f, chunk in _runs(text, font):
         esc = _xml_escape(chunk)
