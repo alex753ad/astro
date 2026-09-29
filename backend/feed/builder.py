@@ -405,10 +405,18 @@ def _merge_node_axis(events: list[dict]) -> list[dict]:
     out = []
     for e in events:
         m = e["meta"]
+        # Луна проходит ось узлов 8 раз за месяц — в ленте только соединение и
+        # оппозиция (решение владельца 29.09.2026), остальные планеты — все аспекты.
+        if (m["transit_planet"] == "Moon" and m.get("natal_planet") in ("North Node", "South Node")
+                and m["aspect_type"] not in ("conjunction", "opposition")):
+            continue
         pair = (m["transit_planet"], m["peak_date"])
         if pair in both and m.get("natal_planet") == "South Node":
             continue
-        if pair in both:
+        # ⚠️ Проверка natal_planet обязательна: пара (планета, день) — не
+        # признак узлового события. У Луны в тот же день десяток аспектов к
+        # другим планетам, без неё все они становились «на оси узлов».
+        if pair in both and m.get("natal_planet") == "North Node":
             m["node_axis"] = True
             transit = TEMPLATES.get("transit_planets", {}).get(m["transit_planet"], m["transit_planet"])
             e["text"] = _AXIS_TEXT.get(m["aspect_type"], "{t} и ось узлов").format(t=transit)

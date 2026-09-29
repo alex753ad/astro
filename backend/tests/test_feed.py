@@ -936,3 +936,29 @@ class TestNodeAxisMerged:
         out = _merge_node_axis(evs)
         assert len(out) == 3
         assert not any(e["meta"].get("node_axis") for e in out)
+
+    def test_same_day_aspect_to_other_planet_untouched(self):
+        """Луна к Сатурну в день прохода Луны по оси узлов — не «ось узлов»
+        (приёмка 29.09.2026: 30.09, карта Анны)."""
+        from backend.feed.builder import _merge_node_axis
+        saturn = self._ev("Saturn", "trine", tp="Moon")
+        saturn["text"] = "Луна к твоему Сатурну"
+        out = _merge_node_axis([self._ev("North Node", "conjunction", tp="Moon"),
+                                self._ev("South Node", "opposition", tp="Moon"), saturn])
+        assert len(out) == 2
+        axis = [e for e in out if e["meta"].get("node_axis")]
+        assert len(axis) == 1 and axis[0]["meta"]["natal_planet"] == "North Node"
+        assert axis[0]["text"] == "Луна на оси узлов"
+        assert "node_axis" not in saturn["meta"]
+        assert saturn["text"] == "Луна к твоему Сатурну"
+
+    def test_moon_only_conjunction_and_opposition_to_axis(self):
+        """Луна к оси узлов — только соединение/оппозиция; у других планет все аспекты."""
+        from backend.feed.builder import _merge_node_axis
+        evs = [self._ev("North Node", a, peak=f"2026-10-{i + 10}", tp="Moon")
+               for i, a in enumerate(("conjunction", "opposition", "square", "trine", "sextile"))]
+        evs.append(self._ev("South Node", "square", peak="2026-10-12", tp="Moon"))
+        evs.append(self._ev("North Node", "square", tp="Mars"))
+        out = _merge_node_axis(evs)
+        assert [(e["meta"]["transit_planet"], e["meta"]["aspect_type"]) for e in out] == [
+            ("Moon", "conjunction"), ("Moon", "opposition"), ("Mars", "square")]
