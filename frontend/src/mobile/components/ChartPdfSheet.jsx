@@ -30,7 +30,7 @@ function dayWords(iso) {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
-export default function ChartPdfSheet({ chart, onClose }) {
+export default function ChartPdfSheet({ chart, wheelPng, onClose }) {
   const [reports, setReports] = useState([]);
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -81,7 +81,10 @@ export default function ChartPdfSheet({ chart, onClose }) {
     setBusy(true);
     setError('');
     try {
-      const r = await startPdf(chart.id);
+      // Снимок не вышел (колесо не на экране) — PDF всё равно собирается,
+      // с упрощённым колесом сервера.
+      const png = wheelPng ? await wheelPng().catch(() => null) : null;
+      const r = await startPdf(chart.id, png);
       if (r.status === 'ready') {
         await refresh();
       } else {

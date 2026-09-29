@@ -8,8 +8,12 @@ vi.mock('@capacitor/filesystem', () => ({
   Directory: { Cache: 'CACHE' },
   Filesystem: { writeFile: async () => ({ uri: 'file:///cache/pdf/a.pdf' }) },
 }));
+const posted = [];
 vi.mock('./authFetchTimeout', () => ({
-  authFetchWithTimeout: async () => new Response(new Blob(['%PDF']), { status: 200 }),
+  authFetchWithTimeout: async (url, init) => {
+    if (init?.method === 'POST') { posted.push(JSON.parse(init.body)); return new Response('{"status":"queued"}'); }
+    return new Response(new Blob(['%PDF']), { status: 200 });
+  },
   getWithRetry: vi.fn(),
 }));
 
@@ -18,7 +22,7 @@ vi.stubGlobal('FileReader', class {
   readAsDataURL() { this.result = 'data:application/pdf;base64,JVBERg=='; setTimeout(() => this.onload()); }
 });
 
-const { errorText, openPdf, pdfFileName, sharePdf } = await import('./pdfApi');
+const { errorText, openPdf, pdfFileName, sharePdf, startPdf } = await import('./pdfApi');
 
 afterEach(() => { share.mockReset(); openFile.mockReset(); });
 
@@ -61,5 +65,13 @@ describe('открыть и поделиться', () => {
   it('закрыть лист без выбора — не ошибка', async () => {
     share.mockRejectedValue(new Error('Share canceled'));
     expect(await sharePdf('r1', 'Анна')).toBe(true);
+  });
+});
+
+describe('сборка PDF', () => {
+  it('снимок колеса уходит на сервер; без него — null, сервер рисует своё', async () => {
+    await startPdf('c1', 'iVBOR');
+    await startPdf('c1');
+    expect(posted).toEqual([{ wheel_png: 'iVBOR' }, { wheel_png: null }]);
   });
 });

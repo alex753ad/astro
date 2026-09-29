@@ -22,6 +22,7 @@ import ChartCreateView from '../components/ChartCreateView';
 import ChartSheet from '../components/ChartSheet';
 import ChartShareSheet from '../components/ChartShareSheet';
 import ChartPdfSheet from '../components/ChartPdfSheet';
+import { captureChartPng } from '../../lib/wheelPng';
 import InterpretView from '../components/InterpretView';
 import HintButton from '../components/HintButton';
 import HintOverlay from '../components/HintOverlay';
@@ -115,6 +116,8 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   const [shareOpen, setShareOpen] = useState(false);
   // Лист «PDF-отчёты» (components/ChartPdfSheet.jsx).
   const [pdfOpen, setPdfOpen] = useState(false);
+  // Колесо на миг в светлой теме — снимок для PDF, как на сайте (lib/wheelPng.js).
+  const [wheelExport, setWheelExport] = useState(false);
 
   /**
    * Какую карту показывать, если это решил не сервер, а сам человек прямо
@@ -502,6 +505,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
               midheaven={chart.midheaven}
               timeUnknown={chart.time_unknown}
               dark={dark}
+              forExport={wheelExport}
               // Оба выключателя — со стороны колеса, разбор причин в шапке
               // NatalChart.jsx: тултипы спорят со шторкой, анимация крутится в
               // фоне на невидимой вкладке и оставляет пустой круг, если rAF
@@ -554,7 +558,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
         <ChartShareSheet chartId={chart.id} onClose={() => setShareOpen(false)} />
       )}
 
-      {pdfOpen && <ChartPdfSheet chart={chart} onClose={() => setPdfOpen(false)} />}
+      {pdfOpen && <ChartPdfSheet chart={chart} wheelPng={() => captureChartPng(setWheelExport)} onClose={() => setPdfOpen(false)} />}
     </div>
   );
 }

@@ -105,7 +105,7 @@ import astroSymbols2Src from '../assets/fonts/NotoSansSymbols2-subset.woff2?inli
 `@font-face` внутри собственного `<style>` SVG.
 
 Почему именно так, а не `@font-face` в `index.css`: `captureSvgPng` в
-`ChartPage.jsx` (PNG-экспорт для карточки/PDF) клонирует SVG и рендерит его
+`lib/wheelPng.js` (PNG-экспорт для карточки/PDF) клонирует SVG и рендерит его
 через `<img src="blob:...svg">` — в этом режиме браузер не подгружает
 внешние `@font-face` по `url()` (та же причина, по которой уже понадобился
 `resolveSvgVarColors` для CSS-переменных). `@font-face` с `data:` URI внутри
