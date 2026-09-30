@@ -16,9 +16,12 @@
  * его не вернёт, то есть один вопрос в неудачный момент закрывает канал
  * навсегда. Ровно по этой причине 10.09.2026 из ChartPage убрали
  * автоматический вызов `enablePush` через 5 секунд после открытия карты
- * (docs/HISTORY-push.md).
+ * (docs/HISTORY-push.md). С 30.09.2026 второе такое место — экран «Присылать
+ * прогноз каждое утро?» (PushNudge.jsx, решение владельца): вопрос там
+ * задаётся тоже по явному нажатию «Включить», а не сам.
  *
- * ⚠️ ЗДЕСЬ ЖЕ ВЫБИРАЕТСЯ КАНАЛ, и в этом весь дедуп между ними.
+ * ⚠️ ВЫБИРАЕТСЯ КАНАЛ в lib/deviceChannel.js (общем с тем экраном), и в этом
+ * весь дедуп между ними.
  *
  * Каналов два, и они решают одну задачу разными средствами:
  *   • серверный пуш (FCM) — будит устройство, но требует сервисов Google;
@@ -41,37 +44,16 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import MoreSwitch from './MoreSwitch';
+import { DEVICE_PUSH_SUPPORTED, currentDeviceToken, unregisterDevice } from '../lib/devicePush';
+import { cancelOwnedPlan } from '../lib/localNotifications';
+import { setLocalNotificationsEnabled } from '../lib/localNotificationsSync';
+// Выбор канала и флаг намерения — общие с экраном первого запуска
+// (PushNudge.jsx), поэтому вынесены в lib/deviceChannel.js.
 import {
-  DEVICE_PUSH_SUPPORTED,
-  currentDeviceToken,
-  registerDevice,
-  unregisterDevice,
-} from '../lib/devicePush';
-import { cancelOwnedPlan, permissionState } from '../lib/localNotifications';
-import { CHANNEL_DEVICE, CHANNEL_SERVER, decideChannel } from '../lib/channelChoice';
-import {
-  setLocalNotificationsEnabled,
-  syncLocalNotifications,
-} from '../lib/localNotificationsSync';
-
-/** Намерение человека — отдельно от системного разрешения и от наличия токена. */
-const ENABLED_KEY = 'aristea_device_push';
-
-export function devicePushEnabled() {
-  try {
-    return localStorage.getItem(ENABLED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function setEnabled(on) {
-  try {
-    localStorage.setItem(ENABLED_KEY, on ? '1' : '0');
-  } catch {
-    /* приватный режим webview — тумблер просто не запомнится */
-  }
-}
+  chooseChannel,
+  devicePushEnabled,
+  setDevicePushEnabled as setEnabled,
+} from '../lib/deviceChannel';
 
 const row = {
   width: '100%',
@@ -149,42 +131,6 @@ export default function MoreDeviceChannel() {
   // уведомления приходят иначе, чем обещано, а не гадать.
   const [channel, setChannel] = useState(null);
 
-  /**
-   * Включить канал: сначала серверный, при неудаче — локальный.
-   *
-   * ⚠️ Порядок обязателен и не взаимозаменяем. Серверный будит устройство,
-   * локальный нет; выбрать локальный там, где работает серверный, значит
-   * сознательно отдать человеку худший канал. Поэтому локальный включается
-   * ТОЛЬКО как ответ на неудачу регистрации.
-   */
-  const chooseChannel = useCallback(async () => {
-    const token = await registerDevice();
-    // ⚠️ Решение — в `channelChoice.js`, отдельной чистой функцией, и это не
-    // церемония: инвариант «активен ровно один канал» внутри обработчика
-    // нечем закрепить, кроме рендера, а цена его нарушения — дубли в шторке.
-    // Здесь остаются только последствия решения.
-    const chosen = decideChannel(token, await permissionState());
-
-    if (chosen === CHANNEL_SERVER) {
-      // Серверный канал работает. Локальные обязаны замолчать — иначе одно и
-      // то же событие придёт дважды: пушем и своим уведомлением.
-      setLocalNotificationsEnabled(false);
-      await cancelOwnedPlan();
-      return chosen;
-    }
-
-    if (chosen === CHANNEL_DEVICE) {
-      // ⚠️ Сюда приходит устройство БЕЗ сервисов Google: у него регистрация не
-      // удастся никогда, и локальные уведомления — единственное, что у него
-      // вообще может работать. Разрешение уже выдано (его спрашивает
-      // registerDevice до обращения к серверу), второй раз не спрашиваем.
-      setLocalNotificationsEnabled(true);
-      await syncLocalNotifications();
-      return chosen;
-    }
-    return null;
-  }, []);
-
   // Токен мог протухнуть или быть отозван, пока приложение не работало.
   // Перерегистрация при открытии экрана — самый дешёвый момент это заметить,
   // и заодно момент, когда канал может смениться в обе стороны.
@@ -198,7 +144,7 @@ export default function MoreDeviceChannel() {
       return;
     }
     setChannel(chosen);
-  }, [chooseChannel]);
+  }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
 
