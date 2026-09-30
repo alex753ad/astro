@@ -877,3 +877,17 @@ class Announcement(Base):
     link = Column(String(200), nullable=True)
     ends_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utcnow)
+
+
+class FeatureFlag(Base):
+    """Флаг функции (069). Читается только через backend/flags.py.
+
+    Нет строки — флаг выключен. user_ids — список users.id для mode="users";
+    в админке вводятся почты, в id их переводит ручка записи.
+    """
+    __tablename__ = "feature_flags"
+
+    key = Column(String(64), primary_key=True)
+    mode = Column(String(8), nullable=False, default="off", server_default="off")
+    user_ids = Column(JSON, nullable=False, default=list)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)

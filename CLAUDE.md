@@ -21,7 +21,7 @@
 9. **Режим до публикации** (30.09.2026). Новые функции — только за флагом,
    выключенным на проде до моего слова. Одно задание — одна правка, без
    «по ходу пришлось поменять». Крупное — сначала отчёт и план. Исправления
-   ошибок — без флага.
+   ошибок — без флага. Как — [docs/flags.md](docs/flags.md).
 
 Открытые задачи — [TASKS.md](TASKS.md). История решений — [docs/decisions.md](docs/decisions.md).
 
@@ -168,6 +168,7 @@ JSON и JS/JSX без комментариев на «вы/ваш», «-йте»
 | [backend/CLAUDE.md](backend/CLAUDE.md) | Любая правка в `backend/`: HEAD у публичных ручек, Swiss Ephemeris в async, пароли, координаты в `calculate`, гость и привязка карты |
 | [frontend/CLAUDE.md](frontend/CLAUDE.md) | Правка фронтенда: пути к бэкенду мимо `client.js`, Framer Motion и тени |
 | [frontend/src/mobile/CLAUDE.md](frontend/src/mobile/CLAUDE.md) | Правка приложения: плагины Capacitor, значки, палитра, сборка мобильного бандла, приёмка на боевом API |
+| [docs/flags.md](docs/flags.md) | Любая новая функция (п.9): флаг, имя, где включается, обязательный тест |
 | [docs/tariffs.md](docs/tariffs.md) | Тарифные гейты, лимиты, приписки «на Веге…», квоты |
 | [docs/payments.md](docs/payments.md) | Оплата, цены, сверка, чеки, прод-гварды ЮKassa, промокоды, оферта и политика |
 | [docs/forecasts.md](docs/forecasts.md) | Модели и промпты: интерпретация, прогнозы на день и фазу, календарь |
