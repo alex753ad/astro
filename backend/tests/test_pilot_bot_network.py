@@ -5,6 +5,7 @@ import asyncio
 import importlib
 import socket
 import sys
+from pathlib import Path
 
 import aiohttp
 import pytest
@@ -15,6 +16,8 @@ from aiogram.methods import GetMe
 @pytest.fixture
 def pilot_bot(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456:TEST-token")
+    # CI запускает pytest из backend/ — пакет `bot` лежит в корне репозитория.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     sys.modules.pop("bot.pilot_bot", None)
     mod = importlib.import_module("bot.pilot_bot")
     sleeps = []
