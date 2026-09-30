@@ -76,7 +76,7 @@ from backend.calendar.lunar_engine import get_monthly_calendar
 from backend.auth.router import router as auth_router
 from backend.profile.router import router as profile_router
 from backend.profile.settings_router import router as settings_router
-from backend.profile.digest_unsubscribe import router as digest_unsubscribe_router
+from backend.profile.email_unsubscribe import router as email_unsubscribe_router
 from backend.onboarding_router import router as onboarding_router
 from backend.push.router import router as push_router
 from backend.push.cron import router as push_cron_router
@@ -391,7 +391,7 @@ if settings.allowed_hosts_list != ["*"]:
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(settings_router)
-app.include_router(digest_unsubscribe_router)
+app.include_router(email_unsubscribe_router)
 app.include_router(onboarding_router)
 app.include_router(push_router)
 app.include_router(push_cron_router)
@@ -803,12 +803,15 @@ async def _build_chart(request: Request, data: BirthDataInput, db: Session,
             NatalChart.user_id == user.id,
             NatalChart.id != chart_record.id,
         ).count()
-        if prev_charts == 0:
+        from backend.profile.email_unsubscribe import unsubscribe_url
+        unsub_url = unsubscribe_url(user)
+        if prev_charts == 0 and unsub_url:
             from backend.email_service import send_welcome_email
             try:
                 await send_welcome_email(
                     to=user.email,
                     planets=[p.model_dump() for p in planets_resp],
+                    unsubscribe_url=unsub_url,
                 )
             except Exception as e:
                 logger.warning("Welcome email failed: %s", e)

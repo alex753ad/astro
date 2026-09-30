@@ -192,6 +192,19 @@ export default function MoreNotificationsView() {
     }
   };
 
+  // Информационные письма (068) — тоже поле /push/settings, но к плану
+  // уведомлений на устройстве отношения не имеют: пересборка не нужна.
+  const setEmails = async () => {
+    const prev = settings;
+    const on = settings.emails === false;
+    setSettings({ ...settings, emails: on });
+    try {
+      await updatePushSettings({ emails: on });
+    } catch {
+      setSettings(prev);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
       {/* Диагностика «включи уведомления» — только после нажатия на версию в
@@ -229,6 +242,15 @@ export default function MoreNotificationsView() {
         Уведомления приходят начиная с {settings.daily_time || '08:00'} и не позже{' '}
         {settings.quiet_from || '22:00'}
       </p>
+      {/* Сюда человек возвращается после отписки по ссылке из письма. */}
+      <div style={{ marginTop: 8 }}>
+        <ToggleRow
+          label="Письма от Aristea"
+          hint="Подборки транзитов, прогнозы и советы. Коды входа и письма об оплате приходят всегда."
+          on={settings.emails !== false}
+          onToggle={setEmails}
+        />
+      </div>
       {/* Строка «Настройки общие с сайтом — уведомления приходят туда» стояла
           здесь с 10.09.2026 как честная подпись к тумблерам, которые на
           устройстве ничего не включали. Теперь включают: тумблер выше

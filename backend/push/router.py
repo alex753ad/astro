@@ -7,7 +7,7 @@ Endpoints:
   POST  /api/v1/push/device             — зарегистрировать токен FCM (auth)
   DELETE /api/v1/push/device            — забыть токен FCM (auth)
   GET   /api/v1/push/settings           — настройки уведомлений (auth)
-  PATCH /api/v1/push/settings           — обновить настройки (auth)
+  PATCH /api/v1/push/settings           — обновить настройки (auth); emails — информационные письма
   GET   /api/v1/push/upcoming           — будущие события с готовым текстом (auth)
   POST  /api/v1/push/test               — тестовый пуш себе (auth)
 
@@ -70,6 +70,10 @@ class PushSettings(BaseModel):
     planner: bool
     key_transits: bool
     moon_phases: bool
+    # Информационные письма (068): True — приходят. Живёт здесь, потому что
+    # экраны уведомлений веба и приложения уже читают эти настройки; отписка
+    # по ссылке из письма ставит False, тумблер возвращает.
+    emails: bool = True
     timezone: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -82,6 +86,7 @@ class PushSettingsPatch(BaseModel):
     planner: Optional[bool] = None
     key_transits: Optional[bool] = None
     moon_phases: Optional[bool] = None
+    emails: Optional[bool] = None
     # Пояс устройства (IANA). Шлёт клиент сам, не человек.
     timezone: Optional[str] = None
 
@@ -94,6 +99,7 @@ def _settings_of(user: User) -> PushSettings:
         planner=bool(getattr(user, "push_planner", True)),
         key_transits=bool(getattr(user, "push_key_transits", True)),
         moon_phases=bool(getattr(user, "push_moon_phases", True)),
+        emails=not user.email_opt_out,
         timezone=getattr(user, "device_timezone", None),
     )
 
@@ -251,6 +257,8 @@ async def update_settings(
         user.push_key_transits = payload.key_transits
     if payload.moon_phases is not None:
         user.push_moon_phases = payload.moon_phases
+    if payload.emails is not None:
+        user.email_opt_out = not payload.emails
     if payload.timezone is not None:
         tz = valid_timezone(payload.timezone)
         if tz is None:

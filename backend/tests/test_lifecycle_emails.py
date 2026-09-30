@@ -29,7 +29,7 @@ def sent(monkeypatch):
     """Все письма вместо Resend — в список (адрес, тема)."""
     out: list[tuple[str, str]] = []
 
-    async def fake_send(to, subject, html):
+    async def fake_send(to, subject, html, **kw):
         out.append((to, subject))
         return True
 
@@ -184,7 +184,7 @@ def test_welcome_not_for_renewal(db, sent):
 def test_failed_send_leaves_no_row_and_is_retried(db, monkeypatch):
     calls = []
 
-    async def failing(to, subject, html):
+    async def failing(to, subject, html, **kw):
         calls.append(to)
         return False
 
@@ -193,7 +193,7 @@ def test_failed_send_leaves_no_row_and_is_retried(db, monkeypatch):
     le.run_lifecycle_emails(db)
     assert _kinds(db, u) == []
 
-    async def ok(to, subject, html):
+    async def ok(to, subject, html, **kw):
         calls.append(to)
         return True
 

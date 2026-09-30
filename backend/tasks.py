@@ -167,6 +167,7 @@ def check_lunar_returns() -> dict:
     from backend.models import User, NatalChart
     from backend.transit.engine import get_next_lunar_return
     from backend.email_service import send_lunar_return_email
+    from backend.profile.email_unsubscribe import unsubscribe_url
 
     db = SessionLocal()
     sent = 0
@@ -181,9 +182,10 @@ def check_lunar_returns() -> dict:
             try:
                 natal_data = {"planets": chart.planets}
                 lunar_date = get_next_lunar_return(natal_data, today)
-                if lunar_date == today:
+                unsub_url = unsubscribe_url(user)
+                if lunar_date == today and unsub_url:
                     asyncio.run(
-                        send_lunar_return_email(user, today)
+                        send_lunar_return_email(user, today, unsubscribe_url=unsub_url)
                     )
                     sent += 1
             except Exception as e:
@@ -212,7 +214,7 @@ def send_weekly_digest_task() -> dict:
             User.tier.in_(["pro", "premium"]),
             User.digest_day_of_week == today_weekday,
             User.is_active == True,
-            User.digest_opt_out == False,  # noqa: E712 — отписка из письма (063)
+            User.email_opt_out == False,  # noqa: E712 — отписка от писем (068)
         ).all()
         for user in users:
             try:
@@ -444,6 +446,7 @@ def send_claim_welcome_task(user_id: str, chart_id: str) -> bool:
     from backend.email_service import send_welcome_email
     from backend.lifecycle_emails import send_once
     from backend.models import NatalChart, User
+    from backend.profile.email_unsubscribe import unsubscribe_url
 
     db = SessionLocal()
     try:
@@ -453,9 +456,13 @@ def send_claim_welcome_task(user_id: str, chart_id: str) -> bool:
             return False
         if db.query(NatalChart).filter(NatalChart.user_id == user_id).count() != 1:
             return False
+        unsub_url = unsubscribe_url(user)
+        if not unsub_url:
+            return False  # отписка от писем (068)
         planets = chart.planets or []
         return send_once(db, user_id, WELCOME_CLAIM_KIND, "",
-                         lambda: send_welcome_email(to=user.email, planets=planets))
+                         lambda: send_welcome_email(to=user.email, planets=planets,
+                                                    unsubscribe_url=unsub_url))
     finally:
         db.close()
 

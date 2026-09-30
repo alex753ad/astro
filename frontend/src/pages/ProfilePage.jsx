@@ -983,7 +983,7 @@ function TabNotifications({ authFetch }) {
       .then(setSettings)
       .catch(() => setSettings({
         daily_forecast: true, daily_time: '08:00', quiet_from: '22:00',
-        planner: true, key_transits: true, moon_phases: true,
+        planner: true, key_transits: true, moon_phases: true, emails: true,
       }));
   }, [authFetch]);
 
@@ -1045,6 +1045,7 @@ function TabNotifications({ authFetch }) {
   ];
 
   return (
+    <>
     <div style={S.card}>
       <p style={S.cardTitle}>Push-уведомления</p>
       {!pushSupported() && (
@@ -1123,6 +1124,21 @@ function TabNotifications({ authFetch }) {
         {msg && <span style={S.muted}>{msg}</span>}
       </div>
     </div>
+
+    {/* Информационные письма (068). Через patch, а не toggle: toggle
+        включает push в браузере, к почте это отношения не имеет. Сюда
+        человек возвращается после отписки по ссылке из письма. */}
+    <div style={S.card}>
+      <p style={S.cardTitle}>Письма</p>
+      <div style={S.row}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>Письма от Aristea</div>
+          <div style={S.muted}>Подборки транзитов, прогнозы и советы. Коды входа и письма об оплате приходят всегда.</div>
+        </div>
+        <Toggle checked={settings.emails !== false} onChange={() => patch({ emails: settings.emails === false })} />
+      </div>
+    </div>
+    </>
   );
 }
 
