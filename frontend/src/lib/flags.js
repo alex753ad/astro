@@ -1,7 +1,7 @@
 /**
  * flags.js — флаги функций для сайта и приложения (backend/flags.py, docs/flags.md).
  *
- *   const on = useFlag('feed_week_view');   // false, пока сервер не сказал иное
+ *   const on = useFlag('test_flag');   // false, пока сервер не сказал иное
  *
  * Флаги берутся с сервера (GET /flags), а не из сборки: владелец включает
  * функцию в админке без деплоя и без нового APK.
