@@ -23,6 +23,7 @@ import { errorText, isConnectivity } from '../lib/netError';
 import SupportLink from './SupportLink';
 import useReconnect from '../lib/useReconnect';
 import ForecastRating from './ForecastRating';
+import { markForecastSeen } from '../lib/pushNudge';
 
 /** label — «сегодня» | «завтра». */
 export default function FeedDayForecastCard({ chartId, date, label, open, onToggle }) {
@@ -57,6 +58,8 @@ export default function FeedDayForecastCard({ chartId, date, label, open, onTogg
   }, [chartId, date]);
 
   useEffect(() => { load(); }, [load]);
+  // Первый показанный прогноз — повод спросить про уведомления (PushNudge.jsx).
+  useEffect(() => { if (state.status === 'ready') markForecastSeen(); }, [state.status]);
   useReconnect(state.status === 'error' && isConnectivity(state.error), () => load({ background: true }));
 
   const paragraphs = state.data?.paragraphs || [];

@@ -82,6 +82,7 @@ import useAuth from '../../hooks/useAuth.jsx';
 import { serverNow } from '../../lib/serverClock';
 import { isGuest } from '../lib/guestChart';
 import GuestSaveNote from '../components/GuestSaveNote';
+import PushNudge from '../components/PushNudge';
 import { openPaySheet } from '../lib/paySheetBus';
 import { featureOfEvent, onAfterPay } from '../lib/afterPay';
 import { offerFor } from '../../lib/offerRule';
@@ -703,6 +704,8 @@ export default function FeedScreen({
       <PullIndicator state={pull.state} ready={pull.ready} innerRef={pull.indicatorRef} />
       <OfflineNote savedAt={stale?.at} kind={stale?.kind} />
       {guest && <GuestSaveNote />}
+      {/* Экран и карточка «включи уведомления» — только зарегистрированным. */}
+      {!guest && <PushNudge />}
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}
