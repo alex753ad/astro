@@ -24,8 +24,14 @@ import asyncio
 import logging
 import os
 
+import socket
+
+import aiohttp
 import httpx
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.session.middlewares.base import BaseRequestMiddleware
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.filters import CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -41,7 +47,46 @@ CHANNEL_NAMES = [c.strip() for c in os.getenv("CHANNEL_NAMES", "").split(",") if
 
 _OK_STATUSES = {"member", "administrator", "creator"}
 
-bot = Bot(BOT_TOKEN)
+# Паузы перед повторами — как у сигналов (backend/notifications/telegram.py).
+# Повтор только когда соединение не установилось: запрос до Telegram не
+# дошёл, дубля ответа не будет. Таймаут чтения не повторяется.
+_RETRY_PAUSES = (5, 30)
+_CONNECT_ERRORS = (aiohttp.ClientConnectorError, aiohttp.ConnectionTimeoutError)
+
+
+class _RetryOnConnect(BaseRequestMiddleware):
+    async def __call__(self, make_request, bot, method):
+        for attempt, pause in enumerate((*_RETRY_PAUSES, None), 1):
+            try:
+                return await make_request(bot, method)
+            except TelegramNetworkError as e:
+                # aiogram заворачивает ошибки aiohttp в TelegramNetworkError;
+                # что именно случилось — только в __cause__.
+                if pause is None or not isinstance(e.__cause__, _CONNECT_ERRORS):
+                    raise
+                logger.warning("Telegram %s: нет соединения (%s), попытка %d, повтор через %d с",
+                               type(method).__name__, type(e.__cause__).__name__, attempt, pause)
+                await asyncio.sleep(pause)
+
+
+def _session() -> AiohttpSession:
+    """Сессия aiogram — только по IPv6.
+
+    ⚠️ С сервера api.telegram.org закрыт по IPv4 (30.09.2026,
+    scripts/check_telegram.sh) — та же причина, что у сигналов в
+    backend/notifications/telegram.py. У aiogram свой клиент (aiohttp), и
+    правка там его не касается. family=AF_INET6 — aiohttp берёт из DNS только
+    AAAA. `_connector_init` — не публичный API aiogram (проверено на 3.30):
+    при обновлении aiogram убедиться, что словарь ещё передаётся в
+    TCPConnector. Откроют IPv4 — строку можно убрать.
+    """
+    session = AiohttpSession()
+    session._connector_init["family"] = socket.AF_INET6
+    session.middleware(_RetryOnConnect())
+    return session
+
+
+bot = Bot(BOT_TOKEN, session=_session())
 dp = Dispatcher()
 
 
