@@ -28,6 +28,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from backend.activity import mark_active
 from backend.admin.online import mark_online
 from backend.auth.jwt import decode_token, TokenData
 from backend.auth.sse_tickets import redeem as redeem_sse_ticket
@@ -55,6 +56,7 @@ def is_session_revoked(user: User, token_data: TokenData) -> bool:
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -102,6 +104,7 @@ async def get_current_user(
             detail="User account is deactivated",
         )
     await mark_online(user.id)
+    await mark_active(request, db, user)
     return user
 
 
@@ -157,7 +160,7 @@ async def get_current_user_optional(
 
     # Дальше — та же проверка, что и в get_current_user: предъявленный токен
     # либо принимается, либо отклоняется явной ошибкой.
-    return await get_current_user(credentials=credentials, db=db)
+    return await get_current_user(request=request, credentials=credentials, db=db)
 
 
 TIER_HIERARCHY = ["free", "lite", "pro", "premium"]

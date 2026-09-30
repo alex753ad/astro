@@ -173,6 +173,7 @@ JSON и JS/JSX без комментариев на «вы/ваш», «-йте»
 | [docs/payments.md](docs/payments.md) | Оплата, цены, сверка, чеки, прод-гварды ЮKassa, промокоды, оферта и политика |
 | [docs/forecasts.md](docs/forecasts.md) | Модели и промпты: интерпретация, прогнозы на день и фазу, календарь |
 | [docs/selfcheck.md](docs/selfcheck.md) | Самопроверка, сигналы в канал, Sentry |
+| [docs/retention.md](docs/retention.md) | Удержание D1/D7/D30: что считается возвратом, запись активных дней, сводка |
 | [docs/notifications.md](docs/notifications.md) | Пуши (FCM, локальные), окно отправки, письма онбординга и дайджест |
 | [docs/support.md](docs/support.md) | Обращения в поддержку, канал Telegram |
 | [docs/feed.md](docs/feed.md) | Лента и планер: окна, проходы Луны, время и пояса |

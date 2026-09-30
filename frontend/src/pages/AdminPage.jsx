@@ -661,6 +661,91 @@ function TabPromos({ d, authFetch, onReload }) {
   );
 }
 
+// ─── Удержание D1/D7/D30 (metrics.compute_retention_weekly) ────────────────────
+
+const RET_WINDOWS = [["d1", "D1"], ["d7", "D7"], ["d30", "D30"]];
+const retDay = (iso) => new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+
+function RetCell({ w }) {
+  if (!w || w.pct === null) return <td className="py-1.5 px-2 text-center text-gray-300">—</td>;
+  return (
+    <td className="py-1.5 px-2 text-center">
+      <div className="text-gray-900">{w.pct}%</div>
+      <div className="text-[10px] text-gray-400">{w.retained}/{w.eligible} · прил. {w.app} · сайт {w.web}</div>
+    </td>
+  );
+}
+
+function RetentionBlock({ authFetch }) {
+  const [filters, setFilters] = useState({ platform: "", tier: "", flag: "" });
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
+    setData(null);
+    authFetch(`/api/v1/admin/retention${qs ? `?${qs}` : ""}`).then(setData).catch(() => setData({ groups: [], flags: [] }));
+  }, [authFetch, filters]);
+
+  const select = (key, options) => (
+    <select value={filters[key]} onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
+      className="text-[12px] border border-gray-200 rounded-lg px-2 py-1">
+      {options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+    </select>
+  );
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <div className="text-[13px] font-medium text-gray-500 mb-1">Удержание по неделям регистрации</div>
+      <div className="text-[11px] text-gray-400 mb-3">
+        Вернулся: D1 — на следующий день, D7 — хоть раз в дни 7–13, D30 — в дни 30–36 (по Москве).
+        {data?.since && <> Считаем с {retDay(data.since)}: раньше активность не записывалась.</>}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {select("platform", [["", "Приложение и сайт"], ["app", "Приложение"], ["web", "Сайт"]])}
+        {select("tier", [["", "Все тарифы"], ...Object.entries(TIER_NAMES)])}
+        {select("flag", [["", "Без разбивки по флагу"], ...(data?.flags || []).map((f) => [f, f])])}
+      </div>
+      {!data ? (
+        <div className="text-[13px] text-gray-400">Загрузка…</div>
+      ) : !data.groups.length ? (
+        <div className="text-[13px] text-gray-400">Данных пока нет</div>
+      ) : data.groups.map((g) => (
+        <div key={g.label} className="mb-4 overflow-x-auto">
+          {data.groups.length > 1 && <div className="text-[12px] font-medium text-gray-600 mb-1">{g.label}</div>}
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="text-gray-400">
+                <th className="py-1.5 px-2 text-left font-normal">Неделя</th>
+                <th className="py-1.5 px-2 text-center font-normal">Людей</th>
+                {RET_WINDOWS.map(([k, l]) => <th key={k} className="py-1.5 px-2 text-center font-normal">{l}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-t border-gray-100 font-medium">
+                <td className="py-1.5 px-2">Всего</td>
+                <td className="py-1.5 px-2 text-center">{g.total.users}</td>
+                {RET_WINDOWS.map(([k]) => <RetCell key={k} w={g.total[k]} />)}
+              </tr>
+              {g.weeks.map((w) => (
+                <tr key={w.week} className="border-t border-gray-100">
+                  <td className="py-1.5 px-2">с {retDay(w.week)}</td>
+                  <td className="py-1.5 px-2 text-center">{w.users}</td>
+                  {RET_WINDOWS.map(([k]) => <RetCell key={k} w={w[k]} />)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      <div className="text-[11px] text-gray-400">
+        Платформа — где человек был в первый день. Тариф — текущий, а не на день регистрации:
+        платят как раз оставшиеся, поэтому у платных удержание выглядит выше.
+        Флаг — был ли включён у человека в день регистрации или на следующий.
+      </div>
+    </div>
+  );
+}
+
 // ─── Вкладка Пилот (E8–E11) ─────────────────────────────────────────────────────
 
 function TabPilot({ authFetch }) {
@@ -689,14 +774,10 @@ function TabPilot({ authFetch }) {
 
   if (loading) return <div className="text-[13px] text-gray-400 py-8">Загрузка…</div>;
 
-  const ret = stats?.retention || {};
   const fun = stats?.funnel_v2 || {};
   const promo = stats?.promo || {};
   const astro = stats?.astrologer || {};
 
-  const retDays = [
-    ["D1", ret.d1], ["D3", ret.d3], ["D7", ret.d7], ["D14", ret.d14], ["D30", ret.d30],
-  ];
   const funSteps = [
     { label: "Регистрация", val: fun.registered },
     { label: "Построил карту", val: fun.chart_created },
@@ -719,19 +800,7 @@ function TabPilot({ authFetch }) {
         <MetricCard label="Причин ухода собрано" value={fmt(exit?.total || 0)} />
       </div>
 
-      {/* Retention */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <div className="text-[13px] font-medium text-gray-500 mb-4">Retention (вернулись в Timeline)</div>
-        <div className="grid grid-cols-5 gap-3">
-          {retDays.map(([label, d]) => (
-            <div key={label} className="text-center">
-              <div className="text-[22px] font-medium text-gray-900">{d?.pct ?? 0}%</div>
-              <div className="text-[11px] text-gray-400">{label}</div>
-              <div className="text-[10px] text-gray-300">{d?.retained ?? 0}/{d?.eligible ?? 0}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <RetentionBlock authFetch={authFetch} />
 
       {/* Воронка */}
       <div className="bg-white rounded-xl border border-gray-100 p-5">

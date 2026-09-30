@@ -1,7 +1,7 @@
 """backend/metrics.py — E11 трекинг пилота.
 
 Лёгкий журнал событий (таблица `events`) + расчёт метрик из стратегии §12:
-  Группа 1 — привычка: D1/D3/D7/D14/D30 retention по пилот-когорте.
+  Группа 1 — привычка: удержание D1/D7/D30 по неделям регистрации.
   Группа 2 — воронка: register → chart → first_interpretation → second_visit.
   Группа 3 — астролог: ≥5 клиентов, консультация через бриф, заход по алерту.
   Группа 4 — остаться самим: активация промокода (+ exit-причины из E10).
@@ -14,6 +14,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("astro.metrics")
@@ -135,69 +136,156 @@ def log_event_once(
 # РАСЧЁТ МЕТРИК (для admin/stats_router)
 # ══════════════════════════════════════════════════════════════════
 
-RETENTION_DAYS = (1, 3, 7, 14, 30)
+# Правило «человек вернулся» — решение владельца 30.09.2026:
+#   активный день — любой авторизованный запрос, кроме фоновых
+#   (backend/activity.py); дни календарные по Москве; день регистрации — 0;
+#   D1 — был в день 1, D7 — хоть раз в дни 7–13, D30 — хоть раз в дни 30–36.
+# Окно в неделю, а не строго день N: при наших объёмах строгий день — шум.
+RETENTION_WINDOWS = {"d1": (1, 1), "d7": (7, 13), "d30": (30, 36)}
 
 
-def _cohort_start(user) -> Optional[date]:
-    """Начало отсчёта для retention: пилот, иначе регистрация."""
-    base = getattr(user, "pilot_started_at", None) or getattr(user, "created_at", None)
-    if base is None:
-        return None
-    return base.date() if isinstance(base, datetime) else base
+def _msk_date(dt: datetime) -> date:
+    from datetime import timezone
+    from backend.activity import MSK
+    return dt.replace(tzinfo=timezone.utc).astimezone(MSK).date()
 
 
-def compute_retention(db: Session) -> dict:
-    """D1–D30 retention по пилот-когорте.
-
-    Пользователь «удержан на DN», если у него есть timeline_open в календарный
-    день (cohort_start + N). Знаменатель DN — те, для кого этот день уже наступил
-    (иначе метрика недосчитана). Возвращает по каждому DN: retained/eligible/pct.
-    """
-    from backend.models import User, Event
-
-    today = date.today()
-
-    # берём пилот-когорту, если она есть; иначе всех пользователей
-    users = db.query(User).filter(User.pilot_started_at.isnot(None)).all()
-    if not users:
-        users = db.query(User).all()
-
-    starts: dict[str, date] = {}
-    for u in users:
-        s = _cohort_start(u)
-        if s is not None:
-            starts[u.id] = s
-
-    if not starts:
-        return {f"d{n}": {"retained": 0, "eligible": 0, "pct": 0} for n in RETENTION_DAYS}
-
-    # все timeline_open этих пользователей, сгруппированные по (user, дата)
-    rows = (
-        db.query(Event.user_id, Event.ts)
-        .filter(Event.name == EventName.TIMELINE_OPEN)
-        .filter(Event.user_id.in_(list(starts.keys())))
-        .all()
-    )
-    open_days: dict[str, set] = {}
-    for uid, ts in rows:
-        if ts is None:
-            continue
-        open_days.setdefault(uid, set()).add(ts.date())
-
-    out: dict[str, dict] = {}
-    for n in RETENTION_DAYS:
-        retained = 0
-        eligible = 0
-        for uid, start in starts.items():
-            target = start + timedelta(days=n)
-            if target > today:
-                continue  # день ещё не наступил — не учитываем в знаменателе
-            eligible += 1
-            if target in open_days.get(uid, ()):
+def _window_summary(members: list[dict], today: date) -> dict:
+    out: dict = {"users": len(members)}
+    for name, (lo, hi) in RETENTION_WINDOWS.items():
+        # В знаменателе — только те, чьё окно уже закончилось (сегодняшний
+        # день не закончен). Иначе свежие недели тянут процент вниз.
+        eligible = [m for m in members if m["d0"] + timedelta(days=hi) < today]
+        retained = app = web = 0
+        for m in eligible:
+            plats: set = set()
+            for k in range(lo, hi + 1):
+                plats |= m["act"].get(m["d0"] + timedelta(days=k), set())
+            if plats:
                 retained += 1
-        pct = round(retained / eligible * 100) if eligible else 0
-        out[f"d{n}"] = {"retained": retained, "eligible": eligible, "pct": pct}
+                app += "app" in plats
+                web += "web" in plats
+        out[name] = {
+            "retained": retained,
+            "eligible": len(eligible),
+            "pct": round(retained / len(eligible) * 100) if eligible else None,
+            "app": app,
+            "web": web,
+        }
     return out
+
+
+def _weeks(members: list[dict], today: date) -> list[dict]:
+    by_week: dict[date, list] = {}
+    for m in members:
+        by_week.setdefault(m["d0"] - timedelta(days=m["d0"].weekday()), []).append(m)
+    return [
+        {"week": wk.isoformat(), **_window_summary(by_week[wk], today)}
+        for wk in sorted(by_week, reverse=True)
+    ]
+
+
+def compute_retention_weekly(
+    db: Session,
+    *,
+    platform: Optional[str] = None,
+    tier: Optional[str] = None,
+    flag: Optional[str] = None,
+    today: Optional[date] = None,
+) -> dict:
+    """Удержание D1/D7/D30 по неделям регистрации (таблица user_activity_days).
+
+    ⚠️ Когорта — только зарегистрированные с первого записанного дня
+    (`since`). Задним числом активность не восстанавливалась (решение
+    владельца), и старые пользователи выглядели бы ушедшими.
+
+    platform — где человек был в первый активный день («app» | «web»; в тот
+    же день и там, и там — «app»). tier — ТЕКУЩИЙ тариф, а не на день
+    регистрации (решение владельца, в админке сноска): платят как раз
+    оставшиеся, поэтому у платных удержание выглядит выше. flag — делит
+    когорту на тех, у кого флаг был включён в день 0 или 1, и остальных.
+    Не считаются администраторы и revenue_excluded (тестовые аккаунты).
+    """
+    from backend.activity import msk_today
+    from backend.models import User, UserActivityDay
+
+    today = today or msk_today()
+    since = db.query(func.min(UserActivityDay.day)).scalar()
+    if since is None:
+        return {"since": None, "groups": []}
+
+    act: dict[str, dict[date, set]] = {}
+    day_flags: dict[tuple[str, date], set] = {}
+    for uid, day, plat, flags in db.query(
+        UserActivityDay.user_id, UserActivityDay.day,
+        UserActivityDay.platform, UserActivityDay.flags,
+    ):
+        act.setdefault(uid, {}).setdefault(day, set()).add(plat)
+        day_flags.setdefault((uid, day), set()).update(flags or [])
+
+    q = db.query(User.id, User.created_at).filter(
+        User.is_admin.is_(False),
+        User.revenue_excluded.is_(False),
+        User.created_at.isnot(None),
+    )
+    if tier:
+        q = q.filter(User.tier == tier)
+
+    members = []
+    for uid, created in q:
+        d0 = _msk_date(created)
+        if d0 < since:
+            continue
+        a = act.get(uid, {})
+        if platform:
+            first = min(a) if a else None
+            if first is None or ("app" if "app" in a[first] else "web") != platform:
+                continue
+        had_flag = bool(flag) and any(
+            flag in day_flags.get((uid, d0 + timedelta(days=k)), ()) for k in (0, 1)
+        )
+        members.append({"d0": d0, "act": a, "flag": had_flag})
+
+    if flag:
+        parts = [(f"С флагом {flag}", [m for m in members if m["flag"]]),
+                 ("Без флага", [m for m in members if not m["flag"]])]
+    else:
+        parts = [("Все", members)]
+    return {
+        "since": since.isoformat(),
+        "groups": [
+            {"label": label, "total": _window_summary(ms, today), "weeks": _weeks(ms, today)}
+            for label, ms in parts
+        ],
+    }
+
+
+def _fmt_window(w: dict) -> str:
+    return "—" if w["pct"] is None else f"{w['pct']}% ({w['retained']}/{w['eligible']})"
+
+
+def retention_summary_text(db: Session, today: Optional[date] = None, weeks: int = 8) -> str:
+    """Понедельная сводка в Telegram (tasks.retention_weekly)."""
+    head = "📊 Удержание — сводка за неделю"
+    rule = "Вернулся: D1 — на следующий день, D7 — в дни 7–13, D30 — в дни 30–36."
+    all_ = compute_retention_weekly(db, today=today)
+    if not all_["groups"]:
+        return f"{head}\nДанных пока нет."
+    g = all_["groups"][0]
+    lines = [head, rule, f"Считаем с {all_['since']}.", "",
+             "Неделя регистрации: людей · D1 · D7 · D30"]
+    for w in g["weeks"][:weeks]:
+        lines.append(f"{w['week']}: {w['users']} · " + " · ".join(
+            _fmt_window(w[k]) for k in RETENTION_WINDOWS))
+    lines.append("")
+    for label, plat in (("Всего", None), ("Приложение", "app"), ("Сайт", "web")):
+        t = (g if plat is None else
+             compute_retention_weekly(db, platform=plat, today=today)["groups"][0])["total"]
+        lines.append(f"{label}: {t['users']} · " + " · ".join(
+            f"{k.upper()} {_fmt_window(t[k])}" for k in RETENTION_WINDOWS))
+    lines.append("")
+    lines.append("Разбивка по тарифу и флагам — /admin → «Пилот».")
+    return "\n".join(lines)
 
 
 def compute_funnel(db: Session) -> dict:

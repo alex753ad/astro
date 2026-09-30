@@ -1,7 +1,7 @@
 # backend/admin/stats_router.py
 from datetime import timedelta
 from backend.time_utils import utcnow
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -9,9 +9,29 @@ from backend.database import get_db
 from backend.models import User, NatalChart, Interpretation, Subscription, CouponSent, GiftCode
 from backend.admin.admin_router import require_admin
 from backend.admin.online import count_online
-from backend.metrics import (compute_retention, compute_funnel, compute_astrologer_metrics, compute_promo_activation)
+from backend.metrics import (compute_retention_weekly, compute_funnel, compute_astrologer_metrics, compute_promo_activation)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+
+@router.get("/retention")
+def get_retention(
+    platform: str | None = None,
+    tier: str | None = None,
+    flag: str | None = None,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Удержание D1/D7/D30 по неделям регистрации — metrics.compute_retention_weekly."""
+    from backend.flags import FLAGS
+    if platform not in (None, "app", "web"):
+        raise HTTPException(status_code=422, detail="Платформа: app или web.")
+    if flag is not None and flag not in FLAGS:
+        raise HTTPException(status_code=422, detail="Нет такого флага.")
+    return {
+        **compute_retention_weekly(db, platform=platform, tier=tier, flag=flag),
+        "flags": sorted(FLAGS),
+    }
 
 
 @router.get("/stats")
@@ -145,7 +165,6 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             ),
         })
 
-    retention = compute_retention(db)
     funnel_v2 = compute_funnel(db)
     astro = compute_astrologer_metrics(db)
     promo = compute_promo_activation(db)
@@ -199,7 +218,6 @@ async def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
             "activation_pct": gift_pct,
         },
         "recent_users": recent_users,
-        "retention": retention,
         "funnel_v2": funnel_v2,
         "astrologer": astro,
         "promo": promo,
