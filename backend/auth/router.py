@@ -46,6 +46,7 @@ from backend.auth.oauth import OAuthError, exchange_google_code
 from backend.auth.passwords import hash_password, validate_password, verify_password
 from backend.config import get_settings
 from backend.database import get_db
+from backend.flags import enabled_flags
 from backend.log_utils import mask_email
 from backend.models import User, Partner
 from backend.auth.emails import find_user_by_email, normalize_email
@@ -725,6 +726,7 @@ async def get_me(
         is_partner=is_partner,
         stripe_customer_id=user.stripe_customer_id,
         created_at=user.created_at.isoformat() if user.created_at else None,
+        flags=enabled_flags(db, user),
     )
 
 

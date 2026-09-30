@@ -269,6 +269,7 @@ class UserProfileResponse(BaseModel):
     is_partner: bool = False
     stripe_customer_id: Optional[str] = None
     created_at: Optional[str] = None
+    flags: list[str] = []   # включённые флаги функций (backend/flags.py)
 
 
 class MessageResponse(BaseModel):

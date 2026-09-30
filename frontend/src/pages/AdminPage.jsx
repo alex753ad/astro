@@ -15,7 +15,7 @@ const PLAN_COLORS = {
   pro:     { bar: "var(--color-success)", text: "var(--color-success)", badge: "bg-[var(--accent-muted)] text-[var(--color-success)]" },
   premium: { bar: "var(--accent)", text: "var(--accent)", badge: "bg-[var(--accent-muted)] text-[var(--accent)]" },
 };
-const TABS =["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры"];
+const TABS =["Обзор", "Пользователи", "Выручка", "AI & расходы", "Email-цепочки", "Промокоды", "Пилот", "Партнёры", "Флаги"];
 
 // Мок-данных здесь больше нет. Было: константа MOCK на 47 строк
 // (2847 пользователей, MRR 341 000 ₽, выдуманные адреса, проценты
@@ -1033,6 +1033,75 @@ function TabPartners({ authFetch }) {
   );
 }
 
+// ─── Вкладка Флаги (backend/flags.py, docs/flags.md) ───────────────────────────
+// Ключи заводятся в коде; здесь только режим. Выключено — функция не видна
+// никому; «Только эти почты» — для проверки на проде на себе.
+
+const FLAG_MODES = [["off", "Выключен"], ["users", "Только эти почты"], ["all", "Для всех"]];
+
+function FlagRow({ f, authFetch, onSaved }) {
+  const [mode, setMode] = useState(f.mode);
+  const [emails, setEmails] = useState(f.emails.join(", "));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const list = emails.split(/[\s,;]+/).filter(Boolean);
+      await authFetch(`/api/v1/admin/flags/${f.key}`, {
+        method: "PUT", body: JSON.stringify({ mode, emails: list }),
+      });
+      setMsg("Сохранено. Дойдёт до сайта и приложения за минуту.");
+      onSaved();
+    } catch (e) {
+      setMsg(e?.message || "Не удалось сохранить.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
+      <div className="text-[13px] font-medium text-gray-900 font-mono">{f.key}</div>
+      <div className="text-[12px] text-gray-500">{f.description}</div>
+      <div className="flex flex-wrap gap-3 text-[12px]">
+        {FLAG_MODES.map(([m, label]) => (
+          <label key={m} className="flex items-center gap-1">
+            <input type="radio" name={`mode-${f.key}`} checked={mode === m} onChange={() => setMode(m)} />
+            {label}
+          </label>
+        ))}
+      </div>
+      <input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="почты через запятую"
+        className="w-full text-[12px] px-3 py-1.5 border border-gray-200 rounded-lg" />
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={saving}
+          className="text-[12px] px-3 py-1.5 bg-gray-900 text-white rounded-lg disabled:opacity-40">
+          {saving ? "Сохраняю…" : "Сохранить"}
+        </button>
+        {msg && <span className="text-[12px] text-gray-500">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+function TabFlags({ authFetch }) {
+  const [items, setItems] = useState(null);
+  const load = useCallback(() => {
+    authFetch("/api/v1/admin/flags").then((d) => setItems(d.items)).catch(() => setItems([]));
+  }, [authFetch]);
+  useEffect(load, [load]);
+
+  if (!items) return <div className="text-[13px] text-gray-400 py-8">Загрузка…</div>;
+  return (
+    <div className="space-y-3">
+      {items.map((f) => <FlagRow key={f.key} f={f} authFetch={authFetch} onSaved={load} />)}
+    </div>
+  );
+}
+
 // ─── Основной компонент ────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -1141,6 +1210,7 @@ export default function AdminPage() {
           {tab === 5 && <TabPromos d={data} authFetch={authFetch} onReload={load} />}
           {tab === 6 && <TabPilot authFetch={authFetch} />}
           {tab === 7 && <TabPartners authFetch={authFetch} />}
+          {tab === 8 && <TabFlags authFetch={authFetch} />}
         </>
       )}
     </div>
