@@ -58,6 +58,19 @@ def test_session_is_ipv6_only(pilot_bot):
     assert mod.bot.session._connector_init["family"] == socket.AF_INET6
 
 
+def test_session_sets_connect_timeout(pilot_bot, monkeypatch):
+    # aiogram даёт aiohttp только общий таймаут — сессия добавляет sock_connect=5.
+    mod, _ = pilot_bot
+    seen = []
+
+    async def fake_make_request(self, bot, method, timeout=None):
+        seen.append(timeout)
+
+    monkeypatch.setattr(mod.AiohttpSession, "make_request", fake_make_request)
+    asyncio.run(mod.bot.session.make_request(mod.bot, GetMe(), timeout=70))
+    assert seen[0].total == 70 and seen[0].sock_connect == 5
+
+
 def test_retries_on_connect_error_then_succeeds(pilot_bot):
     mod, sleeps = pilot_bot
     result, calls = _run(mod, [_net_error(_connect_error()),

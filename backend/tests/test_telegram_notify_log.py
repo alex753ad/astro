@@ -72,6 +72,12 @@ def test_client_goes_ipv6_only():
     assert client._transport._pool._local_address == "::"
 
 
+def test_client_connect_timeout_short():
+    # IPv6 мигает — повисшее соединение должно отпускать через 5 с, а не 15.
+    t = tg._client().timeout
+    assert t.connect == 5.0 and t.read == 15.0
+
+
 async def test_connect_failure_retried_with_pauses(telegram_env, monkeypatch, no_pauses):
     calls = []
 
