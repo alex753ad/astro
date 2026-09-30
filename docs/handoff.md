@@ -1,18 +1,13 @@
-# Состояние на 30.09.2026, вечер — main `23d6a9b`, НЕ выкачено
+# Состояние на 30.09.2026, вечер — main `23d6a9b`, выкачено
 
-**#49 смержен в main, на прод не ушёл.** Копия каждого обращения «что-то не
-так» на carearistea@mail.ru через Resend (`SUPPORT_EMAIL`, скриншот
-вложением, в фоне, независимо от Telegram) — `feedback/router.py`,
-`email_service.send_support_copy`, правило в docs/support.md. CI на PR и на
-main зелёный (прогон 36708973349). Деплой (прогон 36709741735) не стартовал:
-GitHub не запускает джобы — «recent account payments have failed or your
-spending limit needs to be increased». Чинит владелец (GitHub → Settings →
-Billing & plans), потом `gh workflow run "CI/CD" --ref main`; миграций нет.
+**На проде** (прогон 36710131378, deploy зелёный, миграций нет, `/health` 200):
+#49 — копия каждого обращения «что-то не так» на carearistea@mail.ru через
+Resend (`SUPPORT_EMAIL`, скриншот вложением, в фоне, независимо от
+Telegram) — `feedback/router.py`, `email_service.send_support_copy`, правило
+в docs/support.md. Биллинг GitHub владелец исправил.
 
-**Не проверено:** письмо на живом Resend — после деплоя отправить обращение
-(со скриншотом и без) и проверить ящик carearistea@mail.ru; что Resend
-принимает отправку с FROM_EMAIL на внешний адрес mail.ru (домен
-подтверждён для остальных писем, но на этот адрес не слали).
+**Не проверено:** письмо на живом Resend — отправить обращение (со
+скриншотом и без), проверить ящик carearistea@mail.ru и спам.
 
 Задача «уведомления при первом запуске» — ниже, без изменений.
 
