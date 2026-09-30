@@ -30,6 +30,13 @@ error})` (`lib/supportBus.js`) из меню «Ещё», с листа опла�
   beat), хлебные крошки Sentry режут `/bot…` (`sentry_setup._strip_query`).
   Успешная отправка пишет `доставлено в чат …, message_id=…` — «не дошло»
   проверяется по этой строке, а не по «200 OK».
+* ⚠️ **С сервера api.telegram.org открыт только по IPv6** (30.09.2026,
+  `scripts/check_telegram.sh`). Клиентов к Telegram два, и оба привязаны к
+  IPv6 по-своему: сигналы — httpx в `notifications/telegram.py`
+  (`local_address="::"`), бот в контейнере `bot` — aiohttp внутри aiogram
+  (`bot/pilot_bot.py`, `_session`, `family=AF_INET6`). Правка одного другой
+  не касается. Оба повторяют запрос через 5 и 30 с, только если соединение
+  не установилось. Проверка бота — шаги 6–8 `scripts/check_support_bot.sh`.
 * Версия, телефон и ошибка лежат в `feedback.context` (JSON, миграция 060) и
   видны в админке. Запись в БД — ДО Telegram; недоставленный сигнал —
   `logger.error`, то есть событие в Sentry, а не тихая потеря.
