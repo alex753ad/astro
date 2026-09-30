@@ -12,9 +12,9 @@ Railway в проекте нет и не было ни одного дня эт�
 пережила переезд и вводила в заблуждение ровно в том месте, куда идут искать
 источник расписания.)
 
-Для каждого пользователя с активной подпиской, по его ГЛАВНОЙ карте
-(primary_chart_id), в его локальное время (tz главной карты) собираются
-шесть видов событий — `_collect_candidates`:
+Для каждого пользователя с подпиской в браузере или токеном приложения, по его
+ГЛАВНОЙ карте (primary_chart_id), в его локальное время (tz главной карты)
+собираются шесть видов событий — `_collect_candidates`:
   1) `daily`            — ежедневный прогноз;
   2) `planner`          — период планеты начинается сегодня;
   3) `planner_week` / `planner_month` — упреждение за 7 и за 30 дней;
@@ -71,7 +71,7 @@ from sqlalchemy.orm import Session
 
 from backend.authz import require_internal_secret
 from backend.database import get_db
-from backend.models import User, NatalChart, PushSubscription, PushSentLog
+from backend.models import User, NatalChart, PushSubscription, PushSentLog, DeviceToken
 from backend.push.sender import send_to_user
 from backend.chart_utils import get_primary_chart
 from backend.ephemeris.ru_names import PLANET_RU
@@ -1030,8 +1030,14 @@ async def run_push_tick(db: Session) -> dict:
     пользователя не ускоряет сам тик, но отдаёт event loop между итерациями —
     остальные запросы больше не встают в очередь на всё время тика.
     """
-    # Только пользователи с хотя бы одной подпиской
-    user_ids = [row[0] for row in db.query(PushSubscription.user_id).distinct().all()]
+    # Все, у кого есть куда доставить: браузер (push_subscriptions) ИЛИ
+    # приложение (device_tokens). ⚠️ До 30.09.2026 здесь были только
+    # push_subscriptions, и человек только с приложением в тик не попадал
+    # вовсе — ни прогноза дня, ни планера, ни транзитов, ни Луны, хотя
+    # send_to_user сам шлёт во все каналы. Отбор обязан совпадать с каналами
+    # send_to_user: добавится канал там — добавить его и сюда.
+    user_ids = [row[0] for row in
+                db.query(PushSubscription.user_id).union(db.query(DeviceToken.user_id)).all()]
     if not user_ids:
         return {"users": 0, "delivered": 0}
 

@@ -132,6 +132,46 @@ class TestSchedulerUsesTheSameWindow:
         assert sent == [], "ночной тик не должен ничего отправлять"
 
 
+class TestTickReachesAppOnlyUsers:
+    """До 30.09.2026 тик отбирал людей по push_subscriptions (только браузер),
+    и человек только с приложением не получал ничего из тика."""
+
+    async def test_app_only_user_gets_morning_push(self, db, user_free, chart, monkeypatch):
+        from backend.models import DeviceToken, PushSentLog
+        from backend.push import cron
+
+        db.add(DeviceToken(user_id=user_free.id, token="fcm-only", platform="android"))
+        db.commit()
+        fcm_sent = []
+        monkeypatch.setattr("backend.push.fcm.configured", lambda: True)
+        monkeypatch.setattr("backend.push.fcm.send_fcm",
+                            lambda token, payload: fcm_sent.append(token) or True)
+        monkeypatch.setattr("backend.push.sender.send_web_push",
+                            lambda *a, **k: pytest.fail("веб-подписки нет"))
+
+        tz = pytz.timezone("Europe/Moscow")
+        morning = tz.localize(datetime(2026, 9, 10, 8, 30))
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz_=None):
+                return morning.astimezone(tz_) if tz_ else morning
+
+        monkeypatch.setattr(cron, "datetime", _FrozenDatetime)
+
+        result = await cron.run_push_tick(db)
+
+        assert result["users"] == 1
+        assert fcm_sent == ["fcm-only"]
+        assert db.query(PushSentLog).filter(
+            PushSentLog.user_id == user_free.id, PushSentLog.kind == "daily",
+        ).count() == 1
+
+    async def test_user_without_channels_is_not_processed(self, db, user_free, chart):
+        from backend.push import cron
+        assert (await cron.run_push_tick(db))["users"] == 0
+
+
 # ─────────────────── Дата границы транзита в тексте ───────────────────
 # Правило: в тексте уведомления не должно быть НИ ОДНОЙ даты — только
 # порядок величины («сегодня», «завтра», «через неделю»). Причина в CLAUDE.md,
