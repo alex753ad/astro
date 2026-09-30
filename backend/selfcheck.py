@@ -463,7 +463,13 @@ async def run_daily(redis) -> dict:
         results["dislike_share"] = problem_dislike_share(fb)
         if await settle(redis, "dislike_share", results["dislike_share"], details=feedback_line(fb)) == "unsent":
             unsent.append("dislike_share")
-    if not await send_morning_summary(results):
+    if await send_morning_summary(results):
+        # Доставку проверяет сторож в api (beat_watchdog._check_morning, 10:30
+        # МСК): не будет отметки — не было и сообщения, даже если прогон не
+        # стартовал вовсе и ERROR в логе писать было некому.
+        from backend.beat_watchdog import mark_morning_sent
+        mark_morning_sent(redis)
+    else:
         unsent.append("morning_summary")
     record_run("daily", results, unsent)
     return results

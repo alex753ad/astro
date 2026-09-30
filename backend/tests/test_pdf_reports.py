@@ -304,13 +304,4 @@ def test_api_list_and_foreign_report(client, db, lite, queued, auth_headers_free
     assert client.get(f"/api/v1/chart/{other.id}/pdf-reports", headers=auth_headers_free).status_code == 404
 
 
-def test_old_apk_contract_sync_pdf_still_answers_with_bytes(client, db, lite, auth_headers_free, monkeypatch):
-    """Старые APK и старый веб шлют POST /chart/{id}/pdf и ждут байты PDF в
-    ответе — ручка остаётся (решение владельца 29.09.2026)."""
-    monkeypatch.setattr("backend.natal_pdf.generate_pdf_bytes", lambda *a, **kw: b"%PDF-1.4 test")
-    chart = _make_chart(db, user_id=lite.id)
-    _interp(db, chart, 800, tier="lite")
-    r = client.post(f"/api/v1/chart/{chart.id}/pdf", headers=auth_headers_free)
-    assert r.status_code == 200
-    assert r.headers["content-type"] == "application/pdf"
-    assert r.content.startswith(b"%PDF")
+# POST /chart/{id}/pdf старых APK — test_old_apk_contract.py::test_sync_pdf_still_answers_with_bytes.

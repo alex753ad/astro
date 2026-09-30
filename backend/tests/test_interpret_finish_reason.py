@@ -144,42 +144,4 @@ class TestSavedInterpretation:
         assert _finish_values(body) == ["stop"]
 
 
-class TestOldClientsSurvive:
-    """Поле необязательное. Эти тесты описывают ровно то, на что смотрит
-    существующий разборщик клиента, — чтобы правка события не сломала его
-    незаметно."""
-
-    def test_event_has_no_type_text_or_error(
-        self, client, db, user_pro, auth_headers_pro, stream_with_reason
-    ):
-        """Три ключа, по которым _connectSSE ветвится. Появись любой из них в
-        этом событии — старый клиент принял бы служебное сообщение за часть
-        разбора или за ошибку."""
-        chart = _make_chart(db, user_id=user_pro.id)
-        body = client.get(_sse_url(chart.id), headers=auth_headers_pro).text
-        payload = next(
-            json.loads(e) for e in _events(body)
-            if e != "[DONE]" and "finish_reason" in e
-        )
-        assert set(payload) == {"finish_reason"}
-
-    def test_done_marker_is_untouched(
-        self, client, db, user_pro, auth_headers_pro, stream_with_reason
-    ):
-        """[DONE] сравнивается клиентом со строкой целиком — он обязан
-        остаться ровно таким же."""
-        chart = _make_chart(db, user_id=user_pro.id)
-        body = client.get(_sse_url(chart.id), headers=auth_headers_pro).text
-        assert "data: [DONE]\n\n" in body
-
-    def test_text_events_unchanged(
-        self, client, db, user_pro, auth_headers_pro, stream_with_reason
-    ):
-        """Сам разбор приходит теми же событиями, что и раньше."""
-        chart = _make_chart(db, user_id=user_pro.id)
-        body = client.get(_sse_url(chart.id), headers=auth_headers_pro).text
-        texts = [
-            json.loads(e).get("text") for e in _events(body)
-            if e != "[DONE]" and "text" in e
-        ]
-        assert "".join(t for t in texts if t) == "Первая часть. Вторая часть."
+# Совместимость со старыми клиентами — test_old_apk_contract.py::TestOldClientsSurviveFinishReason.

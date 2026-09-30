@@ -201,6 +201,14 @@ class TestMarker:
 # ═══════════════════════════════════════════════════════════
 
 
+@pytest.fixture
+def morning_sent(queue_redis):
+    """Утреннее сообщение сегодня дошло — чтобы проверки задачи ниже видели
+    только свою тревогу (вторая проверка сторожа — TestMorningSummary)."""
+    queue_redis.set(beat_watchdog.MORNING_KEY, beat_watchdog.morning_today())
+
+
+@pytest.mark.usefixtures("morning_sent")
 class TestWatchdog:
     def test_silent_when_marker_fresh(self, client, with_secret, queue_redis):
         """Свежая метка — молчим."""
@@ -273,3 +281,86 @@ class TestWatchdog:
         при одном пропуске ~26.5 ч. Порог обязан лежать между ними.
         """
         assert 2.5 * 3600 < beat_watchdog.MAX_AGE_SEC < 26.5 * 3600
+
+
+# ═══════════════════════════════════════════════════════════
+# В. Утреннее сообщение самопроверки дошло в канал (29.09.2026)
+# ═══════════════════════════════════════════════════════════
+
+
+class TestMorningSummary:
+    def _run(self, client):
+        sent = AsyncMock(return_value=True)
+        with patch("backend.notifications.telegram.send_support_message", sent):
+            resp = client.post("/api/v1/internal/beat-watchdog", headers=_headers())
+        assert resp.status_code == 200
+        return resp.json(), sent
+
+    def test_silent_when_sent_today(self, client, with_secret, queue_redis, morning_sent):
+        _seed_marker(queue_redis, age_hours=2.5)
+        body, sent = self._run(client)
+        assert body["morning"] == "ok"
+        sent.assert_not_awaited()
+
+    def test_alerts_to_channel_and_sentry_when_missing(self, client, with_secret, queue_redis, caplog):
+        """Отметки нет — тревога в канал И ERROR в лог (→ Sentry): сломанным
+        может оказаться сам канал."""
+        import logging
+        _seed_marker(queue_redis, age_hours=2.5)
+        with caplog.at_level(logging.ERROR, logger="astro.beat_watchdog"):
+            body, sent = self._run(client)
+        assert body["morning"] == "missing" and body["status"] == "ok"
+        sent.assert_awaited_once()
+        assert "утреннее сообщение" in sent.await_args.args[0]
+        assert "не отмечена ни разу" in sent.await_args.args[0]
+        assert "утреннее сообщение" in caplog.text
+
+    def test_yesterday_mark_is_not_today(self, client, with_secret, queue_redis):
+        _seed_marker(queue_redis, age_hours=2.5)
+        yesterday = beat_watchdog.morning_today(utcnow() - timedelta(days=1))
+        queue_redis.set(beat_watchdog.MORNING_KEY, yesterday)
+        body, sent = self._run(client)
+        assert body["morning"] == "missing"
+        assert yesterday in sent.await_args.args[0]
+
+    def test_date_is_moscow_not_utc(self):
+        """22:30 UTC — это уже завтра по Москве."""
+        from datetime import datetime
+        assert beat_watchdog.morning_today(datetime(2026, 9, 29, 22, 30)) == "2026-09-30"
+        assert beat_watchdog.morning_today(datetime(2026, 9, 29, 20, 30)) == "2026-09-29"
+
+    def test_selfcheck_write_is_visible_to_watchdog(self, client, with_secret, queue_redis, monkeypatch):
+        """Сквозной путь: run_daily отметил доставку синхронным клиентом —
+        сторож читает её асинхронным и молчит. Ловит рассинхрон ключа."""
+        import asyncio
+        from backend import selfcheck as S
+
+        async def steps(names):
+            return {n: None for n in names}
+
+        monkeypatch.setattr(S, "run_steps", steps)
+        monkeypatch.setattr(S, "read_feedback", lambda **k: None)
+        monkeypatch.setattr(S, "problem_offsite", lambda now=None: None)
+        monkeypatch.setattr(S, "record_run", lambda *a, **k: None)
+        monkeypatch.setattr("backend.notifications.telegram.send_support_message", AsyncMock(return_value=True))
+        asyncio.run(S.run_daily(queue_redis))
+
+        _seed_marker(queue_redis, age_hours=2.5)
+        body, sent = self._run(client)
+        assert body["morning"] == "ok"
+        sent.assert_not_awaited()
+
+    def test_not_marked_when_telegram_refused(self, queue_redis, monkeypatch):
+        import asyncio
+        from backend import selfcheck as S
+
+        async def steps(names):
+            return {n: None for n in names}
+
+        monkeypatch.setattr(S, "run_steps", steps)
+        monkeypatch.setattr(S, "read_feedback", lambda **k: None)
+        monkeypatch.setattr(S, "problem_offsite", lambda now=None: None)
+        monkeypatch.setattr(S, "record_run", lambda *a, **k: None)
+        monkeypatch.setattr("backend.notifications.telegram.send_support_message", AsyncMock(return_value=False))
+        asyncio.run(S.run_daily(queue_redis))
+        assert queue_redis.get(beat_watchdog.MORNING_KEY) is None
