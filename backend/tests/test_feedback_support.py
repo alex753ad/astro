@@ -114,3 +114,70 @@ def test_telegram_failure_keeps_row_and_logs_error(client, db, auth_headers_free
     assert resp.status_code == 201
     row = db.query(Feedback).one()
     assert any(r.levelno == logging.ERROR and f"#{row.id}" in r.getMessage() for r in caplog.records)
+
+
+# ── Копия на почту: уходит всегда, независимо от Telegram ──
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+
+
+def test_email_copy_sent_when_telegram_fails(client, db, auth_headers_free):
+    email = AsyncMock(return_value=True)
+    with patch.object(fb, "send_support_message", AsyncMock(return_value=False)), \
+            patch.object(fb, "send_support_copy", email):
+        resp = client.post("/api/v1/feedback", data=APP_FORM, headers=auth_headers_free)
+    assert resp.status_code == 201
+    email.assert_awaited_once()
+    to, fid, text, shot, _ = email.await_args.args
+    assert to == "carearistea@mail.ru" and fid == resp.json()["id"] and "Лента не грузится" in text
+    assert shot is None
+
+
+def test_email_copy_sent_when_telegram_raises(client, db):
+    email = AsyncMock(return_value=True)
+    with patch.object(fb, "send_support_message", AsyncMock(side_effect=RuntimeError("tg down"))), \
+            patch.object(fb, "send_support_copy", email):
+        client.post("/api/v1/feedback", data={"screen": "chart", "message": "x"})
+    email.assert_awaited_once()
+
+
+def test_email_copy_has_screenshot_when_telegram_fails(client, db):
+    email = AsyncMock(return_value=True)
+    with patch.object(fb, "send_support_message", AsyncMock(return_value=False)), \
+            patch.object(fb, "send_support_copy", email):
+        resp = client.post("/api/v1/feedback", data={"screen": "chart", "message": "x"},
+                           files={"screenshot": ("s.png", PNG, "image/png")})
+    assert resp.status_code == 201
+    _, _, _, shot, filename = email.await_args.args
+    assert shot == PNG and filename == "screenshot.png"
+
+
+def test_email_failure_logged_and_telegram_still_sent(client, db, caplog):
+    tg = AsyncMock(return_value=True)
+    with caplog.at_level(logging.ERROR, logger="astro.feedback"), \
+            patch.object(fb, "send_support_message", tg), \
+            patch.object(fb, "send_support_copy", AsyncMock(return_value=False)):
+        resp = client.post("/api/v1/feedback", data={"screen": "chart", "message": "x"})
+    tg.assert_awaited_once()
+    assert any("на почту" in r.getMessage() and f"#{resp.json()['id']}" in r.getMessage()
+               for r in caplog.records)
+
+
+async def test_too_big_screenshot_sent_without_attachment():
+    from backend import email_service as es
+    send = AsyncMock(return_value=True)
+    with patch.object(es, "_send", send), patch.object(es, "SUPPORT_ATTACHMENT_MAX_BYTES", 10):
+        await es.send_support_copy("a@b.c", 7, "текст", PNG)
+    to, subject, html, attachments = send.await_args.args
+    assert attachments is None and "слишком большой" in html and subject == "Обращение #7"
+
+
+async def test_screenshot_attached_as_base64():
+    import base64
+    from backend import email_service as es
+    send = AsyncMock(return_value=True)
+    with patch.object(es, "_send", send):
+        await es.send_support_copy("a@b.c", 7, "<b>", PNG, "screenshot.png")
+    _, _, html, attachments = send.await_args.args
+    assert attachments == [{"filename": "screenshot.png", "content": base64.b64encode(PNG).decode()}]
+    assert "&lt;b&gt;" in html
