@@ -891,3 +891,22 @@ class FeatureFlag(Base):
     mode = Column(String(8), nullable=False, default="off", server_default="off")
     user_ids = Column(JSON, nullable=False, default=list)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class UserActivityDay(Base):
+    """Активный день человека — основа удержания D1/D7/D30 (070).
+
+    Строка на (человек, день по Москве, платформа). Пишет backend/activity.py
+    из get_current_user, считает metrics.compute_retention_weekly.
+    flags — флаги, включённые у человека в этот день: сравнение удержания с
+    функцией и без. Флаги берутся на день, а не из feature_flags задним
+    числом, потому что там лежит только текущее состояние.
+    """
+    __tablename__ = "user_activity_days"
+
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    day = Column(Date, primary_key=True, index=True)
+    platform = Column(String(8), primary_key=True)  # "app" | "web"
+    flags = Column(JSON, nullable=False, default=list)

@@ -101,6 +101,13 @@ celery_app.conf.update(
             "task": "tasks.reconcile_payments",
             "schedule": crontab(hour=3, minute=0),
         },
+        # Удержание D1/D7/D30 — понедельник 09:00 МСК, после утренней
+        # самопроверки (07:30). Шлётся тем же send_support_message: владелец
+        # 30.09.2026 просил туда же, куда приходит утреннее сообщение.
+        "retention-weekly": {
+            "task": "tasks.retention_weekly",
+            "schedule": crontab(day_of_week=1, hour=6, minute=0),
+        },
         "selfcheck-hourly": {
             "task": "tasks.selfcheck_hourly",
             "schedule": crontab(minute=50),

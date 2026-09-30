@@ -67,6 +67,20 @@ def selfcheck_daily() -> dict:
     return asyncio.run(run_daily(_sync_redis()))
 
 
+@celery_app.task(name="tasks.retention_weekly", ignore_result=True)
+def retention_weekly() -> bool:
+    """Beat, понедельник 09:00 МСК: сводка удержания владельцу (metrics.py)."""
+    import asyncio
+    from backend.metrics import retention_summary_text
+    from backend.notifications.telegram import send_support_message
+    db = SessionLocal()
+    try:
+        text = retention_summary_text(db)
+    finally:
+        db.close()
+    return asyncio.run(send_support_message(text))
+
+
 @celery_app.task(name="tasks.send_price_notice", ignore_result=True)
 def send_price_notice_task(effective_date: str) -> dict:
     """Рассылка уведомления о смене цен — ставит только админ-ручка."""
