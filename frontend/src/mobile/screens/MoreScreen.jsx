@@ -24,6 +24,7 @@ import MoreSubScreen from '../components/MoreSubScreen';
 import MoreHistoryView from '../components/MoreHistoryView';
 import MoreReferralView from '../components/MoreReferralView';
 import MoreNotificationsView from '../components/MoreNotificationsView';
+import { pushDiagOn, togglePushDiag } from '../lib/pushNudge';
 import MorePaymentsView from '../components/MorePaymentsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
@@ -50,11 +51,19 @@ const SUB_TITLES = {
 // Версия — последней строкой «Ещё» и на экране отказа: её спрашивают именно
 // тогда, когда что-то не работает. Без хеша сборки; с хешем она уходит в
 // обращении в поддержку (appVersionLabel, lib/supportContext.js).
-const VERSION = (
-  <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}>
-    Версия {appVersionShort()}
-  </p>
-);
+// Нажатие включает и выключает строку диагностики уведомлений в «Ещё» →
+// «Уведомления» (lib/pushNudge.js, pushDiagOn) — для приёмки на телефоне.
+function Version() {
+  const [diag, setDiag] = useState(pushDiagOn);
+  return (
+    <p
+      onClick={() => setDiag(togglePushDiag())}
+      style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}
+    >
+      Версия {appVersionShort()}{diag ? ' · диагностика уведомлений' : ''}
+    </p>
+  );
+}
 
 /** Скелет: строка шапки, прямоугольник тарифа, 2 плейсхолдера карт, 5 строк меню (§8). */
 function MoreLoading() {
@@ -266,7 +275,7 @@ export default function MoreScreen({ onChartsChanged }) {
           secondary={offlineError ? undefined : 'Войти заново'}
           onSecondary={logout}
         />
-        {VERSION}
+        <Version />
       </>
     );
   }
@@ -364,7 +373,7 @@ export default function MoreScreen({ onChartsChanged }) {
       >
         Выйти из аккаунта
       </button>
-      {VERSION}
+      <Version />
     </div>
   );
 }

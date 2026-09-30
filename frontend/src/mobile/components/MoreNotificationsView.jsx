@@ -27,6 +27,8 @@ import { DEVICE_PUSH_SUPPORTED } from '../lib/devicePush';
 import MoreSwitch from './MoreSwitch';
 import { fetchPushSettings, updatePushSettings } from '../lib/moreApi';
 import { syncLocalNotifications } from '../lib/localNotificationsSync';
+import { deviceChoice } from '../lib/deviceChannel';
+import { diagLine, pushDiagOn, readNudge } from '../lib/pushNudge';
 
 const PUSH_SUPPORTED =
   typeof navigator !== 'undefined' &&
@@ -192,6 +194,13 @@ export default function MoreNotificationsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
+      {/* Диагностика «включи уведомления» — только после нажатия на версию в
+          «Ещё» (решение владельца 30.09.2026); без него экран не меняется. */}
+      {pushDiagOn() ? (
+        <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+          {diagLine(readNudge(), deviceChoice())}
+        </p>
+      ) : null}
       <MoreDeviceChannel />
       {TOGGLES.map(({ key, label }) => (
         <ToggleRow key={key} label={label} on={settings[key]} onToggle={() => toggle(key)} />
