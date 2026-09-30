@@ -114,6 +114,25 @@ export function buildUpcoming(planData, lunar, now = new Date()) {
 }
 
 /**
+ * Куда вести с события «Ближайших 30 дней»: вкладка и id карточки планеты
+ * (id ставит страница: `plan-sec-*` — «Месяц», `plan-lt-*` — «Долгосрочно»).
+ * null — карточки нет (фазы Луны, затмения, планета без периода).
+ *
+ * ⚠️ Текущая вкладка — первой: если карточка есть прямо здесь, вкладку не
+ * переключаем. Иначе «Месяц», затем «Долгосрочно». Прокрутку к карточке
+ * однажды уже потеряли при переделке рельса (7538cd0, 29.09.2026) — её
+ * держит plannerRailScroll.test.js.
+ */
+export function planetCardTarget(planData, planet, tab) {
+  if (!planet) return null;
+  const has = (list) => (list || []).some((s) => s.planet === planet);
+  const month = has(planData?.month_sections) ? { tab: 'month', id: `plan-sec-${planet}` } : null;
+  const longterm = has(planData?.longterm) ? { tab: 'longterm', id: `plan-lt-${planet}` } : null;
+  if (tab === 'longterm' && longterm) return longterm;
+  return month || longterm;
+}
+
+/**
  * Позиции узлов рельса по дате, доли 0..1 от окна «сегодня … +30 дней».
  * Соседей раздвигаем до gap — иначе узлы слипаются; страница задаёт рельсу
  * минимальную ширину под этот зазор, и на телефоне рельс прокручивается, а
