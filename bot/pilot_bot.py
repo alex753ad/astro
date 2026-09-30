@@ -69,6 +69,23 @@ class _RetryOnConnect(BaseRequestMiddleware):
                 await asyncio.sleep(pause)
 
 
+class _Session(AiohttpSession):
+    """Отдельный таймаут на установку соединения — 5 с (как у сигналов,
+    backend/notifications/telegram.py, `_client`; причина там же).
+
+    aiogram передаёт в aiohttp только общий таймаут запроса числом (у
+    getUpdates — 60+ с), и повисшее соединение ждало его целиком, прежде
+    чем сработает повтор. sock_connect aiohttp превращает в
+    ConnectionTimeoutError — он в `_CONNECT_ERRORS`, то есть повторяется.
+    ClientTimeout вместо числа aiogram (проверено на 3.27/3.30) отдаёт в
+    session.post как есть.
+    """
+
+    async def make_request(self, bot, method, timeout=None):
+        total = self.timeout if timeout is None else timeout
+        return await super().make_request(bot, method, aiohttp.ClientTimeout(total=total, sock_connect=5))
+
+
 def _session() -> AiohttpSession:
     """Сессия aiogram — только по IPv6.
 
@@ -80,7 +97,7 @@ def _session() -> AiohttpSession:
     при обновлении aiogram убедиться, что словарь ещё передаётся в
     TCPConnector. Откроют IPv4 — строку можно убрать.
     """
-    session = AiohttpSession()
+    session = _Session()
     session._connector_init["family"] = socket.AF_INET6
     session.middleware(_RetryOnConnect())
     return session

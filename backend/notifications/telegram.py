@@ -42,7 +42,12 @@ def _client() -> httpx.AsyncClient:
     сейчас не работает всё равно. Откроют IPv4 — эту строку можно убрать,
     проверка тем же скриптом.
     """
-    return httpx.AsyncClient(timeout=15.0, transport=httpx.AsyncHTTPTransport(local_address="::"))
+    # connect=5: соединение по IPv6 мигает (замер 30.09.2026: 27–29 из 30,
+    # сбой — повисшее соединение; удачное — 0,1 с, редко 3 с). С общими 15 с
+    # каждый сбой стоил 15 с до повтора, с 5 с повтор начинается сразу.
+    # Меньше 5 не ставить — медленные, но живые соединения (3 с) станут сбоями.
+    return httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0),
+                             transport=httpx.AsyncHTTPTransport(local_address="::"))
 
 
 def _bot_token() -> str:
