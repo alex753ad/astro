@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CARD_DELAY_MS, NUDGE_CARD, NUDGE_CARD_SETTINGS, NUDGE_NONE, NUDGE_SCREEN, NUDGE_SILENT, NUDGE_WAIT,
-  decideNudge,
+  decideNudge, diagLine,
 } from './pushNudge';
 
 const NOW = 1_800_000_000_000;
@@ -58,5 +58,31 @@ describe('decideNudge', () => {
 
   it('веб или отказавший мост — ничего', () => {
     expect(d({ permission: 'unavailable' })).toBe(NUDGE_NONE);
+  });
+
+  it('Android 12, свежая установка: молча; не вышло — следующая проверка снова молча', () => {
+    // Неудача ничего не записывает: choice остаётся null, askedAt — тоже.
+    expect(d({ permission: 'granted' })).toBe(NUDGE_SILENT);
+    expect(d({ permission: 'granted' })).toBe(NUDGE_SILENT);
+  });
+
+  it('Android 13+, свежая установка: до прогноза ничего, после — экран', () => {
+    expect(d({ forecastSeen: false })).toBe(NUDGE_NONE);
+    expect(d({ forecastSeen: true })).toBe(NUDGE_SCREEN);
+  });
+});
+
+describe('diagLine', () => {
+  it('значения по-русски', () => {
+    const line = diagLine({
+      forecastSeen: true, askedAt: null, cardClosed: false,
+      last: { at: NOW, trigger: 'tab', result: 'silent', permission: 'granted', enable: 'fail' },
+    }, null, NOW);
+    expect(line).toContain('прогноз показан: да');
+    expect(line).toContain('тумблер: не трогали');
+    expect(line).toContain('возврат на ленту → молча');
+    expect(line).toContain('включение: не вышло');
+    expect(diagLine({ forecastSeen: false, last: { enable: 'server', result: 'screen' } }, '1')).toContain('включение: сервер');
+    expect(diagLine({ last: { enable: 'device', result: 'wait' } }, '0')).toMatch(/ждать.*устройство/);
   });
 });

@@ -3,11 +3,19 @@
  * Кому и что показывать, решает lib/pushNudge.js (`decideNudge`, с тестом);
  * здесь — только показ и последствия ответа.
  *
- * ⚠️ Решение принимается при открытии ленты и при возврате в приложение, но
- * НЕ в момент первого прогноза: отметку `forecastSeen` ставит карточка
- * прогноза уже после загрузки, так что экран появляется при первом возврате
- * в ленту (другая вкладка, свёрнутое приложение) — не поверх прогноза,
- * который человек ещё читает.
+ * ⚠️ Когда проверять (исправлено после приёмки APK №119, 30.09.2026).
+ * Вкладки в TabShell не пересоздаются, а прячутся, — «открытие ленты»
+ * случается один раз, когда прогноз ещё готовится, и отметки нет. Поэтому
+ * поводов пять: открытие ленты, загрузка прогноза (событие
+ * FORECAST_SEEN_EVENT), возврат на вкладку «Лента» (`active`), возврат в
+ * приложение (visibilitychange + focus + pageshow, как в useAuth.jsx —
+ * одного visibilitychange в WebView может не прийти) и нажатие кнопки.
+ * На поводе «прогноз загрузился» экран НЕ показывается — он ждёт следующего
+ * повода, чтобы не встать поверх прогноза; молчаливое включение и отсчёт —
+ * сразу.
+ *
+ * ⚠️ Молчаливое включение не вышло — ничего не записываем: тумблер остаётся
+ * «не трогали», и следующая проверка попробует снова.
  *
  * ⚠️ Системный диалог — ТОЛЬКО по нажатию «Включить». Отказ на Android 13+
  * со второго раза окончателен (шапка MoreDeviceChannel.jsx); дальше помогают
@@ -19,7 +27,7 @@ import { deviceChoice, enableDeviceChannel } from '../lib/deviceChannel';
 import { permissionState } from '../lib/localNotifications';
 import {
   NUDGE_CARD, NUDGE_CARD_SETTINGS, NUDGE_SCREEN, NUDGE_SILENT, NUDGE_WAIT,
-  decideNudge, readNudge, writeNudge,
+  FORECAST_SEEN_EVENT, decideNudge, readNudge, writeNudge,
 } from '../lib/pushNudge';
 
 async function openNotificationSettings() {
@@ -38,54 +46,85 @@ const closeBtn = {
   background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 18, lineHeight: 1, padding: 4,
 };
 
-export default function PushNudge() {
+export default function PushNudge({ active }) {
   const [view, setView] = useState(null);
   const busy = useRef(false);
 
-  const evaluate = useCallback(async () => {
+  const evaluate = useCallback(async (trigger) => {
     if (busy.current) return;
-    const st = readNudge();
-    const permission = await permissionState();
-    const d = decideNudge({
-      registered: true, // гостю PushNudge не рендерится (FeedScreen)
-      forecastSeen: st.forecastSeen,
-      choice: deviceChoice(),
-      permission,
-      askedAt: st.askedAt,
-      cardClosed: st.cardClosed,
-      now: Date.now(),
-    });
-    if (d === NUDGE_SILENT) {
-      busy.current = true;
-      await enableDeviceChannel();
+    busy.current = true;
+    try {
+      const st = readNudge();
+      const permission = await permissionState();
+      const d = decideNudge({
+        registered: true, // гостю PushNudge не рендерится (FeedScreen)
+        forecastSeen: st.forecastSeen,
+        choice: deviceChoice(),
+        permission,
+        askedAt: st.askedAt,
+        cardClosed: st.cardClosed,
+        now: Date.now(),
+      });
+      const last = { at: Date.now(), trigger, result: d, permission, enable: st.last?.enable || null };
+      if (d === NUDGE_SILENT) {
+        last.enable = (await enableDeviceChannel()) || 'fail';
+        writeNudge({ last });
+        setView(null);
+        return;
+      }
+      writeNudge(d === NUDGE_WAIT ? { askedAt: Date.now(), last } : { last });
+      if (d === NUDGE_SCREEN && trigger === 'forecast') return; // не поверх прогноза
+      setView(d === NUDGE_SCREEN || d === NUDGE_CARD || d === NUDGE_CARD_SETTINGS ? d : null);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[push] проверка «включи уведомления»:', err);
+    } finally {
+      // ⚠️ Только в finally: ошибка внутри раньше оставляла busy навсегда
+      // и выключала все следующие проверки.
       busy.current = false;
-      setView(null);
-      return;
     }
-    if (d === NUDGE_WAIT) {
-      writeNudge({ askedAt: Date.now() });
-      setView(null);
-      return;
-    }
-    setView(d === NUDGE_SCREEN || d === NUDGE_CARD || d === NUDGE_CARD_SETTINGS ? d : null);
   }, []);
 
   useEffect(() => {
-    evaluate();
-    const onVisible = () => { if (document.visibilityState === 'visible') evaluate(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    evaluate('mount');
+    const onResume = () => { if (document.visibilityState === 'visible') evaluate('resume'); };
+    const onForecast = () => evaluate('forecast');
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+    window.addEventListener(FORECAST_SEEN_EVENT, onForecast);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+      window.removeEventListener(FORECAST_SEEN_EVENT, onForecast);
+    };
   }, [evaluate]);
+
+  // Возврат на вкладку «Лента»: смена active с false на true.
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && wasActive.current === false) evaluate('tab');
+    wasActive.current = active;
+  }, [active, evaluate]);
 
   // «Включить» на экране и на карточке. Отказ (или «Не сейчас») запускает
   // отсчёт до карточки; если askedAt уже стоит, он не сдвигается.
   const enable = async () => {
     busy.current = true;
-    const chosen = await enableDeviceChannel();
-    if (!chosen && readNudge().askedAt == null) writeNudge({ askedAt: Date.now() });
-    busy.current = false;
+    let chosen = null;
+    try {
+      chosen = await enableDeviceChannel();
+    } finally {
+      const st = readNudge();
+      writeNudge({
+        last: { ...(st.last || {}), at: Date.now(), trigger: 'button', enable: chosen || 'fail' },
+        ...(!chosen && st.askedAt == null ? { askedAt: Date.now() } : {}),
+      });
+      busy.current = false;
+    }
     setView(null);
-    evaluate();
+    evaluate('button');
   };
 
   const later = () => {

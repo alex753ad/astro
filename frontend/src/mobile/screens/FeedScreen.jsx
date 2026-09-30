@@ -705,7 +705,7 @@ export default function FeedScreen({
       <OfflineNote savedAt={stale?.at} kind={stale?.kind} />
       {guest && <GuestSaveNote />}
       {/* Экран и карточка «включи уведомления» — только зарегистрированным. */}
-      {!guest && <PushNudge />}
+      {!guest && <PushNudge active={active} />}
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}
