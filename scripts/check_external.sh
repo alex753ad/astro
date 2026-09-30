@@ -13,7 +13,8 @@
 # это касается. Список хостов — все внешние адреса из backend/ (без тестов)
 # плюс хосты SDK: Sentry — из SENTRY_DSN (печатается только хост).
 # Код ответа неважен (401/404/302 — сервис доступен); важно, что соединение
-# есть и за сколько. 000 — соединения нет. Нет AAAA — IPv6 «нет адреса».
+# есть и за сколько. 000 — соединения нет. Нет AAAA — IPv6 «нет адреса»
+# (getent ahostsv6 без AAAA отдаёт ::ffff:-адреса IPv4 — их отбрасываем).
 # ⚠️ `</dev/null` у exec — иначе exec съедает stdin (см. diag_support.sh).
 
 set -uo pipefail
@@ -44,7 +45,7 @@ HOSTS=(
 
 probe() {  # probe <семейство> <хост> → одна строка итога; вторая попытка — если первая не соединилась
   local fam=$1 host=$2 out
-  if [ "$fam" = 6 ] && [ -z "$(getent ahostsv6 "$host" | head -1)" ]; then echo "нет адреса"; return; fi
+  if [ "$fam" = 6 ] && [ -z "$(getent ahostsv6 "$host" | grep -v "::ffff:" | head -1)" ]; then echo "нет адреса"; return; fi
   if [ "$fam" = 4 ] && [ -z "$(getent ahostsv4 "$host" | head -1)" ]; then echo "нет адреса"; return; fi
   for try in 1 2; do
     out=$(curl -"$fam" -s -o /dev/null --connect-timeout 6 --max-time 12 \
