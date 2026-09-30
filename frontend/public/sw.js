@@ -122,15 +122,22 @@ async function networkFirstWithChartsCache(request) {
   }
 }
 
-// ── PUSH NOTIFICATIONS (заготовка для транзит-уведомлений Фазы 2) ─────────────
+// ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────────
+// ⚠️ Уведомление показывается на КАЖДЫЙ пуш, даже пустой или битый. Safari
+// (iPhone) и Chrome требуют показа на каждый push: молчаливый пуш Safari
+// считает нарушением и после нескольких отзывает подписку. Поэтому никаких
+// ранних return — нет данных, берём запасной текст (на «ты», без рода).
+const PUSH_FALLBACK_TITLE = '✦ Aristea';
+const PUSH_FALLBACK_BODY  = 'Загляни в Aristea — для тебя есть новое.';
+
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
   let payload = {};
-  try { payload = event.data.json(); } catch { payload = { body: event.data.text() }; }
-  const title = payload.title || '✦ Aristea';
+  if (event.data) {
+    try { payload = event.data.json() || {}; } catch { payload = { body: event.data.text() }; }
+  }
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body:    payload.body || '',
+    self.registration.showNotification(payload.title || PUSH_FALLBACK_TITLE, {
+      body:    payload.body || PUSH_FALLBACK_BODY,
       icon:    '/icons/icon-192.png',
       badge:   '/icons/icon-192.png',
       vibrate: [200, 100, 200],

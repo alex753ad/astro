@@ -172,6 +172,33 @@ class TestTickReachesAppOnlyUsers:
         assert (await cron.run_push_tick(db))["users"] == 0
 
 
+class TestMorningPushTtl:
+    """Утренний прогноз живёт до местной полуночи: push-сервис не должен
+    доставить его устройству, вышедшему на связь уже завтра."""
+
+    def test_daily_ttl_ends_at_local_midnight(self, db, user_free, chart, monkeypatch):
+        sent = []
+        monkeypatch.setattr(
+            "backend.push.cron.send_to_user",
+            lambda db_, uid, payload: sent.append(payload) or 1,
+        )
+        tz = pytz.timezone("Europe/Moscow")
+        morning = tz.localize(datetime(2026, 9, 10, 8, 30))
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz_=None):
+                return morning.astimezone(tz_) if tz_ else morning
+
+        monkeypatch.setattr("backend.push.cron.datetime", _FrozenDatetime)
+
+        _process_user(db, user_free)
+
+        daily = [p for p in sent if any(k.startswith("daily:") for k in p["keys"])]
+        assert daily, "утренний прогноз должен уйти"
+        assert daily[0]["ttl"] == (15 * 60 + 30) * 60
+
+
 # ─────────────────── Дата границы транзита в тексте ───────────────────
 # Правило: в тексте уведомления не должно быть НИ ОДНОЙ даты — только
 # порядок величины («сегодня», «завтра», «через неделю»). Причина в CLAUDE.md,

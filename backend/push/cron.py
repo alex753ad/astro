@@ -61,7 +61,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime, date as date_type, timedelta
+from datetime import datetime, date as date_type, time as time_type, timedelta
 from backend.time_utils import utcnow
 
 import pytz
@@ -797,6 +797,16 @@ def user_timezone(user, chart, override: str | None = None) -> str:
     return DEFAULT_TZ
 
 
+def seconds_to_midnight(now_local: datetime, tz) -> int:
+    """Секунд до ближайшей местной полуночи, не меньше 60.
+
+    Полночь локализуется через tz.localize (pytz), а не прибавлением суток к
+    now_local: в день перевода часов сутки не равны 24 часам.
+    """
+    midnight = tz.localize(datetime.combine(now_local.date() + timedelta(days=1), time_type()))
+    return max(60, int((midnight - now_local).total_seconds()))
+
+
 def _process_user(db: Session, user: User) -> int:
     chart = get_primary_chart(db, user)
     if not chart:
@@ -883,6 +893,12 @@ def _process_user(db: Session, user: User) -> int:
             "url": to_send[0]["url"],
             "keys": keys,
         }
+
+    # Утренний прогноз после полуночи устарел: push-сервис не должен
+    # доставлять его устройству, которое вышло на связь уже завтра. У прочих
+    # пушей срок — DEFAULT_TTL в sender.py.
+    if any(c["kind"] == "daily" for c in to_send):
+        payload["ttl"] = seconds_to_midnight(now_local, tz)
 
     n = send_to_user(db, user.id, payload)
     if n:
