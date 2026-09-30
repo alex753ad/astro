@@ -174,7 +174,7 @@ RESEND_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 RESEND_TOTAL_TIMEOUT_SEC = 20.0
 
 
-async def _send(to: str, subject: str, html: str) -> bool:
+async def _send(to: str, subject: str, html: str, attachments: list[dict] | None = None) -> bool:
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not set — skipping email to %s", mask_email(to))
         return False
@@ -184,7 +184,8 @@ async def _send(to: str, subject: str, html: str) -> bool:
                 client.post(
                     "https://api.resend.com/emails",
                     headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                    json={"from": f"Aristea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html},
+                    json={"from": f"Aristea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html}
+                    | ({"attachments": attachments} if attachments else {}),
                 ),
                 timeout=RESEND_TOTAL_TIMEOUT_SEC,
             )
@@ -1256,3 +1257,28 @@ async def send_end_of_month_survey(to: str, survey_url: str) -> bool:
         _base("Твой месяц закончился", "Один вопрос — что помешало остаться", body),
     )
 
+
+
+# ─────────────────────── копия обращения в поддержку ─────────────────────────
+
+# Письмо у Resend — не больше 40 МБ вместе с вложениями, а вложение идёт
+# в base64 (+⅓). Скриншот сейчас режется на 5 МБ ещё в роутере, так что
+# ветка «без вложения» — страховка на случай, если тот предел поднимут.
+RESEND_MAX_EMAIL_BYTES = 40 * 1024 * 1024
+SUPPORT_ATTACHMENT_MAX_BYTES = RESEND_MAX_EMAIL_BYTES * 3 // 4 - 1024 * 1024
+
+
+async def send_support_copy(to: str, feedback_id: int, text: str,
+                            screenshot: bytes | None = None, filename: str = "screenshot.png") -> bool:
+    """Копия обращения «что-то не так» на почту поддержки — рядом с Telegram,
+    а не вместо него: у каждого канала своя отправка, сбой одного другой
+    не задевает (feedback/router.py)."""
+    import base64
+    import html as _html
+    attachments = None
+    if screenshot and len(screenshot) <= SUPPORT_ATTACHMENT_MAX_BYTES:
+        attachments = [{"filename": filename, "content": base64.b64encode(screenshot).decode()}]
+    elif screenshot:
+        text += f"\n\n[Скриншот {len(screenshot) // 1024} КБ слишком большой для письма — не приложен.]"
+    body = f'<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;">{_html.escape(text)}</pre>'
+    return await _send(to, f"Обращение #{feedback_id}", body, attachments)

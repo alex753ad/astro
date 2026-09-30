@@ -7,6 +7,7 @@ GET  /api/v1/feedback        — список для админа (require_admin
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -25,12 +26,18 @@ from backend.limiter import limiter
 from backend.auth.rate_limits import feedback_key
 from backend.metrics import log_event  # для метрик трения (E11)
 from backend.notifications.telegram import send_support_message
+from backend.email_service import send_support_copy
 
 logger = logging.getLogger("astro.feedback")
 
 router = APIRouter(prefix="/api/v1/feedback", tags=["feedback"])
 
 MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024
+
+# Копия каждого обращения на почту поддержки (решение владельца 30.09.2026) —
+# второй канал на случай, когда Telegram с сервера недоступен (docs/support.md).
+# Адрес публичный (оферта, политика), env — только чтобы сменить без релиза.
+SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "carearistea@mail.ru")
 
 # Тип определяется по сигнатуре файла (magic bytes), не по расширению/заголовку —
 # пользователь (или атакующий) не может выдать произвольный файл за картинку.
@@ -119,6 +126,26 @@ async def _notify_owner(feedback_id: int, text: str) -> None:
         logger.error("Обращение #%s не доставлено в Telegram (в БД сохранено)", feedback_id)
 
 
+async def _email_copy(feedback_id: int, text: str, screenshot: Optional[bytes] = None,
+                      filename: str = "screenshot.png") -> None:
+    """Копия обращения на почту. Ошибки не наружу: фоновые задачи Starlette
+    идут цепочкой, и исключение здесь сорвало бы следующие."""
+    try:
+        ok = await send_support_copy(SUPPORT_EMAIL, feedback_id, text, screenshot, filename)
+    except Exception:
+        logger.exception("Обращение #%s: сбой копии на почту", feedback_id)
+        return
+    if not ok:
+        logger.error("Обращение #%s не доставлено на почту (в БД сохранено)", feedback_id)
+
+
+async def _notify_both(feedback_id: int, text: str) -> None:
+    # Одновременно, а не по очереди: повторы Telegram (5 и 30 с) не должны
+    # задерживать письмо, и наоборот.
+    await asyncio.gather(_notify_owner(feedback_id, text), _email_copy(feedback_id, text),
+                         return_exceptions=True)
+
+
 @router.post("", status_code=201)
 @limiter.limit("5/hour", key_func=feedback_key)
 async def create_feedback(
@@ -136,6 +163,7 @@ async def create_feedback(
     db: Session = Depends(get_db),
 ):
     screenshot_path = None
+    shot = None
     if screenshot is not None:
         header = await screenshot.read(16)
         mime = _detect_image_type(header)
@@ -146,6 +174,7 @@ async def create_feedback(
         if len(header) + len(rest) > MAX_SCREENSHOT_BYTES:
             raise HTTPException(status_code=422, detail="Скриншот больше 5 МБ — приложи файл поменьше")
 
+        shot = header + rest
         fd, screenshot_path = tempfile.mkstemp(suffix=_EXT_BY_MIME[mime])
         with os.fdopen(fd, "wb") as f:
             f.write(header)
@@ -176,6 +205,10 @@ async def create_feedback(
         text += _payment_context(db, user)
 
     if screenshot_path:
+        # Письмо — в фоне и ДО ожидания Telegram: уходит и тогда, когда
+        # Telegram упал и ответ ниже возвращается досрочно.
+        background_tasks.add_task(_email_copy, row.id, text, shot,
+                                  "screenshot" + os.path.splitext(screenshot_path)[1])
         # Фото ждём синхронно (один запрос к Telegram) — иначе нечем определить,
         # получилось ли отправить, и что вернуть пользователю. Удаляем сразу после.
         sent = False
@@ -192,7 +225,7 @@ async def create_feedback(
         return {"id": row.id, "message": "Спасибо — жалоба получена"}
 
     # Без скриншота результат отправки не влияет на ответ — шлём в фоне.
-    background_tasks.add_task(_notify_owner, row.id, text)
+    background_tasks.add_task(_notify_both, row.id, text)
     return {"id": row.id, "message": "Спасибо — жалоба получена"}
 
 

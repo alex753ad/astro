@@ -44,7 +44,9 @@ def test_app_payment_report_reaches_telegram_call(client, db, user_free, auth_he
     sent = []
 
     async def fake_post(self, url, data=None, files=None, **kw):
-        sent.append({"url": url, "data": data})
+        # Копия на почту (Resend) идёт тем же httpx — считаем только Telegram.
+        if "api.telegram.org" in url:
+            sent.append({"url": url, "data": data})
         return httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", url))
 
     with patch.object(httpx.AsyncClient, "post", fake_post):
