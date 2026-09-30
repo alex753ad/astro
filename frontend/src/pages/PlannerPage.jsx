@@ -8,7 +8,7 @@ import { TIER_NAMES } from "../constants";
 import TierOfferModal from "../components/TierOfferModal";
 import { lockBanner, lockShort, lockText, plannerMonthsAhead } from "../lib/tierCatalog";
 import { offerFor } from "../lib/offerRule";
-import { buildUpcoming, datesInWords, formatWeekRange, railPositions, shortDate } from "../lib/plannerDates";
+import { buildUpcoming, datesInWords, formatWeekRange, planetCardTarget, railPositions, shortDate } from "../lib/plannerDates";
 import { deviceTimeZone } from "../lib/deviceTimezone";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -602,6 +602,11 @@ const styles = `
     display: flex; flex-direction: column; gap: 10px;
   }
   .tl-pop-item { display: flex; gap: 8px; align-items: flex-start; }
+  button.tl-pop-item {
+    background: none; border: none; padding: 0; font: inherit; color: inherit;
+    text-align: left; cursor: pointer;
+  }
+  button.tl-pop-item:hover .tl-pop-short, button.tl-pop-item:focus-visible .tl-pop-short { color: var(--accent); }
   .tl-pop-short { font-size: 12.5px; font-weight: 700; color: var(--text-primary); line-height: 1.35; }
   .tl-pop-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.45; margin-top: 2px; }
 `;
@@ -612,8 +617,10 @@ const styles = `
 // снизу. По нажатию — подпись «26 окт · Полнолуние» и пояснение; несколько
 // событий в один день — все в одной подписи. Подпись — fixed и прижата к
 // краям окна: внутри блока с прокруткой она бы обрезалась.
+// Событие с планетой в подписи — кнопка: ведёт к карточке планеты ниже
+// (onPlanet, выбор вкладки — planetCardTarget).
 const RAIL_NODE_PX = 56;   // физический зазор между соседними узлами
-function Upcoming({ events }) {
+function Upcoming({ events, onPlanet }) {
   const [open, setOpen] = useState(null);   // { date, cx, top, bottom }
   const popRef = useRef(null);
   const scrollRef = useRef(null);
@@ -707,15 +714,26 @@ function Upcoming({ events }) {
       </div>
       {openGroup && (
         <div className="tl-pop" ref={popRef} style={popStyle}>
-          {openGroup.evs.map((ev) => (
-            <div key={ev.id} className="tl-pop-item">
-              <PlanetDot {...ev.dot} size={16} />
-              <div>
-                <div className="tl-pop-short">{shortDate(ev.date)} · {ev.short}</div>
-                <div className="tl-pop-detail">{ev.detail}</div>
-              </div>
-            </div>
-          ))}
+          {openGroup.evs.map((ev) => {
+            const body = (
+              <>
+                <PlanetDot {...ev.dot} size={16} />
+                <div>
+                  <div className="tl-pop-short">{shortDate(ev.date)} · {ev.short}</div>
+                  <div className="tl-pop-detail">{ev.detail}</div>
+                </div>
+              </>
+            );
+            // Фазы и затмения планеты не несут — вести некуда, остаются текстом.
+            return ev.planet ? (
+              <button type="button" key={ev.id} className="tl-pop-item"
+                onClick={() => { setOpen(null); onPlanet(ev.planet); }}>
+                {body}
+              </button>
+            ) : (
+              <div key={ev.id} className="tl-pop-item">{body}</div>
+            );
+          })}
         </div>
       )}
     </>
@@ -1034,6 +1052,18 @@ export default function PlannerPage() {
 
   const upcoming = useMemo(() => buildUpcoming(planData, lunar), [planData, lunar]);
 
+  // Из подписи «Ближайших 30 дней» — к карточке планеты. Вкладку переключаем,
+  // только если карточки нет на текущей. Таймаут — дождаться рендера новой
+  // вкладки: до него элемента с этим id в DOM ещё нет.
+  function goToPlanet(planet) {
+    const target = planetCardTarget(planData, planet, tab);
+    if (!target) return;
+    setTab(target.tab);
+    setTimeout(() => {
+      document.getElementById(target.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  }
+
   async function loadPlan() {
     setLoading(true); setError(null); setPlanData(null);
     try {
@@ -1169,7 +1199,7 @@ export default function PlannerPage() {
                 <section className="tl-section">
                   <div className="tl-card">
                     <h2 className="tl-title">Ближайшие 30 дней</h2>
-                    <Upcoming events={upcoming} />
+                    <Upcoming events={upcoming} onPlanet={goToPlanet} />
                   </div>
                 </section>
               )}
@@ -1222,7 +1252,7 @@ export default function PlannerPage() {
                 <div>
                   <SectionHeader emoji="🪐" title={planData?.longterm_title || "Долгосрочные транзиты"} subtitle="Социальные и высшие планеты — тренды на годы" />
                   {(planData?.longterm || []).map((lt, i) => (
-                    <div key={i} style={{ marginBottom: 20 }}>
+                    <div key={i} id={`plan-lt-${lt.planet}`} style={{ marginBottom: 20, scrollMarginTop: 80 }}>
                       <SectionHeader planet={lt.planet}
                         title={`${lt.planet_name} в ${lt.house} Доме`}
                         subtitle={lt.planet_subtitle} />
