@@ -160,9 +160,15 @@ def test_no_new_routes_hidden_from_schema():
         if "include_in_schema" not in text:
             continue
         # Декоратор ручки или include_router/APIRouter целиком — любой случай.
-        for m in re.finditer(r"\((?P<args>[^()]*include_in_schema\s*=\s*False[^()]*)\)", text):
+        matches = list(re.finditer(r"\((?P<args>[^()]*include_in_schema\s*=\s*False[^()]*)\)", text))
+        for m in matches:
             path = re.search(r"[\"']([^\"']*)[\"']", m.group("args"))
             found.setdefault(f.relative_to(backend).as_posix(), set()).add(path.group(1) if path else "<без пути>")
+        # ⚠️ Вложенные скобки в вызове (`dependencies=[Depends(x)]`) регулярка
+        # выше не берёт — такая ручка прошла бы мимо молча. Каждое вхождение
+        # обязано быть распознано, иначе — явная метка и падение ниже.
+        if len(re.findall(r"include_in_schema\s*=\s*False", text)) != len(matches):
+            found.setdefault(f.relative_to(backend).as_posix(), set()).add("<не распознано>")
     assert found == HIDDEN_FROM_SCHEMA, (
         f"скрытые из OpenAPI ручки изменились: {found}. Вызывает ли их приложение? "
         "Если да — контракт по схеме их не видит, нужна проверка запросом."
