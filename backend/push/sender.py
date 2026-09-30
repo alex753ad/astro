@@ -30,8 +30,19 @@ def _vapid_subject() -> str:
     return os.getenv("VAPID_SUBJECT", "mailto:admin@aristeatime.ru")
 
 
+# Сколько секунд push-сервис хранит пуш для устройства не на связи.
+# ⚠️ Не 0: 0 — умолчание pywebpush, и тогда пуш на выключенный или спящий
+# iPhone (Apple) и телефон в Doze просто теряется. Сутки — дольше пуши тика
+# и пилота теряют смысл. У утреннего прогноза срок короче — до полуночи
+# человека, его кладёт в payload["ttl"] тик (push/cron.py, `_process_user`).
+DEFAULT_TTL = 24 * 3600
+
+
 def send_web_push(sub: PushSubscription, payload: dict) -> bool:
     """Отправить один пуш. Возвращает True при успехе.
+
+    payload["ttl"] — срок хранения в секундах; нет — DEFAULT_TTL. В тело пуша
+    не уходит: это параметр доставки, а не данные для sw.js.
 
     При 404/410 (подписка мертва) бросает PushGone — вызывающий удаляет запись.
     """
@@ -45,10 +56,13 @@ def send_web_push(sub: PushSubscription, payload: dict) -> bool:
         "endpoint": sub.endpoint,
         "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
     }
+    ttl = int(payload.get("ttl") or DEFAULT_TTL)
+    data = {k: v for k, v in payload.items() if k != "ttl"}
     try:
         webpush(
             subscription_info=subscription_info,
-            data=json.dumps(payload, ensure_ascii=False),
+            data=json.dumps(data, ensure_ascii=False),
+            ttl=ttl,
             vapid_private_key=_vapid_private_key(),
             vapid_claims={"sub": _vapid_subject()},
             timeout=10,
