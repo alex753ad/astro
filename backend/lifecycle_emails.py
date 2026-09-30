@@ -206,6 +206,7 @@ def _onboarding_candidates(db: Session, kind: str, now: datetime) -> list[User]:
 
 def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
     from backend import email_service
+    from backend.profile.email_unsubscribe import unsubscribe_url
     from backend.transit.engine import calculate_transits
 
     users = _onboarding_candidates(db, kind, now)
@@ -215,8 +216,11 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
         # Всё, что зависит от карты и эфемерид, — ДО захвата строки журнала:
         # блокировка на уникальном индексе должна жить только время отправки.
         email, uid = user.email, user.id
+        unsub = unsubscribe_url(user)
+        if not unsub:
+            continue  # отписка от писем (068); в журнал не пишем
         if kind == "retention_day14":
-            send = lambda: email_service.send_retention_day14(email)
+            send = lambda: email_service.send_retention_day14(email, unsubscribe_url=unsub)
         else:
             chart = charts.get(uid)
             if not chart:
@@ -231,10 +235,10 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
                 if not event:
                     continue
                 text = _build_transit_text(event)
-                send = lambda: email_service.send_retention_day2(email, text)
+                send = lambda: email_service.send_retention_day2(email, text, unsubscribe_url=unsub)
             else:
                 locked = max(0, len(events) - 1)
-                send = lambda: email_service.send_retention_day7(email, locked)
+                send = lambda: email_service.send_retention_day7(email, locked, unsubscribe_url=unsub)
         if send_once(db, uid, kind, "", send):
             sent += 1
     return sent
@@ -242,11 +246,12 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
 
 def _send_purchase(db: Session, kind: str, now: datetime) -> int:
     from backend import email_service
+    from backend.profile.email_unsubscribe import unsubscribe_url
 
     tier, w = PURCHASE[kind]
     ref_expr = cast(PaymentEvent.id, String)
     rows = (
-        db.query(PaymentEvent.id, User.id, User.email, User.name)
+        db.query(PaymentEvent.id, User)
         .join(User, User.id == PaymentEvent.user_id)
         .filter(
             PaymentEvent.starts_chain.is_(True),
@@ -260,8 +265,12 @@ def _send_purchase(db: Session, kind: str, now: datetime) -> int:
     )
     fn = {"lite_day14": email_service.send_lite_day14, "pro_day30": email_service.send_pro_day30}[kind]
     sent = 0
-    for pid, uid, email, name in rows:
-        if send_once(db, uid, kind, str(pid), lambda: fn(email, name=name)):
+    for pid, user in rows:
+        unsub = unsubscribe_url(user)
+        if not unsub:
+            continue  # отписка от писем (068)
+        uid, email, name = user.id, user.email, user.name
+        if send_once(db, uid, kind, str(pid), lambda: fn(email, name=name, unsubscribe_url=unsub)):
             sent += 1
     return sent
 

@@ -134,6 +134,11 @@ async def _process(db: Session, user: User) -> dict:
         return {}
     end = start + timedelta(days=PILOT_DAYS)
     result = {}
+    # Отписка от писем (068): письмо не шлём, но шаг считаем сделанным
+    # (email_ok=True) — иначе он не отметится и пуш рядом с письмом
+    # повторялся бы на каждом тике.
+    from backend.profile.email_unsubscribe import unsubscribe_url
+    unsub = unsubscribe_url(user)
 
     # 1) Прощание за ≤3 дня
     if end - timedelta(days=FAREWELL_LEAD_DAYS) <= now < end:
@@ -148,19 +153,21 @@ async def _process(db: Session, user: User) -> dict:
             # внутри уже запущенного event loop (pilot_tick — async) — гарантированный
             # RuntimeError на каждый вызов, письмо молча не уходило, а _mark ниже
             # писал "отправлено" и хоронил попытку навсегда.
-            email_ok = False
+            email_ok = unsub is None
             try:
                 from backend.email_service import send_pilot_farewell
                 checkout_url = None
                 if PROMO_CODE:
                     from backend.config import get_settings
                     checkout_url = f"{get_settings().frontend_url}/profile?upgrade=pro"
-                email_ok = await send_pilot_farewell(
-                    user.email, windows,
-                    promo_code=PROMO_CODE, offer_text=PROMO_OFFER,
-                    checkout_url=checkout_url,
-                    deadline=PROMO_DEADLINE, days_left=days_left,
-                )
+                if unsub:
+                    email_ok = await send_pilot_farewell(
+                        user.email, windows,
+                        promo_code=PROMO_CODE, offer_text=PROMO_OFFER,
+                        checkout_url=checkout_url,
+                        deadline=PROMO_DEADLINE, days_left=days_left,
+                        unsubscribe_url=unsub,
+                    )
             except Exception as e:
                 logger.warning("farewell email failed user=%s: %s", user.id, e)
 
@@ -198,15 +205,17 @@ async def _process(db: Session, user: User) -> dict:
                 near = windows[0] if windows else None
                 survey_url = _survey_url(user, "dormant") if step in (10, 14) else None
 
-                email_ok = False
+                email_ok = unsub is None
                 try:
                     from backend.email_service import send_dormant
-                    email_ok = await send_dormant(
-                        user.email, step,
-                        window=near,
-                        missed_count=(len(windows) or None),
-                        survey_url=survey_url,
-                    )
+                    if unsub:
+                        email_ok = await send_dormant(
+                            user.email, step,
+                            window=near,
+                            missed_count=(len(windows) or None),
+                            survey_url=survey_url,
+                            unsubscribe_url=unsub,
+                        )
                 except Exception as e:
                     logger.warning("dormant%s email failed user=%s: %s", step, user.id, e)
 
@@ -243,12 +252,14 @@ async def _process(db: Session, user: User) -> dict:
     if now >= end and (user.tier or "free") == "free":
         ref = f"eom:{end.date().isoformat()}"
         if not _already(db, user.id, "exit_eom", ref):
-            email_ok = False
+            email_ok = unsub is None
             try:
                 from backend.email_service import send_end_of_month_survey
-                email_ok = await send_end_of_month_survey(
-                    user.email, _survey_url(user, "end_of_month")
-                )
+                if unsub:
+                    email_ok = await send_end_of_month_survey(
+                        user.email, _survey_url(user, "end_of_month"),
+                        unsubscribe_url=unsub,
+                    )
             except Exception as e:
                 logger.warning("eom survey email failed user=%s: %s", user.id, e)
             if email_ok:

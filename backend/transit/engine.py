@@ -584,6 +584,11 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
     """Отправляет email-алерт когда медленная планета начинает новый проход."""
     from backend.email_service import send_transit_alert_email, APP_URL
     from backend.ephemeris.ru_names import PLANET_RU, ASPECT_RU as ASP_RU
+    from backend.profile.email_unsubscribe import unsubscribe_url
+
+    unsub_url = unsubscribe_url(user)
+    if not unsub_url:
+        return  # отписка от писем (068)
 
     today = date.today()
 
@@ -629,6 +634,7 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
                 subject=subject,
                 link=link,
                 is_peak=False,
+                unsubscribe_url=unsub_url,
             )
         except Exception as e:
             logger.warning("Transit alert email failed user=%s: %s", user.id, e)

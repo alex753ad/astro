@@ -64,12 +64,15 @@ LOGO_URL       = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5
 def _base(title: str, preview: str, body: str, unsubscribe_url: str | None = None) -> str:
     """Универсальный базовый шаблон: хедер + контент + футер.
 
-    `unsubscribe_url` — рабочая ссылка отписки (пока только у дайджеста).
-    ⚠️ Без неё в футере остаётся прежняя ссылка на `{APP_URL}/unsubscribe`,
-    а такой страницы у сайта НЕТ — это 404 (TASKS.md, «Отписка в письмах»).
+    `unsubscribe_url` — ссылка отписки; есть только у информационных писем
+    (они идут через `_send_info`). У служебных (коды, оплата) ссылки нет
+    намеренно: отписка их не останавливает, и ссылка обещала бы неправду.
     """
-    unsub_href = unsubscribe_url or f"{APP_URL}/unsubscribe"
-    unsub_text = "Отписаться от дайджеста" if unsubscribe_url else "Отписаться"
+    unsub_link = (
+        f'<br/><a href="{unsubscribe_url}" style="color:#b0a0d0;text-decoration:none;">'
+        "Отписаться от писем</a>"
+        if unsubscribe_url else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -119,10 +122,7 @@ def _base(title: str, preview: str, body: str, unsubscribe_url: str | None = Non
                   <a href="{APP_URL}" style="color:#9060C8;text-decoration:none;font-weight:600;">
                     Aristea Timeline
                   </a>
-                  &nbsp;·&nbsp;aristeatime.ru<br/>
-                  <a href="{unsub_href}" style="color:#b0a0d0;text-decoration:none;">
-                    {unsub_text}
-                  </a>
+                  &nbsp;·&nbsp;aristeatime.ru{unsub_link}
                 </td>
               </tr>
             </table>
@@ -174,7 +174,21 @@ RESEND_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 RESEND_TOTAL_TIMEOUT_SEC = 20.0
 
 
-async def _send(to: str, subject: str, html: str, attachments: list[dict] | None = None) -> bool:
+async def _send(to: str, subject: str, html: str, attachments: list[dict] | None = None,
+                unsubscribe_url: str | None = None) -> bool:
+    """Отправка через Resend. `unsubscribe_url` — только у информационных писем.
+
+    С ним письмо несёт List-Unsubscribe и List-Unsubscribe-Post (RFC 8058):
+    Gmail и Mail.ru показывают свою кнопку «Отписаться», и клиент сам шлёт
+    POST на ту же ссылку — это отписка в одно нажатие. Сканеры писем POST
+    по заголовку не делают, поэтому страница с кнопкой (GET) остаётся
+    безопасной (profile/email_unsubscribe.py).
+    """
+    headers = (
+        {"headers": {"List-Unsubscribe": f"<{unsubscribe_url}>",
+                     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}}
+        if unsubscribe_url else {}
+    )
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not set — skipping email to %s", mask_email(to))
         return False
@@ -185,7 +199,7 @@ async def _send(to: str, subject: str, html: str, attachments: list[dict] | None
                     "https://api.resend.com/emails",
                     headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
                     json={"from": f"Aristea Timeline <{FROM_EMAIL}>", "to": [to], "subject": subject, "html": html}
-                    | ({"attachments": attachments} if attachments else {}),
+                    | ({"attachments": attachments} if attachments else {}) | headers,
                 ),
                 timeout=RESEND_TOTAL_TIMEOUT_SEC,
             )
@@ -196,6 +210,19 @@ async def _send(to: str, subject: str, html: str, attachments: list[dict] | None
     except Exception as e:
         logger.error("Email send failed: %s", e)
         return False
+
+
+async def _send_info(to: str, subject: str, title: str, preview: str, body: str,
+                     *, unsubscribe_url: str) -> bool:
+    """Информационное письмо: ссылка отписки в футере и заголовки отписки.
+
+    Все информационные письма требуют `unsubscribe_url` аргументом без
+    умолчания — его выдаёт `profile.email_unsubscribe.unsubscribe_url(user)`,
+    который вернёт None у отписавшегося: тогда письмо не отправляют. Список
+    информационных и служебных писем держит test_email_unsubscribe.py.
+    """
+    return await _send(to, subject, _base(title, preview, body, unsubscribe_url=unsubscribe_url),
+                       unsubscribe_url=unsubscribe_url)
 
 
 # ─────────────────────── branded client broadcast (021) ──────────────────────
@@ -406,7 +433,8 @@ def _get_sun_sign(planets: list[dict]) -> str | None:
     return None
 
 
-async def send_welcome_email(to: str, planets: list[dict] | None = None, name: str | None = None) -> bool:
+async def send_welcome_email(to: str, planets: list[dict] | None = None, name: str | None = None,
+                             *, unsubscribe_url: str) -> bool:
     """Welcome — отправляется после расчёта первой карты.
 
     Если planets переданы — включает инсайт по Солнцу.
@@ -446,14 +474,15 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
         + _p("Открой карту, чтобы увидеть все планеты, дома и разбор карты.")
         + _btn("✦ Открыть мою карту", APP_URL)
     )
-    return await _send(
+    return await _send_info(
         to,
         subject_line,
-        _base("Твоя карта готова", preview, body),
+        "Твоя карта готова", preview, body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
-async def send_retention_day2(to: str, transit_text: str) -> bool:
+async def send_retention_day2(to: str, transit_text: str, *, unsubscribe_url: str) -> bool:
     """Retention Day 2 — актуальный транзит для карты пользователя."""
     body = (
         _h2("🌙 Твой транзит на сегодня")
@@ -463,10 +492,11 @@ async def send_retention_day2(to: str, transit_text: str) -> bool:
         + _p("Открой Aristea Timeline, чтобы увидеть все активные транзиты и их разбор.")
         + _btn("Смотреть полный прогноз", APP_URL)
     )
-    return await _send(
+    return await _send_info(
         to,
         "🌙 Твой астрологический прогноз на сегодня",
-        _base("Прогноз на сегодня", "Персональный транзит по твоей карте", body),
+        "Прогноз на сегодня", "Персональный транзит по твоей карте", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -474,7 +504,7 @@ async def send_retention_day2(to: str, transit_text: str) -> bool:
 send_retention_email = send_retention_day2
 
 
-async def send_retention_day7(to: str, locked_count: int) -> bool:
+async def send_retention_day7(to: str, locked_count: int, *, unsubscribe_url: str) -> bool:
     """Retention Day 7 — апгрейд-нудж для free-пользователей."""
     body = (
         _h2("⭐ Не пропусти важные периоды")
@@ -489,10 +519,11 @@ async def send_retention_day7(to: str, locked_count: int) -> bool:
         )
         + _btn(f"Попробовать {TIER_NAMES['pro']}", f"{APP_URL}/pricing")
     )
-    return await _send(
+    return await _send_info(
         to,
         f"⭐ Мимо тебя проходят {locked_count} активных транзитов",
-        _base("Важные транзиты закрыты", "Открой полный прогноз на месяц", body),
+        "Важные транзиты закрыты", "Открой полный прогноз на месяц", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -529,6 +560,8 @@ async def send_weekly_digest_email(
     to: str,
     week_label: str,
     highlights: list[dict],
+    *,
+    unsubscribe_url: str,
 ) -> bool:
     """Weekly Digest — топ-3 транзита на предстоящую неделю.
 
@@ -560,10 +593,11 @@ async def send_weekly_digest_email(
           f' style="margin:0 0 20px;">{items_html}</table>'
         + _btn("Открыть полный календарь", f"{APP_URL}/calendar")
     )
-    return await _send(
+    return await _send_info(
         to,
         f"🔭 Твоя неделя {week_label} — окна периода и что в них делать · Aristea",
-        _base(f"Дайджест {week_label}", "Твои главные транзиты на неделю", body),
+        f"Дайджест {week_label}", "Твои главные транзиты на неделю", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -577,6 +611,8 @@ async def send_transit_alert_email(
     subject: str,
     link: str,
     is_peak: bool = True,
+    *,
+    unsubscribe_url: str,
 ) -> bool:
     """Transit Alert — точечное уведомление об важном транзите (пик или начало).
 
@@ -602,10 +638,11 @@ async def send_transit_alert_email(
         + _p("Открой приложение, чтобы получить полный разбор этого транзита.")
         + _btn("Читать разбор →", link)
     )
-    return await _send(
+    return await _send_info(
         to,
         subject,
-        _base("Важный транзит", f"{planet} {aspect} {natal_planet} — {date_str}", body),
+        "Важный транзит", f"{planet} {aspect} {natal_planet} — {date_str}", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -614,6 +651,11 @@ async def send_weekly_digest(user, db) -> bool:
     import random
     from datetime import timedelta, date as date_type
     from backend.transit.engine import calculate_transits
+
+    from backend.profile.email_unsubscribe import unsubscribe_url
+    unsub_url = unsubscribe_url(user)
+    if not unsub_url:
+        return False  # отписка от писем (068)
 
     now = date_type.today()
     week_end = now + timedelta(days=7)
@@ -811,13 +853,11 @@ async def send_weekly_digest(user, db) -> bool:
     else:
         subject = f"✦ Твоя неделя {week_label} — что важно и что делать · Aristea"
 
-    from backend.profile.digest_unsubscribe import ensure_unsub_token
-    unsub_url = f"{PUBLIC_API_URL}/api/v1/email/digest/unsubscribe/{ensure_unsub_token(user, db)}"
-    return await _send(
+    return await _send_info(
         user.email,
         subject,
-        _base(f"Дайджест {week_label}", "Твои главные транзиты на неделю", body,
-              unsubscribe_url=unsub_url),
+        f"Дайджест {week_label}", "Твои главные транзиты на неделю", body,
+        unsubscribe_url=unsub_url,
     )
 
 
@@ -849,7 +889,7 @@ async def send_gift_code_email(
     )
 
 
-async def send_lunar_return_email(user, lunar_return_date) -> bool:
+async def send_lunar_return_email(user, lunar_return_date, *, unsubscribe_url: str) -> bool:
     """Notify user when Moon returns to their natal sign."""
     date_str = lunar_return_date.strftime("%d %B %Y") if hasattr(lunar_return_date, "strftime") else str(lunar_return_date)
     body = (
@@ -864,10 +904,11 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
         )
         + _btn("Открыть мою карту →", "https://aristeatime.ru/profile")
     )
-    return await _send(
+    return await _send_info(
         user.email,
         "Луна вернулась в твой знак 🌙",
-        _base("Лунное возвращение", "Особый день для новых намерений", body),
+        "Лунное возвращение", "Особый день для новых намерений", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -875,7 +916,7 @@ async def send_lunar_return_email(user, lunar_return_date) -> bool:
 # RETENTION DAY 14 — шаблон (Free → Lite, купон 30%)
 # ═══════════════════════════════════════════════════════════
 
-async def send_retention_day14(to: str) -> bool:
+async def send_retention_day14(to: str, *, unsubscribe_url: str) -> bool:
     """Retention Day 14 — напоминание о тарифах, без скидки и без купона
     (был Stripe-купон на годовой план — оба удалены как мёртвый код
     19.08.2026, годовых планов в текущей модели тоже больше нет)."""
@@ -894,10 +935,11 @@ async def send_retention_day14(to: str) -> bool:
             "</span>"
         )
     )
-    return await _send(
+    return await _send_info(
         to,
         "Твои тарифы на Aristea Timeline",
-        _base("Тарифы Aristea Timeline", "Полные транзиты, разбор карты и персональный планер", body),
+        "Тарифы Aristea Timeline", "Полные транзиты, разбор карты и персональный планер", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -937,7 +979,7 @@ async def send_lite_welcome(to: str, name: str | None = None) -> bool:
     )
 
 
-async def send_lite_day14(to: str, name: str | None = None) -> bool:
+async def send_lite_day14(to: str, name: str | None = None, *, unsubscribe_url: str) -> bool:
     """Lite — День 14: identity + тизер RAG-чата."""
     greeting = f"{name}, ты исследуешь себя серьёзнее других" if name else "Ты исследуешь себя серьёзнее других"
     body = (
@@ -970,10 +1012,11 @@ async def send_lite_day14(to: str, name: str | None = None) -> bool:
             "</span>"
         )
     )
-    return await _send(
+    return await _send_info(
         to,
         "🌟 Ты исследуешь себя серьёзнее других",
-        _base("14 дней с Aristea", "Следующий уровень — задавать вопросы своей карте", body),
+        "14 дней с Aristea", "Следующий уровень — задавать вопросы своей карте", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -1015,7 +1058,7 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
     )
 
 
-async def send_pro_day30(to: str, name: str | None = None) -> bool:
+async def send_pro_day30(to: str, name: str | None = None, *, unsubscribe_url: str) -> bool:
     """Pro — День 30: результат + мягкий вопрос про клиентов → Premium."""
     greeting = f"{name}, уже 30 дней с твоей картой ✦" if name else "Уже 30 дней с твоей картой ✦"
     body = (
@@ -1040,10 +1083,11 @@ async def send_pro_day30(to: str, name: str | None = None) -> bool:
             "</span>"
         )
     )
-    return await _send(
+    return await _send_info(
         to,
         "✦ Уже 30 дней с твоей астрологической картой",
-        _base("30 дней с Aristea", "Результат + взгляд вперёд", body),
+        "30 дней с Aristea", "Результат + взгляд вперёд", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -1141,6 +1185,8 @@ async def send_pilot_farewell(
     checkout_url: str | None = None,
     deadline: str | None = None,
     days_left: int = 3,
+    *,
+    unsubscribe_url: str,
 ) -> bool:
     """Письмо за 3 дня до конца пилота.
 
@@ -1188,10 +1234,11 @@ async def send_pilot_farewell(
         + stay_html
     )
 
-    return await _send(
+    return await _send_info(
         to,
         "Твой месяц в Aristea заканчивается",
-        _base("Твой месяц заканчивается", "Ближайшие окна, которые могут пройти мимо", body),
+        "Твой месяц заканчивается", "Ближайшие окна, которые могут пройти мимо", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 
@@ -1201,6 +1248,8 @@ async def send_dormant(
     window: str | None = None,      # ближайшее активное окно (напр. "Венера до 24 июля")
     missed_count: int | None = None,
     survey_url: str | None = None,  # ссылка на exit-survey (день 10/14)
+    *,
+    unsubscribe_url: str,
 ) -> bool:
     """Письмо спящему. День 5 — мягкое напоминание; 10 — с вопросом; 14 — последнее."""
     if day == 5:
@@ -1238,10 +1287,10 @@ async def send_dormant(
         )
         subj, prev = "Один вопрос напоследок", "Если Aristea не подошла"
 
-    return await _send(to, subj, _base(subj, prev, body))
+    return await _send_info(to, subj, subj, prev, body, unsubscribe_url=unsubscribe_url)
 
 
-async def send_end_of_month_survey(to: str, survey_url: str) -> bool:
+async def send_end_of_month_survey(to: str, survey_url: str, *, unsubscribe_url: str) -> bool:
     """Момент 3: месяц закончился, продолжения не было — «почему не остались»."""
     body = (
         _h2("Твой месяц закончился")
@@ -1252,9 +1301,10 @@ async def send_end_of_month_survey(to: str, survey_url: str) -> bool:
         + _p("Твоя карта останется с тобой и на бесплатном тарифе — окна будут видны "
              "как даты.")
     )
-    return await _send(
+    return await _send_info(
         to, "Твой месяц в Aristea закончился",
-        _base("Твой месяц закончился", "Один вопрос — что помешало остаться", body),
+        "Твой месяц закончился", "Один вопрос — что помешало остаться", body,
+        unsubscribe_url=unsubscribe_url,
     )
 
 

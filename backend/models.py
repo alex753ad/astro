@@ -68,9 +68,17 @@ class User(Base):
     # 27.09.2026 (решение владельца): новые получают дайджест в понедельник,
     # у выбравших другой день раньше он сохранён.
     digest_day_of_week = Column(Integer, nullable=False, default=0, server_default="0")
-    # Отписка от дайджеста по ссылке из письма (063, profile/digest_unsubscribe.py).
+    # Отписка от дайджеста (063). С 068 код её НЕ читает — значения перенесены
+    # в email_opt_out; колонка оставлена по решению владельца.
     digest_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
-    email_unsub_token = Column(String(64), nullable=True, unique=True, index=True)
+    # Отписка от всех информационных писем (068, profile/email_unsubscribe.py).
+    # Служебные письма (коды, оплата) её не читают.
+    email_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Токен ссылки отписки есть у каждого: без него информационное письмо не
+    # уходит (email_unsubscribe.unsubscribe_url). Не меняется — ссылки из
+    # старых писем продолжают работать.
+    email_unsub_token = Column(String(64), nullable=True, unique=True, index=True,
+                               default=lambda: uuid.uuid4().hex)
 
     # Push notification preferences (031)
     push_daily_forecast = Column(Boolean, nullable=False, default=True, server_default="true")
