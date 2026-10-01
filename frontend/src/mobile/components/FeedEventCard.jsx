@@ -27,7 +27,6 @@
  */
 
 import React from 'react';
-import BlurredHint from './BlurredHint';
 import FeedLockMark from './FeedLockMark';
 import { aspectColor, aspectSymbol, glyph, glyphStyle } from '../lib/feedGlyphs';
 import { daysBetween, eventTitle, localToday, natalLabel, periodRangeFull, planetRu, signRu } from '../lib/feedTime';
@@ -35,19 +34,6 @@ import { toDM } from '../lib/chartFormat';
 import { planetDotColor } from '../lib/feedTimelineDot';
 import { splitItemLabel } from '../lib/plannerItemLabel';
 import { hasLunationForecast } from '../lib/lunationPhase';
-
-// Высота блока пропорциональна длительности (§8). Коэффициент подобран под
-// то, что реально остаётся в потоке после изъятия долгосрочных периодов:
-// самый длинный — месячный период Солнца, 30 суток, то есть +75px к базовой
-// высоте. Потолок НЕ вводится (решение владельца, §12.2): пропорция должна
-// остаться честной.
-const PX_PER_DAY = 2.5;
-
-/** Точка на шкале (транзит, фаза, станция) против периода с длительностью. */
-function durationHeight(event) {
-  if (!event.ends_at || !event.duration_days) return undefined;
-  return Math.round(event.duration_days * PX_PER_DAY);
-}
 
 /**
  * Закрыто ли событие.
@@ -102,23 +88,19 @@ const rowStyle = {
 export default function FeedEventCard({ event, onOpen, major = false, collapsed = false, onToggle }) {
   const meta = event.meta || {};
   const locked = isLocked(event);
-  const extraHeight = durationHeight(event);
 
-  // Витрина под блюром — только у закрытого МЕСЯЧНОГО периода: у него есть
-  // высота (она значит длительность), но нечего в ней показать, потому что на
-  // free сервер отдаёт пустые theme и groups.
+  // ⚠️ Закрытое в приложении — ЗАМОЧЕК (FeedLockMark), не размытие. До
+  // 01.10.2026 у закрытого месячного периода стояла витрина под блюром
+  // (BlurredHint, коммит 75c53f8 от 05.09.2026, «витрина в закрытых
+  // периодах»), как на сайте, а замочек при ней прятался — на бесплатном
+  // «Меркурий в 11 доме» выглядел иначе, чем закрытые карточки ниже.
+  // Решение владельца: в приложении — замочек у всех, на сайте размытие
+  // остаётся. Держит feedEventCard.test.js.
   //
-  // ⚠️ Проход Луны по дому сюда не входит намеренно (решение владельца
-  // 16.09.2026): вид события не должен зависеть от тарифа. Блюр давал бы free
-  // рамку с витриной там, где у платного просто строка, — и лента читалась бы
-  // по-разному у разных людей. Закрытость несёт значок (FeedLockMark).
-  const showFiller = !collapsed && locked && Boolean(extraHeight) && event.kind === 'planner_period';
-
-  // ⚠️ Высота по длительности идёт В ПАРЕ с витриной, а не сама по себе.
-  // Растянутая карточка без содержимого — это пустая коробка, и владелец
-  // просил такие не тянуть: у них высота по контенту. Поэтому minHeight
-  // ставится ровно тогда, когда есть чем его заполнить.
-  const minHeight = showFiller ? 64 + extraHeight : undefined;
+  // Вместе с витриной ушла и высота по длительности (§8, 2,5 px на сутки):
+  // она стояла только у закрытого периода и только в паре с витриной —
+  // растянутая карточка без содержимого — пустая коробка, владелец просил
+  // такие не тянуть.
 
   // Строка знаков — только когда пришли оба знака: у не-транзитов их нет.
   const hasSigns = meta.transit_sign && meta.natal_sign;
@@ -168,8 +150,7 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
 
   // Рамка и фон — только у карточки периода (§9 SPEC_FEED_VISUAL.md, «до
   // захода Б»: точка и линия слева уже показывают, что это событие, рамка
-  // с ними спорит). showFiller — исключение: витрине под блюром нужна
-  // видимая граница, иначе непонятно, где она заканчивается.
+  // с ними спорит).
   const isPeriodCard = event.kind === 'planner_period';
   /**
    * ⚠️ Рамка — у ВСЕХ периодов планера и в обоих состояниях (решение владельца
@@ -178,7 +159,7 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
    * одна и та же сущность. Свёрнутый и раскрытый вид отличаются ОБЪЁМОМ, а не
    * оформлением.
    */
-  const boxed = isPlannerEvent(event) || showFiller;
+  const boxed = isPlannerEvent(event);
 
   // Цвет планеты — та же таблица, что у точки на линии и у полосы в шапке
   // (feedTimelineDot.js): один источник на всё приложение, не вторая копия.
@@ -256,9 +237,6 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
         flexDirection: 'column',
         gap: 6,
         cursor: (togglable || openable) ? 'pointer' : 'default',
-        // minHeight, а не height: длительность задаёт нижнюю границу, но
-        // длинный заголовок не должен обрезаться.
-        minHeight,
       }}
     >
       {/*
@@ -353,7 +331,7 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
           >
             {eventTitle(event)}
           </h3>
-          {locked && isPlannerEvent(event) && !showFiller && <FeedLockMark />}
+          {locked && isPlannerEvent(event) && <FeedLockMark />}
         </div>
       )}
 
@@ -374,7 +352,7 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
       )}
 
       {/* Рекомендации периода (§5) — только у открытого, с непустым
-          содержимым: у закрытого их место занимает showFiller ниже.
+          содержимым: у закрытого — только замочек у заголовка.
 
           ⚠️ Гротеск, а не антиква, и это по правилу, а не по недосмотру
           (§3 DESIGN_SYSTEM.md). Антиква положена прозе модели, читаемой
@@ -427,19 +405,6 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
           })}
         </div>
       ))}
-
-      {/*
-        flex:1 + overflow:hidden — обязательная часть, а не оформление.
-        Витрина ЗАПОЛНЯЕТ оставшееся место, но не добавляет своего: иначе
-        двухдневный проход Луны с тремя строками витрины стал бы ВЫШЕ
-        тридцатидневного периода Солнца, и пропорция длительности — главный
-        приём ленты — начала бы врать в обратную сторону.
-      */}
-      {showFiller && (
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <BlurredHint />
-        </div>
-      )}
 
       {/* Полоса прогресса (§5) — во всю ширину карточки, поэтому отрицательные
           отступы гасят padding родителя; overflow:hidden на article (см. выше)
