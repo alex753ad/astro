@@ -726,6 +726,28 @@ class PushSentLog(Base):
     sent_at = Column(DateTime, default=utcnow)
 
 
+class PushSend(Base):
+    """Один содержательный пуш — одна строка (071, флаг push_day_event).
+
+    Нужна для лимита «не больше 2 пушей за местные сутки» (push/cron.py,
+    DAILY_PUSH_CAP). push_sent_log для этого не годится: там строка на
+    СОБЫТИЕ, и склеенный утренний пуш из трёх событий дал бы три строки;
+    пилот пишет туда только при успешном письме; местной даты там нет.
+    slot — morning / evening / pilot. Служебные (PDF, тест) не пишутся.
+    """
+    __tablename__ = "push_sends"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    local_date = Column(Date, nullable=False)
+    slot = Column(String(16), nullable=False)
+    sent_at = Column(DateTime, default=utcnow)
+
+    __table_args__ = (Index("ix_push_sends_user_date", "user_id", "local_date"),)
+
+
 class EmailSentLog(Base):
     """Журнал писем онбординга и писем после покупки (054) — один путь, одно письмо.
 

@@ -29,6 +29,7 @@ from backend.authz import require_internal_secret
 from backend.database import get_db
 from backend.models import User, NatalChart, PushSentLog
 from backend.push.sender import send_to_user
+from backend.push.cron import pilot_push_allowed, record_pilot_send
 from backend.email_service import TIER_NAMES
 from backend.ephemeris.ru_names import PLANET_RU
 
@@ -174,11 +175,14 @@ async def _process(db: Session, user: User) -> dict:
             # пуш (если есть подписка)
             try:
                 near = windows[0] if windows else "важное окно твоей карты"
-                send_to_user(db, user.id, {
+                # Лимит пушей в сутки (флаг push_day_event): пилот — последний
+                # в очереди, письмо уходит в любом случае.
+                if pilot_push_allowed(db, user) and send_to_user(db, user.id, {
                     "title": "✦ Твой месяц заканчивается",
                     "body": f"Через {days_left} дн. {near} закроется для тебя. Это окно стоит того, чтобы его не потерять.",
                     "url": "/profile",
-                })
+                }):
+                    record_pilot_send(db, user)
             except Exception as e:
                 logger.warning("farewell push failed user=%s: %s", user.id, e)
 
@@ -225,9 +229,10 @@ async def _process(db: Session, user: User) -> dict:
                         10: "10 дней без Timeline. Если что-то не так — расскажи, это 30 секунд.",
                         14: "Последнее напоминание. Твоя карта будет ждать, если захочешь вернуться.",
                     }[step]
-                    send_to_user(db, user.id, {
+                    if pilot_push_allowed(db, user) and send_to_user(db, user.id, {
                         "title": "✦ Aristea", "body": body, "url": "/planner",
-                    })
+                    }):
+                        record_pilot_send(db, user)
                 except Exception as e:
                     logger.warning("dormant%s push failed user=%s: %s", step, user.id, e)
 
