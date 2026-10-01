@@ -403,6 +403,50 @@ def week_top(chart, today: date, tzname: str, daily_time, quiet_from) -> DayEven
     return best
 
 
+# ── «Неделя вперёд» (флаг week_ahead, backend/week_ahead.py) ──
+# Решение владельца 01.10.2026. Те же main_event по каждому дню недели, что
+# у week_top, — поэтому дни всегда разные и первое по силе событие недели
+# совпадает с тем, что назовёт возвратный пуш.
+#   * Сильные — балл ≥ RETURN_MIN_SCORE, до трёх по убыванию балла. Касание
+#     Луны (максимум 9) сюда не попадает никогда.
+#   * Сильных меньше трёх — добор из оставшихся дней с баллом ≥
+#     WEEK_FILL_MIN_SCORE, касаний Луны в доборе — не больше одного: иначе
+#     «спокойная неделя» была бы списком Луны.
+#   * Пуш — только если есть хотя бы одно сильное (week_ahead.py); на карте
+#     владельца 2026–27 это 42 недели из 52, без добора три события набирались
+#     бы лишь в 15 из 52.
+WEEK_SIZE = 3
+WEEK_FILL_MIN_SCORE = 6
+
+
+def pick_week(events: list[DayEvent]) -> list[DayEvent]:
+    """Три события недели из главных событий её дней, по дате."""
+    def rank(e):
+        return (-e.score, e.at_local)
+    strong = sorted((e for e in events if e.score >= RETURN_MIN_SCORE), key=rank)[:WEEK_SIZE]
+    out, moon = list(strong), False
+    for e in sorted((e for e in events if e not in strong and e.score >= WEEK_FILL_MIN_SCORE), key=rank):
+        if len(out) >= WEEK_SIZE:
+            break
+        if e.transit == "Moon":
+            if moon:
+                continue
+            moon = True
+        out.append(e)
+    return sorted(out, key=lambda e: e.at_local)
+
+
+def week_events(chart, today: date, tzname: str, daily_time, quiet_from) -> list[DayEvent]:
+    """События дней today+1 … today+RETURN_DAYS по правилу pick_week."""
+    evs = (main_event(chart, today + timedelta(days=i), tzname, daily_time, quiet_from)
+           for i in range(1, RETURN_DAYS + 1))
+    return pick_week([e for e in evs if e])
+
+
+def is_strong(ev: DayEvent) -> bool:
+    return ev.score >= RETURN_MIN_SCORE
+
+
 def return_title(ev: DayEvent) -> str:
     """«7 октября · Сатурн к твоей Луне» — дата вместо времени."""
     d = ev.at_local
