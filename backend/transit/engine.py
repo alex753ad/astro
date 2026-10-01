@@ -489,7 +489,7 @@ NATAL_SPHERE = {
     ("Jupiter", "Sun"):        "как тебя видят и слышат — уверенность, право занимать больше места",
     ("Jupiter", "Moon"):       "дом, семья и то, что даёт тебе ощущение опоры",
     ("Jupiter", "Venus"):      "отношения, деньги и всё, что приносит удовольствие",
-    ("Jupiter", "Mars"):       "энергия и готовность действовать первой",
+    ("Jupiter", "Mars"):       "энергия и готовность действовать на опережение",
     ("Jupiter", "Mercury"):    "разговоры, договорённости и то, чему ты сейчас учишься",
     ("Jupiter", "Ascendant"):  "то, как ты подаёшь себя миру",
     ("Jupiter", "Midheaven"):  "карьера и публичная репутация",
@@ -540,8 +540,9 @@ def _build_transit_alert_description(transit_planet: str, natal_planet: str, asp
 
 
 # Тема письма — состояние/тема сначала, потом ход (см. документация/astrea_план_продаж.md,
-# раздел 2 «Голос Astrea»). {sphere} обрезаем до первой смысловой части — в теме нет места
-# на полную формулировку из NATAL_SPHERE.
+# раздел 2 «Голос Astrea»). {sphere} — часть NATAL_SPHERE до « — », целиком. ⚠️ Не резать по
+# запятой: до 01.10.2026 тема выходила «Сатурн: твои границы и то — …» (сфера «твои границы
+# и то, за что ты берёшься отвечать»). Держит test_transit_alert_subject.py.
 SUBJECT_TEMPLATES = {
     "harmonious": ("🌟 Окно открылось: {sphere} — что сделать · Aristea Timeline",
                    "🌟 {planet} открывает благоприятный период — что сделать · Aristea Timeline"),
@@ -557,7 +558,7 @@ def _build_transit_alert_subject(transit_planet: str, natal_planet: str, aspect_
     sphere = NATAL_SPHERE.get((transit_planet, natal_planet))
     with_sphere, without_sphere = SUBJECT_TEMPLATES[tone]
     if sphere:
-        sphere_short = sphere.split(" — ")[0].split(",")[0]
+        sphere_short = sphere.split(" — ")[0]
         return with_sphere.format(planet=planet_ru, sphere=sphere_short)
     return without_sphere.format(planet=planet_ru)
 
