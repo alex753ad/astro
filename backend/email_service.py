@@ -43,6 +43,11 @@ def _plural(n: int, one: str, few: str, many: str) -> str:
     return many
 
 
+# Срок доступа одной фразой на всех витринах — как tierCatalog.ACCESS_TERM
+# (docs/tariffs.md, «Срок пишется одинаково везде»).
+ACCESS_TERM = "Доступ на 30 дней, без автопродления."
+
+
 def _tier_limits(tier: str) -> dict:
     """Лимиты тарифа из TIER_FLAGS — единственного источника сетки.
 
@@ -483,9 +488,13 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
 
 
 async def send_retention_day2(to: str, transit_text: str, *, unsubscribe_url: str) -> bool:
-    """Retention Day 2 — актуальный транзит для карты пользователя."""
+    """Retention Day 2 — транзит ближайших 7 дней для карты пользователя.
+
+    ⚠️ Не «на сегодня»: транзит выбирается из недели вперёд, и до 01.10.2026
+    письмо называло сегодняшним событие через несколько дней. Дату в текст
+    ставит lifecycle_emails._build_transit_text."""
     body = (
-        _h2("🌙 Твой транзит на сегодня")
+        _h2("🌙 Твой транзит на этой неделе")
         + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
           f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
           f'{transit_text}</div>'
@@ -494,8 +503,8 @@ async def send_retention_day2(to: str, transit_text: str, *, unsubscribe_url: st
     )
     return await _send_info(
         to,
-        "🌙 Твой астрологический прогноз на сегодня",
-        "Прогноз на сегодня", "Персональный транзит по твоей карте", body,
+        "🌙 Твой транзит на этой неделе",
+        "Транзит недели", "Персональный транзит по твоей карте", body,
         unsubscribe_url=unsubscribe_url,
     )
 
@@ -504,25 +513,35 @@ async def send_retention_day2(to: str, transit_text: str, *, unsubscribe_url: st
 send_retention_email = send_retention_day2
 
 
-async def send_retention_day7(to: str, locked_count: int, *, unsubscribe_url: str) -> bool:
-    """Retention Day 7 — апгрейд-нудж для free-пользователей."""
+async def send_retention_day7(to: str, transit_count: int, *, unsubscribe_url: str) -> bool:
+    """Retention Day 7 — первый платный шаг: Вега (решение владельца 01.10.2026).
+
+    ⚠️ До 01.10.2026 письмо говорило «мимо тебя проходят N транзитов» и
+    «закрыты» — неправда: список транзитов бесплатный видит на
+    transits_months вперёд. Платное здесь — разборы транзитов, поэтому
+    письмо зовёт их разобрать, а числа берёт из TIER_FLAGS."""
+    free, lite = _tier_limits("free"), _tier_limits("lite")
+    n_word = _plural(transit_count, "транзит", "транзита", "транзитов")
+    trial, per_month = free["transits_ai_trial"], lite["transits_ai_per_month"]
     body = (
-        _h2("⭐ Не пропусти важные периоды")
+        _h2("⭐ Разбери свои транзиты")
         + _p(
-            f"В ближайший месяц для твоей карты активно "
-            f"<strong>{locked_count} транзитов</strong> — периоды, влияющие на карьеру, "
-            f"отношения и финансы."
+            f"В ближайший месяц в твоей карте <strong>{transit_count} {n_word}</strong> — "
+            "периоды, которые касаются работы, отношений и денег. Список ты уже видишь."
         )
         + _p(
-            f"С планом <strong>{TIER_NAMES['pro']}</strong> ты видишь полный прогноз и получаешь "
-            "разбор каждого периода."
+            "Что каждый из них значит именно для тебя — в разборе транзитов. На бесплатном "
+            f"тарифе {trial} {_plural(trial, 'разбор', 'разбора', 'разборов')} на пробу, "
+            f"на <strong>{TIER_NAMES['lite']}</strong> — {per_month} "
+            f"{_plural(per_month, 'разбор', 'разбора', 'разборов')} в месяц."
         )
-        + _btn(f"Попробовать {TIER_NAMES['pro']}", f"{APP_URL}/pricing")
+        + _btn(f"Посмотреть {TIER_NAMES['lite']}", f"{APP_URL}/pricing")
+        + _p(f'<span style="font-size:12px;color:#a090c0;">{ACCESS_TERM}</span>')
     )
     return await _send_info(
         to,
-        f"⭐ Мимо тебя проходят {locked_count} активных транзитов",
-        "Важные транзиты закрыты", "Открой полный прогноз на месяц", body,
+        f"⭐ В ближайший месяц — {transit_count} {n_word} в твоей карте",
+        "Разбор транзитов", "Что каждый транзит значит для тебя", body,
         unsubscribe_url=unsubscribe_url,
     )
 
@@ -921,19 +940,22 @@ async def send_retention_day14(to: str, *, unsubscribe_url: str) -> bool:
     (был Stripe-купон на годовой план — оба удалены как мёртвый код
     19.08.2026, годовых планов в текущей модели тоже больше нет)."""
     pricing_url = f"{APP_URL}/pricing"
+    lite = _tier_limits("lite")
+    tm, ip, tp = lite["transits_months"], lite["interpretations_per_month"], lite["transits_ai_per_month"]
     body = (
         _h2("Две недели с Aristea Timeline")
         + _p(
+            # ⚠️ До 01.10.2026 здесь было «разбор карты (Вега и выше)» —
+            # неправда: один разбор на карту есть и на бесплатном. Числа — из
+            # TIER_FLAGS, как в письмах после покупки.
             "Уже две недели ты с нами на бесплатном тарифе. Если хочется больше — "
-            f"полные транзиты, разбор карты, персональный планер ({TIER_NAMES['lite']} "
-            f"и выше) — посмотри тарифы и выбери то, что подходит."
+            f"транзиты на {tm} {_plural(tm, 'месяц', 'месяца', 'месяцев')} вперёд, "
+            f"{ip} {_plural(ip, 'разбор', 'разбора', 'разборов')} карты "
+            f"и {tp} {_plural(tp, 'разбор', 'разбора', 'разборов')} транзитов в месяц, "
+            f"все периоды планера ({TIER_NAMES['lite']} и выше) — посмотри тарифы и выбери то, что подходит."
         )
         + _btn("Посмотреть тарифы →", pricing_url)
-        + _p(
-            '<span style="font-size:12px;color:#a090c0;">'
-            "Оплата разовая, за один месяц. Без автопродления."
-            "</span>"
-        )
+        + _p(f'<span style="font-size:12px;color:#a090c0;">{ACCESS_TERM}</span>')
     )
     return await _send_info(
         to,
