@@ -40,6 +40,7 @@ import { isGuest } from '../lib/guestChart';
 import { askSignup } from '../lib/signupPrompt';
 import { useNavigate } from 'react-router-dom';
 import { utcOffsetLabel } from '../../lib/utcOffset';
+import { OPEN_INTERPRET_EVENT, markSeen } from '../lib/firstWeek';
 
 function CenteredNotice({ title, text, action, onAction, secondary, onSecondary, support }) {
   return (
@@ -164,6 +165,17 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
   const navigate = useNavigate();
   // Гость: действия, которым нужен аккаунт, ведут на «Сохранить карту».
   const guest = isGuest();
+
+  // Первая неделя (флаг first_week): открыл вкладку — «карта», открыл разбор
+  // — «разбор карты». Кнопка карточки в ленте открывает разбор событием.
+  useEffect(() => { if (active && !guest) markSeen('chart'); }, [active, guest]);
+  useEffect(() => { if (view === 'interpret') markSeen('interpret'); }, [view]);
+  useEffect(() => {
+    if (guest) return undefined;
+    const open = () => setView('interpret');
+    window.addEventListener(OPEN_INTERPRET_EVENT, open);
+    return () => window.removeEventListener(OPEN_INTERPRET_EVENT, open);
+  }, [guest]);
   const needAccount = (reason) => askSignup(navigate, reason);
 
   // Кнопка чата прячется на время подсказок — этим ведает TabShell.

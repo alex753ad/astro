@@ -434,6 +434,10 @@ app.include_router(forecast_router)
 from backend.pdf_reports.router import router as pdf_reports_router  # noqa: E402
 app.include_router(pdf_reports_router)
 
+# Первая неделя по сценарию (флаг first_week, backend/first_week.py).
+from backend.first_week_router import router as first_week_router  # noqa: E402
+app.include_router(first_week_router)
+
 
 # ═══════════════════════════════════════════════════════════
 # PROMETHEUS METRICS

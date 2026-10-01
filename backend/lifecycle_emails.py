@@ -37,7 +37,7 @@ from sqlalchemy import String, and_, cast, exists, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.models import EmailSentLog, NatalChart, PaymentEvent, User
+from backend.models import DeviceToken, EmailSentLog, NatalChart, PaymentEvent, User
 from backend.time_utils import utcnow
 
 logger = logging.getLogger("astro.lifecycle_emails")
@@ -242,6 +242,21 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
             chart = charts.get(uid)
             if not chart:
                 continue  # карты ещё нет — попробуем в следующий прогон, пока открыто окно
+            # Первая неделя (флаг first_week, backend/first_week.py): день 2
+            # не уходит тем, у кого есть приложение — прогноз дня и так в
+            # ленте; день 7 — итог недели вместо «Разбери свои транзиты».
+            from backend.flags import flag_on
+            if flag_on(db, "first_week", user):
+                if kind == "retention_day2" and db.query(DeviceToken.id).filter(
+                        DeviceToken.user_id == uid).first():
+                    continue
+                if kind == "retention_day7":
+                    from backend.first_week import summary
+                    data = summary(db, user, chart)
+                    send = lambda: email_service.send_first_week_summary(email, data, unsubscribe_url=unsub)
+                    if send_once(db, uid, kind, "", send):
+                        sent += 1
+                    continue
             today = now.date()
             horizon = 7 if kind == "retention_day2" else 30
             events = calculate_transits(

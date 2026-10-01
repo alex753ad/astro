@@ -104,6 +104,9 @@ OLD_APK_ROUTES = [
     ("GET", "/payments/announcements"),
     # Обращение в поддержку (mobile/lib/supportBus.js)
     ("POST", "/feedback"),
+    # Первая неделя, флаг first_week (mobile/lib/firstWeek.js)
+    ("GET", "/first-week"),
+    ("POST", "/first-week/seen"),
 ]
 
 
