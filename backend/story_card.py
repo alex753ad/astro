@@ -113,7 +113,9 @@ def figure(chart) -> dict:
     выводится из её id, а не из Асцендента или Овна. Карта без времени — без
     Луны, как в day_event._targets: её положение сдвинуто до ±6°.
     """
-    rot = int(hashlib.sha1(str(chart.id).encode()).hexdigest()[:8], 16) % 360
+    # usedforsecurity=False: хеш здесь — только устойчивое число из id, не защита
+    # (bandit B324 иначе валит job security).
+    rot = int(hashlib.sha1(str(chart.id).encode(), usedforsecurity=False).hexdigest()[:8], 16) % 360
     lon = {
         p["name"]: p["longitude"] for p in (chart.planets or [])
         if p.get("name") in _FIGURE_PLANETS and p.get("longitude") is not None
