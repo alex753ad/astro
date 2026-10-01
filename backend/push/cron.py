@@ -272,8 +272,9 @@ def _soft_capped(db: Session, user_id: str, now_utc: datetime) -> bool:
 # push_sends ничего не пишется.
 #   * утренний пуш — каждый день: потолок мягких 1/48ч снят (экран первого
 #     запуска обещает «прогноз каждое утро»);
-#   * в тексте утра — главное событие дня (backend/day_event.py), нет его —
-#     обычный тизер прогноза;
+#   * утро с главным событием дня (backend/day_event.py): заголовок
+#     «15:01 · Луна к твоей Луне», текст — только совет; нет события —
+#     прежние «✦ Твой день сегодня» и тизер прогноза;
 #   * не больше DAILY_PUSH_CAP содержательных пушей за местные сутки: утро,
 #     вечер и пилот. Пилот — последний в очереди: уходит, только если после
 #     него останется место для ещё не ушедших утра и вечера.
@@ -726,9 +727,9 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     # 1) Ежедневный прогноз (soft). Под флагом push_day_event — с главным
     # событием дня в тексте; ключ дедупа тот же, `daily:<дата>`.
     if getattr(user, "push_daily_forecast", True):
-        frag, body = "прогноз на день", None
+        frag, title_, body = "прогноз на день", "✦ Твой день сегодня", None
         if _day_event_on(db, user):
-            from backend.day_event import main_event, phrase, short
+            from backend.day_event import advice, main_event, short, title
             try:
                 ev = main_event(chart, today, user_timezone(user, chart),
                                 _daily_time_of(user), _quiet_from_of(user))
@@ -736,11 +737,11 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 logger.warning("day event failed user=%s: %s", user.id, e)
                 ev = None
             if ev:
-                frag, body = short(ev), f"{phrase(ev)} Загляни в прогноз."
+                frag, title_, body = short(ev), title(ev), advice(ev)
         cands.append({
             "kind": "daily", "ref": today.isoformat(),
             "priority": "soft", "weight": 10, "frag": frag,
-            "title": "✦ Твой день сегодня", "body": body or _daily_body(chart, today),
+            "title": title_, "body": body or _daily_body(chart, today),
             # url — для веб-пуша, его не трогаем (веб в этой задаче не
             # меняется). Приложение ведёт по target: открыть ленту и
             # развернуть карточку «Сегодня» (решение владельца 23.09.2026).

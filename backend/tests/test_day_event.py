@@ -6,13 +6,16 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 import pytz
 
 from backend import flags
-from backend.day_event import SLOW, main_event, phrase
+from backend.day_event import (
+    LUNATION_ADVICE, MOON_ADVICE, NATAL_PLANETS, SLOW, TONE_ADVICE, DayEvent,
+    advice, main_event, title,
+)
 from backend.models import FeatureFlag, PushSend, PushSentLog
 from backend.push import cron
 from backend.push.cron import in_send_window
@@ -80,13 +83,38 @@ class TestMainEvent:
             assert in_send_window(a.at_local, "08:00", "22:00") or (a.transit in SLOW and not a.timed)
         assert seen, "за 10 дней у карты должно найтись хоть одно событие"
 
-    def test_phrase_names_time_only_when_timed(self, chart):
+    def test_title_names_time_only_when_timed(self, chart):
         for i in range(10):
             ev = main_event(chart, date(2026, 9, 10) + timedelta(days=i), "Europe/Moscow", "08:00", "22:00")
             if ev:
-                text = phrase(ev)
-                assert text.startswith("Сегодня")
-                assert (f"{ev.at_local:%H:%M}" in text) == ev.timed
+                assert title(ev).startswith(f"{ev.at_local:%H:%M} · ") == ev.timed
+                assert "✦" not in title(ev)
+                assert advice(ev)
+
+
+class TestTexts:
+    """Тексты согласованы владельцем 01.10.2026: совет до 60 знаков."""
+
+    def test_every_advice_fits_collapsed_shade(self):
+        texts = [t for row in MOON_ADVICE.values() for t in row]
+        texts += [*TONE_ADVICE.values(), *LUNATION_ADVICE.values()]
+        assert len(texts) == 36 + 3 + 2
+        assert all(len(t) <= 60 for t in texts), [t for t in texts if len(t) > 60]
+
+    def test_moon_covers_every_natal_point(self):
+        assert set(MOON_ADVICE) == set(NATAL_PLANETS) | {"Ascendant", "Midheaven"}
+
+    def test_moon_by_tone_other_planets_general(self):
+        ev = DayEvent(key="k", at_local=datetime(2026, 10, 1, 15, 1, tzinfo=timezone.utc),
+                      transit="Moon", natal="Moon", aspect="square", score=1, timed=True)
+        assert title(ev) == "15:01 · Луна к твоей Луне"
+        assert advice(ev) == MOON_ADVICE["Moon"][1]
+        mars = DayEvent(**{**ev.__dict__, "transit": "Mars", "aspect": "trine"})
+        assert advice(mars) == TONE_ADVICE["harmonious"]
+        slow = DayEvent(**{**ev.__dict__, "transit": "Saturn", "natal": "Sun", "timed": False})
+        assert title(slow) == "Сатурн к твоему Солнцу"
+        nm = DayEvent(**{**ev.__dict__, "transit": "new_moon", "natal": None, "aspect": None})
+        assert (title(nm), advice(nm)) == ("15:01 · Новолуние", LUNATION_ADVICE["new_moon"])
 
 
 class TestFlagOff:
@@ -104,7 +132,9 @@ class TestFlagOn:
     def test_morning_every_day_despite_soft_cap(self, db, user_free, chart, only_daily, flag_on, sent):
         _soft_capped_yesterday(db, user_free)
         assert cron._process_user(db, user_free) == 1
-        assert sent[0]["title"] == "✦ Твой день сегодня"
+        # У тестовой карты в этот день есть главное событие — заголовок его.
+        assert " · " in sent[0]["title"] and "✦" not in sent[0]["title"]
+        assert len(sent[0]["body"]) <= 60
         assert [r.slot for r in db.query(PushSend).all()] == ["morning"]
 
     def test_cap_blocks_third_push(self, db, user_free, chart, only_daily, flag_on, sent):
