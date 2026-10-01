@@ -199,7 +199,7 @@ def _evening_candidate(user, chart, today: date_type) -> dict | None:
     return {
         "kind": TOMORROW_KIND, "ref": tomorrow.isoformat(),
         "priority": "soft", "weight": 10, "frag": "прогноз на завтра",
-        "title": "✦ Прогноз на завтра",
+        "title": "Прогноз на завтра",
         "body": "Прогноз на завтра готов — загляни заранее, чтобы спланировать день.",
         # url — для веб-пуша (веб не трогаем), приложение ведёт по target.
         "url": _with_topic(f"/chart/{chart.id}", _topic_key("daily")),
@@ -274,7 +274,7 @@ def _soft_capped(db: Session, user_id: str, now_utc: datetime) -> bool:
 #     запуска обещает «прогноз каждое утро»);
 #   * утро с главным событием дня (backend/day_event.py): заголовок
 #     «15:01 · Луна к твоей Луне», текст — только совет; нет события —
-#     прежние «✦ Твой день сегодня» и тизер прогноза;
+#     прежние «Твой день сегодня» и тизер прогноза;
 #   * не больше DAILY_PUSH_CAP содержательных пушей за местные сутки (утро и
 #     вечер). Пилотные пуши убраны 01.10.2026 (pilot/cron.py шлёт только
 #     письма); новый отправитель обязан писать слот в push_sends и уважать
@@ -376,7 +376,7 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "ref": f"4deg:{tp}:{npl}:{aspect}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
                         "frag": frag,
-                        "title": "✦ Открывается окно",
+                        "title": "Открывается окно",
                         "body": body,
                         "url": _with_topic(planner_url, _topic_key("approach", planet=tp, aspect=aspect, natal=npl)),
                     })
@@ -400,7 +400,7 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
                         "ref": f"4deg_cusp:{tp}:{house}:{today.isoformat()}",
                         "priority": "significant", "weight": 95,
                         "frag": frag,
-                        "title": "✦ Новая сфера открывается",
+                        "title": "Новая сфера открывается",
                         "body": body,
                         "url": _with_topic(planner_url, _topic_key("cusp_approach", planet=tp, house=house)),
                     })
@@ -415,9 +415,9 @@ TRIPLE_SCAN_DAYS = 300    # окно назад для подсчёта номе
 # (transit_planet, natal_planet) там есть — иначе берётся _TRIPLE_MSG_FALLBACK
 # с тем же смыслом, но без названия сферы.
 _TRIPLE_MSG = {
-    1: ("✦ Твоя тема открывается", "открывается {sphere} — эта тема ещё вернётся к тебе"),
-    2: ("✦ Тема возвращается", "{sphere} возвращается — время пересмотреть то, что было начато"),
-    3: ("✦ Тема закрывается", "{sphere} закрывается и закрепляется — время подвести итог"),
+    1: ("Твоя тема открывается", "открывается {sphere} — эта тема ещё вернётся к тебе"),
+    2: ("Тема возвращается", "{sphere} возвращается — время пересмотреть то, что было начато"),
+    3: ("Тема закрывается", "{sphere} закрывается и закрепляется — время подвести итог"),
 }
 _TRIPLE_MSG_FALLBACK = {
     1: "открывается тема, которая ещё вернётся к тебе",
@@ -531,9 +531,9 @@ def _sphere_short(sphere: str | None) -> str | None:
 # фолбэк без названия сферы. Короче email-версии (DESCRIPTION_TEMPLATES) —
 # те же данные (сфера/тон), не те же предложения, пуш не должен быть длиннее.
 _TRANSIT_TONE_TITLE = {
-    "harmonious": "✦ Окно открылось",
-    "tense":      "✦ Проверка на прочность",
-    "new_cycle":  "✦ Новый цикл",
+    "harmonious": "Окно открылось",
+    "tense":      "Проверка на прочность",
+    "new_cycle":  "Новый цикл",
 }
 _TRANSIT_TONE_BODY = {
     "harmonious": "{planet} поддерживает тему «{sphere}» — хороший момент сделать конкретный шаг именно здесь.",
@@ -700,7 +700,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     # 1) Ежедневный прогноз (soft). Под флагом push_day_event — с главным
     # событием дня в тексте; ключ дедупа тот же, `daily:<дата>`.
     if getattr(user, "push_daily_forecast", True):
-        frag, title_, body = "прогноз на день", "✦ Твой день сегодня", None
+        frag, title_, body = "прогноз на день", "Твой день сегодня", None
         if _day_event_on(db, user):
             from backend.day_event import advice, main_event, short, title
             try:
@@ -743,7 +743,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner", "ref": f"{planet}:{house}:{today.isoformat()}",
                             "priority": "significant", "weight": 60, "frag": frag,
-                            "title": "✦ Начался твой период",
+                            "title": "Начался твой период",
                             "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_start", planet=planet, house=house)),
                         })
@@ -762,7 +762,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
                             "priority": "significant", "weight": 70, "frag": frag,
-                            "title": "✦ Через неделю — новое окно",
+                            "title": "Через неделю — новое окно",
                             "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
@@ -781,7 +781,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
                             "priority": "significant", "weight": 100, "frag": frag,
-                            "title": "✦ Через месяц — важный период",
+                            "title": "Через месяц — важный период",
                             "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
                         })
@@ -939,7 +939,7 @@ def _process_user(db: Session, user: User) -> int:
                 seen_frags.add(c["frag"])
                 frags.append(c["frag"])
         payload = {
-            "title": "✦ Твоё окно сегодня",
+            "title": "Твоё окно сегодня",
             "body": " · ".join(frags),
             "url": to_send[0]["url"],
             "keys": keys,

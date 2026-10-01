@@ -122,7 +122,7 @@ def send_fcm(token: str, payload: dict) -> bool:
         "message": {
             "token": token,
             "notification": {
-                "title": payload.get("title", "✦ Aristea"),
+                "title": payload.get("title", "Aristea"),
                 "body": payload.get("body", ""),
             },
             "android": {

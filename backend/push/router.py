@@ -309,7 +309,7 @@ async def send_test(
     db: Session = Depends(get_db),
 ):
     delivered = send_to_user(db, user.id, {
-        "title": "✦ Aristea",
+        "title": "Aristea",
         "body": "Тестовое уведомление — всё работает!",
         "url": "/",
     })

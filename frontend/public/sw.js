@@ -127,7 +127,7 @@ async function networkFirstWithChartsCache(request) {
 // (iPhone) и Chrome требуют показа на каждый push: молчаливый пуш Safari
 // считает нарушением и после нескольких отзывает подписку. Поэтому никаких
 // ранних return — нет данных, берём запасной текст (на «ты», без рода).
-const PUSH_FALLBACK_TITLE = '✦ Aristea';
+const PUSH_FALLBACK_TITLE = 'Aristea';
 const PUSH_FALLBACK_BODY  = 'Загляни в Aristea — для тебя есть новое.';
 
 self.addEventListener('push', (event) => {
