@@ -71,7 +71,9 @@ from sqlalchemy.orm import Session
 
 from backend.authz import require_internal_secret
 from backend.database import get_db
-from backend.models import User, NatalChart, PushSubscription, PushSentLog, DeviceToken, PushSend
+from backend.models import (
+    User, NatalChart, PushSubscription, PushSentLog, DeviceToken, PushSend, UserActivityDay,
+)
 from backend.push.sender import send_to_user
 from backend.chart_utils import get_primary_chart
 from backend.ephemeris.ru_names import PLANET_RU
@@ -219,6 +221,11 @@ def _send_evening(db: Session, user: User, chart, now_local: datetime, day_on: b
     if hm < at or (end > at and hm >= end):
         return 0
     cand = _evening_candidate(user, chart, now_local.date())
+    replaced = None
+    if day_on:
+        pm = _evening_planner_month(db, user, chart, now_local.date())
+        if pm:
+            replaced, cand = cand, pm
     if not cand or _already_sent(db, user.id, cand["kind"], cand["ref"]):
         return 0
     if day_on and len(_sent_slots(db, user.id, now_local.date())) >= DAILY_PUSH_CAP:
@@ -226,14 +233,36 @@ def _send_evening(db: Session, user: User, chart, now_local: datetime, day_on: b
         return 0
     n = send_to_user(db, user.id, {
         "title": cand["title"], "body": cand["body"], "url": cand["url"],
-        "target": cand["target"], "keys": [f"{cand['kind']}:{cand['ref']}"],
+        "target": cand.get("target"), "keys": [f"{cand['kind']}:{cand['ref']}"],
     })
     if n:
         _mark_sent(db, user.id, cand["kind"], cand["ref"])
+        if replaced:
+            # «Прогноз на завтра» в этот вечер не уходит — его место занято.
+            _mark_sent(db, user.id, replaced["kind"], replaced["ref"])
         if day_on:
             _record_send(db, user.id, now_local.date(), "evening")
-        logger.info("push send user=%s kinds=['tomorrow'] n=%d", user.id, n)
+        logger.info("push send user=%s kinds=[%r] n=%d", user.id, cand["kind"], n)
     return n
+
+
+def _evening_planner_month(db: Session, user: User, chart, today: date_type) -> dict | None:
+    """planner_month своего дня, ещё не отправленный (только под флагом
+    push_day_event, тумблер «Планер»). Утром его не берут — см.
+    MUTED_UNDER_DAY_EVENT. Тихие часы с 19:00 и раньше (вечера нет) — не
+    уходит вовсе: это выбор человека, как и у «Прогноза на завтра»."""
+    if not getattr(user, "push_planner", True):
+        return None
+    from backend.transit.house_passages import _extract_cusps
+    cusps = _extract_cusps({"houses": chart.houses})
+    if all(c == 0.0 for c in cusps):
+        return None
+    try:
+        cands = _planner_month_candidates(chart, today, f"/planner/{chart.id}", cusps)
+    except Exception as e:
+        logger.warning("planner_month (evening) failed user=%s: %s", user.id, e)
+        return None
+    return next((c for c in cands if not _already_sent(db, user.id, c["kind"], c["ref"])), None)
 
 
 # ── Дедупликация ──
@@ -281,6 +310,18 @@ def _soft_capped(db: Session, user_id: str, now_utc: datetime) -> bool:
 #     этот лимит, иначе он молча вытеснит вечерний пуш или превысит два.
 DAY_EVENT_FLAG = "push_day_event"
 DAILY_PUSH_CAP = 2
+# Под флагом утро — только главное событие (решение владельца 01.10.2026).
+# Эти виды не шлются, но отмечаются в push_sent_log, как будто ушли: иначе
+# выключение флага на человеке посреди дня отправило бы их следующим тиком.
+# planner_month сюда не входит: он заменяет вечерний пуш своего дня
+# (_send_evening), утром его просто не берём и не отмечаем.
+MUTED_UNDER_DAY_EVENT = frozenset({
+    "moon", "triple", "transit", "transit_approach", "cusp_approach",
+    "planner", "planner_week",
+})
+EVENING_UNDER_DAY_EVENT = "planner_month"
+RETURN_FLAG = "push_return"
+RETURN_AFTER_DAYS = 5   # столько дней без захода (user_activity_days) — возврат
 
 
 def _day_event_on(db: Session, user) -> bool:
@@ -689,6 +730,35 @@ def _phases_on_local_date(day: date_type, tzname: str | None) -> list:
     return out
 
 
+def _planner_month_candidates(chart: NatalChart, today: date_type, planner_url: str,
+                              cusps: list[float]) -> list[dict]:
+    """Медленная планета входит в дом через ADVANCE_MONTH_DAYS. Отдельной
+    функцией, потому что под флагом push_day_event её зовёт и вечер:
+    planner_month заменяет вечерний пуш в свой день (решение владельца
+    01.10.2026), а не склеивается с утром."""
+    from backend.transit.forecast_prompt import HOUSE_SPHERE_MAP
+    cands: list[dict] = []
+    mo = today + timedelta(days=ADVANCE_MONTH_DAYS)
+    for planet in SLOW_PLANETS:
+        for house in _period_starts_on(planet, cusps, mo):
+            pr = PLANET_RU.get(planet, planet)
+            sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
+            if sphere_name:
+                frag = f"через месяц: {sphere_name}"
+                body = f"Через месяц открывается долгий период в сфере «{sphere_name}» — {pr} задаёт тон на годы вперёд. Стоит спланировать заранее."
+            else:
+                frag = f"скоро большой период {pr}"
+                body = f"Через месяц открывается долгий период под влиянием {pr} — стоит спланировать заранее."
+            cands.append({
+                "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
+                "priority": "significant", "weight": 100, "frag": frag,
+                "title": "Через месяц — важный период",
+                "body": body,
+                "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
+            })
+    return cands
+
+
 def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_type) -> list[dict]:
     """Список событий-кандидатов на сегодня. Каждый:
       {kind, ref, priority(soft/significant), weight, frag, title, body, url}
@@ -767,24 +837,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
                 # 4) за месяц — медленные планеты (большой период)
-                mo = today + timedelta(days=ADVANCE_MONTH_DAYS)
-                for planet in SLOW_PLANETS:
-                    for house in _period_starts_on(planet, cusps, mo):
-                        pr = PLANET_RU.get(planet, planet)
-                        sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
-                        if sphere_name:
-                            frag = f"через месяц: {sphere_name}"
-                            body = f"Через месяц открывается долгий период в сфере «{sphere_name}» — {pr} задаёт тон на годы вперёд. Стоит спланировать заранее."
-                        else:
-                            frag = f"скоро большой период {pr}"
-                            body = f"Через месяц открывается долгий период под влиянием {pr} — стоит спланировать заранее."
-                        cands.append({
-                            "kind": "planner_month", "ref": f"{planet}:{house}:{mo.isoformat()}",
-                            "priority": "significant", "weight": 100, "frag": frag,
-                            "title": "Через месяц — важный период",
-                            "body": body,
-                            "url": _with_topic(planner_url, _topic_key("planner_month", planet=planet, house=house)),
-                        })
+                cands.extend(_planner_month_candidates(chart, today, planner_url, cusps))
         except Exception as e:
             logger.warning("planner candidates failed user=%s: %s", user.id, e)
 
@@ -824,6 +877,50 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
             logger.warning("moon candidates failed user=%s: %s", user.id, e)
 
     return cands
+
+
+# ── Возврат: вариант утреннего пуша (флаг push_return) ──
+RETURN_KIND = "return"
+
+
+def _apply_return(db: Session, user: User, chart, today: date_type, cands: list[dict]) -> str | None:
+    """Человек не заходил RETURN_AFTER_DAYS дней — утро называет самое важное
+    событие следующих 7 дней (day_event.week_top). Меняет текст кандидата
+    daily на месте и возвращает ref для отметки после отправки, иначе None.
+
+    * Один раз за перерыв: ref — последний активный день. Без этого одно и то
+      же событие повторялось бы каждое утро, пока человек не вернётся.
+    * Нет ни одной строки активности — не «спящий»: учёт идёт с 30.09.2026 и
+      задним числом не заполнен (docs/retention.md); иначе через 5 дней после
+      выкатки возврат получили бы все сразу.
+    * Активный день в таблице — по Москве, поэтому и «сегодня» здесь по
+      Москве; для порога в 5 дней разница поясов не важна.
+    """
+    daily = next((c for c in cands if c["kind"] == "daily"), None)
+    if daily is None:
+        return None
+    from backend.flags import flag_on
+    if not flag_on(db, RETURN_FLAG, user):
+        return None
+    from sqlalchemy import func
+    last = db.query(func.max(UserActivityDay.day)).filter(UserActivityDay.user_id == user.id).scalar()
+    if last is None:
+        return None
+    if (datetime.now(pytz.timezone(DEFAULT_TZ)).date() - last).days < RETURN_AFTER_DAYS:
+        return None
+    ref = last.isoformat()
+    if _already_sent(db, user.id, RETURN_KIND, ref):
+        return None
+    from backend.day_event import RETURN_TEXT, return_title, week_top
+    try:
+        ev = week_top(chart, today, user_timezone(user, chart), _daily_time_of(user), _quiet_from_of(user))
+    except Exception as e:
+        logger.warning("return event failed user=%s: %s", user.id, e)
+        return None
+    if ev is None:
+        return None
+    daily.update(title=return_title(ev), body=RETURN_TEXT, frag=return_title(ev))
+    return ref
 
 
 # ── Основная логика по одному пользователю ──
@@ -888,6 +985,13 @@ def _process_user(db: Session, user: User) -> int:
         c for c in _collect_candidates(db, user, chart, today)
         if not _already_sent(db, user.id, c["kind"], c["ref"])
     ]
+    if day_on:
+        for c in cands:
+            if c["kind"] in MUTED_UNDER_DAY_EVENT:
+                _mark_sent(db, user.id, c["kind"], c["ref"])
+        cands = [c for c in cands if c["kind"] not in MUTED_UNDER_DAY_EVENT
+                 and c["kind"] != EVENING_UNDER_DAY_EVENT]
+    returned = _apply_return(db, user, chart, today, cands)
     if not cands:
         logger.info("push skip user=%s: no candidates", user.id)
         return evening
@@ -960,6 +1064,8 @@ def _process_user(db: Session, user: User) -> int:
             _record_send(db, user.id, today, "morning")
         for c in to_send:
             _mark_sent(db, user.id, c["kind"], c["ref"])
+        if returned:
+            _mark_sent(db, user.id, RETURN_KIND, returned)
         logger.info("push send user=%s kinds=%s n=%d", user.id, [c["kind"] for c in to_send], n)
         return evening + n
     logger.info("push skip user=%s: send_to_user delivered 0 (no active subscriptions or all sends failed)", user.id)
@@ -1037,6 +1143,11 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
     seen_keys: set[str] = set()
 
     evening_at = evening_send_time(daily_time, quiet_from)
+    # Под флагом push_day_event — то же, что у тика: утро только главное
+    # событие, planner_month — вместо вечернего. Иначе приложение показало
+    # бы локально ровно то, что сервер решил не слать.
+    day_on = _day_event_on(db, user)
+    skip = MUTED_UNDER_DAY_EVENT | {EVENING_UNDER_DAY_EVENT} if day_on else frozenset()
 
     for offset in range(days):
         day = now_local.date() + timedelta(days=offset)
@@ -1045,6 +1156,12 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
         # evening_send_time) и ДО проверок утреннего слота ниже: утро этого дня
         # может быть уже позади, а вечер — ещё впереди.
         ev = _evening_candidate(user, chart, day) if evening_at else None
+        if evening_at and day_on and getattr(user, "push_planner", True):
+            from backend.transit.house_passages import _extract_cusps
+            cusps = _extract_cusps({"houses": chart.houses})
+            if not all(c == 0.0 for c in cusps):
+                pm = _planner_month_candidates(chart, day, f"/planner/{chart.id}", cusps)
+                ev = pm[0] if pm else ev
         if ev:
             ev_naive = datetime(day.year, day.month, day.day, *evening_at)
             ev_at = tz.localize(ev_naive) if hasattr(tz, "localize") else ev_naive.replace(tzinfo=tz)
@@ -1054,7 +1171,7 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
                 events.append({
                     "key": ev_key, "kind": ev["kind"], "at": ev_at.isoformat(),
                     "title": ev["title"], "body": ev["body"], "url": ev["url"],
-                    "target": ev["target"],
+                    "target": ev.get("target"),
                 })
 
         # Время показа — то же, что у веб-пуша: начало окна в день события.
@@ -1072,6 +1189,8 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
             continue
 
         for cand in _collect_candidates(db, user, chart, day):
+            if cand["kind"] in skip:
+                continue
             key = f"{cand['kind']}:{cand['ref']}"
             if key in seen_keys:
                 continue

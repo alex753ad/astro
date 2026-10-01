@@ -13,10 +13,10 @@ import pytz
 
 from backend import flags
 from backend.day_event import (
-    LUNATION_ADVICE, MOON_ADVICE, NATAL_PLANETS, PLANET_ADVICE, SLOW, TONE_ADVICE, DayEvent,
-    advice, main_event, title,
+    LUNATION_ADVICE, MOON_ADVICE, NATAL_PLANETS, PLANET_ADVICE, RETURN_MIN_SCORE, RETURN_TEXT,
+    SLOW, TONE_ADVICE, DayEvent, advice, main_event, title, week_top,
 )
-from backend.models import FeatureFlag, PushSend, PushSentLog
+from backend.models import FeatureFlag, PushSend, PushSentLog, UserActivityDay
 from backend.push import cron
 from backend.push.cron import in_send_window
 from backend.tests.test_push_upcoming import chart  # noqa: F401 — фикстура
@@ -146,3 +146,97 @@ class TestFlagOn:
         assert cron._process_user(db, user_free) == 0
         assert sent == []
         assert db.query(PushSentLog).filter(PushSentLog.kind == "daily").count() == 0
+
+
+# ── Утро — только главное событие; planner_month — вечером (01.10.2026) ──
+def _fake(kind):
+    return {"kind": kind, "ref": f"{kind}:x", "priority": "significant", "weight": 90,
+            "frag": kind, "title": kind, "body": kind, "url": "/planner"}
+
+
+@pytest.fixture
+def other_kinds(monkeypatch, db, user_free):
+    user_free.push_moon_phases = False
+    db.commit()
+    monkeypatch.setattr(cron, "_triple_touch_candidates", lambda *a: [_fake("triple")])
+    monkeypatch.setattr(cron, "_transit_entry_candidates", lambda *a: [_fake("transit")])
+    monkeypatch.setattr(cron, "_four_degree_candidates", lambda *a: [_fake("transit_approach")])
+    monkeypatch.setattr(cron, "_planner_month_candidates", lambda *a: [_fake("planner_month")])
+
+
+def _logged(db):
+    return {r.kind for r in db.query(PushSentLog).all()}
+
+
+class TestMorningOnlyMainEvent:
+    def test_flag_off_glues_as_before(self, db, user_free, chart, other_kinds, sent):
+        assert cron._process_user(db, user_free) == 1
+        assert sent[0]["title"] == "Твоё окно сегодня"
+
+    def test_flag_on_sends_only_day_event_and_marks_others(self, db, user_free, chart, other_kinds, flag_on, sent):
+        assert cron._process_user(db, user_free) == 1
+        assert len(sent) == 1 and " · " in sent[0]["title"]
+        assert sent[0]["title"] != "Твоё окно сегодня"
+        assert {"daily", "triple", "transit", "transit_approach"} <= _logged(db)
+        assert "planner_month" not in _logged(db), "его отправит вечер"
+
+    def test_planner_month_replaces_evening(self, db, user_free, chart, other_kinds, flag_on, sent):
+        evening = TZ.localize(datetime(2026, 9, 10, 20, 30))
+        assert cron._send_evening(db, user_free, chart, evening, day_on=True) == 1
+        assert sent[0]["title"] == "planner_month"
+        assert {"planner_month", "tomorrow"} <= _logged(db)
+        assert cron._send_evening(db, user_free, chart, evening, day_on=True) == 0
+
+    def test_upcoming_follows_the_same_rule(self, db, user_free, chart, other_kinds, flag_on, sent):
+        kinds = {e["kind"] for e in cron.collect_upcoming(db, user_free, 3)["events"]}
+        assert kinds & cron.MUTED_UNDER_DAY_EVENT == set()
+        assert "planner_month" in kinds and "tomorrow" not in kinds
+
+
+# ── Возврат (флаг push_return) ──
+@pytest.fixture
+def return_on(db, user_free):
+    db.add(FeatureFlag(key="push_return", mode="users", user_ids=[user_free.id]))
+    db.commit()
+    flags.reset_cache()
+
+
+@pytest.fixture
+def saturn_next_week(monkeypatch):
+    ev = DayEvent(key="k", at_local=TZ.localize(datetime(2026, 9, 14, 16, 49)), transit="Saturn",
+                  natal="Moon", aspect="square", score=37.5, timed=True)
+    monkeypatch.setattr("backend.day_event.week_top", lambda *a: ev)
+
+
+def _active(db, user, days_ago):
+    db.add(UserActivityDay(user_id=user.id, day=MORNING.date() - timedelta(days=days_ago),
+                           platform="app", flags=[]))
+    db.commit()
+
+
+class TestReturn:
+    def test_dormant_gets_event_of_the_week_once(self, db, user_free, chart, only_daily, return_on,
+                                                 saturn_next_week, sent):
+        _active(db, user_free, 5)
+        assert cron._process_user(db, user_free) == 1
+        assert sent[0]["title"] == "14 сентября · Сатурн к твоей Луне"
+        assert sent[0]["body"] == RETURN_TEXT
+        assert cron._apply_return(db, user_free, chart, MORNING.date(), [{"kind": "daily"}]) is None
+
+    @pytest.mark.parametrize("days_ago", [None, 4])
+    def test_no_return_without_break_or_history(self, db, user_free, chart, only_daily, return_on,
+                                                saturn_next_week, sent, days_ago):
+        if days_ago is not None:
+            _active(db, user_free, days_ago)
+        cron._process_user(db, user_free)
+        assert sent and sent[0]["body"] != RETURN_TEXT
+
+    def test_flag_off(self, db, user_free, chart, only_daily, saturn_next_week, sent):
+        _active(db, user_free, 10)
+        cron._process_user(db, user_free)
+        assert sent and sent[0]["body"] != RETURN_TEXT
+
+    def test_week_top_respects_threshold(self, chart):
+        ev = week_top(chart, date(2026, 9, 10), "Europe/Moscow", "08:00", "22:00")
+        assert ev is None or ev.score >= RETURN_MIN_SCORE
+        assert len(RETURN_TEXT) <= 60

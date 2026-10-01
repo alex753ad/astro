@@ -34,6 +34,7 @@ from backend.models import FeatureFlag, User
 FLAGS: dict[str, str] = {
     "test_flag": "Проверочный: ничего не включает, только виден в /auth/me и /flags",
     "push_day_event": "Утренний пуш каждый день с главным событием дня, лимит 2 пуша в сутки",
+    "push_return": "Не заходил 5 дней — утренний пуш называет главное событие следующих 7 дней",
 }
 
 MODES = ("off", "all", "users")
