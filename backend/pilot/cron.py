@@ -4,12 +4,18 @@ POST /api/v1/internal/pilot-tick   (header X-Internal-Secret)
 
 Проходит по ВСЕМ пользователям с pilot_started_at (не только с push-подпиской —
 поэтому отдельный эндпоинт, а не push-tick, который итерирует лишь подписчиков):
-  1) Прощание (E8) — за ≤3 дня до конца. Письмо+пуш. Идемпотентно (kind=farewell).
+  1) Прощание (E8) — за ≤3 дня до конца. Письмо. Идемпотентно (kind=farewell).
   2) Спящий 5/10/14 (E10) — по числу дней без timeline_open, пока пилот активен.
      Один шаг за прогон. Дни 10/14 несут ссылку на exit-survey. (kind=dormant5/10/14)
   3) Даунгрейд (E8) — по истечении 30 дней tier→free. pilot_started_at сохраняем
      (нужен для read-only CRM E9 и end-of-month exit-survey E10).
   4) End-of-month exit-survey (E10) — после конца без продолжения. (kind=exit_eom)
+
+Пушей пилот не шлёт — только письма (решение владельца 01.10.2026: в
+приложении по умолчанию только прогноз дня, важные транзиты и планер, а
+прощание и «спящий» пушем при лимите 2 в сутки вытесняли бы прогноз).
+Не возвращать пуш сюда без пересмотра лимита — docs/notifications.md,
+«Главное событие дня и лимит пушей».
 
 Расписание Railway Cron: раз в день (напр. 09:10). Идемпотентность позволяет
 запускать чаще без дублей.
@@ -28,8 +34,6 @@ from sqlalchemy.orm import Session
 from backend.authz import require_internal_secret
 from backend.database import get_db
 from backend.models import User, NatalChart, PushSentLog
-from backend.push.sender import send_to_user
-from backend.push.cron import pilot_push_allowed, record_pilot_send
 from backend.email_service import TIER_NAMES
 from backend.ephemeris.ru_names import PLANET_RU
 
@@ -172,20 +176,6 @@ async def _process(db: Session, user: User) -> dict:
             except Exception as e:
                 logger.warning("farewell email failed user=%s: %s", user.id, e)
 
-            # пуш (если есть подписка)
-            try:
-                near = windows[0] if windows else "важное окно твоей карты"
-                # Лимит пушей в сутки (флаг push_day_event): пилот — последний
-                # в очереди, письмо уходит в любом случае.
-                if pilot_push_allowed(db, user) and send_to_user(db, user.id, {
-                    "title": "✦ Твой месяц заканчивается",
-                    "body": f"Через {days_left} дн. {near} закроется для тебя. Это окно стоит того, чтобы его не потерять.",
-                    "url": "/profile",
-                }):
-                    record_pilot_send(db, user)
-            except Exception as e:
-                logger.warning("farewell push failed user=%s: %s", user.id, e)
-
             # Отмечаем только при успешной отправке письма — иначе транзиентный
             # сбой (сеть, Resend недоступен) хоронит уведомление до конца пилота:
             # следующий тик видит тот же ref и молча пропускает шаг.
@@ -222,19 +212,6 @@ async def _process(db: Session, user: User) -> dict:
                         )
                 except Exception as e:
                     logger.warning("dormant%s email failed user=%s: %s", step, user.id, e)
-
-                try:
-                    body = {
-                        5:  f"Тебя не было 5 дней. {near or 'В карте идёт активное окно'} — не пропусти.",
-                        10: "10 дней без Timeline. Если что-то не так — расскажи, это 30 секунд.",
-                        14: "Последнее напоминание. Твоя карта будет ждать, если захочешь вернуться.",
-                    }[step]
-                    if pilot_push_allowed(db, user) and send_to_user(db, user.id, {
-                        "title": "✦ Aristea", "body": body, "url": "/planner",
-                    }):
-                        record_pilot_send(db, user)
-                except Exception as e:
-                    logger.warning("dormant%s push failed user=%s: %s", step, user.id, e)
 
                 if email_ok:
                     _mark(db, user.id, f"dormant{step}", cohort)

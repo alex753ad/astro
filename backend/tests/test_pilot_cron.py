@@ -106,3 +106,12 @@ class TestPilotTickEndpoint:
         body = resp.json()
         assert body["users"] == 1
         assert body["farewell_sent"] == 1
+
+
+def test_pilot_sends_no_pushes():
+    """Решение владельца 01.10.2026: пилот — только письма. Пуш пилота при
+    лимите 2 в сутки вытеснял бы прогноз дня (docs/notifications.md)."""
+    import inspect
+    from backend.pilot import cron
+
+    assert "send_to_user" not in inspect.getsource(cron)
