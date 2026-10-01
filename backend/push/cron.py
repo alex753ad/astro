@@ -561,7 +561,10 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
 
 def _sphere_short(sphere: str | None) -> str | None:
     """Первая смысловая часть значения NATAL_SPHERE (engine.py) — коротко для
-    пуша, та же обрезка, что в engine._build_transit_alert_subject."""
+    пуша. ⚠️ Режет и по запятой («твои границы и то») — в письме это
+    исправлено 01.10.2026, здесь оставлено намеренно: виды triple/transit
+    под флагом push_day_event не шлются, после включения флага для всех
+    уходят целиком (решение владельца)."""
     if not sphere:
         return None
     return sphere.split(" — ")[0].split(",")[0]
