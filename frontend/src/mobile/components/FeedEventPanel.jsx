@@ -35,6 +35,7 @@ import useTrials, { leftLabel, refreshTrials } from '../lib/useTrials';
 import { isGuest } from '../lib/guestChart';
 import { askSignup } from '../lib/signupPrompt';
 import { useNavigate } from 'react-router-dom';
+import { markSeen } from '../lib/firstWeek';
 import {
   canInterpretTransit,
   streamTransitInterpretation,
@@ -68,9 +69,15 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
     setFailure(null);
   }, [event?.key]);
 
+  // Первая неделя (флаг first_week): открытый период — «периоды».
+  useEffect(() => {
+    if (event && isPlannerEvent(event) && !isLocked(event)) markSeen('periods');
+  }, [event]);
+
   const start = useCallback(async () => {
     if (!chartId || !event) return;
     const run = ++runIdRef.current;
+    markSeen('transit'); // первая неделя: разбор транзитов открыт
     setText('');
     setFailure(null);
     setStatus('loading');

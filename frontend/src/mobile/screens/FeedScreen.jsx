@@ -77,12 +77,14 @@ import FeedDayForecastCard from '../components/FeedDayForecastCard';
 import { shiftDays } from '../lib/feedTime';
 import { splitDayEvents } from '../lib/feedDayOrder';
 import { isMajorEvent } from '../lib/feedRank';
+import { isLocked, isPlannerEvent } from '../components/FeedEventCard';
 import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
 import { serverNow } from '../../lib/serverClock';
 import { isGuest } from '../lib/guestChart';
 import GuestSaveNote from '../components/GuestSaveNote';
 import PushNudge from '../components/PushNudge';
+import FirstWeekCard from '../components/FirstWeekCard';
 import { openPaySheet } from '../lib/paySheetBus';
 import { featureOfEvent, onAfterPay } from '../lib/afterPay';
 import { offerFor } from '../../lib/offerRule';
@@ -520,6 +522,27 @@ export default function FeedScreen({
   }, [openForecast]);
 
   /**
+   * Кнопки карточки первой недели, которые живут в ленте. Прогноз и разбор
+   * транзитов — развернуть «Сегодня» и доехать до него (тот же путь, что у
+   * нажатия на утренний пуш выше). Периоды — открыть текущий период,
+   * который виден тарифу (на бесплатном — период Солнца и Луна по домам,
+   * решение владельца 01.10.2026); нет такого — просто «Сегодня».
+   */
+  const firstWeekAction = useCallback((key) => {
+    const now = localToday();
+    if (key === 'periods') {
+      const at = Date.now();
+      const ev = (feed?.events || []).find((e) => isPlannerEvent(e) && !isLocked(e)
+        && new Date(e.at).getTime() <= at && (!e.ends_at || new Date(e.ends_at).getTime() >= at));
+      if (ev) { setSelected(ev); return; }
+    }
+    setOpenDates((prev) => new Set(prev).add(now));
+    setHeaderOpen(false);
+    userMovedRef.current = true;
+    dayRefs.current.get(now)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [feed]);
+
+  /**
    * Любая прокрутка сворачивает развёрнутую шапку — в ОБЕ стороны (решение
    * владельца 16.09.2026).
    *
@@ -706,6 +729,8 @@ export default function FeedScreen({
       {guest && <GuestSaveNote />}
       {/* Экран и карточка «включи уведомления» — только зарегистрированным. */}
       {!guest && <PushNudge active={active} />}
+      {/* Первая неделя (флаг first_week) — только зарегистрированным. */}
+      {!guest && <FirstWeekCard active={active} onAction={firstWeekAction} />}
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}

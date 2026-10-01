@@ -30,6 +30,7 @@ import React, { useEffect, useState } from 'react';
 import useChatAccess from '../lib/useChatAccess';
 import useTier from '../lib/useTier';
 import { onAfterPay } from '../lib/afterPay';
+import { OPEN_CHAT_EVENT, markSeen } from '../lib/firstWeek';
 import AristeaChat from './AristeaChat';
 import ChatOfferSheet from './ChatOfferSheet';
 
@@ -38,6 +39,15 @@ export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
   const { tier } = useTier();
   const [chatOpen, setChatOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+
+  // Первая неделя (флаг first_week): открыл чат — отметка; кнопка карточки
+  // в ленте открывает чат событием, тем же путём, что нажатие на кнопку.
+  useEffect(() => { if (chatOpen) markSeen('chat'); }, [chatOpen]);
+  useEffect(() => {
+    const open = () => (hasAccess ? setChatOpen(true) : setOfferOpen(true));
+    window.addEventListener(OPEN_CHAT_EVENT, open);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, open);
+  }, [hasAccess]);
 
   // Оплатили из листа чата — после возврата открыть чат (lib/afterPay.js).
   useEffect(() => onAfterPay((target) => {

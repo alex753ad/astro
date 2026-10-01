@@ -222,10 +222,11 @@ def _send_evening(db: Session, user: User, chart, now_local: datetime, day_on: b
         return 0
     cand = _evening_candidate(user, chart, now_local.date())
     replaced = None
-    if day_on:
-        pm = _evening_planner_month(db, user, chart, now_local.date())
-        if pm:
-            replaced, cand = cand, pm
+    over = _first_week_evening(db, user, chart, now_local.date())
+    if not over and day_on:
+        over = _evening_planner_month(db, user, chart, now_local.date())
+    if over:
+        replaced, cand = cand, over
     if not cand or _already_sent(db, user.id, cand["kind"], cand["ref"]):
         return 0
     if day_on and len(_sent_slots(db, user.id, now_local.date())) >= DAILY_PUSH_CAP:
@@ -244,6 +245,27 @@ def _send_evening(db: Session, user: User, chart, now_local: datetime, day_on: b
             _record_send(db, user.id, now_local.date(), "evening")
         logger.info("push send user=%s kinds=[%r] n=%d", user.id, cand["kind"], n)
     return n
+
+
+def _first_week_evening(db: Session, user: User, chart, today: date_type) -> dict | None:
+    """Вечер первой недели (флаг first_week, backend/first_week.py) — вместо
+    «Прогноза на завтра» и раньше planner_month: в первую неделю подсветка
+    важнее (решение владельца 01.10.2026). planner_month в такой вечер не
+    уходит вовсе — утром под push_day_event его тоже не берут."""
+    from backend.flags import flag_on
+    if not flag_on(db, "first_week", user):
+        return None
+    # Первая неделя — только в приложении (решение владельца): без
+    # устройства вечер остаётся «Прогнозом на завтра», веб-пуш не ведёт к
+    # карточке, которой на сайте нет.
+    if not db.query(DeviceToken.id).filter(DeviceToken.user_id == user.id).first():
+        return None
+    from backend.first_week import evening_candidate
+    try:
+        return evening_candidate(db, user, chart, today)
+    except Exception as e:
+        logger.warning("first_week evening failed user=%s: %s", user.id, e)
+        return None
 
 
 def _evening_planner_month(db: Session, user: User, chart, today: date_type) -> dict | None:
@@ -1159,7 +1181,10 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
         # evening_send_time) и ДО проверок утреннего слота ниже: утро этого дня
         # может быть уже позади, а вечер — ещё впереди.
         ev = _evening_candidate(user, chart, day) if evening_at else None
-        if evening_at and day_on and getattr(user, "push_planner", True):
+        fw = _first_week_evening(db, user, chart, day) if evening_at else None
+        if fw:
+            ev = fw
+        elif evening_at and day_on and getattr(user, "push_planner", True):
             from backend.transit.house_passages import _extract_cusps
             cusps = _extract_cusps({"houses": chart.houses})
             if not all(c == 0.0 for c in cusps):

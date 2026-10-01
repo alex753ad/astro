@@ -57,6 +57,11 @@ function onReturn() {
   if (document.visibilityState !== 'hidden') refreshFlags();
 }
 
+/** Флаг включён прямо сейчас — для кода вне React (отметки первой недели). */
+export function isFlagOn(key) {
+  return current.has(key);
+}
+
 export function useFlag(key) {
   const [on, setOn] = useState(() => current.has(key));
   useEffect(() => {

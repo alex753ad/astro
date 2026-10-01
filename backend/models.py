@@ -933,3 +933,19 @@ class UserActivityDay(Base):
     day = Column(Date, primary_key=True, index=True)
     platform = Column(String(8), primary_key=True)  # "app" | "web"
     flags = Column(JSON, nullable=False, default=list)
+
+
+class FirstWeekMark(Base):
+    """Функция первой недели открыта (073, флаг first_week, backend/first_week.py).
+
+    Строка на (человек, ключ). Пишет приложение через POST /first-week/seen,
+    когда человек открыл карту, прогноз, разбор и т. д. — по ней карточка
+    первой недели и вечерний пуш понимают, что подсвечивать уже нечего.
+    """
+    __tablename__ = "first_week_marks"
+
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    key = Column(String(16), primary_key=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
