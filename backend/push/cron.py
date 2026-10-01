@@ -274,9 +274,10 @@ def _soft_capped(db: Session, user_id: str, now_utc: datetime) -> bool:
 #     запуска обещает «прогноз каждое утро»);
 #   * в тексте утра — главное событие дня (backend/day_event.py), нет его —
 #     обычный тизер прогноза;
-#   * не больше DAILY_PUSH_CAP содержательных пушей за местные сутки: утро,
-#     вечер и пилот. Пилот — последний в очереди: уходит, только если после
-#     него останется место для ещё не ушедших утра и вечера.
+#   * не больше DAILY_PUSH_CAP содержательных пушей за местные сутки (утро и
+#     вечер). Пилотные пуши убраны 01.10.2026 (pilot/cron.py шлёт только
+#     письма); новый отправитель обязан писать слот в push_sends и уважать
+#     этот лимит, иначе он молча вытеснит вечерний пуш или превысит два.
 DAY_EVENT_FLAG = "push_day_event"
 DAILY_PUSH_CAP = 2
 
@@ -295,34 +296,6 @@ def _sent_slots(db: Session, user_id: str, local_date: date_type) -> list[str]:
 def _record_send(db: Session, user_id: str, local_date: date_type, slot: str) -> None:
     db.add(PushSend(user_id=user_id, local_date=local_date, slot=slot))
     db.commit()
-
-
-def _local_today(user, chart) -> date_type:
-    return datetime.now(pytz.utc).astimezone(pytz.timezone(user_timezone(user, chart))).date()
-
-
-def pilot_push_allowed(db: Session, user) -> bool:
-    """Можно ли слать пилотный пуш (зовёт pilot/cron.py перед send_to_user).
-
-    ⚠️ Резерв считается по тумблеру «Прогноз дня»: под флагом утро уходит
-    каждый день, вечер — если тихие часы не раньше 19:00. Без резерва пилот,
-    ушедший утром раньше тика, съел бы место вечернего пуша.
-    """
-    if not _day_event_on(db, user):
-        return True
-    chart = get_primary_chart(db, user)
-    slots = _sent_slots(db, user.id, _local_today(user, chart))
-    reserved = 0
-    if chart and getattr(user, "push_daily_forecast", True):
-        reserved += "morning" not in slots
-        if evening_send_time(_daily_time_of(user), _quiet_from_of(user)) is not None:
-            reserved += "evening" not in slots
-    return len(slots) + reserved < DAILY_PUSH_CAP
-
-
-def record_pilot_send(db: Session, user) -> None:
-    if _day_event_on(db, user):
-        _record_send(db, user.id, _local_today(user, get_primary_chart(db, user)), "pilot")
 
 
 def _period_starts_on(planet: str, cusps: list[float], target: date_type) -> list[int]:

@@ -96,9 +96,6 @@ class TestFlagOff:
         assert sent == []
         assert db.query(PushSend).count() == 0
 
-    def test_pilot_is_not_limited(self, db, user_free, chart, sent):
-        assert cron.pilot_push_allowed(db, user_free)
-
 
 class TestFlagOn:
     def test_morning_every_day_despite_soft_cap(self, db, user_free, chart, only_daily, flag_on, sent):
@@ -108,19 +105,9 @@ class TestFlagOn:
         assert [r.slot for r in db.query(PushSend).all()] == ["morning"]
 
     def test_cap_blocks_third_push(self, db, user_free, chart, only_daily, flag_on, sent):
-        for slot in ("pilot", "pilot"):
+        for slot in ("evening", "evening"):  # любые два содержательных
             db.add(PushSend(user_id=user_free.id, local_date=MORNING.date(), slot=slot))
         db.commit()
         assert cron._process_user(db, user_free) == 0
         assert sent == []
         assert db.query(PushSentLog).filter(PushSentLog.kind == "daily").count() == 0
-
-    def test_pilot_keeps_room_for_morning_and_evening(self, db, user_free, chart, flag_on, sent):
-        assert not cron.pilot_push_allowed(db, user_free)
-        # Тихие часы с 19:00 — вечера нет, одно место свободно.
-        user_free.push_quiet_from = "19:00"
-        db.commit()
-        assert cron.pilot_push_allowed(db, user_free)
-        db.add(PushSend(user_id=user_free.id, local_date=MORNING.date(), slot="morning"))
-        db.commit()
-        assert cron.pilot_push_allowed(db, user_free)

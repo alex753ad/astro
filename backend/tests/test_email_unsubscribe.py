@@ -25,7 +25,7 @@ SERVICE = [
 ]
 
 
-def test_new_user_has_all_notifications_on_and_monday_digest(db):
+def test_new_user_notification_defaults_and_monday_digest(db):
     user = User(email="new-defaults@example.com", hashed_password=None)
     db.add(user)
     db.commit()
@@ -34,7 +34,7 @@ def test_new_user_has_all_notifications_on_and_monday_digest(db):
     assert user.push_daily_forecast is True
     assert user.push_planner is True
     assert user.push_key_transits is True
-    assert user.push_moon_phases is True
+    assert user.push_moon_phases is False  # 072, решение владельца 01.10.2026
     assert user.digest_day_of_week == 0  # понедельник
     assert user.email_opt_out is False
     assert user.email_unsub_token, "без токена информационное письмо не уйдёт"
