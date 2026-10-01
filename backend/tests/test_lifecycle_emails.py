@@ -364,3 +364,39 @@ def test_hanging_resend_is_cut_off(monkeypatch):
     monkeypatch.setattr(email_service, "RESEND_TOTAL_TIMEOUT_SEC", 0.05)
     monkeypatch.setattr(httpx.AsyncClient, "post", hang)
     assert asyncio.run(email_service._send("a@example.com", "s", "h")) is False
+
+
+# ── Первая неделя (флаг first_week) ─────────────────────────
+@pytest.fixture
+def first_week_for(db):
+    from backend import flags
+    from backend.models import FeatureFlag
+
+    def on(user):
+        db.add(FeatureFlag(key="first_week", mode="users", user_ids=[user.id]))
+        db.commit()
+        flags.reset_cache()
+    yield on
+    flags.reset_cache()
+
+
+def test_first_week_day2_skipped_with_app(db, sent, with_chart, first_week_for):
+    from backend.models import DeviceToken
+    u = _user(db, 2.1)
+    first_week_for(u)
+    db.add(DeviceToken(user_id=u.id, token="t-fw", platform="android"))
+    db.commit()
+    le.run_lifecycle_emails(db)
+    assert sent == []
+
+
+def test_first_week_day7_is_summary(db, sent, with_chart, first_week_for, monkeypatch):
+    u = _user(db, 7.1)
+    first_week_for(u)
+    monkeypatch.setattr("backend.first_week.summary", lambda db_, user, chart: {
+        "visits": "7 дней — 5 заходов", "past": None, "ahead": None, "free": True,
+        "tried": [{"key": "chart", "title": "Карта", "done": True}],
+    })
+    le.run_lifecycle_emails(db)
+    assert sent == [(u.email, "Твоя первая неделя с Aristea")]
+    assert _kinds(db, u) == ["retention_day7"]

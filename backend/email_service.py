@@ -550,6 +550,36 @@ async def send_retention_day7(to: str, transit_count: int, *, unsubscribe_url: s
 send_upgrade_nudge_email = send_retention_day7
 
 
+async def send_first_week_summary(to: str, data: dict, *, unsubscribe_url: str) -> bool:
+    """Итог первой недели — вместо письма дня 7 под флагом first_week.
+
+    То же содержание, что у карточки итога в приложении
+    (backend/first_week.summary): заходы без рода («7 дней — 5 заходов»),
+    главное прошедшее, что опробовано, что впереди. Без продажи; бесплатному
+    — одна ссылка «что открывается на Веге» (первый платный шаг)."""
+    tried = "".join(
+        f'<div style="color:#3d3060;font-size:15px;line-height:1.8;">'
+        f'{"✓" if t["done"] else "·"} {t["title"]}</div>'
+        for t in data["tried"]
+    )
+    body = (
+        _h2("Твоя первая неделя")
+        + _p(data["visits"])
+        + (_p(f"Главное за неделю: <strong>{data['past']}</strong>") if data.get("past") else "")
+        + f'<div style="margin:0 0 20px;">{tried}</div>'
+        + (_p(f"Впереди: <strong>{data['ahead']}</strong>") if data.get("ahead") else "")
+        + _btn("Открыть Aristea", APP_URL)
+        + (_p(f'<a href="{APP_URL}/pricing" style="color:#9060C8;">Что открывается на '
+              f'{TIER_NAMES["lite"]}</a>') if data.get("free") else "")
+    )
+    return await _send_info(
+        to,
+        "Твоя первая неделя с Aristea",
+        "Итог недели", "Что было за неделю и что ждёт дальше", body,
+        unsubscribe_url=unsubscribe_url,
+    )
+
+
 async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAMES["pro"]) -> bool:
     """Trial Ending — за 1–2 дня до окончания триала."""
     days_str = "завтра" if days_left == 1 else f"через {days_left} дня"
