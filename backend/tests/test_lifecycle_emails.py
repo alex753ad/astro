@@ -40,7 +40,8 @@ def sent(monkeypatch):
 @pytest.fixture
 def with_chart(monkeypatch):
     """У каждого кандидата есть карта и транзит — эфемериды тут не проверяются."""
-    event = SimpleNamespace(transit_planet="Venus", natal_planet="Sun", aspect_type="trine")
+    event = SimpleNamespace(transit_planet="Venus", natal_planet="Sun", aspect_type="trine",
+                            start_date="2026-01-01", exact_date=None)
     monkeypatch.setattr(le, "_latest_charts_by_user",
                         lambda db, ids: {i: SimpleNamespace(planets=[]) for i in ids})
     monkeypatch.setattr("backend.transit.engine.calculate_transits", lambda **k: [event])

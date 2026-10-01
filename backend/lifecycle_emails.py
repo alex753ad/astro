@@ -30,7 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
 from sqlalchemy import String, and_, cast, exists, func
@@ -161,11 +161,28 @@ def _pick_best_transit(events: list):
     return events[0] if events else None
 
 
-def _build_transit_text(event) -> str:
+_MONTHS_GEN = ("", "января", "февраля", "марта", "апреля", "мая", "июня",
+               "июля", "августа", "сентября", "октября", "ноября", "декабря")
+
+
+def _when(event, today: date) -> str:
+    """Когда транзит: точный день в окне недели, «Сейчас» — уже идёт, иначе
+    «С …». ⚠️ До 01.10.2026 здесь стояло «Сегодня» для любого транзита
+    недели — событие через пять дней называлось сегодняшним."""
+    exact = date.fromisoformat(event.exact_date[:10]) if event.exact_date else None
+    if exact and today <= exact <= today + timedelta(days=7):
+        return f"{exact.day} {_MONTHS_GEN[exact.month]}"
+    start = date.fromisoformat(event.start_date[:10])
+    if start <= today:
+        return "Сейчас"
+    return f"С {start.day} {_MONTHS_GEN[start.month]}"
+
+
+def _build_transit_text(event, today: date) -> str:
     tp, np_, at = event.transit_planet, event.natal_planet, event.aspect_type
     template = _TRANSIT_TEMPLATES.get((tp, at), "")
     base = (
-        f"Сегодня <strong>{_PLANET_RU.get(tp, tp)}</strong> образует "
+        f"{_when(event, today)} <strong>{_PLANET_RU.get(tp, tp)}</strong> образует "
         f"{_ASPECT_RU.get(at, at)} с <strong>{_NATAL_WITH_YOURS.get(np_, _PLANET_RU.get(np_, np_))}</strong>."
     )
     return f"{base}<br><br>{template}" if template else base
@@ -234,11 +251,13 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
                 event = _pick_best_transit(events)
                 if not event:
                     continue
-                text = _build_transit_text(event)
+                text = _build_transit_text(event, today)
                 send = lambda: email_service.send_retention_day2(email, text, unsubscribe_url=unsub)
             else:
-                locked = max(0, len(events) - 1)
-                send = lambda: email_service.send_retention_day7(email, locked, unsubscribe_url=unsub)
+                if not events:
+                    continue  # звать разбирать нечего
+                count = len(events)
+                send = lambda: email_service.send_retention_day7(email, count, unsubscribe_url=unsub)
         if send_once(db, uid, kind, "", send):
             sent += 1
     return sent
