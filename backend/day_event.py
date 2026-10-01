@@ -370,11 +370,43 @@ def title(ev: DayEvent) -> str:
     Медленная планета вне окна (`timed=False`) — без времени: касание длится
     сутками, а названный момент был бы ночным.
     """
+    return f"{ev.at_local:%H:%M} · {_what(ev)}" if ev.timed else _what(ev)
+
+
+def _what(ev: DayEvent) -> str:
     if ev.natal is None:
-        what = _LUNATION_RU[ev.transit].capitalize()
-    else:
-        what = f"{PLANET_RU[ev.transit]} к {_YOURS_DAT[ev.natal]}"
-    return f"{ev.at_local:%H:%M} · {what}" if ev.timed else what
+        return _LUNATION_RU[ev.transit].capitalize()
+    return f"{PLANET_RU[ev.transit]} к {_YOURS_DAT[ev.natal]}"
+
+
+# ── Возврат (флаг push_return) ──
+# Решение владельца 01.10.2026: не отдельный пуш, а вариант утреннего для
+# того, кто не заходил 5 дней (push/cron.py). Событие — то же правило
+# main_event по каждому из 7 следующих дней, побеждает больший балл.
+# Порог 12 = LUNATION_SCORE: одна Луна (максимум 9) не повод звать назад.
+RETURN_MIN_SCORE = LUNATION_SCORE
+RETURN_DAYS = 7
+RETURN_TEXT = "Впереди важный день — загляни, как к нему подготовиться."
+_MONTHS_GEN = ("", "января", "февраля", "марта", "апреля", "мая", "июня",
+               "июля", "августа", "сентября", "октября", "ноября", "декабря")
+
+
+def week_top(chart, today: date, tzname: str, daily_time, quiet_from) -> DayEvent | None:
+    """Самое важное событие дней today+1 … today+RETURN_DAYS (равный балл —
+    раньше). Ниже RETURN_MIN_SCORE — None. Тот же отбор пригодится «Неделе
+    вперёд»: своего правила там не заводить."""
+    best = None
+    for i in range(1, RETURN_DAYS + 1):
+        ev = main_event(chart, today + timedelta(days=i), tzname, daily_time, quiet_from)
+        if ev and ev.score >= RETURN_MIN_SCORE and (best is None or ev.score > best.score):
+            best = ev
+    return best
+
+
+def return_title(ev: DayEvent) -> str:
+    """«7 октября · Сатурн к твоей Луне» — дата вместо времени."""
+    d = ev.at_local
+    return f"{d.day} {_MONTHS_GEN[d.month]} · {_what(ev)}"
 
 
 def advice(ev: DayEvent) -> str:
