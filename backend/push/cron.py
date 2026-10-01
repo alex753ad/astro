@@ -71,7 +71,7 @@ from sqlalchemy.orm import Session
 
 from backend.authz import require_internal_secret
 from backend.database import get_db
-from backend.models import User, NatalChart, PushSubscription, PushSentLog, DeviceToken
+from backend.models import User, NatalChart, PushSubscription, PushSentLog, DeviceToken, PushSend
 from backend.push.sender import send_to_user
 from backend.chart_utils import get_primary_chart
 from backend.ephemeris.ru_names import PLANET_RU
@@ -207,7 +207,7 @@ def _evening_candidate(user, chart, today: date_type) -> dict | None:
     }
 
 
-def _send_evening(db: Session, user: User, chart, now_local: datetime) -> int:
+def _send_evening(db: Session, user: User, chart, now_local: datetime, day_on: bool = False) -> int:
     """Отправить вечернее уведомление, если пора и оно ещё не ушло."""
     at = evening_send_time(_daily_time_of(user), _quiet_from_of(user))
     if at is None:
@@ -221,12 +221,17 @@ def _send_evening(db: Session, user: User, chart, now_local: datetime) -> int:
     cand = _evening_candidate(user, chart, now_local.date())
     if not cand or _already_sent(db, user.id, cand["kind"], cand["ref"]):
         return 0
+    if day_on and len(_sent_slots(db, user.id, now_local.date())) >= DAILY_PUSH_CAP:
+        logger.info("push skip user=%s: daily cap (evening)", user.id)
+        return 0
     n = send_to_user(db, user.id, {
         "title": cand["title"], "body": cand["body"], "url": cand["url"],
         "target": cand["target"], "keys": [f"{cand['kind']}:{cand['ref']}"],
     })
     if n:
         _mark_sent(db, user.id, cand["kind"], cand["ref"])
+        if day_on:
+            _record_send(db, user.id, now_local.date(), "evening")
         logger.info("push send user=%s kinds=['tomorrow'] n=%d", user.id, n)
     return n
 
@@ -259,6 +264,65 @@ def _soft_capped(db: Session, user_id: str, now_utc: datetime) -> bool:
     if last and last.sent_at and (now_utc - last.sent_at) < timedelta(hours=SOFT_CAP_HOURS):
         return True
     return False
+
+
+# ── Главное событие дня и лимит пушей (флаг push_day_event) ──
+# Решение владельца 01.10.2026, правило — docs/notifications.md, «Главное
+# событие дня и лимит пушей». Без флага ничего ниже не действует и в
+# push_sends ничего не пишется.
+#   * утренний пуш — каждый день: потолок мягких 1/48ч снят (экран первого
+#     запуска обещает «прогноз каждое утро»);
+#   * в тексте утра — главное событие дня (backend/day_event.py), нет его —
+#     обычный тизер прогноза;
+#   * не больше DAILY_PUSH_CAP содержательных пушей за местные сутки: утро,
+#     вечер и пилот. Пилот — последний в очереди: уходит, только если после
+#     него останется место для ещё не ушедших утра и вечера.
+DAY_EVENT_FLAG = "push_day_event"
+DAILY_PUSH_CAP = 2
+
+
+def _day_event_on(db: Session, user) -> bool:
+    from backend.flags import flag_on
+    return flag_on(db, DAY_EVENT_FLAG, user)
+
+
+def _sent_slots(db: Session, user_id: str, local_date: date_type) -> list[str]:
+    return [r[0] for r in db.query(PushSend.slot).filter(
+        PushSend.user_id == user_id, PushSend.local_date == local_date,
+    ).all()]
+
+
+def _record_send(db: Session, user_id: str, local_date: date_type, slot: str) -> None:
+    db.add(PushSend(user_id=user_id, local_date=local_date, slot=slot))
+    db.commit()
+
+
+def _local_today(user, chart) -> date_type:
+    return datetime.now(pytz.utc).astimezone(pytz.timezone(user_timezone(user, chart))).date()
+
+
+def pilot_push_allowed(db: Session, user) -> bool:
+    """Можно ли слать пилотный пуш (зовёт pilot/cron.py перед send_to_user).
+
+    ⚠️ Резерв считается по тумблеру «Прогноз дня»: под флагом утро уходит
+    каждый день, вечер — если тихие часы не раньше 19:00. Без резерва пилот,
+    ушедший утром раньше тика, съел бы место вечернего пуша.
+    """
+    if not _day_event_on(db, user):
+        return True
+    chart = get_primary_chart(db, user)
+    slots = _sent_slots(db, user.id, _local_today(user, chart))
+    reserved = 0
+    if chart and getattr(user, "push_daily_forecast", True):
+        reserved += "morning" not in slots
+        if evening_send_time(_daily_time_of(user), _quiet_from_of(user)) is not None:
+            reserved += "evening" not in slots
+    return len(slots) + reserved < DAILY_PUSH_CAP
+
+
+def record_pilot_send(db: Session, user) -> None:
+    if _day_event_on(db, user):
+        _record_send(db, user.id, _local_today(user, get_primary_chart(db, user)), "pilot")
 
 
 def _period_starts_on(planet: str, cusps: list[float], target: date_type) -> list[int]:
@@ -659,12 +723,24 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     cands: list[dict] = []
     planner_url = f"/planner/{chart.id}"
 
-    # 1) Ежедневный прогноз (soft)
+    # 1) Ежедневный прогноз (soft). Под флагом push_day_event — с главным
+    # событием дня в тексте; ключ дедупа тот же, `daily:<дата>`.
     if getattr(user, "push_daily_forecast", True):
+        frag, body = "прогноз на день", None
+        if _day_event_on(db, user):
+            from backend.day_event import main_event, phrase, short
+            try:
+                ev = main_event(chart, today, user_timezone(user, chart),
+                                _daily_time_of(user), _quiet_from_of(user))
+            except Exception as e:
+                logger.warning("day event failed user=%s: %s", user.id, e)
+                ev = None
+            if ev:
+                frag, body = short(ev), f"{phrase(ev)} Загляни в прогноз."
         cands.append({
             "kind": "daily", "ref": today.isoformat(),
-            "priority": "soft", "weight": 10, "frag": "прогноз на день",
-            "title": "✦ Твой день сегодня", "body": _daily_body(chart, today),
+            "priority": "soft", "weight": 10, "frag": frag,
+            "title": "✦ Твой день сегодня", "body": body or _daily_body(chart, today),
             # url — для веб-пуша, его не трогаем (веб в этой задаче не
             # меняется). Приложение ведёт по target: открыть ленту и
             # развернуть карточку «Сегодня» (решение владельца 23.09.2026).
@@ -820,7 +896,8 @@ def _process_user(db: Session, user: User) -> int:
 
     # Вечернее уведомление живёт своим временем и уходит отдельным пушем —
     # до проверки окна утреннего набора (см. блок «Вечернее уведомление»).
-    evening = _send_evening(db, user, chart, now_local)
+    day_on = _day_event_on(db, user)
+    evening = _send_evening(db, user, chart, now_local, day_on)
 
     # Окно отправки целиком — обе границы считает in_send_window (см. её
     # докстринг: до 10.09.2026 верхней границы не было вовсе).
@@ -849,7 +926,7 @@ def _process_user(db: Session, user: User) -> int:
     if significant:
         to_send = significant + soft
     else:
-        if _soft_capped(db, user.id, utcnow()):
+        if not day_on and _soft_capped(db, user.id, utcnow()):
             logger.info("push skip user=%s: soft capped", user.id)
             return evening
         to_send = soft
@@ -900,8 +977,13 @@ def _process_user(db: Session, user: User) -> int:
     if any(c["kind"] == "daily" for c in to_send):
         payload["ttl"] = seconds_to_midnight(now_local, tz)
 
+    if day_on and len(_sent_slots(db, user.id, today)) >= DAILY_PUSH_CAP:
+        logger.info("push skip user=%s: daily cap", user.id)
+        return evening
     n = send_to_user(db, user.id, payload)
     if n:
+        if day_on:
+            _record_send(db, user.id, today, "morning")
         for c in to_send:
             _mark_sent(db, user.id, c["kind"], c["ref"])
         logger.info("push send user=%s kinds=%s n=%d", user.id, [c["kind"] for c in to_send], n)
