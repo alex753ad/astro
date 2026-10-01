@@ -726,7 +726,7 @@ async def send_transit_alert_email(
 
 
 async def send_weekly_digest(user, db) -> bool:
-    """Weekly digest для Pro/Premium — транзиты + лунные фазы + лучшие дни + совет недели + A/B тема."""
+    """Weekly digest для Лиры/Ориона: главные события по общему правилу (day_event.week_events) + лунные фазы + лучшие дни + совет недели + A/B тема."""
     import random
     from datetime import timedelta, date as date_type
     from backend.transit.engine import calculate_transits
@@ -771,25 +771,20 @@ async def send_weekly_digest(user, db) -> bool:
         )
     )
 
-    highlights = []
-    for e in sorted_events[:3]:
-        tp  = getattr(e, "transit_planet", "")
-        np_ = getattr(e, "natal_planet", "")
-        at  = getattr(e, "aspect_type", "")
-        peak = str(getattr(e, "peak_date", None) or getattr(e, "date", str(now)))
-        is_pos = tp in POSITIVE_PLAN and at in POSITIVE_ASP
-        text = ("Благоприятный период — используй энергию для важных дел."
-                if is_pos else
-                "Период требует осознанности и внимательности.")
-        highlights.append({
-            "date": peak,
-            "planet": PLANET_RU.get(tp, tp),
-            "aspect": ASP_RU.get(at, at),
-            "natal": PLANET_RU.get(np_, np_),
-            "text": text,
-            "_tp": tp,
-            "_at": at,
-        })
+    # Главные события — то же правило, что у «Недели вперёд»
+    # (day_event.week_events, решение владельца 01.10.2026), а не свой отбор
+    # «позитивные первыми»: иначе письмо и приложение называли бы разные дни.
+    # week_events берёт дни ПОСЛЕ переданной даты — неделя письма с сегодня.
+    # Совет недели, лучшие дни и фазы ниже — прежние блоки дайджеста.
+    from backend.day_event import week_events
+    from backend.week_ahead import _ctx, _row
+    try:
+        week = await asyncio.to_thread(week_events, chart, now - timedelta(days=1), *_ctx(user, chart))
+    except Exception as e:
+        logger.warning("Weekly digest week_events failed: %s", e)
+        week = []
+    highlights = [{**_row(e), "score": e.score,
+                   "planet": PLANET_RU.get(e.transit, e.transit) if e.natal else ""} for e in week]
 
     # ── Совет недели от планировщика ──
     tip_block = ""
@@ -881,10 +876,10 @@ async def send_weekly_digest(user, db) -> bool:
         items_html += (
             f'<tr><td style="padding:12px 0;border-bottom:1px solid #ece7f8;vertical-align:top;">'
             f'<div style="color:#9060C8;font-size:12px;font-weight:700;text-transform:uppercase;'
-            f'letter-spacing:1px;margin-bottom:4px;">{h["date"]}</div>'
+            f'letter-spacing:1px;margin-bottom:4px;">{h["when"]}</div>'
             f'<div style="color:#2D2540;font-size:15px;font-weight:600;margin-bottom:4px;">'
-            f'{h["planet"]} {h["aspect"]} → {h["natal"]}</div>'
-            f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">{h["text"]}</div>'
+            f'{h["what"]}</div>'
+            f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">{h["advice"]}</div>'
             f'</td></tr>'
         )
 
@@ -926,8 +921,10 @@ async def send_weekly_digest(user, db) -> bool:
         logger.warning("Digest A/B variant not persisted (%s) — выбран %s случайно", e, variant)
 
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
-    if variant == "A" and highlights:
-        h0 = highlights[0]
+    # Тема A называет планету самого сильного события (равный балл — более
+    # раннее, как в week_top); у фазы Луны планеты нет — тогда тема B.
+    h0 = max(highlights, key=lambda h: h["score"], default=None)
+    if variant == "A" and h0 and h0["planet"]:
         subject = f"{h0['planet']} открывает окно в твоей карте — что сделать · Aristea"
     else:
         subject = f"Твоя неделя {week_label} — что важно и что делать · Aristea"
