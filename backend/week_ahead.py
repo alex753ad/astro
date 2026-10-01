@@ -23,12 +23,15 @@
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta
 
 import pytz
 from sqlalchemy.orm import Session
 
 from backend.models import DeviceToken, User
+
+logger = logging.getLogger("astro.week_ahead")
 
 FLAG = "week_ahead"
 PUSH_KIND = "week_ahead"
@@ -96,30 +99,43 @@ def _row(ev) -> dict:
     }
 
 
-def card(db: Session, user: User, chart, now_local: datetime | None = None) -> dict | None:
-    """Карточка на сейчас или None (правило показа — в шапке модуля)."""
-    from backend.day_event import is_strong, week_events
+def sunday_of(now_local: datetime, monday_until: int = 24) -> date | None:
+    """Воскресенье, чью неделю показывать сейчас, или None: с воскресенья
+    TOMORROW_OPEN_HOUR до понедельника `monday_until` часов (местных)."""
     from backend.forecast.router import TOMORROW_OPEN_HOUR
-
-    tz, lo, hi = _ctx(user, chart)
-    now_local = now_local or datetime.now(pytz.utc).astimezone(pytz.timezone(tz))
     today = now_local.date()
     if today.weekday() == SUNDAY and now_local.hour >= TOMORROW_OPEN_HOUR:
-        sunday = today
-    elif today.weekday() == 0:
-        sunday = today - timedelta(days=1)
-    else:
-        return None
-    if in_first_week(db, user, chart, sunday):
-        return None
-    events = week_events(chart, sunday, tz, lo, hi)
+        return today
+    if today.weekday() == 0 and now_local.hour < monday_until:
+        return today - timedelta(days=1)
+    return None
+
+
+def week_data(user: User, chart, sunday: date) -> dict:
+    """Содержание недели — одно на карточку и письмо."""
+    from backend.day_event import is_strong, week_events
+    events = week_events(chart, sunday, *_ctx(user, chart))
+    calm = not any(is_strong(e) for e in events)
+    subject, preview = push_texts(events) if events else ("", "")
     return {
         "title": "Неделя вперёд",
         "range": range_text(sunday + timedelta(days=1)),
-        "calm": not any(is_strong(e) for e in events),
+        "calm": calm,
         "calm_text": CALM_TEXT,
         "events": [_row(e) for e in events],
+        # Тема и превью письма — заголовок и текст пуша (вариант А).
+        "subject": subject, "preview": preview,
     }
+
+
+def card(db: Session, user: User, chart, now_local: datetime | None = None) -> dict | None:
+    """Карточка на сейчас или None (правило показа — в шапке модуля)."""
+    if now_local is None:
+        now_local = datetime.now(pytz.utc).astimezone(pytz.timezone(_ctx(user, chart)[0]))
+    sunday = sunday_of(now_local)
+    if sunday is None or in_first_week(db, user, chart, sunday):
+        return None
+    return week_data(user, chart, sunday)
 
 
 def evening_candidate(db: Session, user: User, chart, today: date) -> dict | None:
@@ -143,3 +159,73 @@ def evening_candidate(db: Session, user: User, chart, today: date) -> dict | Non
 
 def has_device(db: Session, user: User) -> bool:
     return db.query(DeviceToken.id).filter(DeviceToken.user_id == user.id).first() is not None
+
+
+# ── Письмо (решение владельца 01.10.2026) ──
+# Тем, у кого нет приложения, на любом тарифе, кроме Лиры и Ориона: у них
+# полный недельный дайджест (email_service.send_weekly_digest), второе письмо
+# про ту же неделю не шлём. Окно — воскресенье TOMORROW_OPEN_HOUR …
+# понедельник EMAIL_MONDAY_UNTIL местного времени: позже это уже не «вперёд».
+# Нет сильного события — письма нет, как и пуша. Журнал — email_sent_log
+# (kind week_ahead, ref — дата понедельника): повтор прогона ничего не шлёт.
+# Beat — ежечасно по вс и пн UTC (celery_app.py): этим покрыт вечер
+# воскресенья в любом поясе, а прежний почасовой прогон писем (06–18 UTC)
+# западнее UTC до 19:00 воскресенья не доживает.
+EMAIL_KIND = "week_ahead"
+EMAIL_MONDAY_UNTIL = 12
+DIGEST_TIERS = ("pro", "premium")
+# TODO(TASKS.md): после публикации в RuStore — строка «В приложении — прогноз
+# каждое утро» со ссылкой на установку.
+
+
+def _email_candidates(db: Session) -> list[User]:
+    from sqlalchemy import exists, or_
+    return db.query(User).filter(
+        User.email.isnot(None),
+        User.email_opt_out.is_(False),
+        or_(User.tier.is_(None), User.tier.notin_(DIGEST_TIERS)),
+        ~exists().where(DeviceToken.user_id == User.id),
+    ).all()
+
+
+def run_emails(db: Session, now_utc: datetime | None = None) -> int:
+    """Один прогон рассылки. Идемпотентен."""
+    from backend import email_service
+    from backend.chart_utils import get_primary_chart
+    from backend.email_service import APP_URL
+    from backend.flags import flag_on
+    from backend.lifecycle_emails import send_once
+    from backend.models import EmailSentLog
+    from backend.profile.email_unsubscribe import unsubscribe_url
+
+    now_utc = now_utc or datetime.now(pytz.utc)
+    sent = 0
+    for user in _email_candidates(db):
+        if not flag_on(db, FLAG, user):
+            continue
+        chart = get_primary_chart(db, user)
+        if not chart:
+            continue
+        sunday = sunday_of(now_utc.astimezone(pytz.timezone(_ctx(user, chart)[0])), EMAIL_MONDAY_UNTIL)
+        if sunday is None or in_first_week(db, user, chart, sunday):
+            continue
+        ref = (sunday + timedelta(days=1)).isoformat()
+        # Журнал — до эфемерид: прогон идёт каждый час окна.
+        if db.query(EmailSentLog.id).filter(EmailSentLog.user_id == user.id, EmailSentLog.kind == EMAIL_KIND,
+                                            EmailSentLog.ref == ref).first():
+            continue
+        unsub = unsubscribe_url(user)
+        if not unsub:
+            continue
+        try:
+            data = week_data(user, chart, sunday)
+        except Exception as e:
+            logger.warning("week_ahead email user=%s: %s", user.id, e)
+            continue
+        if data["calm"]:
+            continue
+        email, planner = user.email, f"{APP_URL}/planner/{chart.id}"
+        if send_once(db, user.id, EMAIL_KIND, ref,
+                     lambda: email_service.send_week_ahead(email, data, planner, unsubscribe_url=unsub)):
+            sent += 1
+    return sent

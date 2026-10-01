@@ -76,6 +76,13 @@ celery_app.conf.update(
         # (09:15–21:15 МСК), решение владельца 23.09.2026. Ежечасно, а не раз
         # в сутки: деплой в 06:15 не стоит суток задержки. Повтор прогона
         # безопасен — выборка идёт по журналу (backend/lifecycle_emails.py).
+        # «Неделя вперёд» письмом (флаг week_ahead) — ежечасно по вс и пн UTC:
+        # окно у человека — вс 19:00 … пн 12:00 местного, и в поясах западнее
+        # UTC оно целиком вне 06–18 UTC прогона ниже. Без флага прогон пуст.
+        "send-week-ahead-emails-hourly": {
+            "task": "tasks.send_week_ahead_emails",
+            "schedule": crontab(day_of_week="sun,mon", minute=25),
+        },
         "send-lifecycle-emails-hourly": {
             "task": "tasks.send_lifecycle_emails",
             "schedule": crontab(hour="6-18", minute=15),

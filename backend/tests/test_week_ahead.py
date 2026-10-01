@@ -158,3 +158,68 @@ class TestCard:
 
     def test_endpoint_flag_off_404(self, client, auth_headers_free):
         assert client.get("/api/v1/week-ahead", headers=auth_headers_free).status_code == 404
+
+
+# ── Письмо ──
+@pytest.fixture
+def mails(monkeypatch):
+    out = []
+
+    async def fake(to, data, planner_url, *, unsubscribe_url):
+        out.append((to, data, planner_url))
+        return True
+    monkeypatch.setattr("backend.email_service.send_week_ahead", fake)
+    return out
+
+
+def _utc(d, hh, mm=30):
+    return TZ.localize(datetime(d.year, d.month, d.day, hh, mm)).astimezone(pytz.utc)
+
+
+class TestEmail:
+    def test_no_app_gets_letter_once(self, db, user_free, chart, flag_on, week, mails):
+        assert wa.run_emails(db, _utc(SUNDAY, 19)) == 1
+        to, data, url = mails[0]
+        assert data["subject"] == "Неделя вперёд: 7, 8 и 10 октября"
+        assert url.endswith(f"/planner/{chart.id}")
+        assert wa.run_emails(db, _utc(SUNDAY, 20)) == 0
+
+    def test_monday_morning_catches_up_then_closes(self, db, user_free, chart, flag_on, week, mails):
+        assert wa.run_emails(db, _utc(SUNDAY + timedelta(days=1), 12)) == 0
+        assert wa.run_emails(db, _utc(SUNDAY + timedelta(days=1), 11)) == 1
+
+    def test_before_evening_nothing(self, db, user_free, chart, flag_on, week, mails):
+        assert wa.run_emails(db, _utc(SUNDAY, 18)) == 0
+
+    def test_app_owner_gets_push_not_letter(self, db, user_free, chart, flag_on, device, week, mails):
+        assert wa.run_emails(db, _utc(SUNDAY, 19)) == 0
+
+    @pytest.mark.parametrize("tier", ["pro", "premium"])
+    def test_digest_tiers_skip(self, db, user_free, chart, flag_on, week, mails, tier):
+        user_free.tier = tier
+        db.commit()
+        assert wa.run_emails(db, _utc(SUNDAY, 19)) == 0
+
+    def test_calm_week_and_flag_off(self, db, user_free, chart, week, mails):
+        assert wa.run_emails(db, _utc(SUNDAY, 19)) == 0  # флаг выключен
+        db.add(FeatureFlag(key="week_ahead", mode="users", user_ids=[user_free.id]))
+        db.commit()
+        flags.reset_cache()
+        week["events"] = [_ev(5, "Moon", "Sun", "conjunction", 9)]
+        assert wa.run_emails(db, _utc(SUNDAY, 19)) == 0
+
+    def test_letter_html(self, monkeypatch):
+        import asyncio
+        from backend import email_service
+        got = {}
+
+        async def fake_send(to, subject, html, **kw):
+            got.update(subject=subject, html=html)
+            return True
+        monkeypatch.setattr(email_service, "_send", fake_send)
+        data = {"title": "Неделя вперёд", "range": "5–11 октября", "subject": "S", "preview": "P",
+                "events": [wa._row(WEEK[0])]}
+        assert asyncio.run(email_service.send_week_ahead("a@b.c", data, "https://x/planner/1",
+                                                         unsubscribe_url="https://x/u"))
+        assert "Открыть планер" in got["html"] and "Сатурн к твоей Луне" in got["html"]
+        assert "✦" not in got["html"]

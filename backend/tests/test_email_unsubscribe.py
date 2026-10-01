@@ -16,7 +16,7 @@ INFORMATIONAL = [
     "send_welcome_email", "send_retention_day2", "send_retention_day7", "send_retention_day14",
     "send_weekly_digest_email", "send_transit_alert_email", "send_lunar_return_email",
     "send_lite_day14", "send_pro_day30", "send_pilot_farewell", "send_dormant",
-    "send_end_of_month_survey",
+    "send_end_of_month_survey", "send_week_ahead",
 ]
 # Служебные — отписка их не останавливает, ссылки отписки у них нет.
 SERVICE = [

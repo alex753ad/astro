@@ -586,6 +586,30 @@ async def send_first_week_summary(to: str, data: dict, *, unsubscribe_url: str) 
     )
 
 
+async def send_week_ahead(to: str, data: dict, planner_url: str, *, unsubscribe_url: str) -> bool:
+    """«Неделя вперёд» письмом — тем, у кого нет приложения (флаг week_ahead,
+    backend/week_ahead.py). Те же события и советы, что на карточке в
+    приложении; тема — заголовок пуша. Кнопка ведёт на планер сайта (шкала
+    «Ближайшие 30 дней» стоит первой под шапкой): ленты на сайте нет."""
+    rows = "".join(
+        f'<tr><td style="padding:12px 0;border-bottom:1px solid #ece7f8;">'
+        f'<div style="color:#9060C8;font-size:12px;font-weight:700;margin-bottom:4px;">{r["when"]}</div>'
+        f'<div style="color:#2D2540;font-size:15px;font-weight:600;margin-bottom:4px;">{r["what"]}</div>'
+        f'<div style="color:#5a4a7a;font-size:14px;line-height:1.6;">{r["advice"]}</div>'
+        f'</td></tr>'
+        for r in data["events"]
+    )
+    body = (
+        _h2(f'{data["title"]} · {data["range"]}')
+        + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">{rows}</table>'
+        + _btn("Открыть планер", planner_url)
+    )
+    return await _send_info(
+        to, data["subject"], data["title"], data["preview"], body,
+        unsubscribe_url=unsubscribe_url,
+    )
+
+
 async def send_trial_ending_email(to: str, days_left: int, plan: str = TIER_NAMES["pro"]) -> bool:
     """Trial Ending — за 1–2 дня до окончания триала."""
     days_str = "завтра" if days_left == 1 else f"через {days_left} дня"
