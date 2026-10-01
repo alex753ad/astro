@@ -225,6 +225,8 @@ def _send_evening(db: Session, user: User, chart, now_local: datetime, day_on: b
     over = _first_week_evening(db, user, chart, now_local.date())
     if not over and day_on:
         over = _evening_planner_month(db, user, chart, now_local.date())
+    if not over:
+        over = _week_ahead_evening(db, user, chart, now_local.date())
     if over:
         replaced, cand = cand, over
     if not cand or _already_sent(db, user.id, cand["kind"], cand["ref"]):
@@ -265,6 +267,30 @@ def _first_week_evening(db: Session, user: User, chart, today: date_type) -> dic
         return evening_candidate(db, user, chart, today)
     except Exception as e:
         logger.warning("first_week evening failed user=%s: %s", user.id, e)
+        return None
+
+
+def _week_ahead_evening(db: Session, user: User, chart, today: date_type) -> dict | None:
+    """«Неделя вперёд» (флаг week_ahead, backend/week_ahead.py) — вместо
+    «Прогноза на завтра», после first_week и planner_month. Только с
+    приложением, как первая неделя.
+
+    ⚠️ Вечер, уже закрытый пушем (своим или «Прогнозом на завтра», ref у обоих —
+    дата понедельника), не пересчитывается: _send_evening зовут каждый тик до
+    тихих часов, а отбор — семь дней эфемерид на человека."""
+    from backend.flags import flag_on
+    from backend import week_ahead
+    if today.weekday() != week_ahead.SUNDAY or not flag_on(db, week_ahead.FLAG, user):
+        return None
+    ref = (today + timedelta(days=1)).isoformat()
+    if _already_sent(db, user.id, week_ahead.PUSH_KIND, ref) or _already_sent(db, user.id, TOMORROW_KIND, ref):
+        return None
+    if not week_ahead.has_device(db, user):
+        return None
+    try:
+        return week_ahead.evening_candidate(db, user, chart, today)
+    except Exception as e:
+        logger.warning("week_ahead evening failed user=%s: %s", user.id, e)
         return None
 
 
@@ -1182,6 +1208,7 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
         # может быть уже позади, а вечер — ещё впереди.
         ev = _evening_candidate(user, chart, day) if evening_at else None
         fw = _first_week_evening(db, user, chart, day) if evening_at else None
+        pm = []
         if fw:
             ev = fw
         elif evening_at and day_on and getattr(user, "push_planner", True):
@@ -1190,6 +1217,8 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
             if not all(c == 0.0 for c in cusps):
                 pm = _planner_month_candidates(chart, day, f"/planner/{chart.id}", cusps)
                 ev = pm[0] if pm else ev
+        if evening_at and not fw and not pm:
+            ev = _week_ahead_evening(db, user, chart, day) or ev
         if ev:
             ev_naive = datetime(day.year, day.month, day.day, *evening_at)
             ev_at = tz.localize(ev_naive) if hasattr(tz, "localize") else ev_naive.replace(tzinfo=tz)

@@ -438,6 +438,10 @@ app.include_router(pdf_reports_router)
 from backend.first_week_router import router as first_week_router  # noqa: E402
 app.include_router(first_week_router)
 
+# «Неделя вперёд» (флаг week_ahead, backend/week_ahead.py).
+from backend.week_ahead_router import router as week_ahead_router  # noqa: E402
+app.include_router(week_ahead_router)
+
 
 # ═══════════════════════════════════════════════════════════
 # PROMETHEUS METRICS

@@ -85,6 +85,8 @@ import { isGuest } from '../lib/guestChart';
 import GuestSaveNote from '../components/GuestSaveNote';
 import PushNudge from '../components/PushNudge';
 import FirstWeekCard from '../components/FirstWeekCard';
+import WeekAheadCard from '../components/WeekAheadCard';
+import { findFeedEvent } from '../lib/weekAhead';
 import { openPaySheet } from '../lib/paySheetBus';
 import { featureOfEvent, onAfterPay } from '../lib/afterPay';
 import { offerFor } from '../../lib/offerRule';
@@ -542,6 +544,14 @@ export default function FeedScreen({
     dayRefs.current.get(now)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, [feed]);
 
+  // Строка «Недели вперёд»: есть такой транзит в ленте — открыть его, нет
+  // (Луна, фаза, вне окна ленты) — доехать до дня.
+  const weekAheadOpen = useCallback((row) => {
+    const ev = findFeedEvent(feed?.events, row);
+    if (ev) setSelected(ev);
+    else scrollToDay(row.date);
+  }, [feed, scrollToDay]);
+
   /**
    * Любая прокрутка сворачивает развёрнутую шапку — в ОБЕ стороны (решение
    * владельца 16.09.2026).
@@ -731,6 +741,8 @@ export default function FeedScreen({
       {!guest && <PushNudge active={active} />}
       {/* Первая неделя (флаг first_week) — только зарегистрированным. */}
       {!guest && <FirstWeekCard active={active} onAction={firstWeekAction} />}
+      {/* «Неделя вперёд» (флаг week_ahead) — только зарегистрированным. */}
+      {!guest && <WeekAheadCard active={active} onOpen={weekAheadOpen} />}
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}
