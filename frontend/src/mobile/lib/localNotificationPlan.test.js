@@ -32,7 +32,7 @@ const EVENTS = [
   { key: 'moon:moon:full_moon:2026-09-14', kind: 'moon', at: DAY1,
     title: '🌕 Полнолуние завтра', body: 'Хорошее время заметить, что вы на самом деле чувствуете.', url: '/lunar' },
   { key: 'daily:2026-09-15', kind: 'daily', at: DAY2,
-    title: '✦ Прогноз дня', body: 'Загляните, что происходит сегодня.', url: '/feed' },
+    title: 'Прогноз дня', body: 'Загляните, что происходит сегодня.', url: '/feed' },
 ];
 
 describe('target — куда вести по нажатию', () => {

@@ -27,7 +27,7 @@ describe('sw.js push', () => {
   it('без данных — показывает запасной текст', async () => {
     const shown = await push(null);
     expect(shown).toHaveLength(1);
-    expect(shown[0].title).toBe('✦ Aristea');
+    expect(shown[0].title).toBe('Aristea');
     expect(shown[0].body).toMatch(/тебя/);
   });
 
