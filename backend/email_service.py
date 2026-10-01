@@ -444,7 +444,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
 
     Если planets переданы — включает инсайт по Солнцу.
     """
-    greeting = f"Привет, {name}!" if name else "Добро пожаловать в Aristea Timeline ✦"
+    greeting = f"Привет, {name}!" if name else "Добро пожаловать в Aristea Timeline"
 
     if planets:
         sun_sign = _get_sun_sign(planets)
@@ -465,8 +465,14 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
             f'  <div style="color:#2D2540;font-size:15px;line-height:1.7;">{insight}</div>'
             f'</div>'
         )
-        subject_line = f"☀ Твоя карта готова — Солнце в {sun_sign_ru}, и вот что это говорит о тебе"
-        preview = f"Солнце в {sun_sign_ru}: {insight[:60]}..."
+        # Знак — с предлогом и в предложном падеже общим словарём продукта
+        # (ephemeris/ru_names.SIGN_IN_RU): до 01.10.2026 здесь было «Солнце в
+        # Лев». В превью — точка, не двоеточие: в самом инсайте своё
+        # двоеточие («Твоя стихия — светить: …»), и выходило два подряд.
+        from backend.ephemeris.ru_names import SIGN_IN_RU
+        sun_in = SIGN_IN_RU.get(sun_sign, f"в {sun_sign_ru}")
+        subject_line = f"☀ Твоя карта готова — Солнце {sun_in}, и вот что это говорит о тебе"
+        preview = f"Солнце {sun_in}. {insight[:60]}..."
     else:
         sun_block = ""
         subject_line = "✨ Добро пожаловать в Aristea Timeline"
@@ -477,7 +483,7 @@ async def send_welcome_email(to: str, planets: list[dict] | None = None, name: s
         + _p("Твоя натальная карта рассчитана. Вот первый инсайт — специально для тебя:")
         + sun_block
         + _p("Открой карту, чтобы увидеть все планеты, дома и разбор карты.")
-        + _btn("✦ Открыть мою карту", APP_URL)
+        + _btn("Открыть мою карту", APP_URL)
     )
     return await _send_info(
         to,
@@ -898,9 +904,9 @@ async def send_weekly_digest(user, db) -> bool:
     # Вариант A — персонализированный транзит, Вариант B — общий заголовок
     if variant == "A" and highlights:
         h0 = highlights[0]
-        subject = f"✦ {h0['planet']} открывает окно в твоей карте — что сделать · Aristea"
+        subject = f"{h0['planet']} открывает окно в твоей карте — что сделать · Aristea"
     else:
-        subject = f"✦ Твоя неделя {week_label} — что важно и что делать · Aristea"
+        subject = f"Твоя неделя {week_label} — что важно и что делать · Aristea"
 
     return await _send_info(
         user.email,
@@ -1112,7 +1118,7 @@ async def send_pro_welcome(to: str, name: str | None = None) -> bool:
 
 async def send_pro_day30(to: str, name: str | None = None, *, unsubscribe_url: str) -> bool:
     """Pro — День 30: результат + мягкий вопрос про клиентов → Premium."""
-    greeting = f"{name}, уже 30 дней с твоей картой ✦" if name else "Уже 30 дней с твоей картой ✦"
+    greeting = f"{name}, уже 30 дней с твоей картой" if name else "Уже 30 дней с твоей картой"
     body = (
         _h2(greeting)
         + _p(
@@ -1137,7 +1143,7 @@ async def send_pro_day30(to: str, name: str | None = None, *, unsubscribe_url: s
     )
     return await _send_info(
         to,
-        "✦ Уже 30 дней с твоей астрологической картой",
+        "Уже 30 дней с твоей астрологической картой",
         "30 дней с Aristea", "Результат + взгляд вперёд", body,
         unsubscribe_url=unsubscribe_url,
     )
