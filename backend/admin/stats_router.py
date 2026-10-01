@@ -19,6 +19,7 @@ def get_retention(
     platform: str | None = None,
     tier: str | None = None,
     flag: str | None = None,
+    source: str | None = None,
     db: Session = Depends(get_db),
     _=Depends(require_admin),
 ):
@@ -29,8 +30,10 @@ def get_retention(
     if flag is not None and flag not in FLAGS:
         raise HTTPException(status_code=422, detail="Нет такого флага.")
     return {
-        **compute_retention_weekly(db, platform=platform, tier=tier, flag=flag),
+        **compute_retention_weekly(db, platform=platform, tier=tier, flag=flag, source=source),
         "flags": sorted(FLAGS),
+        "sources": sorted(s for (s,) in db.query(User.signup_source).filter(
+            User.signup_source.isnot(None)).distinct()),
     }
 
 

@@ -107,6 +107,9 @@ OLD_APK_ROUTES = [
     # Первая неделя, флаг first_week (mobile/lib/firstWeek.js)
     ("GET", "/first-week"),
     ("POST", "/first-week/seen"),
+    # Карточка дня для сторис, флаг story_card (mobile/lib/storyCard.js)
+    ("GET", "/chart/{chart_id}/story-card"),
+    ("POST", "/story-card/shared"),
 ]
 
 

@@ -18,6 +18,8 @@
 import { API_BASE } from '../../config';
 import { responseErrorText } from '../../api/client';
 import { authFetchWithTimeout, getWithRetry } from './authFetchTimeout';
+// ⚠️ Один вызов за раз на всё приложение, вместе с карточкой дня — shareOnce.js.
+import { once } from './shareOnce';
 
 export const FAIL_TEXT = 'Не получилось собрать PDF, попробуй ещё раз';
 export const OPEN_FAIL = 'Не получилось открыть файл, попробуй ещё раз';
@@ -82,22 +84,6 @@ async function cacheFile(reportId, chartName) {
   return uri;
 }
 
-// ⚠️ Один вызов за раз на всё приложение. Share.share держит промис, пока
-// системный лист открыт, и второй вызов плагин отклоняет английским «Can't
-// share while sharing is in progress». Повторное нажатие в это время — не
-// ошибка, а ничего: возвращаем false, экран молчит.
-let inFlight = false;
-
-async function once(fn) {
-  if (inFlight) return false;
-  inFlight = true;
-  try {
-    await fn();
-    return true;
-  } finally {
-    inFlight = false;
-  }
-}
 
 /** Открыть файл отчёта в системной читалке PDF. false — уже идёт другой вызов. */
 export function openPdf(reportId, chartName) {

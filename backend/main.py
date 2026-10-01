@@ -442,6 +442,10 @@ app.include_router(first_week_router)
 from backend.week_ahead_router import router as week_ahead_router  # noqa: E402
 app.include_router(week_ahead_router)
 
+# Карточка дня для сторис (флаг story_card, backend/story_card.py).
+from backend.story_card_router import router as story_card_router  # noqa: E402
+app.include_router(story_card_router)
+
 
 # ═══════════════════════════════════════════════════════════
 # PROMETHEUS METRICS

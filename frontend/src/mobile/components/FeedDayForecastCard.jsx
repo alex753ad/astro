@@ -24,10 +24,13 @@ import SupportLink from './SupportLink';
 import useReconnect from '../lib/useReconnect';
 import ForecastRating from './ForecastRating';
 import { markForecastSeen } from '../lib/pushNudge';
+import StoryShareSheet from './StoryShareSheet';
 
-/** label — «сегодня» | «завтра». */
-export default function FeedDayForecastCard({ chartId, date, label, open, onToggle }) {
+/** label — «сегодня» | «завтра». canShare — кнопка «Поделиться днём»
+ *  (флаг story_card; решает FeedScreen: только «сегодня» и не гость). */
+export default function FeedDayForecastCard({ chartId, date, label, open, onToggle, canShare = false }) {
   const [state, setState] = useState({ status: 'loading', data: null });
+  const [sharing, setSharing] = useState(false);
   const runRef = useRef(0);
 
   /*
@@ -78,8 +81,15 @@ export default function FeedDayForecastCard({ chartId, date, label, open, onTogg
         gap: 8,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', color: 'var(--text-secondary)' }}>
-        {`ПРОГНОЗ НА ${String(label || '').toUpperCase()}`}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', color: 'var(--text-secondary)' }}>
+          {`ПРОГНОЗ НА ${String(label || '').toUpperCase()}`}
+        </div>
+        {canShare && (
+          <button type="button" className="mobile-link" style={{ fontSize: 13 }} onClick={() => setSharing(true)}>
+            Поделиться днём
+          </button>
+        )}
       </div>
 
       {state.status === 'loading' && (
@@ -130,6 +140,7 @@ export default function FeedDayForecastCard({ chartId, date, label, open, onTogg
           )}
         </>
       )}
+      {sharing && <StoryShareSheet chartId={chartId} date={date} onClose={() => setSharing(false)} />}
     </div>
   );
 }

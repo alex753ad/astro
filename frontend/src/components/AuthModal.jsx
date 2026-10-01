@@ -5,6 +5,7 @@ import useAuth from '../hooks/useAuth.jsx';
 import MotionButton from './MotionButton';
 import { API_BASE } from '../config';
 import { getRefCode } from '../utils/refCode';
+import { getSignupSource } from '../utils/signupSource';
 
 async function getLastChart(accessToken) {
   try {
@@ -126,6 +127,7 @@ export default function AuthModal({ onClose, returnTo }) {
         body: JSON.stringify({
           email: email.trim().toLowerCase(), password, name: name.trim() || undefined,
           ref_code: getRefCode() || undefined, consent,
+          signup_source: getSignupSource() || undefined,
         }),
       });
       const data = await res.json();

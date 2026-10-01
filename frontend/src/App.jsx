@@ -6,6 +6,7 @@ import useAuth from './hooks/useAuth.jsx';
 import { API_BASE } from './config';
 import { seoForPath } from './routes';
 import { captureRefCode } from './utils/refCode';
+import { captureSignupSource } from './utils/signupSource';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import OrionPage from './pages/OrionPage';
@@ -440,6 +441,7 @@ function AppRoutes() {
   // реагирует на смену location.search, не только на первый рендер).
   useEffect(() => {
     captureRefCode(location.search);
+    captureSignupSource(location.search);
     const ref = new URLSearchParams(location.search).get('ref');
     if (ref) {
       // Обезличенный счётчик переходов для кабинета партнёра — best-effort,
