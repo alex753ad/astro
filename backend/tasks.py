@@ -33,6 +33,18 @@ def send_lifecycle_emails() -> dict:
         db.close()
 
 
+@celery_app.task(name="tasks.send_week_ahead_emails")
+def send_week_ahead_emails() -> int:
+    """Beat, ежечасно по вс и пн UTC: письмо «Неделя вперёд» (флаг week_ahead,
+    backend/week_ahead.py — окно и кому, в разделе «Письмо»)."""
+    from backend.week_ahead import run_emails
+    db = SessionLocal()
+    try:
+        return run_emails(db)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.send_purchase_welcome", ignore_result=True)
 def send_purchase_welcome_task(payment_event_id: int) -> bool:
     """Приветствие сразу после оплаты, начавшей тариф (payments/common.py).
