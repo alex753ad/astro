@@ -13,7 +13,7 @@ import pytz
 
 from backend import flags
 from backend.day_event import (
-    LUNATION_ADVICE, MOON_ADVICE, NATAL_PLANETS, SLOW, TONE_ADVICE, DayEvent,
+    LUNATION_ADVICE, MOON_ADVICE, NATAL_PLANETS, PLANET_ADVICE, SLOW, TONE_ADVICE, DayEvent,
     advice, main_event, title,
 )
 from backend.models import FeatureFlag, PushSend, PushSentLog
@@ -96,13 +96,16 @@ class TestTexts:
     """Тексты согласованы владельцем 01.10.2026: совет до 60 знаков."""
 
     def test_every_advice_fits_collapsed_shade(self):
-        texts = [t for row in MOON_ADVICE.values() for t in row]
+        texts = [t for table in PLANET_ADVICE.values() for row in table.values() for t in row]
         texts += [*TONE_ADVICE.values(), *LUNATION_ADVICE.values()]
-        assert len(texts) == 36 + 3 + 2
+        assert len(texts) == 5 * 36 + 3 + 2
+        assert len(set(texts)) == len(texts), "дословных повторов быть не должно"
         assert all(len(t) <= 60 for t in texts), [t for t in texts if len(t) > 60]
 
-    def test_moon_covers_every_natal_point(self):
-        assert set(MOON_ADVICE) == set(NATAL_PLANETS) | {"Ascendant", "Midheaven"}
+    def test_every_table_covers_every_natal_point(self):
+        for planet, table in PLANET_ADVICE.items():
+            assert set(table) == set(NATAL_PLANETS) | {"Ascendant", "Midheaven"}, planet
+            assert all(len(row) == 3 for row in table.values()), planet
 
     def test_moon_by_tone_other_planets_general(self):
         ev = DayEvent(key="k", at_local=datetime(2026, 10, 1, 15, 1, tzinfo=timezone.utc),
@@ -110,7 +113,9 @@ class TestTexts:
         assert title(ev) == "15:01 · Луна к твоей Луне"
         assert advice(ev) == MOON_ADVICE["Moon"][1]
         mars = DayEvent(**{**ev.__dict__, "transit": "Mars", "aspect": "trine"})
-        assert advice(mars) == TONE_ADVICE["harmonious"]
+        assert advice(mars) == PLANET_ADVICE["Mars"]["Moon"][0]
+        jupiter = DayEvent(**{**ev.__dict__, "transit": "Jupiter", "aspect": "trine"})
+        assert advice(jupiter) == TONE_ADVICE["harmonious"]
         slow = DayEvent(**{**ev.__dict__, "transit": "Saturn", "natal": "Sun", "timed": False})
         assert title(slow) == "Сатурн к твоему Солнцу"
         nm = DayEvent(**{**ev.__dict__, "transit": "new_moon", "natal": None, "aspect": None})
