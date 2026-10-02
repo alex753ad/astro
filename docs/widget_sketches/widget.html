@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Literata;src:url(Literata-cyrillic.woff2)format('woff2');unicode-range:U+0400-04FF;font-weight:400 700}
+@font-face{font-family:Literata;src:url(Literata-latin.woff2)format('woff2');unicode-range:U+0000-03FF,U+2000-206F;font-weight:400 700}
+@font-face{font-family:Golos;src:url(GolosText-cyrillic.woff2)format('woff2');unicode-range:U+0400-04FF;font-weight:400 700}
+@font-face{font-family:Golos;src:url(GolosText-latin.woff2)format('woff2');unicode-range:U+0000-03FF,U+2000-206F;font-weight:400 700}
+:root{--bg:#0F1A33;--line:#D9B56A;--text:#F3E9D2;--muted:#AFA58F;--mark:#B9A0F5}
+*{box-sizing:border-box;margin:0}
+body{font-family:Golos;background:#1b1b1f;color:#ddd;padding:28px;width:1180px}
+h1{font:600 22px Golos;color:#eee;margin:0 0 6px}
+h2{font:600 15px Golos;color:#bbb;margin:26px 0 12px;letter-spacing:.04em;text-transform:uppercase}
+p.note{font-size:13px;color:#999;max-width:1100px;line-height:1.45}
+.screen{position:relative;width:380px;padding:18px 15px 30px;border-radius:28px;display:inline-grid;grid-template-columns:repeat(4,80px);gap:14px 10px;vertical-align:top;margin-right:18px}
+.wall-dark{background:linear-gradient(160deg,#2a3550,#463a5c 55%,#20283b)}
+.wall-light{background:linear-gradient(160deg,#d9e4ef,#efe2d4 60%,#c9d6c8)}
+.app{width:80px;text-align:center;font-size:11px}
+.app i{display:block;width:52px;height:52px;margin:0 auto 5px;border-radius:16px;background:rgba(255,255,255,.25)}
+.wall-dark .app{color:#eee}.wall-light .app{color:#333}
+.w{background:var(--bg);border-radius:22px;color:var(--text);overflow:hidden;position:relative;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.w41{grid-column:span 4;height:86px;display:flex;align-items:center;gap:14px;padding:0 18px 0 16px}
+.w22{grid-column:span 2;height:180px;padding:14px 16px;display:flex;flex-direction:column}
+.w21{grid-column:span 2;height:86px;display:flex;align-items:center;gap:10px;padding:0 12px}
+.k{font:600 10px Golos;letter-spacing:.14em;text-transform:uppercase;color:var(--line);white-space:nowrap}
+.t{font:500 17px/1.15 Literata;color:var(--text)}
+.a{font:400 12.5px/1.3 Golos;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk{position:absolute;right:12px;top:11px;width:13px;height:13px}
+.col{min-width:0;display:flex;flex-direction:column;gap:3px}
+.w22 .t{font-size:17px;margin-top:auto}
+.w22 .a{white-space:normal;margin-top:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.w21 .t{font-size:14px}
+.w21 .time{font:500 19px Literata;color:var(--text)}
+.states{display:grid;grid-template-columns:repeat(2,380px);gap:16px 18px}
+.cap{font-size:12.5px;color:#aaa;margin-top:6px;line-height:1.4}
+.big{width:1120px}
+</style></head><body>
+
+<h1>Виджет «День» — наброски, палитра «атлас»</h1>
+<p class="note">Пример — 2 октября 2026. Тексты условные: событие и совет берутся из day_event (те же, что в утреннем пуше). Шрифты Literata / Golos Text, как в карточке для сторис. Виджет всегда тёмный: «атлас» и на светлых обоях, и в светлой теме телефона.</p>
+
+<h2>1 · На главном экране — 4×1 и 2×2 (тёмные и светлые обои)</h2>
+<div>
+  <div class="screen wall-dark" id="s1"></div>
+  <div class="screen wall-light" id="s2"></div>
+</div>
+
+<h2>2 · Размеры: 4×1 · 2×2 · 2×1</h2>
+<div class="states">
+  <div><div class="screen wall-dark" style="padding:15px" id="r41"></div><div class="cap">4×1 — основной: Луна, дата и фаза, событие со временем, совет в одну строку.</div></div>
+  <div><div class="screen wall-dark" style="padding:15px" id="r22"></div><div class="cap">2×2 — Луна крупно, событие в две строки, совет. 2×1 — только Луна, время и событие (без совета): совет туда не помещается.</div></div>
+</div>
+
+<h2>3 · Состояния</h2>
+<div class="states">
+  <div><div class="screen wall-dark" style="padding:15px" id="st1"></div><div class="cap">День без главного события — фаза Луны и совет фазы. Время не пишется.</div></div>
+  <div><div class="screen wall-dark" style="padding:15px" id="st2"></div><div class="cap">Новолуние / полнолуние — само событие дня, со временем.</div></div>
+  <div><div class="screen wall-dark" style="padding:15px" id="st3"></div><div class="cap">Данные кончились (приложение не открывали 14 дней) — Луна считается на телефоне и остаётся верной, событие — нет.</div></div>
+  <div><div class="screen wall-dark" style="padding:15px" id="st4"></div><div class="cap">Не вошли или вышли из аккаунта — только Луна и приглашение войти.</div></div>
+</div>
+
+<script>
+// Луна: доля освещённости k (0..1), waxing — освещена справа (северное полушарие).
+function moon(size,k,waxing){
+  const r=size/2-1.5,c=size/2,rx=Math.abs(1-2*k)*r;
+  const s1=waxing?1:0, s2=(k<.5)===waxing?0:1;
+  const lit=k>0.995?`<circle cx="${c}" cy="${c}" r="${r}" fill="#D9B56A"/>`:
+    k<0.005?'':`<path d="M${c} ${c-r}A${r} ${r} 0 0 ${s1} ${c} ${c+r}A${rx} ${r} 0 0 ${s2} ${c} ${c-r}Z" fill="#D9B56A"/>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex:none">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="#1A2747" stroke="#D9B56A" stroke-opacity=".45" stroke-width="1"/>${lit}</svg>`;
+}
+const mark=`<svg class="mk" viewBox="0 0 56 56"><path d="M15 42L28 15L41 42" fill="none" stroke="#B9A0F5" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 31H35" stroke="#B9A0F5" stroke-width="4" stroke-linecap="round"/></svg>`;
+const apps=n=>Array.from({length:n},(_,i)=>`<div class="app"><i></i>${['Камера','Почта','Карты','Музыка','Заметки','Погода','Фото','Часы'][i%8]}</div>`).join('');
+
+const D={k:'2 октября · убывающая Луна',t:'15:01 · Луна к твоей Венере',a:'Устрой дома уют: цветы, свечи, вкусный ужин.',m:[.68,false]};
+function w41(d){return `<div class="w w41">${moon(52,...d.m)}<div class="col"><div class="k">${d.k}</div><div class="t">${d.t}</div>${d.a?`<div class="a">${d.a}</div>`:''}</div>${mark}</div>`}
+function w22(d){return `<div class="w w22"><div class="k">${d.k.split(' · ')[0]}</div><div style="margin-top:8px">${moon(42,...d.m)}</div><div class="t">${d.t}</div>${d.a?`<div class="a">${d.a}</div>`:''}${mark}</div>`}
+function w21(d){const [time,...rest]=d.t.split(' · ');return `<div class="w w21">${moon(40,...d.m)}<div class="col">${rest.length?`<div class="time">${time}</div><div class="t">${rest.join(' · ')}</div>`:`<div class="t">${time}</div>`}</div>${mark}</div>`}
+
+s1.innerHTML=apps(4)+w41(D)+w22(D)+apps(2)+apps(4);
+s2.innerHTML=apps(4)+w41(D)+w22(D)+apps(2)+apps(4);
+r41.innerHTML=w41(D);
+r22.innerHTML=w22(D)+w21(D);
+st1.innerHTML=w41({k:'5 октября · убывающий серп',t:'Убывающий серп',a:'Время отдохнуть и убрать лишнее.',m:[.3,false]});
+st2.innerHTML=w41({k:'10 октября · новолуние',t:'09:50 · Новолуние',a:'Выбери одно дело, которое хочешь начать в этом месяце.',m:[0,true]});
+st3.innerHTML=w41({k:'17 октября · растущий серп',t:'Открой Аристею, чтобы обновить день',a:'',m:[.35,true]});
+st4.innerHTML=w41({k:'2 октября · убывающая Луна',t:'Войди, чтобы видеть свой день',a:'',m:[.68,false]});
+</script></body></html>
