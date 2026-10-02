@@ -36,6 +36,7 @@ from backend.limiter import limiter
 from backend.models import NatalChart, User, AstreaMemory
 from backend.interpretation.rag import retrieve, build_chart_summary, build_transits_block, chat_chart_data
 from backend.interpretation.address import ADDRESS_RULE
+from backend.interpretation.chat_context import PRODUCT_TOPICS, WHERE_RULES, product_reply
 from backend.flags import flag_on
 from backend.redis_client import get_redis
 from backend.config import get_settings
@@ -105,10 +106,11 @@ CHAT_STREAM_TIMEOUT = 45.0
 # ответ не попадает ни при каком входе.
 OFF_TOPIC_REPLIES = {
     "money": (
-        "Про курсы, рынки и ставки не скажу — это не по карте, а гадать на "
-        "деньгах я не берусь. Зато по твоей карте деньги видно хорошо: второй "
-        "дом и его хозяин, Юпитер, транзиты по финансовым домам, ближайшие "
-        "периоды возможностей и осторожности. С чего начнём?"
+        # 02.10.2026, правка владельца: без «ближайших периодов возможностей»
+        # — дат для этого у чата нет (правило «Даты» в промпте).
+        "Про курсы, рынки и ставки не скажу — это не по карте. Зато по твоей "
+        "карте деньги видно хорошо: второй и восьмой дома, их управители, "
+        "транзиты по финансовым домам. С чего начнём?"
     ),
     "world": (
         "Новости и политику я не разбираю — там не моя работа. А вот твой "
@@ -129,13 +131,20 @@ OFF_TOPIC_REPLY = OFF_TOPIC_REPLIES["life"]
 
 _TOPIC_CLASSIFIER_PROMPT = """Ты определяешь, относится ли вопрос к работе астролога, который разбирает натальную карту собеседника.
 
-Ответь РОВНО ОДНИМ словом из списка: astrology, money, world, life.
+Ответь РОВНО ОДНИМ словом из списка: astrology, money, world, life, tariffs, quota, cancel, navigation.
 
 astrology — всё, что можно разобрать по карте человека. Сюда входят:
 - натальная карта, транзиты, периоды, планеты, дома, знаки, аспекты, узлы, ретроградность, стихии;
 - финансы, отношения, семья, здоровье, работа, учёба, переезд — когда речь о жизни СОБЕСЕДНИКА;
 - конкретные решения: ипотека, операция, развод, смена работы;
 - ОДНО СЛОВО или короткая фраза без пояснения («дом», «деньги», «Сатурн», «отношения») — это просьба рассказать про эту тему по карте, а НЕ вопрос о внешнем мире.
+
+Вопросы о том, что Аристея помнит или знает о собеседнике, — тоже astrology.
+
+tariffs — тарифы этого приложения (бесплатный, Вега, Лира, Орион), их цены и что в них входит. Вега, Лира и Орион — это тарифы, а не рынки.
+quota — сколько сообщений или разборов осталось, какие лимиты.
+cancel — отмена подписки, автопродление, возврат денег.
+navigation — где в приложении или на сайте что найти, как открыть раздел.
 
 money — только про рынки и экономику вообще, без связи с человеком: курс валют, инфляция, ставка ЦБ, какие акции или криптовалюту покупать.
 world — политика, новости, войны, общественные события.
@@ -163,7 +172,7 @@ def _label_from_reply(raw: str) -> str:
     «дом».
     """
     text = (raw or "").strip().lower()
-    for label in OFF_TOPIC_REPLIES:
+    for label in (*PRODUCT_TOPICS, *OFF_TOPIC_REPLIES):
         if label in text:
             return label
     return "astrology"
@@ -209,6 +218,7 @@ async def _classify_topic(question: str) -> str:
 
 async def _off_topic_sse(
     user_id: str, chart_id: str, question: str, history: list[dict], topic: str = "life",
+    reply: str | None = None,
 ):
     """Фиксированный, не сгенерированный моделью текст — ничего, что можно
     было бы уговорить переписать.
@@ -217,7 +227,8 @@ async def _off_topic_sse(
     метка сюда не доходит (её `_classify_topic` уже свёл к astrology), но
     запасной текст всё равно есть: молчать в ответ на вопрос нельзя.
     """
-    reply = OFF_TOPIC_REPLIES.get(topic, OFF_TOPIC_REPLY)
+    # `reply` — готовый ответ о продукте (chat_context.product_reply).
+    reply = reply or OFF_TOPIC_REPLIES.get(topic, OFF_TOPIC_REPLY)
     yield f"data: {json.dumps({'text': reply}, ensure_ascii=False)}\n\n"
     await _persist_turn(user_id, chart_id, question, reply, history)
     yield "data: [DONE]\n\n"
@@ -277,6 +288,7 @@ def _system_prompt(
     transits_block: str = "",
     planner_block: str = "",
     today: date | None = None,
+    p1_block: str = "",
 ) -> str:
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
     # `today` — только для прогона вопросов (scripts/chat_eval.py), см. rag.py.
@@ -287,6 +299,13 @@ def _system_prompt(
             "\n## Что ты уже знаешь об этом человеке (из прошлых бесед):\n"
             f"{memory_summary}\n"
             "Опирайся на это, если уместно, но не пересказывай вслух без повода.\n"
+        )
+    else:
+        # Правило владельца 02.10.2026: вопрос о памяти идёт к модели (не в
+        # отказ), а пустая память — честный ответ, а не выдуманные факты.
+        memory_block = (
+            "\nЕсли спрашивают, что ты помнишь, а сведений о прошлых разговорах нет — "
+            "так и скажи: пока ничего не сохранила, а карту и текущие транзиты видишь.\n"
         )
     # Без планера (флаг выключен) промпт обязан совпадать с прежним до байта —
     # держит test_chat_planner_context.py.
@@ -306,7 +325,7 @@ def _system_prompt(
 {chart_summary}
 
 {transits_block}
-{planner_block}## Знания из базы под этот вопрос:
+{planner_block}{p1_block}## Знания из базы под этот вопрос:
 {kb_text}
 {memory_block}
 ## Ты видишь и натальную карту, и текущие транзиты пользователя.
@@ -314,7 +333,7 @@ def _system_prompt(
 Отвечая на вопросы о характере и предрасположенностях — на натальную карту.
 Не вычисляй астрономические данные сам, используй только переданные.
 Если нужного транзита {not_found} — скажи, что сейчас его не видишь, не выдумывай.
-{_P0_RULES}{planner_rules}
+{_P0_RULES}{planner_rules}{WHERE_RULES if p1_block else ""}
 ## Границы:
 1. Говори только по этой карте — конкретные планеты, знаки, дома. Никаких общих советов «для всех Тельцов».
 2. Без страшилок и фатальных предсказаний. Напряжённое — зона работы, а не приговор.
@@ -385,6 +404,50 @@ _PLANNER_RULES = """
 6. Пункты планера не перечисляй подряд. Выбери один-два под вопрос и объясни своими словами.
 7. По периоду с пометкой «закрыт» назови только планету, дом и даты, советов для него не давай. Один раз за разговор, если в истории этого ещё не было, добавь коротко: «Подробнее этот период открыт на Веге» (или на Лире — как указано в строке). Если это уже было в разговоре, не повторяй.
 """
+
+
+async def _get_p1_block(chart: NatalChart, user: User, zone: str | None, left, period, db) -> str:
+    """Контекст P1 (флаг chat_planner_context): «День», «Ближайшее», тариф.
+
+    Эфемеридные части — раз в сутки на карту, пояс и окно уведомлений (от
+    окна зависит главное событие, как у пуша). Текст прогноза дня и остаток
+    сообщений — на каждый вопрос: прогноз мог появиться в кэше днём, остаток
+    меняется с каждым сообщением.
+    """
+    from backend.cache import chat_transits_cache, interpretation_cache
+    from backend.forecast.facts import resolve_tz
+    from backend.forecast.router import _daily_key
+    from backend.interpretation import chat_context as cc
+    from backend.push.cron import _daily_time_of, _quiet_from_of
+    from backend.auth.rate_limits import usage_dates
+    from backend.transit.planner_engine import now_local
+
+    tzinfo = resolve_tz(zone, chart.timezone)
+    today = now_local(tzinfo.key).date()
+    daily, quiet = _daily_time_of(user), _quiet_from_of(user)
+
+    forecast = interpretation_cache.get(_daily_key(chart.id, today, tzinfo.key))
+    paragraphs = (forecast or {}).get("paragraphs") if isinstance(forecast, dict) else None
+
+    key = f"chat_p1:{chart.id}:{tzinfo.key}:{daily}:{quiet}:{user.tier}:{today.isoformat()}"
+    cached = chat_transits_cache.get(key)
+    if cached is None:
+        def build():
+            return {
+                "day": cc.day_block(chart, today, tzinfo.key, daily, quiet),
+                "upcoming": cc.upcoming_block(chart, today, tzinfo.key, daily, quiet, user.tier),
+            }
+        try:
+            cached = await asyncio.to_thread(build)
+        except Exception as e:  # noqa: BLE001 — без P1 чат работает как раньше
+            logger.warning("chat p1 context failed chart=%s: %s", chart.id, e)
+            return ""
+        chat_transits_cache.set(key, cached, ttl=6 * 3600)
+    day = cached["day"]
+    if paragraphs:
+        day += "Текст прогноза дня, который человек видит:\n" + "\n".join(paragraphs) + "\n"
+    dates = usage_dates(db, str(user.id)) if period == "month" else None
+    return day + "\n" + cached["upcoming"] + "\n" + cc.tier_block(user.tier or "free", left, period, dates) + "\n"
 
 
 def chat_timezone(tz: str | None, user, chart) -> str | None:
@@ -937,8 +1000,15 @@ async def rag_chat(
         # противоречие: там нужен связный разговор, чтобы модель понимала «про
         # это я уже отвечала отказом» и не повторялась. Разные хранилища —
         # разные задачи.
+        # Вопрос о продукте — фиксированный ответ кодом (chat_context): цену,
+        # остаток и условия возврата модели не доверяем. Сообщение не
+        # списывается — как и отказ по чужой теме (нет _finish_turn).
+        reply = None
+        if topic in PRODUCT_TOPICS:
+            dates = usage_dates(db, str(user.id)) if _period == "month" else None
+            reply = product_reply(topic, user.tier or "free", _left, _period, dates)
         return StreamingResponse(
-            _off_topic_sse(user.id, chart_id, question, history, topic),
+            _off_topic_sse(user.id, chart_id, question, history, topic, reply),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -974,12 +1044,13 @@ async def rag_chat(
     memory_summary = _load_memory(db, user.id) if own_chart else ""
     zone = chat_timezone(tz, user, chart)
     transits_block = await _get_transits_block_cached(chart_id, chart_data, zone)
-    planner_block = ""
+    planner_block = p1_block = ""
     if flag_on(db, "chat_planner_context", user):
         planner_block = await _get_planner_block_cached(chart, user.tier, zone)
+        p1_block = await _get_p1_block(chart, user, zone, _left, _period, db)
     from backend.transit.planner_engine import now_local
     system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block, planner_block,
-                            today=now_local(zone).date())
+                            today=now_local(zone).date(), p1_block=p1_block)
 
     # История берётся с сервера, а не из тела запроса: клиентская история
     # позволяла подделывать реплики ассистента и переопределять поведение модели.

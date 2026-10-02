@@ -133,19 +133,35 @@ async def run(args) -> None:
         from backend.interpretation.rag import build_planner_block
         profile = {k: chart[k] for k in ("planets", "houses", "ascendant", "midheaven")}
         planner = await asyncio.to_thread(build_planner_block, profile, args.tier, tz, day)
+    p1 = ""
+    if args.flag:
+        # Контекст P1 — те же функции, что в rag_router._get_p1_block. Окно
+        # уведомлений — значения по умолчанию (08:00–22:00), тариф — --tier,
+        # без лимита сообщений; кэша прогноза дня у прогона нет.
+        from types import SimpleNamespace
+        from backend.interpretation import chat_context as cc
+        obj = SimpleNamespace(id="chat-eval", timezone=tz, time_unknown=time_unknown, **stored)
+        p1 = await asyncio.to_thread(lambda: "\n".join([
+            cc.day_block(obj, day, tz, "08:00", "22:00"),
+            cc.upcoming_block(obj, day, tz, "08:00", "22:00", args.tier),
+            cc.tier_block(args.tier, None, None, None),
+        ]) + "\n")
 
     items = []
     for item in json.loads(QUESTIONS.read_text(encoding="utf-8")):
         q = item["q"]
         topic = await rag_router._classify_topic(q)
         system = rag_router._system_prompt(
-            summary, retrieve(q, chart, top_k=6), "", transits, planner, today=day,
+            summary, retrieve(q, chart, top_k=6), "", transits, planner, today=day, p1_block=p1,
         )
         answers = []
         for _ in range(args.repeats):
             if topic != "astrology":
                 # Как в чате: чужая тема до модели не доходит, ответ фиксированный.
-                answers.append({"text": rag_router.OFF_TOPIC_REPLIES.get(topic, rag_router.OFF_TOPIC_REPLY),
+                from backend.interpretation.chat_context import PRODUCT_TOPICS, product_reply
+                text = (product_reply(topic, args.tier) if topic in PRODUCT_TOPICS
+                        else rag_router.OFF_TOPIC_REPLIES.get(topic, rag_router.OFF_TOPIC_REPLY))
+                answers.append({"text": text,
                                 "finish_reason": "off_topic", "prompt_tokens": 0, "completion_tokens": 0})
             else:
                 answers.append(await _answer(system, q))
