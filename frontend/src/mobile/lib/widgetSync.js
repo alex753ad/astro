@@ -109,6 +109,32 @@ async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFet
   }
 }
 
+// Повторное включение с перезапуском процесса (WidgetPlugin.reenable) —
+// только для прошивок, которые не подхватили обычное (Samsung, 02.10.2026).
+// Не больше REENABLE_MAX раз на установку: если не помогло, перезапускать
+// приложение при каждом сворачивании бессмысленно.
+const REENABLE_KEY = 'aristea_widget_reenable';
+export const REENABLE_MAX = 2;
+
+function reenableAttempts() {
+  try { return Number(localStorage.getItem(REENABLE_KEY)) || 0; } catch { return REENABLE_MAX; }
+}
+
+/**
+ * Зовётся при уходе приложения в фон. Компонент включён, а системе не
+ * виден — переключаем с перезапуском. true — попытка ушла (процесс сейчас
+ * будет убит).
+ */
+export async function reenableIfNeeded(plugin = native.plugin) {
+  if (!plugin || diag.flag !== true || reenableAttempts() >= REENABLE_MAX) return false;
+  let s = null;
+  try { s = await plugin.status(); } catch { return false; }
+  if (!s || s.component !== 1 || s.listed) return false;
+  try { localStorage.setItem(REENABLE_KEY, String(reenableAttempts() + 1)); } catch { return false; }
+  plugin.reenable().catch(() => {});
+  return true;
+}
+
 const hm = (t) => (t ? new Date(t).toTimeString().slice(0, 5) : '—');
 const COMPONENT = { 0: 'выкл (манифест)', 1: 'вкл', 2: 'выкл', 3: 'выкл пользователем' };
 
@@ -134,7 +160,9 @@ export async function widgetDiagLine(plugin = native.plugin) {
       native_ = `status: ${e?.message || e}`;
     }
   }
-  return `Виджет: ${flag} · ${native_} · шаг: ${diag.step} ${hm(diag.stepAt)}`;
+  const re = reenableAttempts();
+  return `Виджет: ${flag} · ${native_} · шаг: ${diag.step} ${hm(diag.stepAt)}`
+    + (re ? ` · перевключение ${re} из ${REENABLE_MAX}` : '');
 }
 
 /**
@@ -154,6 +182,11 @@ export function useWidgetSync(isAuthenticated) {
   authed.current = isAuthenticated;
   useEffect(() => onFlagsLoaded((flags) => applyWidget(flags.has(WIDGET_FLAG), authed.current)), []);
   useEffect(() => { if (!isAuthenticated) signOutWidget(); }, [isAuthenticated]);
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') reenableIfNeeded(); };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, []);
 }
 
 export function _resetForTests() {
