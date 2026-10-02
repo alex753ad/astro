@@ -37,6 +37,25 @@ public class WidgetPlugin extends Plugin {
     }
 
     /**
+     * Системный запрос «Добавить виджет?» (Android 8+, лаунчер с закреплением):
+     * одно нажатие в окне лаунчера — и виджет на экране, без поиска в списке.
+     * shown — окно ушло лаунчеру. Добавили или отказались, лаунчер не
+     * сообщает: приложение смотрит на status().placed при возврате
+     * (mobile/lib/widgetPin.js).
+     */
+    @PluginMethod
+    public void requestPin(PluginCall call) {
+        Context c = getContext();
+        AppWidgetManager m = AppWidgetManager.getInstance(c);
+        boolean shown = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && m.isRequestPinAppWidgetSupported()
+                && m.requestPinAppWidget(new ComponentName(c, DayWidgetReceiver.class), null, null);
+        JSObject r = new JSObject();
+        r.put("shown", shown);
+        call.resolve(r);
+    }
+
+    /**
      * Строка диагностики в «Ещё» (нажатие на версию).
      * component — 0 по манифесту (включён), 1 включён вызовом, 2 выключен;
      * listed — провайдер есть у AppWidgetManager, то есть в списке виджетов.

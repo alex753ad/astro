@@ -112,6 +112,12 @@ export default function MoreMenuList({ onOpen }) {
       >
         Выгрузка твоих данных доступна в личном кабинете на сайте →
       </button>
+
+      {/* Для всех (решение владельца 02.10.2026, docs/widget_pin_card_plan.md):
+          виджет есть в APK у каждого, а системный запрос умеют не все лаунчеры. */}
+      <p style={{ margin: 0, padding: '9px 0 4px', fontSize: 13, color: 'var(--text-secondary)' }}>
+        Виджет «День»: удержи палец на свободном месте главного экрана → «Виджеты» → «Аристея».
+      </p>
     </section>
   );
 }

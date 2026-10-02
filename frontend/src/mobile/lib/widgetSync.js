@@ -27,6 +27,7 @@ import { API_BASE } from '../../config';
 import { authFetchWithTimeout } from './authFetchTimeout';
 import { IS_MOBILE } from '../../api/authTransport';
 import { onFlagsLoaded, useFlag } from '../../lib/flags';
+import { checkPlaced, countOpenDay } from './widgetPin';
 
 export const WIDGET_FLAG = 'widget';
 export const REFRESH_MS = 3 * 60 * 60 * 1000;
@@ -34,6 +35,8 @@ export const REFRESH_MS = 3 * 60 * 60 * 1000;
 const native = { plugin: IS_MOBILE ? registerPlugin('AristeaWidget') : null };
 
 let last = { at: 0, date: '', authed: null };
+// Идёт ли первая неделя — из ответа /widget; null — ещё не знаем (widgetPin.cardAllowed).
+let firstWeek = null;
 let pending = null;
 let running = null;
 // Для строки диагностики (widgetDiagLine): что пришло с сервера и чем
@@ -102,7 +105,9 @@ async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFet
       step(`/widget ответил ${r.status}`);
       return;
     }
-    const { days } = await r.json();
+    const body = await r.json();
+    const { days } = body;
+    firstWeek = body.first_week === true;
     await plugin.save({ data: JSON.stringify({ days }) });
     last = { at: +now, date: today, authed: true };
     step(`запас ${days.length} дн.`);
@@ -145,6 +150,11 @@ export async function widgetDiagLine(plugin = native.plugin) {
   return `Виджет: ${flag} · ${native_} · шаг: ${diag.step} ${hm(diag.stepAt)}`;
 }
 
+/** Для карточки «Добавь виджет» (WidgetPinCard): плагин обёрткой и что известно. */
+export function widgetState() {
+  return { plugin: native.plugin, flag: diag.flag, firstWeek };
+}
+
 /**
  * Выход из аккаунта — чужой день не должен остаться на главном экране общего
  * телефона до следующего ответа /flags.
@@ -161,12 +171,28 @@ export function useWidgetSync(isAuthenticated) {
   useFlag(WIDGET_FLAG); // держит перезапрос /flags при возврате в приложение
   const authed = useRef(isAuthenticated);
   authed.current = isAuthenticated;
-  useEffect(() => onFlagsLoaded((flags) => applyWidget(flags.has(WIDGET_FLAG), authed.current)), []);
+  useEffect(() => onFlagsLoaded((flags) => {
+    const on = flags.has(WIDGET_FLAG);
+    applyWidget(on, authed.current).then(() => { if (on && authed.current) checkPlaced(native); });
+  }), []);
   useEffect(() => { if (!isAuthenticated) signOutWidget(); }, [isAuthenticated]);
+  // Дни, в которые открывали приложение, и «виджет уже на экране» —
+  // для предложения поставить виджет (widgetPin.js).
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState === 'hidden') return;
+      countOpenDay();
+      if (authed.current && diag.flag === true) checkPlaced(native);
+    };
+    onShow();
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
 }
 
 export function _resetForTests() {
   last = { at: 0, date: '', authed: null };
+  firstWeek = null;
   pending = null;
   running = null;
   diag = { flag: null, flagAt: 0, step: 'ещё не запускался', stepAt: 0 };

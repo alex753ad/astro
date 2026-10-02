@@ -88,6 +88,7 @@ import GuestSaveNote from '../components/GuestSaveNote';
 import PushNudge from '../components/PushNudge';
 import FirstWeekCard from '../components/FirstWeekCard';
 import WeekAheadCard from '../components/WeekAheadCard';
+import WidgetPinCard from '../components/WidgetPinCard';
 import { findFeedEvent } from '../lib/weekAhead';
 import { openPaySheet } from '../lib/paySheetBus';
 import { featureOfEvent, onAfterPay } from '../lib/afterPay';
@@ -746,6 +747,8 @@ export default function FeedScreen({
       {!guest && <FirstWeekCard active={active} onAction={firstWeekAction} />}
       {/* «Неделя вперёд» (флаг week_ahead) — только зарегистрированным. */}
       {!guest && <WeekAheadCard active={active} onOpen={weekAheadOpen} />}
+      {/* «Добавь виджет» (флаг widget) — кому первая неделя прошла. */}
+      {!guest && <WidgetPinCard active={active} />}
       {/* Полоса «сейчас» — вне прокрутки потока по §3, но внутри общего
           скроллера: прибивать её к верху экрана спецификация не просит, а
           за состоянием «сейчас» при прокрутке следит компактная строка. */}

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -31,12 +31,16 @@ def _gate(db: Session, user: User) -> None:
 
 
 @router.get("")
-async def get_card(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_card(
+    widget: int = Query(0, description="1 — клиент умеет пункт «виджет» (APK с 02.10.2026)"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     _gate(db, user)
     chart = get_primary_chart(db, user)
     if not chart:
         return {"card": None}
-    return {"card": await asyncio.to_thread(first_week.card, db, user, chart)}
+    return {"card": await asyncio.to_thread(first_week.card, db, user, chart, bool(widget))}
 
 
 class SeenIn(BaseModel):

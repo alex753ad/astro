@@ -29,7 +29,9 @@ export function emit(name) {
 }
 
 export async function fetchFirstWeek() {
-  const r = await authFetch(`${API_BASE}/first-week`);
+  // widget=1 — этот APK умеет пункт «виджет» (день 3); без признака сервер
+  // его пропускает, иначе у старых APK карточка без кнопки закрыла бы дни.
+  const r = await authFetch(`${API_BASE}/first-week?widget=1`);
   if (!r.ok) return null;
   return (await r.json())?.card || null;
 }

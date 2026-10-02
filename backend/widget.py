@@ -22,6 +22,8 @@ from backend import day_event, story_card
 
 FLAG = "widget"
 DAYS = 14
+EVENT_KINDS = ("shown", "added")
+EVENT_SOURCES = ("first_week", "card", "manual")
 
 # День без главного события: заголовок — фаза, строка — совет фазы.
 # Согласовано владельцем таблицей 02.10.2026 с одной правкой (last_quarter)
