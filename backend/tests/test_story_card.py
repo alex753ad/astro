@@ -62,6 +62,16 @@ class TestText:
         assert sc.event_label(ev) == "Луна × Венера"
         assert sc.phrase(ev, "waning_gibbous") == "Сегодня я радую себя"
 
+    @pytest.mark.parametrize("planet,label", [
+        ("Moon", "Луна × моя Луна"), ("Venus", "Венера × моя Венера"),
+        ("Sun", "Солнце × моё Солнце"), ("Mars", "Марс × мой Марс"),
+    ])
+    def test_planet_to_itself(self, planet, label):
+        assert sc.event_label(_ev(transit=planet, natal=planet)) == label
+
+    def test_every_planet_has_my_form(self):
+        assert set(sc._MY) == set(sc._FIGURE_PLANETS)
+
     def test_tone_picks_column(self):
         assert sc.phrase(_ev(aspect="square"), "new_moon") == "Я радуюсь без лишних трат"
         assert sc.phrase(_ev(aspect="conjunction"), "new_moon") == "Я окружаю себя красивым"

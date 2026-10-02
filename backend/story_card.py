@@ -98,12 +98,24 @@ def phrase(ev: day_event.DayEvent | None, phase: str) -> str:
     return STORY_PHRASE[ev.natal][_TONE_INDEX[tone]]
 
 
+# Планета касается самой себя — «Луна × моя Луна» (решение владельца
+# 02.10.2026): «Луна × Луна» читалось как опечатка. Род — по слову.
+_MY = {
+    "Sun": "моё Солнце", "Moon": "моя Луна", "Mercury": "мой Меркурий",
+    "Venus": "моя Венера", "Mars": "мой Марс", "Jupiter": "мой Юпитер",
+    "Saturn": "мой Сатурн", "Uranus": "мой Уран", "Neptune": "мой Нептун",
+    "Pluto": "мой Плутон",
+}
+
+
 def event_label(ev: day_event.DayEvent | None) -> str | None:
-    """«Луна × Венера» — без времени и без «твоей». Новолуние/полнолуние,
-    Асцендент и MC — None: первое и так назовёт фаза, вторые не называются."""
+    """«Луна × Венера» — без времени и без «твоей»; к самой себе — «Луна ×
+    моя Луна». Новолуние/полнолуние, Асцендент и MC — None: первое и так
+    назовёт фаза, вторые не называются."""
     if ev is None or ev.natal is None or ev.natal in _HIDDEN_NATAL:
         return None
-    return f"{PLANET_RU[ev.transit]} × {PLANET_RU[ev.natal]}"
+    natal = _MY[ev.natal] if ev.natal == ev.transit else PLANET_RU[ev.natal]
+    return f"{PLANET_RU[ev.transit]} × {natal}"
 
 
 def figure(chart) -> dict:
