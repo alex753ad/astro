@@ -107,6 +107,9 @@ OLD_APK_ROUTES = [
     # Первая неделя, флаг first_week (mobile/lib/firstWeek.js)
     ("GET", "/first-week"),
     ("POST", "/first-week/seen"),
+    # «Неделя вперёд», флаг week_ahead (mobile/lib/weekAhead.js) — зовёт APK
+    # с #77 (01.10.2026), строка внесена 02.10.2026 по указанию владельца.
+    ("GET", "/week-ahead"),
     # Карточка дня для сторис, флаг story_card (mobile/lib/storyCard.js)
     ("GET", "/chart/{chart_id}/story-card"),
     ("POST", "/story-card/shared"),
