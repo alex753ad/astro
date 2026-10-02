@@ -7,7 +7,7 @@
  * объект плагина, вызов повиснет и тест упадёт по гонке, а не пройдёт.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { REENABLE_MAX, REFRESH_MS, _resetForTests, applyWidget, reenableIfNeeded, signOutWidget, widgetDiagLine } from './widgetSync';
+import { REFRESH_MS, _resetForTests, applyWidget, signOutWidget, widgetDiagLine } from './widgetSync';
 
 function fakePlugin() {
   const calls = [];
@@ -25,14 +25,7 @@ const okFetch = () => vi.fn(async () => ({ ok: true, json: async () => ({ days: 
 const race = (p) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('ПОВИСЛО')), 500))]);
 const at = (iso) => new Date(iso);
 
-beforeEach(() => {
-  _resetForTests();
-  const store = new Map();
-  vi.stubGlobal('localStorage', {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => { store.set(k, String(v)); },
-  });
-});
+beforeEach(() => _resetForTests());
 
 describe('флаг выключен', () => {
   it('стирает запас и выключает компонент, на сервер не ходит', async () => {
@@ -131,40 +124,5 @@ describe('строка диагностики', () => {
     const line = await widgetDiagLine(null);
     expect(line).toMatch(/ошибка на шаге «включаю компонент»: not implemented/);
     expect(line).toMatch(/плагин недоступен/);
-  });
-});
-
-describe('перевключение с перезапуском (Samsung: компонент вкл, в списке нет)', () => {
-  function samsung(listed = false) {
-    const calls = [];
-    const impl = {
-      setEnabled: async () => {}, save: async () => {},
-      status: async () => ({ component: 1, listed, placed: 0, days: 14, today: true, pin: true }),
-      reenable: async () => { calls.push('reenable'); },
-    };
-    return { calls, plugin: new Proxy({}, { get: (_, n) => impl[n] || (() => new Promise(() => {})) }) };
-  }
-
-  it('флаг вкл, в списке нет — перевключает, не больше REENABLE_MAX раз', async () => {
-    const { plugin, calls } = samsung();
-    await applyWidget(true, false, { plugin });
-    for (let i = 0; i < REENABLE_MAX + 2; i += 1) await race(reenableIfNeeded(plugin));
-    expect(calls).toEqual(Array(REENABLE_MAX).fill('reenable'));
-    expect(await widgetDiagLine(plugin)).toMatch(`перевключение ${REENABLE_MAX} из ${REENABLE_MAX}`);
-  });
-
-  it('в списке есть — не трогает', async () => {
-    const { plugin, calls } = samsung(true);
-    await applyWidget(true, false, { plugin });
-    expect(await reenableIfNeeded(plugin)).toBe(false);
-    expect(calls).toEqual([]);
-  });
-
-  it('флаг выкл или ответа /flags не было — не трогает', async () => {
-    const { plugin, calls } = samsung();
-    expect(await reenableIfNeeded(plugin)).toBe(false);
-    await applyWidget(false, true, { plugin });
-    expect(await reenableIfNeeded(plugin)).toBe(false);
-    expect(calls).toEqual([]);
   });
 });
