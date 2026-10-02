@@ -275,9 +275,11 @@ def _system_prompt(
     memory_summary: str = "",
     transits_block: str = "",
     planner_block: str = "",
+    today: date | None = None,
 ) -> str:
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
-    today = date.today().strftime("%d.%m.%Y")
+    # `today` — только для прогона вопросов (scripts/chat_eval.py), см. rag.py.
+    today = (today or date.today()).strftime("%d.%m.%Y")
     memory_block = ""
     if memory_summary:
         memory_block = (
