@@ -1,0 +1,113 @@
+name: Chat eval
+
+# Прогон 20 типичных вопросов через чат Аристеи (scripts/chat_eval.py).
+# Только ручной запуск: каждый прогон — платные вызовы DeepSeek.
+#
+# ⚠️ Репозиторий ПУБЛИЧНЫЙ: логи и артефакты прогона может скачать любой
+# пользователь GitHub, а в отчёте — ответы по карте живого человека. Поэтому
+# отчёт не выкладывается артефактом и не печатается в лог, а уходит файлом
+# владельцу в Telegram. Не добавлять сюда upload-artifact и `cat` отчёта.
+#
+# Секреты: DEEPSEEK_API_KEY, CHAT_EVAL_BIRTH (JSON {"date","time","place"}),
+# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (личный чат владельца, как у notify.py).
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Дата прогона YYYY-MM-DD (пусто — сегодня по Москве). Для «было | стало» — одна и та же"
+        required: false
+        default: ""
+      flag:
+        description: "chat_planner_context включён («стало»)"
+        type: boolean
+        default: false
+      tier:
+        description: "Тариф (влияет только при включённом флаге: замки планера)"
+        type: choice
+        options: [free, lite, pro, premium]
+        default: premium
+      repeats:
+        description: "Повторов на вопрос (ответ модели при temperature 0.7 плавает)"
+        required: false
+        default: "1"
+      compare_ref:
+        description: "«Было»: коммит или ветка для сравнения. Пусто — без сравнения"
+        required: false
+        default: ""
+      compare_flag:
+        description: "chat_planner_context у «было»"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      CHAT_EVAL_BIRTH: ${{ secrets.CHAT_EVAL_BIRTH }}
+      TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+      EPHE_PATH: data/ephe
+      JWT_SECRET: chat-eval-only-not-a-real-secret-0123456789abcdef
+      # Входы — через env, а не подстановкой ${{ }} в run: так их текст не
+      # становится частью скрипта оболочки.
+      IN_DATE: ${{ inputs.date }}
+      IN_TIER: ${{ inputs.tier }}
+      IN_REPEATS: ${{ inputs.repeats }}
+      IN_REF: ${{ inputs.compare_ref }}
+      FLAG: ${{ inputs.flag && '--flag' || '' }}
+      BASE_FLAG: ${{ inputs.compare_flag && '--flag' || '' }}
+
+    steps:
+      - name: Секреты на месте
+        run: |
+          for v in DEEPSEEK_API_KEY CHAT_EVAL_BIRTH TG_TOKEN TG_CHAT; do
+            [ -n "${!v}" ] || { echo "::error::Нет секрета для $v"; exit 1; }
+          done
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: inputs.compare_ref != ''
+        with:
+          ref: ${{ inputs.compare_ref }}
+          path: base
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Без `pip install -e .`: редактируемая установка указала бы на текущую
+      # копию, и прогон «было» импортировал бы backend из «стало». Скрипт сам
+      # ставит свой корень первым в sys.path.
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.lock
+
+      - name: Дата
+        run: echo "DATE=${IN_DATE:-$(TZ=Europe/Moscow date +%F)}" >> "$GITHUB_ENV"
+
+      - name: Стало
+        run: python scripts/chat_eval.py run --date "$DATE" $FLAG --tier "$IN_TIER" --repeats "$IN_REPEATS" --out "$RUNNER_TEMP/cur.json"
+
+      - name: Было
+        if: inputs.compare_ref != ''
+        working-directory: base
+        run: python scripts/chat_eval.py run --date "$DATE" $BASE_FLAG --tier "$IN_TIER" --repeats "$IN_REPEATS" --out "$RUNNER_TEMP/base.json"
+
+      - name: Отчёт в Telegram
+        run: |
+          files="$RUNNER_TEMP/cur.json"
+          [ -f "$RUNNER_TEMP/base.json" ] && files="$files $RUNNER_TEMP/base.json"
+          out="$RUNNER_TEMP/chat-eval-$DATE-run$GITHUB_RUN_ID.md"
+          python scripts/chat_eval.py report $files --out "$out"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -F chat_id="$TG_CHAT" -F document=@"$out" \
+            -F caption="Прогон вопросов к чату, $DATE, прогон $GITHUB_RUN_ID" \
+            "https://api.telegram.org/bot$TG_TOKEN/sendDocument")
+          [ "$code" = "200" ] || { echo "::error::Telegram ответил $code"; exit 1; }

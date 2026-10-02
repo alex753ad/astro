@@ -218,7 +218,7 @@ def build_chart_summary(chart: dict) -> str:
     return "\n".join(lines)
 
 
-def build_transits_block(chart: dict, max_transits: int = 5) -> str:
+def build_transits_block(chart: dict, max_transits: int = 5, today=None) -> str:
     """Блок текущих транзитов для system prompt чата — 3–5 самых значимых
     на сегодня, тем же фактологическим форматом, что и разбор одного
     транзита (см. backend/transit/prompts.py). Считается через Swiss
@@ -227,7 +227,9 @@ def build_transits_block(chart: dict, max_transits: int = 5) -> str:
     from backend.transit.engine import calculate_transits, is_significant_pair, compute_exact_facts
     from backend.transit.prompts import _build_facts_block
 
-    today = _date.today()
+    # `today` подаёт только прогон вопросов (scripts/chat_eval.py): «было» и
+    # «стало» обязаны считаться на одну дату. Чат его не передаёт.
+    today = today or _date.today()
     planets = chart.get("planets") or []
     if not planets:
         return "## Текущие транзиты\nНет данных натальной карты для расчёта транзитов.\n"
