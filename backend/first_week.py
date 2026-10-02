@@ -8,7 +8,7 @@
   регистрации: день регистрации — день 1.
 * «Открыл» — отметка с устройства (`first_week_marks`, 073), POST /seen.
   Сервер не пытается угадать по журналам разборов и чата: отметка одна на
-  все шесть функций, и для прогноза, карты и периодов других следов нет.
+  все функции, и для прогноза, карты и периодов других следов нет.
 * Карточка — самое раннее неоткрытое из уже наступивших дней; вперёд не
   забегаем. В день 7 первым идёт итог недели, если его ещё не смотрели.
 * Вечерний пуш дней 2–7 — вместо «Прогноза на завтра» (push/cron.py), и
@@ -18,8 +18,16 @@
 * Письма: день 2 не уходит тем, у кого есть приложение; день 7 — итог недели
   вместо «Разбери свои транзиты» (lifecycle_emails.py).
 
-Тексты согласованы владельцем таблицей 01.10.2026; день 5 — «Периоды»
-(ведёт на то, что открыто на бесплатном: период Солнца и Луна по домам).
+Тексты согласованы владельцем таблицей 01.10.2026; «Периоды» ведут на то,
+что открыто на бесплатном: период Солнца и Луна по домам.
+
+Восемь пунктов в семи днях (решение владельца 02.10.2026,
+docs/first_week_widget_day.md): день 3 — виджет «День» (кнопка — системный
+запрос закрепления), разбор транзитов и периоды — вместе в день 5: карточки
+по-прежнему по одной, пуш дня — про разбор транзитов. Пункт «виджет»
+пропускается, если флаг widget выключен или клиент его не умеет (старый APK
+без `?widget=1`: иначе карточка без кнопки закрыла бы следующие дни);
+лаунчер без закрепления и уже стоящий виджет приложение отмечает само.
 ⚠️ «Два разбора — на пробу» и «Три сообщения — на пробу» — только у
 бесплатного тарифа; числа — из TIER_FLAGS, не руками.
 """
@@ -43,6 +51,9 @@ STEPS = (
     ("forecast", "Сегодня: прогноз дня",
      "Каждое утро здесь прогноз по твоей карте. Разверни карточку «Сегодня».",
      "Прогноз дня", "Прогноз дня уже в ленте — разверни карточку «Сегодня»."),
+    ("widget", "Сегодня: твой день на главном экране",
+     "Фаза Луны и главное событие дня — без входа в приложение.",
+     "Твой день на главном экране", "Фаза Луны и событие дня — прямо на главном экране."),
     ("interpret", "Сегодня: разбор карты", "Прочитай разбор своей карты — около 450 слов о тебе.",
      "Разбор карты", "Около 450 слов о тебе — по твоей карте рождения."),
     ("transit", "Сегодня: разбор транзитов", "Коснись события в ленте и открой его разбор.",
@@ -55,7 +66,17 @@ STEPS = (
      "Итог недели", "Неделя с картой: что было и что ждёт дальше."),
 )
 KEYS = tuple(s[0] for s in STEPS)
-TRIED_KEYS = KEYS[:-1]  # шесть функций, без итога
+TRIED_KEYS = KEYS[:-1]  # всё, кроме итога
+DAY_KEYS = {1: ("chart",), 2: ("forecast",), 3: ("widget",), 4: ("interpret",),
+            5: ("transit", "periods"), 6: ("chat",), 7: ("summary",)}
+WIDGET = "widget"
+TRIED_TITLE = {"chart": "Карта", "widget": "Виджет"}  # остальные — заголовок пуша
+
+
+def widget_skipped(db: Session, user: User, widget_client: bool = True) -> bool:
+    """Пункт «виджет» не показывается и не ждёт отметки (правило — в шапке)."""
+    from backend.flags import flag_on
+    return not widget_client or not flag_on(db, "widget", user)
 
 
 def _trial_tail(key: str, tier: str) -> str:
@@ -108,17 +129,21 @@ def card_key(day: int, done: set[str]) -> str | None:
     """Ключ карточки на день `day` при отметках `done` (правило — в шапке)."""
     if day == DAYS and "summary" not in done:
         return "summary"
-    for key in KEYS[:min(day, DAYS - 1)]:
-        if key not in done:
-            return key
+    for d in range(1, min(day, DAYS - 1) + 1):
+        for key in DAY_KEYS[d]:
+            if key not in done:
+                return key
     return None
 
 
-def card(db: Session, user: User, chart) -> dict | None:
+def card(db: Session, user: User, chart, widget_client: bool = False) -> dict | None:
     day = day_number(user, chart, local_today(user, chart))
     if day is None:
         return None
-    key = card_key(day, marks(db, user))
+    done = marks(db, user)
+    if widget_skipped(db, user, widget_client):
+        done |= {WIDGET}
+    key = card_key(day, done)
     if key is None:
         return None
     _, title, text, _, _ = STEPS[KEYS.index(key)]
@@ -133,8 +158,9 @@ def evening_candidate(db: Session, user: User, chart, today: date) -> dict | Non
     day = day_number(user, chart, today)
     if day is None or day < 2:
         return None
-    key, _, _, title, text = STEPS[day - 1]
-    if key in marks(db, user):
+    key = DAY_KEYS[day][0]
+    _, _, _, title, text = STEPS[KEYS.index(key)]
+    if key in marks(db, user) or (key == WIDGET and widget_skipped(db, user)):
         return None
     return {
         "kind": PUSH_KIND, "ref": f"{key}:{today.isoformat()}",
@@ -179,8 +205,8 @@ def summary(db: Session, user: User, chart) -> dict:
     return {
         "visits": f"7 дней — {visits} {_plural(visits, 'заход', 'захода', 'заходов')}",
         "past": return_title(past) if past else None,
-        "tried": [{"key": k, "title": STEPS[KEYS.index(k)][3] or "Карта", "done": k in done}
-                  for k in TRIED_KEYS],
+        "tried": [{"key": k, "title": TRIED_TITLE.get(k) or STEPS[KEYS.index(k)][3], "done": k in done}
+                  for k in TRIED_KEYS if not (k == WIDGET and widget_skipped(db, user))],
         "ahead": return_title(ahead) if ahead else None,
         "free": (user.tier or "free") == "free",
     }

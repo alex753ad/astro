@@ -290,6 +290,7 @@ def retention_summary_text(db: Session, today: Optional[date] = None, weeks: int
             f"{k.upper()} {_fmt_window(t[k])}" for k in RETENTION_WINDOWS))
     lines.append("")
     lines.append(_story_line(db))
+    lines.append(_widget_line(db))
     lines.append("Разбивка по тарифу, флагам и источнику — /admin → «Пилот».")
     return "\n".join(lines)
 
@@ -310,6 +311,22 @@ def _story_line(db: Session) -> str:
         User.signup_source == STORY_SOURCE, User.created_at >= since).scalar() or 0
     return (f"Сторис за 7 дней: «Моя карта» — {sent.get('chart', 0)}, на фото — "
             f"{sent.get('photo', 0)}; регистраций со сторис — {came}.")
+
+
+def _widget_line(db: Session) -> str:
+    """Виджет за 7 дней (флаг widget, 075): показы предложения и добавления
+    по источникам. Решение владельца 02.10.2026."""
+    from backend.models import WidgetEvent
+    from backend.time_utils import utcnow
+
+    rows = (db.query(WidgetEvent.kind, WidgetEvent.source, func.count())
+            .filter(WidgetEvent.created_at >= utcnow() - timedelta(days=7))
+            .group_by(WidgetEvent.kind, WidgetEvent.source).all())
+    n = {(k, s): c for k, s, c in rows}
+    return (f"Виджет за 7 дней: показы — первая неделя {n.get(('shown', 'first_week'), 0)}, "
+            f"карточка {n.get(('shown', 'card'), 0)}; добавления — первая неделя "
+            f"{n.get(('added', 'first_week'), 0)}, карточка {n.get(('added', 'card'), 0)}, "
+            f"сами {n.get(('added', 'manual'), 0)}.")
 
 
 def compute_funnel(db: Session) -> dict:

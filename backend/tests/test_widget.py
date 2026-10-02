@@ -93,10 +93,26 @@ class TestEndpoint:
         days = r.json()["days"]
         assert len(days) == wg.DAYS
         assert set(days[0]) == {"date", "day", "phase", "elong", "title", "advice"}
+        assert r.json()["first_week"] is False   # флага first_week нет
 
     def test_no_chart_empty(self, client, auth_headers_free, flag_on):
         r = client.get("/api/v1/widget", headers=auth_headers_free)
-        assert r.json() == {"days": []}
+        assert r.json() == {"days": [], "first_week": False}
+
+    def test_event(self, client, db, auth_headers_free, flag_on):
+        from backend.metrics import _widget_line
+        from backend.models import WidgetEvent
+        post = lambda body: client.post("/api/v1/widget/event", json=body, headers=auth_headers_free)
+        assert post({"kind": "shown", "source": "card"}).status_code == 204
+        assert post({"kind": "added", "source": "first_week"}).status_code == 204
+        assert post({"kind": "x", "source": "card"}).status_code == 422
+        assert db.query(WidgetEvent).count() == 2
+        assert _widget_line(db) == ("Виджет за 7 дней: показы — первая неделя 0, карточка 1; "
+                                    "добавления — первая неделя 1, карточка 0, сами 0.")
+
+    def test_event_flag_off_404(self, client, auth_headers_free):
+        assert client.post("/api/v1/widget/event", json={"kind": "shown", "source": "card"},
+                           headers=auth_headers_free).status_code == 404
 
 
 class TestJavaCopy:

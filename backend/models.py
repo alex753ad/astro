@@ -955,6 +955,25 @@ class StoryCardShare(Base):
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
 
+class WidgetEvent(Base):
+    """Показ предложения поставить виджет и добавление виджета (075, флаг widget).
+
+    kind — «shown» (карточка показана, раз в местные сутки на источник) или
+    «added» (виджет впервые замечен на экране, раз на устройство).
+    source — «first_week» (день 3), «card» (карточка в ленте), «manual»
+    (поставили сами, без нашего предложения). Сводка — metrics._widget_line.
+    """
+    __tablename__ = "widget_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind = Column(String(8), nullable=False)
+    source = Column(String(16), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+
+
 class FirstWeekMark(Base):
     """Функция первой недели открыта (073, флаг first_week, backend/first_week.py).
 

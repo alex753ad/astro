@@ -12,6 +12,8 @@
  * остальные ставят экраны, где функция живёт.
  *
  * Кнопки: карта и разбор — переход на вкладку «Карта», чат — открыть чат,
+ * виджет — системный запрос закрепления (lib/widgetPin.js; отметку ставит
+ * checkPlaced, когда виджет на экране),
  * прогноз, разбор транзитов и периоды — действие ленты (`onAction` из
  * FeedScreen: развернуть «Сегодня» / открыть текущий период).
  */
@@ -25,10 +27,13 @@ import {
   FIRST_WEEK_EVENT, FIRST_WEEK_FLAG, OPEN_CHAT_EVENT, OPEN_INTERPRET_EVENT,
   emit, fetchFirstWeek, markSeen,
 } from '../lib/firstWeek';
+import { logShown, pin } from '../lib/widgetPin';
+import { widgetState } from '../lib/widgetSync';
 
 const BUTTON = {
   chart: 'Открыть карту',
   forecast: 'К прогнозу',
+  widget: 'Добавить виджет',
   interpret: 'Открыть разбор',
   transit: 'К событиям дня',
   periods: 'Открыть период',
@@ -70,6 +75,9 @@ export default function FirstWeekCard({ active, onAction }) {
   // Возврат на вкладку «Лента» — день мог смениться, отметка — прийти.
   useEffect(() => { if (on && active) load(); }, [on, active, load]);
 
+  // День 3 — виджет: показ в сводку раз в сутки (widgetPin.js).
+  useEffect(() => { if (on && card?.key === 'widget') logShown('first_week'); }, [on, card?.key]);
+
   if (!on || !card) return null;
 
   const act = () => {
@@ -79,7 +87,8 @@ export default function FirstWeekCard({ active, onAction }) {
       // карточку, и итог пропал бы из-под глаз, пока его читают.
       if (open) markSeen('summary');
       setOpen(!open);
-    } else if (key === 'chart') navigate('/app/chart');
+    } else if (key === 'widget') pin('first_week', widgetState());
+    else if (key === 'chart') navigate('/app/chart');
     else if (key === 'interpret') { navigate('/app/chart'); emit(OPEN_INTERPRET_EVENT); }
     else if (key === 'chat') emit(OPEN_CHAT_EVENT);
     else onAction?.(key);

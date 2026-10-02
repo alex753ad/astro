@@ -115,6 +115,7 @@ OLD_APK_ROUTES = [
     ("POST", "/story-card/shared"),
     # Виджет «День», флаг widget (mobile/lib/widgetSync.js)
     ("GET", "/widget"),
+    ("POST", "/widget/event"),
 ]
 
 
