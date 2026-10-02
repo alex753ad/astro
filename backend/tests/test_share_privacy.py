@@ -64,15 +64,15 @@ def test_card_is_not_cached():
 
 
 def test_ru_date():
-    assert ru_date("1984-08-02") == "2 августа 1984"
+    assert ru_date("1990-03-15") == "15 марта 1990"
     assert ru_date(date(2026, 9, 26)) == "26 сентября 2026"
     assert ru_date("кривое") == "кривое"
 
 
 def test_short_place():
-    nominatim = ("Новочеркасск, городской округ Новочеркасск, Ростовская область, "
+    nominatim = ("Таганрог, городской округ Таганрог, Ростовская область, "
                  "Южный федеральный округ, Россия")
-    assert short_place(nominatim) == "Новочеркасск, Ростовская обл."
+    assert short_place(nominatim) == "Таганрог, Ростовская обл."
     assert short_place("Краснодар, Краснодарский край, Россия") == "Краснодар, Краснодарский край"
     assert short_place("Paris, Île-de-France, France métropolitaine, France") == "Paris, France"
     assert short_place("Москва") == "Москва"

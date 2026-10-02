@@ -261,7 +261,10 @@ function TabProfile({ user, logout, authFetch }) {
     }
   };
 
-  const isAdmin = ['e.onosov@mail.ru', 'lycoris77@ya.ru'].includes(user?.email?.toLowerCase());
+  // Тот же признак, по которому сервер пускает к /payments/admin/set-tier
+  // (users.is_admin). До 02.10.2026 здесь был список личных почт прямо в коде —
+  // репозиторий публичный, и почты уходили ещё и в сборку сайта.
+  const isAdmin = !!user?.is_admin;
 
   return (
     <div style={S.card}>

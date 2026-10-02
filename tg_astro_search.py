@@ -21,8 +21,8 @@ from telethon.tl.types import Channel
 # ── Настройки ──────────────────────────────────────────────
 API_ID   = int(os.getenv("TG_API_ID", "0"))   # из окружения
 API_HASH = os.getenv("TG_API_HASH", "")       # из окружения
-PHONE    = "+79081978742"              # ← номер телефона: "+79991234567"
-PASSWORD = "Hkm88spn!"              # ← пароль двухшаговой проверки (или оставь "")
+PHONE    = os.getenv("TG_PHONE", "")      # из окружения: "+79991234567"
+PASSWORD = os.getenv("TG_PASSWORD", "")   # пароль двухэтапной проверки, из окружения
 SESSION  = "astro_search"
 
 OUTPUT_CSV  = "astro_channels.csv"
