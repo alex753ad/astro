@@ -80,12 +80,17 @@ _FIGURE_PLANETS = ("Sun", "Moon", "Mercury", "Venus", "Mars",
 
 def moon_phase(local_date: date, tzname: str) -> str:
     """Фаза Луны в местный полдень — ключ PHASES."""
+    return _PHASE_ORDER[int(((elongation(local_date, tzname) + 22.5) % 360) // 45)]
+
+
+def elongation(local_date: date, tzname: str) -> float:
+    """Элонгация Луны от Солнца в местный полдень, 0…360 (0 — новолуние).
+    Виджет рисует по ней картинку фазы (backend/widget.py)."""
     from backend.calendar.lunar_engine import _jd, _lon
 
     noon = datetime.combine(local_date, time(12), ZoneInfo(tzname)).astimezone(timezone.utc)
     jd = _jd(noon.date(), noon.hour + noon.minute / 60)
-    elong = (_lon(jd, "Moon") - _lon(jd, "Sun")) % 360
-    return _PHASE_ORDER[int(((elong + 22.5) % 360) // 45)]
+    return (_lon(jd, "Moon") - _lon(jd, "Sun")) % 360
 
 
 def phrase(ev: day_event.DayEvent | None, phase: str) -> str:

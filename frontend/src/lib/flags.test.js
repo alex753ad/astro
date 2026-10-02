@@ -1,5 +1,5 @@
 ﻿import { beforeEach, describe, expect, it } from 'vitest';
-import { MIN_INTERVAL_MS, _resetForTests, refreshFlags, shouldRefresh } from './flags';
+import { MIN_INTERVAL_MS, _resetForTests, onFlagsLoaded, refreshFlags, shouldRefresh } from './flags';
 
 const ok = (flags) => async () => ({ ok: true, json: async () => ({ flags }) });
 
@@ -28,5 +28,26 @@ describe('refreshFlags', () => {
 
   it('сеть упала — не бросает', async () => {
     await expect(refreshFlags(async () => { throw new Error('offline'); })).resolves.toBeUndefined();
+  });
+});
+
+describe('onFlagsLoaded', () => {
+  beforeEach(() => { _resetForTests(); });
+
+  it('только по ответу сервера: сбой сети — не «флаг выключен» (виджет)', async () => {
+    const got = [];
+    onFlagsLoaded((f) => got.push([...f]));
+    await refreshFlags(async () => { throw new Error('offline'); });
+    expect(got).toEqual([]);
+  });
+
+  it('после ответа — с флагами; подписавшийся позже получает их сразу', async () => {
+    const got = [];
+    onFlagsLoaded((f) => got.push([...f]));
+    await refreshFlags(ok(['widget']));
+    expect(got).toEqual([['widget']]);
+    const late = [];
+    onFlagsLoaded((f) => late.push([...f]));
+    expect(late).toEqual([['widget']]);
   });
 });

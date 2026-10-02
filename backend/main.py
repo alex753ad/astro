@@ -446,6 +446,10 @@ app.include_router(week_ahead_router)
 from backend.story_card_router import router as story_card_router  # noqa: E402
 app.include_router(story_card_router)
 
+# Виджет «День» на главный экран Android (флаг widget, backend/widget.py).
+from backend.widget_router import router as widget_router  # noqa: E402
+app.include_router(widget_router)
+
 
 # ═══════════════════════════════════════════════════════════
 # PROMETHEUS METRICS

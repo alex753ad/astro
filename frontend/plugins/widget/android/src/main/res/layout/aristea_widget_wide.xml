@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×1 (наброски docs/widget_sketches, ветка wip/tariffs-pdf). Тексты здесь —
+     только для превью в списке виджетов; настоящие ставит DayWidgetProvider. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/aristea_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/aristea_widget_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="22dp">
+
+        <ImageView
+            android:id="@+id/aristea_widget_moon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:importantForAccessibility="no" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/aristea_widget_kicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.12"
+                android:maxLines="1"
+                android:text="2 ОКТЯБРЯ · УБЫВАЮЩАЯ ЛУНА"
+                android:textColor="@color/aristea_widget_line"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/aristea_widget_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="1"
+                android:text="15:01 · Луна к твоей Венере"
+                android:textColor="@color/aristea_widget_text"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/aristea_widget_advice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Устрой дома уют: цветы, свечи, вкусный ужин."
+                android:textColor="@color/aristea_widget_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="13dp"
+        android:layout_height="13dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="11dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/aristea_widget_mark" />
+</FrameLayout>

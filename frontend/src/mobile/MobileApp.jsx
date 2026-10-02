@@ -26,6 +26,7 @@ import { AuthProvider } from '../hooks/useAuth.jsx';
 import useAuth from '../hooks/useAuth.jsx';
 import { resetSubscription } from './lib/tierSource';
 import { offlineCache } from './lib/offlineCache';
+import { useWidgetSync } from './lib/widgetSync';
 import { ThemeProvider } from './useTheme.jsx';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -124,6 +125,9 @@ function RequireGuest({ children }) {
 
 function MobileRouter() {
   const { isAuthenticated } = useAuth();
+  // Виджет «День» (флаг widget): здесь, а не в RequireAuth — гостю он
+  // показывает «Войди, чтобы видеть свой день».
+  useWidgetSync(isAuthenticated);
 
   // isAuthenticated на первом рендере уже верен: useAuth читает
   // accessToken/user из localStorage синхронно при инициализации состояния

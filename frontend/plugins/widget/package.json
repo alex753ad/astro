@@ -1,0 +1,14 @@
+{
+  "name": "aristea-widget",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Виджет «День» на главный экран Android (флаг widget). Плагин живёт в репозитории: каталог android/ генерируется в CI заново, поэтому нативный код держится здесь — cap sync сам вносит его в проект.",
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^7.0.0"
+  }
+}

@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          enabled="false": пока сервер не сказал, что флаг widget включён,
+          виджета нет в списке виджетов. Включает и выключает приложение
+          (WidgetPlugin.setEnabled) по ответу /flags.
+          Системные события — на том же приёмнике: выключенный компонент их
+          не получает, и это правильно.
+        -->
+        <receiver
+            android:name="ru.aristeatime.widget.DayWidgetProvider"
+            android:label="@string/aristea_widget_label"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/aristea_widget_info" />
+        </receiver>
+    </application>
+</manifest>
