@@ -24,7 +24,7 @@
 import { useEffect, useRef } from 'react';
 import { registerPlugin } from '@capacitor/core';
 import { API_BASE } from '../../config';
-import { authFetch } from '../../api/client';
+import { authFetchWithTimeout } from './authFetchTimeout';
 import { IS_MOBILE } from '../../api/authTransport';
 import { onFlagsLoaded, useFlag } from '../../lib/flags';
 
@@ -71,7 +71,10 @@ export function applyWidget(on, authed, opts = {}) {
   return running;
 }
 
-async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFetch, now = new Date() }) {
+// ⚠️ С таймаутом, не голый authFetch: очередь выше ждёт каждый вызов, и
+// один повисший запрос (мёртвое соединение после фона) остановил бы
+// синхронизацию виджета до перезапуска приложения (02.10.2026).
+async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFetchWithTimeout, now = new Date() }) {
   if (!plugin) return;
   diag = { ...diag, flag: on, flagAt: +now };
   const step = (text) => { diag = { ...diag, step: text, stepAt: Date.now() }; };
