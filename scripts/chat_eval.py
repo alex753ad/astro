@@ -315,6 +315,18 @@ def report(args) -> None:
     cur, base = runs[0], (runs[1] if len(runs) > 1 else None)
     cols = [("Было", base), ("Стало", cur)] if base else [("Ответ", cur)]
 
+    # В лог — разбивка по вопросам и видам: числа и метка темы, без текста
+    # ответов (решение владельца 02.10.2026; репозиторий публичный). По ней
+    # прогон разбирается, не видя отчёта. Проверки здесь уже пересчитаны
+    # текущим кодом для обеих сторон.
+    for name, r in cols:
+        print(f"{name}: {_meta(r['meta'])}")
+        for it in r["items"]:
+            counts = {k: sum(1 for a in it["answers"] if a["checks"][k]) for k in VIOLATIONS}
+            found = " ".join(f"{_LABELS[k]}={n}" for k, n in counts.items() if n) or "чисто"
+            rewrites = sum(a.get("gender_rewrites", 0) for a in it["answers"])
+            print(f"  q{it['id']:02d} тема={it['topic']} {found}; переписано={rewrites}")
+
     lines = ["# Прогон вопросов к чату Аристеи", ""]
     for name, r in cols:
         lines.append(f"* {name}: {_meta(r['meta'])}")
