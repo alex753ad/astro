@@ -1,8 +1,12 @@
 package ru.aristeatime.widget;
 
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -44,5 +48,30 @@ public class WidgetPlugin extends Plugin {
             pm.setComponentEnabledSetting(cn, want, PackageManager.DONT_KILL_APP);
         }
         call.resolve();
+    }
+
+    /**
+     * Строка диагностики в «Ещё» (нажатие на версию). Разделяет «приложение
+     * не включило компонент» и «включило, но система/лаунчер его не видит»:
+     * component — 0 по манифесту (выключен), 1 включён, 2 выключен вызовом;
+     * listed — провайдер есть у AppWidgetManager, то есть в списке виджетов.
+     */
+    @PluginMethod
+    public void status(PluginCall call) {
+        Context c = getContext();
+        ComponentName cn = new ComponentName(c, DayWidgetProvider.class);
+        AppWidgetManager m = AppWidgetManager.getInstance(c);
+        boolean listed = false;
+        for (AppWidgetProviderInfo i : m.getInstalledProviders()) {
+            if (cn.equals(i.provider)) listed = true;
+        }
+        JSObject r = new JSObject();
+        r.put("component", c.getPackageManager().getComponentEnabledSetting(cn));
+        r.put("listed", listed);
+        r.put("placed", m.getAppWidgetIds(cn).length);
+        r.put("pin", Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && m.isRequestPinAppWidgetSupported());
+        r.put("days", WidgetData.count(c));
+        r.put("today", WidgetData.today(c).stored);
+        call.resolve(r);
     }
 }

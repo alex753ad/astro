@@ -7,13 +7,14 @@
  * объект плагина, вызов повиснет и тест упадёт по гонке, а не пройдёт.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { REFRESH_MS, _resetForTests, applyWidget, signOutWidget } from './widgetSync';
+import { REFRESH_MS, _resetForTests, applyWidget, signOutWidget, widgetDiagLine } from './widgetSync';
 
 function fakePlugin() {
   const calls = [];
   const impl = {
     setEnabled: async (a) => { calls.push(['setEnabled', a.enabled]); },
     save: async (a) => { calls.push(['save', a.data]); },
+    status: async () => ({ component: 1, listed: true, placed: 0, days: 14, today: true, pin: true }),
   };
   const plugin = new Proxy({}, { get: (_, name) => impl[name] || (() => new Promise(() => {})) });
   return { plugin, calls };
@@ -89,5 +90,39 @@ describe('выход из аккаунта', () => {
     expect(calls.at(-1)).toEqual(['save', JSON.stringify({ signedOut: true })]);
     await applyWidget(true, true, { plugin, fetcher, now: at('2026-10-02T10:05:00') });
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('очередь ответов /flags', () => {
+  it('ответ во время идущего не теряется: применяется последний', async () => {
+    const { plugin, calls } = fakePlugin();
+    const fetcher = okFetch();
+    const first = applyWidget(false, true, { plugin, fetcher });
+    const second = applyWidget(true, true, { plugin, fetcher, now: at('2026-10-02T10:00:00') });
+    await race(Promise.all([first, second]));
+    expect(calls.filter((c) => c[0] === 'setEnabled')).toEqual([['setEnabled', false], ['setEnabled', true]]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('строка диагностики', () => {
+  it('до ответа /flags — так и пишет', async () => {
+    const { plugin } = fakePlugin();
+    expect(await race(widgetDiagLine(plugin))).toMatch(/^Виджет: нет ответа \/flags · компонент вкл · в списке да/);
+  });
+
+  it('отказ /widget виден, а не проглочен', async () => {
+    const { plugin } = fakePlugin();
+    await applyWidget(true, true, { plugin, fetcher: vi.fn(async () => ({ ok: false, status: 404 })) });
+    expect(await widgetDiagLine(plugin)).toMatch(/флаг вкл .* шаг: \/widget ответил 404/);
+  });
+
+  it('ошибка плагина — с шагом, на котором упало', async () => {
+    const plugin = new Proxy({}, { get: (_, name) => (name === 'setEnabled'
+      ? async () => { throw new Error('not implemented') } : async () => ({})) });
+    await applyWidget(true, true, { plugin, fetcher: okFetch() });
+    const line = await widgetDiagLine(null);
+    expect(line).toMatch(/ошибка на шаге «включаю компонент»: not implemented/);
+    expect(line).toMatch(/плагин недоступен/);
   });
 });
