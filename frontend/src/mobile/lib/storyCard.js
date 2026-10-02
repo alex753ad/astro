@@ -16,12 +16,14 @@
  * Instagram и ВКонтакте берут из «Поделиться» только картинку. Поэтому он
  * короткий (/d, редирект с метками — nginx astreatime.conf) и печатается.
  *
- * ⚠️ Фиолетовый — только литера «A»; дата и линии — золото (решение
- * владельца 01.10.2026: фиолетовое свечение выглядело «картинкой нейросети»).
+ * ⚠️ Фиолетовый — только литера «A»; дата, линии и звёзды знака — золото
+ * (решение владельца 01.10.2026: фиолетовое свечение выглядело «картинкой
+ * нейросети»). Знак — как на иконке приложения (aristeaMark.js, 02.10.2026).
  */
 import { API_BASE } from '../../config';
 import { authFetch, responseErrorText } from '../../api/client';
 import { once } from './shareOnce';
+import { BAR, BAR_WIDTH, LETTER, STARS } from '../../assets/aristeaMark';
 
 export const STORY_CARD_FLAG = 'story_card';
 export const STORY_URL = 'aristeatime.ru/d';
@@ -115,23 +117,23 @@ function canvas2d() {
   return [c, c.getContext('2d')];
 }
 
-/** Литера «A» (src/assets/aristea-a.svg, viewBox 56) размером size. */
+/**
+ * Знак Аристеи (src/assets/aristeaMark.js, viewBox 56) размером size: литера —
+ * color, перекладина со звёздами — золото «атласа».
+ */
 function drawMark(ctx, x, y, size, color) {
   const k = size / 56;
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(k, k);
-  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.fill(new Path2D(LETTER));
+  ctx.strokeStyle = ATLAS.line;
+  ctx.lineWidth = BAR_WIDTH;
   ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = 3.6;
-  ctx.beginPath();
-  ctx.moveTo(15, 42); ctx.lineTo(28, 15); ctx.lineTo(41, 42);
-  ctx.stroke();
-  ctx.lineWidth = 3.2;
-  ctx.beginPath();
-  ctx.moveTo(21, 31); ctx.lineTo(35, 31);
-  ctx.stroke();
+  ctx.stroke(new Path2D(BAR));
+  ctx.fillStyle = ATLAS.line;
+  ctx.fill(new Path2D(STARS));
   ctx.restore();
 }
 

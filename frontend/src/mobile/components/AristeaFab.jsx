@@ -27,6 +27,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { BAR, BAR_WIDTH, LETTER, STARS } from '../../assets/aristeaMark';
 import useChatAccess from '../lib/useChatAccess';
 import useTier from '../lib/useTier';
 import { onAfterPay } from '../lib/afterPay';
@@ -93,16 +94,17 @@ export default function AristeaFab({ visible, bottomOffset, chart, innerRef }) {
       >
         {hasAccess ? (
           /*
-            Литера «A» вместо прежнего ромба ✦ (решение владельца 16.09.2026).
+            Знак Аристеи вместо прежнего ромба ✦ (решение владельца 16.09.2026),
+            с 02.10.2026 — как на иконке приложения: литера со звёздами.
             ⚠️ Форма ВСТАВЛЕНА разметкой, а не подключена как <img src=...>:
             через <img> цвет не наследуется, и значок перестал бы слушаться
             состояния кнопки и темы. Тот же путь, что у значка замка ниже.
-            Источник формы — src/assets/aristea-a.svg, менять там.
+            Источник формы — src/assets/aristeaMark.js, менять там.
           */
-          <svg width="26" height="26" viewBox="0 0 56 56" fill="none" aria-hidden="true">
-            <path d="M15 42 L28 15 L41 42" stroke="currentColor" strokeWidth="3.6"
-                  strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M21 31 L35 31" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
+          <svg width="30" height="30" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+            <path d={LETTER} fill="currentColor" />
+            <path d={BAR} stroke="currentColor" strokeWidth={BAR_WIDTH} strokeLinecap="round" />
+            <path d={STARS} fill="currentColor" />
           </svg>
         ) : (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

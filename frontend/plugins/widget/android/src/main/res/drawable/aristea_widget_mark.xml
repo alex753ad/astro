@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Литера «A» (src/assets/aristea-a.svg, viewBox 56), как drawMark в storyCard.js. -->
+<!-- Знак Аристеи, как на иконке приложения: пути — копия src/assets/aristeaMark.js
+     (XML не умеет импорт; меняется форма — правится и здесь). Литера — фиолетовая,
+     перекладина со звёздами — золото, как на карточке для сторис. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="56dp" android:height="56dp"
     android:viewportWidth="56" android:viewportHeight="56">
-    <path android:pathData="M15,42L28,15L41,42" android:strokeColor="@color/aristea_widget_mark"
-        android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M21,31L35,31" android:strokeColor="@color/aristea_widget_mark"
-        android:strokeWidth="4" android:strokeLineCap="round" />
+    <path android:fillColor="@color/aristea_widget_mark"
+        android:pathData="M23.84,3.19 L31.81,3.19 L42.50,28.35 L34.54,28.35 L28.00,10.72 L21.31,28.35 L13.37,28.35 Z M11.67,32.43 L19.77,32.43 L11.87,53.25 L3.01,53.25 Z M36.05,32.43 L44.23,32.43 L53.08,53.25 L43.77,53.25 Z" />
+    <path android:strokeColor="@color/aristea_widget_line" android:strokeWidth="1.2"
+        android:strokeLineCap="round" android:pathData="M5.85,30.30 L50.15,30.30" />
+    <path android:fillColor="@color/aristea_widget_line"
+        android:pathData="M5.85,26.76 L6.68,29.16 L9.22,29.21 L7.20,30.74 L7.93,33.17 L5.85,31.72 L3.76,33.17 L4.50,30.74 L2.48,29.21 L5.01,29.16 Z M28.00,26.76 L28.83,29.16 L31.37,29.21 L29.35,30.74 L30.08,33.17 L28.00,31.72 L25.92,33.17 L26.65,30.74 L24.63,29.21 L27.17,29.16 Z M50.15,26.76 L50.99,29.16 L53.52,29.21 L51.50,30.74 L52.24,33.17 L50.15,31.72 L48.07,33.17 L48.80,30.74 L46.78,29.21 L49.32,29.16 Z" />
 </vector>
