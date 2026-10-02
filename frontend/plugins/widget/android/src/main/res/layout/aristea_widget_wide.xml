@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 4×1 (наброски docs/widget_sketches, ветка wip/tariffs-pdf). Тексты здесь —
-     только для превью в списке виджетов; настоящие ставит DayWidgetProvider. -->
+     только для превью в списке виджетов; настоящие ставит DayWidgetReceiver. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/aristea_widget_root"
     android:layout_width="match_parent"

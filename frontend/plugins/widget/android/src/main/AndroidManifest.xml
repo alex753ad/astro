@@ -1,16 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <!--
-          enabled="false": пока сервер не сказал, что флаг widget включён,
-          виджета нет в списке виджетов. Включает и выключает приложение
-          (WidgetPlugin.setEnabled) по ответу /flags.
-          Системные события — на том же приёмнике: выключенный компонент их
-          не получает, и это правильно.
+          Виджет включён в APK сразу, флаг widget управляет только содержимым
+          (решение владельца 02.10.2026). Включать компонент из приложения
+          нельзя: One UI 4.1 (Samsung SM-G970F) не регистрирует провайдер,
+          включённый после установки, — даже после перезагрузки; проба-копия,
+          включённая в манифесте, регистрировалась (docs/mobile.md).
+          ⚠️ Класс назван DayWidgetReceiver, а не прежним DayWidgetProvider
+          намеренно: у прежнего имени на телефонах осталось состояние,
+          выставленное старым APK (выключен у тех, у кого не было флага), и
+          оно пережило бы обновление. Новое имя — компонент без истории.
         -->
         <receiver
-            android:name="ru.aristeatime.widget.DayWidgetProvider"
+            android:name="ru.aristeatime.widget.DayWidgetReceiver"
             android:label="@string/aristea_widget_label"
-            android:enabled="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

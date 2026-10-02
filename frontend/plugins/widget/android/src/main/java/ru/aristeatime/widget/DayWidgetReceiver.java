@@ -23,7 +23,7 @@ import java.util.Locale;
  * updatePeriodMillis раз в 3 часа (aristea_widget_info.xml) и системные
  * события в манифесте: перезагрузка, смена времени и пояса, обновление APK.
  */
-public class DayWidgetProvider extends AppWidgetProvider {
+public class DayWidgetReceiver extends AppWidgetProvider {
 
     static final String ACTION_MIDNIGHT = "ru.aristeatime.widget.MIDNIGHT";
     // Одна строка на главном экране — 40…100 dp, две — от ~110 dp.
@@ -55,7 +55,7 @@ public class DayWidgetProvider extends AppWidgetProvider {
 
     static void updateAll(Context c) {
         AppWidgetManager m = AppWidgetManager.getInstance(c);
-        int[] ids = m.getAppWidgetIds(new ComponentName(c, DayWidgetProvider.class));
+        int[] ids = m.getAppWidgetIds(new ComponentName(c, DayWidgetReceiver.class));
         if (ids.length == 0) return;
         WidgetData.Day d = WidgetData.today(c);
         for (int id : ids) render(c, m, id, d);
@@ -106,7 +106,7 @@ public class DayWidgetProvider extends AppWidgetProvider {
     }
 
     private static PendingIntent midnightIntent(Context c) {
-        Intent i = new Intent(c, DayWidgetProvider.class).setAction(ACTION_MIDNIGHT);
+        Intent i = new Intent(c, DayWidgetReceiver.class).setAction(ACTION_MIDNIGHT);
         return PendingIntent.getBroadcast(c, 0, i,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
