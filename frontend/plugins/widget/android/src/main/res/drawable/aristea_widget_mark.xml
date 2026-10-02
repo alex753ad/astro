@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Литера «A» (src/assets/aristea-a.svg, viewBox 56), как drawMark в storyCard.js. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp" android:height="56dp"
+    android:viewportWidth="56" android:viewportHeight="56">
+    <path android:pathData="M15,42L28,15L41,42" android:strokeColor="@color/aristea_widget_mark"
+        android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M21,31L35,31" android:strokeColor="@color/aristea_widget_mark"
+        android:strokeWidth="4" android:strokeLineCap="round" />
+</vector>

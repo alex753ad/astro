@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aristea_widget_label">Аристея · День</string>
+    <string name="aristea_widget_description">Фаза Луны и главное событие дня</string>
+    <!-- Палитра «атлас» — та же, что ATLAS в mobile/lib/storyCard.js. -->
+    <color name="aristea_widget_bg">#0F1A33</color>
+    <color name="aristea_widget_line">#D9B56A</color>
+    <color name="aristea_widget_text">#F3E9D2</color>
+    <color name="aristea_widget_muted">#AFA58F</color>
+    <color name="aristea_widget_mark">#B9A0F5</color>
+</resources>

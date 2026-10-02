@@ -113,6 +113,8 @@ OLD_APK_ROUTES = [
     # Карточка дня для сторис, флаг story_card (mobile/lib/storyCard.js)
     ("GET", "/chart/{chart_id}/story-card"),
     ("POST", "/story-card/shared"),
+    # Виджет «День», флаг widget (mobile/lib/widgetSync.js)
+    ("GET", "/widget"),
 ]
 
 

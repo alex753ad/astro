@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Один виджет, растягиваемый: 4×1 по умолчанию, 2×2 — растянуть вверх.
+  Разметку по высоте выбирает DayWidgetProvider (решение владельца
+  02.10.2026: 4×1 и 2×2, без 2×1). updatePeriodMillis — запасной путь смены
+  дня на прошивках, которые глушат будильник (Xiaomi): 3 часа.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:minResizeWidth="130dp"
+    android:minResizeHeight="40dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="10800000"
+    android:initialLayout="@layout/aristea_widget_wide"
+    android:previewLayout="@layout/aristea_widget_wide"
+    android:description="@string/aristea_widget_description"
+    android:widgetCategory="home_screen" />

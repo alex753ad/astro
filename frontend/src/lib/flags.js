@@ -27,6 +27,11 @@ let fetchedAt = 0;
 let fetchedToken = null;
 let inflight = null;
 const listeners = new Set();
+// Подписчики на ОТВЕТ сервера, а не на значение флага: виджет (mobile/lib/
+// widgetSync.js) снимает себя с экрана по «флаг выключен» — и не должен
+// путать его с «флагов ещё нет» (запуск без сети).
+const loadedListeners = new Set();
+let loaded = false;
 
 function readToken() {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -46,7 +51,9 @@ export function refreshFlags(fetcher = authFetch) {
     .then((body) => {
       if (!Array.isArray(body?.flags)) return;
       current = new Set(body.flags);
+      loaded = true;
       listeners.forEach((fn) => fn());
+      loadedListeners.forEach((fn) => fn(current));
     })
     .catch(() => {})
     .finally(() => { inflight = null; });
@@ -86,6 +93,17 @@ export function useFlag(key) {
   return on;
 }
 
+/**
+ * fn(flags) — после каждого успешного ответа /flags; если ответ уже был,
+ * fn зовётся сразу. Перезапрос сам не включает — его держит useFlag.
+ */
+export function onFlagsLoaded(fn) {
+  loadedListeners.add(fn);
+  if (loaded) fn(current);
+  return () => loadedListeners.delete(fn);
+}
+
 export function _resetForTests() {
   current = new Set(); fetchedAt = 0; fetchedToken = null; inflight = null; listeners.clear();
+  loadedListeners.clear(); loaded = false;
 }
