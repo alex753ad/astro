@@ -85,32 +85,33 @@ async def _chart(birth: dict) -> tuple[dict, str | None, bool]:
 # ── модель ────────────────────────────────────────────────────────────────────
 
 async def _answer(system: str, question: str) -> dict:
-    import httpx
-    from backend.interpretation.rag_router import _DEEPSEEK_URL, CHAT_MAX_TOKENS, settings
+    """Ответ ТЕМ ЖЕ генератором, что отвечает человеку (rag_router._sse_generator):
+    поток, проверка рода по фразам и переписывание. До 02.10.2026 прогон звал
+    модель своим запросом в обход — и мерил ответ, которого человек не видит.
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
-        resp = await client.post(
-            _DEEPSEEK_URL,
-            headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
-            json={
-                "model": settings.deepseek_model_flash,
-                "messages": [{"role": "system", "content": system},
-                             {"role": "user", "content": question}],
-                "max_tokens": CHAT_MAX_TOKENS,
-                "temperature": 0.7,
-                "stream": False,
-                "thinking": {"type": "disabled"},
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    choice = data["choices"][0]
-    usage = data.get("usage") or {}
+    user_id пустой — генератор ничего не пишет в историю (_persist_turn).
+    """
+    from backend.interpretation import rag_router
+
+    turn: dict = {}
+    parts, error = [], None
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": question}]
+    async for frame in rag_router._sse_generator(messages, "premium", turn=turn):
+        body = frame[6:].strip() if frame.startswith("data: ") else ""
+        if not body or body == "[DONE]":
+            continue
+        data = json.loads(body)
+        if data.get("error"):
+            error = data["error"]
+        elif "text" in data:
+            parts.append(data["text"])
     return {
-        "text": choice["message"]["content"] or "",
-        "finish_reason": choice.get("finish_reason"),
-        "prompt_tokens": usage.get("prompt_tokens", 0),
-        "completion_tokens": usage.get("completion_tokens", 0),
+        "text": "".join(parts),
+        "finish_reason": error or turn.get("finish_reason"),
+        "prompt_tokens": turn.get("tokens", 0),
+        "completion_tokens": 0,
+        "gender_rewrites": turn.get("gender_rewrites", 0),
+        "gender_unfixed": turn.get("gender_unfixed", 0),
     }
 
 
@@ -264,6 +265,10 @@ _LABELS = {
 def _issues(a: dict) -> list[str]:
     c = a["checks"]
     out = [f"{_LABELS[k]}: {', '.join(map(str, c[k]))}" for k in VIOLATIONS if c[k]]
+    if a.get("gender_rewrites"):
+        out.append(f"переписано фраз с родом: {a['gender_rewrites']}")
+    if a.get("gender_unfixed"):
+        out.append(f"не удалось переписать: {a['gender_unfixed']}")
     if c["says_not_see"]:
         out.append("справочно: «не вижу»")
     if c["names_tariff"]:
@@ -308,7 +313,9 @@ def report(args) -> None:
         lines.append(f"| {item['id']} | {item['q']} | {topic} |{cells}")
     totals = "".join(f" {sum(_count(x) for x in r['items'])} |" for _, r in cols)
     tokens = "".join(f" {sum(a['prompt_tokens'] for x in r['items'] for a in x['answers'])} |" for _, r in cols)
-    lines += [f"| | **Итого** | |{totals}", f"| | Токенов промпта на прогон | |{tokens}", ""]
+    rewrites = "".join(f" {sum(a.get('gender_rewrites', 0) for x in r['items'] for a in x['answers'])} |" for _, r in cols)
+    lines += [f"| | **Итого** | |{totals}", f"| | Токенов на прогон | |{tokens}",
+              f"| | Фраз переписано (род) | |{rewrites}", ""]
 
     for i, item in enumerate(cur["items"]):
         lines += ["---", "", f"## {item['id']}. {item['q']}", "", f"Нужно для ответа: {item['needs']}", ""]

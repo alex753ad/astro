@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import date
 
 import httpx
@@ -595,6 +596,81 @@ async def _persist_turn(
     await _save_history(user_id, chart_id, updated)
 
 
+# ── Род в ответе чата (решение владельца 02.10.2026) ─────────────────────────
+# Прогон вопросов нашёл «ты готова», «ты способен», «ты унаследовал», «быть
+# жёсткой» при правиле ADDRESS_RULE в промпте: правило снижает частоту, но не
+# гарантирует. Ответ идёт потоком, поэтому перегенерировать его ЦЕЛИКОМ нельзя
+# — человек уже прочитал начало; держать весь ответ до конца — лишить чат
+# потока (первые слова через 10–20 с вместо 1–2). Поэтому поток задержан на
+# одну фразу: законченная фраза проверяется детектором прогнозов
+# (gender_check.gendered_you) и при находке переписывается коротким вызовом.
+# ⚠️ Прогон вопросов (scripts/chat_eval.py) идёт ЭТИМ ЖЕ генератором — иначе
+# он мерил бы ответ, которого человек не видит.
+
+_SENTENCE_END = re.compile(r"[.!?…]+[»\")\]]*\s+|\n+")
+
+_GENDER_REWRITE_PROMPT = """Перепиши фрагмент ответа так, чтобы в нём не осталось слов, выдающих пол читателя. {address}
+
+Найдено: {hits}.
+Замени эти места оборотами без рода («у тебя хватит сил», «тебе подойдёт», «ты можешь», «себе», «держать твёрдость»), формы «готов(а)» тоже не годятся. Всё остальное — смысл, термины, даты, разметку и переносы строк — оставь как есть. Ответь только переписанным фрагментом.
+
+Фрагмент:
+{text}"""
+
+
+def _split_ready(buf: str) -> tuple[str, str]:
+    """(законченные фразы, хвост). Хвост ждёт следующих кусков потока."""
+    last = None
+    for last in _SENTENCE_END.finditer(buf):
+        pass
+    if last is None:
+        return "", buf
+    return buf[:last.end()], buf[last.end():]
+
+
+async def _fix_gender(text: str, turn: dict | None) -> str:
+    """Фраза без рода. Не вышло (сбой, пусто, снова род, длина уехала) —
+    исходная фраза: незаконченный или искажённый ответ хуже оборота с родом,
+    а остаток посчитает gender_report в _finish_turn."""
+    from backend.interpretation.gender_check import gendered_you
+
+    hits = gendered_you(text)
+    if not hits:
+        return text
+    core = text.strip()
+    lead, tail = text[:len(text) - len(text.lstrip())], text[len(text.rstrip()):]
+    stats = turn if turn is not None else {}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.post(
+                _DEEPSEEK_URL,
+                headers={"Authorization": f"Bearer {settings.deepseek_api_key}",
+                         "Content-Type": "application/json"},
+                json={
+                    "model": settings.deepseek_model_flash,
+                    "messages": [{"role": "user", "content": _GENDER_REWRITE_PROMPT.format(
+                        address=ADDRESS_RULE, hits=", ".join(f"«{h}»" for h in hits), text=core)}],
+                    "max_tokens": len(core) // 2 + 60,
+                    "temperature": 0.2,
+                    "stream": False,
+                    "thinking": {"type": "disabled"},
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        fixed = (data["choices"][0]["message"]["content"] or "").strip()
+        track_engine_spend("deepseek", (data.get("usage") or {}).get("total_tokens", 0), "rag_chat_gender")
+    except Exception as e:  # noqa: BLE001 — переписывание не должно ронять ответ
+        logger.warning("chat gender rewrite failed: %s", e)
+        fixed = ""
+    if fixed and not gendered_you(fixed) and 0.5 <= len(fixed) / max(len(core), 1) <= 2:
+        stats["gender_rewrites"] = stats.get("gender_rewrites", 0) + 1
+        return lead + fixed + tail
+    stats["gender_unfixed"] = stats.get("gender_unfixed", 0) + 1
+    logger.warning("chat gender rewrite rejected: hits=%s", hits[:3])
+    return text
+
+
 async def _sse_generator(
     messages: list[dict],
     tier: str,
@@ -619,6 +695,7 @@ async def _sse_generator(
     поведение провайдера) и это повторится.
     """
     collected: list[str] = []
+    pending = ""
     finish_reason: str | None = None
     saw_reasoning = False
     stream_tokens = 0
@@ -667,10 +744,27 @@ async def _sse_generator(
                             saw_reasoning = True
                         text = delta.get("content", "")
                         if text:
-                            collected.append(text)
-                            yield f"data: {json.dumps({'text': text}, ensure_ascii=False)}\n\n"
+                            # Поток идёт с задержкой в одну фразу: законченная
+                            # фраза проверяется на род и только потом уходит
+                            # (см. _fix_gender).
+                            pending += text
+                            ready, pending = _split_ready(pending)
+                            if ready:
+                                ready = await _fix_gender(ready, turn)
+                                collected.append(ready)
+                                yield f"data: {json.dumps({'text': ready}, ensure_ascii=False)}\n\n"
                     except (json.JSONDecodeError, KeyError, IndexError):
                         continue
+
+        if pending:
+            pending = await _fix_gender(pending, turn)
+            collected.append(pending)
+            yield f"data: {json.dumps({'text': pending}, ensure_ascii=False)}\n\n"
+        if turn is not None:
+            # Для прогона вопросов (scripts/chat_eval.py): он идёт этим же
+            # генератором и берёт отсюда расход и причину остановки.
+            turn["tokens"] = stream_tokens
+            turn["finish_reason"] = finish_reason
 
         # Единая точка выхода что для литерала [DONE] от DeepSeek, что для
         # обрыва потока без него — раньше второй случай не слал [DONE]
@@ -719,6 +813,12 @@ async def _sse_generator(
             CHAT_STREAM_TIMEOUT, user_id, chart_id, len("".join(collected)),
             finish_reason, question[:120],
         )
+        # Недописанная фраза из буфера (поток задержан на фразу, см.
+        # _fix_gender) — отдаём как есть: до неё человек видел всё, что
+        # успело прийти, и так должно остаться. Переписывать после дедлайна —
+        # ещё до 8 с ожидания поверх уже истёкших.
+        if pending:
+            yield f"data: {json.dumps({'text': pending}, ensure_ascii=False)}\n\n"
         error_payload = {
             "error": "timeout",
             "text": "Ответ не пришёл вовремя. Попробуй ещё раз.",
