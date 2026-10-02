@@ -53,3 +53,17 @@ def test_wrong_price_and_address():
     assert c["wrong_prices"] == [990]
     assert c["formal_you"] == ["вы"]
     assert c["gendered"]
+
+
+def test_date_windows_caught():
+    """Окна, найденные владельцем в прогоне 02.10.2026, и их соседи."""
+    text = ("Лучше во второй половине октября, ближе к концу месяца. "
+            "Конец октября и ноябрь — спокойнее, первая половина недели — для разговоров.")
+    found = [w.lower() for w in ce.check(text, _SYSTEM, _DAY)["date_windows"]]
+    assert found == ["второй половине октября", "концу месяца", "конец октября", "первая половина недели"]
+
+
+def test_date_windows_from_data_and_dated_are_clean():
+    system = _SYSTEM + "Период: начало ноября.\n"
+    text = "Это начало ноября. После 24 октября станет легче, до 21-го — терпение."
+    assert ce.check(text, system, _DAY)["date_windows"] == []
