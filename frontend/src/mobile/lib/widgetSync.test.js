@@ -12,7 +12,6 @@ import { REFRESH_MS, _resetForTests, applyWidget, signOutWidget, widgetDiagLine 
 function fakePlugin() {
   const calls = [];
   const impl = {
-    setEnabled: async (a) => { calls.push(['setEnabled', a.enabled]); },
     save: async (a) => { calls.push(['save', a.data]); },
     status: async () => ({ component: 1, listed: true, placed: 0, days: 14, today: true, pin: true }),
   };
@@ -28,11 +27,11 @@ const at = (iso) => new Date(iso);
 beforeEach(() => _resetForTests());
 
 describe('флаг выключен', () => {
-  it('стирает запас и выключает компонент, на сервер не ходит', async () => {
+  it('стирает запас (на виджете фаза Луны), компонент не трогает, на сервер не ходит', async () => {
     const { plugin, calls } = fakePlugin();
     const fetcher = okFetch();
     await race(applyWidget(false, true, { plugin, fetcher }));
-    expect(calls).toEqual([['setEnabled', false], ['save', '']]);
+    expect(calls).toEqual([['save', '']]);
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
@@ -43,7 +42,7 @@ describe('флаг включён', () => {
     const fetcher = okFetch();
     await race(applyWidget(true, true, { plugin, fetcher, now: at('2026-10-02T10:00:00') }));
     expect(fetcher.mock.calls[0][0]).toMatch(/\/widget$/);
-    expect(calls).toEqual([['setEnabled', true], ['save', JSON.stringify({ days: DAYS })]]);
+    expect(calls).toEqual([['save', JSON.stringify({ days: DAYS })]]);
   });
 
   it('повтор в те же сутки раньше REFRESH_MS — без запроса; новые сутки — с запросом', async () => {
@@ -62,7 +61,7 @@ describe('флаг включён', () => {
     const { plugin, calls } = fakePlugin();
     const fetcher = okFetch();
     await race(applyWidget(true, false, { plugin, fetcher }));
-    expect(calls).toEqual([['setEnabled', true], ['save', JSON.stringify({ signedOut: true })]]);
+    expect(calls).toEqual([['save', JSON.stringify({ signedOut: true })]]);
     expect(fetcher).not.toHaveBeenCalled();
   });
 
@@ -70,7 +69,7 @@ describe('флаг включён', () => {
     const { plugin, calls } = fakePlugin();
     const fetcher = vi.fn(async () => ({ ok: false }));
     await race(applyWidget(true, true, { plugin, fetcher }));
-    expect(calls).toEqual([['setEnabled', true]]);
+    expect(calls).toEqual([]);
   });
 
   it('сеть упала — без исключения наружу', async () => {
@@ -81,6 +80,14 @@ describe('флаг включён', () => {
 });
 
 describe('выход из аккаунта', () => {
+  it('без флага — не пишет «войди»: там и так фаза Луны', async () => {
+    const { plugin, calls } = fakePlugin();
+    await applyWidget(false, true, { plugin });
+    signOutWidget(plugin);
+    await Promise.resolve();
+    expect(calls).toEqual([['save', '']]);
+  });
+
   it('чужой день стирается сразу, следующий вход запрашивает заново', async () => {
     const { plugin, calls } = fakePlugin();
     const fetcher = okFetch();
@@ -100,7 +107,8 @@ describe('очередь ответов /flags', () => {
     const first = applyWidget(false, true, { plugin, fetcher });
     const second = applyWidget(true, true, { plugin, fetcher, now: at('2026-10-02T10:00:00') });
     await race(Promise.all([first, second]));
-    expect(calls.filter((c) => c[0] === 'setEnabled')).toEqual([['setEnabled', false], ['setEnabled', true]]);
+    expect(calls.map((c) => c[0])).toEqual(['save', 'save']);
+    expect(calls.at(-1)).toEqual(['save', JSON.stringify({ days: DAYS })]);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
@@ -118,11 +126,11 @@ describe('строка диагностики', () => {
   });
 
   it('ошибка плагина — с шагом, на котором упало', async () => {
-    const plugin = new Proxy({}, { get: (_, name) => (name === 'setEnabled'
+    const plugin = new Proxy({}, { get: (_, name) => (name === 'save'
       ? async () => { throw new Error('not implemented') } : async () => ({})) });
     await applyWidget(true, true, { plugin, fetcher: okFetch() });
     const line = await widgetDiagLine(null);
-    expect(line).toMatch(/ошибка на шаге «включаю компонент»: not implemented/);
+    expect(line).toMatch(/ошибка на шаге «запрос \/widget»: not implemented/);
     expect(line).toMatch(/плагин недоступен/);
   });
 });

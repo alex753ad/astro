@@ -97,3 +97,24 @@ class TestEndpoint:
     def test_no_chart_empty(self, client, auth_headers_free, flag_on):
         r = client.get("/api/v1/widget", headers=auth_headers_free)
         assert r.json() == {"days": []}
+
+
+class TestJavaCopy:
+    """Без флага виджет считает фазу на телефоне (WidgetData.java) — советы
+    там копией. Расходиться с таблицей владельца им нельзя."""
+
+    def test_phase_advice_same_as_java(self):
+        import re
+        from pathlib import Path
+        java = (Path(__file__).resolve().parents[2] / "frontend/plugins/widget/android/src/main/"
+                "java/ru/aristeatime/widget/WidgetData.java").read_text(encoding="utf-8")
+        block = re.search(r"PHASE_ADVICE = \{(.*?)\};", java, re.S).group(1)
+        assert re.findall(r'"([^"]+)"', block) == [wg.PHASE_ADVICE[k] for k in sc.PHASES]
+
+    def test_phase_labels_same_as_java(self):
+        import re
+        from pathlib import Path
+        java = (Path(__file__).resolve().parents[2] / "frontend/plugins/widget/android/src/main/"
+                "java/ru/aristeatime/widget/WidgetData.java").read_text(encoding="utf-8")
+        block = re.search(r"String\[\] PHASES = \{(.*?)\};", java, re.S).group(1)
+        assert re.findall(r'"([^"]+)"', block) == [label for label, _ in sc.PHASES.values()]

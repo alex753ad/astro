@@ -30,6 +30,19 @@ final class WidgetData {
         "новолуние", "растущий серп", "первая четверть", "растущая Луна",
         "полнолуние", "убывающая Луна", "последняя четверть", "убывающий серп",
     };
+    // Совет фазы — копия backend/widget.py PHASE_ADVICE в порядке PHASES
+    // (таблица docs/widget_phase_texts.md, согласована владельцем 02.10.2026).
+    // Совпадение строк держит backend/tests/test_widget.py.
+    private static final String[] PHASE_ADVICE = {
+        "Тихий день: подумай, что хочешь начать.",
+        "Сделай первый маленький шаг к задуманному.",
+        "Не бросай начатое на первой трудности.",
+        "Доведи до ума то, что уже в работе.",
+        "Посмотри, что уже получилось, и порадуйся этому.",
+        "Поделись тем, что знаешь, с тем, кому это пригодится.",
+        "Откажись от одного лишнего: вещи, дела или обещания.",
+        "Отдохни и не бери на себя новых дел.",
+    };
     private static final String[] MONTHS = {
         "января", "февраля", "марта", "апреля", "мая", "июня", "июля",
         "августа", "сентября", "октября", "ноября", "декабря",
@@ -46,17 +59,26 @@ final class WidgetData {
     }
 
     /**
-     * Сегодняшний день из запаса. Дата — по часам телефона, а сервер считал
-     * дни в поясе аккаунта: в поездке со сменой пояса возможен сдвиг на сутки
-     * около полуночи (принято владельцем 02.10.2026, docs/widget_plan.md).
+     * Что показать сегодня (решение владельца 02.10.2026):
+     *   · в запасе есть сегодняшний день — событие и совет (флаг включён);
+     *   · запас есть, но кончился — «Открой Аристею, чтобы обновить день»:
+     *     только здесь открытие приложения что-то меняет;
+     *   · вышли из аккаунта при включённом флаге — «Войди…»;
+     *   · иначе (флаг выключен, приложение не открывали, нет карты) — фаза
+     *     Луны и совет фазы, посчитанные на телефоне.
+     * Дата — по часам телефона, а сервер считал дни в поясе аккаунта: в
+     * поездке со сменой пояса возможен сдвиг на сутки около полуночи
+     * (принято владельцем 02.10.2026, docs/widget_plan.md).
      */
     static Day today(Context c) {
         String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
         boolean signedOut = false;
+        boolean stale = false;
         try {
             JSONObject o = new JSONObject(prefs(c).getString(KEY, ""));
             signedOut = o.optBoolean("signedOut");
             JSONArray days = o.optJSONArray("days");
+            stale = days != null && days.length() > 0;
             for (int i = 0; days != null && i < days.length(); i++) {
                 JSONObject x = days.getJSONObject(i);
                 if (!today.equals(x.optString("date"))) continue;
@@ -70,9 +92,9 @@ final class WidgetData {
                 return d;
             }
         } catch (JSONException ignored) {
-            // пусто или битое — то же, что запас кончился
+            // пусто ("" — флаг выключен или приложение не открывали) или битое
         }
-        return fallback(signedOut);
+        return local(signedOut, stale);
     }
 
     /** Сколько дней в запасе — для строки диагностики. */
@@ -85,16 +107,25 @@ final class WidgetData {
         }
     }
 
-    /** Запаса нет: Луна считается на телефоне и остаётся верной, события нет. */
-    private static Day fallback(boolean signedOut) {
+    /** Без запаса на сегодня: Луна считается на телефоне и остаётся верной. */
+    private static Day local(boolean signedOut, boolean stale) {
         Calendar now = Calendar.getInstance();
         Day d = new Day();
         d.elong = Moon.approxElongation(now.getTimeInMillis());
         d.day = now.get(Calendar.DAY_OF_MONTH) + " " + MONTHS[now.get(Calendar.MONTH)];
-        d.phase = PHASES[(int) (((d.elong + 22.5) % 360) / 45)];
+        int phase = (int) (((d.elong + 22.5) % 360) / 45);
+        d.phase = PHASES[phase];
         // Тексты — docs/widget_phase_texts.md (ветка wip/tariffs-pdf).
-        d.title = signedOut ? "Войди, чтобы видеть свой день" : "Открой Аристею, чтобы обновить день";
-        d.advice = "";
+        if (signedOut) {
+            d.title = "Войди, чтобы видеть свой день";
+            d.advice = "";
+        } else if (stale) {
+            d.title = "Открой Аристею, чтобы обновить день";
+            d.advice = "";
+        } else {
+            d.title = d.phase.substring(0, 1).toUpperCase(new Locale("ru")) + d.phase.substring(1);
+            d.advice = PHASE_ADVICE[phase];
+        }
         return d;
     }
 }

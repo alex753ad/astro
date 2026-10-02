@@ -3,18 +3,20 @@
  *
  * Виджет сам в сеть не ходит (почему — backend/widget.py): приложение кладёт
  * ему запас на 14 дней из /api/v1/widget через свой плагин
- * (frontend/plugins/widget). Здесь — когда класть и когда снимать.
+ * (frontend/plugins/widget). Здесь — что класть.
  *
- *   · флаг включён, вошли — компонент включён, запас обновляется не чаще
- *     REFRESH_MS (и сразу, если сменились сутки);
- *   · флаг включён, не вошли — компонент включён, «Войди, чтобы видеть свой
- *     день»;
- *   · флаг выключен — запас стёрт, компонент выключен: виджет пропадает из
- *     списка, лаунчер снимает его с экрана.
+ * Виджет есть в APK у всех; флаг управляет только содержимым (решение
+ * владельца 02.10.2026 — Samsung не регистрирует виджет, включённый из
+ * приложения, см. манифест плагина):
+ *   · флаг включён, вошли — запас дней, обновляется не чаще REFRESH_MS (и
+ *     сразу, если сменились сутки): событие дня и совет;
+ *   · флаг включён, не вошли — «Войди, чтобы видеть свой день»;
+ *   · флаг выключен — запас стёрт: фаза Луны и совет фазы, посчитанные на
+ *     телефоне (WidgetData.java).
  *
  * ⚠️ Решение — только по ОТВЕТУ /flags (onFlagsLoaded), не по useFlag:
- * до ответа и без сети useFlag отдаёт false, и каждый запуск без сети снимал
- * бы виджет с экрана.
+ * до ответа и без сети useFlag отдаёт false, и каждый запуск без сети стирал
+ * бы день у человека с флагом.
  *
  * ⚠️ Объект плагина не возвращается из async-функции и не await-ится
  * (frontend/src/mobile/CLAUDE.md): под await — только промисы его методов.
@@ -74,12 +76,10 @@ async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFet
   diag = { ...diag, flag: on, flagAt: +now };
   const step = (text) => { diag = { ...diag, step: text, stepAt: Date.now() }; };
   try {
-    step('включаю компонент');
-    await plugin.setEnabled({ enabled: on });
     if (!on) {
       last = { at: 0, date: '', authed: null };
       await plugin.save({ data: '' });
-      step('выключен флагом');
+      step('флаг выкл: фаза Луны');
       return;
     }
     if (!authed) {
@@ -110,7 +110,7 @@ async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFet
 }
 
 const hm = (t) => (t ? new Date(t).toTimeString().slice(0, 5) : '—');
-const COMPONENT = { 0: 'выкл (манифест)', 1: 'вкл', 2: 'выкл', 3: 'выкл пользователем' };
+const COMPONENT = { 0: 'вкл (манифест)', 1: 'вкл', 2: 'выкл', 3: 'выкл пользователем' };
 
 /**
  * «Виджет: флаг вкл 12:01 · компонент вкл · в списке да · на экране 0 ·
@@ -144,10 +144,11 @@ export async function widgetDiagLine(plugin = native.plugin) {
 
 /**
  * Выход из аккаунта — чужой день не должен остаться на главном экране общего
- * телефона до следующего ответа /flags. Компонент не трогаем: это решает флаг.
+ * телефона до следующего ответа /flags.
  */
 export function signOutWidget(plugin = native.plugin) {
-  if (!plugin) return;
+  // Без флага на виджете и так фаза Луны, «Войди» было бы ложным обещанием.
+  if (!plugin || diag.flag !== true) return;
   last = { at: 0, date: '', authed: false };
   plugin.save({ data: JSON.stringify({ signedOut: true }) }).catch(() => {});
 }
