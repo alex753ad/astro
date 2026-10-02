@@ -51,6 +51,28 @@ public class WidgetPlugin extends Plugin {
     }
 
     /**
+     * Компонент включён, а системе виджет не виден («в списке нет»). Так было
+     * на Samsung SM-G970F, Android 12, 02.10.2026: прошивка не подхватывает
+     * включение с DONT_KILL_APP, хотя на чистом Android 12 (эмулятор) то же
+     * включение даёт провайдер за 3 с, а включение с перезапуском процесса
+     * (`pm enable`) работает везде.
+     *
+     * Поэтому: выключить без перезапуска и включить С ПЕРЕЗАПУСКОМ (флаг 0).
+     * ⚠️ Процесс приложения после этого вызова убит — ответа JS не дождётся.
+     * Звать только из фона (widgetSync.js, visibilitychange → hidden): тогда
+     * человек ничего не видит, при следующем открытии — обычный холодный старт.
+     */
+    @PluginMethod
+    public void reenable(PluginCall call) {
+        Context c = getContext();
+        ComponentName cn = new ComponentName(c, DayWidgetProvider.class);
+        PackageManager pm = c.getPackageManager();
+        pm.setComponentEnabledSetting(cn, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+        call.resolve();
+        pm.setComponentEnabledSetting(cn, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, 0);
+    }
+
+    /**
      * Строка диагностики в «Ещё» (нажатие на версию). Разделяет «приложение
      * не включило компонент» и «включило, но система/лаунчер его не видит»:
      * component — 0 по манифесту (выключен), 1 включён, 2 выключен вызовом;
