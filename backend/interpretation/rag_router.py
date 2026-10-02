@@ -35,6 +35,7 @@ from backend.limiter import limiter
 from backend.models import NatalChart, User, AstreaMemory
 from backend.interpretation.rag import retrieve, build_chart_summary, build_transits_block
 from backend.interpretation.address import ADDRESS_RULE
+from backend.flags import flag_on
 from backend.redis_client import get_redis
 from backend.config import get_settings
 
@@ -273,6 +274,7 @@ def _system_prompt(
     context_chunks: list[str],
     memory_summary: str = "",
     transits_block: str = "",
+    planner_block: str = "",
 ) -> str:
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
     today = date.today().strftime("%d.%m.%Y")
@@ -283,6 +285,13 @@ def _system_prompt(
             f"{memory_summary}\n"
             "Опирайся на это, если уместно, но не пересказывай вслух без повода.\n"
         )
+    # Без планера (флаг выключен) промпт обязан совпадать с прежним до байта —
+    # держит test_chat_planner_context.py.
+    not_found = "нет в списке выше"
+    planner_rules = ""
+    if planner_block:
+        not_found = "нет ни в транзитах, ни в планере"
+        planner_rules = _PLANNER_RULES
     return f"""Тебя зовут Аристея. Ты — навигатор решений: помогаешь человеку понять его карту и выбрать, что делать и когда. Не предсказываешь судьбу.
 
 Характер. Спокойная и собранная, говоришь ясно и по делу, без суеты и лишних восклицаний. Тепло проявляешь через пользу — не «всё будет хорошо», а «вот что сейчас сработает». Если тянут в гадание или мистику, мягко возвращаешь к тому, что видно в карте и что с этим делать.
@@ -294,15 +303,15 @@ def _system_prompt(
 {chart_summary}
 
 {transits_block}
-## Знания из базы под этот вопрос:
+{planner_block}## Знания из базы под этот вопрос:
 {kb_text}
 {memory_block}
 ## Ты видишь и натальную карту, и текущие транзиты пользователя.
 Отвечая на вопросы о настоящем моменте — опирайся на транзиты выше.
 Отвечая на вопросы о характере и предрасположенностях — на натальную карту.
 Не вычисляй астрономические данные сам, используй только переданные.
-Если нужного транзита нет в списке выше — скажи, что сейчас его не видишь, не выдумывай.
-
+Если нужного транзита {not_found} — скажи, что сейчас его не видишь, не выдумывай.
+{planner_rules}
 ## Границы:
 1. Говори только по этой карте — конкретные планеты, знаки, дома. Никаких общих советов «для всех Тельцов».
 2. Без страшилок и фатальных предсказаний. Напряжённое — зона работы, а не приговор.
@@ -340,6 +349,58 @@ def _system_prompt(
 астрологически и заверши отсылкой к профильному специалисту по теме вопроса.
 """
 
+
+
+# Правило согласовано владельцем 02.10.2026 (таблица до кода). Правило 7 —
+# «Если это уже было в разговоре», а не «если уже говорила»: формулировка не
+# должна подсказывать модели род — «ты» в продукте рода не угадывает
+# (ADDRESS_RULE), правка владельца.
+_PLANNER_RULES = """
+## Сверяйся с планером
+1. Человек видит этот планер в приложении. Твой ответ не должен ему противоречить.
+2. О настоящем и ближайших неделях опирайся на планер и транзиты вместе: период планеты в доме — фон, транзитный аспект — его акцент.
+3. Если аспекта к натальной планете нет, а в планере планета идёт по дому, говори о доме и сроках из планера, не отвечай «не вижу».
+4. Если транзит добавляет напряжение к пункту планера, не отменяй пункт, а назови условие: что учесть и в какие дни.
+5. Даты бери из планера как есть, не пересчитывай.
+6. Пункты планера не перечисляй подряд. Выбери один-два под вопрос и объясни своими словами.
+7. По периоду с пометкой «закрыт» назови только планету, дом и даты, советов для него не давай. Один раз за разговор, если в истории этого ещё не было, добавь коротко: «Подробнее этот период открыт на Веге» (или на Лире — как указано в строке). Если это уже было в разговоре, не повторяй.
+"""
+
+
+async def _get_planner_block_cached(chart: NatalChart, tier: str) -> str:
+    """Планер для промпта (флаг chat_planner_context) — раз в сутки на карту и
+    тариф: тариф в ключе, иначе после покупки чат до полуночи видел бы замки.
+
+    Пояс — пояс карты, как у /planner/monthly без `tz`. Приложение свой пояс
+    чату пока не передаёт (TASKS.md, «Чат: пояс телефона для планера»), поэтому
+    у человека в другом поясе граница суток и проходы Луны могут разойтись с
+    экраном планера на несколько часов.
+    """
+    from datetime import datetime, timedelta
+    from backend.cache import chat_transits_cache
+    from backend.interpretation.rag import build_planner_block
+    from backend.transit.planner_engine import now_local
+
+    if chart.time_unknown:
+        return ""  # без времени рождения планера нет (/planner/monthly)
+    tz = getattr(chart, "timezone", None)
+    now = now_local(tz)
+    cache_key = f"chat_planner:{chart.id}:{tier}:{now.date().isoformat()}"
+    cached = chat_transits_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    natal_profile = {
+        "planets":   chart.planets or [],
+        "houses":    chart.houses or [],
+        "ascendant": chart.ascendant or {},
+        "midheaven": chart.midheaven or {},
+    }
+    # Swiss Ephemeris — синхронный, блокирует event loop (backend/CLAUDE.md).
+    block = await asyncio.to_thread(build_planner_block, natal_profile, tier, tz, now.date())
+    midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
+    chat_transits_cache.set(cache_key, block, ttl=max(60, int((midnight - now).total_seconds())))
+    return block
 
 
 async def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
@@ -765,7 +826,10 @@ async def rag_chat(
     chart_summary = build_chart_summary(chart_data)
     memory_summary = _load_memory(db, user.id)
     transits_block = await _get_transits_block_cached(chart_id, chart_data)
-    system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block)
+    planner_block = ""
+    if flag_on(db, "chat_planner_context", user):
+        planner_block = await _get_planner_block_cached(chart, user.tier)
+    system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block, planner_block)
 
     # История берётся с сервера, а не из тела запроса: клиентская история
     # позволяла подделывать реплики ассистента и переопределять поведение модели.

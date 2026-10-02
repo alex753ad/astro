@@ -7,6 +7,8 @@
 Экспортирует:
     retrieve(question, chart_context) -> list[str]   — релевантные фрагменты
     build_chart_summary(chart)         -> str         — компактный текст карты
+    build_planner_block(chart, ...)    -> str         — планер для чата (флаг)
+    build_planner_block(chart, ...)    -> str         — планер для чата (флаг)
 """
 
 from __future__ import annotations
@@ -267,3 +269,93 @@ def build_transits_block(chart: dict, max_transits: int = 5) -> str:
             logger.warning("chat transit fact build failed for %s: %s", e.transit_planet, ex)
 
     return "\n".join(lines)
+
+
+# Куда отсылать за закрытым периодом. Повторяет сетку замков planner_engine
+# (месяц и Луна закрыты только на free → Вега; долгосрочно закрыто на free и
+# lite → Лира). Разойдётся с ней — чат будет звать не на тот тариф, поэтому
+# при правке is_month_period_locked / is_longterm_locked правится и это.
+_OPENS_ON_MONTH = "Веге"
+_OPENS_ON_LONGTERM = "Лире"
+
+
+def _planner_texts(item: dict) -> list[str]:
+    """Тексты периода дословно из methodology.json (то, что видит планер)."""
+    out = [item[k] for k in ("subtitle",) if item.get(k)]
+    out += [f"- {n}" for n in item.get("notes") or []]
+    for g in item.get("groups") or []:
+        if g.get("heading"):
+            # Заголовки в файле уже кончаются двоеточием — второе не ставим.
+            out.append(g["heading"].rstrip(":") + ":")
+        out += [f"- {i}" for i in g.get("items") or []]
+    return out
+
+
+def _locked_line(head: str, opens_on: str) -> str:
+    return f"{head}. Подробный разбор закрыт, открыт на {opens_on}."
+
+
+def build_planner_block(chart: dict, tier: str | None, user_timezone: str | None, today) -> str:
+    """Планер человека для промпта чата (флаг chat_planner_context).
+
+    Источник — тот же build_planner, что отдаёт /planner/monthly, с тем же
+    тарифом, поэтому замки срабатывают сами: у закрытого периода payload пуст,
+    и в промпт идут только планета, дом и даты (их планер показывает всем).
+    ⚠️ Не брать тексты из METHODOLOGY напрямую — так закрытое уйдёт модели, а
+    она перескажет его человеку.
+
+    Луна — темой без пунктов: пунктов на неделю ~2,3 тыс. знаков, а проход
+    длится ~2 суток. Синхронная (Swiss Ephemeris) — из async только через
+    asyncio.to_thread.
+    """
+    import calendar
+    from datetime import date as _date
+    from backend.transit.planner_engine import build_planner
+
+    month_start = _date(today.year, today.month, 1)
+    month_end = _date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+    try:
+        p = build_planner(
+            natal_profile=chart, from_date=month_start, to_date=month_end,
+            today=today, user_timezone=user_timezone, tier=tier, with_upcoming=True,
+        )
+    except Exception as e:  # noqa: BLE001 — без планера чат работает как раньше
+        logger.warning("chat planner calc failed: %s", e)
+        return ""
+
+    lines = ["## Планер человека — то же, что он видит в приложении в разделе «Планер»", "", "### Сейчас"]
+    for s in p["month_sections"]:
+        for per in s["periods"]:
+            head = f"{s['planet_name']} {per['period']}: {per['house']} дом"
+            if per["locked"]:
+                lines.append(_locked_line(head, _OPENS_ON_MONTH))
+            else:
+                lines.append(f"{head}. {per['theme']}")
+                lines += _planner_texts(per)
+    for w in p["week_days"]:
+        if not w["house"]:
+            continue
+        head = f"Луна {w['date']} — {w['time']}: {w['house']} дом"
+        lines.append(_locked_line(head, _OPENS_ON_MONTH) if w["locked"] else f"{head}. {w['theme']}")
+
+    lines += ["", "### Долгосрочно"]
+    for l in p["longterm"]:
+        head = f"{l['planet_name']} {l['period']}: {l['house']} дом"
+        if l["locked"]:
+            lines.append(_locked_line(head, _OPENS_ON_LONGTERM))
+        else:
+            lines.append(f"{head}. {l['theme']}")
+            lines += _planner_texts(l)
+
+    if p["upcoming"]:
+        lines += ["", "### Ближайшие смены (30 дней)"]
+        for u in p["upcoming"]:
+            d = _date.fromisoformat(u["date"]).strftime("%d.%m")
+            if u["kind"] == "passage":
+                lines.append(f"{d} {u['planet_name']} переходит в {u['house']} дом")
+            else:
+                # Без глагола: род у планет разный («Венера становится
+                # ретроградным» — ровно так вышло в первом прогоне).
+                turn = "начало ретроградного движения" if u["status"] == "start" else "конец ретроградного движения"
+                lines.append(f"{d} {u['planet_name']}: {turn}")
+    return "\n".join(lines) + "\n"
