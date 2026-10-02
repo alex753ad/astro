@@ -28,11 +28,11 @@ on:
         options: [free, lite, pro, premium]
         default: premium
       repeats:
-        description: "Повторов на вопрос (ответ модели при temperature 0.7 плавает)"
+        description: "Повторов на вопрос (ответ модели при temperature 0.7 плавает; с одним разница тонет в разбросе)"
         required: false
-        default: "1"
+        default: "3"
       compare_ref:
-        description: "«Было»: коммит или ветка для сравнения. Пусто — без сравнения"
+        description: "«Было»: ПОЛНЫЙ SHA коммита или ветка (короткий SHA checkout примет за ветку). Пусто — без сравнения"
         required: false
         default: ""
       compare_flag:
