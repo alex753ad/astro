@@ -162,9 +162,41 @@ _SIGN_RULER = {
 }
 
 
-def build_chart_summary(chart: dict) -> str:
-    """Компактный текстовый дамп карты для system prompt (≈400 токенов)."""
+def chat_chart_data(chart: dict, time_unknown: bool) -> dict:
+    """Карта в том виде, в каком её видит чат. Общая для ручки чата и прогона
+    вопросов (scripts/chat_eval.py) — разойдутся, и прогон проверит не то.
+
+    Без времени рождения — без домов, асцендента и MC: так карту показывает
+    приложение (урезанный режим, forecast/facts.py). Аспекты к ASC/MC тоже
+    убираются — у них та же неопределённость.
+    """
+    data = {k: chart.get(k) or ([] if k in ("planets", "aspects", "houses") else {})
+            for k in ("planets", "ascendant", "midheaven", "aspects", "houses")}
+    if time_unknown:
+        angles = {"Ascendant", "Midheaven", "ASC", "MC"}
+        data["planets"] = [{**p, "house": None} for p in data["planets"]]
+        data["ascendant"], data["midheaven"], data["houses"] = {}, {}, []
+        data["aspects"] = [a for a in data["aspects"]
+                           if a.get("planet1") not in angles and a.get("planet2") not in angles]
+    return data
+
+
+def build_chart_summary(chart: dict, time_unknown: bool = False) -> str:
+    """Компактный текстовый дамп карты для system prompt (≈400 токенов).
+
+    `time_unknown` — карта без времени рождения. Приложение такую карту
+    показывает без домов, асцендента и MC (forecast/facts.py), и чат не должен
+    о них говорить: вызывающий не передаёт их сюда (rag_router.chat_chart_data),
+    а модели прямо сказано почему. До 02.10.2026 сюда шли «Лев 9.8°, None дом»,
+    асцендент и управители домов, посчитанные на полдень.
+    """
     lines: list[str] = ["## Натальная карта пользователя\n"]
+    if time_unknown:
+        lines.append(
+            "Время рождения неизвестно: дома, асцендент и MC не определены. "
+            "О домах, асценденте, MC и управителях домов не говори; если спросят — "
+            "объясни, что для них нужно время рождения.\n"
+        )
 
     # Планеты
     planets = chart.get("planets") or []
@@ -173,10 +205,10 @@ def build_chart_summary(chart: dict) -> str:
         for p in planets:
             name = _PLANET_RU.get(p.get("name", ""), p.get("name", ""))
             sign = _SIGN_RU.get(p.get("sign", ""), p.get("sign", ""))
-            house = p.get("house", "")
+            house = f", {p['house']} дом" if p.get("house") else ""
             deg   = round(p.get("degree_in_sign", 0), 1)
             retro = " ℞" if p.get("retrograde") else ""
-            lines.append(f"  {name}: {sign} {deg}°{retro}, {house} дом")
+            lines.append(f"  {name}: {sign} {deg}°{retro}{house}")
 
     # Асцендент
     asc = chart.get("ascendant") or {}
@@ -218,7 +250,7 @@ def build_chart_summary(chart: dict) -> str:
     return "\n".join(lines)
 
 
-def build_transits_block(chart: dict, max_transits: int = 5, today=None) -> str:
+def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_id: str = "") -> str:
     """Блок текущих транзитов для system prompt чата — 3–5 самых значимых
     на сегодня, тем же фактологическим форматом, что и разбор одного
     транзита (см. backend/transit/prompts.py). Считается через Swiss
@@ -255,10 +287,26 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None) -> str:
     lines = ["## Текущие транзиты (на сегодня, посчитаны точно)\n"]
     for e in top:
         try:
+            # ⚠️ e.peak_date здесь — СЕГОДНЯ, а не пик: движку передано окно в
+            # один день, и «пик внутри окна» — это сам день (backend/feed/
+            # builder.py, п. 1). До 02.10.2026 эта дата уходила в
+            # compute_exact_facts как пик, точный момент искался в ±5 сутках
+            # от сегодня, и в промпт шла дата края окна под видом «Точный
+            # аспект». Замер на карте владельца 02.10: Уран квадрат Меркурий —
+            # чат «точный 27 сентября», лента «10 сентября». Настоящий пик
+            # берётся из того же месячного чанка, что показывает лента.
+            window = compute_exact_facts(e.transit_planet, e.natal_planet, e.aspect_type, today, chart)
+            peak = _feed_peak(chart_id, planets, e, window)
             facts = compute_exact_facts(
-                e.transit_planet, e.natal_planet, e.aspect_type,
-                _date.fromisoformat(e.peak_date), chart,
+                e.transit_planet, e.natal_planet, e.aspect_type, peak or today, chart,
             )
+            if peak is None:
+                # Пика в чанках нет — честно без даты, чем с выдуманной.
+                facts["exact_date"] = None
+            if not chart.get("houses"):
+                # Карта без времени рождения: домов нет. Без этого
+                # _extract_cusps отдаёт нули, и дом выходит выдуманный.
+                facts["transit_house"] = facts["natal_house"] = None
             event_dict = {
                 "transit_planet": e.transit_planet,
                 "natal_planet": e.natal_planet,
@@ -271,6 +319,31 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None) -> str:
             logger.warning("chat transit fact build failed for %s: %s", e.transit_planet, ex)
 
     return "\n".join(lines)
+
+
+def _feed_peak(chart_id: str, planets: list[dict], e, window: dict):
+    """Пик текущего прохода — из месячных чанков ленты (её же кэш).
+
+    Проход — непрерывный отрезок «в орбе», содержащий сегодня (`window`:
+    period_start/period_end из compute_exact_facts). Пиков в нём может быть
+    несколько (ретроградная петля) — берём ближайшее сближение, как событие
+    ленты с наименьшим орбом. Нет ни одного — None: дату не называем.
+    """
+    from datetime import date as _date
+    from backend.feed.builder import _months_between, _transit_chunk
+
+    if not (window.get("period_start") and window.get("period_end")):
+        return None
+    start, end = window["period_start"], window["period_end"]
+    key = (e.transit_planet, e.natal_planet, e.aspect_type)
+    best = None
+    for y, m in _months_between(_date.fromisoformat(start), _date.fromisoformat(end)):
+        for ev in _transit_chunk(chart_id, planets, y, m):
+            if (ev["transit_planet"], ev["natal_planet"], ev["aspect_type"]) != key:
+                continue
+            if start <= ev["peak_date"] <= end and (best is None or ev["peak_orb"] < best["peak_orb"]):
+                best = ev
+    return _date.fromisoformat(best["peak_date"]) if best else None
 
 
 # Куда отсылать за закрытым периодом. Повторяет сетку замков planner_engine

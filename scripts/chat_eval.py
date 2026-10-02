@@ -116,16 +116,17 @@ async def _answer(system: str, question: str) -> dict:
 
 async def run(args) -> None:
     from backend.interpretation import rag_router
-    from backend.interpretation.rag import build_chart_summary, build_transits_block, retrieve
+    from backend.interpretation.rag import build_chart_summary, build_transits_block, chat_chart_data, retrieve
 
     birth = json.loads(os.environ["CHAT_EVAL_BIRTH"])
     day = date.fromisoformat(args.date) if args.date else datetime.now(timezone(timedelta(hours=3))).date()
-    chart, tz, time_unknown = await _chart(birth)
+    stored, tz, time_unknown = await _chart(birth)
+    chart = chat_chart_data(stored, time_unknown)  # как в rag_chat
 
     # Сборка — как в rag_chat. Транзиты и планер — один раз на прогон: в чате
     # они тоже кэшируются на сутки, а не считаются на каждый вопрос.
-    summary = build_chart_summary(chart)
-    transits = await asyncio.to_thread(build_transits_block, chart, 5, day)
+    summary = build_chart_summary(chart, time_unknown)
+    transits = await asyncio.to_thread(build_transits_block, chart, 5, day, "chat-eval")
     planner = ""
     if args.flag and not time_unknown:
         from backend.interpretation.rag import build_planner_block
@@ -281,6 +282,14 @@ def _meta(m: dict) -> str:
 
 def report(args) -> None:
     runs = [json.loads(Path(p).read_text(encoding="utf-8")) for p in args.files]
+    # Проверки пересчитываются ЗДЕСЬ, текущим кодом, для обеих сторон: «было»
+    # прогонялось старой копией, и её детектор мог не знать новых оборотов —
+    # сравнение показало бы «стало хуже» там, где просто стали лучше ловить.
+    for r in runs:
+        day = date.fromisoformat(r["meta"]["date"])
+        for it in r["items"]:
+            for a in it["answers"]:
+                a["checks"] = check(a["text"], it["system"], day)
     # Порядок в отчёте: «было» (второй файл), потом «стало» (первый).
     cur, base = runs[0], (runs[1] if len(runs) > 1 else None)
     cols = [("Было", base), ("Стало", cur)] if base else [("Ответ", cur)]

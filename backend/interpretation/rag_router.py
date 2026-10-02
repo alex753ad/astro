@@ -33,7 +33,7 @@ from backend.cache import budget_tracker
 from backend.database import get_db, SessionLocal
 from backend.limiter import limiter
 from backend.models import NatalChart, User, AstreaMemory
-from backend.interpretation.rag import retrieve, build_chart_summary, build_transits_block
+from backend.interpretation.rag import retrieve, build_chart_summary, build_transits_block, chat_chart_data
 from backend.interpretation.address import ADDRESS_RULE
 from backend.flags import flag_on
 from backend.redis_client import get_redis
@@ -313,7 +313,7 @@ def _system_prompt(
 Отвечая на вопросы о характере и предрасположенностях — на натальную карту.
 Не вычисляй астрономические данные сам, используй только переданные.
 Если нужного транзита {not_found} — скажи, что сейчас его не видишь, не выдумывай.
-{planner_rules}
+{_P0_RULES}{planner_rules}
 ## Границы:
 1. Говори только по этой карте — конкретные планеты, знаки, дома. Никаких общих советов «для всех Тельцов».
 2. Без страшилок и фатальных предсказаний. Напряжённое — зона работы, а не приговор.
@@ -324,7 +324,7 @@ def _system_prompt(
 Ты отвечаешь по натальной карте целиком — это твоя работа, не только часть тем.
 Финансы, отношения, здоровье, карьера — всё разбираешь через дома, планеты,
 аспекты и транзиты. Например, на вопрос «что моя карта говорит про деньги» —
-разбираешь 2 дом, Юпитер, транзиты по финансовым домам, периоды возможностей.
+разбираешь 2 дом, Юпитер и то, что из данных выше касается финансовых домов.
 Отказываться от таких вопросов нельзя.
 
 Не твоя тема — внешний мир вне карты: курс валют, инфляция, ставка ЦБ, какие
@@ -335,8 +335,9 @@ def _system_prompt(
 
 Отдельно — вопросы о конкретном решении: «брать ли ипотеку», «делать ли
 операцию», «разводиться ли». Здесь отказа нет. Отвечай астрологически: разбери
-картину периода, покажи благоприятные и напряжённые аспекты, назови периоды
-возможностей и осторожности. Заверши напоминанием, что это астрологическая
+картину периода по данным выше, покажи благоприятные и напряжённые аспекты из
+них. Периоды возможностей и осторожности называй, только если их даты есть в
+данных выше. Заверши напоминанием, что это астрологическая
 картина, а само решение стоит принимать с профильным специалистом по теме
 вопроса: про ипотеку и деньги — с финансовым консультантом, про операцию и
 здоровье — с врачом, про развод и раздел имущества — с юристом. Не используй
@@ -351,6 +352,22 @@ def _system_prompt(
 астрологически и заверши отсылкой к профильному специалисту по теме вопроса.
 """
 
+
+
+# P0 по прогону вопросов 02.10.2026 (решение владельца), без флага.
+# «Даты»: в прогоне A чат называл даты фаз, «лучших дней» и сроков, которых в
+# данных нет (вопросы 6, 9, 10) — правило «не выдумывай» касалось только
+# транзитов. «Это приложение»: чат называл наш пуш «сервисом, который
+# показывает положение Луны», а прогноз дня — шаблоном по знаку Солнца
+# (вопросы 2, 15): о том, что они из этого же приложения, модель не знала.
+# Где посмотреть недостающее — P1 (названия разделов — таблицей владельцу).
+_P0_RULES = """
+## Даты
+Любую дату, число или срок называй, только если он есть в данных выше. Сам дат не считай и не угадывай: ни фаз Луны, ни ретроградности, ни «удачных дней». Нужной даты в данных нет — так и скажи: точной даты сейчас не видишь.
+
+## Это приложение
+Человек пишет тебе из Aristea Timeline. Уведомления, прогноз дня, лента и планер — из этого же приложения и посчитаны по карте этого человека. Никогда не называй их чужим сервисом, общим гороскопом или шаблоном по знаку Солнца. Если человек спрашивает о них, а их текста у тебя нет, не пересказывай его наугад: скажи, что видишь его карту и текущие транзиты, и ответь по ним.
+"""
 
 
 # Правило согласовано владельцем 02.10.2026 (таблица до кода). Правило 7 —
@@ -412,7 +429,9 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
     from backend.cache import chat_transits_cache
 
     today_str = date.today().isoformat()
-    cache_key = f"chat_transits:{chart_id}:{today_str}"
+    # v2 (02.10.2026): даты пика — из чанков ленты. Без версии в ключе блоки
+    # с прежними датами отдавались бы до полуночи после выката.
+    cache_key = f"chat_transits:v2:{chart_id}:{today_str}"
 
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
@@ -422,7 +441,7 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
     # Кэш на сутки смягчает частоту, но первый вызов в дне всё равно бьёт
     # напрямую в event loop без этого.
-    block = await asyncio.to_thread(build_transits_block, chart_data)
+    block = await asyncio.to_thread(build_transits_block, chart_data, 5, None, chart_id)
 
     now = datetime.now()
     midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
@@ -812,21 +831,32 @@ async def rag_chat(
             },
         )
 
-    chart_data = {
-        "planets":   chart.planets or [],
-        "ascendant": chart.ascendant or {},
-        "midheaven": chart.midheaven or {},
-        "aspects":   chart.aspects or [],
-        "houses":    chart.houses or [],
-    }
+    time_unknown = bool(chart.time_unknown)
+    chart_data = chat_chart_data({
+        "planets":   chart.planets,
+        "ascendant": chart.ascendant,
+        "midheaven": chart.midheaven,
+        "aspects":   chart.aspects,
+        "houses":    chart.houses,
+    }, time_unknown)
 
     # RAG: получаем релевантные фрагменты
     context_chunks = retrieve(question, chart_data, top_k=6)
 
+    # Память Аристеи — одна на аккаунт и написана о самом человеке. В чат по
+    # чужой карте (подруги, ребёнка) она не подмешивается и из него не
+    # сворачивается: иначе «что ты обо мне знаешь» в карте подруги отвечал бы
+    # фактами владельца аккаунта, а разговор о подруге осел бы в его памяти.
+    # «Своя» — та же карта, по которой строятся письма и планер
+    # (get_primary_chart: закреплённая, иначе последняя сохранённая).
+    from backend.chart_utils import get_primary_chart
+    own = get_primary_chart(db, user)
+    own_chart = own is not None and own.id == chart.id
+
     # Собираем system prompt (+ память Аристеи о пользователе, слой 2,
     # + текущие транзиты, слой 3 — считаются раз в сутки на чарт, не на реплику)
-    chart_summary = build_chart_summary(chart_data)
-    memory_summary = _load_memory(db, user.id)
+    chart_summary = build_chart_summary(chart_data, time_unknown)
+    memory_summary = _load_memory(db, user.id) if own_chart else ""
     transits_block = await _get_transits_block_cached(chart_id, chart_data)
     planner_block = ""
     if flag_on(db, "chat_planner_context", user):
@@ -865,18 +895,23 @@ async def rag_chat(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
-        background=BackgroundTask(_finish_turn, user.id, user.tier, question, history, turn),
+        background=BackgroundTask(_finish_turn, user.id, user.tier, question, history, turn, own_chart),
     )
 
 
-async def _finish_turn(user_id: str, tier: str, question: str, history: list, turn: dict) -> None:
+async def _finish_turn(user_id: str, tier: str, question: str, history: list, turn: dict,
+                       own_chart: bool = True) -> None:
     """После ответа: свёртка памяти и списание сообщения.
 
     ⚠️ Списываем только выданный ответ (`turn["answer"]` кладёт генератор
     рядом с _persist_turn): обрыв, пустой ответ и таймаут сообщение не
     съедают — так же, как разборы транзитов (commit_transit_ai).
+
+    `own_chart=False` — разговор о чужой карте: память не сворачиваем (см.
+    rag_chat).
     """
-    await _update_memory(user_id, question, history, turn)
+    if own_chart:
+        await _update_memory(user_id, question, history, turn)
     if not turn.get("answer"):
         return
     from backend.interpretation.gender_check import report as gender_report
