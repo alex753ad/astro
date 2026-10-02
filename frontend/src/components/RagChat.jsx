@@ -28,6 +28,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { API_BASE } from '../config';
+import { withTz } from '../lib/deviceTimezone';
 import { CHAT_SUGGESTIONS as SUGGESTIONS } from '../lib/chatSuggestions';
 
 // Фразы переехали в общий файл 09.09.2026, когда чат появился и в приложении:
@@ -194,7 +195,7 @@ export default function RagChat({ chartId, onPaywall, proactiveTopic }) {
     }, CLIENT_TIMEOUT_MS);
 
     try {
-      const resp = await fetch(`${API_BASE}/chart/${chartId}/rag-chat`, {
+      const resp = await fetch(withTz(`${API_BASE}/chart/${chartId}/rag-chat`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -41,6 +41,7 @@ import { API_BASE } from '../../config';
 import { responseErrorText } from '../../api/client';
 import { authFetchWithTimeout } from './authFetchTimeout';
 import { drainLines } from './transitInterpretApi';
+import { withTz } from '../../lib/deviceTimezone';
 
 /**
  * Клиентская страховка поверх серверного потолка в 45 секунд
@@ -149,7 +150,9 @@ export function parseChatLine(line) {
  */
 export async function streamChatAnswer(chartId, question, { onText, onQuota }) {
   const resp = await authFetchWithTimeout(
-    `${API_BASE}/chart/${chartId}/rag-chat`,
+    // Пояс устройства — как у ленты и планера: «сегодня» и проходы Луны в
+    // чате по часам телефона, а не сервера (rag_router.chat_timezone).
+    withTz(`${API_BASE}/chart/${chartId}/rag-chat`),
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

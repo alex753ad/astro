@@ -387,14 +387,23 @@ _PLANNER_RULES = """
 """
 
 
-async def _get_planner_block_cached(chart: NatalChart, tier: str) -> str:
-    """Планер для промпта (флаг chat_planner_context) — раз в сутки на карту и
-    тариф: тариф в ключе, иначе после покупки чат до полуночи видел бы замки.
+def chat_timezone(tz: str | None, user, chart) -> str | None:
+    """Пояс чата — как у ленты и планера (решение владельца 24.09.2026):
+    `tz` запроса (приложение и веб шлют пояс устройства, `withTz`), иначе
+    последний присланный пояс устройства (`users.device_timezone`, его же
+    берут уведомления), иначе пояс карты. Мусор в `tz` — молча мимо."""
+    from backend.time_utils import valid_timezone
+    return (valid_timezone(tz) or valid_timezone(getattr(user, "device_timezone", None))
+            or getattr(chart, "timezone", None))
 
-    Пояс — пояс карты, как у /planner/monthly без `tz`. Приложение свой пояс
-    чату пока не передаёт (TASKS.md, «Чат: пояс телефона для планера»), поэтому
-    у человека в другом поясе граница суток и проходы Луны могут разойтись с
-    экраном планера на несколько часов.
+
+async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None) -> str:
+    """Планер для промпта (флаг chat_planner_context) — раз в сутки на карту,
+    тариф и пояс: тариф в ключе, иначе после покупки чат до полуночи видел бы
+    замки; пояс — иначе проходы Луны считались бы в поясе первого спросившего.
+
+    Пояс — тот же, что у экрана планера (`chat_timezone`): телефон, иначе пояс
+    карты. До 02.10.2026 здесь был только пояс карты.
     """
     from datetime import datetime, timedelta
     from backend.cache import chat_transits_cache
@@ -403,9 +412,8 @@ async def _get_planner_block_cached(chart: NatalChart, tier: str) -> str:
 
     if chart.time_unknown:
         return ""  # без времени рождения планера нет (/planner/monthly)
-    tz = getattr(chart, "timezone", None)
     now = now_local(tz)
-    cache_key = f"chat_planner:{chart.id}:{tier}:{now.date().isoformat()}"
+    cache_key = f"chat_planner:{chart.id}:{tier}:{tz}:{now.date().isoformat()}"
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -423,13 +431,19 @@ async def _get_planner_block_cached(chart: NatalChart, tier: str) -> str:
     return block
 
 
-async def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
+async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | None = None) -> str:
     """Слой 3: транзиты на сегодня для этого чарта — раз в сутки, не на
-    каждое сообщение чата (иначе каждая реплика пересчитывала бы эфемериды)."""
+    каждое сообщение чата (иначе каждая реплика пересчитывала бы эфемериды).
+
+    «Сегодня» — местная дата человека (`chat_timezone`), а не сервера: контейнер
+    живёт в UTC, и до 02.10.2026 с 00:00 до 03:00 МСК чат считал транзиты на
+    вчера. Ключ — по местной дате: блок зависит только от даты."""
     from datetime import datetime, timedelta
     from backend.cache import chat_transits_cache
+    from backend.transit.planner_engine import now_local
 
-    today_str = date.today().isoformat()
+    local_today = now_local(tz).date()
+    today_str = local_today.isoformat()
     # v2 (02.10.2026): даты пика — из чанков ленты. Без версии в ключе блоки
     # с прежними датами отдавались бы до полуночи после выката.
     cache_key = f"chat_transits:v2:{chart_id}:{today_str}"
@@ -442,7 +456,7 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict) -> str:
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
     # Кэш на сутки смягчает частоту, но первый вызов в дне всё равно бьёт
     # напрямую в event loop без этого.
-    block = await asyncio.to_thread(build_transits_block, chart_data, 5, None, chart_id)
+    block = await asyncio.to_thread(build_transits_block, chart_data, 5, local_today, chart_id)
 
     now = datetime.now()
     midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
@@ -847,6 +861,7 @@ async def rag_chat(
     request: Request,
     chart_id: str,
     body: RagChatRequest,
+    tz: str | None = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -957,11 +972,14 @@ async def rag_chat(
     # + текущие транзиты, слой 3 — считаются раз в сутки на чарт, не на реплику)
     chart_summary = build_chart_summary(chart_data, time_unknown)
     memory_summary = _load_memory(db, user.id) if own_chart else ""
-    transits_block = await _get_transits_block_cached(chart_id, chart_data)
+    zone = chat_timezone(tz, user, chart)
+    transits_block = await _get_transits_block_cached(chart_id, chart_data, zone)
     planner_block = ""
     if flag_on(db, "chat_planner_context", user):
-        planner_block = await _get_planner_block_cached(chart, user.tier)
-    system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block, planner_block)
+        planner_block = await _get_planner_block_cached(chart, user.tier, zone)
+    from backend.transit.planner_engine import now_local
+    system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block, planner_block,
+                            today=now_local(zone).date())
 
     # История берётся с сервера, а не из тела запроса: клиентская история
     # позволяла подделывать реплики ассистента и переопределять поведение модели.
