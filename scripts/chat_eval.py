@@ -233,6 +233,21 @@ def _units(system: str) -> list[str]:
     return system.splitlines() + re.split(r"\n\s*\n", system)
 
 
+# Самодельные окна дат: «вторая половина октября», «ближе к концу месяца»,
+# «начало недели». Проверка `_dates` их не видит — в них нет числа (02.10.2026:
+# дат «не из данных» было 0 и до правила, и после, а окна в ответах были).
+# Окно — нарушение, если такой же фразы нет в промпте: тогда отрезок
+# придуман моделью, а не взят из данных.
+_WINDOW = re.compile(
+    _L + r"(?:начал[оаеу]|конц[еау]|конец|середин[аеуы]|(?:перв|втор)[а-яё]*\s+половин[аеуы])"
+    r"\s+(?:месяца|недели|года|" + "|".join(_MONTHS) + r")(?![а-яё])", re.I)
+
+
+def _windows(text: str, system: str) -> list[str]:
+    low = system.lower()
+    return [m.group(0) for m in _WINDOW.finditer(text) if m.group(0).lower() not in low]
+
+
 def check(text: str, system: str, day: date) -> dict:
     allowed = _dates(system) | {(day.day, day.month)}
     bad_dates = sorted(f"{d:02d}.{m:02d}" for d, m in _dates(text) - allowed)
@@ -253,6 +268,7 @@ def check(text: str, system: str, day: date) -> dict:
     from backend.interpretation.gender_check import gendered_you
     return {
         "dates_not_in_data": bad_dates,
+        "date_windows": _windows(text, system),
         "aspects_not_in_data": bad_aspects,
         "wrong_prices": [p for p in prices if p not in allowed_prices],
         "ai_words": re.findall(r"(?<![A-Za-zА-Яа-яЁё])(?:AI|ИИ)(?![A-Za-zА-Яа-яЁё])|нейросет\w*", text),
@@ -265,9 +281,10 @@ def check(text: str, system: str, day: date) -> dict:
     }
 
 
-VIOLATIONS = ("dates_not_in_data", "aspects_not_in_data", "wrong_prices", "ai_words", "formal_you", "gendered")
+VIOLATIONS = ("dates_not_in_data", "date_windows", "aspects_not_in_data", "wrong_prices", "ai_words", "formal_you", "gendered")
 _LABELS = {
     "dates_not_in_data": "даты не из данных",
+    "date_windows": "окна дат",
     "aspects_not_in_data": "аспекты не из данных",
     "wrong_prices": "цены не из тарифов",
     "ai_words": "«AI/ИИ»",
@@ -325,7 +342,11 @@ def report(args) -> None:
             counts = {k: sum(1 for a in it["answers"] if a["checks"][k]) for k in VIOLATIONS}
             found = " ".join(f"{_LABELS[k]}={n}" for k, n in counts.items() if n) or "чисто"
             rewrites = sum(a.get("gender_rewrites", 0) for a in it["answers"])
-            print(f"  q{it['id']:02d} тема={it['topic']} {found}; переписано={rewrites}")
+            # «не удалось» — фраза с родом, которую переписать не вышло и
+            # она ушла как есть (_fix_gender): отличает сбой переписывания
+            # от рода, который детектор не увидел по фразам.
+            unfixed = sum(a.get("gender_unfixed", 0) for a in it["answers"])
+            print(f"  q{it['id']:02d} тема={it['topic']} {found}; переписано={rewrites}; не удалось={unfixed}")
 
     lines = ["# Прогон вопросов к чату Аристеи", ""]
     for name, r in cols:
