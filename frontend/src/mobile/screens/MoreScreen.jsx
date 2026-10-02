@@ -25,6 +25,7 @@ import MoreHistoryView from '../components/MoreHistoryView';
 import MoreReferralView from '../components/MoreReferralView';
 import MoreNotificationsView from '../components/MoreNotificationsView';
 import { pushDiagOn, togglePushDiag } from '../lib/pushNudge';
+import { widgetDiagLine } from '../lib/widgetSync';
 import MorePaymentsView from '../components/MorePaymentsView';
 import PullIndicator from '../components/PullIndicator';
 import usePullToRefresh from '../lib/usePullToRefresh';
@@ -53,15 +54,31 @@ const SUB_TITLES = {
 // обращении в поддержку (appVersionLabel, lib/supportContext.js).
 // Нажатие включает и выключает строку диагностики уведомлений в «Ещё» →
 // «Уведомления» (lib/pushNudge.js, pushDiagOn) — для приёмки на телефоне.
+// Тем же нажатием — строка виджета «День» прямо здесь (lib/widgetSync.js):
+// виджет приёмка ищет на главном экране, а не в «Уведомлениях».
 function Version() {
   const [diag, setDiag] = useState(pushDiagOn);
+  const [widget, setWidget] = useState('');
+  useEffect(() => {
+    if (!diag) { setWidget(''); return undefined; }
+    let alive = true;
+    widgetDiagLine().then((line) => { if (alive) setWidget(line); });
+    return () => { alive = false; };
+  }, [diag]);
   return (
-    <p
-      onClick={() => setDiag(togglePushDiag())}
-      style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}
-    >
-      Версия {appVersionShort()}{diag ? ' · диагностика уведомлений' : ''}
-    </p>
+    <>
+      <p
+        onClick={() => setDiag(togglePushDiag())}
+        style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center' }}
+      >
+        Версия {appVersionShort()}{diag ? ' · диагностика уведомлений' : ''}
+      </p>
+      {widget && (
+        <p style={{ margin: '0 16px 8px', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center', wordBreak: 'break-word' }}>
+          {widget}
+        </p>
+      )}
+    </>
   );
 }
 

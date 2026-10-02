@@ -19,6 +19,7 @@ final class WidgetData {
         String title;   // «15:01 · Луна к твоей Венере» или фаза
         String advice;  // совет; пусто — строки нет
         double elong;   // элонгация Луны, 0…360 — по ней рисуется картинка
+        boolean stored; // из запаса, а не запасной вариант
     }
 
     private static final String PREFS = "aristea_widget";
@@ -65,12 +66,23 @@ final class WidgetData {
                 d.title = x.optString("title");
                 d.advice = x.optString("advice");
                 d.elong = x.optDouble("elong", Moon.approxElongation(System.currentTimeMillis()));
+                d.stored = true;
                 return d;
             }
         } catch (JSONException ignored) {
             // пусто или битое — то же, что запас кончился
         }
         return fallback(signedOut);
+    }
+
+    /** Сколько дней в запасе — для строки диагностики. */
+    static int count(Context c) {
+        try {
+            JSONArray days = new JSONObject(prefs(c).getString(KEY, "")).optJSONArray("days");
+            return days == null ? 0 : days.length();
+        } catch (JSONException e) {
+            return 0;
+        }
     }
 
     /** Запаса нет: Луна считается на телефоне и остаётся верной, события нет. */
