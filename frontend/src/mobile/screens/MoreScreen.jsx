@@ -61,9 +61,13 @@ function Version() {
   const [widget, setWidget] = useState('');
   useEffect(() => {
     if (!diag) { setWidget(''); return undefined; }
+    // Раз в 3 с: при приёмке видно, как шаг доходит до конца, а не снимок
+    // момента, когда запрос ещё в пути.
     let alive = true;
-    widgetDiagLine().then((line) => { if (alive) setWidget(line); });
-    return () => { alive = false; };
+    const read = () => widgetDiagLine().then((line) => { if (alive) setWidget(line); });
+    read();
+    const timer = setInterval(read, 3000);
+    return () => { alive = false; clearInterval(timer); };
   }, [diag]);
   return (
     <>
