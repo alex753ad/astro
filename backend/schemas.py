@@ -168,6 +168,9 @@ class SendEmailOTPRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
     name: Optional[str] = Field(None, max_length=100)
     ref_code: Optional[str] = Field(None, max_length=16)
+    # «utm_source/utm_medium/utm_campaign» первого захода (utils/signupSource.js,
+    # 074). Мусор не роняет регистрацию — превращается в None.
+    signup_source: Optional[str] = None
     # Чекбокс формы регистрации (152-ФЗ) — обязателен, хранится в OTP-payload
     # в Redis и переносится на пользователя при верификации кода (см.
     # register_email_verify / backend/auth/consent.py).
@@ -187,6 +190,11 @@ class SendEmailOTPRequest(BaseModel):
     @classmethod
     def validate_consent(cls, v: bool) -> bool:
         return _validate_consent(v)
+
+    @field_validator("signup_source")
+    @classmethod
+    def clean_signup_source(cls, v: Optional[str]) -> Optional[str]:
+        return v if v and re.fullmatch(r"[a-z0-9_./-]{1,64}", v) else None
 
 
 class VerifyEmailOTPRequest(BaseModel):

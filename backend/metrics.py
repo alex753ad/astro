@@ -191,6 +191,7 @@ def compute_retention_weekly(
     platform: Optional[str] = None,
     tier: Optional[str] = None,
     flag: Optional[str] = None,
+    source: Optional[str] = None,
     today: Optional[date] = None,
 ) -> dict:
     """Удержание D1/D7/D30 по неделям регистрации (таблица user_activity_days).
@@ -202,7 +203,9 @@ def compute_retention_weekly(
     platform — где человек был в первый активный день («app» | «web»; в тот
     же день и там, и там — «app»). tier — ТЕКУЩИЙ тариф, а не на день
     регистрации (решение владельца, в админке сноска): платят как раз
-    оставшиеся, поэтому у платных удержание выглядит выше. flag — делит
+    оставшиеся, поэтому у платных удержание выглядит выше. source —
+    `users.signup_source` целиком (074; «story/share/day_card» — пришли со
+    сторис, ссылка aristeatime.ru/d). flag — делит
     когорту на тех, у кого флаг был включён в день 0 или 1, и остальных.
     Не считаются администраторы и revenue_excluded (тестовые аккаунты).
     """
@@ -230,6 +233,8 @@ def compute_retention_weekly(
     )
     if tier:
         q = q.filter(User.tier == tier)
+    if source:
+        q = q.filter(User.signup_source == source)
 
     members = []
     for uid, created in q:
@@ -284,8 +289,27 @@ def retention_summary_text(db: Session, today: Optional[date] = None, weeks: int
         lines.append(f"{label}: {t['users']} · " + " · ".join(
             f"{k.upper()} {_fmt_window(t[k])}" for k in RETENTION_WINDOWS))
     lines.append("")
-    lines.append("Разбивка по тарифу и флагам — /admin → «Пилот».")
+    lines.append(_story_line(db))
+    lines.append("Разбивка по тарифу, флагам и источнику — /admin → «Пилот».")
     return "\n".join(lines)
+
+
+STORY_SOURCE = "story/share/day_card"   # метки редиректа /d (nginx, astreatime.conf)
+
+
+def _story_line(db: Session) -> str:
+    """Сторис за 7 дней: сколько отправили (флаг story_card) и сколько
+    зарегистрировались с метками /d."""
+    from backend.models import User
+    from backend.story_card_router import shares_since
+    from backend.time_utils import utcnow
+
+    since = utcnow() - timedelta(days=7)
+    sent = shares_since(db, since)
+    came = db.query(func.count(User.id)).filter(
+        User.signup_source == STORY_SOURCE, User.created_at >= since).scalar() or 0
+    return (f"Сторис за 7 дней: «Моя карта» — {sent.get('chart', 0)}, на фото — "
+            f"{sent.get('photo', 0)}; регистраций со сторис — {came}.")
 
 
 def compute_funnel(db: Session) -> dict:

@@ -63,6 +63,10 @@ class User(Base):
     revenue_excluded = Column(Boolean, default=False, nullable=False, server_default="false")
     tg_user_id = Column(String(32), nullable=True, unique=True, index=True)
     referred_by   = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # Откуда пришёл (074): «utm_source/utm_medium/utm_campaign» первого захода
+    # на сайт, только при регистрации на сайте (utils/signupSource.js). Удержание
+    # по нему — фильтр «Источник» в админке (metrics.compute_retention_weekly).
+    signup_source = Column(String(64), nullable=True)
 
     # Digest settings (012). 0 = понедельник. Выбора дня в интерфейсе нет с
     # 27.09.2026 (решение владельца): новые получают дайджест в понедельник,
@@ -933,6 +937,22 @@ class UserActivityDay(Base):
     day = Column(Date, primary_key=True, index=True)
     platform = Column(String(8), primary_key=True)  # "app" | "web"
     flags = Column(JSON, nullable=False, default=list)
+
+
+class StoryCardShare(Base):
+    """Отправка карточки дня в сторис (074, флаг story_card).
+
+    Строка — когда системный лист «Поделиться» закрыт выбором получателя.
+    variant — «chart» (Моя карта) или «photo» (наклейка на своё фото).
+    """
+    __tablename__ = "story_card_shares"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    variant = Column(String(8), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
 
 class FirstWeekMark(Base):

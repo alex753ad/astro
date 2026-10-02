@@ -82,6 +82,8 @@ import { dotColor, dotSize } from '../lib/feedTimelineDot';
 import useAuth from '../../hooks/useAuth.jsx';
 import { serverNow } from '../../lib/serverClock';
 import { isGuest } from '../lib/guestChart';
+import { useFlag } from '../../lib/flags';
+import { STORY_CARD_FLAG } from '../lib/storyCard';
 import GuestSaveNote from '../components/GuestSaveNote';
 import PushNudge from '../components/PushNudge';
 import FirstWeekCard from '../components/FirstWeekCard';
@@ -433,6 +435,7 @@ export default function FeedScreen({
   // 27.09.2026 — у гостя в полосе было две планеты вместо всех. Значок
   // периода — факт неба, а не платное (docs/feed.md, «Полоса планет»).
   const guest = isGuest();
+  const storyCard = useFlag(STORY_CARD_FLAG);
   const allEvents = feed?.events || [];
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm' && !(guest && e.locked));
   // Дни с карточкой прогноза (сегодня, с 19:00 — завтра) есть в
@@ -883,6 +886,7 @@ export default function FeedScreen({
                 label={forecastLabel[day.date]}
                 open={openDates.has(day.date)}
                 onToggle={() => toggleForecast(day.date)}
+                canShare={storyCard && !guest && forecastLabel[day.date] === 'сегодня'}
               />
             )}
             {/* Сжатый день меняет ОБЪЁМ события, а не доступ к нему: строка

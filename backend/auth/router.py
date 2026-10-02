@@ -116,10 +116,11 @@ async def _store_otp(
     ref_code: str,
     name: str = "",
     consent: bool = False,
+    signup_source: str | None = None,
 ) -> None:
     payload = json.dumps({
         "code": code, "pw": hashed_pw, "ref": ref_code, "name": name,
-        "consent": consent, "attempts": 0,
+        "consent": consent, "src": signup_source, "attempts": 0,
     })
     await r.set(_otp_key(identifier), payload, ex=OTP_TTL)
     await r.set(_resend_key(identifier), "1", ex=OTP_RESEND_TTL)
@@ -282,6 +283,7 @@ def _create_user(
     hashed_pw: str,
     ref_code: str,
     name: str = "",
+    signup_source: str | None = None,
 ) -> User:
     referred_by = _resolve_referrer_id(db, ref_code)
     from backend.auth.consent import CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION
@@ -295,6 +297,7 @@ def _create_user(
         is_email_confirmed=True,  # подтверждён через OTP
         tier="free",
         referred_by=referred_by,
+        signup_source=signup_source,
         consent_given_at=utcnow(),
         consent_terms_version=CURRENT_TERMS_VERSION,
         consent_privacy_version=CURRENT_PRIVACY_VERSION,
@@ -377,7 +380,8 @@ async def register_email_send(
             logger.error("Existing-account notice failed for %s: %s", mask_email(data.email), exc)
         logger.info("Registration attempt on existing account: %s", mask_email(data.email))
     else:
-        await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "", data.consent)
+        await _store_otp(r, data.email, code, hashed_pw, data.ref_code or "", data.name or "", data.consent,
+                         data.signup_source)
         from backend.email_service import send_otp_email
         await send_otp_email(data.email, code)
         logger.info("Email OTP sent → %s", mask_email(data.email))
@@ -414,6 +418,7 @@ async def register_email_verify(
         hashed_pw=otp_data["pw"],
         ref_code=otp_data.get("ref", ""),
         name=otp_data.get("name", ""),
+        signup_source=otp_data.get("src"),
     )
     logger.info("New user via email OTP: %s (%s)", mask_email(data.email), user.id)
     return _build_token_response(

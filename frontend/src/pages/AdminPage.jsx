@@ -677,7 +677,7 @@ function RetCell({ w }) {
 }
 
 function RetentionBlock({ authFetch }) {
-  const [filters, setFilters] = useState({ platform: "", tier: "", flag: "" });
+  const [filters, setFilters] = useState({ platform: "", tier: "", flag: "", source: "" });
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -704,6 +704,7 @@ function RetentionBlock({ authFetch }) {
         {select("platform", [["", "Приложение и сайт"], ["app", "Приложение"], ["web", "Сайт"]])}
         {select("tier", [["", "Все тарифы"], ...Object.entries(TIER_NAMES)])}
         {select("flag", [["", "Без разбивки по флагу"], ...(data?.flags || []).map((f) => [f, f])])}
+        {select("source", [["", "Любой источник"], ...(data?.sources || []).map((s) => [s, s])])}
       </div>
       {!data ? (
         <div className="text-[13px] text-gray-400">Загрузка…</div>
