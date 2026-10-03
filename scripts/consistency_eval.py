@@ -80,11 +80,25 @@ class Check:
         self.compared = 0
         self.bad: list[str] = []
         self.error: str | None = None
+        self.notes: list[str] = []  # пояснения к числам, не расхождения
 
     def ok(self, cond: bool, detail: str) -> None:
         self.compared += 1
         if not cond:
             self.bad.append(detail)
+
+    def as_dict(self, title: str) -> dict:
+        return {"title": title, "compared": self.compared, "bad": self.bad,
+                "error": self.error, "notes": self.notes}
+
+
+def guard(ch: Check, fn, *a):
+    """Проверка, упавшая с исключением, — ошибка прогона, а не ноль
+    расхождений: «0 из 0» выглядело бы как «всё сходится»."""
+    try:
+        return fn(*a)
+    except Exception as e:  # noqa: BLE001 — ошибка одной проверки не роняет остальные
+        ch.error = f"{type(e).__name__}: {e}"
 
 
 # ── карта ─────────────────────────────────────────────────────────────────────
@@ -145,6 +159,10 @@ def check_c1_c2(ch1: Check, ch2: Check, chart, feed: list[dict], days: list[date
         ev = day_event.main_event(chart, d, tz, *WINDOW)
         events[d] = ev
         if ev is None:
+            # Не расхождение: в окне уведомлений нет ни касания, ни фазы —
+            # пуш, виджет и сторис в такой день говорят о фазе Луны.
+            for c in (ch1, ch2):
+                c.notes.append(f"{d} {tz}: главного события нет — сравнивать не с чем")
             continue
         what = day_event.title(ev)
         found = False
@@ -451,8 +469,12 @@ async def check_cA(ch: Check, birth: dict) -> None:
         t = {p["name"]: p["longitude"] for p in day_event._targets(_ns(stored, "a", tz, tu))}
         for name, point in (("Ascendant", "ascendant"), ("Midheaven", "midheaven")):
             want = (stored.get(point) or {}).get("longitude")
-            ch.ok(name in t and want is not None and abs(t[name] - want) < 0.01,
-                  f"{system}: {name} — главное событие {t.get(name)}, карта {want}")
+            if name not in t or want is None:
+                ch.ok(False, f"{system}: {name} — в главном событии точки нет")
+                continue
+            # Только разница: сами долготы — данные карты (репозиторий публичный).
+            diff = abs((t[name] - want + 180) % 360 - 180)
+            ch.ok(diff < 0.01, f"{system}: {name} — расходится на {diff:.0f}°")
 
 
 # ── прогон ────────────────────────────────────────────────────────────────────
@@ -485,12 +507,6 @@ async def run(args) -> None:
     nt_stored, _, _ = await _chart({k: v for k, v in birth.items() if k != "time"})
     checks = {k: Check() for k in CHECKS}
 
-    def guard(cid, fn, *a):
-        try:
-            return fn(*a)
-        except Exception as e:  # noqa: BLE001 — ошибка проверки не роняет остальные
-            checks[cid].error = f"{type(e).__name__}: {e}"
-
     # Окно ленты накрывает месяц планера И неделю его Луны (с понедельника):
     # проход, кончившийся до начала окна, лента не отдаст, а планер покажет.
     month_first = min(d0.replace(day=1), d0 - timedelta(days=d0.weekday()))
@@ -499,18 +515,19 @@ async def run(args) -> None:
         full = _ns(stored, "consistency-full", tz, time_unknown)
         notime = _ns(nt_stored, "consistency-notime", tz, True)
         feed = _feed(full, min(month_first, d0 - timedelta(days=1)), lunar_end + timedelta(days=1), d0, args.tier)
-        guard("c1", check_c1_c2, checks["c1"], checks["c2"], full, feed, days, tz)
+        guard(checks["c1"], check_c1_c2, checks["c1"], checks["c2"], full, feed, days, tz)
+        checks["c2"].error = checks["c2"].error or checks["c1"].error  # одна функция на обе
         if not time_unknown:
-            guard("c4", check_c4, checks["c4"], _profile(stored, False), feed, d0, tz, args.tier)
-            guard("c6", check_c6, checks["c6"], _profile(stored, False), feed, d0, lunar_end, tz)
-        guard("c5", check_c5, checks["c5"], full, user, feed, d0, lunar_end, tz)
+            guard(checks["c4"], check_c4, checks["c4"], _profile(stored, False), feed, d0, tz, args.tier)
+            guard(checks["c6"], check_c6, checks["c6"], _profile(stored, False), feed, d0, lunar_end, tz)
+        guard(checks["c5"], check_c5, checks["c5"], full, user, feed, d0, lunar_end, tz)
         nt_feed = _feed(notime, d0, days[-1], d0, args.tier)
-        guard("c8", check_c8, checks["c8"], nt_stored, notime, user, nt_feed, days, tz, i == 0,
+        guard(checks["c8"], check_c8, checks["c8"], nt_stored, notime, user, nt_feed, days, tz, i == 0,
               "consistency-notime")
         if i == 0:
-            guard("c9", check_c9, checks["c9"], [e for e in feed if d0 <= _dt(e["at"]).date() <= days[-1]])
-            guard("c7", check_c7, checks["c7"], full, user, d0, tzs)
-    guard("c3", check_c3, checks["c3"], chat_chart_data(stored, time_unknown), "consistency-full", days, tzs)
+            guard(checks["c9"], check_c9, checks["c9"], [e for e in feed if d0 <= _dt(e["at"]).date() <= days[-1]])
+            guard(checks["c7"], check_c7, checks["c7"], full, user, d0, tzs)
+    guard(checks["c3"], check_c3, checks["c3"], chat_chart_data(stored, time_unknown), "consistency-full", days, tzs)
     try:
         await check_cA(checks["cA"], birth)
     except Exception as e:  # noqa: BLE001
@@ -521,8 +538,7 @@ async def run(args) -> None:
     out = {
         "meta": {"commit": commit, "date": d0.isoformat(), "days": args.days, "tzs": tzs,
                  "tier": args.tier, "time_unknown": time_unknown},
-        "checks": {k: {"title": CHECKS[k], "compared": c.compared, "bad": c.bad, "error": c.error}
-                   for k, c in checks.items()},
+        "checks": {k: c.as_dict(CHECKS[k]) for k, c in checks.items()},
     }
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     # В лог — только счётчики (см. докстринг модуля).
@@ -530,6 +546,10 @@ async def run(args) -> None:
     for k, c in checks.items():
         err = f" ошибка={c.error.split(':')[0]}" if c.error else ""
         print(f"  {k} сравнено={c.compared} расхождений={len(c.bad)}{err}")
+    # Упавшая проверка — провал прогона (workflow краснеет после отправки
+    # отчёта); расхождения — нет.
+    if any(c.error for c in checks.values()):
+        sys.exit(1)
 
 
 # ── отчёт ─────────────────────────────────────────────────────────────────────
@@ -542,10 +562,19 @@ def _meta(m: dict) -> str:
             f"тариф {m['tier']}")
 
 
+def failed_line(run: dict) -> str:
+    """Первая строка отчёта и подпись в Telegram: какие проверки не выполнились."""
+    failed = [k for k, c in run["checks"].items() if c.get("error")]
+    if not failed:
+        return "Все проверки выполнились."
+    return "⚠️ Не выполнились: " + ", ".join(
+        f"{k} ({run['checks'][k]['error'].split(':')[0]})" for k in failed) + "."
+
+
 def report(args) -> None:
     runs = [json.loads(Path(p).read_text(encoding="utf-8")) for p in args.files]
     cur, base = runs[0], (runs[1] if len(runs) > 1 else None)
-    lines = ["# Прогон согласованности разделов", "", f"* Стало: {_meta(cur['meta'])}"]
+    lines = [failed_line(cur), "", "# Прогон согласованности разделов", "", f"* Стало: {_meta(cur['meta'])}"]
     if base:
         lines.append(f"* Было: {_meta(base['meta'])}")
     lines += ["", "Расхождение — место, где два раздела говорят разное об одном и том же. "
@@ -557,7 +586,9 @@ def report(args) -> None:
         c = r["checks"].get(k)
         if not c:
             return "—"
-        return ("ошибка · " if c["error"] else "") + f"{len(c['bad'])} из {c['compared']}"
+        if c["error"]:
+            return "**ошибка**"
+        return f"{len(c['bad'])} из {c['compared']}"
 
     for k, title in CHECKS.items():
         lines.append(f"| {k} | {title} |" + (f" {cell(base, k)} |" if base else "") + f" {cell(cur, k)} |")
@@ -565,7 +596,12 @@ def report(args) -> None:
         c = cur["checks"][k]
         lines += ["", f"## {k}. {title}", ""]
         if c["error"]:
-            lines += [f"**Ошибка прогона:** `{c['error']}`", ""]
+            # Ни «расхождений нет», ни сравнения с базой: проверка не выполнилась.
+            lines += [f"**Проверка не выполнилась:** `{c['error']}`"]
+            continue
+        notes = c.get("notes") or []
+        if notes:
+            lines += [f"Без сравнения: {len(notes)}."] + [f"* {n}" for n in notes[:MAX_LINES]] + [""]
         bad = c["bad"]
         if base and k in base["checks"]:
             old = set(base["checks"][k]["bad"])
@@ -574,7 +610,8 @@ def report(args) -> None:
             lines.append(f"Новых: {len(new)}, ушло: {len(gone)}.")
             lines += [f"* новое: {b}" for b in new[:MAX_LINES]] + [f"* ушло: {b}" for b in gone[:MAX_LINES]]
         else:
-            lines += [f"* {b}" for b in bad[:MAX_LINES]] or ["Расхождений нет."]
+            lines += [f"* {b}" for b in bad[:MAX_LINES]] or [
+                "Расхождений нет." if c["compared"] else "Сравнивать было нечего (0 сравнений)."]
             if len(bad) > MAX_LINES:
                 lines.append(f"* … и ещё {len(bad) - MAX_LINES}")
     Path(args.out).write_text("\n".join(lines) + "\n", encoding="utf-8")

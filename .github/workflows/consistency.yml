@@ -6,7 +6,8 @@ name: Consistency
 # прогон бесплатный, только ручной запуск.
 #
 # Расхождения — результат, а не сбой: job зелёный при любом их числе и
-# краснеет, только если упал сам прогон или не ушёл отчёт.
+# краснеет, если проверка упала с исключением (отчёт при этом уходит) или не
+# ушёл отчёт.
 #
 # ⚠️ Репозиторий ПУБЛИЧНЫЙ: отчёт (даты и события по карте живого человека)
 # уходит только файлом владельцу в Telegram, в лог — одни счётчики. Не
@@ -92,22 +93,40 @@ jobs:
       - name: Дата
         run: echo "DATE=${IN_DATE:-$(TZ=Europe/Moscow date +%F)}" >> "$GITHUB_ENV"
 
+      # Ненулевой код скрипта — упавшая проверка (или весь прогон). Шаг не
+      # обрывает job: отчёт с её ошибкой уходит владельцу, а краснеет job в
+      # последнем шаге. Расхождения код не меняют — при них job зелёный.
       - name: Стало
-        run: python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/cur.json"
+        run: |
+          set +e
+          python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/cur.json"
+          echo "CUR_RC=$?" >> "$GITHUB_ENV"
 
       - name: Было
         if: inputs.compare_ref != ''
         working-directory: base
-        run: python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/base.json"
+        run: |
+          set +e
+          python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/base.json"
+          echo "BASE_RC=$?" >> "$GITHUB_ENV"
 
       - name: Отчёт в Telegram
         run: |
+          api="https://api.telegram.org/bot$TG_TOKEN"
+          if [ ! -f "$RUNNER_TEMP/cur.json" ]; then
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -d chat_id="$TG_CHAT"               --data-urlencode text="⚠️ Прогон согласованности $GITHUB_RUN_ID упал целиком, отчёта нет — см. лог"               "$api/sendMessage")
+            [ "$code" = "200" ] || echo "::error::Telegram ответил $code"
+            exit 0
+          fi
           files="$RUNNER_TEMP/cur.json"
           [ -f "$RUNNER_TEMP/base.json" ] && files="$files $RUNNER_TEMP/base.json"
           out="$RUNNER_TEMP/consistency-$DATE-run$GITHUB_RUN_ID.md"
           python scripts/consistency_eval.py report $files --out "$out"
-          code=$(curl -sS -o /dev/null -w '%{http_code}' \
-            -F chat_id="$TG_CHAT" -F document=@"$out" \
-            -F caption="Прогон согласованности, $DATE, прогон $GITHUB_RUN_ID" \
-            "https://api.telegram.org/bot$TG_TOKEN/sendDocument")
+          # Первая строка отчёта — какие проверки не выполнились (или «все»).
+          code=$(curl -sS -o /dev/null -w '%{http_code}'             -F chat_id="$TG_CHAT" -F document=@"$out"             -F caption="$(head -n1 "$out") Прогон согласованности, $DATE, прогон $GITHUB_RUN_ID"             "$api/sendDocument")
           [ "$code" = "200" ] || { echo "::error::Telegram ответил $code"; exit 1; }
+
+      - name: Ошибка прогона
+        run: |
+          [ "${CUR_RC:-1}" = "0" ] || { echo "::error::Прогон «стало» не выполнил проверки (код $CUR_RC)"; exit 1; }
+          [ "${BASE_RC:-0}" = "0" ] || { echo "::error::Прогон «было» не выполнил проверки (код $BASE_RC)"; exit 1; }
