@@ -1,0 +1,108 @@
+name: Consistency
+
+# Прогон согласованности разделов (scripts/consistency_eval.py): одна дата и
+# одна карта — совпадают ли события, даты и тон в ленте, прогнозе, планере,
+# чате, пушах и виджете. Шаг 1 плана docs/audit_unified_model.md. Без модели —
+# прогон бесплатный, только ручной запуск.
+#
+# Расхождения — результат, а не сбой: job зелёный при любом их числе и
+# краснеет, только если упал сам прогон или не ушёл отчёт.
+#
+# ⚠️ Репозиторий ПУБЛИЧНЫЙ: отчёт (даты и события по карте живого человека)
+# уходит только файлом владельцу в Telegram, в лог — одни счётчики. Не
+# добавлять сюда upload-artifact и `cat` отчёта.
+#
+# Секреты: CHAT_EVAL_BIRTH (JSON {"date","time","place"}), TELEGRAM_BOT_TOKEN,
+# TELEGRAM_CHAT_ID (личный чат владельца, как у notify.py).
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Первый день YYYY-MM-DD (пусто — сегодня по Москве). Для «было | стало» — один и тот же"
+        required: false
+        default: ""
+      days:
+        description: "Сколько дней (фазы и станции — всегда не меньше 31)"
+        required: false
+        default: "7"
+      tzs:
+        description: "Пояса устройства через запятую"
+        required: false
+        default: "Europe/Moscow,Asia/Vladivostok,America/New_York"
+      tier:
+        description: "Тариф (замки планера и горизонт ленты)"
+        type: choice
+        options: [free, lite, pro, premium]
+        default: premium
+      compare_ref:
+        description: "«Было»: ПОЛНЫЙ SHA или ветка, где уже есть scripts/consistency_eval.py. Пусто — без сравнения"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CHAT_EVAL_BIRTH: ${{ secrets.CHAT_EVAL_BIRTH }}
+      TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+      EPHE_PATH: data/ephe
+      JWT_SECRET: consistency-only-not-a-real-secret-0123456789abcdef
+      # Входы — через env, а не подстановкой ${{ }} в run (см. chat-eval.yml).
+      IN_DATE: ${{ inputs.date }}
+      IN_DAYS: ${{ inputs.days }}
+      IN_TZS: ${{ inputs.tzs }}
+      IN_TIER: ${{ inputs.tier }}
+      IN_REF: ${{ inputs.compare_ref }}
+
+    steps:
+      - name: Секреты на месте
+        run: |
+          for v in CHAT_EVAL_BIRTH TG_TOKEN TG_CHAT; do
+            [ -n "${!v}" ] || { echo "::error::Нет секрета для $v"; exit 1; }
+          done
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: inputs.compare_ref != ''
+        with:
+          ref: ${{ inputs.compare_ref }}
+          path: base
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Без `pip install -e .` — по той же причине, что в chat-eval.yml.
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.lock
+
+      - name: Дата
+        run: echo "DATE=${IN_DATE:-$(TZ=Europe/Moscow date +%F)}" >> "$GITHUB_ENV"
+
+      - name: Стало
+        run: python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/cur.json"
+
+      - name: Было
+        if: inputs.compare_ref != ''
+        working-directory: base
+        run: python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/base.json"
+
+      - name: Отчёт в Telegram
+        run: |
+          files="$RUNNER_TEMP/cur.json"
+          [ -f "$RUNNER_TEMP/base.json" ] && files="$files $RUNNER_TEMP/base.json"
+          out="$RUNNER_TEMP/consistency-$DATE-run$GITHUB_RUN_ID.md"
+          python scripts/consistency_eval.py report $files --out "$out"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -F chat_id="$TG_CHAT" -F document=@"$out" \
+            -F caption="Прогон согласованности, $DATE, прогон $GITHUB_RUN_ID" \
+            "https://api.telegram.org/bot$TG_TOKEN/sendDocument")
+          [ "$code" = "200" ] || { echo "::error::Telegram ответил $code"; exit 1; }
