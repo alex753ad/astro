@@ -53,6 +53,11 @@ jobs:
       TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
       EPHE_PATH: data/ephe
       JWT_SECRET: consistency-only-not-a-real-secret-0123456789abcdef
+      # c5 берёт фазы лунного календаря из backend.main (_compute_lunar_calendar),
+      # а импорт main без TESTING требует боевых секретов (INTERNAL_SECRET,
+      # ЮKassa) и падает RuntimeError — так упал первый прогон 37128122948.
+      # Прогон считает эфемериды и ничего не пишет, боевое окружение ему не нужно.
+      TESTING: "true"
       # Входы — через env, а не подстановкой ${{ }} в run (см. chat-eval.yml).
       IN_DATE: ${{ inputs.date }}
       IN_DAYS: ${{ inputs.days }}
