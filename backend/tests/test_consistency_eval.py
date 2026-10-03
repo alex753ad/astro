@@ -48,3 +48,31 @@ def test_report_compares_runs(tmp_path):
     text = out.read_text(encoding="utf-8")
     assert "| c1 | Главное событие дня есть в ленте | 1 из 2 | 1 из 2 |" in text
     assert "* новое: новое" in text and "* ушло: старое" in text
+
+
+def test_failed_check_is_error_not_zero(tmp_path):
+    """Проверка, упавшая с исключением, — «ошибка», а не «0 из 0»: иначе
+    отчёт сказал бы «всё сходится» там, где ничего не проверено."""
+    def boom():
+        raise RuntimeError("нет INTERNAL_SECRET")
+
+    checks = {k: ce.Check() for k in ce.CHECKS}
+    ce.guard(checks["c5"], boom)
+    ce.guard(checks["c1"], lambda: checks["c1"].ok(True, ""))
+    run = {"meta": {"commit": "x", "date": "2026-10-03", "days": 7, "tzs": ["Europe/Moscow"], "tier": "premium"},
+           "checks": {k: c.as_dict(t) for (k, t), c in zip(ce.CHECKS.items(), checks.values())}}
+    path, out = tmp_path / "cur.json", tmp_path / "r.md"
+    path.write_text(json.dumps(run), encoding="utf-8")
+    ce.report(type("A", (), {"files": [str(path)], "out": str(out)}))
+    text = out.read_text(encoding="utf-8")
+    assert text.splitlines()[0] == "⚠️ Не выполнились: c5 (RuntimeError)."
+    assert "| c5 | Фаза Луны: одна дата во всех разделах | **ошибка** |" in text
+    c5 = text.split("## c5.")[1].split("## c6.")[0]
+    assert "RuntimeError: нет INTERNAL_SECRET" in c5 and "Расхождений нет" not in c5
+    assert "Сравнивать было нечего" in text.split("## c2.")[1].split("## c3.")[0]
+
+
+def test_all_checks_ran_first_line(tmp_path):
+    checks = {k: ce.Check() for k in ce.CHECKS}
+    run = {"checks": {k: c.as_dict(t) for (k, t), c in zip(ce.CHECKS.items(), checks.values())}}
+    assert ce.failed_line(run) == "Все проверки выполнились."
