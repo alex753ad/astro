@@ -202,7 +202,6 @@ def test_every_prompt_asks_for_ty():
     from backend.interpretation.prompts import build_system_prompt
     from backend.interpretation.rag_router import _system_prompt
     from backend.transit import prompts as tp
-    from backend.transit.forecast_prompt import build_general_calendar_prompt
 
     natal = build_system_prompt(InterpretationRequest(natal_profile={}, sections=["general"]))
     prompts = {
@@ -213,8 +212,9 @@ def test_every_prompt_asks_for_ty():
         "транзит": tp.TRANSIT_EVENT_PROMPT,
         "период транзитов": tp.TRANSIT_PERIOD_PROMPT,
         "чат": _system_prompt("карта", []),
-        "календарь": build_general_calendar_prompt("Октябрь 2026", []),
     }
+    # Календаря (build_general_calendar_prompt) здесь нет с 03.10.2026: модель
+    # отдаёт только знаки фаз, текста для человека в ответе нет.
     missing = [name for name, text in prompts.items() if ADDRESS_RULE not in text]
     assert not missing, f"нет правила обращения на «ты»: {missing}"
 
