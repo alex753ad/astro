@@ -35,6 +35,14 @@ def test_scanner_sees_the_hints():
     assert len(STRINGS) > 100
 
 
+# Мёртвый код, шаг 7 плана аудита (docs/audit_unified_model.md, 6.3): словарь
+# читает только build_monthly_planner_prompt, а её никто не зовёт — планер
+# собирается из methodology.json без модели. Удаляется вместе с ней, не правится.
+DEAD = {"PLANET_HOUSE_MEANINGS/Neptune/1"}
+
+
 @pytest.mark.parametrize("path,text", STRINGS, ids=[p for p, _ in STRINGS])
 def test_no_esoteric_words_in_prompt_hints(path, text):
+    if path in DEAD:
+        pytest.skip("мёртвый код, шаг 7")
     assert not FORBIDDEN.search(text) and not EXTRA.search(text), f"{path}: {text}"
