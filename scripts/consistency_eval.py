@@ -296,7 +296,7 @@ def _truth_phases(start: date, end: date, tz: str) -> set[tuple[str, date]]:
 def check_c5(ch: Check, chart, user, feed: list[dict], start: date, end: date, tz: str) -> None:
     import backend.main as main
     from backend import story_card, widget
-    from backend.calendar.lunar_engine import get_moon_phases
+    from backend.email_service import week_phase_lines
     from backend.push.cron import _phases_on_local_date
 
     truth = _truth_phases(start, end, tz)
@@ -307,11 +307,11 @@ def check_c5(ch: Check, chart, user, feed: list[dict], start: date, end: date, t
     sources = {
         "лунный календарь (веб, «Ближайшие 30 дней»)": inside({
             (p["type"], date.fromisoformat(p["date"]))
-            for y, m in months for p in main._compute_lunar_calendar(y, m)["phases"]}),
+            for y, m in months for p in main._compute_lunar_calendar(y, m, tz)["phases"]}),
         "лента": inside({(t, _dt(e["at"]).date()) for e in feed if (t := _feed_phase_type(e))}),
         "пуш фазы": {(p.type, d) for d in days for p in _phases_on_local_date(d, tz)},
-        "дайджест (дата UTC)": inside({
-            (p.type, date.fromisoformat(p.date)) for y, m in months for p in get_moon_phases(y, m)}),
+        "дайджест": {("new_moon" if "🌑" in x else "full_moon", date.fromisoformat(x[:10]))
+                     for x in week_phase_lines(start, end, tz)},
         "виджет": {(names[n], d) for d in days
                    if (n := widget.day(chart, d, tz, *WINDOW)["phase"]) in names},
         "сторис": {(names[n], d) for d in days if (n := story_card.card(user, chart, d)["phase"]) in names},
@@ -394,9 +394,8 @@ def check_c7(ch: Check, chart, user, d0: date, tzs: list[str]) -> None:
                     "чат (rag_router.rag_chat)": pe.now_local(user_tz(tz, u, c)).date(),
                     "PDF (build.today_for)": pdf_build.today_for(u, c),
                     "письма, /transits (local_today)": tu.local_today(user_tz(None, u, c)),
-                    # Шаг 6 аудита, не этот: /calendar/lunar по умолчанию берёт
-                    # date.today() сервера (UTC), сетка — GMT+3.
-                    "лунный календарь (date.today, шаг 6)": instant.date(),
+                    # С шага 6 (04.10.2026): пояс устройства, local_today.
+                    "лунный календарь (main.get_lunar_calendar)": tu.local_today(user_tz(tz)),
                 }
             for name, day in got.items():
                 ch.ok(day == d0, f"{tz} {hm:%H:%M}: {name} — {day}")

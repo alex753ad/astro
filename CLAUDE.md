@@ -43,7 +43,7 @@
 | БД / ORM | PostgreSQL 18, SQLAlchemy 2.0, Alembic |
 | Кэш / очереди | Redis 7, Celery |
 | Астрология | pyswisseph (Swiss Ephemeris) |
-| AI | интерпретации — DeepSeek Pro (→ GPT-4o → шаблон); прогнозы в приложении — DeepSeek Pro; общий астрокалендарь — Anthropic Claude Sonnet. Подробно — [docs/forecasts.md](docs/forecasts.md) |
+| AI | интерпретации — DeepSeek Pro (→ GPT-4o → шаблон); прогнозы в приложении — DeepSeek Pro; общий астрокалендарь — без модели (с 04.10.2026). Подробно — [docs/forecasts.md](docs/forecasts.md) |
 | Аутентификация | JWT, Google OAuth 2.0, bcrypt |
 | Платежи | ЮKassa (в разработке) — Robokassa и Stripe удалены 19.08.2026 как мёртвый код |
 | Email | Resend API |

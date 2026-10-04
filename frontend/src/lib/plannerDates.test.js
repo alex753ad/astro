@@ -19,11 +19,11 @@ describe('«Ближайшие 30 дней»', () => {
     ],
   };
   const lunar = [
-    { phases: [{ date: '2026-09-26', type: 'full_moon', sign: 'Овен', time: '19:49 GMT+3' }] },
-    { phases: [{ date: '2026-10-26', type: 'full_moon', sign: 'Телец', time: '07:12 GMT+3' },
-               { date: '2026-10-10', type: 'new_moon', sign: 'Весы', time: '03:50 GMT+3' }] },
+    { phases: [{ date: '2026-09-26', type: 'full_moon', sign: 'Овен', time: '19:49' }] },
+    { phases: [{ date: '2026-10-26', type: 'full_moon', sign: 'Телец', time: '07:12' },
+               { date: '2026-10-10', type: 'new_moon', sign: 'Весы', time: '03:50' }] },
     // тот же месяц пришёл второй раз — без дублей
-    { phases: [{ date: '2026-10-26', type: 'full_moon', sign: 'Телец', time: '07:12 GMT+3' }] },
+    { phases: [{ date: '2026-10-26', type: 'full_moon', sign: 'Телец', time: '07:12' }] },
   ];
   const ev = buildUpcoming(plan, lunar, now);
 
@@ -37,7 +37,7 @@ describe('«Ближайшие 30 дней»', () => {
       'Солнце переходит во 2 дом', 'Полнолуние',
     ]);
     expect(ev[3].detail).toBe('Солнце входит во 2 дом и пробудет там до 21 ноября.');
-    expect(ev[4].detail).toBe('Полнолуние в Тельце, 07:12 по Москве.');
+    expect(ev[4].detail).toBe('Полнолуние в Тельце, 07:12.');
   });
 
   it('рельс: узлы в пределах 0..1, соседи не ближе зазора', () => {

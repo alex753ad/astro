@@ -784,32 +784,18 @@ def _with_topic(url: str, topic: str) -> str:
 
 # ── Сбор кандидатов на пуш (без отправки) ──
 def _phases_on_local_date(day: date_type, tzname: str | None) -> list:
-    """Новолуния и полнолуния, чья МЕСТНАЯ дата в поясе карты — `day`.
+    """Новолуния и полнолуния (lunar_engine.Lunation), чья МЕСТНАЯ дата в
+    поясе `tzname` — `day`. Расчёт — lunations_local, одна функция фаз на
+    проект (шаг 6 аудита, 04.10.2026); до того здесь сверяли get_moon_phases
+    с UTC-датой и минутами, раскладывая фазы по трём месяцам.
 
-    `get_moon_phases` отдаёт дату и время в UTC и раскладывает фазы по
-    месяцам тоже по UTC. До 24.09.2026 здесь сравнивали её UTC-дату с
-    местным «завтра»: в Москве фаза между 21:00 и 24:00 UTC (00:00–03:00
-    по местному) приходила уведомлением «завтра» в сам день фазы, а фаза
-    в ночь на 1-е число (в том числе на 1 января) не приходила вовсе —
-    её UTC-дата лежит в предыдущем месяце, а смотрели только в месяц
-    «завтра». Поэтому берём оба соседних месяца и сравниваем местную дату.
+    ⚠️ В `ref` пуша и ключе main_event стоит дата фазы по UTC
+    (`ph.at.date()`), не местная: так ключи совпадают с отправленными до
+    шага 6, и повтор уведомления в день выкатки невозможен.
     """
-    from backend.calendar.lunar_engine import get_moon_phases
-    try:
-        tz = pytz.timezone(tzname or DEFAULT_TZ)
-    except Exception:
-        tz = pytz.timezone(DEFAULT_TZ)
-    prev = day.replace(day=1) - timedelta(days=1)
-    nxt = (day.replace(day=28) + timedelta(days=4)).replace(day=1)
-    out = []
-    for y, m in {(prev.year, prev.month), (day.year, day.month), (nxt.year, nxt.month)}:
-        for phase in get_moon_phases(y, m):
-            moment = pytz.utc.localize(
-                datetime.strptime(f"{phase.date} {phase.time[:5]}", "%Y-%m-%d %H:%M")
-            )
-            if moment.astimezone(tz).date() == day:
-                out.append(phase)
-    return out
+    from backend.calendar.lunar_engine import lunations_local
+    from backend.time_utils import valid_timezone
+    return lunations_local(day, day, valid_timezone(tzname) or DEFAULT_TZ)
 
 
 def _planner_month_candidates(chart: NatalChart, today: date_type, planner_url: str,
@@ -949,7 +935,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
             for phase in _phases_on_local_date(tomorrow, tzname):
                 label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
                 cands.append({
-                    "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
+                    "kind": "moon", "ref": f"moon:{phase.type}:{phase.at.date().isoformat()}",
                     "priority": "soft", "weight": 30, "frag": f"{label} завтра",
                     "title": f"{label} завтра",
                     "body": "Хорошее время заметить, что ты на самом деле чувствуешь. Загляни в лунный календарь.",

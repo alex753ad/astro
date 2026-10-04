@@ -188,22 +188,19 @@ class TestPhaseAtMonthBoundary:
 
 
 class TestAgainstIndependentCalculation:
-    """Сверка со вторым, независимым расчётом фаз в main.py.
-
-    /calendar/lunar считает фазы своим циклом и своей проверкой — он дефекта
-    не имел. Значит это готовый эталон: два независимых пути обязаны давать
-    одни и те же моменты.
-    """
+    """Сверка с /calendar/lunar. До 04.10.2026 там был второй, независимый
+    расчёт фаз; с шага 6 аудита оба пути — lunations, и тест держит, что
+    календарь отдаёт столько же фаз, сколько движок."""
 
     @pytest.mark.parametrize("year,month", [(2026, 9), (2026, 12), (2027, 1)])
     def test_matches_calendar_lunar(self, year, month):
         from backend.main import _compute_lunar_calendar
 
         engine = {(p.date, p.type) for p in get_moon_phases(year, month)}
-        # _compute_lunar_calendar отдаёт даты в GMT+3, get_moon_phases — в UTC,
+        # _compute_lunar_calendar отдаёт местные даты (здесь Москва), get_moon_phases — UTC,
         # поэтому сравниваются типы и порядок, а не сами даты: у фазы около
         # полуночи они законно расходятся на сутки.
-        lunar = [(p["date"], p["type"]) for p in _compute_lunar_calendar(year, month)["phases"]]
+        lunar = [(p["date"], p["type"]) for p in _compute_lunar_calendar(year, month, "Europe/Moscow")["phases"]]
         assert len(engine) == len(lunar), (
             f"{year}-{month:02d}: движок дал {len(engine)}, /calendar/lunar — {len(lunar)}"
         )
