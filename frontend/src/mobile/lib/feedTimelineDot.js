@@ -54,6 +54,7 @@ export function dotColor(event) {
     case 'solar_event': return 'var(--accent-glow)';
     case 'planner_period':
     case 'planner_moon_house':
+    case 'house_loop':   // переход внутри ретроградной петли — цвет планеты
       return planetDotColor(meta.planet);
     default:
       return isLunarEvent(event) ? 'var(--color-warning)' : 'var(--text-secondary)';

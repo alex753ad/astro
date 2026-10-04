@@ -478,7 +478,7 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
 
     def add(kind: str, planet_key: str, planet_name: str, emoji: str,
             house: int, start_iso: str, end_iso: str, locked: bool, eng: str,
-            local: bool = False) -> None:
+            local: bool = False, period: Optional[dict] = None) -> None:
         """`local=True` — границы пришли МЕСТНЫМ временем, а не UTC.
 
         Так их отдаёт только движок проходов Луны; разбор — у
@@ -511,9 +511,32 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
                 "planet_name": planet_name,
                 "emoji": emoji,
                 "house": house,
+                # Ретроградная петля (04.10.2026): заходы в соседний дом внутри
+                # периода — по ним полоса «сейчас» берёт дом, где планета
+                # сегодня (feedNow.plannerTimeline), — и подпись к сроку.
+                "loops": [{"house": x["house"],
+                           "at": _naive_utc_to_local_iso(datetime.fromisoformat(x["start_dt"]), tz),
+                           "ends_at": _naive_utc_to_local_iso(datetime.fromisoformat(x["end_dt"]), tz)}
+                          for x in (period or {}).get("loops", [])],
+                "loop_note": (period or {}).get("loop_note", ""),
                 **payload,
             },
         })
+        # Переход внутри петли — своя карточка (решение владельца 04.10.2026):
+        # «Венера возвращается в 1 дом», «Венера снова переходит во 2 дом».
+        # Не `planner_*`: открывать нечего, у неё нет темы и рекомендаций.
+        for r in (period or {}).get("returns", []):
+            at = _naive_utc_to_local_iso(datetime.fromisoformat(r["at"]), tz)
+            if not (from_date.isoformat() <= at[:10] <= to_date.isoformat()):
+                continue
+            out.append({
+                "key": _key("l", chart_id, planet_key, house, r["at"]),
+                "kind": "house_loop",
+                "importance": IMPORTANCE_MEDIUM,
+                "at": at, "ends_at": None, "duration_days": None,
+                "locked": False, "text": r["text"], "teaser": None,
+                "meta": {"planet": planet_key, "planet_name": planet_name, "house": house},
+            })
 
     for p in periods.get("fast_planets", []):
         eng = _KEY_TO_ENG.get(p["planet_key"], "")
@@ -524,7 +547,7 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
             add("planner_period", p["planet_key"], p["planet_name"], p["emoji"], house,
                 period["start_dt"], period["end_dt"],
                 is_month_period_locked(tier, p["planet_key"], period.get("is_current", False)),
-                eng)
+                eng, period=period)
 
     # Проходы Луны по домам — недельный горизонт планера (§«Неделя в ленте»).
     #
@@ -561,7 +584,7 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
             continue
         add("planner_longterm", p["planet_key"], p["planet_name"], p["emoji"], house,
             p["start_dt"], p["end_dt"], is_longterm_locked(tier),
-            _KEY_TO_ENG.get(p["planet_key"], ""))
+            _KEY_TO_ENG.get(p["planet_key"], ""), period=p)
 
     # Ретроградные станции — точечные события планера. locked у них нет вовсе,
     # они отдаются всем тарифам как есть (см. FEED_API_RECON, раздел планера).

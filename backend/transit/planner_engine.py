@@ -240,6 +240,9 @@ def build_planner(
             locked = is_month_period_locked(tier, p["planet_key"], period.get("is_current", False))
             sections_periods.append({
                 "period": period["period"],
+                # Пояснение петли видно на любом тарифе, как и сама строка
+                # периода: это даты и дом, а не разбор.
+                "loop_note": period.get("loop_note", ""),
                 "house":  house,
                 "locked": locked,
                 **(_locked_payload() if locked else _unlocked_payload(eng, house)),
@@ -296,6 +299,7 @@ def build_planner(
             "planet_subtitle": _planet_lead(eng),
             "house":           house,
             "period":          p.get("period_label", ""),
+            "loop_note":       p.get("loop_note", ""),
             "locked":          locked,
             **(_locked_payload() if locked else _unlocked_payload(eng, house)),
         })

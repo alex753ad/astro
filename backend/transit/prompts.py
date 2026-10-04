@@ -19,7 +19,8 @@ from backend.interpretation.address import ADDRESS_RULE
 # 3 — род через прилагательные (ADDRESS_RULE), 28.09.2026.
 # 4 — краткие формы («ты склонен», «будешь успешен»), ADDRESS_RULE, 29.09.2026.
 # 5 — творительный в ADDRESS_RULE, 30.09.2026.
-TRANSIT_PROMPT_VERSION = 5
+# 6 — без времени рождения без натальной Луны, углов и домов (шаг 3), 04.10.2026.
+TRANSIT_PROMPT_VERSION = 6
 
 ASPECT_LABELS_RU = {
     "conjunction": "соединение", "sextile": "секстиль",

@@ -339,7 +339,11 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
           границы записаны полностью («16.09 Ср 19:33 – 19.09 Сб 23:47»), и в
           одну строку с заголовком это не влезает ни на одном телефоне.
           Переносится, не обрезается. */}
-      {periodRangeText && <div style={rowStyle}>{periodRangeText}</div>}
+      {/* Петля внутри периода — после срока, как на сайте (решение владельца
+          04.10.2026): «…, с 20.09 по 15.10 Венера заходит во 2 дом». */}
+      {periodRangeText && (
+        <div style={rowStyle}>{meta.loop_note ? `${periodRangeText}, ${meta.loop_note}` : periodRangeText}</div>
+      )}
 
       {/* Тема периода — вторая строка, если пришла. На free она пустая
           (сервер отдаёт `theme: ""` вместе с locked), и строки не будет. */}

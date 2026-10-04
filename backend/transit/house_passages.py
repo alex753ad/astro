@@ -320,17 +320,69 @@ def _merge_loops(periods: list[dict]) -> list[dict]:
     поэтому порогов здесь нет. Петля перекрывает соседний период (X тоже
     тянется до своего окончательного выхода) — это верно: планета в эти
     месяцы ходит туда-обратно через куспид.
+
+    У склеенного периода два списка (подписи петли, 04.10.2026):
+    `loops` — заходы в соседний дом внутри периода ({house, start_dt,
+    end_dt}), `returns` — повторные входы в сам дом ({at, from_house}).
     """
     out, used = [], set()
     for i, p in enumerate(periods):
         if i in used:
             continue
-        j = i
+        j, loops, returns = i, [], []
         while j + 2 < len(periods) and periods[j + 2]["house"] == p["house"]:
+            loops.append(dict(periods[j + 1]))
+            returns.append({"at": periods[j + 2]["start_dt"], "from_house": periods[j + 1]["house"]})
             j += 2
             used.add(j)
-        out.append({"house": p["house"], "start_dt": p["start_dt"], "end_dt": periods[j]["end_dt"]})
+        out.append({"house": p["house"], "start_dt": p["start_dt"], "end_dt": periods[j]["end_dt"],
+                    "loops": loops, "returns": returns})
     return out
+
+
+# ── Подписи петли (решение владельца 04.10.2026) ─────────────────────────────
+
+def _loop_fields(planet: str, p: dict, fmt: str, tz: str) -> dict:
+    """Поля петли у периода планера: `loops` (заходы в соседний дом — ISO,
+    наивный UTC, как start_dt/end_dt), `loop_note` (подпись к строке периода),
+    `returns` (повторные входы в дом с текстом — карточки ленты)."""
+    return {
+        "loops": [{"house": x["house"], "start_dt": x["start_dt"].isoformat(),
+                   "end_dt": x["end_dt"].isoformat()} for x in p.get("loops", [])],
+        "loop_note": loop_note(planet, p["house"], p.get("loops", []), fmt, tz),
+        "returns": [{"at": r["at"].isoformat(), "text": return_text(planet, p["house"], r["from_house"])}
+                    for r in p.get("returns", [])],
+    }
+
+
+def _vo(house: int) -> str:
+    """«во 2 дом» — «во второй», остальные «в»."""
+    return "во" if house == 2 else "в"
+
+
+def _forward(into: int, frm: int) -> bool:
+    return into == frm % 12 + 1
+
+
+def loop_note(planet: str, house: int, loops: list[dict], fmt: str, tz: str) -> str:
+    """«с 20.09 по 15.10 Венера заходит во 2 дом» — пояснение к периоду
+    `house`, внутри которого планета уходит петлёй в соседний дом. `fmt` —
+    формат дат, как у строки периода (%d.%m у месячных, %d.%m.%Y у долгих)."""
+    name = PLANET_NAMES_RU[planet][0]
+    parts = []
+    for lp in loops:
+        verb = "заходит" if _forward(lp["house"], house) else "возвращается"
+        parts.append(f"с {_local(lp['start_dt'], tz):{fmt}} по {_local(lp['end_dt'], tz):{fmt}} "
+                     f"{name} {verb} {_vo(lp['house'])} {lp['house']} дом")
+    return "; ".join(parts)
+
+
+def return_text(planet: str, house: int, from_house: int) -> str:
+    """Повторный вход в дом внутри петли: «Венера возвращается в 1 дом»
+    (назад) или «Венера снова переходит во 2 дом» (вперёд)."""
+    name = PLANET_NAMES_RU[planet][0]
+    verb = "снова переходит" if _forward(house, from_house) else "возвращается"
+    return f"{name} {verb} {_vo(house)} {house} дом"
 
 
 def house_periods(planet: str, cusps: list[float], from_dt: datetime, to_dt: datetime,
@@ -355,19 +407,25 @@ def house_periods(planet: str, cusps: list[float], from_dt: datetime, to_dt: dat
     return [p for p in _merge_loops(raw) if p["end_dt"] >= from_dt and p["start_dt"] <= to_dt]
 
 
+def house_crossings(planet: str, cusps: list[float], from_dt: datetime, to_dt: datetime,
+                    step_hours: Optional[int] = None) -> list[dict]:
+    """Все входы в дом в [from_dt, to_dt]: {house, start_dt, from_house,
+    reentry}. `reentry` — возврат ретроградной петлёй (продолжение прежнего
+    периода, а не новый). Дёшево — без досчёта краёв."""
+    pid = PLANETS[planet]
+    loop = timedelta(days=LOOP_DAYS.get(planet, 0))
+    raw = calculate_house_passages(planet, cusps, from_dt, to_dt, step_hours=step_hours)
+    return [{"house": p["house"], "start_dt": p["start_dt"], "from_house": prev["house"],
+             "reentry": bool(loop and _seen_within(pid, cusps, p["start_dt"], p["house"], -loop))}
+            for prev, p in zip(raw, raw[1:])]
+
+
 def period_starts(planet: str, cusps: list[float], from_dt: datetime, to_dt: datetime,
                   step_hours: Optional[int] = None) -> list[dict]:
     """Начала НОВЫХ периодов в [from_dt, to_dt]: вход в дом, кроме возврата
-    ретроградной петлёй. Дёшево — без досчёта краёв (пуши, «Ближайшие 30
-    дней»): нужны только входы внутри окна. → [{"house", "start_dt"}]."""
-    pid = PLANETS[planet]
-    loop = timedelta(days=LOOP_DAYS.get(planet, 0))
-    out = []
-    for p in calculate_house_passages(planet, cusps, from_dt, to_dt, step_hours=step_hours)[1:]:
-        if loop and _seen_within(pid, cusps, p["start_dt"], p["house"], -loop):
-            continue  # возврат петлёй — продолжение прежнего периода
-        out.append({"house": p["house"], "start_dt": p["start_dt"]})
-    return out
+    ретроградной петлёй (пуши, «Ближайшие 30 дней»). → [{"house", "start_dt"}]."""
+    return [{"house": c["house"], "start_dt": c["start_dt"]}
+            for c in house_crossings(planet, cusps, from_dt, to_dt, step_hours) if not c["reentry"]]
 
 
 def _fmt_date_short(dt: datetime, ref_year: int = None) -> str:
@@ -472,8 +530,9 @@ def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS
     От тарифа не зависит: дата перехода и номер дома видны и на бесплатном
     (текст периода закрыт отдельно, в build_planner).
 
-    Элементы: {"date": "ГГГГ-ММ-ДД", "kind": "passage"|"station",
-    "planet", "planet_name", "house", "until"} у перехода и
+    Элементы: {"date": "ГГГГ-ММ-ДД", "kind": "passage"|"station"|"loop",
+    "planet", "planet_name", "house", "until", "loops"} у перехода,
+    {..., "direction": "back"|"again"} у перехода внутри петли и
     {..., "status": "start"|"end"} у станции.
     """
     cusps = _extract_cusps(natal_profile)
@@ -488,8 +547,22 @@ def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS
         name_ru, key, _emoji = PLANET_NAMES_RU[planet]
         # Только НОВЫЕ периоды: край окна — не вход, возврат петлёй — тоже.
         # «До» — окончательный выход (шаг 2б), а не выход до петли.
-        for p in period_starts(planet, cusps, start, end, step_hours=72 if slow else None):
+        for p in house_crossings(planet, cusps, start, end, step_hours=72 if slow else None):
+            if p["reentry"]:
+                # Переход внутри петли — своя строка (решение владельца
+                # 04.10.2026): «возвращается в 1 дом» / «снова переходит во 2 дом».
+                out.append({
+                    "date": _local(p["start_dt"], tz).date().isoformat(),
+                    "kind": "loop", "planet": key, "planet_name": name_ru, "house": p["house"],
+                    "direction": "again" if _forward(p["house"], p["from_house"]) else "back",
+                })
+                continue
             until = _final_exit(planet, cusps, p["start_dt"], p["house"]) - timedelta(minutes=1)
+            # Заходы петлёй внутри нового периода — для «…с 15 октября по 12
+            # декабря возвращается в 1 дом, окончательно уходит 12 января».
+            loops = [x for x in calculate_house_passages(planet, cusps, p["start_dt"], until,
+                                                         step_hours=72 if slow else None)
+                     if x["house"] != p["house"]]
             out.append({
                 "date": _local(p["start_dt"], tz).date().isoformat(),
                 "kind": "passage",
@@ -497,6 +570,11 @@ def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS
                 "planet_name": name_ru,
                 "house": p["house"],
                 "until": _local(until, tz).date().isoformat(),
+                "loops": [{"house": x["house"],
+                           "from": _local(x["start_dt"], tz).date().isoformat(),
+                           "to": _local(x["end_dt"], tz).date().isoformat(),
+                           "direction": "in" if _forward(x["house"], p["house"]) else "back"}
+                          for x in loops],
             })
     for r in compute_retrograde_stations(today, today + timedelta(days=days), tz):
         out.append({
@@ -698,6 +776,7 @@ def compute_planner_periods(
                     # появления не меняется ни на байт.
                     "start_dt": p["start_dt"].isoformat(),
                     "end_dt":   p["end_dt"].isoformat(),
+                    **_loop_fields(planet, p, "%d.%m", tz),
                 }
                 for p in passages
             ],
@@ -781,6 +860,7 @@ def compute_planner_periods(
             # См. комментарий у fast_planets выше — настоящие границы для ленты.
             "start_dt": main["start_dt"].isoformat(),
             "end_dt":   main["end_dt"].isoformat(),
+            **_loop_fields(planet, main, "%d.%m.%Y", tz),
         })
 
     return {

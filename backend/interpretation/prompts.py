@@ -25,7 +25,8 @@ from backend.interpretation.address import ADDRESS_RULE
 # 3 — род через прилагательные («видят тебя уверенной»), ADDRESS_RULE, 28.09.2026.
 # 4 — краткие формы («ты склонен», «будешь успешен»), ADDRESS_RULE, 29.09.2026.
 # 5 — творительный в ADDRESS_RULE, «трин», «работа с энергиями», 30.09.2026.
-INTERPRETATION_PROMPT_VERSION = 5
+# 6 — без времени рождения в данных нет домов, ASC и MC (шаг 3 аудита), 04.10.2026.
+INTERPRETATION_PROMPT_VERSION = 6
 
 
 def resolve_word_limit(request: InterpretationRequest) -> int:
@@ -261,9 +262,7 @@ def _compact_profile(profile: dict) -> dict:
     """Remove unnecessary precision from profile for shorter prompt.
 
     Без времени рождения — без домов, ASC, MC и аспектов к углам (шаг 3
-    аудита): они посчитаны на полдень. ⚠️ INTERPRETATION_PROMPT_VERSION
-    намеренно НЕ поднята: это перегенерировало бы разборы всех карт; готовые
-    разборы карт без времени не трогаем (решение владельца 04.10.2026).
+    аудита): они посчитаны на полдень. Версия промпта — 6.
     """
     if profile.get("time_unknown"):
         angles = {"Ascendant", "Midheaven", "ASC", "MC"}

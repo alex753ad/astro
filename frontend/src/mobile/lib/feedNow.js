@@ -126,11 +126,14 @@ export function longtermChips(events) {
  */
 export function plannerTimeline(events, nowMs = Date.now()) {
   const all = events || [];
-  const covers = (e) => {
-    const from = Date.parse(e.at);
-    const to = Date.parse(e.ends_at || '');
-    return Number.isFinite(from) && Number.isFinite(to) && from <= nowMs && nowMs <= to;
-  };
+  const within = (from, to) => Number.isFinite(from) && Number.isFinite(to) && from <= nowMs && nowMs <= to;
+  // ⚠️ В ретроградной петле два периода планеты перекрываются (Венера во
+  // 2 доме 20.09–12.01 и в 1 доме 12.08–12.12). Полоса показывает дом, где
+  // планета СЕГОДНЯ: период не считается текущим, пока она в заходе петли
+  // (`meta.loops`). До 04.10.2026 бралась первая по началу запись — «1 дом»
+  // и тогда, когда Венера уже стояла во 2-м.
+  const covers = (e) => within(Date.parse(e.at), Date.parse(e.ends_at || ''))
+    && !(e.meta?.loops || []).some((l) => within(Date.parse(l.at), Date.parse(l.ends_at)));
 
   const byPlanet = new Map();
   for (const e of all) {
