@@ -311,7 +311,7 @@ def build_planner(
         "retrogrades":    periods.get("retrogrades", []),
         # «Ближайшие 30 дней» — окно от сегодня, от месяца не зависит;
         # считается только для текущего месяца (with_upcoming).
-        "upcoming":       compute_upcoming(natal_profile, today) if with_upcoming else [],
+        "upcoming":       compute_upcoming(natal_profile, today, user_timezone=user_timezone) if with_upcoming else [],
     }
 
 

@@ -55,7 +55,7 @@ from backend.schemas import (
     TransitResponse,
 )
 from backend.models import NatalChart
-from backend.time_utils import valid_timezone
+from backend.time_utils import local_today, user_tz
 from backend.ephemeris.calculator import calculate_full_chart
 from backend.ephemeris.geo import (
     geocode_place,
@@ -1351,7 +1351,10 @@ async def get_transits(
     # даже будучи подключённой — но подключать её всё равно не следует: её
     # смысл «тариф без транзитов», а такого тарифа в сетке нет.)
     _tier = user.tier if user else "free"
-    _win_from, _win_to = transits_date_window(_tier, date_type.today())
+    # «Сегодня» — местное (user_tz), как у таймлайна; запас в сутки внутри
+    # transits_date_window остаётся — пояс браузера может отличаться от
+    # сохранённого пояса устройства.
+    _win_from, _win_to = transits_date_window(_tier, local_today(user_tz(None, user, chart)))
     if from_dt < _win_from or to_dt > _win_to:
         raise HTTPException(
             status_code=403,
@@ -1894,18 +1897,10 @@ async def get_monthly_planner(
             ),
         )
 
-    # today и время проходов — в поясе браузера/телефона (`tz`), пояс карты —
-    # только запасной (решение владельца 24.09.2026).
-    _tz = valid_timezone(tz) or getattr(chart, "timezone", None)
-    if _tz:
-        try:
-            import pytz as _pytz
-            from datetime import datetime as _dt
-            today = _dt.now(_pytz.timezone(_tz)).date()
-        except Exception:
-            today = date_type.today()
-    else:
-        today = date_type.today()
+    # today и время проходов — в поясе человека (time_utils.user_tz: tz
+    # запроса → устройство → карта → Москва; шаг 2 аудита, 04.10.2026).
+    _tz = user_tz(tz, user, chart)
+    today = local_today(_tz)
 
     # Сдвигаем на month_offset месяцев
     target_year = today.year + (today.month - 1 + month_offset) // 12

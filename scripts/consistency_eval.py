@@ -216,8 +216,10 @@ def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: 
     from backend.interpretation.rag import build_transits_block
 
     planets = chat_chart["planets"]
-    for d in days:
-        for it in parse_chat_block(build_transits_block(chat_chart, 5, d, chart_id)):
+    # Блок чата — в поясе человека (rag_router передаёт user_tz), поэтому на
+    # каждый пояс свой.
+    for d, tz in ((d, tz) for d in days for tz in tzs):
+        for it in parse_chat_block(build_transits_block(chat_chart, 5, d, chart_id, tz)):
             if it["exact"] is None:
                 continue  # чат честно без даты — сравнивать нечего
             key = (it["transit"], it["natal"], it["aspect"])
@@ -228,15 +230,14 @@ def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: 
                 near += [e for e in _transit_chunk(chart_id, planets, y, m)
                          if (e["transit_planet"], e["natal_planet"], e["aspect_type"]) == key]
             best = min(near, key=lambda e: abs(date.fromisoformat(e["peak_date"]) - it["exact"]), default=None)
-            for tz in tzs:
-                if best is None:
-                    ch.ok(False, f"{d} {tz}: чат {key} точный {it['exact']} — в ленте события нет")
-                    continue
-                at = (datetime.fromisoformat(best["exact_date"]) if best.get("exact_date")
-                      else datetime.combine(date.fromisoformat(best["peak_date"]), time(12)))
-                shown = _naive_utc_to_local_iso(at, _tz(tz))[:10]
-                ch.ok(shown == it["exact"].isoformat(),
-                      f"{d} {tz}: {key} — чат {it['exact']}, лента {shown}")
+            if best is None:
+                ch.ok(False, f"{d} {tz}: чат {key} точный {it['exact']} — в ленте события нет")
+                continue
+            at = (datetime.fromisoformat(best["exact_date"]) if best.get("exact_date")
+                  else datetime.combine(date.fromisoformat(best["peak_date"]), time(12)))
+            shown = _naive_utc_to_local_iso(at, _tz(tz))[:10]
+            ch.ok(shown == it["exact"].isoformat(),
+                  f"{d} {tz}: {key} — чат {it['exact']}, лента {shown}")
 
 
 def _period_ends(s: str) -> tuple[str, str]:
@@ -352,7 +353,7 @@ def check_c6(ch: Check, profile: dict, feed: list[dict], start: date, end: date,
         "лента": {(e["meta"]["planet"], e["meta"]["status"], _dt(e["at"]).date())
                   for e in feed if e["kind"] == "retrograde"},
         "«Ближайшие 30 дней»": {(u["planet"], u["status"], date.fromisoformat(u["date"]))
-                                for u in compute_upcoming(profile, start) if u["kind"] == "station"},
+                                for u in compute_upcoming(profile, start, user_timezone=tz) if u["kind"] == "station"},
     }
     for planet, status, d in sorted(truth, key=lambda x: x[2]):
         for name, got in sources.items():
@@ -373,11 +374,9 @@ def _frozen(instant: datetime):
 def check_c7(ch: Check, chart, user, d0: date, tzs: list[str]) -> None:
     import pytz
     import backend.pdf_reports.build as pdf_build
+    import backend.time_utils as tu
     import backend.transit.planner_engine as pe
-    from backend.forecast.facts import resolve_tz
-    from backend.interpretation.rag_router import chat_timezone
-    from backend.push.cron import user_timezone
-    from backend.time_utils import valid_timezone
+    from backend.time_utils import user_tz
 
     for tz in tzs:
         for hm in (time(0, 30), time(23, 30)):
@@ -385,19 +384,19 @@ def check_c7(ch: Check, chart, user, d0: date, tzs: list[str]) -> None:
             frozen = _frozen(instant)
             c = types.SimpleNamespace(**{**chart.__dict__, "timezone": "Europe/Moscow"})
             u = types.SimpleNamespace(**{**user.__dict__, "device_timezone": tz})
-            with mock.patch.object(pe, "datetime", frozen), mock.patch.object(pdf_build, "datetime", frozen):
+            # Выражения ручек — с 04.10.2026 все через time_utils.user_tz.
+            with mock.patch.object(pe, "datetime", frozen), mock.patch.object(tu, "datetime", frozen):
                 got = {
-                    "лента, планер (feed/router.py, main.py planner)": pe.now_local(valid_timezone(tz)).date(),
-                    # forecast/router.py:169 — выражение ручки
-                    "прогноз дня": instant.astimezone(resolve_tz(tz, c.timezone)).date(),
-                    # push/cron.py:1016 — выражение _process_user
-                    "пуши, «Неделя вперёд»": instant.astimezone(pytz.timezone(user_timezone(u, c))).date(),
-                    "чат (rag_router.py:1054)": pe.now_local(chat_timezone(tz, u, c)).date(),
-                    "PDF (today_msk)": pdf_build.today_msk(),
-                    # date.today() на сервере в UTC: main.get_lunar_calendar,
-                    # /transits, send_weekly_digest, check_and_send_transit_alerts,
-                    # build_transits_block без параметра
-                    "лунный календарь, письма, /transits (date.today)": instant.date(),
+                    "лента, планер (feed/router.py, main.py planner)": pe.now_local(user_tz(tz, u, c)).date(),
+                    "прогноз дня (forecast/router.py)": instant.astimezone(ZoneInfo(user_tz(tz, u, c))).date(),
+                    "пуши, «Неделя вперёд» (push/cron._process_user)":
+                        instant.astimezone(pytz.timezone(user_tz(None, u, c))).date(),
+                    "чат (rag_router.rag_chat)": pe.now_local(user_tz(tz, u, c)).date(),
+                    "PDF (build.today_for)": pdf_build.today_for(u, c),
+                    "письма, /transits (local_today)": tu.local_today(user_tz(None, u, c)),
+                    # Шаг 6 аудита, не этот: /calendar/lunar по умолчанию берёт
+                    # date.today() сервера (UTC), сетка — GMT+3.
+                    "лунный календарь (date.today, шаг 6)": instant.date(),
                 }
             for name, day in got.items():
                 ch.ok(day == d0, f"{tz} {hm:%H:%M}: {name} — {day}")

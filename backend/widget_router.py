@@ -9,9 +9,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 
-import pytz
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -34,8 +32,8 @@ async def get_days(user: User = Depends(get_current_user), db: Session = Depends
     if not chart:
         return {"days": [], "first_week": False}
     from backend import first_week
-    from backend.push.cron import user_timezone
-    today = datetime.now(pytz.timezone(user_timezone(user, chart))).date()
+    from backend.time_utils import local_today, user_tz
+    today = local_today(user_tz(None, user, chart))
     # Идёт первая неделя (флаг first_week) — её роль играет день 3, карточку
     # «Добавь виджет» в ленте приложение не показывает (widgetPin.js).
     in_week = flag_on(db, first_week.FLAG, user) and first_week.day_number(user, chart, today) is not None

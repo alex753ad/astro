@@ -591,7 +591,8 @@ async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], 
     if not unsub_url:
         return  # отписка от писем (068)
 
-    today = date.today()
+    from backend.time_utils import local_today, user_tz
+    today = local_today(user_tz(None, user))   # местное «сегодня», не UTC сервера
 
     for t in new_transits:
         if t.transit_planet not in ALERT_PLANETS:

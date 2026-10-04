@@ -27,23 +27,6 @@ LUNATION_WARNING_DAYS = 7
 _WARNING_PLANETS = ["Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
 
 
-def resolve_tz(tz_name: str | None, chart_tz: str | None) -> ZoneInfo:
-    """Пояс телефона, если он пришёл и настоящий; иначе пояс карты; иначе UTC.
-
-    Граница дня по поясу ТЕЛЕФОНА (решение владельца 23.09.2026): человек,
-    родившийся в Москве и живущий в Новосибирске, открывает «сегодня» по
-    своим часам. Уведомления на это ещё не переведены — TASKS.md.
-    """
-    for name in (tz_name, chart_tz):
-        if not name:
-            continue
-        try:
-            return ZoneInfo(name)
-        except Exception:
-            continue
-    return ZoneInfo("UTC")
-
-
 def _natal_targets(chart) -> list[dict]:
     planets = chart.planets or []
     if chart.time_unknown:

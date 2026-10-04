@@ -29,11 +29,10 @@ import asyncio
 import logging
 import os
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-from backend.time_utils import utcnow
+from backend.time_utils import local_today, user_tz, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +47,9 @@ def pdf_dir() -> Path:
     return Path(get_settings().pdf_dir)
 
 
-def today_msk() -> date:
-    return datetime.now(ZoneInfo("Europe/Moscow")).date()
+def today_for(user, chart) -> date:
+    """«Сегодня» отчёта — местное (user_tz). До 04.10.2026 — всегда по Москве."""
+    return local_today(user_tz(None, user, chart))
 
 
 def _expire_stale(db, user_id: str) -> None:
@@ -79,7 +79,7 @@ def start(db, user, chart, wheel_png: str | None):
 
     tier = user.tier or "free"
     interp = sections.pick_interpretation(db, chart.id, tier)
-    fp = sections.fingerprint(interp.id if interp else None, tier, today_msk())
+    fp = sections.fingerprint(interp.id if interp else None, tier, today_for(user, chart))
     if fp:
         same = (db.query(PdfReport)
                 .filter(PdfReport.user_id == user.id, PdfReport.chart_id == chart.id,
@@ -116,7 +116,7 @@ async def _build(db, report, wheel_png: str | None) -> None:
     user = db.get(User, report.user_id)
     tier = report.tier
     plan = sections.plan_for(tier)
-    today = today_msk()
+    today = today_for(user, chart)
     cost = 0.0
 
     # Тексты пишутся одновременно: разбор Лиры один идёт 1,5–2 минуты, и
@@ -153,7 +153,7 @@ async def _build(db, report, wheel_png: str | None) -> None:
         cost += c
     if plan.longterm:
         _step(db, report, 85, "Долгосрочные периоды")
-        rep.longterm = await asyncio.to_thread(sections.longterm_section, chart, today)
+        rep.longterm = await asyncio.to_thread(sections.longterm_section, chart, today, user_tz(None, user, chart))
 
     _step(db, report, 90, "Собираем файл")
     astrologer = None

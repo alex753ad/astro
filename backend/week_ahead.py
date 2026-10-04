@@ -41,8 +41,9 @@ _WEEKDAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
 
 def _ctx(user: User, chart):
-    from backend.push.cron import _daily_time_of, _quiet_from_of, user_timezone
-    return user_timezone(user, chart), _daily_time_of(user), _quiet_from_of(user)
+    from backend.push.cron import _daily_time_of, _quiet_from_of
+    from backend.time_utils import user_tz
+    return user_tz(None, user, chart), _daily_time_of(user), _quiet_from_of(user)
 
 
 def in_first_week(db: Session, user: User, chart, sunday: date) -> bool:

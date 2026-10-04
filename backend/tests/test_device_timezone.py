@@ -12,7 +12,7 @@ from datetime import datetime
 
 import pytest
 
-from backend.push.cron import user_timezone
+from backend.time_utils import user_tz
 from backend.tests.test_push_upcoming import chart  # noqa: F401 — фикстура
 
 
@@ -22,13 +22,13 @@ class TestOrder:
 
     def test_request_beats_stored_beats_chart(self):
         ch = types.SimpleNamespace(timezone="Europe/Moscow")
-        assert user_timezone(self._u("Asia/Novosibirsk"), ch, "Asia/Tokyo") == "Asia/Tokyo"
-        assert user_timezone(self._u("Asia/Novosibirsk"), ch) == "Asia/Novosibirsk"
-        assert user_timezone(self._u(), ch) == "Europe/Moscow"
+        assert user_tz("Asia/Tokyo", self._u("Asia/Novosibirsk"), ch) == "Asia/Tokyo"
+        assert user_tz(None, self._u("Asia/Novosibirsk"), ch) == "Asia/Novosibirsk"
+        assert user_tz(None, self._u(), ch) == "Europe/Moscow"
 
     def test_garbage_falls_back(self):
         ch = types.SimpleNamespace(timezone="Europe/Moscow")
-        assert user_timezone(self._u("Mars/Olympus"), ch, "не пояс") == "Europe/Moscow"
+        assert user_tz("не пояс", self._u("Mars/Olympus"), ch) == "Europe/Moscow"
 
 
 class TestSettings:
