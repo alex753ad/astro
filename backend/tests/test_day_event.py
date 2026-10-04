@@ -240,3 +240,66 @@ class TestReturn:
         ev = week_top(chart, date(2026, 9, 10), "Europe/Moscow", "08:00", "22:00")
         assert ev is None or ev.score >= RETURN_MIN_SCORE
         assert len(RETURN_TEXT) <= 60
+
+
+# ── Углы карты: ASC/MC — не куспиды 1 и 10 (04.10.2026) ──
+# У «равных домов» куспид 10 ≠ MC, у «целых знаков» куспиды 1 и 10 — начала
+# знаков. Карта вымышленная, координаты заданы — без геокодера.
+_SYSTEMS = ("placidus", "equal", "whole_sign")
+
+
+def _angle_chart(system: str):
+    import types
+    from backend.ephemeris.calculator import calculate_full_chart
+    full, _ = calculate_full_chart(datetime(1991, 3, 8, 3, 40), 55.75, 37.62, house_system=system)
+    return types.SimpleNamespace(
+        id=f"angles-{system}", time_unknown=False, timezone="Europe/Moscow",
+        planets=[{"name": p.name, "longitude": p.longitude, "sign": p.sign} for p in full.planets],
+        houses=[{"number": h.number, "degree": h.degree, "sign": h.sign} for h in full.houses],
+        ascendant={"longitude": full.ascendant.longitude}, midheaven={"longitude": full.midheaven.longitude},
+    )
+
+
+def _sep(a: float, b: float) -> float:
+    return abs((a - b + 180) % 360 - 180)
+
+
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_angles_are_chart_angles_not_cusps(system):
+    from backend.day_event import _targets
+    c = _angle_chart(system)
+    t = {p["name"]: p["longitude"] for p in _targets(c)}
+    assert t["Ascendant"] == c.ascendant["longitude"]
+    assert t["Midheaven"] == c.midheaven["longitude"]
+
+
+def test_fixture_cusps_differ_from_angles():
+    """Без этого тест ниже прошёл бы и на старом коде: у этих систем куспид
+    обязан отличаться от угла."""
+    eq, ws = _angle_chart("equal"), _angle_chart("whole_sign")
+    assert _sep(eq.houses[9]["degree"], eq.midheaven["longitude"]) > 1
+    assert _sep(ws.houses[0]["degree"], ws.ascendant["longitude"]) > 1
+    assert _sep(ws.houses[9]["degree"], ws.midheaven["longitude"]) > 1
+
+
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_touch_is_to_the_angle(system):
+    """Касание к ASC/MC в точный момент — к углу карты (орб ≈ 0), где бы ни
+    стоял куспид."""
+    from zoneinfo import ZoneInfo
+    from backend.day_event import _candidates
+    from backend.ephemeris.aspects import ASPECTS
+    from backend.ephemeris.calculator import PLANETS, _calc_planet_position, _datetime_to_jd
+
+    c = _angle_chart(system)
+    angles = {"Ascendant": c.ascendant["longitude"], "Midheaven": c.midheaven["longitude"]}
+    seen = set()
+    for i in range(4):
+        for ev in _candidates(c, date(2026, 10, 1) + timedelta(days=i), ZoneInfo("Europe/Moscow")):
+            if ev.natal not in angles:
+                continue
+            at = ev.at_local.astimezone(timezone.utc).replace(tzinfo=None)
+            lon = _calc_planet_position(PLANETS[ev.transit], round(_datetime_to_jd(at), 6))[0]
+            assert abs(_sep(lon, angles[ev.natal]) - ASPECTS[ev.aspect]) < 0.1, (system, ev)
+            seen.add(ev.natal)
+    assert seen == set(angles), f"{system}: за 4 дня нет касаний к углам — тест ничего не проверил"

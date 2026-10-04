@@ -294,12 +294,16 @@ def _targets(chart) -> list[dict]:
         if p.get("name") in NATAL_PLANETS and p.get("longitude") is not None
         and not (chart.time_unknown and p["name"] == "Moon")
     ]
+    # ⚠️ Углы — из chart.ascendant / chart.midheaven, а не куспиды 1 и 10. У
+    # Плацидуса и Коха это одно и то же, а у «равных домов» куспид 10 — не MC,
+    # у «целых знаков» куспиды 1 и 10 — начала знаков, не ASC и MC (до
+    # 04.10.2026 касание к MC там считалось к другой точке, расхождение до
+    # десятков градусов — проверка cA прогона согласованности).
     if not chart.time_unknown:
-        from backend.transit.house_passages import _extract_cusps
-        cusps = _extract_cusps({"houses": chart.houses})
-        if not all(c == 0.0 for c in cusps):
-            out += [{"name": "Ascendant", "longitude": cusps[0], "sign": ""},
-                    {"name": "Midheaven", "longitude": cusps[9], "sign": ""}]
+        for name, point in (("Ascendant", chart.ascendant), ("Midheaven", chart.midheaven)):
+            lon = (point or {}).get("longitude")
+            if lon is not None:
+                out.append({"name": name, "longitude": lon, "sign": ""})
     return out
 
 
