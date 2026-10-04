@@ -252,11 +252,14 @@ MAJOR = ("conjunction", "opposition", "square", "trine", "sextile")
 _SKIP = ("North Node", "South Node")
 
 
-def top_aspects(aspects, n: int) -> list[dict]:
-    """n самых точных мажорных аспектов между планетами (без узлов)."""
+def top_aspects(aspects, n: int, time_unknown: bool = False) -> list[dict]:
+    """n самых точных мажорных аспектов между планетами (без узлов; без
+    времени рождения — и без Луны, ASC, MC: chart_points, шаг 3 аудита)."""
+    from backend.chart_points import UNKNOWN_TIME_HIDDEN
+    skip = set(_SKIP) | (UNKNOWN_TIME_HIDDEN if time_unknown else set())
     items = [
         a for a in (aspects or [])
-        if a.get("aspect_type") in MAJOR and a.get("planet1") not in _SKIP and a.get("planet2") not in _SKIP
+        if a.get("aspect_type") in MAJOR and a.get("planet1") not in skip and a.get("planet2") not in skip
     ]
     return sorted(items, key=lambda a: float(a.get("orb") or 0))[:n]
 
@@ -287,11 +290,11 @@ async def aspect_section(db, chart, tier: str) -> tuple[list[dict], float]:
     n = plan_for(tier).aspects
     if not n:
         return [], 0.0
-    key = aspects_key(tier)
+    key = aspects_key(tier) + _nt(chart)
     cached = cache_get(db, chart.id, key)
     if cached:
         return cached, 0.0
-    items = top_aspects(chart.aspects, n)
+    items = top_aspects(chart.aspects, n, bool(chart.time_unknown))
     if not items:
         return [], 0.0
     texts, cost = await _numbered_texts(chart, tier, aspects_prompt(chart, items), len(items), "pdf_aspects")
@@ -420,12 +423,13 @@ async def transit_section(db, chart, tier: str, today: date) -> tuple[list[dict]
     plan = plan_for(tier)
     if not plan.transits:
         return [], 0.0
-    key = transits_key(tier, today)
+    key = transits_key(tier, today) + _nt(chart)
     cached = cache_get(db, chart.id, key)
     if cached:
         return cached, 0.0
     import asyncio
-    items = await asyncio.to_thread(main_transits, chart.planets, today, plan.transit_months, plan.transits)
+    from backend.chart_points import planets as natal_planets
+    items = await asyncio.to_thread(main_transits, natal_planets(chart), today, plan.transit_months, plan.transits)
     if items:
         texts, cost = await _numbered_texts(
             chart, tier, transits_prompt(chart, items, plan.transit_months), len(items), "pdf_transits")
@@ -440,7 +444,11 @@ async def transit_section(db, chart, tier: str, today: date) -> tuple[list[dict]
 # ── Долгосрочные периоды — готовые тексты планера ──────────
 
 def longterm_section(chart, today: date, tz: str | None = None) -> list[dict]:
-    """`tz` — пояс человека (user_tz): границы периодов — местные даты."""
+    """`tz` — пояс человека (user_tz): границы периодов — местные даты.
+    Без времени рождения раздела нет: домов нет (chart_points, шаг 3 аудита;
+    до 04.10.2026 периоды шли по полуденным домам)."""
+    if chart.time_unknown:
+        return []
     from backend.time_utils import utc_naive_to_local
     from backend.transit.house_passages import compute_planner_periods
     from backend.transit.planner_engine import _KEY_TO_ENG, _planet_lead, _unlocked_payload
@@ -468,11 +476,19 @@ def longterm_section(chart, today: date, tz: str | None = None) -> list[dict]:
 
 # ── Отпечаток ──────────────────────────────────────────────
 
-def fingerprint(interp_id: str | None, tier: str, today: date) -> str | None:
+def _nt(chart) -> str:
+    """Метка ключей у карты без времени рождения (шаг 3, 04.10.2026): их
+    прежние тексты брали натальную Луну, ASC и дома. Только у них — общая
+    версия перегенерировала бы платные тексты всех карт."""
+    return ":nt" if getattr(chart, "time_unknown", False) else ""
+
+
+def fingerprint(interp_id: str | None, tier: str, today: date, chart=None) -> str | None:
     """Из чего собран отчёт. None — разбора под тариф нет, отчёт новый."""
     if not interp_id:
         return None
-    parts = [f"i:{interp_id}", aspects_key(tier), transits_key(tier, today)]
+    nt = _nt(chart) if chart is not None else ""
+    parts = [f"i:{interp_id}"] + [k + nt for k in (aspects_key(tier), transits_key(tier, today)) if k]
     if plan_for(tier).longterm:
         # l2 (04.10.2026, шаг 2б): границы периодов — настоящие, а не край окна.
         parts.append(f"l2:{today:%Y-%m}")

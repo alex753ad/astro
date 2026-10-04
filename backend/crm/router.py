@@ -17,6 +17,8 @@ import asyncio
 import json
 import hashlib
 import logging
+
+from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 import secrets
 import os
 from datetime import date, datetime, timedelta
@@ -694,7 +696,7 @@ async def generate_brief(
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
     events = await asyncio.to_thread(
         calculate_transits,
-        natal_planets=chart.planets,
+        natal_planets=_chart_points.planets(chart),
         from_date=today,
         to_date=today + timedelta(days=30),
     )
@@ -1014,7 +1016,7 @@ async def get_client_transits(
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
     events = await asyncio.to_thread(
         calculate_transits,
-        natal_planets=chart.planets,
+        natal_planets=_chart_points.planets(chart),
         from_date=from_date,
         to_date=to_date,
     )

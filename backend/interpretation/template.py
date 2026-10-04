@@ -101,7 +101,8 @@ class TemplateEngine(InterpretationEngine):
             parts.append("### Общий портрет личности\n")
             sun = planets.get("Sun", {})
             moon = planets.get("Moon", {})
-            asc = profile.get("ascendant", {})
+            # Без времени рождения Асцендента нет (шаг 3 аудита).
+            asc = {} if profile.get("time_unknown") else profile.get("ascendant", {})
 
             if sun.get("sign") and sun["sign"] in SUN_IN_SIGN:
                 parts.append(SUN_IN_SIGN[sun["sign"]])

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+
+from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 from backend.time_utils import utcnow
 
 from backend.celery_app import celery_app
@@ -205,6 +207,10 @@ def check_lunar_returns() -> dict:
             chart = _get_primary_chart(db, user)
             if not chart or not chart.planets:
                 continue
+            # Без времени рождения натальной Луны нет (до ±6°, chart_points,
+            # шаг 3 аудита) — и «возврата» к ней тоже: письмо не уходит.
+            if chart.time_unknown:
+                continue
             try:
                 natal_data = {"planets": chart.planets}
                 lunar_date = get_next_lunar_return(natal_data, today)
@@ -360,7 +366,7 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
 
             try:
                 events = calculate_transits(
-                    natal_planets=chart.planets,
+                    natal_planets=_chart_points.planets(chart),
                     from_date=today,
                     to_date=today + timedelta(days=30),
                 )

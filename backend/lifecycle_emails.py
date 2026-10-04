@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+
+from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Awaitable, Callable
@@ -261,7 +263,7 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
             today = local_today(user_tz(None, user, chart), now.replace(tzinfo=timezone.utc))
             horizon = 7 if kind == "retention_day2" else 30
             events = calculate_transits(
-                natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=horizon),
+                natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=horizon),
             )
             if kind == "retention_day2":
                 event = _pick_best_transit(events)

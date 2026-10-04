@@ -28,18 +28,13 @@ _WARNING_PLANETS = ["Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Ura
 
 
 def _natal_targets(chart) -> list[dict]:
-    planets = chart.planets or []
-    if chart.time_unknown:
-        return [p for p in planets if p.get("name") != "Moon"]
-    return list(planets)
+    from backend.chart_points import planets
+    return planets(chart)
 
 
 def _cusps(chart) -> list[float] | None:
-    if chart.time_unknown:
-        return None
-    from backend.transit.house_passages import _extract_cusps
-    cusps = _extract_cusps({"houses": chart.houses})
-    return None if all(c == 0.0 for c in cusps) else cusps
+    from backend.chart_points import cusps
+    return cusps(chart)
 
 
 def _utc_naive(dt_local: datetime) -> datetime:

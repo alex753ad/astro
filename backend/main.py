@@ -56,6 +56,7 @@ from backend.schemas import (
 )
 from backend.models import NatalChart
 from backend.time_utils import local_today, user_tz
+from backend.chart_points import UNKNOWN_TIME_HIDDEN, planets as natal_planets
 from backend.ephemeris.calculator import calculate_full_chart
 from backend.ephemeris.geo import (
     geocode_place,
@@ -1365,7 +1366,8 @@ async def get_transits(
         )
 
     # 3. Check cache
-    cache_key = f"transit:v3:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
+    # v4 (04.10.2026, шаг 3): без времени рождения — без натальной Луны.
+    cache_key = f"transit:v4:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
     cached = transit_cache.get(cache_key)
     if cached:
         logger.info("Transit cache hit: %s", cache_key[:40])
@@ -1388,7 +1390,9 @@ async def get_transits(
         # а не мнимый.
         events = await asyncio.to_thread(
             calculate_transits,
-            natal_planets=chart.planets,
+            # chart_points: без времени рождения — без натальной Луны (шаг 3);
+            # отсюда же письмо «Важный транзит» (check_and_send_transit_alerts).
+            natal_planets=natal_planets(chart),
             from_date=from_dt,
             to_date=to_dt,
             orb_filter=max_orb,
@@ -1539,7 +1543,7 @@ async def interpret_transits(
     # Calculate transits
     events = await asyncio.to_thread(
         calculate_transits,
-        natal_planets=chart.planets,
+        natal_planets=natal_planets(chart),   # без времени рождения — без Луны
         from_date=from_dt,
         to_date=to_dt,
     )
@@ -1723,19 +1727,28 @@ async def interpret_transit_event(
     if not _ref_date_str:
         raise HTTPException(status_code=422, detail="Required field: peak_date (or date)")
 
+    # Без времени рождения — без натальной Луны, углов и полуденных домов
+    # (chart_points, шаг 3 аудита): иначе compute_exact_facts назвал бы дом
+    # транзита и натальной точки по куспидам на полдень.
+    unknown = bool(chart.time_unknown)
+    if unknown and natal_planet in UNKNOWN_TIME_HIDDEN:
+        raise HTTPException(status_code=422, detail="Без времени рождения эта точка карты не определена.")
     profile = {
-        "planets": chart.planets,
-        "houses": chart.houses,
+        "planets": natal_planets(chart),
+        "houses": [] if unknown else chart.houses,
         "aspects": chart.aspects,
-        "ascendant": chart.ascendant,
-        "midheaven": chart.midheaven,
+        "ascendant": {} if unknown else chart.ascendant,
+        "midheaven": {} if unknown else chart.midheaven,
         "time_unknown": chart.time_unknown,
     }
 
     # Ключ однозначно определяет событие: одна и та же пара планета/аспект
     # повторяется из года в год (Марс к Солнцу — раз в ~2 года), поэтому
     # peak_date в ключе обязателен — иначе разборы разных лет склеятся.
-    cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION}:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}"
+    # «:nt» — только у карт без времени рождения (шаг 3, 04.10.2026): их
+    # прежние разборы называли полуденные дома. Версию промпта НЕ поднимаем —
+    # это перегенерировало бы разборы всех карт и списало бы квоту Веги.
+    cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION}:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}" + (":nt" if unknown else "")
 
     async def _yield_chunked(text: str):
         """Отдаём готовый текст тем же SSE-форматом, что и живой стрим —

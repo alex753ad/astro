@@ -502,7 +502,8 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | 
     # v2 (02.10.2026): даты пика — из чанков ленты. Без версии в ключе блоки
     # с прежними датами отдавались бы до полуночи после выката.
     # v3 (04.10.2026): дата «Точный аспект» — местная, поэтому пояс в ключе.
-    cache_key = f"chat_transits:v3:{chart_id}:{tz}:{today_str}"
+    # v4 (04.10.2026, шаг 3): без времени рождения — без натальной Луны.
+    cache_key = f"chat_transits:v4:{chart_id}:{tz}:{today_str}"
 
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
