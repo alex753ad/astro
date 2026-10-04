@@ -36,6 +36,7 @@
 карты. Внутри всё сводится к aware-datetime в UTC и переводится один раз.
 Ни одного «+3» в этом файле нет и быть не должно: именно так разъехались
 затмения (UTC) и фазы Луны (GMT+3) в /calendar/lunar — находка 3.7 CLAUDE.md.
+С 04.10.2026 фазы и затмения у всех — lunar_engine.lunations (шаг 6 аудита).
 
 
 3. КЭШ — Redis с in-memory запасом, инвалидация не нужна
@@ -620,76 +621,54 @@ def _lunar_events(from_date: date, to_date: date, tz) -> list[dict]:
     намеренно: это не событие, а фон дня (30 записей на месяц), в ленту
     событий он не ложится — решение владельца 04.09.2026.
     """
-    from backend.calendar.lunar_engine import (
-        _jd, _find_phase, _lon, _sign, PLANET_IDS,
-        _scan_eclipses, _SOLAR_KIND_FLAGS, _LUNAR_KIND_FLAGS, SOLAR_EVENTS,
-    )
-    import swisseph as swe
+    from backend.calendar.lunar_engine import _jd, _lon, SOLAR_EVENTS, lunations_local
 
     out: list[dict] = []
     jd_start = _jd(from_date, 0.0)
     jd_end = _jd(to_date, 24.0)
 
-    # Фазы: те же две цели, что и в /calendar/lunar (0° — новолуние, 180° —
-    # полнолуние), тем же _find_phase. Здесь не фильтруется по месяцу — окно
-    # ленты произвольное.
+    # Фазы и затмения — lunations, одна функция на проект (шаг 6 аудита): окно
+    # — МЕСТНЫЕ сутки ленты, а не сутки UTC, как до 04.10.2026.
     #
     # Момент (`_at_utc`) держится рядом с готовым словарём, а не только внутри
     # него: он нужен ниже для сверки с затмением по РЕАЛЬНОМУ времени, а не по
     # календарной дате — см. _ECLIPSE_PHASE_MERGE_HOURS. Наружу это поле не
     # уходит, срезается перед тем, как список попадёт в `out`.
     phase_events: list[dict] = []
-    for target, etype, emoji, label in (
-        (0.0, "new_moon", "🌑", "Новолуние"),
-        (180.0, "full_moon", "🌕", "Полнолуние"),
-    ):
-        # Отсечение фантомных фаз (ложное пересечение на противоположной точке
-        # орбиты) живёт ВНУТРИ _find_phase — там же, где и возникает. Здесь
-        # его копии нет намеренно: одна проверка на проект, а не по одной у
-        # каждого потребителя. Подробности — докстринг _find_phase.
-        for jd in _find_phase(jd_start, jd_end, target):
-            at_utc = jd_to_utc(jd)
-            moon_lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
-            sign = _sign(moon_lon[0])
-            phase_events.append({
+    eclipse_events: list[dict] = []
+    for ln in lunations_local(from_date, to_date, str(tz), eclipses=True):
+        if ln.type == "eclipse":
+            # Время затмения — до минуты, как при прежнем разборе строки
+            # сканера: от него зависит `key`, а ключи ленты не должны смениться.
+            at_utc = ln.at.replace(second=0, microsecond=0)
+            eclipse_events.append({
                 "_at_utc": at_utc,
-                "key": _key("l", etype, at_utc.isoformat()),
-                "kind": "moon_phase",
-                "importance": IMPORTANCE_MEDIUM,
+                "_phase_type": _ECLIPSE_TO_PHASE_TYPE.get(ln.eclipse),
+                "key": _key("l", "eclipse", ln.eclipse, ln.kind, at_utc.isoformat()),
+                "kind": "eclipse",
+                "importance": IMPORTANCE_HIGH,
                 "at": _to_local_iso(at_utc, tz),
                 "ends_at": None,
                 "duration_days": None,
                 "locked": False,
-                "text": f"{label} {sign_in(sign)}",
+                "text": _ECLIPSE_LABELS.get((ln.eclipse, ln.kind), "Затмение"),
                 "teaser": None,
-                "meta": {"type": etype, "emoji": emoji, "sign": sign},
+                "meta": {"type": ln.eclipse, "kind": ln.kind},
             })
-
-    # Затмения — единственный вид, приходивший в /calendar/lunar в UTC, когда
-    # всё остальное шло в GMT+3. Здесь разницы нет: зона одна на всю ленту.
-    eclipses = (
-        _scan_eclipses(jd_start, jd_end, swe.sol_eclipse_when_glob, _SOLAR_KIND_FLAGS, "solar")
-        + _scan_eclipses(jd_start, jd_end, swe.lun_eclipse_when, _LUNAR_KIND_FLAGS, "lunar")
-    )
-    eclipse_events: list[dict] = []
-    for ec in eclipses:
-        at_utc = datetime.fromisoformat(f"{ec.date}T{ec.time.split()[0]}:00").replace(tzinfo=pytz.UTC)
-        eclipse_events.append({
-            "_at_utc": at_utc,
-            "_phase_type": _ECLIPSE_TO_PHASE_TYPE.get(ec.type),
-            "key": _key("l", "eclipse", ec.type, ec.kind, at_utc.isoformat()),
-            "kind": "eclipse",
-            "importance": IMPORTANCE_HIGH,
-            "at": _to_local_iso(at_utc, tz),
+            continue
+        label = "Новолуние" if ln.type == "new_moon" else "Полнолуние"
+        phase_events.append({
+            "_at_utc": ln.at,
+            "key": _key("l", ln.type, ln.at.isoformat()),
+            "kind": "moon_phase",
+            "importance": IMPORTANCE_MEDIUM,
+            "at": _to_local_iso(ln.at, tz),
             "ends_at": None,
             "duration_days": None,
             "locked": False,
-            # У затмения в /calendar/lunar нет ни description, ни emoji — только
-            # type и kind (набор полей у него меньше, чем у фазы). Подпись
-            # собирается здесь, иначе фронту пришлось бы делать это самому.
-            "text": _ECLIPSE_LABELS.get((ec.type, ec.kind), "Затмение"),
+            "text": f"{label} {sign_in(ln.sign)}",
             "teaser": None,
-            "meta": {"type": ec.type, "kind": ec.kind},
+            "meta": {"type": ln.type, "emoji": "🌑" if ln.type == "new_moon" else "🌕", "sign": ln.sign},
         })
 
     # Затмение — это фаза: солнечное происходит только в новолуние, лунное —

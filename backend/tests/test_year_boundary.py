@@ -98,8 +98,8 @@ class TestForecastDays:
 class TestLunarCalendarAcrossYear:
     def test_every_phase_once_in_dec_and_jan(self):
         from backend.main import _compute_lunar_calendar
-        dec = _compute_lunar_calendar(2026, 12)["phases"]
-        jan = _compute_lunar_calendar(2027, 1)["phases"]
+        dec = _compute_lunar_calendar(2026, 12, "Europe/Moscow")["phases"]
+        jan = _compute_lunar_calendar(2027, 1, "Europe/Moscow")["phases"]
         keys = [(p["type"], p["date"]) for p in dec + jan]
         assert len(keys) == len(set(keys))
         assert all(d.startswith("2026-12") for _, d in keys[:len(dec)])
@@ -109,10 +109,10 @@ class TestLunarCalendarAcrossYear:
 
     def test_eclipses_union_of_months_equals_range(self):
         from backend.calendar.lunar_engine import get_eclipses
-        whole = get_eclipses(date(2026, 12, 1), date(2027, 2, 28))
-        parts = (get_eclipses(date(2026, 12, 1), date(2026, 12, 31))
-                 + get_eclipses(date(2027, 1, 1), date(2027, 1, 31))
-                 + get_eclipses(date(2027, 2, 1), date(2027, 2, 28)))
+        whole = get_eclipses(date(2026, 12, 1), date(2027, 2, 28), "Europe/Moscow")
+        parts = (get_eclipses(date(2026, 12, 1), date(2026, 12, 31), "Europe/Moscow")
+                 + get_eclipses(date(2027, 1, 1), date(2027, 1, 31), "Europe/Moscow")
+                 + get_eclipses(date(2027, 2, 1), date(2027, 2, 28), "Europe/Moscow"))
         assert sorted(e["date"] for e in whole) == sorted(e["date"] for e in parts)
 
 

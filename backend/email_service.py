@@ -727,10 +727,24 @@ async def send_transit_alert_email(
     )
 
 
+def week_phase_lines(first, last, tzname: str) -> list[str]:
+    """«2026-10-11 — 🌑 Новолуние в Весах»: фазы с местной датой в [first, last].
+
+    Формат строки прежний (дата ГГГГ-ММ-ДД, эмодзи, описание), меняется только
+    дата — местная, а не UTC.
+    """
+    from backend.calendar.lunar_engine import PHASE_EMOJI, lunations_local, sign_in
+    return [
+        f"{ln.local(tzname).date().isoformat()} — {PHASE_EMOJI[ln.type]} "
+        f"{'Новолуние' if ln.type == 'new_moon' else 'Полнолуние'} {sign_in(ln.sign)}"
+        for ln in lunations_local(first, last, tzname)
+    ]
+
+
 async def send_weekly_digest(user, db) -> bool:
     """Weekly digest для Лиры/Ориона: главные события по общему правилу (day_event.week_events) + лунные фазы + лучшие дни + совет недели + A/B тема."""
     import random
-    from datetime import timedelta, date as date_type
+    from datetime import timedelta
     from backend.transit.engine import calculate_transits
 
     from backend.profile.email_unsubscribe import unsubscribe_url
@@ -746,7 +760,8 @@ async def send_weekly_digest(user, db) -> bool:
         if not chart:
             return False
         # Неделя — с местного «сегодня» (user_tz), а не с UTC сервера.
-        now = local_today(user_tz(None, user, chart))
+        tzname = user_tz(None, user, chart)
+        now = local_today(tzname)
         week_end = now + timedelta(days=7)
         # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
         events = await asyncio.to_thread(
@@ -813,35 +828,17 @@ async def send_weekly_digest(user, db) -> bool:
     # Лунные фазы недели
     lunar_block = ""
     try:
-        from backend.calendar.lunar_engine import get_moon_phases
-
-        # Месяцы, которые задевает неделя, — обычно один, но у недели через
-        # 31-е их два. get_moon_phases берёт КАЛЕНДАРНЫЙ месяц, поэтому на
-        # одном месяце фаза первых чисел следующего терялась молча: за год
-        # вперёд так пропадали две недели — письмо от 29.06.2027 не показало бы
-        # фазу 04.07, письмо от 27.07.2027 — фазу 02.08.
-        # dict.fromkeys, а не set: порядок месяцев сохраняется, и строки в
-        # письме идут по возрастанию даты без отдельной сортировки.
-        months = dict.fromkeys([(now.year, now.month), (week_end.year, week_end.month)])
-        phases = []
-        for year, month in months:
-            # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
-            phases += await asyncio.to_thread(get_moon_phases, year, month)
-        week_phases = [
-            p for p in phases
-            if now <= date_type.fromisoformat(p.to_dict()["date"]) <= week_end
-        ]
+        # Фазы, чья МЕСТНАЯ дата — в неделе письма (шаг 6 аудита, 04.10.2026;
+        # до того — get_moon_phases с датой UTC по календарным месяцам).
+        # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+        week_phases = await asyncio.to_thread(week_phase_lines, now, week_end, tzname)
         if week_phases:
-            # `description`, а не `title`: у CalendarEvent поля title нет вовсе
-            # (date, time, type, planet, sign, planet2, aspect_name,
-            # description, emoji). Обращение к несуществующему ключу поднимало
-            # KeyError, его глотал общий except ниже — и блок «Лунные фазы
-            # недели» не показывался НИ РАЗУ с момента написания. Дефект был не
-            # виден именно потому, что ошибка тихо превращалась в пустой блок.
+            # Строки собирает week_phase_lines. До 04.09.2026 здесь читалось
+            # несуществующее поле, KeyError глотал except ниже — и блок не
+            # показывался ни разу: ошибка тихо превращалась в пустой блок.
             phase_lines = "".join(
-                f'<li style="margin:4px 0;color:#5a4a7a;font-size:14px;">'
-                f'{p.to_dict()["date"]} — {p.to_dict()["emoji"]} {p.to_dict()["description"]}</li>'
-                for p in week_phases
+                f'<li style="margin:4px 0;color:#5a4a7a;font-size:14px;">{line}</li>'
+                for line in week_phases
             )
             lunar_block = (
                 f'<div style="background:#f5f0ff;border-radius:10px;padding:14px 18px;margin:0 0 20px;">'

@@ -326,9 +326,10 @@ def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
             timed=True,
         )
     for ph in _phases_on_local_date(local_date, str(tz)):
-        at = datetime.strptime(f"{ph.date} {ph.time[:5]}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
-        key = f"{ph.type}:{ph.date}"
-        out[key] = DayEvent(key=key, at_local=at.astimezone(tz), transit=ph.type,
+        # Время — до минуты, как было со строкой «HH:MM UTC»; ключ — дата UTC
+        # (см. _phases_on_local_date).
+        key = f"{ph.type}:{ph.at.date().isoformat()}"
+        out[key] = DayEvent(key=key, at_local=ph.at.replace(second=0, microsecond=0).astimezone(tz), transit=ph.type,
                             natal=None, aspect=None, score=LUNATION_SCORE, timed=True)
     return list(out.values())
 

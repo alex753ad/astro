@@ -91,7 +91,7 @@ def jd_to_utc(jd: float) -> datetime:
     y, mo, d, h_float = swe.revjul(jd)
     total_seconds = int(h_float * 3600)
     # revjul может отдать 24:00:00 на границе суток — timedelta переносит сам,
-    # без ручной возни с длиной месяца, как это было в _jd_to_gmt3 ниже.
+    # без ручной возни с длиной месяца.
     return datetime(int(y), int(mo), int(d), tzinfo=timezone.utc) + timedelta(seconds=total_seconds)
 
 
@@ -164,8 +164,7 @@ def sign_into(sign: str) -> str:
 # ── Moon phases ───────────────────────────────────────────────────────────────
 
 # Допуск, по которому найденный момент признаётся настоящей фазой.
-# Десять градусов — как в такой же проверке для /calendar/lunar (main.py,
-# _compute_lunar_calendar): настоящее пересечение бисекция находит с точностью
+# Десять градусов: настоящее пересечение бисекция находит с точностью
 # до секунд, то есть фактический угол отличается от цели на доли градуса, а
 # ложное срабатывание промахивается на все 180.
 _PHASE_TOLERANCE_DEG = 10
@@ -195,9 +194,8 @@ def _find_phase(jd_start: float, jd_end: float, target: float) -> list[float]:
     /calendar/lunar, а тот считает фазы своим циклом в main.py — с такой же
     проверкой, которой здесь не хватало.
 
-    ⚠️ Проверка в main.py остаётся на месте: этот модуль и
-    _compute_lunar_calendar считают фазы независимо друг от друга, и вторая
-    проверка там не дубль этой, а защита второго расчёта.
+    С 04.10.2026 своего цикла в main.py нет: /calendar/lunar берёт фазы из
+    lunations (ниже), то есть отсюда же.
 
     ⚠️ Второй, независимый дефект той же функции, найден 05.09.2026:
     `while jd < jd_end` НИКОГДА не вычисляет угол ровно в `jd_end` — цикл
@@ -276,38 +274,23 @@ def _find_phase(jd_start: float, jd_end: float, target: float) -> list[float]:
     return results
 
 def get_moon_phases(year: int, month: int) -> list[CalendarEvent]:
+    """Новолуния и полнолуния КАЛЕНДАРНОГО месяца UTC, время «HH:MM UTC».
+
+    Остался один потребитель — /calendar/monthly (get_monthly_calendar), чей
+    ответ целиком в UTC. Всем, кто показывает дату человеку, — lunations_local:
+    до 04.10.2026 пуш фазы и дайджест брали отсюда дату UTC (шаг 6 аудита).
+    """
     from calendar import monthrange
-    _, days = monthrange(year, month)
-    # hour=0 первого дня до hour=0 первого дня следующего месяца
-    jd0 = _jd(date(year, month, 1), 0)
-    if month == 12:
-        jd1 = _jd(date(year + 1, 1, 1), 0)
-    else:
-        jd1 = _jd(date(year, month + 1, 1), 0)
+    start = datetime(year, month, 1, tzinfo=timezone.utc)
+    end = start + timedelta(days=monthrange(year, month)[1])
     events = []
-    for target, etype, emoji in [
-        (0,   "new_moon",  "🌑"),
-        (180, "full_moon", "🌕"),
-    ]:
-        found = _find_phase(jd0, jd1, target)
-        seen_dates = set()
-        for jd in found:
-            dt, tm = _jd_to_dt(jd)
-            # Фильтр: только даты текущего месяца, без дублей
-            event_month = int(dt[5:7])
-            event_year  = int(dt[:4])
-            if event_year != year or event_month != month:
-                continue
-            if dt in seen_dates:
-                continue
-            seen_dates.add(dt)
-            sign  = _sign(_lon(jd, "Moon"))
-            label = "Новолуние" if etype == "new_moon" else "Полнолуние"
-            events.append(CalendarEvent(
-                date=dt, time=f"{tm} UTC", type=etype,
-                planet="Moon", sign=sign, emoji=emoji,
-                description=f"{label} {sign_in(sign)}",
-            ))
+    for ln in lunations(start, end):
+        label = "Новолуние" if ln.type == "new_moon" else "Полнолуние"
+        events.append(CalendarEvent(
+            date=ln.at.strftime("%Y-%m-%d"), time=f"{ln.at:%H:%M} UTC", type=ln.type,
+            planet="Moon", sign=ln.sign, emoji=PHASE_EMOJI[ln.type],
+            description=f"{label} {sign_in(ln.sign)}",
+        ))
     return events
 
 
@@ -426,7 +409,7 @@ class EclipseEvent:
     time: str      # "HH:MM UTC"
     type: str  # solar | lunar
     kind: str  # total | partial | annular | penumbral
-    jd: float  # момент как число — из него get_eclipses считает GMT+3
+    jd: float  # момент как число — из него lunations берёт точное время
 
 
 def _scan_eclipses(jd_start: float, jd_end: float, finder, flags, etype: str) -> list[EclipseEvent]:
@@ -450,51 +433,90 @@ def _scan_eclipses(jd_start: float, jd_end: float, finder, flags, etype: str) ->
     return events
 
 
-def get_eclipses(start: date, end: date) -> list[dict]:
-    """Солнечные и лунные затмения, чья дата ПО GMT+3 попадает в [start, end].
+# ── Одна функция фаз (шаг 6 аудита, 04.10.2026) ──────────────────────────────
+#
+# До неё фазы считались пятью способами: _find_phase здесь (лента, лунный
+# прогноз), свой цикл бисекции в main._compute_lunar_calendar (веб, «Ближайшие
+# 30 дней», сетка GMT+3), get_moon_phases с датой UTC (пуш фазы, дайджест),
+# элонгация в местный полдень (виджет, сторис) и средний месяц в Moon.java.
+# Новолуние 10.10.2026 18:50 по Москве во Владивостоке лента ставила на 11.10,
+# календарь и «Ближайшие 30 дней» — на 10.10.
+#
+# Теперь момент — только отсюда, а местная дата — `.astimezone(tz).date()` у
+# потребителя. ⚠️ Не возвращать в потребителей ни свои циклы, ни «+3 часа»:
+# проверка c5 прогона согласованности (scripts/consistency_eval.py) сверяет
+# все разделы с этой функцией.
 
-    Зона — та же, что у фаз Луны (main.py, _compute_lunar_calendar) и у
-    равноденствий (_jd_to_gmt3 выше): все события /calendar/lunar обязаны лечь
-    в одну сетку. До 14.09.2026 затмения были единственным видом, уезжавшим
-    отсюда в UTC, а фронт метку "UTC" молча срезал и подписывал результат
-    GMT+3 (fmtPhaseTime, LunarCalendarPage.jsx) — ошибка до трёх часов, а у
-    события около полуночи вместе со временем уезжала и ДАТА, то есть значок
-    вставал в соседнюю клетку месяца. Проверено исполнением: лунное затмение
-    20.02.2027 23:12 UTC — это 21.02 02:12 по Москве, и показывать его надо
-    21-го (ещё два таких случая: 20.12.2029 22:42 UTC и 09.12.2030 22:27 UTC).
+PHASE_TARGETS = {"new_moon": 0.0, "first_quarter": 90.0, "full_moon": 180.0, "last_quarter": 270.0}
+PHASE_EMOJI = {"new_moon": "🌑", "first_quarter": "🌓", "full_moon": "🌕", "last_quarter": "🌗"}
 
-    ⚠️ Сдвиг сделан ЗДЕСЬ, на выходе, а не в _scan_eclipses, где момент
-    форматируется. Сканер общий: им пользуется ещё и лента
-    (feed/builder.py), которая разбирает его строку обратно и штампует
-    результат как UTC (`.replace(tzinfo=pytz.UTC)`). Сдвинув зону в сканере,
-    мы отдали бы ленте время GMT+3 под ярлыком UTC — та же трёхчасовая
-    ошибка, но в месте, где её никто не ищет. Хуже того, там же стоит
-    склейка затмения с фазой того же рода по порогу ровно в 3 часа
-    (_ECLIPSE_PHASE_MERGE_HOURS), а реальное расхождение момента затмения и
-    момента фазы доходит до 19 минут: сдвиг вытолкнул бы пару за порог, и в
-    ленту вернулись бы дубли одного момента под двумя подписями — ровно то,
-    что закрывали 05.09.2026.
 
-    Окно сканирования шире запрошенного на сутки с каждой стороны, а фильтр —
-    по уже пересчитанной дате: тот же приём, что у get_solar_events. Без него
-    затмение в 23:00 UTC последнего дня месяца пропало бы из календаря совсем
-    — в своём месяце оно вернулось бы с датой следующего (сетка не нашла бы
-    клетку), а в следующем не попало бы в окно сканирования. На 2000–2060 таких
-    случаев нет ни одного, но диапазон у функции произвольный.
+@dataclass(frozen=True)
+class Lunation:
+    type: str                   # new_moon | first_quarter | full_moon | last_quarter | eclipse
+    at: datetime                # точный момент, aware UTC
+    sign: str                   # знак Луны в этот момент
+    eclipse: Optional[str] = None   # у затмения: solar | lunar
+    kind: Optional[str] = None      # у затмения: total | partial | annular | penumbral
+
+    def local(self, tz) -> datetime:
+        """Момент в поясе `tz` (имя IANA или объект пояса)."""
+        from zoneinfo import ZoneInfo
+        return self.at.astimezone(ZoneInfo(tz) if isinstance(tz, str) else tz)
+
+
+def _jd_at(dt: datetime) -> float:
+    u = dt.astimezone(timezone.utc)
+    return swe.julday(u.year, u.month, u.day,
+                      u.hour + u.minute / 60 + (u.second + u.microsecond / 1e6) / 3600)
+
+
+def lunations(start: datetime, end: datetime,
+              types: tuple[str, ...] = ("new_moon", "full_moon"),
+              eclipses: bool = False) -> list[Lunation]:
+    """Фазы (и затмения при `eclipses=True`) с точным моментом в [start, end).
+
+    `start`/`end` — aware. Фазы — _find_phase (с её отсевом фантомов),
+    затмения — _scan_eclipses; момент у обоих — jd_to_utc, с секундами.
+    Порядок — по моменту.
     """
-    jd_start = _jd(start, 0) - 1
-    jd_end = _jd(end, 24) + 1
-    events = (
-        _scan_eclipses(jd_start, jd_end, swe.sol_eclipse_when_glob, _SOLAR_KIND_FLAGS, "solar")
-        + _scan_eclipses(jd_start, jd_end, swe.lun_eclipse_when, _LUNAR_KIND_FLAGS, "lunar")
-    )
-    lo, hi = start.isoformat(), end.isoformat()
+    jd0, jd1 = _jd_at(start), _jd_at(end)
+    out: list[Lunation] = []
+    for t in types:
+        for jd in _find_phase(jd0, jd1, PHASE_TARGETS[t]):
+            at = jd_to_utc(jd)
+            if start <= at < end:
+                out.append(Lunation(t, at, _sign(_lon(jd, "Moon"))))
+    if eclipses:
+        for e in (_scan_eclipses(jd0, jd1, swe.sol_eclipse_when_glob, _SOLAR_KIND_FLAGS, "solar")
+                  + _scan_eclipses(jd0, jd1, swe.lun_eclipse_when, _LUNAR_KIND_FLAGS, "lunar")):
+            at = jd_to_utc(e.jd)
+            if start <= at < end:
+                out.append(Lunation("eclipse", at, _sign(_lon(e.jd, "Moon")), e.type, e.kind))
+    out.sort(key=lambda x: x.at)
+    return out
+
+
+def lunations_local(first: date, last: date, tz: str, **kw) -> list[Lunation]:
+    """lunations, чья МЕСТНАЯ дата в поясе `tz` — в [first, last] включительно."""
+    from backend.time_utils import local_day
+    return lunations(local_day(first, tz)[0], local_day(last, tz)[1], **kw)
+
+
+def get_eclipses(start: date, end: date, tz: str) -> list[dict]:
+    """Затмения, чья МЕСТНАЯ дата в поясе `tz` — в [start, end] (/calendar/lunar).
+
+    До 04.10.2026 — GMT+3 для всех: у человека во Владивостоке значок затмения
+    вставал на московский день. Время — «HH:MM» местное, пояс ручка отдаёт
+    одним полем `tz`.
+
+    ⚠️ _scan_eclipses по-прежнему отдаёт строки UTC: см. test_lunar_eclipses.
+    """
     out = []
-    for e in events:
-        dt, tm = _jd_to_gmt3(e.jd)
-        if lo <= dt <= hi:
-            out.append({"date": dt, "time": f"{tm} GMT+3", "type": e.type, "kind": e.kind})
-    out.sort(key=lambda x: (x["date"], x["time"]))
+    for e in lunations_local(start, end, tz, types=(), eclipses=True):
+        loc = e.local(tz)
+        out.append({"date": loc.date().isoformat(), "time": f"{loc:%H:%M}",
+                    "type": e.eclipse, "kind": e.kind})
     return out
 
 
@@ -514,31 +536,7 @@ SOLAR_EVENTS = [
 ]
 
 
-def _jd_to_gmt3(jd: float) -> tuple[str, str]:
-    """JD → ("YYYY-MM-DD", "HH:MM") в GMT+3.
-
-    Отдельная от _jd_to_dt(), которая отдаёт UTC: равноденствия обязаны
-    лечь в ту же клетку сетки, что и фазы Луны, а те считаются в GMT+3
-    (main.py, _compute_lunar_calendar). Два часовых пояса на одной странице
-    разъехались бы на событиях около полуночи: значок встал бы на соседний день.
-
-    Здесь раньше лежала копия переноса через сутки/месяц/год из расчёта фаз
-    (main.py) — пятнадцать строк ручной арифметики, и в комментарии стояло,
-    что копия дешевле выноса. Под ленту момент всё равно понадобился честным
-    datetime, поэтому обе копии сведены в jd_to_utc(): перенос делает
-    timedelta, а не проверка длины месяца руками.
-
-    Смещение остаётся фиксированным +3 без учёта DST — Москва его не
-    переводит с 2014 года, а менять пояс календаря — отдельное решение, не
-    побочный эффект этой правки. Выдаваемые строки прежние.
-    """
-    local = jd_to_utc(jd) + timedelta(hours=3)
-    y, mo, d = local.year, local.month, local.day
-    hh, mm = local.hour, local.minute
-    return f"{y:04d}-{mo:02d}-{d:02d}", f"{hh:02d}:{mm:02d}"
-
-
-def get_solar_events(year: int, month: int) -> list[dict]:
+def get_solar_events(year: int, month: int, tz: str) -> list[dict]:
     """Равноденствия и солнцестояния месяца (обычно пусто — их 4 в году).
 
     Даты не табличные: календарь листается на произвольные годы, а момент
@@ -548,11 +546,12 @@ def get_solar_events(year: int, month: int) -> list[dict]:
     угол Луна−Солнце, меняющийся ~13°/сутки, здесь — долгота одного Солнца,
     ~1°/сутки. Проскочить пересечение при таком шаге невозможно.
 
-    Окно шире месяца на сутки с каждой стороны, а фильтр — по уже
-    пересчитанной в GMT+3 дате: событие в 22:30 UTC 31 августа — это 01:30 первого
-    сентября по Москве, и показать его надо в сентябре. Тот же приём, что у
-    фаз Луны (широкое окно + фильтр по month_prefix).
+    Окно шире месяца на сутки с каждой стороны, а фильтр — по МЕСТНОЙ дате в
+    поясе `tz`: тот же пояс, что у фаз и затмений той же ручки (до 04.10.2026 —
+    GMT+3 у всех трёх), иначе значки разъедутся по соседним клеткам.
     """
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo(tz)
     jd0 = _jd(date(year, month, 1), 0) - 1
     jd1 = (_jd(date(year + 1, 1, 1), 0) if month == 12
            else _jd(date(year, month + 1, 1), 0)) + 1
@@ -575,10 +574,10 @@ def get_solar_events(year: int, month: int) -> list[dict]:
                         lo = mid
                     else:
                         hi = mid
-                dt, tm = _jd_to_gmt3((lo + hi) / 2)
+                loc = jd_to_utc((lo + hi) / 2).astimezone(zone)
                 events.append({
-                    "date": dt,
-                    "time": f"{tm} GMT+3",
+                    "date": loc.date().isoformat(),
+                    "time": f"{loc:%H:%M}",
                     "type": etype,
                     "emoji": emoji,
                     "description": label,

@@ -20,7 +20,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from backend.ephemeris.ru_names import PLANET_RU
 
@@ -182,23 +182,23 @@ def day_block(chart, local_date: date, tzname: str, daily_time, quiet_from,
     return "\n".join(lines) + "\n"
 
 
-def _retro_now(today: date) -> list[str]:
-    """Планеты, ретроградные сегодня, с датой конца (посуточный скан скорости)."""
-    from backend.ephemeris.calculator import PLANETS, _calc_planet_position, _datetime_to_jd
+def _retro_now(today: date, tzname: str) -> list[str]:
+    """Планеты, ретроградные сегодня, с местной датой конца.
 
-    def speed(pid, d):
-        jd = _datetime_to_jd(datetime(d.year, d.month, d.day, 12))
-        return _calc_planet_position(pid, round(jd, 6))[3]
+    Станции — compute_retrograde_stations, та же функция, что у ленты и
+    «Ближайших 30 дней» (шаг 6 аудита). До 04.10.2026 здесь был свой
+    посуточный скан скорости в 12:00 UTC — дата конца могла разойтись с
+    лентой на сутки. Ретроградна та, чья ближайшая станция — конец петли;
+    250 суток покрывают самую долгую петлю (Плутон, ~160 суток).
+    """
+    from backend.transit.house_passages import compute_retrograde_stations
 
-    out = []
-    for name in ("Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
-        pid = PLANETS[name]
-        if speed(pid, today) >= 0:
-            continue
-        end = next((today + timedelta(days=i) for i in range(1, 200)
-                    if speed(pid, today + timedelta(days=i)) >= 0), None)
-        out.append(f"{PLANET_RU[name]}" + (f" (до {_dm(end)})" if end else ""))
-    return out
+    first: dict[str, dict] = {}
+    for r in compute_retrograde_stations(today, today + timedelta(days=250), tzname):
+        if r["planet"] not in first or r["at"] < first[r["planet"]]["at"]:
+            first[r["planet"]] = r
+    return [f"{r['planet_name']} (до {_dm(date.fromisoformat(r['date_iso']))})"
+            for r in first.values() if r["status"] == "end"]
 
 
 def upcoming_block(chart, today: date, tzname: str, daily_time, quiet_from, tier: str | None) -> str:
@@ -217,7 +217,7 @@ def upcoming_block(chart, today: date, tzname: str, daily_time, quiet_from, tier
     if phases:
         lines.append("Фазы Луны: " + "; ".join(
             f"{e['at'][8:10]}.{e['at'][5:7]} {e['at'][11:16]} — {e['text']}" for e in phases) + ".")
-    now = _retro_now(today)
+    now = _retro_now(today, tzname)
     lines.append("Сейчас ретроградны: " + (", ".join(now) if now else "никто") + ".")
     retro = [e for e in feed["events"] if e["kind"] == "retrograde"]
     if retro:

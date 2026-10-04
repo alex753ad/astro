@@ -25,6 +25,11 @@ final class WidgetData {
     private static final String PREFS = "aristea_widget";
     private static final String KEY = "data";
 
+    // Ключи фаз — story_card.PHASES на сервере, в том же порядке, что подписи.
+    private static final String[] PHASE_KEYS = {
+        "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
+        "full_moon", "waning_gibbous", "last_quarter", "waning_crescent",
+    };
     // Подписи фаз — как story_card.PHASES на сервере (по 45° с центром на 0°).
     private static final String[] PHASES = {
         "новолуние", "растущий серп", "первая четверть", "растущая Луна",
@@ -74,9 +79,11 @@ final class WidgetData {
         String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
         boolean signedOut = false;
         boolean stale = false;
+        JSONArray moon = null;
         try {
             JSONObject o = new JSONObject(prefs(c).getString(KEY, ""));
             signedOut = o.optBoolean("signedOut");
+            moon = o.optJSONArray("moon");
             JSONArray days = o.optJSONArray("days");
             stale = days != null && days.length() > 0;
             for (int i = 0; days != null && i < days.length(); i++) {
@@ -92,9 +99,18 @@ final class WidgetData {
                 return d;
             }
         } catch (JSONException ignored) {
-            // пусто ("" — флаг выключен или приложение не открывали) или битое
+            // пусто ("" — приложение не открывали или не было сети) или битое
         }
-        return local(signedOut, stale);
+        return local(signedOut, stale, moonToday(moon, today));
+    }
+
+    /** Сегодняшний день из `moon` (/calendar/lunar через приложение) или null. */
+    private static JSONObject moonToday(JSONArray moon, String today) {
+        for (int i = 0; moon != null && i < moon.length(); i++) {
+            JSONObject x = moon.optJSONObject(i);
+            if (x != null && today.equals(x.optString("date"))) return x;
+        }
+        return null;
     }
 
     /** Сколько дней в запасе — для строки диагностики. */
@@ -107,13 +123,23 @@ final class WidgetData {
         }
     }
 
-    /** Без запаса на сегодня: Луна считается на телефоне и остаётся верной. */
-    private static Day local(boolean signedOut, boolean stale) {
+    /**
+     * Без запаса на сегодня. Фаза и картинка — из `moon` (сервер, Swiss
+     * Ephemeris, тот же расчёт, что у запаса); без него — средний синодический
+     * месяц на телефоне (Moon.java, ошибка до полусуток), только если `moon`
+     * ни разу не пришёл. Шаг 6 аудита, 04.10.2026 — со сборки после этой даты.
+     */
+    private static Day local(boolean signedOut, boolean stale, JSONObject moon) {
         Calendar now = Calendar.getInstance();
         Day d = new Day();
         d.elong = Moon.approxElongation(now.getTimeInMillis());
         d.day = now.get(Calendar.DAY_OF_MONTH) + " " + MONTHS[now.get(Calendar.MONTH)];
         int phase = (int) (((d.elong + 22.5) % 360) / 45);
+        int fromServer = moon == null ? -1 : java.util.Arrays.asList(PHASE_KEYS).indexOf(moon.optString("phase"));
+        if (fromServer >= 0) {
+            phase = fromServer;
+            d.elong = moon.optDouble("elong", d.elong);
+        }
         d.phase = PHASES[phase];
         // Тексты — docs/widget_phase_texts.md (ветка wip/tariffs-pdf).
         if (signedOut) {

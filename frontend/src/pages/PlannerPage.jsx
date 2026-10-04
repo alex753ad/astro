@@ -1037,13 +1037,15 @@ export default function PlannerPage() {
   useEffect(() => { loadPlan(); }, [id, monthOffset, weekOffset]);
 
   // Фазы и затмения для «Ближайших 30 дней» — этот и следующий месяц от
-  // сегодня, от листания месяцев не зависят.
+  // сегодня, от листания месяцев не зависят. Пояс устройства — тот же, что
+  // у плана и ленты (шаг 6 аудита).
   async function loadLunar() {
     const d = new Date();
     const months = [0, 1].map((k) => new Date(d.getFullYear(), d.getMonth() + k, 1));
     const res = await Promise.all(months.map(async (m) => {
       try {
-        const r = await fetch(`${API_BASE}/api/v1/calendar/lunar?year=${m.getFullYear()}&month=${m.getMonth() + 1}`);
+        const tz = deviceTimeZone();
+        const r = await fetch(`${API_BASE}/api/v1/calendar/lunar?year=${m.getFullYear()}&month=${m.getMonth() + 1}${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`);
         return r.ok ? await r.json() : null;
       } catch { return null; }
     }));

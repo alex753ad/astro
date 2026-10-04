@@ -24,7 +24,39 @@ const okFetch = () => vi.fn(async () => ({ ok: true, json: async () => ({ days: 
 const race = (p) => Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('ПОВИСЛО')), 500))]);
 const at = (iso) => new Date(iso);
 
-beforeEach(() => _resetForTests());
+// Дни Луны (/calendar/lunar) ходят простым fetch — по умолчанию «нет сети»,
+// чтобы тесты ниже проверяли прежнее поведение без `moon`.
+beforeEach(() => {
+  _resetForTests();
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline'); }));
+});
+
+const MOON = [{ date: '2026-10-02', phase: 'waning_gibbous', elong: 222.2 }];
+const moonFetch = () => vi.fn(async () => ({
+  ok: true, json: async () => ({ daily_signs: [{ ...MOON[0], sign: 'Телец', longitude: 40 }] }),
+}));
+
+describe('дни Луны с сервера (шаг 6 аудита)', () => {
+  it('флаг выключен — кладёт moon, /widget не зовёт', async () => {
+    const { plugin, calls } = fakePlugin();
+    const fetcher = okFetch();
+    const mf = moonFetch();
+    await race(applyWidget(false, true, { plugin, fetcher, moonFetch: mf, now: at('2026-10-02T10:00:00') }));
+    expect(mf.mock.calls[0][0]).toMatch(/\/calendar\/lunar\?year=2026&month=10/);
+    expect(mf.mock.calls[1][0]).toMatch(/month=11/);
+    expect(calls).toEqual([['save', JSON.stringify({ moon: [...MOON, ...MOON] })]]);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('флаг включён — дни и moon вместе; второй раз за сутки moon не запрашивается', async () => {
+    const { plugin, calls } = fakePlugin();
+    const mf = moonFetch();
+    await applyWidget(true, true, { plugin, fetcher: okFetch(), moonFetch: mf, now: at('2026-10-02T10:00:00') });
+    expect(calls).toEqual([['save', JSON.stringify({ days: DAYS, moon: [...MOON, ...MOON] })]]);
+    await applyWidget(false, true, { plugin, fetcher: okFetch(), moonFetch: mf, now: at('2026-10-02T11:00:00') });
+    expect(mf).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('флаг выключен', () => {
   it('стирает запас (на виджете фаза Луны), компонент не трогает, на сервер не ходит', async () => {

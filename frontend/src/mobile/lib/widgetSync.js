@@ -11,8 +11,12 @@
  *   · флаг включён, вошли — запас дней, обновляется не чаще REFRESH_MS (и
  *     сразу, если сменились сутки): событие дня и совет;
  *   · флаг включён, не вошли — «Войди, чтобы видеть свой день»;
- *   · флаг выключен — запас стёрт: фаза Луны и совет фазы, посчитанные на
- *     телефоне (WidgetData.java).
+ *   · флаг выключен — запас стёрт: фаза Луны и совет фазы.
+ *
+ * Фаза и картинка Луны на дни без запаса — `moon` из /calendar/lunar (тот же
+ * расчёт, что у виджета на сервере); кладётся при любом флаге и без входа.
+ * Средний синодический месяц на телефоне (Moon.java, ошибка до полусуток) —
+ * только если `moon` ни разу не пришёл (шаг 6 аудита, 04.10.2026).
  *
  * ⚠️ Решение — только по ОТВЕТУ /flags (onFlagsLoaded), не по useFlag:
  * до ответа и без сети useFlag отдаёт false, и каждый запуск без сети стирал
@@ -26,6 +30,7 @@ import { registerPlugin } from '@capacitor/core';
 import { API_BASE } from '../../config';
 import { authFetchWithTimeout } from './authFetchTimeout';
 import { IS_MOBILE } from '../../api/authTransport';
+import { deviceTimeZone } from '../../lib/deviceTimezone';
 import { onFlagsLoaded, useFlag } from '../../lib/flags';
 import { checkPlaced, countOpenDay } from './widgetPin';
 
@@ -43,6 +48,30 @@ let running = null;
 // кончился последний шаг. Ошибки по-прежнему не роняют приложение, но
 // больше не пропадают молча.
 let diag = { flag: null, flagAt: 0, step: 'ещё не запускался', stepAt: 0 };
+
+// Дни Луны с сервера: этот и следующий месяц. Запрашиваются раз в сутки;
+// без сети остаётся прошлый ответ — его хватает до конца следующего месяца.
+let moon = { date: '', days: null };
+
+async function loadMoon(now, moonFetch) {
+  const today = localDate(now);
+  if (moon.date === today) return moon.days;
+  try {
+    const tz = deviceTimeZone();
+    const months = [0, 1].map((k) => new Date(now.getFullYear(), now.getMonth() + k, 1));
+    const res = await Promise.all(months.map(async (m) => {
+      const r = await moonFetch(`${API_BASE}/calendar/lunar?year=${m.getFullYear()}&month=${m.getMonth() + 1}${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`);
+      if (!r.ok) throw new Error(`/calendar/lunar ${r.status}`);
+      return (await r.json()).daily_signs || [];
+    }));
+    moon = { date: today, days: res.flat().map(({ date, phase, elong }) => ({ date, phase, elong })) };
+  } catch {
+    // нет сети — прошлый ответ, если был
+  }
+  return moon.days;
+}
+
+const plainFetch = (url) => fetch(url);
 
 function localDate(now) {
   const p = (n) => String(n).padStart(2, '0');
@@ -77,19 +106,22 @@ export function applyWidget(on, authed, opts = {}) {
 // ⚠️ С таймаутом, не голый authFetch: очередь выше ждёт каждый вызов, и
 // один повисший запрос (мёртвое соединение после фона) остановил бы
 // синхронизацию виджета до перезапуска приложения (02.10.2026).
-async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFetchWithTimeout, now = new Date() }) {
+async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFetchWithTimeout, moonFetch = plainFetch, now = new Date() }) {
   if (!plugin) return;
   diag = { ...diag, flag: on, flagAt: +now };
   const step = (text) => { diag = { ...diag, step: text, stepAt: Date.now() }; };
   try {
+    const hadMoon = moon.date === localDate(now);
+    const days = await loadMoon(now, moonFetch);
+    const withMoon = (o) => (days ? { ...o, moon: days } : o);
     if (!on) {
       last = { at: 0, date: '', authed: null };
-      await plugin.save({ data: '' });
+      await plugin.save({ data: days ? JSON.stringify({ moon: days }) : '' });
       step('флаг выкл: фаза Луны');
       return;
     }
     if (!authed) {
-      if (last.authed !== false) await plugin.save({ data: JSON.stringify({ signedOut: true }) });
+      if (last.authed !== false || (days && !hadMoon)) await plugin.save({ data: JSON.stringify(withMoon({ signedOut: true })) });
       last = { at: 0, date: '', authed: false };
       step('без входа');
       return;
@@ -106,11 +138,10 @@ async function applyOnce(on, authed, { plugin = native.plugin, fetcher = authFet
       return;
     }
     const body = await r.json();
-    const { days } = body;
     firstWeek = body.first_week === true;
-    await plugin.save({ data: JSON.stringify({ days }) });
+    await plugin.save({ data: JSON.stringify(withMoon({ days: body.days })) });
     last = { at: +now, date: today, authed: true };
-    step(`запас ${days.length} дн.`);
+    step(`запас ${body.days.length} дн.`);
   } catch (e) {
     // нет сети или плагина — виджет живёт на прежнем запасе
     step(`ошибка на шаге «${diag.step}»: ${e?.message || e}`);
@@ -163,7 +194,7 @@ export function signOutWidget(plugin = native.plugin) {
   // Без флага на виджете и так фаза Луны, «Войди» было бы ложным обещанием.
   if (!plugin || diag.flag !== true) return;
   last = { at: 0, date: '', authed: false };
-  plugin.save({ data: JSON.stringify({ signedOut: true }) }).catch(() => {});
+  plugin.save({ data: JSON.stringify(moon.days ? { signedOut: true, moon: moon.days } : { signedOut: true }) }).catch(() => {});
 }
 
 /** В корне приложения (MobileApp.jsx): и для вошедшего, и для гостя. */
@@ -196,4 +227,5 @@ export function _resetForTests() {
   pending = null;
   running = null;
   diag = { flag: null, flagAt: 0, step: 'ещё не запускался', stepAt: 0 };
+  moon = { date: '', days: null };
 }

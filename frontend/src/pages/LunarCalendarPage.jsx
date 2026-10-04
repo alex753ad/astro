@@ -9,6 +9,7 @@ import useAuth from '../hooks/useAuth';
 import { API_BASE } from '../config';
 import { TIER_NAMES } from '../constants';
 import { todayLocalISO } from '../utils/dateISO';
+import { deviceTimeZone } from '../lib/deviceTimezone';
 
 import ariesIcon       from '../assets/zodiac/aries.png';
 import taurusIcon      from '../assets/zodiac/taurus.png';
@@ -112,24 +113,14 @@ function sameDay(a, b) {
   return a && b && a.slice(0,10) === b.slice(0,10);
 }
 
+// Время — местное: /calendar/lunar считает в поясе устройства (`tz`, шаг 6
+// аудита, 04.10.2026). До того сетка была GMT+3 для всех, и подпись
+// «GMT+3» стояла у каждого времени.
 function fmtPhaseTime(event) {
-  if (!event) return '';
-  // /calendar/lunar возвращает date + time раздельно ("2026-06-15" + "05:54 GMT+3")
-  if (event.time) {
-    const src = event.exact_date || event.date;
-    if (!src) return '';
-    const [, mo, dd] = src.split('-');
-    const tm = event.time.replace(/\s*GMT\+3/, '').replace(/\s*UTC/, '');
-    return `${dd}.${mo} - ${tm} GMT+3`;
-  }
-  const src = event.exact_date || event.date;
-  if (!src) return '';
-  const d  = new Date(src);
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mo = String(d.getMonth()+1).padStart(2,'0');
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mi = String(d.getMinutes()).padStart(2,'0');
-  return `${dd}.${mo} - ${hh}:${mi} GMT+3`;
+  if (!event?.date || !event.time) return '';
+  const [, mo, dd] = event.date.split('-');
+  // У запасного источника (/calendar/monthly) время «HH:MM UTC» — с меткой.
+  return `${dd}.${mo} - ${event.time}`;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -158,6 +149,7 @@ export default function LunarCalendarPage() {
   const [lunarPhases, setLunarPhases] = useState([]);
   const [eclipses,    setEclipses]    = useState([]);
   const [solarEvents, setSolarEvents] = useState([]);
+  const [currentMoon, setCurrentMoon] = useState(null);
 
   useEffect(() => { load(); }, [year, month]);
 
@@ -173,8 +165,9 @@ export default function LunarCalendarPage() {
 
       // Пробуем ежедневные знаки
       try {
+        const tz = deviceTimeZone();
         const r2 = await fetch(
-          `${API_BASE}/calendar/lunar?year=${year}&month=${month}`
+          `${API_BASE}/calendar/lunar?year=${year}&month=${month}${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`
         );
         if (r2.ok) {
           const j2  = await r2.json();
@@ -184,6 +177,7 @@ export default function LunarCalendarPage() {
           setLunarPhases(j2.phases || []);
           setEclipses(j2.eclipses || []);
           setSolarEvents(j2.solar_events || []);
+          setCurrentMoon(j2.current_moon || null);
         } else { setDailyMap({}); setLunarPhases([]); setEclipses([]); setSolarEvents([]); }
       } catch { setDailyMap({}); setEclipses([]); setSolarEvents([]); }
 
@@ -211,7 +205,10 @@ export default function LunarCalendarPage() {
   const newMoons = phaseSrc.filter(e => e.type === 'new_moon');
   const fullMoons= phaseSrc.filter(e => e.type === 'full_moon');
 
-  const todaySign     = dailyMap[todayStr] || approxMoonSign(todayStr);
+  // «Луна сейчас» — знак и градус на текущий момент (current_moon). До
+  // 04.10.2026 градус брался из overview.moon_degree, которого сервер не
+  // отдавал никогда, — строка градуса была пустой всегда.
+  const todaySign     = SIGN_RU_TO_KEY[currentMoon?.sign] || dailyMap[todayStr] || approxMoonSign(todayStr);
   const todaySignData = SIGNS_RU[todaySign] || SIGNS_RU.Leo;
 
   const calDays = useMemo(() => buildCalendarDays(year, month), [year, month]);
@@ -280,6 +277,7 @@ export default function LunarCalendarPage() {
                 newMoons={newMoons}
                 fullMoons={fullMoons}
                 overview={overview}
+                moonDegree={currentMoon?.degree}
               />
           }
 
@@ -389,7 +387,7 @@ export default function LunarCalendarPage() {
 
 // ── Шапка фаз ─────────────────────────────────────────────
 
-function PhaseHeader({ todaySign, todaySignData, newMoons, fullMoons, overview }) {
+function PhaseHeader({ todaySign, todaySignData, newMoons, fullMoons, overview, moonDegree }) {
   const nm  = newMoons[0];
   const fm1 = fullMoons[0];
   const fm2 = fullMoons[1];
@@ -405,7 +403,7 @@ function PhaseHeader({ todaySign, todaySignData, newMoons, fullMoons, overview }
         <PhaseBlock
           label="ЛУНА СЕЙЧАС"
           signData={todaySignData}
-          extra={overview?.moon_degree ? `${overview.moon_degree}°` : ''}
+          extra={moonDegree != null ? `${moonDegree}°` : ''}
         />
         {nm && (
           <PhaseBlock

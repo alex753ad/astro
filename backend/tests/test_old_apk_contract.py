@@ -116,6 +116,9 @@ OLD_APK_ROUTES = [
     # Виджет «День», флаг widget (mobile/lib/widgetSync.js)
     ("GET", "/widget"),
     ("POST", "/widget/event"),
+    # Дни Луны для виджета без входа и флага (widgetSync.js, шаг 6 аудита):
+    # `daily_signs[].phase/elong` — со сборки после 04.10.2026.
+    ("GET", "/calendar/lunar"),
 ]
 
 

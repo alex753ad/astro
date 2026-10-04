@@ -60,7 +60,8 @@ export function houseTo(house) {
  * (решает страница).
  *
  * planData.upcoming — переходы и развороты (house_passages.compute_upcoming);
- * lunar — ответы /calendar/lunar за этот и следующий месяц (фазы, затмения).
+ * lunar — ответы /calendar/lunar?tz= (пояс устройства) за этот и следующий
+ * месяц: фазы и затмения, время местное (до 04.10.2026 — «по Москве»).
  * short — подпись «с заглавной», её страница ставит после даты:
  * «26 окт · Полнолуние».
  */
@@ -113,7 +114,7 @@ export function buildUpcoming(planData, lunar, now = new Date()) {
       events.push({
         id: `ph-${ph.date}`, date: ph.date, dot: { type: ph.type },
         short: label,
-        detail: `${label}${ph.sign ? ` в ${SIGN_PREP[ph.sign] || ph.sign}` : ''}, ${(ph.time || '').slice(0, 5)} по Москве.`,
+        detail: `${label}${ph.sign ? ` в ${SIGN_PREP[ph.sign] || ph.sign}` : ''}, ${(ph.time || '').slice(0, 5)}.`,
       });
     });
     (m.eclipses || []).forEach((ec) => {
@@ -122,7 +123,7 @@ export function buildUpcoming(planData, lunar, now = new Date()) {
       events.push({
         id: `ec-${ec.date}`, date: ec.date, dot: { type: ec.type === 'solar' ? 'solar_eclipse' : 'lunar_eclipse' },
         short: label,
-        detail: `${label}, ${(ec.time || '').slice(0, 5)} по Москве.`,
+        detail: `${label}, ${(ec.time || '').slice(0, 5)}.`,
       });
     });
   });

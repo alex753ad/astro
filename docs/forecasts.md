@@ -36,23 +36,11 @@ fallback chain») и его же комментарий в классе `Interpr
 **2. Чат Аристеи (RAG)** — `interpretation/rag_router.py`, отдельно и всегда
 `settings.deepseek_model_flash`. К цепочке выше отношения не имеет.
 
-**3. Общий астрокалендарь** (`GET /calendar/monthly`) — `main.py`, прямой
-вызов `httpx` **мимо** `InterpretationRouter`, только Anthropic Claude Sonnet
-(`claude-sonnet-4-20250514`), запасного провайдера нет: при сбое календарь
-отдаётся без обзора (`overview: null`), и такой ответ не кэшируется.
-С 03.10.2026 (решение владельца) модель отдаёт только знаки новолуния и
-полнолуния — единственное, что из обзора читает веб (`LunarCalendarPage.jsx`);
-обзор, советы, ритуал, «практика», аффирмация и недели не показывались нигде и
-убраны из промпта вместе с `NEWMOON_SIGN_RITUAL`. Знаки без модели — шаг 6
-плана `docs/audit_unified_model.md`.
-
-Ключ `ANTHROPIC_API_KEY` читается через `os.getenv` напрямую, а не из
-`Settings` (`config.py`) — в `Settings` его нет. Расход пишет
-`track_claude_spend` (из `usage` ответа), ключ проверки бюджета — `"claude"`.
-До 23.09.2026 контур обслуживал ещё прогнозы daily/weekly/monthly с
-фолбэком на OpenAI GPT-4o; они удалены, а с ними `track_openai_spend` и
-`OPENAI_API_KEY` в этом контуре. Проверка записи расхода — на календаре
-(`test_claude_budget_spend.py`).
+**3. Общий астрокалендарь** (`GET /calendar/monthly`) — **без модели** с
+04.10.2026 (шаг 6 плана `docs/audit_unified_model.md`). До этого — прямой вызов
+Anthropic Claude Sonnet, из ответа которого веб брал только знаки новолуния и
+полнолуния; теперь `overview.new_moon/full_moon.sign` считает код из событий
+месяца. Контура Claude в приложении больше нет (`track_claude_spend` удалён).
 
 **4. Прогнозы в приложении** — `backend/forecast/` (с 23.09.2026): на день
 (`GET /chart/{id}/forecast/day?date=&tz=`) и на новолуние/полнолуние

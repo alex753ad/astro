@@ -66,13 +66,7 @@ from backend.ephemeris.geo import (
     GeocodingError,
     AmbiguousTimeError,
 )
-from backend.cache import interpretation_cache, transit_cache, make_profile_hash, budget_tracker
-# Прямой вызов Anthropic мимо InterpretationRouter (общий астрокалендарь ниже)
-# обязан сам записывать расход в общий суточный бюджет: проверять его и не
-# пополнять — значит смещать потолок для всех остальных контуров. Прогнозы
-# daily/weekly/monthly, ради которых здесь же был OpenAI-фолбэк, удалены
-# 23.09.2026 — их заменил backend/forecast/ (DeepSeek).
-from backend.interpretation.router import track_claude_spend
+from backend.cache import interpretation_cache, transit_cache, make_profile_hash
 from backend.calendar.lunar_engine import get_monthly_calendar
 from backend.auth.router import router as auth_router
 from backend.flags import router as flags_router
@@ -2148,105 +2142,37 @@ async def get_general_calendar(
     request: Request,
     month: str,           # формат: "2025-12"
 ):
-    """Общий астро-календарь — новолуния, полнолуния, ингрессы, аспекты.
+    """Общий астро-календарь — новолуния, полнолуния, ингрессы, аспекты (UTC).
     Не требует натальной карты. Бесплатный уровень.
-    Возвращает: список событий + AI-обзор месяца.
-    """
-    import httpx, os
-    from backend.transit.forecast_prompt import (
-        GENERAL_CALENDAR_PROMPT_VERSION,
-        build_general_calendar_prompt,
-        parse_forecast_response,
-    )
 
+    `overview` — знаки новолуния и полнолуния месяца. До 04.10.2026 их
+    «писала» модель (Claude Sonnet), повторяя знаки из уже посчитанных
+    событий, — единственное, что веб брал из её ответа. Шаг 6 аудита: знаки
+    считает код, вызова модели нет, бюджет не тратится. Веб показывает их
+    только запасным вариантом, если /calendar/lunar не ответил.
+    """
     try:
         year, mon = map(int, month.split("-"))
     except ValueError:
         raise HTTPException(status_code=422, detail="Формат: YYYY-MM (напр. 2025-12)")
 
-    # Кэш стоит ДО проверки бюджета намеренно: попадание в кэш не тратит
-    # ничего, и упирать его в исчерпанный бюджет значило бы отключать
-    # бесплатную выдачу вместе с платной.
-    #
-    # Ответ зависит только от YYYY-MM и одинаков для всех — календарь общий,
-    # не привязан к натальной карте. Отдельного экземпляра RedisCache под это
-    # не заводим: interpretation_cache — тот же механизм, а TTL передаём явно
-    # (сутки вместо его дефолтных 30 дней). Сутки, а не больше, потому что
-    # обзор пишет LLM: правка промпта или смена модели должны доезжать до
-    # пользователя за день, а не за месяц.
-    # Версия промпта в ключе: без неё правка build_general_calendar_prompt
-    # сутки не доезжала до пользователя — раздавался ответ, собранный старым
-    # промптом, и сбросить его можно было только удалив ключ руками.
-    # Поднятие константы (forecast_prompt.py) обнуляет кэш само.
-    calendar_cache_key = (
-        f"general_calendar:v{GENERAL_CALENDAR_PROMPT_VERSION}:{year:04d}-{mon:02d}"
-    )
+    # Ответ зависит только от YYYY-MM и одинаков для всех. Кэш — ради тяжёлого
+    # скана ингрессов и аспектов; `code1` в ключе — ответы, собранные моделью
+    # (`general_calendar:v8:…`), не переиспользуются.
+    calendar_cache_key = f"general_calendar:code1:{year:04d}-{mon:02d}"
     cached_calendar = interpretation_cache.get(calendar_cache_key)
     if cached_calendar is not None:
         return cached_calendar
 
-    # Общий суточный бюджет AI — тот же, что у прогнозов (main.py, ключ
-    # "claude"). Раньше здесь проверки не было вовсе, а ручка анонимная:
-    # единственная точка, где посторонний мог тратить деньги владельца в
-    # цикле, ограниченный только rate_limit_anon.
-    if not budget_tracker.is_within_budget(settings.ai_daily_budget_usd, "claude"):
-        raise HTTPException(
-            status_code=503,
-            detail="Дневной лимит запросов исчерпан. Попробуй завтра.",
-        )
-
-    # 1. Вычислить события месяца — Swiss Ephemeris, синхронно (см. CLAUDE.md)
+    # Swiss Ephemeris — синхронно (см. CLAUDE.md)
     key_events = await asyncio.to_thread(get_monthly_calendar, year, mon)
-
-    # 2. Сформировать обзор через AI
-    month_names_ru = {
-        1:"Январь",2:"Февраль",3:"Март",4:"Апрель",5:"Май",6:"Июнь",
-        7:"Июль",8:"Август",9:"Сентябрь",10:"Октябрь",11:"Ноябрь",12:"Декабрь",
-    }
-    month_label = f"{month_names_ru[mon]} {year}"
-    prompt = build_general_calendar_prompt(month_label=month_label, key_events=key_events)
-
-    raw = ""
-    if os.getenv("ANTHROPIC_API_KEY"):
-        try:
-            async with httpx.AsyncClient(timeout=90) as client:
-                resp = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": os.getenv("ANTHROPIC_API_KEY"),
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                    },
-                    json={
-                        "model": "claude-sonnet-4-20250514",
-                        "max_tokens": 3000,
-                        "messages": [{"role": "user", "content": prompt}],
-                    }
-                )
-                data = resp.json()
-                raw = data["content"][0]["text"]
-                track_claude_spend(data, "calendar/monthly")
-        except Exception as e:
-            logger.warning(f"General calendar AI failed: {e}")
-
-    overview = None
-    if raw:
-        try:
-            overview = parse_forecast_response(raw)
-        except Exception as e:
-            logger.warning(f"Failed to parse calendar overview: {e}")
-
+    first = lambda t: next(({"sign": e["sign"]} for e in key_events if e["type"] == t), None)
     result = {
         "month": month,
         "events": key_events,
-        "overview": overview,
+        "overview": {"new_moon": first("new_moon"), "full_moon": first("full_moon")},
     }
-
-    # Кладём в кэш только удавшийся обзор. Иначе сутки отдавали бы ответ без
-    # overview всем, кто пришёл после единственного сбоя провайдера.
-    if overview is not None:
-        interpretation_cache.set(calendar_cache_key, result, ttl=86400)
-
+    interpretation_cache.set(calendar_cache_key, result, ttl=86400)
     return result
 
 
@@ -2254,108 +2180,70 @@ async def get_general_calendar(
 # LUNAR CALENDAR
 # ═══════════════════════════════════════════════════════════
 
-def _compute_lunar_calendar(year: int, month: int) -> dict:
-    """Фазы луны (бисекция) + знак Луны на каждый день месяца — тяжёлый
-    синхронный расчёт через Swiss Ephemeris. Вызывать только через
-    asyncio.to_thread (см. CLAUDE.md) — не напрямую из async-хендлера."""
-    from datetime import date as date_type
+def _compute_lunar_calendar(year: int, month: int, tz: str) -> dict:
+    """Фазы, затмения, равноденствия и знак Луны на каждый день месяца в поясе
+    `tz` — тяжёлый синхронный расчёт через Swiss Ephemeris. Вызывать только
+    через asyncio.to_thread (см. CLAUDE.md) — не напрямую из async-хендлера.
+
+    Шаг 6 аудита (04.10.2026): до него здесь был свой цикл бисекции фаз и
+    сетка GMT+3 для всех — во Владивостоке новолуние 10.10.2026 18:50 МСК
+    стояло на 10.10, а в ленте на 11.10. Теперь фазы — lunations (одна функция
+    на проект), даты и время — местные, пояс отдаётся полем `tz`.
+    """
+    from datetime import date as date_type, datetime as dt_type, time as time_type
+    from zoneinfo import ZoneInfo
     from backend.calendar.lunar_engine import (
-        get_moon_phases, get_eclipses, get_solar_events, ZODIAC_SIGNS, _jd_to_gmt3,
+        get_eclipses, get_solar_events, lunations_local, sign_in, ZODIAC_SIGNS, _jd_at, _lon,
     )
-    import swisseph as swe
     import calendar as cal_mod
 
-    # Точный расчёт фаз через бисекцию
-    def _moon_angle(jd):
-        sun, _ = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH)
-        moon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
-        return (moon[0] - sun[0]) % 360
-
-    jd_m0 = swe.julday(year, month, 1, 0)
-    jd_m1 = swe.julday(year + 1, 1, 1, 0) if month == 12 else swe.julday(year, month + 1, 1, 0)
-    phases = []
-    for target, etype, emoji, label in [
-        (0,   "new_moon",  "🌑", "Новолуние"),
-        (180, "full_moon", "🌕", "Полнолуние"),
-    ]:
-        jd = jd_m0 - 32
-        prev = None
-        while jd < jd_m1 + 2:
-            val = (_moon_angle(jd) - target) % 360
-            if val > 180: val -= 360
-            if prev is not None and prev * val < 0:
-                lo, hi = jd - 1.0, jd
-                val_lo = prev  # знак на левой границе
-                for _ in range(60):
-                    mid = (lo + hi) / 2
-                    v = (_moon_angle(mid) - target) % 360
-                    if v > 180: v -= 360
-                    if val_lo * v > 0:
-                        lo = mid
-                        val_lo = v
-                    else:
-                        hi = mid
-                exact = (lo + hi) / 2
-                # Проверяем что нашли реальную фазу, а не разрыв функции
-                real_angle = _moon_angle(exact)
-                if abs((real_angle - target + 180) % 360 - 180) > 10:
-                    prev = val
-                    jd += 1.0
-                    continue
-                # Здесь до 04.09.2026 стоял ручной перенос через сутки/месяц/год
-                # с проверкой monthrange — третья копия одной и той же
-                # арифметики (две другие жили в lunar_engine). Момент теперь
-                # берётся единой конвертацией, а +3 применяет _jd_to_gmt3 там же,
-                # где его применяют равноденствия: пояс у фаз и равноденствий
-                # обязан совпадать, иначе значки разъедутся по соседним дням.
-                phase_date, phase_time = _jd_to_gmt3(exact)
-                moon_lon, _ = swe.calc_ut(exact, swe.MOON, swe.FLG_SWIEPH)
-                sign = ZODIAC_SIGNS[int(moon_lon[0] // 30) % 12]
-                phases.append({
-                    "date": phase_date,
-                    "time": f"{phase_time} GMT+3",
-                    "type": etype, "planet": "Moon",
-                    "sign": sign, "emoji": emoji,
-                    "description": f"{label} в {sign}",
-                })
-            prev = val
-            jd += 1.0
-        # Оставляем только фазы текущего месяца
-    month_prefix = f"{year:04d}-{month:02d}-"
-    phases = [p for p in phases if p["date"].startswith(month_prefix)]
-    phases.sort(key=lambda x: x["date"])
-  
+    zone = ZoneInfo(tz)
     _, days_in_month = cal_mod.monthrange(year, month)
-    eclipses = get_eclipses(date_type(year, month, 1), date_type(year, month, days_in_month))
+    first, last = date_type(year, month, 1), date_type(year, month, days_in_month)
+    phases = []
+    for ln in lunations_local(first, last, tz):
+        loc = ln.local(zone)
+        label = "Новолуние" if ln.type == "new_moon" else "Полнолуние"
+        phases.append({
+            "date": loc.date().isoformat(),
+            "time": f"{loc:%H:%M}",
+            "type": ln.type, "planet": "Moon",
+            "sign": ln.sign, "emoji": "🌑" if ln.type == "new_moon" else "🌕",
+            "description": f"{label} {sign_in(ln.sign)}",
+        })
+
+    eclipses = get_eclipses(first, last, tz)
     # Равноденствия и солнцестояния: обычно пустой список — их четыре в году.
     # Считаются там же, где затмения, и отдаются отдельным ключом, а не внутри
     # phases: phases — это ровно две повторяющиеся фазы Луны, и фронт фильтрует
     # их по type. Своё поле повторяет устройство eclipses, а не ломает phases.
-    solar_events = get_solar_events(year, month)
+    solar_events = get_solar_events(year, month, tz)
+    # Знак дня — в МЕСТНЫЙ полдень, как в прогнозе дня (до 04.10.2026 — 12:00 UTC).
+    # `phase` и `elong` — те же, что у виджета (story_card): приложение кладёт
+    # их виджету, и Moon.java (средний месяц, ошибка до полусуток) считает
+    # только без них — шаг 6 аудита.
+    from backend import story_card
     daily_signs = []
     for day in range(1, days_in_month + 1):
         d = date_type(year, month, day)
-        jd = swe.julday(d.year, d.month, d.day, 12.0)
-        lon, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_SWIEPH)
-        sign = ZODIAC_SIGNS[int(lon[0] // 30) % 12]
+        lon = _lon(_jd_at(dt_type.combine(d, time_type(12), zone)), "Moon")
         daily_signs.append({
             "date": d.isoformat(),
-            "sign": sign,
-            "longitude": round(lon[0], 2),
+            "sign": ZODIAC_SIGNS[int(lon // 30) % 12],
+            "longitude": round(lon, 2),
+            "phase": story_card.moon_phase(d, tz),
+            "elong": round(story_card.elongation(d, tz), 1),
         })
 
-    now = utcnow()
-    jd_now = swe.julday(now.year, now.month, now.day, now.hour + now.minute / 60)
-    lon_now, _ = swe.calc_ut(jd_now, swe.MOON, swe.FLG_SWIEPH)
-    current_sign   = ZODIAC_SIGNS[int(lon_now[0] // 30) % 12]
-    current_degree = round(lon_now[0] % 30, 1)
+    lon_now = _lon(_jd_at(dt_type.now(zone)), "Moon")
 
     return {
         "year":  year,
         "month": month,
+        "tz":    tz,
         "current_moon": {
-            "sign":   current_sign,
-            "degree": current_degree,
+            "sign":   ZODIAC_SIGNS[int(lon_now // 30) % 12],
+            "degree": round(lon_now % 30, 1),
         },
         "phases":       phases,
         "daily_signs":  daily_signs,
@@ -2374,13 +2262,14 @@ async def get_lunar_calendar(
     request: Request,
     year: int = None,
     month: int = None,
+    tz: str | None = None,
 ):
-    from datetime import date as date_type
-
-    today = date_type.today()
+    # Пояс — устройство (`tz`), иначе Москва; «сегодня» — местное.
+    zone = user_tz(tz)
+    today = local_today(zone)
     year  = year  or today.year
     month = month or today.month
-    return await asyncio.to_thread(_compute_lunar_calendar, year, month)
+    return await asyncio.to_thread(_compute_lunar_calendar, year, month, zone)
 
 
 # ── DEBUG: show house cusps ───────────────────────────────────────────────────

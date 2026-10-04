@@ -108,16 +108,14 @@ class LunationFacts:
 
 
 def find_phase(phase: str, near: date) -> datetime | None:
-    """Момент фазы `phase` рядом с датой `near` (±2 суток), aware UTC."""
-    from backend.calendar.lunar_engine import _find_phase, _jd, jd_to_utc
+    """Момент фазы `phase` рядом с датой `near` (±2 суток), aware UTC —
+    из lunations, одной функции фаз на проект."""
+    from backend.calendar.lunar_engine import lunations
 
-    target = 0.0 if phase == "new_moon" else 180.0
-    found = _find_phase(_jd(near - timedelta(days=2), 0.0), _jd(near + timedelta(days=2), 24.0), target)
-    if not found:
-        return None
-    moments = [jd_to_utc(jd) for jd in found]
+    start = datetime(near.year, near.month, near.day, tzinfo=timezone.utc) - timedelta(days=2)
+    found = lunations(start, start + timedelta(days=5), types=(phase,))
     noon = datetime(near.year, near.month, near.day, 12, tzinfo=timezone.utc)
-    return min(moments, key=lambda m: abs(m - noon))
+    return min((x.at for x in found), key=lambda m: abs(m - noon), default=None)
 
 
 def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> LunationFacts:

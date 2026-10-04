@@ -114,45 +114,9 @@ def _cost_per_1k(engine_name: str) -> float:
         return _deepseek_cost_per_1k()
     return _COST_PER_1K_TOKENS.get(engine_name, 0)
 
-# Прогнозы и общий астрокалендарь (main.py) ходят в Anthropic напрямую, мимо
-# InterpretationRouter, поэтому их расход раньше не попадал в бюджет вовсе:
-# бюджет спрашивали, но не пополняли. Ставки держим здесь, рядом с остальными
-# ценами, чтобы источник правды по деньгам остался один.
-#
-# Две ставки, а не одна плоская за 1K, как в таблице выше: Anthropic
-# тарифицирует вход и выход по-разному ($3 и $15 за миллион токенов для
-# claude-sonnet-4), а у прогнозов перекос сильный — промпт большой, ответ до
-# 3000 токенов. Усреднение здесь ошибалось бы в разы в обе стороны.
-_CLAUDE_COST_PER_TOKEN_IN  = 3.0 / 1_000_000
-_CLAUDE_COST_PER_TOKEN_OUT = 15.0 / 1_000_000
-
-
-def track_claude_spend(data: dict | None, contour: str) -> float:
-    """Записать в суточный бюджет расход прямого вызова Anthropic.
-
-    Токены берутся ТОЛЬКО из ответа провайдера (`usage`). Если его нет —
-    ничего не пишем и говорим об этом в лог: выдуманное число хуже пропуска,
-    потому что молча смещает потолок для всех остальных контуров.
-
-    Возвращает списанную сумму (0.0, если списывать было нечего).
-    """
-    usage = ((data or {}).get("usage")) or {}
-    tokens_in = usage.get("input_tokens") or 0
-    tokens_out = usage.get("output_tokens") or 0
-    if not tokens_in and not tokens_out:
-        logger.warning("%s: ответ Anthropic без usage — расход не записан", contour)
-        return 0.0
-
-    cost = (
-        tokens_in * _CLAUDE_COST_PER_TOKEN_IN
-        + tokens_out * _CLAUDE_COST_PER_TOKEN_OUT
-    )
-    new_total = budget_tracker.add_spend(cost)
-    logger.info(
-        "Spent $%.4f on claude/%s (in=%d out=%d). Daily total: $%.4f",
-        cost, contour, tokens_in, tokens_out, new_total,
-    )
-    return cost
+# Прямых вызовов Anthropic нет с 04.10.2026: последний — общий астрокалендарь
+# (/calendar/monthly) — заменён кодом (шаг 6 аудита), вместе с ним удалены
+# track_claude_spend и его ставки.
 
 
 def track_engine_spend(engine_name: str, tokens: int, contour: str) -> float:
