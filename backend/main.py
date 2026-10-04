@@ -1745,10 +1745,7 @@ async def interpret_transit_event(
     # Ключ однозначно определяет событие: одна и та же пара планета/аспект
     # повторяется из года в год (Марс к Солнцу — раз в ~2 года), поэтому
     # peak_date в ключе обязателен — иначе разборы разных лет склеятся.
-    # «:nt» — только у карт без времени рождения (шаг 3, 04.10.2026): их
-    # прежние разборы называли полуденные дома. Версию промпта НЕ поднимаем —
-    # это перегенерировало бы разборы всех карт и списало бы квоту Веги.
-    cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION}:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}" + (":nt" if unknown else "")
+    cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION}:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}"
 
     async def _yield_chunked(text: str):
         """Отдаём готовый текст тем же SSE-форматом, что и живой стрим —

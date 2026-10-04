@@ -779,7 +779,7 @@ function MonthSection({ section, onUpgrade }) {
       />
       {(section.periods || []).map((p, pi) => (
         <PeriodBlock key={pi} planet={section.planet}
-          badgeText={`Период ${p.period}`}
+          badgeText={`Период ${p.period}${p.loop_note ? `, ${p.loop_note}` : ''}`}
           house={p.house}
           theme={p.theme} subtitle={p.subtitle} notes={p.notes} groups={p.groups || []}
           locked={p.locked}
@@ -1257,7 +1257,7 @@ export default function PlannerPage() {
                         title={`${lt.planet_name} в ${lt.house} Доме`}
                         subtitle={lt.planet_subtitle} />
                       <PeriodBlock planet={lt.planet}
-                        badgeText={lt.period}
+                        badgeText={`${lt.period}${lt.loop_note ? `, ${lt.loop_note}` : ''}`}
                         house={lt.house}
                         theme={lt.theme} subtitle={lt.subtitle} notes={lt.notes} groups={lt.groups || []}
                         warning={lt.warning}

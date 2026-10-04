@@ -84,9 +84,8 @@ async def _get_share_quote(
 ) -> str:
     """Возвращает юмористическую фразу из кэша или генерирует через LLM."""
     redis = get_redis()
-    # «:nt» — карта без времени рождения (шаг 3, 04.10.2026): прежние шутки
-    # брали полуденный Асцендент и натальную Луну.
-    cache_key = f"share:quote:v2:{token}" + ("" if moon_sign or asc_sign else ":nt")
+    # v3 (04.10.2026, шаг 3): без времени рождения шутка без Луны и ASC.
+    cache_key = f"share:quote:v3:{token}"
 
     try:
         cached = await redis.get(cache_key)

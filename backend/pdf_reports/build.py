@@ -79,7 +79,7 @@ def start(db, user, chart, wheel_png: str | None):
 
     tier = user.tier or "free"
     interp = sections.pick_interpretation(db, chart.id, tier)
-    fp = sections.fingerprint(interp.id if interp else None, tier, today_for(user, chart), chart)
+    fp = sections.fingerprint(interp.id if interp else None, tier, today_for(user, chart))
     if fp:
         same = (db.query(PdfReport)
                 .filter(PdfReport.user_id == user.id, PdfReport.chart_id == chart.id,
@@ -169,7 +169,7 @@ async def _build(db, report, wheel_png: str | None) -> None:
 
     report.file_path = str(path)
     report.pages = len(re.findall(rb"/Type /Page[^s]", pdf))
-    report.fingerprint = sections.fingerprint(interp.id, tier, today, chart)
+    report.fingerprint = sections.fingerprint(interp.id, tier, today)
     report.cost_usd = round(cost, 4)
     report.status, report.progress, report.step = "ready", 100, None
     report.ready_at = utcnow()

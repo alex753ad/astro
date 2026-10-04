@@ -44,7 +44,12 @@ const SIGN_PREP = {
   'Стрелец': 'Стрельце', 'Козерог': 'Козероге', 'Водолей': 'Водолее', 'Рыбы': 'Рыбах',
 };
 
-export const UPCOMING_DAYS = 30;   // = house_passages.UPCOMING_DAYS
+export const UPCOMING_DAYS = 30;
+
+/** «во 2 дом» — «во второй», остальные «в 5 дом». Как house_passages._vo. */
+export function houseTo(house) {
+  return `${house === 2 ? 'во' : 'в'} ${house} дом`;
+}   // = house_passages.UPCOMING_DAYS
 
 /**
  * «Ближайшие 30 дней» (решение владельца 29.09.2026 вместо «Транзитного
@@ -67,10 +72,24 @@ export function buildUpcoming(planData, lunar, now = new Date()) {
   (planData?.upcoming || []).forEach((e, i) => {
     const planet = e.planet_name;
     if (e.kind === 'passage') {
+      // Петля внутри периода (решение владельца 04.10.2026): «…С 15 октября
+      // по 12 декабря возвращается в 1 дом, окончательно уходит 12 января».
+      const loops = (e.loops || []).map((l) =>
+        `С ${isoWords(l.from)} по ${isoWords(l.to)} ${l.direction === 'in' ? 'заходит' : 'возвращается'} ${houseTo(l.house)}`);
       events.push({
         id: `up-${i}`, date: e.date, dot: { type: e.planet }, planet: e.planet,
-        short: `${planet} переходит в ${e.house} дом`,
-        detail: `${planet} входит в ${e.house} дом${e.until ? ` и пробудет там до ${isoWords(e.until)}` : ''}.`,
+        short: `${planet} переходит ${houseTo(e.house)}`,
+        detail: loops.length
+          ? `${planet} входит ${houseTo(e.house)}. ${loops.join('. ')}, окончательно уходит ${isoWords(e.until)}.`
+          : `${planet} входит ${houseTo(e.house)}${e.until ? ` и пробудет там до ${isoWords(e.until)}` : ''}.`,
+      });
+    } else if (e.kind === 'loop') {
+      // Переход внутри ретроградной петли — своя строка.
+      const text = `${planet} ${e.direction === 'back' ? 'возвращается' : 'снова переходит'} ${houseTo(e.house)}`;
+      events.push({
+        id: `up-${i}`, date: e.date, dot: { type: e.planet }, planet: e.planet,
+        short: text,
+        detail: `${text}.`,
       });
     } else {
       const retro = e.status === 'start';

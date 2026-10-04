@@ -34,9 +34,9 @@ describe('«Ближайшие 30 дней»', () => {
   it('подписи: фазы с заглавной, развороты «назад»/«вперёд», переход с датой выхода', () => {
     expect(ev.map((e) => e.short)).toEqual([
       'Венера разворачивается назад', 'Новолуние', 'Плутон разворачивается вперёд',
-      'Солнце переходит в 2 дом', 'Полнолуние',
+      'Солнце переходит во 2 дом', 'Полнолуние',
     ]);
-    expect(ev[3].detail).toBe('Солнце входит в 2 дом и пробудет там до 21 ноября.');
+    expect(ev[3].detail).toBe('Солнце входит во 2 дом и пробудет там до 21 ноября.');
     expect(ev[4].detail).toBe('Полнолуние в Тельце, 07:12 по Москве.');
   });
 
@@ -45,5 +45,30 @@ describe('«Ближайшие 30 дней»', () => {
     expect(pos[0]).toBeGreaterThanOrEqual(0);
     expect(pos[pos.length - 1]).toBeLessThanOrEqual(1);
     for (let i = 1; i < pos.length; i++) expect(pos[i] - pos[i - 1]).toBeGreaterThanOrEqual(gap - 1e-9);
+  });
+});
+
+describe('«Ближайшие 30 дней»: ретроградная петля Венеры (решение владельца 04.10.2026)', () => {
+  const now = new Date(2026, 8, 15);
+  const plan = {
+    upcoming: [
+      { date: '2026-09-20', kind: 'passage', planet: 'venus', planet_name: 'Венера', house: 2, until: '2027-01-12',
+        loops: [{ house: 1, from: '2026-10-15', to: '2026-12-12', direction: 'back' }] },
+      { date: '2026-10-15', kind: 'loop', planet: 'venus', planet_name: 'Венера', house: 1, direction: 'back' },
+    ],
+  };
+  const ev = buildUpcoming(plan, [], now);
+
+  it('строка на переход внутри петли и пояснение у входа', () => {
+    expect(ev.map((e) => e.short)).toEqual(['Венера переходит во 2 дом', 'Венера возвращается в 1 дом']);
+    expect(ev[0].detail).toBe(
+      'Венера входит во 2 дом. С 15 октября по 12 декабря возвращается в 1 дом, окончательно уходит 12 января.');
+  });
+
+  it('«снова переходит» — повторный вход вперёд', () => {
+    const again = buildUpcoming({ upcoming: [
+      { date: '2026-12-12', kind: 'loop', planet: 'venus', planet_name: 'Венера', house: 2, direction: 'again' },
+    ] }, [], new Date(2026, 10, 25));
+    expect(again[0].short).toBe('Венера снова переходит во 2 дом');
   });
 });

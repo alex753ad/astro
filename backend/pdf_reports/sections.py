@@ -38,8 +38,10 @@ TIER_RANK = {"free": 0, "lite": 1, "pro": 2, "premium": 3}
 # (29.09.2026): даты лежат в кеше вместе с текстом, без смены версии старые
 # остались бы на месяц.
 # 3 / 4 — творительный в ADDRESS_RULE, «трин», «работа с энергиями», 30.09.2026.
-ASPECTS_PROMPT_VERSION = 3
-TRANSITS_PROMPT_VERSION = 4
+# 4 — без времени рождения без Луны и углов (шаг 3), 04.10.2026.
+ASPECTS_PROMPT_VERSION = 4
+# 5 — то же для главных транзитов, 04.10.2026.
+TRANSITS_PROMPT_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -290,7 +292,7 @@ async def aspect_section(db, chart, tier: str) -> tuple[list[dict], float]:
     n = plan_for(tier).aspects
     if not n:
         return [], 0.0
-    key = aspects_key(tier) + _nt(chart)
+    key = aspects_key(tier)
     cached = cache_get(db, chart.id, key)
     if cached:
         return cached, 0.0
@@ -423,7 +425,7 @@ async def transit_section(db, chart, tier: str, today: date) -> tuple[list[dict]
     plan = plan_for(tier)
     if not plan.transits:
         return [], 0.0
-    key = transits_key(tier, today) + _nt(chart)
+    key = transits_key(tier, today)
     cached = cache_get(db, chart.id, key)
     if cached:
         return cached, 0.0
@@ -476,19 +478,11 @@ def longterm_section(chart, today: date, tz: str | None = None) -> list[dict]:
 
 # ── Отпечаток ──────────────────────────────────────────────
 
-def _nt(chart) -> str:
-    """Метка ключей у карты без времени рождения (шаг 3, 04.10.2026): их
-    прежние тексты брали натальную Луну, ASC и дома. Только у них — общая
-    версия перегенерировала бы платные тексты всех карт."""
-    return ":nt" if getattr(chart, "time_unknown", False) else ""
-
-
-def fingerprint(interp_id: str | None, tier: str, today: date, chart=None) -> str | None:
+def fingerprint(interp_id: str | None, tier: str, today: date) -> str | None:
     """Из чего собран отчёт. None — разбора под тариф нет, отчёт новый."""
     if not interp_id:
         return None
-    nt = _nt(chart) if chart is not None else ""
-    parts = [f"i:{interp_id}"] + [k + nt for k in (aspects_key(tier), transits_key(tier, today)) if k]
+    parts = [f"i:{interp_id}"] + [k for k in (aspects_key(tier), transits_key(tier, today)) if k]
     if plan_for(tier).longterm:
         # l2 (04.10.2026, шаг 2б): границы периодов — настоящие, а не край окна.
         parts.append(f"l2:{today:%Y-%m}")
