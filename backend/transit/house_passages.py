@@ -246,33 +246,128 @@ def calculate_house_passages(
     return periods
 
 
-# Сколько дней сканировать вперёд от конца периода, чтобы найти реальный выход из дома
-LOOKAHEAD_DAYS = {
-    "Sun":     40,
-    "Mercury": 90,
-    "Venus":   90,
-    "Mars":    100,
-    # Медленные планеты: окно должно перекрывать максимально возможное
-    # время нахождения в одном доме (иначе дата выхода обрезается по краю окна)
-    "Jupiter": 900,     # до ~1.5 года в доме
-    "Saturn":  1600,    # до ~4 лет
-    "Uranus":  4400,    # до ~12 лет
-    "Neptune": 7500,    # до ~20 лет
-    "Pluto":   20000,   # до ~55 лет (широкие дома у Плутона)
+# ── Настоящие границы периода ────────────────────────────────────────────────
+# Шаг 2б аудита (04.10.2026). До него периоды планет искались в окне «месяц ±
+# LOOKBACK/LOOKAHEAD» и у крайних проходов границей становился КРАЙ окна: у
+# Солнца в широком доме (дольше 40 дней) планер показывал конец 10.12, лента —
+# 14.12, оба выдуманы (окна разные). Теперь крайний проход досчитывается до
+# настоящего входа и выхода, а ретроградная петля «H → X → H» — один период H
+# до окончательного выхода (решение владельца).
+
+# Сколько дней планета может пробыть вне дома и вернуться в него ретроградной
+# петлёй. Вернуться в тот же дом раньше, чем обойдя круг, планета может ТОЛЬКО
+# попятным ходом, поэтому повторный вход в пределах этого срока — петля, а не
+# новый период. Оценка сверху: дуга ретроградности, пройденная вперёд до
+# станции, плюс сама ретроградность (Меркурий ~45 дней, Венера ~75, Марс ~115,
+# медленные до ~300). Меньше круга по зодиаку с запасом (Меркурий и Венера
+# обходят его за год, Марс — за два). У Солнца петель нет.
+LOOP_DAYS = {
+    "Mercury": 60, "Venus": 90, "Mars": 150,
+    "Jupiter": 360, "Saturn": 360, "Uranus": 360, "Neptune": 360, "Pluto": 360,
 }
 
-# Сколько дней сканировать назад от начала периода, чтобы найти реальное начало транзита
-LOOKBACK_DAYS = {
-    "Sun":     40,
-    "Mercury": 90,
-    "Venus":   90,
-    "Mars":    100,
-    "Jupiter": 420,
-    "Saturn":  1100,
-    "Uranus":  3000,
-    "Neptune": 5500,
-    "Pluto":   8500,
-}
+# Шаг поиска настоящей границы за краем окна, часы. Крупный у медленных:
+# Плутон бывает в одном доме десятилетиями. Точность даёт бисекция, а петлю,
+# которую крупный шаг перепрыгнет, ловит проверка _seen_within.
+EDGE_STEP_HOURS = {"Jupiter": 240, "Saturn": 240, "Uranus": 240, "Neptune": 240, "Pluto": 240}
+EDGE_MAX_STEPS = 10000   # 10 суток × 10000 ≈ 270 лет — края не бывает
+
+
+def _seen_within(planet_id: int, cusps: list[float], t: datetime, house: int,
+                 span: timedelta) -> Optional[datetime]:
+    """Момент, когда планета была в `house` в пределах `span` от `t` (span < 0
+    — назад), иначе None. Шаг — сутки: петля короче суток не бывает."""
+    step = timedelta(days=1) if span > timedelta(0) else -timedelta(days=1)
+    probe, end = t + step, t + span
+    while (probe <= end) if span > timedelta(0) else (probe >= end):
+        if _planet_house_at(planet_id, probe, cusps) == house:
+            return probe
+        probe += step
+    return None
+
+
+def _first_entry(planet: str, cusps: list[float], t: datetime, house: int) -> datetime:
+    """Начало периода `house`, в котором планета находится в `t`: первый вход
+    с учётом ретроградных петель."""
+    pid = PLANETS[planet]
+    step = timedelta(hours=EDGE_STEP_HOURS.get(planet, STEP_HOURS.get(planet, 24)))
+    loop = timedelta(days=LOOP_DAYS.get(planet, 0))
+    while True:
+        entry = _find_real_entry(pid, cusps, t, house, step, EDGE_MAX_STEPS)
+        earlier = _seen_within(pid, cusps, entry, house, -loop) if loop else None
+        if earlier is None:
+            return entry
+        t = earlier
+
+
+def _final_exit(planet: str, cusps: list[float], t: datetime, house: int) -> datetime:
+    """Первый момент ПОСЛЕ окончательного выхода из `house` (планета в нём в `t`)."""
+    pid = PLANETS[planet]
+    step = timedelta(hours=EDGE_STEP_HOURS.get(planet, STEP_HOURS.get(planet, 24)))
+    loop = timedelta(days=LOOP_DAYS.get(planet, 0))
+    while True:
+        exit_dt = _find_real_exit(pid, cusps, t, house, step, EDGE_MAX_STEPS)
+        later = _seen_within(pid, cusps, exit_dt, house, loop) if loop else None
+        if later is None:
+            return exit_dt
+        t = later
+
+
+def _merge_loops(periods: list[dict]) -> list[dict]:
+    """«H → X → H» — один период H от первого входа до последнего выхода.
+
+    Вернуться в дом через ОДИН соседний планета может только развернувшись,
+    поэтому порогов здесь нет. Петля перекрывает соседний период (X тоже
+    тянется до своего окончательного выхода) — это верно: планета в эти
+    месяцы ходит туда-обратно через куспид.
+    """
+    out, used = [], set()
+    for i, p in enumerate(periods):
+        if i in used:
+            continue
+        j = i
+        while j + 2 < len(periods) and periods[j + 2]["house"] == p["house"]:
+            j += 2
+            used.add(j)
+        out.append({"house": p["house"], "start_dt": p["start_dt"], "end_dt": periods[j]["end_dt"]})
+    return out
+
+
+def house_periods(planet: str, cusps: list[float], from_dt: datetime, to_dt: datetime,
+                  step_hours: Optional[int] = None) -> list[dict]:
+    """Периоды планеты по домам, пересекающие [from_dt, to_dt], с НАСТОЯЩИМИ
+    границами: первый вход и окончательный выход, петли склеены.
+
+    Окно сканирования шире запрошенного на две петли: петля, перерезанная
+    краем, оказывается внутри целиком. Досчитывается только проход, упёршийся
+    в край сканирования (`start_dt == scan_from`, `end_dt == scan_to`), —
+    остальные границы уже настоящие (бисекция).
+    """
+    loop = timedelta(days=LOOP_DAYS.get(planet, 0))
+    scan_from, scan_to = from_dt - 2 * loop, to_dt + 2 * loop
+    raw = calculate_house_passages(planet, cusps, scan_from, scan_to, step_hours=step_hours)
+    if not raw:
+        return []
+    if raw[0]["start_dt"] == scan_from:
+        raw[0]["start_dt"] = _first_entry(planet, cusps, scan_from, raw[0]["house"])
+    if raw[-1]["end_dt"] == scan_to:
+        raw[-1]["end_dt"] = _final_exit(planet, cusps, scan_to, raw[-1]["house"]) - timedelta(minutes=1)
+    return [p for p in _merge_loops(raw) if p["end_dt"] >= from_dt and p["start_dt"] <= to_dt]
+
+
+def period_starts(planet: str, cusps: list[float], from_dt: datetime, to_dt: datetime,
+                  step_hours: Optional[int] = None) -> list[dict]:
+    """Начала НОВЫХ периодов в [from_dt, to_dt]: вход в дом, кроме возврата
+    ретроградной петлёй. Дёшево — без досчёта краёв (пуши, «Ближайшие 30
+    дней»): нужны только входы внутри окна. → [{"house", "start_dt"}]."""
+    pid = PLANETS[planet]
+    loop = timedelta(days=LOOP_DAYS.get(planet, 0))
+    out = []
+    for p in calculate_house_passages(planet, cusps, from_dt, to_dt, step_hours=step_hours)[1:]:
+        if loop and _seen_within(pid, cusps, p["start_dt"], p["house"], -loop):
+            continue  # возврат петлёй — продолжение прежнего периода
+        out.append({"house": p["house"], "start_dt": p["start_dt"]})
+    return out
 
 
 def _fmt_date_short(dt: datetime, ref_year: int = None) -> str:
@@ -390,24 +485,18 @@ def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS
     out: list[dict] = []
     for planet in ("Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
         slow = planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
-        passages = calculate_house_passages(planet, cusps, start, end, step_hours=72 if slow else None)
         name_ru, key, _emoji = PLANET_NAMES_RU[planet]
-        # Первый период начинается краем окна, а не входом в дом — не переход.
-        for i, p in enumerate(passages[1:], start=1):
-            until = p["end_dt"]
-            if i == len(passages) - 1:
-                # Последний период обрезан краем окна: настоящий выход ищем
-                # дальше. Не нашли (медленная планета, долгий дом) — без даты.
-                step = timedelta(hours=72 if slow else STEP_HOURS.get(planet, 24))
-                exit_dt = _find_real_exit(PLANETS[planet], cusps, until, p["house"], step)
-                until = exit_dt - timedelta(minutes=1) if exit_dt != until else None
+        # Только НОВЫЕ периоды: край окна — не вход, возврат петлёй — тоже.
+        # «До» — окончательный выход (шаг 2б), а не выход до петли.
+        for p in period_starts(planet, cusps, start, end, step_hours=72 if slow else None):
+            until = _final_exit(planet, cusps, p["start_dt"], p["house"]) - timedelta(minutes=1)
             out.append({
                 "date": _local(p["start_dt"], tz).date().isoformat(),
                 "kind": "passage",
                 "planet": key,
                 "planet_name": name_ru,
                 "house": p["house"],
-                "until": _local(until, tz).date().isoformat() if until else None,
+                "until": _local(until, tz).date().isoformat(),
             })
     for r in compute_retrograde_stations(today, today + timedelta(days=days), tz):
         out.append({
@@ -575,20 +664,15 @@ def compute_planner_periods(
     # ── Быстрые планеты: Солнце, Меркурий, Венера, Марс — на весь месяц ──
     fast_result = []
     for planet in ("Sun", "Mercury", "Venus", "Mars"):
-        lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 60))
-        lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 40))
-        all_passages = calculate_house_passages(planet, cusps, period_start_dt - lookback, period_end_dt + lookahead)
-        # Оставляем только периоды, пересекающиеся с отображаемым месяцем:
-        # заканчиваются не раньше начала месяца И начинаются не позже конца месяца.
+        # Периоды, пересекающиеся с месяцем, с настоящими границами (house_periods).
         # Если смотрим текущий/будущий месяц (period_end_dt >= today) — дополнительно
         # прячем период, который уже полностью завершился к сегодняшнему дню (иначе
         # карточка показывает истёкшую дату вместо актуального дома). При просмотре
         # прошлого месяца (Pro-навигация назад) это ограничение не действует.
         hide_fully_past = period_end_dt >= today_dt
         passages = [
-            p for p in all_passages
-            if p["end_dt"] >= period_start_dt and p["start_dt"] <= period_end_dt
-            and (not hide_fully_past or p["end_dt"] >= today_dt)
+            p for p in house_periods(planet, cusps, period_start_dt, period_end_dt)
+            if not hide_fully_past or p["end_dt"] >= today_dt
         ]
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         fast_result.append({
@@ -664,23 +748,20 @@ def compute_planner_periods(
     # ── Медленные планеты: Юпитер..Плутон — берём дом на середину месяца ──
     slow_result = []
     for planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
-        lookback = timedelta(days=LOOKBACK_DAYS.get(planet, 400))
-        lookahead = timedelta(days=LOOKAHEAD_DAYS.get(planet, 400))
-        all_passages = calculate_house_passages(
-            planet, cusps, period_start_dt - lookback, period_end_dt + lookahead,
-            step_hours=72,
-        )
-        # текущий/действующий период: пересекается с месяцем (начался не позже конца месяца)
-        passages = [
-            p for p in all_passages
-            if p["end_dt"] >= period_start_dt and p["start_dt"] <= period_end_dt
-        ]
+        # Периоды, пересекающиеся с месяцем, с настоящими границами.
+        passages = house_periods(planet, cusps, period_start_dt, period_end_dt, step_hours=72)
         name_ru, key, emoji = PLANET_NAMES_RU[planet]
         # Берём период, который реально содержит "сегодня" — раньше здесь ошибочно
         # выбирался самый длинный по продолжительности из пересекающихся с месяцем,
         # из-за чего при переходе в более короткий (по времени пребывания) дом
         # оставался старый, уже завершившийся период (баг с истёкшими датами).
-        main = next((p for p in passages if p["start_dt"] <= today_dt <= p["end_dt"]), None)
+        # В ретроградной петле «сегодня» лежит в двух периодах сразу (они
+        # перекрываются, _merge_loops) — берём дом, где планета сейчас.
+        now_in = [p for p in passages if p["start_dt"] <= today_dt <= p["end_dt"]]
+        if len(now_in) > 1:
+            here = _planet_house_at(PLANETS[planet], today_dt, cusps)
+            now_in = [p for p in now_in if p["house"] == here] or now_in
+        main = now_in[0] if now_in else None
         if main is None:
             # today вне пересекающихся периодов (например, просмотр прошлого месяца) —
             # берём последний начавшийся к этому моменту, иначе ближайший будущий.

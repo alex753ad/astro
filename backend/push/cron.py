@@ -396,14 +396,15 @@ def _period_starts_on(planet: str, cusps: list[float], target: date_type, tzname
     приходил накануне. `ref` пушей планера содержит эту дату — про дедуп в
     день выкатки см. _seen_nearby.
     """
-    from backend.transit.house_passages import calculate_house_passages
+    from backend.transit.house_passages import period_starts
     lo, hi = local_day(target, tzname)
-    # Сутки запаса с обеих сторон: первый период окна начинается краем
-    # сканирования, а не входом в дом, — край не должен лечь в `target`.
+    # Сутки запаса с обеих сторон; край окна входом не считается
+    # (period_starts), возврат в дом ретроградной петлёй — тоже: это не новый
+    # период, а продолжение прежнего (шаг 2б аудита).
     win_start = lo.replace(tzinfo=None) - timedelta(days=1)
     win_end = hi.replace(tzinfo=None) + timedelta(days=1)
     out = []
-    for p in calculate_house_passages(planet, cusps, win_start, win_end):
+    for p in period_starts(planet, cusps, win_start, win_end):
         if lo <= pytz.utc.localize(p["start_dt"]) < hi:
             out.append(p["house"])
     return out

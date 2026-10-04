@@ -474,7 +474,8 @@ def fingerprint(interp_id: str | None, tier: str, today: date) -> str | None:
         return None
     parts = [f"i:{interp_id}", aspects_key(tier), transits_key(tier, today)]
     if plan_for(tier).longterm:
-        parts.append(f"l:{today:%Y-%m}")
+        # l2 (04.10.2026, шаг 2б): границы периодов — настоящие, а не край окна.
+        parts.append(f"l2:{today:%Y-%m}")
     return "|".join(p for p in parts if p)
 
 

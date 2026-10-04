@@ -30,7 +30,9 @@ import { tokenSubject } from '../../lib/jwt';
 import { shiftDays } from './feedTime';
 
 const PREFIX = 'aristea_offline:';
-export const CACHE_VERSION = 1;
+// 2 (04.10.2026, шаг 2б аудита): периоды планера в ленте — с настоящими
+// границами, а не краем окна поиска; старые записи их врали.
+export const CACHE_VERSION = 2;
 const KEY_PREFIX = `${PREFIX}v${CACHE_VERSION}:`;
 
 export function createOfflineCache({ storage, owner, now = () => Date.now() }) {
