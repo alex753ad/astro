@@ -467,7 +467,8 @@ async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None
     if chart.time_unknown:
         return ""  # без времени рождения планера нет (/planner/monthly)
     now = now_local(tz)
-    cache_key = f"chat_planner:{chart.id}:{tier}:{tz}:{now.date().isoformat()}"
+    # v2 (04.10.2026, шаг 2б): настоящие границы периодов вместо края окна.
+    cache_key = f"chat_planner:v2:{chart.id}:{tier}:{tz}:{now.date().isoformat()}"
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
         return cached
