@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -244,7 +245,7 @@ def test_lunation_fallback_differs_between_consecutive_cycles():
 def _lunation_facts(tense=True, trimmed=False):
     at = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
     return F.LunationFacts(
-        phase="new_moon", at_utc=at, at_local=at.astimezone(F.resolve_tz("Europe/Moscow", None)),
+        phase="new_moon", at_utc=at, at_local=at.astimezone(ZoneInfo("Europe/Moscow")),
         sign="Весы", trimmed=trimmed, house=None if trimmed else 7,
         aspects=[{"planet": "Mars", "natal": "Venus", "tone": "tense" if tense else "harmonious"}],
         warnings=[{"planet": "Mars", "natal": "Sun", "date": date(2026, 10, 13)}] if tense else [],
@@ -275,7 +276,7 @@ def test_lunation_without_birth_time_has_no_house():
 # ── Сегодня: ручка ──────────────────────────────────────────
 
 def _today_msk() -> date:
-    return datetime.now(timezone.utc).astimezone(F.resolve_tz("Europe/Moscow", None)).date()
+    return datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Moscow")).date()
 
 
 class _Url:
@@ -346,7 +347,7 @@ def test_day_without_aspects_still_has_text(client, db, user_free, auth_headers_
 
 def test_trimmed_day_has_no_houses_and_no_natal_moon(db, user_free):
     chart = _chart(db, user_free, time_unknown=True)
-    tz = F.resolve_tz("Europe/Moscow", None)
+    tz = ZoneInfo("Europe/Moscow")
     for i in range(30):   # Луна обходит карту за месяц — касание к натальной Луне обязательно встретилось бы
         f = F.compute_day(chart, date(2026, 9, 1) + timedelta(days=i), tz)
         assert f.trimmed and f.houses == []
@@ -357,7 +358,7 @@ def test_full_day_has_houses_and_sees_natal_moon(db, user_free):
     """Против пустой проверки выше: в полном режиме то же окно даёт и дома,
     и касания к натальной Луне."""
     chart = _chart(db, user_free)
-    tz = F.resolve_tz("Europe/Moscow", None)
+    tz = ZoneInfo("Europe/Moscow")
     days = [F.compute_day(chart, date(2026, 9, 1) + timedelta(days=i), tz) for i in range(30)]
     assert all(d.houses for d in days)
     assert any(a["natal"] == "Moon" for d in days for a in d.aspects)
@@ -371,9 +372,11 @@ def test_trimmed_prompt_uses_general_mood():
 # ── Пояс ────────────────────────────────────────────────────
 
 def test_bad_tz_falls_back_to_chart_tz():
-    assert F.resolve_tz("Not/AZone", "Asia/Novosibirsk").key == "Asia/Novosibirsk"
-    assert F.resolve_tz(None, "Europe/Moscow").key == "Europe/Moscow"
-    assert F.resolve_tz("Asia/Tokyo", "Europe/Moscow").key == "Asia/Tokyo"
+    from types import SimpleNamespace as NS
+    from backend.time_utils import user_tz
+    assert user_tz("Not/AZone", chart=NS(timezone="Asia/Novosibirsk")) == "Asia/Novosibirsk"
+    assert user_tz(None, chart=NS(timezone="Europe/Moscow")) == "Europe/Moscow"
+    assert user_tz("Asia/Tokyo", chart=NS(timezone="Europe/Moscow")) == "Asia/Tokyo"
 
 
 # ── Новолуние / полнолуние ─────────────────────────────────
@@ -383,7 +386,7 @@ def _next_phase_date(phase: str) -> date:
     for step in range(0, 32, 3):
         at = F.find_phase(phase, date(2026, 10, 10) + timedelta(days=step))
         if at is not None:
-            return at.astimezone(F.resolve_tz("Europe/Moscow", None)).date()
+            return at.astimezone(ZoneInfo("Europe/Moscow")).date()
     raise AssertionError(f"{phase} не найдена за месяц")
 
 
@@ -428,7 +431,7 @@ def test_lunation_invented_date_goes_to_fallback(client, db, user_free, auth_hea
 def test_lunation_trimmed_has_no_house_and_no_natal_moon(db, user_free):
     chart = _chart(db, user_free, time_unknown=True)
     at = F.find_phase("new_moon", date(2026, 10, 10))
-    f = F.compute_lunation(chart, "new_moon", at, F.resolve_tz("Europe/Moscow", None))
+    f = F.compute_lunation(chart, "new_moon", at, ZoneInfo("Europe/Moscow"))
     assert f.trimmed and f.house is None
     assert all(a["natal"] != "Moon" for a in f.aspects)
 
@@ -445,7 +448,7 @@ def test_lunation_bad_phase_is_422(client, db, user_free, auth_headers_free, mod
 # ── Сегодня / завтра (вчера закрыт) ─────────────────────────
 
 def test_allowed_days_open_tomorrow_at_19():
-    tz = F.resolve_tz("Europe/Moscow", None)
+    tz = ZoneInfo("Europe/Moscow")
     before = datetime(2026, 9, 24, 18, 59, tzinfo=tz)
     after = datetime(2026, 9, 24, 19, 0, tzinfo=tz)
     assert R.allowed_days(before) == [date(2026, 9, 24)]
@@ -523,7 +526,7 @@ def pushes(monkeypatch):
 
 
 def _at(h, m=0):
-    return datetime(2026, 9, 24, h, m, tzinfo=F.resolve_tz("Europe/Moscow", None))
+    return datetime(2026, 9, 24, h, m, tzinfo=ZoneInfo("Europe/Moscow"))
 
 
 def test_evening_push_once_after_20(db, user_free, pushes):

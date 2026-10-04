@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 from datetime import date, datetime
 
-import pytz
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -35,12 +34,12 @@ async def get_card(
     if not flag_on(db, story_card.FLAG, user):
         raise HTTPException(status_code=404)
     from backend.main import resolve_chart_access   # отложенно: main подключает этот роутер
-    from backend.push.cron import user_timezone
+    from backend.time_utils import local_today, user_tz
     chart = resolve_chart_access(chart_id, user, None, db)
     # Вчера/сегодня/завтра по поясу человека: кнопка стоит на карточке
     # прогноза «сегодня», а сутки устройства и сервера могут не совпадать.
     # Шире не пускаем — каждый запрос считает эфемериды.
-    today = datetime.now(pytz.timezone(user_timezone(user, chart))).date()
+    today = local_today(user_tz(None, user, chart))
     if abs((day - today).days) > 1:
         raise HTTPException(status_code=422, detail="Карточка есть только на сегодня.")
     return await asyncio.to_thread(story_card.card, user, chart, day)

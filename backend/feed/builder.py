@@ -299,11 +299,12 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
 def _transit_events(chart_id: str, natal_planets: list[dict],
                     from_date: date, to_date: date, tz, tier: Optional[str]) -> list[dict]:
     out: list[dict] = []
-    for year, month in _months_between(from_date, to_date):
+    # Чанки — по UTC-дате пика, окно — местные сутки: у краёв окна пик
+    # соседнего UTC-месяца может лежать внутри местного окна, поэтому
+    # месяцы берутся с запасом в сутки.
+    for year, month in _months_between(from_date - timedelta(days=1), to_date + timedelta(days=1)):
         for e in _transit_chunk(chart_id, natal_planets, year, month):
             peak = date.fromisoformat(e["peak_date"])
-            if not (from_date <= peak <= to_date):
-                continue
 
             # exact_date — момент пика с точностью до минуты, наивный UTC.
             # Если его нет (движок отдаёт Optional), берём полдень дня пика:
@@ -313,6 +314,13 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                 at_utc_naive = datetime.fromisoformat(e["exact_date"])
             else:
                 at_utc_naive = datetime.combine(peak, datetime.min.time()) + timedelta(hours=12)
+            at_iso = _naive_utc_to_local_iso(at_utc_naive, tz)
+            # Окно — по МЕСТНОЙ дате пика, той же, что видна в `at`. До
+            # 04.10.2026 сравнивалась UTC-дата: пик в 01:30 по Москве 1-го
+            # числа (22:30 UTC 30-го) не попадал в окно, начатое с 1-го, и
+            # попадал в окно, кончавшееся 30-м, — с датой 1-го.
+            if not (from_date.isoformat() <= at_iso[:10] <= to_date.isoformat()):
+                continue
 
             if e["transit_planet"] in _LOW_IMPORTANCE_TRANSIT_PLANETS:
                 importance = IMPORTANCE_LOW
@@ -331,7 +339,7 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                 # окном запроса без всякой пометки (start расходится у 9 из 31
                 # событий, end — у 7), то есть показывать их как «начало» и
                 # «конец» транзита нельзя. Длительности у транзита в ленте нет.
-                "at": _naive_utc_to_local_iso(at_utc_naive, tz),
+                "at": at_iso,
                 "ends_at": None,
                 "duration_days": None,
                 # Транзит в ленте не заперт: сам список транзитов открыт всем
@@ -556,25 +564,15 @@ def _planner_events(chart_id: str, natal_profile: dict, from_date: date, to_date
     # Ретроградные станции — точечные события планера. locked у них нет вовсе,
     # они отдаются всем тарифам как есть (см. FEED_API_RECON, раздел планера).
     for r in periods.get("retrogrades", []):
-        # `date` здесь — строка «дд.мм» без года: единственное место планера,
-        # где настоящей даты нет. Год восстанавливается по окну, а не по
-        # заголовку: станция всегда внутри запрошенного диапазона, потому что
-        # compute_retrograde_stations сканирует ровно его.
-        try:
-            day, mon = (int(x) for x in r["date"].split("."))
-        except Exception:
-            continue
-        year = from_date.year if (mon, day) >= (from_date.month, from_date.day) else to_date.year
-        try:
-            station = date(year, mon, day)
-        except ValueError:
-            continue
-        at = datetime.combine(station, datetime.min.time()) + timedelta(hours=12)
+        # Точный момент станции (`at`, aware UTC) и её МЕСТНАЯ дата —
+        # compute_retrograde_stations считает в поясе ленты. До 04.10.2026
+        # здесь стояло 12:00 UTC даты UTC: станция в 23:00 по Москве
+        # уезжала на соседние сутки, а время в ленте было выдуманным.
         out.append({
-            "key": _key("r", chart_id, r["planet"], r["status"], station.isoformat()),
+            "key": _key("r", chart_id, r["planet"], r["status"], r["date_iso"]),
             "kind": "retrograde",
             "importance": IMPORTANCE_MEDIUM,
-            "at": _naive_utc_to_local_iso(at, tz),
+            "at": _to_local_iso(datetime.fromisoformat(r["at"]), tz),
             "ends_at": None,
             "duration_days": None,
             "locked": False,

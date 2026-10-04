@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -31,6 +32,7 @@ from backend.auth.rate_limits import guest_key, guest_limit
 from backend.cache import budget_tracker, interpretation_cache
 from backend.config import get_settings
 from backend.database import get_db
+from backend.time_utils import user_tz
 from backend.forecast import facts as F
 from backend.forecast import stats
 from backend.forecast.fallback import daily_fallback, lunation_fallback
@@ -165,7 +167,8 @@ def _previous_openings(chart_id, local_date: date, tz_key: str) -> list[str]:
 
 
 async def daily_forecast(chart, tz_name: str | None, day: date | None = None) -> dict:
-    tz = F.resolve_tz(tz_name, chart.timezone)
+    # tz_name — уже пояс человека (user_tz в ручке); пусто — пояс карты, Москва.
+    tz = ZoneInfo(user_tz(tz_name, chart=chart))
     local_date = day or datetime.now(timezone.utc).astimezone(tz).date()
     # Ключ — по дате, без «сегодня/завтра»: один и тот же текст служит дню в
     # обеих ролях, поэтому промпт и требует нейтральных слов.
@@ -238,16 +241,16 @@ async def get_forecast_day(
     except ValueError:
         raise HTTPException(status_code=422, detail="date: YYYY-MM-DD.")
     chart = _owned_chart(chart_id, user, db, request)
-    tz_obj = F.resolve_tz(tz, chart.timezone)
-    if day not in allowed_days(datetime.now(timezone.utc).astimezone(tz_obj)):
+    zone = user_tz(tz, user, chart)
+    if day not in allowed_days(datetime.now(timezone.utc).astimezone(ZoneInfo(zone))):
         raise HTTPException(status_code=404, detail="Прогноз на эту дату недоступен.")
-    return await daily_forecast(chart, tz, day)
+    return await daily_forecast(chart, zone, day)
 
 
 # ── Новолуние / полнолуние ─────────────────────────────────
 
 async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) -> dict:
-    tz = F.resolve_tz(tz_name, chart.timezone)
+    tz = ZoneInfo(user_tz(tz_name, chart=chart))
     at_utc = await asyncio.to_thread(F.find_phase, phase, near)
     if at_utc is None:
         raise HTTPException(status_code=404, detail="Фаза рядом с этой датой не найдена.")
@@ -317,7 +320,7 @@ async def get_forecast_lunation(
     except ValueError:
         raise HTTPException(status_code=422, detail="date: YYYY-MM-DD.")
     chart = _owned_chart(chart_id, user, db, request)
-    return await lunation_forecast(chart, phase, near, tz)
+    return await lunation_forecast(chart, phase, near, user_tz(tz, user, chart))
 
 
 # ── 👍/👎 под прогнозом ──────────────────────────────────────

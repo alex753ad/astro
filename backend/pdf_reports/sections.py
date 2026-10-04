@@ -439,13 +439,15 @@ async def transit_section(db, chart, tier: str, today: date) -> tuple[list[dict]
 
 # ── Долгосрочные периоды — готовые тексты планера ──────────
 
-def longterm_section(chart, today: date) -> list[dict]:
+def longterm_section(chart, today: date, tz: str | None = None) -> list[dict]:
+    """`tz` — пояс человека (user_tz): границы периодов — местные даты."""
+    from backend.time_utils import utc_naive_to_local
     from backend.transit.house_passages import compute_planner_periods
     from backend.transit.planner_engine import _KEY_TO_ENG, _planet_lead, _unlocked_payload
 
     periods = compute_planner_periods(
         natal_profile=natal_profile(chart), from_date=today, to_date=today + timedelta(days=30), today=today,
-        with_moon_week=False,
+        user_timezone=tz, with_moon_week=False,
     )
     out = []
     for p in periods.get("slow_planets", []):
@@ -453,8 +455,8 @@ def longterm_section(chart, today: date) -> list[dict]:
         eng = _KEY_TO_ENG.get(p["planet_key"])
         if not house or not eng:
             continue
-        s = datetime.fromisoformat(p["start_dt"]).date()
-        e = datetime.fromisoformat(p["end_dt"]).date()
+        s = utc_naive_to_local(datetime.fromisoformat(p["start_dt"]), tz or "UTC").date()
+        e = utc_naive_to_local(datetime.fromisoformat(p["end_dt"]), tz or "UTC").date()
         out.append({
             "title": f"{p['planet_name']} в {house} доме",
             "lead": _planet_lead(eng),

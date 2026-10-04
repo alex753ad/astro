@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from backend.ephemeris.calculator import (
@@ -17,6 +17,28 @@ from backend.ephemeris.calculator import (
     _datetime_to_jd,
     _find_house,
 )
+from backend.time_utils import local_day, utc_naive_to_local, valid_timezone
+
+
+# ── Пояс ──────────────────────────────────────────────────────────────────────
+# Движок сканирует в НАИВНОМ UTC. Всё, что видит человек (строки «07.08 —
+# 06.09», даты станций и «Ближайших 30 дней»), — местное время его пояса
+# (time_utils.user_tz). До 04.10.2026 строки печатались прямо из UTC: период,
+# начавшийся в 22:30 UTC, в Москве начинался «вчера» по планеру и «сегодня»
+# по ленте (шаг 2 аудита). Пояс не пришёл — UTC, как раньше.
+
+def _zone(user_timezone: Optional[str]) -> str:
+    return valid_timezone(user_timezone) or "UTC"
+
+
+def _day_start_utc(d: date, tz: str) -> datetime:
+    """Местная полночь `d` → наивный UTC (вид, в котором считает движок)."""
+    return local_day(d, tz)[0].replace(tzinfo=None)
+
+
+def _local(naive_utc: datetime, tz: str) -> datetime:
+    """Наивный UTC движка → наивное местное, только для показа."""
+    return utc_naive_to_local(naive_utc, tz).replace(tzinfo=None)
 
 
 # Шаги сканирования по скорости планет
@@ -272,16 +294,22 @@ def _speed_at(planet_id: int, dt: datetime) -> float:
     return speed
 
 
-def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
-    """Станции ретроградности (смена направления) внутри отображаемого месяца.
+def compute_retrograde_stations(from_date: date, to_date: date,
+                                user_timezone: Optional[str] = None) -> list[dict]:
+    """Станции ретроградности (смена направления) в местных сутках
+    [from_date, to_date] пояса `user_timezone`.
 
     Возвращает элементы, совместимые с PlannerPage.buildTimeline:
     {"date": "dd.mm", "status": "start"|"end", "planet_name": ..., "label": ...}
     status="start" — планета поворачивает в ретро (директ→ретро),
     status="end"   — возвращается к директному движению (ретро→директ).
+    `date`/`date_iso` — МЕСТНАЯ дата, `at` — точный момент (aware UTC, ISO).
+    ⚠️ До 04.10.2026 дата была UTC, а лента ставила станцию на 12:00 UTC:
+    станция в 23:00 по Москве уезжала на соседние сутки.
     """
-    start_dt = datetime(from_date.year, from_date.month, from_date.day, 0, 0)
-    end_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59)
+    tz = _zone(user_timezone)
+    start_dt = _day_start_utc(from_date, tz)
+    end_dt = _day_start_utc(to_date + timedelta(days=1), tz) - timedelta(minutes=1)
     result: list[dict] = []
     for planet in RETRO_PLANETS:
         pid = PLANETS.get(planet)
@@ -306,11 +334,13 @@ def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
                     else:
                         hi = mid
                 going_retro = speed < 0  # директ→ретро
+                local = _local(hi, tz)
                 result.append({
-                    "date": hi.strftime("%d.%m"),
+                    "date": local.strftime("%d.%m"),
                     # С годом — для «Ближайших 30 дней» (compute_upcoming),
                     # окно которых переходит через границу месяца и года.
-                    "date_iso": hi.date().isoformat(),
+                    "date_iso": local.date().isoformat(),
+                    "at": hi.replace(tzinfo=timezone.utc, microsecond=0).isoformat(),
                     "status": "start" if going_retro else "end",
                     "planet": key,
                     "planet_name": name_ru,
@@ -335,7 +365,8 @@ def compute_retrograde_stations(from_date: date, to_date: date) -> list[dict]:
 UPCOMING_DAYS = 30
 
 
-def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS) -> list[dict]:
+def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS,
+                     user_timezone: Optional[str] = None) -> list[dict]:
     """«Ближайшие 30 дней» в планере: переходы планет (Солнце–Плутон) в
     следующий дом и развороты (станции) — скользящее окно от `today`, не
     отображаемый месяц (решение владельца 29.09.2026).
@@ -353,8 +384,9 @@ def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS
     cusps = _extract_cusps(natal_profile)
     if all(c == 0.0 for c in cusps):
         return []
-    start = datetime(today.year, today.month, today.day, 0, 0)
-    end = start + timedelta(days=days, hours=23, minutes=59)
+    tz = _zone(user_timezone)
+    start = _day_start_utc(today, tz)
+    end = _day_start_utc(today + timedelta(days=days + 1), tz) - timedelta(minutes=1)
     out: list[dict] = []
     for planet in ("Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
         slow = planet in ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
@@ -370,14 +402,14 @@ def compute_upcoming(natal_profile: dict, today: date, days: int = UPCOMING_DAYS
                 exit_dt = _find_real_exit(PLANETS[planet], cusps, until, p["house"], step)
                 until = exit_dt - timedelta(minutes=1) if exit_dt != until else None
             out.append({
-                "date": p["start_dt"].date().isoformat(),
+                "date": _local(p["start_dt"], tz).date().isoformat(),
                 "kind": "passage",
                 "planet": key,
                 "planet_name": name_ru,
                 "house": p["house"],
-                "until": until.date().isoformat() if until else None,
+                "until": _local(until, tz).date().isoformat() if until else None,
             })
-    for r in compute_retrograde_stations(today, (start + timedelta(days=days)).date()):
+    for r in compute_retrograde_stations(today, today + timedelta(days=days), tz):
         out.append({
             "date": r["date_iso"], "kind": "station", "planet": r["planet"],
             "planet_name": r["planet_name"], "status": r["status"],
@@ -532,10 +564,13 @@ def compute_planner_periods(
     if all(c == 0.0 for c in cusps):
         return {"fast_planets": [], "moon_week": [], "slow_planets": []}
 
-    period_start_dt = datetime(from_date.year, from_date.month, from_date.day, 0, 0)
-    period_end_dt = datetime(to_date.year, to_date.month, to_date.day, 23, 59)
-    # Полдень текущего дня — для пометки «текущего» периода (E1: Free-витрина планера)
-    today_dt = datetime(today.year, today.month, today.day, 12, 0)
+    # Границы месяца и «сегодня» — местные сутки, переведённые в наивный UTC
+    # движка: сравниваются с границами проходов, а они в UTC.
+    tz = _zone(user_timezone)
+    period_start_dt = _day_start_utc(from_date, tz)
+    period_end_dt = _day_start_utc(to_date + timedelta(days=1), tz) - timedelta(minutes=1)
+    # Местный полдень текущего дня — для пометки «текущего» периода (E1: Free-витрина планера)
+    today_dt = _day_start_utc(today, tz) + timedelta(hours=12)
 
     # ── Быстрые планеты: Солнце, Меркурий, Венера, Марс — на весь месяц ──
     fast_result = []
@@ -563,7 +598,7 @@ def compute_planner_periods(
             "planet_subtitle": PLANET_SUBTITLES.get(planet, ""),
             "periods": [
                 {
-                    "period": _fmt_period(p["start_dt"], p["end_dt"]),
+                    "period": _fmt_period(_local(p["start_dt"], tz), _local(p["end_dt"], tz)),
                     "house":  p["house"],
                     "is_current": p["start_dt"] <= today_dt <= p["end_dt"],
                     # Настоящие границы периода. `period` выше — строка для
@@ -660,7 +695,7 @@ def compute_planner_periods(
             "planet_key":      key,
             "emoji":           emoji,
             "house":           main["house"],
-            "period_label":    f'{main["start_dt"].strftime("%d.%m.%Y")} — {main["end_dt"].strftime("%d.%m.%Y")}',
+            "period_label":    f'{_local(main["start_dt"], tz):%d.%m.%Y} — {_local(main["end_dt"], tz):%d.%m.%Y}',
             "planet_subtitle": PLANET_SUBTITLES.get(planet, ""),
             # См. комментарий у fast_planets выше — настоящие границы для ленты.
             "start_dt": main["start_dt"].isoformat(),
@@ -671,7 +706,7 @@ def compute_planner_periods(
         "fast_planets": fast_result,
         "moon_week":    moon_week,
         "slow_planets": slow_result,
-        "retrogrades":  compute_retrograde_stations(from_date, to_date),
+        "retrogrades":  compute_retrograde_stations(from_date, to_date, tz),
         "week_nav": {
             "week_offset": resolved_week_offset,
             "total_weeks": total_weeks,

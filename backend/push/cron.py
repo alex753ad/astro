@@ -62,7 +62,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, date as date_type, time as time_type, timedelta
-from backend.time_utils import utcnow
+from backend.time_utils import DEFAULT_TZ, local_day, user_tz, utcnow  # пояс — один на все разделы
 
 import pytz
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -86,8 +86,6 @@ router = APIRouter(
     tags=["internal"],
     dependencies=[Depends(require_internal_secret)],
 )
-
-DEFAULT_TZ = "Europe/Moscow"
 
 FAST_PLANETS = ("Sun", "Mercury", "Venus", "Mars")
 SLOW_PLANETS = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
@@ -306,11 +304,13 @@ def _evening_planner_month(db: Session, user: User, chart, today: date_type) -> 
     if all(c == 0.0 for c in cusps):
         return None
     try:
-        cands = _planner_month_candidates(chart, today, f"/planner/{chart.id}", cusps)
+        cands = _planner_month_candidates(chart, today, f"/planner/{chart.id}", cusps,
+                                          user_tz(None, user, chart))
     except Exception as e:
         logger.warning("planner_month (evening) failed user=%s: %s", user.id, e)
         return None
-    return next((c for c in cands if not _already_sent(db, user.id, c["kind"], c["ref"])), None)
+    return next((c for c in cands if not _already_sent(db, user.id, c["kind"], c["ref"])
+                 and not _seen_nearby(db, user.id, c["kind"], c["ref"])), None)
 
 
 # ── Дедупликация ──
@@ -388,16 +388,50 @@ def _record_send(db: Session, user_id: str, local_date: date_type, slot: str) ->
     db.commit()
 
 
-def _period_starts_on(planet: str, cusps: list[float], target: date_type) -> list[int]:
-    """Номера домов, в которые планета входит именно в дату `target`."""
+def _period_starts_on(planet: str, cusps: list[float], target: date_type, tzname: str) -> list[int]:
+    """Номера домов, в которые планета входит в МЕСТНЫЕ сутки `target`.
+
+    ⚠️ До 04.10.2026 сравнивалась UTC-дата входа: период, начавшийся в
+    22:30 UTC, в Москве начинался уже завтра, а пуш «Начался твой период»
+    приходил накануне. `ref` пушей планера содержит эту дату — про дедуп в
+    день выкатки см. _seen_nearby.
+    """
     from backend.transit.house_passages import calculate_house_passages
-    win_start = datetime(target.year, target.month, target.day) - timedelta(days=1)
-    win_end = datetime(target.year, target.month, target.day) + timedelta(days=1, hours=23)
+    lo, hi = local_day(target, tzname)
+    # Сутки запаса с обеих сторон: первый период окна начинается краем
+    # сканирования, а не входом в дом, — край не должен лечь в `target`.
+    win_start = lo.replace(tzinfo=None) - timedelta(days=1)
+    win_end = hi.replace(tzinfo=None) + timedelta(days=1)
     out = []
     for p in calculate_house_passages(planet, cusps, win_start, win_end):
-        if p["start_dt"].date() == target:
+        if lo <= pytz.utc.localize(p["start_dt"]) < hi:
             out.append(p["house"])
     return out
+
+
+# Виды, у которых `ref` = «планета:дом:дата входа» (_period_starts_on).
+PERIOD_KINDS = frozenset({"planner", "planner_week", "planner_month"})
+
+
+def _seen_nearby(db: Session, user_id: str, kind: str, ref_key: str) -> bool:
+    """Уже ушёл пуш о том же входе в дом с датой ±1 день.
+
+    Зачем. 04.10.2026 дата входа стала местной, а не UTC (шаг 2 аудита). У
+    входа около местной полуночи она сдвинулась на сутки, а с ней и `ref`:
+    пуш, ушедший вчера с ref «Venus:7:<вчера>», сегодня пришёл бы снова с
+    ref «Venus:7:<сегодня>». Оставлено и после выкатки: вход в тот же дом
+    дважды за двое суток бывает только у планеты, топчущейся на куспиде, и
+    второй пуш там тоже не нужен.
+    """
+    if kind not in PERIOD_KINDS:
+        return False
+    head, _, day = ref_key.rpartition(":")
+    try:
+        d = date_type.fromisoformat(day)
+    except ValueError:
+        return False
+    return any(_already_sent(db, user_id, kind, f"{head}:{(d + timedelta(days=k)).isoformat()}")
+               for k in (-1, 1))
 
 
 # ── Фаза 2: транзит «за 4° applying» ──
@@ -782,7 +816,7 @@ def _phases_on_local_date(day: date_type, tzname: str | None) -> list:
 
 
 def _planner_month_candidates(chart: NatalChart, today: date_type, planner_url: str,
-                              cusps: list[float]) -> list[dict]:
+                              cusps: list[float], tzname: str) -> list[dict]:
     """Медленная планета входит в дом через ADVANCE_MONTH_DAYS. Отдельной
     функцией, потому что под флагом push_day_event её зовёт и вечер:
     planner_month заменяет вечерний пуш в свой день (решение владельца
@@ -791,7 +825,7 @@ def _planner_month_candidates(chart: NatalChart, today: date_type, planner_url: 
     cands: list[dict] = []
     mo = today + timedelta(days=ADVANCE_MONTH_DAYS)
     for planet in SLOW_PLANETS:
-        for house in _period_starts_on(planet, cusps, mo):
+        for house in _period_starts_on(planet, cusps, mo, tzname):
             pr = PLANET_RU.get(planet, planet)
             sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
             if sphere_name:
@@ -817,6 +851,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     """
     cands: list[dict] = []
     planner_url = f"/planner/{chart.id}"
+    tzname = user_tz(None, user, chart)
 
     # 1) Ежедневный прогноз (soft). Под флагом push_day_event — с главным
     # событием дня в тексте; ключ дедупа тот же, `daily:<дата>`.
@@ -825,7 +860,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
         if _day_event_on(db, user):
             from backend.day_event import advice, main_event, short, title
             try:
-                ev = main_event(chart, today, user_timezone(user, chart),
+                ev = main_event(chart, today, tzname,
                                 _daily_time_of(user), _quiet_from_of(user))
             except Exception as e:
                 logger.warning("day event failed user=%s: %s", user.id, e)
@@ -852,7 +887,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
             if not all(c == 0.0 for c in cusps):
                 # 2) старт периода быстрой планеты сегодня
                 for planet in FAST_PLANETS:
-                    for house in _period_starts_on(planet, cusps, today):
+                    for house in _period_starts_on(planet, cusps, today, tzname):
                         pr = PLANET_RU.get(planet, planet)
                         sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
                         if sphere_name:
@@ -871,7 +906,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                 # 3) за неделю — средние планеты (Венера/Марс/Меркурий)
                 wk = today + timedelta(days=ADVANCE_WEEK_DAYS)
                 for planet in MEDIUM_PLANETS:
-                    for house in _period_starts_on(planet, cusps, wk):
+                    for house in _period_starts_on(planet, cusps, wk, tzname):
                         pr = PLANET_RU.get(planet, planet)
                         sphere_name = HOUSE_SPHERE_MAP.get(house, {}).get("name")
                         if sphere_name:
@@ -888,7 +923,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
                 # 4) за месяц — медленные планеты (большой период)
-                cands.extend(_planner_month_candidates(chart, today, planner_url, cusps))
+                cands.extend(_planner_month_candidates(chart, today, planner_url, cusps, tzname))
         except Exception as e:
             logger.warning("planner candidates failed user=%s: %s", user.id, e)
 
@@ -915,7 +950,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     if getattr(user, "push_moon_phases", False):
         try:
             tomorrow = today + timedelta(days=1)
-            for phase in _phases_on_local_date(tomorrow, user_timezone(user, chart)):
+            for phase in _phases_on_local_date(tomorrow, tzname):
                 label = "🌑 Новолуние" if phase.type == "new_moon" else "🌕 Полнолуние"
                 cands.append({
                     "kind": "moon", "ref": f"moon:{phase.type}:{phase.date}",
@@ -964,7 +999,7 @@ def _apply_return(db: Session, user: User, chart, today: date_type, cands: list[
         return None
     from backend.day_event import RETURN_TEXT, return_title, week_top
     try:
-        ev = week_top(chart, today, user_timezone(user, chart), _daily_time_of(user), _quiet_from_of(user))
+        ev = week_top(chart, today, user_tz(None, user, chart), _daily_time_of(user), _quiet_from_of(user))
     except Exception as e:
         logger.warning("return event failed user=%s: %s", user.id, e)
         return None
@@ -975,26 +1010,6 @@ def _apply_return(db: Session, user: User, chart, today: date_type, cands: list[
 
 
 # ── Основная логика по одному пользователю ──
-def user_timezone(user, chart, override: str | None = None) -> str:
-    """Пояс, в котором уведомления считают «сегодня» и окно отправки.
-
-    Порядок (решение владельца 24.09.2026): пояс из запроса устройства →
-    последний присланный пояс устройства (`users.device_timezone`) → пояс
-    главной карты → Москва. До этого решения был только пояс карты, то есть
-    места рождения: родившийся в Москве и живущий в Новосибирске получал
-    утреннее уведомление по московским 08:00 — в 12:00 по своим.
-    """
-    for name in (override, getattr(user, "device_timezone", None),
-                 getattr(chart, "timezone", None)):
-        if name:
-            try:
-                pytz.timezone(name)
-                return name
-            except Exception:
-                continue
-    return DEFAULT_TZ
-
-
 def seconds_to_midnight(now_local: datetime, tz) -> int:
     """Секунд до ближайшей местной полуночи, не меньше 60.
 
@@ -1011,7 +1026,7 @@ def _process_user(db: Session, user: User) -> int:
         logger.info("push skip user=%s: no primary chart", user.id)
         return 0  # без главной карты уведомлять не по чему
 
-    tz = pytz.timezone(user_timezone(user, chart))
+    tz = pytz.timezone(user_tz(None, user, chart))
 
     now_local = datetime.now(pytz.utc).astimezone(tz)
     today = now_local.date()
@@ -1035,6 +1050,7 @@ def _process_user(db: Session, user: User) -> int:
     cands = [
         c for c in _collect_candidates(db, user, chart, today)
         if not _already_sent(db, user.id, c["kind"], c["ref"])
+        and not _seen_nearby(db, user.id, c["kind"], c["ref"])
     ]
     if day_on:
         for c in cands:
@@ -1182,7 +1198,7 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
         # планировать» это нормальное состояние, а не ошибка запроса.
         return {"timezone": DEFAULT_TZ, "days": days, "events": []}
 
-    tzname = user_timezone(user, chart, tz_override)
+    tzname = user_tz(tz_override, user, chart)
     tz = pytz.timezone(tzname)
 
     now_local = datetime.now(pytz.utc).astimezone(tz)
@@ -1215,7 +1231,7 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
             from backend.transit.house_passages import _extract_cusps
             cusps = _extract_cusps({"houses": chart.houses})
             if not all(c == 0.0 for c in cusps):
-                pm = _planner_month_candidates(chart, day, f"/planner/{chart.id}", cusps)
+                pm = _planner_month_candidates(chart, day, f"/planner/{chart.id}", cusps, tzname)
                 ev = pm[0] if pm else ev
         if evening_at and not fw and not pm:
             ev = _week_ahead_evening(db, user, chart, day) or ev

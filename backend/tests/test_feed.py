@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import types
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -861,9 +861,12 @@ class TestPeakDateIsNotDerivedFromAt:
         orig = builder._transit_chunk
         builder._transit_chunk = lambda chart_id, natal_planets, year, month: chunk
         try:
+            # Окно ленты — по МЕСТНОЙ дате пика (шаг 2 аудита), поэтому
+            # сутки запаса: полуночный пик в Москве лежит уже 16-го.
             peak = date.fromisoformat(peak_date)
             return builder._transit_events(
-                "chart-1", [], peak, peak, pytz.timezone(tz_name), "free",
+                "chart-1", [], peak - timedelta(days=1), peak + timedelta(days=1),
+                pytz.timezone(tz_name), "free",
             )
         finally:
             builder._transit_chunk = orig

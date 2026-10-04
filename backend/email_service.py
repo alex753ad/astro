@@ -736,15 +736,16 @@ async def send_weekly_digest(user, db) -> bool:
     if not unsub_url:
         return False  # отписка от писем (068)
 
-    now = date_type.today()
-    week_end = now + timedelta(days=7)
-
     # Транзиты недели
     try:
         from backend.chart_utils import get_primary_chart
+        from backend.time_utils import local_today, user_tz
         chart = get_primary_chart(db, user)
         if not chart:
             return False
+        # Неделя — с местного «сегодня» (user_tz), а не с UTC сервера.
+        now = local_today(user_tz(None, user, chart))
+        week_end = now + timedelta(days=7)
         # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
         events = await asyncio.to_thread(
             calculate_transits, natal_planets=chart.planets, from_date=now, to_date=week_end

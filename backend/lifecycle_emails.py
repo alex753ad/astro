@@ -30,7 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Awaitable, Callable
 
 from sqlalchemy import String, and_, cast, exists, func
@@ -38,7 +38,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models import DeviceToken, EmailSentLog, NatalChart, PaymentEvent, User
-from backend.time_utils import utcnow
+from backend.time_utils import local_today, user_tz, utcnow
 
 logger = logging.getLogger("astro.lifecycle_emails")
 
@@ -257,7 +257,8 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
                     if send_once(db, uid, kind, "", send):
                         sent += 1
                     continue
-            today = now.date()
+            # Местное «сегодня» (user_tz); `now` — наивный UTC (utcnow).
+            today = local_today(user_tz(None, user, chart), now.replace(tzinfo=timezone.utc))
             horizon = 7 if kind == "retention_day2" else 30
             events = calculate_transits(
                 natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=horizon),

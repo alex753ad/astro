@@ -250,12 +250,16 @@ def build_chart_summary(chart: dict, time_unknown: bool = False) -> str:
     return "\n".join(lines)
 
 
-def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_id: str = "") -> str:
+def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_id: str = "",
+                         tz: str | None = None) -> str:
     """Блок текущих транзитов для system prompt чата — 3–5 самых значимых
     на сегодня, тем же фактологическим форматом, что и разбор одного
     транзита (см. backend/transit/prompts.py). Считается через Swiss
-    Ephemeris, ИИ ничего не вычисляет и не видит дат за пределами списка."""
-    from datetime import date as _date
+    Ephemeris, ИИ ничего не вычисляет и не видит дат за пределами списка.
+
+    `tz` — пояс человека (user_tz): дата «Точный аспект» — местная, та же,
+    что у события в ленте. Без него — UTC (прогоны и старые тесты)."""
+    from datetime import date as _date, datetime
     from backend.transit.engine import calculate_transits, is_significant_pair, compute_exact_facts
     from backend.transit.prompts import _build_facts_block
 
@@ -296,13 +300,20 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
             # чат «точный 27 сентября», лента «10 сентября». Настоящий пик
             # берётся из того же месячного чанка, что показывает лента.
             window = compute_exact_facts(e.transit_planet, e.natal_planet, e.aspect_type, today, chart)
-            peak = _feed_peak(chart_id, planets, e, window)
+            ev = _feed_peak(chart_id, planets, e, window)
+            peak = _date.fromisoformat(ev["peak_date"]) if ev else None
             facts = compute_exact_facts(
                 e.transit_planet, e.natal_planet, e.aspect_type, peak or today, chart,
             )
-            if peak is None:
+            if ev is None:
                 # Пика в чанках нет — честно без даты, чем с выдуманной.
                 facts["exact_date"] = None
+            elif ev.get("exact_date"):
+                # Момент пика ленты → местная дата. До 04.10.2026 шла
+                # UTC-дата: пик в 01:30 по Москве чат называл вчерашним.
+                from backend.time_utils import utc_naive_to_local
+                exact = datetime.fromisoformat(ev["exact_date"])
+                facts["exact_date"] = utc_naive_to_local(exact, tz or "UTC").date().isoformat()
             if not chart.get("houses"):
                 # Карта без времени рождения: домов нет. Без этого
                 # _extract_cusps отдаёт нули, и дом выходит выдуманный.
@@ -322,7 +333,8 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
 
 
 def _feed_peak(chart_id: str, planets: list[dict], e, window: dict):
-    """Пик текущего прохода — из месячных чанков ленты (её же кэш).
+    """Событие пика текущего прохода (элемент чанка) — из месячных чанков
+    ленты (её же кэш).
 
     Проход — непрерывный отрезок «в орбе», содержащий сегодня (`window`:
     period_start/period_end из compute_exact_facts). Пиков в нём может быть
@@ -343,7 +355,7 @@ def _feed_peak(chart_id: str, planets: list[dict], e, window: dict):
                 continue
             if start <= ev["peak_date"] <= end and (best is None or ev["peak_orb"] < best["peak_orb"]):
                 best = ev
-    return _date.fromisoformat(best["peak_date"]) if best else None
+    return best
 
 
 # Куда отсылать за закрытым периодом. Повторяет сетку замков planner_engine
