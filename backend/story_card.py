@@ -133,11 +133,8 @@ def figure(chart) -> dict:
     # usedforsecurity=False: хеш здесь — только устойчивое число из id, не защита
     # (bandit B324 иначе валит job security).
     rot = int(hashlib.sha1(str(chart.id).encode(), usedforsecurity=False).hexdigest()[:8], 16) % 360
-    lon = {
-        p["name"]: p["longitude"] for p in (chart.planets or [])
-        if p.get("name") in _FIGURE_PLANETS and p.get("longitude") is not None
-        and not (chart.time_unknown and p["name"] == "Moon")
-    }
+    from backend.chart_points import planets
+    lon = {p["name"]: p["longitude"] for p in planets(chart) if p["name"] in _FIGURE_PLANETS}
     names = [n for n in _FIGURE_PLANETS if n in lon]
     pairs = []
     for i, a in enumerate(names):

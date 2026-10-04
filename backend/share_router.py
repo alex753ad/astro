@@ -15,6 +15,7 @@ import secrets
 import textwrap
 from datetime import date as date_type, timedelta
 from backend.time_utils import utcnow
+from backend.chart_points import planets as natal_planets
 from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -83,7 +84,9 @@ async def _get_share_quote(
 ) -> str:
     """Возвращает юмористическую фразу из кэша или генерирует через LLM."""
     redis = get_redis()
-    cache_key = f"share:quote:v2:{token}"
+    # «:nt» — карта без времени рождения (шаг 3, 04.10.2026): прежние шутки
+    # брали полуденный Асцендент и натальную Луну.
+    cache_key = f"share:quote:v2:{token}" + ("" if moon_sign or asc_sign else ":nt")
 
     try:
         cached = await redis.get(cache_key)
@@ -324,7 +327,7 @@ async def share_data(token: str, db: Session = Depends(get_db)):
         # ⚠️ Колесо уходит вместе с датой, а не отдельно: по градусам планет
         # момент рождения восстанавливается однозначно, и скрыть одну строку
         # даты значило бы не скрыть ничего. Остаются только знаки.
-        planets = chart.planets or []
+        planets = natal_planets(chart)   # без времени рождения — без Луны (шаг 3)
         return {
             "share_name": chart.share_name,
             "show_birth": False,
@@ -332,7 +335,8 @@ async def share_data(token: str, db: Session = Depends(get_db)):
                 {"name": n, "sign": p.get("sign")}
                 for n in ("Sun", "Moon") if (p := _get_planet(planets, n))
             ],
-            "ascendant": {"sign": chart.ascendant.get("sign")} if chart.ascendant else None,
+            "ascendant": ({"sign": chart.ascendant.get("sign")}
+                          if chart.ascendant and not chart.time_unknown else None),
         }
     return {
         "show_birth":  True,
@@ -422,10 +426,11 @@ async def share_page(token: str, db: Session = Depends(get_db)):
     except HTTPException:
         return _share_not_found_html()
 
-    planets = chart.planets or []
+    # Без времени рождения — без натальной Луны и ASC (chart_points, шаг 3).
+    planets = natal_planets(chart)
     sun = _sign_label(planets, "Sun")
     moon = _sign_label(planets, "Moon")
-    asc_data = chart.ascendant or {}
+    asc_data = {} if chart.time_unknown else (chart.ascendant or {})
     asc_sign = asc_data.get("sign", "")
     asc_label = f"{SIGN_EMOJI.get(asc_sign, '')} {SIGN_RU.get(asc_sign, asc_sign)}" if asc_sign else ""
 
@@ -595,11 +600,13 @@ async def share_card_png(request: Request, token: str, db: Session = Depends(get
             headers={"Cache-Control": CARD_CACHE_CONTROL},
         )
 
-    planets = chart.planets or []
+    # Без времени рождения — без натальной Луны и ASC (chart_points, шаг 3):
+    # строки карточки получают прежний прочерк «—».
+    planets = natal_planets(chart)
     name = chart.share_name or "Натальная карта"
     sun    = _get_planet(planets, "Sun")
     moon   = _get_planet(planets, "Moon")
-    asc    = chart.ascendant or {}
+    asc    = {} if chart.time_unknown else (chart.ascendant or {})
 
     sun_sign   = SIGN_RU.get(sun.get("sign", ""), "")   if sun  else ""
     moon_sign  = SIGN_RU.get(moon.get("sign", ""), "")  if moon else ""

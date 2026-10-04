@@ -288,23 +288,12 @@ class DayEvent:
 
 
 def _targets(chart) -> list[dict]:
-    out = [
-        {"name": p["name"], "longitude": p["longitude"], "sign": p.get("sign", "")}
-        for p in (chart.planets or [])
-        if p.get("name") in NATAL_PLANETS and p.get("longitude") is not None
-        and not (chart.time_unknown and p["name"] == "Moon")
-    ]
-    # ⚠️ Углы — из chart.ascendant / chart.midheaven, а не куспиды 1 и 10. У
-    # Плацидуса и Коха это одно и то же, а у «равных домов» куспид 10 — не MC,
-    # у «целых знаков» куспиды 1 и 10 — начала знаков, не ASC и MC (до
-    # 04.10.2026 касание к MC там считалось к другой точке, расхождение до
-    # десятков градусов — проверка cA прогона согласованности).
-    if not chart.time_unknown:
-        for name, point in (("Ascendant", chart.ascendant), ("Midheaven", chart.midheaven)):
-            lon = (point or {}).get("longitude")
-            if lon is not None:
-                out.append({"name": name, "longitude": lon, "sign": ""})
-    return out
+    # Состав карты — chart_points.targets (без времени рождения — без Луны,
+    # ASC, MC; углы из chart.ascendant/midheaven, не куспиды — проверка cA).
+    # Набор раздела: Солнце–Плутон и углы, без узлов (сведёт шаг 5).
+    from backend.chart_points import ANGLES, targets
+    return [{"name": p["name"], "longitude": p["longitude"], "sign": p.get("sign", "")}
+            for p in targets(chart) if p["name"] in NATAL_PLANETS or p["name"] in ANGLES]
 
 
 def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:

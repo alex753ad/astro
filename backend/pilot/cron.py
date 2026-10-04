@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+
+from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 import os
 from datetime import timedelta, date as date_type
 from backend.time_utils import utcnow
@@ -113,7 +115,7 @@ def _upcoming_windows(db: Session, user: User) -> list[str]:
     today = date_type.today()
     try:
         events = calculate_transits(
-            natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30),
+            natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=30),
         )
     except Exception as e:
         logger.warning("windows calc failed user=%s: %s", user.id, e)

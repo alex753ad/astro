@@ -63,6 +63,9 @@ import logging
 import os
 from datetime import datetime, date as date_type, time as time_type, timedelta
 from backend.time_utils import DEFAULT_TZ, local_day, user_tz, utcnow  # пояс — один на все разделы
+# Натальные точки и дома — одно место для всех разделов (шаг 3 аудита): без
+# времени рождения нет натальной Луны, углов и домов, а значит и пушей о них.
+from backend.chart_points import cusps as chart_cusps, planets as natal_planets
 
 import pytz
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -299,9 +302,8 @@ def _evening_planner_month(db: Session, user: User, chart, today: date_type) -> 
     уходит вовсе: это выбор человека, как и у «Прогноза на завтра»."""
     if not getattr(user, "push_planner", True):
         return None
-    from backend.transit.house_passages import _extract_cusps
-    cusps = _extract_cusps({"houses": chart.houses})
-    if all(c == 0.0 for c in cusps):
+    cusps = chart_cusps(chart)   # без времени рождения домов нет — пуша тоже
+    if cusps is None:
         return None
     try:
         cands = _planner_month_candidates(chart, today, f"/planner/{chart.id}", cusps,
@@ -465,12 +467,10 @@ def _four_degree_candidates(chart: NatalChart, today: date_type, planner_url: st
     """
     from backend.transit.engine import ASPECTS, _angular_distance, NATAL_SPHERE
     from backend.transit.forecast_prompt import HOUSE_SPHERE_MAP
-    from backend.transit.house_passages import _extract_cusps
-
     yday = today - timedelta(days=1)
-    natal = {p["name"]: p["longitude"] for p in (chart.planets or []) if p.get("name") in PERSONAL_NATAL}
-    cusps = _extract_cusps({"houses": chart.houses})
-    has_houses = not all(c == 0.0 for c in cusps)
+    natal = {p["name"]: p["longitude"] for p in natal_planets(chart) if p["name"] in PERSONAL_NATAL}
+    cusps = chart_cusps(chart)   # «Новая сфера» — только при известном времени
+    has_houses = cusps is not None
 
     out: list[dict] = []
     for tp in SLOW_PLANETS:
@@ -579,7 +579,7 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
 
     yday = today - timedelta(days=1)
     tmrw = today + timedelta(days=1)
-    natal = {p["name"]: p["longitude"] for p in (chart.planets or []) if p.get("name") in PERSONAL_NATAL}
+    natal = {p["name"]: p["longitude"] for p in natal_planets(chart) if p["name"] in PERSONAL_NATAL}
 
     out: list[dict] = []
     for tp in SLOW_PLANETS:
@@ -625,7 +625,7 @@ def _daily_body(chart: NatalChart, today: date_type) -> str:
     try:
         from backend.transit.engine import calculate_transits
         events = calculate_transits(
-            natal_planets=chart.planets, from_date=today, to_date=today
+            natal_planets=natal_planets(chart), from_date=today, to_date=today
         )
         best = None
         for e in events:
@@ -717,11 +717,7 @@ def _transit_entry_candidates(chart: NatalChart, today: date_type, planner_url: 
     )
 
     yday = today - timedelta(days=1)
-    natal = {
-        p["name"]: p["longitude"]
-        for p in (chart.planets or [])
-        if p.get("name") and p.get("longitude") is not None
-    }
+    natal = {p["name"]: p["longitude"] for p in natal_planets(chart)}
 
     # Не больше одного кандидата на транзитную планету в день — иначе
     # несколько аспектов одной планеты дают несколько одинаковых фрагментов
@@ -883,9 +879,8 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     if getattr(user, "push_planner", True):
         try:
             from backend.transit.forecast_prompt import HOUSE_SPHERE_MAP
-            from backend.transit.house_passages import _extract_cusps
-            cusps = _extract_cusps({"houses": chart.houses})
-            if not all(c == 0.0 for c in cusps):
+            cusps = chart_cusps(chart)   # None — без времени рождения
+            if cusps is not None:
                 # 2) старт периода быстрой планеты сегодня
                 for planet in FAST_PLANETS:
                     for house in _period_starts_on(planet, cusps, today, tzname):
@@ -1229,9 +1224,8 @@ def collect_upcoming(db: Session, user: User, days: int, tz_override: str | None
         if fw:
             ev = fw
         elif evening_at and day_on and getattr(user, "push_planner", True):
-            from backend.transit.house_passages import _extract_cusps
-            cusps = _extract_cusps({"houses": chart.houses})
-            if not all(c == 0.0 for c in cusps):
+            cusps = chart_cusps(chart)   # None — без времени рождения
+            if cusps is not None:
                 pm = _planner_month_candidates(chart, day, f"/planner/{chart.id}", cusps, tzname)
                 ev = pm[0] if pm else ev
         if evening_at and not fw and not pm:

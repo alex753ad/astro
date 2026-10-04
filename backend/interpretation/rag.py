@@ -166,18 +166,19 @@ def chat_chart_data(chart: dict, time_unknown: bool) -> dict:
     """Карта в том виде, в каком её видит чат. Общая для ручки чата и прогона
     вопросов (scripts/chat_eval.py) — разойдутся, и прогон проверит не то.
 
-    Без времени рождения — без домов, асцендента и MC: так карту показывает
-    приложение (урезанный режим, forecast/facts.py). Аспекты к ASC/MC тоже
-    убираются — у них та же неопределённость.
+    Без времени рождения — без домов, асцендента, MC и натальной Луны
+    (chart_points: её положение известно до ±6°; Луна — с 04.10.2026, шаг 3
+    аудита). Аспекты к ним тоже убираются — у них та же неопределённость.
     """
     data = {k: chart.get(k) or ([] if k in ("planets", "aspects", "houses") else {})
             for k in ("planets", "ascendant", "midheaven", "aspects", "houses")}
     if time_unknown:
-        angles = {"Ascendant", "Midheaven", "ASC", "MC"}
-        data["planets"] = [{**p, "house": None} for p in data["planets"]]
+        from backend.chart_points import planets
+        hidden = {"Moon", "Ascendant", "Midheaven", "ASC", "MC"}
+        data["planets"] = planets({**data, "time_unknown": True})
         data["ascendant"], data["midheaven"], data["houses"] = {}, {}, []
         data["aspects"] = [a for a in data["aspects"]
-                           if a.get("planet1") not in angles and a.get("planet2") not in angles]
+                           if a.get("planet1") not in hidden and a.get("planet2") not in hidden]
     return data
 
 
@@ -193,9 +194,10 @@ def build_chart_summary(chart: dict, time_unknown: bool = False) -> str:
     lines: list[str] = ["## Натальная карта пользователя\n"]
     if time_unknown:
         lines.append(
-            "Время рождения неизвестно: дома, асцендент и MC не определены. "
-            "О домах, асценденте, MC и управителях домов не говори; если спросят — "
-            "объясни, что для них нужно время рождения.\n"
+            "Время рождения неизвестно: дома, асцендент, MC и точное положение "
+            "натальной Луны не определены. О домах, асценденте, MC, управителях "
+            "домов и натальной Луне не говори; если спросят — объясни, что для них "
+            "нужно время рождения.\n"
         )
 
     # Планеты

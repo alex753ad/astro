@@ -12,6 +12,8 @@ Templates:
 from __future__ import annotations
 import asyncio
 import logging
+
+from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 import os
 import httpx
 
@@ -748,7 +750,7 @@ async def send_weekly_digest(user, db) -> bool:
         week_end = now + timedelta(days=7)
         # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
         events = await asyncio.to_thread(
-            calculate_transits, natal_planets=chart.planets, from_date=now, to_date=week_end
+            calculate_transits, natal_planets=_chart_points.planets(chart), from_date=now, to_date=week_end
         )
     except Exception as e:
         logger.warning("Weekly digest transit fetch failed: %s", e)

@@ -200,10 +200,12 @@ def build_system_prompt(request: InterpretationRequest) -> str:
 
     time_warning = ""
     if request.natal_profile.get("time_unknown"):
+        # Шаг 3 аудита (04.10.2026): домов, ASC и MC в данных больше нет вовсе
+        # (_compact_profile), а не «приблизительно на полдень».
         time_warning = (
-            "⚠️ ВАЖНО: Время рождения неизвестно. Дома и Асцендент рассчитаны приблизительно "
-            "(полдень). НЕ интерпретируй дома и Асцендент как точные данные — "
-            "сосредоточься на знаках и аспектах планет."
+            "⚠️ ВАЖНО: Время рождения неизвестно, поэтому домов, Асцендента и MC в "
+            "данных нет. Не упоминай дома, Асцендент и MC — опирайся на знаки "
+            "планет и аспекты между ними."
         )
 
     # Compact profile for prompt (remove excessive precision)
@@ -256,7 +258,21 @@ def build_system_prompt(request: InterpretationRequest) -> str:
 
 
 def _compact_profile(profile: dict) -> dict:
-    """Remove unnecessary precision from profile for shorter prompt."""
+    """Remove unnecessary precision from profile for shorter prompt.
+
+    Без времени рождения — без домов, ASC, MC и аспектов к углам (шаг 3
+    аудита): они посчитаны на полдень. ⚠️ INTERPRETATION_PROMPT_VERSION
+    намеренно НЕ поднята: это перегенерировало бы разборы всех карт; готовые
+    разборы карт без времени не трогаем (решение владельца 04.10.2026).
+    """
+    if profile.get("time_unknown"):
+        angles = {"Ascendant", "Midheaven", "ASC", "MC"}
+        profile = {
+            **{k: v for k, v in profile.items() if k not in ("ascendant", "midheaven", "houses")},
+            "planets": [{**p, "house": None} for p in profile.get("planets") or []],
+            "aspects": [a for a in profile.get("aspects") or []
+                        if a.get("planet1") not in angles and a.get("planet2") not in angles],
+        }
     result = {}
 
     if "planets" in profile:

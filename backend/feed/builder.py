@@ -246,7 +246,9 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
 
     Единица кэширования и единственное место, где зовётся движок транзитов.
     """
-    cache_key = f"v1:{chart_id}:{year:04d}-{month:02d}"
+    # v2 (04.10.2026, шаг 3): у карты без времени рождения — без натальной
+    # Луны (chart_points.planets); чанки v1 её содержали.
+    cache_key = f"v2:{chart_id}:{year:04d}-{month:02d}"
     cached = feed_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -804,7 +806,8 @@ def build_feed(*, chart, from_date: date, to_date: date, today: date,
     from backend.transit.planner_engine import now_local
     now = now or now_local(getattr(chart, "timezone", None))
 
-    events = _transit_events(chart_id, chart.planets, from_date, to_date, tz, tier)
+    from backend.chart_points import planets as natal_planets
+    events = _transit_events(chart_id, natal_planets(chart), from_date, to_date, tz, tier)
     events += _lunar_events(from_date, to_date, tz)
 
     # Планер требует домов, а они есть только при известном времени рождения.

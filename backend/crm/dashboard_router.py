@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+
+from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 from datetime import date, timedelta
 from typing import Optional
 
@@ -68,7 +70,7 @@ async def get_alerts(
             # CLAUDE.md). N клиентов на запрос — самое чувствительное место.
             events = await asyncio.to_thread(
                 calculate_transits,
-                natal_planets=chart.planets,
+                natal_planets=_chart_points.planets(chart),
                 from_date=frm,
                 to_date=to,
             )
@@ -126,7 +128,7 @@ def _month_transits(chart: NatalChart) -> list[dict]:
     from backend.transit.engine import calculate_transits
     today = date.today()
     events = calculate_transits(
-        natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=30)
+        natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=30)
     )
     return [
         {
@@ -633,7 +635,7 @@ async def crm_reactivation(
                 # CLAUDE.md). N клиентов на запрос.
                 events = await asyncio.to_thread(
                     calculate_transits,
-                    natal_planets=chart.planets, from_date=today, to_date=today + timedelta(days=21)
+                    natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=21)
                 )
                 for e in events:
                     if e.transit_planet in SLOW_PLANETS and e.natal_planet in PERSONAL_POINTS:
@@ -694,7 +696,7 @@ async def group_forecast(
             # Swiss Ephemeris — синхронный, блокирует event loop (см.
             # CLAUDE.md). N клиентов на запрос.
             events = await asyncio.to_thread(
-                calculate_transits, natal_planets=chart.planets, from_date=today, to_date=to
+                calculate_transits, natal_planets=_chart_points.planets(chart), from_date=today, to_date=to
             )
         except Exception as e:
             logger.warning("Group forecast transit calc failed for %s: %s", client.id, e)
