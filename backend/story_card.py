@@ -27,7 +27,7 @@ wip/tariffs-pdf): первое лицо, без рода, до 32 знаков. 
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from backend import day_event
@@ -67,7 +67,6 @@ PHASES = {
     "last_quarter": ("последняя четверть", "Я убираю лишнее"),
     "waning_crescent": ("убывающий серп", "Я отдыхаю и набираюсь сил"),
 }
-_PHASE_ORDER = tuple(PHASES)  # по 45° элонгации, с центром на 0°, 45°, …
 _TONE_INDEX = {"harmonious": 0, "tense": 1, "new_cycle": 2}
 # Асцендент и MC выдают время рождения — на картинке их не называем.
 _HIDDEN_NATAL = {"Ascendant", "Midheaven"}
@@ -78,9 +77,32 @@ _FIGURE_PLANETS = ("Sun", "Moon", "Mercury", "Venus", "Mars",
                    "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
 
 
+# После точной фазы до следующей — промежуточная.
+_AFTER = {"new_moon": "waxing_crescent", "first_quarter": "waxing_gibbous",
+          "full_moon": "waning_gibbous", "last_quarter": "waning_crescent"}
+_EXACT = tuple(_AFTER)
+
+
 def moon_phase(local_date: date, tzname: str) -> str:
-    """Фаза Луны в местный полдень — ключ PHASES."""
-    return _PHASE_ORDER[int(((elongation(local_date, tzname) + 22.5) % 360) // 45)]
+    """Фаза дня — ключ PHASES (решение владельца 04.10.2026, шаг 6 аудита).
+
+    Точная фаза (новолуние, четверти, полнолуние) — только в МЕСТНЫЙ день её
+    точного момента (lunar_engine.lunations), в остальные дни — промежуточная
+    после последней точной. До этого — 8 секторов элонгации в полдень:
+    «новолуние» стояло 3–4 дня подряд и расходилось с лентой и календарём
+    (проверка c5 прогона согласованности). Виджет, сторис и
+    `/calendar/lunar` `daily_signs[].phase` берут фазу только отсюда.
+    """
+    from backend.calendar.lunar_engine import lunations, lunations_local
+    from backend.time_utils import local_day
+
+    today = lunations_local(local_date, local_date, tzname, types=_EXACT)
+    if today:
+        return today[0].type
+    start = local_day(local_date, tzname)[0]
+    # Между точными фазами ≤ 8 суток — 9 хватает.
+    prev = lunations(start - timedelta(days=9), start, types=_EXACT)
+    return _AFTER[prev[-1].type]
 
 
 def elongation(local_date: date, tzname: str) -> float:

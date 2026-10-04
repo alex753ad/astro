@@ -4,8 +4,8 @@
 01:50) лента ставила на 11.10, а лунный календарь, «Ближайшие 30 дней»,
 пуш и дайджест — на 10.10 (GMT+3 или дата UTC).
 
-Виджет и сторис здесь не проверяются: их подписи фаз ждут решения владельца
-(docs/handoff.md, шаг 6, п. 0).
+Виджет и сторис — фаза дня story_card.moon_phase (таблица владельца
+04.10.2026): точная фаза только в местный день момента.
 """
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ def _sections(tz: str, d: date) -> dict[str, set[date]]:
     from backend.feed.builder import _lunar_events
     from backend.main import _compute_lunar_calendar
     from backend.push.cron import _phases_on_local_date
+    from backend.story_card import moon_phase
 
     lo, hi = d - timedelta(days=3), d + timedelta(days=3)
     days = [lo + timedelta(days=i) for i in range(7)]
@@ -47,6 +48,7 @@ def _sections(tz: str, d: date) -> dict[str, set[date]]:
                   if e["kind"] == "moon_phase"},
         "пуш фазы": {x for x in days if _phases_on_local_date(x, tz)},
         "дайджест": {date.fromisoformat(x[:10]) for x in week_phase_lines(lo, hi, tz)},
+        "виджет и сторис": {x for x in days if moon_phase(x, tz) in ("new_moon", "full_moon")},
     }
 
 
