@@ -30,7 +30,9 @@ final class WidgetData {
         "new_moon", "waxing_crescent", "first_quarter", "waxing_gibbous",
         "full_moon", "waning_gibbous", "last_quarter", "waning_crescent",
     };
-    // Подписи фаз — как story_card.PHASES на сервере (по 45° с центром на 0°).
+    // Подписи фаз — как story_card.PHASES на сервере. Без `moon` (ни разу не
+    // было сети) фаза — по 45° элонгации среднего месяца: это приближение,
+    // сервер ставит точную фазу только в её местный день (04.10.2026).
     private static final String[] PHASES = {
         "новолуние", "растущий серп", "первая четверть", "растущая Луна",
         "полнолуние", "убывающая Луна", "последняя четверть", "убывающий серп",

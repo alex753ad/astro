@@ -91,16 +91,23 @@ class TestText:
         assert sc.phrase(None, "waning_gibbous") == "Я делюсь теплом"
 
 
+# Таблица владельца 04.10.2026: октябрь 2026, Москва (docs/handoff.md, шаг 6).
+OCTOBER_MSK = (
+    ["waning_gibbous", "waning_gibbous", "last_quarter"] + ["waning_crescent"] * 6
+    + ["new_moon"] + ["waxing_crescent"] * 7 + ["first_quarter"] + ["waxing_gibbous"] * 7
+    + ["full_moon"] + ["waning_gibbous"] * 5
+)
+
+
 class TestMoonPhase:
-    # Новолуние 10.10.2026 и полнолуние 26.09.2026 — по lunar_engine.
-    @pytest.mark.parametrize("day,phase", [
-        (date(2026, 10, 10), "new_moon"),
-        (date(2026, 9, 26), "full_moon"),
-        (date(2026, 10, 1), "waning_gibbous"),
-        (date(2026, 10, 3), "last_quarter"),
-    ])
-    def test_known_days(self, day, phase):
-        assert sc.moon_phase(day, "Europe/Moscow") == phase
+    def test_october_table(self):
+        got = [sc.moon_phase(date(2026, 10, d), "Europe/Moscow") for d in range(1, 32)]
+        assert got == OCTOBER_MSK
+
+    def test_exact_phase_only_on_local_day(self):
+        # Новолуние 10.10.2026 15:50 UTC: во Владивостоке — 11.10.
+        assert sc.moon_phase(date(2026, 10, 10), "Asia/Vladivostok") == "waning_crescent"
+        assert sc.moon_phase(date(2026, 10, 11), "Asia/Vladivostok") == "new_moon"
 
 
 class TestFigure:
