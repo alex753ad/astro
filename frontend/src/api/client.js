@@ -365,6 +365,21 @@ export async function authFetch(url, options = {}) {
   return resp;
 }
 
+/**
+ * Загрузка карты для ChartPage — через authFetch, а не голым fetch.
+ *
+ * ⚠️ До 05.10.2026 здесь был голый fetch с токеном из localStorage: через
+ * 15 минут access-токен протухал, сервер отвечал 401, обновления не было —
+ * и вошедший видел «Карта не найдена» на своей карте. Тест — chartLoad.test.js.
+ * X-Chart-Token — для карты, привязанной к гостю (см. backend/CLAUDE.md).
+ */
+export function fetchChart(chartId) {
+  const chartTok = sessionStorage.getItem('chart_token');
+  return authFetch(`${API_BASE}/chart/${chartId}`, {
+    headers: chartTok ? { 'X-Chart-Token': chartTok } : {},
+  });
+}
+
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const resp = await authFetch(url, {

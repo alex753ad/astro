@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import MotionButton from '../components/MotionButton';
-import { authFetch, getSubscription } from '../api/client';
+import { authFetch, fetchChart, getSubscription } from '../api/client';
 import { API_BASE, BACKEND_BASE } from '../config';
 import NatalChart from '../components/NatalChart';
 import ChartSummary from '../components/ChartSummary';
@@ -463,14 +463,9 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     }
 
     setAuthRequired(false);
-    const _tok = localStorage.getItem('astro_access_token');
-    const _chartTok = sessionStorage.getItem('chart_token');
-    fetch(`${API_BASE}/chart/${chartId}`, {
-      headers: {
-        ...(_tok ? { Authorization: `Bearer ${_tok}` } : {}),
-        ...(_chartTok ? { 'X-Chart-Token': _chartTok } : {}),
-      },
-    })
+    // fetchChart — с обновлением токена и повтором (api/client.js): голый
+    // fetch через 15 минут давал вошедшему «Карта не найдена».
+    fetchChart(chartId)
       .then(r => {
         if (!r.ok) {
           // resolve_chart_access всегда отвечает 404 (даже для чужой карты —
