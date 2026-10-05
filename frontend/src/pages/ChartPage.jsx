@@ -880,7 +880,11 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
       {/* ── Транзиты ── */}
       {topTab === 'transits' && (
         <div style={{ position: 'relative' }}>
-          <div style={showPaywall ? { filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
+          {/* До 05.10.2026 здесь был блюр по showPaywall — состоянию старого
+              PaywallModal, удалённого 28.09 (3bae9b7) без этой ссылки:
+              ReferenceError ронял вкладку транзитов в белую страницу. Закрытое
+              на тарифе блюрит сам TransitTimeline. */}
+          <div>
             <main style={{ ...s.main, gap: '12px' }}>
               <section style={s.card}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
