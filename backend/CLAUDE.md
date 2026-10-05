@@ -168,7 +168,7 @@ passlib по умолчанию; формат хешей прежний `$2b$12$
 что в итоге вызывает `pyswisseph` (`backend/ephemeris/calculator.py`,
 `backend/transit/engine.py`, `backend/ephemeris/synastry.py`,
 `backend/ephemeris/solar_return.py`, `backend/calendar/lunar_engine.py`,
-`backend/transit/house_passages.py`) — обычные `def`, не `async def`.
+`backend/transit/house_passages.py`, `backend/sky.py`) — обычные `def`, не `async def`.
 `api` — один процесс (`start.sh`, без `--workers`), один asyncio event loop
 на все запросы разом. Вызов такой функции напрямую внутри `async def`
 блокирует ЭТОТ event loop на всё время расчёта — не только для вызвавшего
