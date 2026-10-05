@@ -20,7 +20,10 @@
   c7  «сегодня» одно во всех разделах (00:30 и 23:30 местного);
   c8  без времени рождения — ни натальной Луны, ни ASC/MC, ни домов;
   c9  тон аспекта одинаков во всех источниках;
-  cA  ASC/MC главного события = chart.ascendant/midheaven (по системам домов).
+  cA  ASC/MC главного события = chart.ascendant/midheaven (по системам домов);
+  cB  транзит-аспект: начало, касания и конец одни во всех разделах — лента,
+      главное событие и письмо, чат, разбор, PDF, /transits — против своей
+      истины (truth_transits; шаг 4 аудита, раздел 8.4).
 
 Расхождения — ожидаемый результат, а не сбой: скрипт кончается кодом 0 при
 любом их числе, ненулевой код — только если упал сам прогон.
@@ -64,6 +67,7 @@ CHECKS = {
     "c8": "Без времени рождения: нет натальной Луны, ASC, MC, домов",
     "c9": "Тон аспекта одинаков во всех источниках",
     "cA": "ASC/MC главного события = chart.ascendant/midheaven",
+    "cB": "Одно событие — одни границы и касания во всех разделах",
 }
 DEFAULT_TZS = "Europe/Moscow,Asia/Vladivostok,America/New_York"
 # Окно фаз и станций: за 7 дней их может не быть ни одной.
@@ -194,6 +198,7 @@ def check_c1_c2(ch1: Check, ch2: Check, chart, feed: list[dict], days: list[date
 
 
 _CHAT_DATE = re.compile(r"Точный аспект: (\d{1,2}) (\w+) (\d{4})")
+_RU_DATE = re.compile(r"(\d{1,2}) (\w+) (\d{4})")
 
 
 def parse_chat_block(text: str) -> list[dict]:
@@ -215,6 +220,10 @@ def parse_chat_block(text: str) -> list[dict]:
             cur["aspect"] = aspect.get(line[8:].split(",")[0].strip())
         elif cur is not None and (m := _CHAT_DATE.match(line)):
             cur["exact"] = date(int(m[3]), _MONTHS_RU.index(m[2]) + 1, int(m[1]))
+        elif cur is not None and line.startswith("Период влияния: "):
+            # cB: «Период влияния: 4 октября 2027 — 18 октября 2027» (_format_date_ru).
+            cur["period"] = tuple(date(int(y), _MONTHS_RU.index(mo) + 1, int(d))
+                                  for d, mo, y in _RU_DATE.findall(line))
     return out
 
 
@@ -469,6 +478,269 @@ def check_c9(ch: Check, feed: list[dict]) -> None:
         ch.ok(not wrong, f"{a} ({TONE_DECIDED[a]}): " + "; ".join(wrong))
 
 
+# ── cB: одно событие — одни границы (шаг 4 аудита, раздел 8.4) ───────────────
+
+CB_DAYS = 90         # окно событий ленты, главного события, разбора
+CB_PDF_MONTHS = 12   # горизонт PDF «Главные транзиты» у Ориона (sections.PLANS)
+CB_PDF_N = 10
+# Запас скана истины за края окна, дни, и шаг, часы: проход, начатый раньше,
+# должен попасть в скан целиком, иначе его начало неизвестно (start_known).
+# Медленные — до 2,5 лет одного прохода с петлями (Плутон).
+_CB_MARGIN = {"Moon": 3, "Sun": 15, "Mercury": 120, "Venus": 150, "Mars": 240}
+_CB_STEP = {"Moon": 1, "Sun": 6, "Mercury": 6, "Venus": 6, "Mars": 6}
+_CB_MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+              "августа", "сентября", "октября", "ноября", "декабря")
+
+
+def _dmy(d) -> str:
+    # С годом: события cB тянутся годами («начало 10.02» без года двусмысленно).
+    return d.strftime("%d.%m.%y")
+
+
+def _wrap(x: float) -> float:
+    return (x + 180.0) % 360.0 - 180.0
+
+
+def truth_transits(points: list[dict], t0: datetime, t1: datetime) -> list[dict]:
+    """Истина cB — события «транзит-аспект» с настоящими границами. Свой
+    расчёт, а не ядро и не разделы (приём c5/c6): иначе ядро шага 4.1 сверялось
+    бы само с собой.
+
+    Касание — смена знака разности долгот `(t − n) ∓ угол`, а не минимум орба
+    (станция в 1,6° от точки — не касание). Вход и выход — порог TRANSIT_ORBS.
+    Обе границы и касания — бисекция до минуты. Петля — одно событие: следующий
+    проход склеивается, если планета вошла в орб с той стороны, с которой
+    вышла (развернулась); новый цикл входит с другой стороны.
+
+    `t0`, `t1` — наивный UTC. → [{key, start, end, start_known, end_known,
+    touches}], времена aware UTC; события, пересекающие [t0, t1].
+    """
+    from backend.day_event import counts
+    from backend.ephemeris.aspects import ASPECTS
+    from backend.ephemeris.calculator import PLANETS, _calc_planet_position, _datetime_to_jd
+    from backend.transit.engine import TRANSIT_ORBS
+
+    def lon(pid, t):
+        return _calc_planet_position(pid, round(_datetime_to_jd(t), 6))[0]
+
+    def bis(pred, a, b):  # pred(a) != pred(b) → первая минута, где pred как у b
+        pa = pred(a)
+        while b - a > timedelta(minutes=1):
+            m = a + (b - a) / 2
+            a, b = (m, b) if pred(m) == pa else (a, m)
+        return b
+
+    utc = lambda t: t.replace(tzinfo=timezone.utc)
+    out = []
+    for tp, pid in PLANETS.items():
+        if tp == "North Node":
+            continue
+        margin, step = timedelta(days=_CB_MARGIN.get(tp, 900)), timedelta(hours=_CB_STEP.get(tp, 24))
+        times = [t0 - margin]
+        while times[-1] < t1 + margin:
+            times.append(times[-1] + step)
+        lons = [lon(pid, t) for t in times]
+        for p in points:
+            for asp, ang in ASPECTS.items():
+                if not counts(p["name"], asp):
+                    continue
+                orb = TRANSIT_ORBS[asp]
+                for side in ((1,) if ang in (0, 180) else (1, -1)):
+                    shift = p["longitude"] + side * ang
+                    f = lambda t: _wrap(lon(pid, t) - shift)
+                    v = [_wrap(x - shift) for x in lons]
+                    passes, cur = [], None
+                    for i, x in enumerate(v):
+                        inside = abs(x) <= orb
+                        if inside and cur is None:
+                            cur = {"start": times[0], "start_known": i > 0, "in": 0}
+                            if i:
+                                cur["start"] = bis(lambda t: abs(f(t)) <= orb, times[i - 1], times[i])
+                                cur["in"] = 1 if v[i - 1] > 0 else -1
+                        elif not inside and cur is not None:
+                            cur["end"] = bis(lambda t: abs(f(t)) <= orb, times[i - 1], times[i])
+                            cur["end_known"], cur["out"] = True, (1 if x > 0 else -1)
+                            passes.append(cur)
+                            cur = None
+                    if cur is not None:
+                        passes.append({**cur, "end": times[-1], "end_known": False, "out": 0})
+                    roots = [bis(lambda t: f(t) > 0, times[i], times[i + 1])
+                             for i in range(len(v) - 1)
+                             if (v[i] > 0) != (v[i + 1] > 0) and abs(v[i]) < 90]
+                    events = []
+                    for ps in passes:
+                        if events and ps["in"] and ps["in"] == events[-1]["out"]:
+                            events[-1].update(end=ps["end"], end_known=ps["end_known"], out=ps["out"])
+                        else:
+                            events.append(dict(ps))
+                    for e in events:
+                        if e["end"] < t0 or e["start"] > t1:
+                            continue
+                        out.append({
+                            "key": (tp, p["name"], asp),
+                            "start": utc(e["start"]), "end": utc(e["end"]),
+                            "start_known": e["start_known"], "end_known": e["end_known"],
+                            "touches": [utc(r) for r in roots if e["start"] <= r <= e["end"]],
+                        })
+    return out
+
+
+def _ru_dates(text: str, default_year: int | None = None) -> list[date]:
+    """«22 ноября 2026», «13 марта» (год — `default_year`) → даты по порядку."""
+    out = []
+    for d, mo, y in re.findall(r"(\d{1,2}) (\w+)(?: (\d{4}))?", text):
+        if mo in _CB_MONTHS and (y or default_year):
+            out.append(date(int(y or default_year), _CB_MONTHS.index(mo) + 1, int(d)))
+    return out
+
+
+def _cb_name(key) -> str:
+    from backend.ephemeris.ru_names import ASPECT_RU, PLANET_RU
+    tp, np_, asp = key
+    return f"{PLANET_RU.get(tp, tp)} {ASPECT_RU.get(asp, asp)} {PLANET_RU.get(np_, np_)}"
+
+
+def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, days: list[date],
+             tz: str, tier: str) -> None:
+    """Одно событие — одни границы и касания во всех разделах (п. 8.4 аудита).
+
+    Сравнение — местные даты в поясе `tz`: то, что читает человек. Одна
+    строка сравнения — (событие, раздел, пояс); в строке расхождения все
+    разошедшиеся поля. Граница, упёршаяся в край скана истины, не сравнивается.
+    """
+    from backend import day_event
+    from backend.chart_points import planets as natal_planets
+    from backend.feed.builder import _transit_events, _tz
+    from backend.interpretation.rag import build_transits_block
+    from backend.pdf_reports.sections import main_transits
+    from backend.transit.engine import calculate_transits, compute_exact_facts
+
+    zone = ZoneInfo(tz)
+    ld = lambda t: t.astimezone(zone).date()
+    d1 = d0 + timedelta(days=CB_DAYS)
+    touch_days = {(e["key"], ld(t)) for e in truth for t in e["touches"]}
+
+    def event_on(key, d):
+        return next((e for e in truth if e["key"] == key and ld(e["start"]) <= d <= ld(e["end"])), None)
+
+    def bounds(e, start, end) -> list[str]:
+        bad = []
+        if start is not None and e["start_known"] and start != ld(e["start"]):
+            bad.append(f"начало {_dmy(start)} (истина {_dmy(ld(e['start']))})")
+        if end is not None and e["end_known"] and end != ld(e["end"]):
+            bad.append(f"конец {_dmy(end)} (истина {_dmy(ld(e['end']))})")
+        return bad
+
+    # 1. Лента: каждая карточка транзита — касание из истины, и наоборот.
+    cards = _transit_events(chart.id, day_event.points(chart), d0, d1, _tz(tz), tier)
+    feed_set = {((c["meta"]["transit_planet"], c["meta"]["natal_planet"], c["meta"]["aspect_type"]),
+                 date.fromisoformat(c["at"][:10])) for c in cards}
+    in_win = {x for x in touch_days if d0 <= x[1] <= d1}
+    for key, d in sorted(in_win | feed_set, key=lambda x: (x[1], x[0])):
+        if (key, d) not in feed_set:
+            ch.ok(False, f"{tz}: лента — касания {_cb_name(key)} {_dmy(d)} нет")
+        elif (key, d) not in in_win:
+            ch.ok(False, f"{tz}: лента — {_cb_name(key)} {_dmy(d)}: касания нет (станция?)")
+        else:
+            ch.ok(True, "")
+
+    # 2. Главное событие и письмо «Важный транзит» берут касания из _candidates.
+    for d in (d0 + timedelta(days=i) for i in range(CB_DAYS + 1)):
+        for ev in day_event._candidates(chart, d, zone):
+            if ev.natal is None:
+                continue
+            key = (ev.transit, ev.natal, ev.aspect)
+            ch.ok((key, ev.at_local.date()) in touch_days,
+                  f"{tz}: главное событие/письмо — {_cb_name(key)} {_dmy(ev.at_local)}: касания нет (станция?)")
+
+    # 3. Чат: «Точный аспект» и «Период влияния» из блока транзитов.
+    for d in days:
+        for it in parse_chat_block(build_transits_block(chat_chart, 5, d, chart.id, tz)):
+            key = (it["transit"], it["natal"], it["aspect"])
+            e = event_on(key, d)
+            if e is None:
+                ch.ok(False, f"{tz}: чат {d} — {_cb_name(key)}: в истине события нет")
+                continue
+            per = it.get("period") or (None, None)
+            bad = bounds(e, *per) if len(per) == 2 else ["период не разобран"]
+            if it["exact"] and (key, it["exact"]) not in touch_days:
+                bad.append(f"точный {_dmy(it['exact'])}: касания нет")
+            ch.ok(not bad, f"{tz}: чат {d} — {_cb_name(key)}: " + "; ".join(bad))
+
+    # 4. Разбор транзита: те же факты, что считает ручка
+    # (main.interpret_transit_event), от meta.peak_date карточки ленты.
+    profile = {"planets": natal_planets(chart), "houses": [] if chart.time_unknown else chart.houses}
+    seen = set()
+    for c in cards:
+        m = c["meta"]
+        key = (m["transit_planet"], m["natal_planet"], m["aspect_type"])
+        if key[0] == "Moon" or (key, m["peak_date"]) in seen:
+            continue
+        seen.add((key, m["peak_date"]))
+        shown = date.fromisoformat(c["at"][:10])
+        e = event_on(key, shown)
+        if e is None:
+            continue  # карточки без касания уже посчитаны в п. 1
+        f = compute_exact_facts(*key, date.fromisoformat(m["peak_date"]), profile)
+        if not f.get("period_start"):
+            ch.ok(False, f"{tz}: разбор — {_cb_name(key)} {_dmy(shown)}: без фактов")
+            continue
+        bad = bounds(e, date.fromisoformat(f["period_start"]), date.fromisoformat(f["period_end"]))
+        if f.get("exact_date") and (key, date.fromisoformat(f["exact_date"])) not in touch_days:
+            bad.append(f"точный {_dmy(date.fromisoformat(f['exact_date']))}: касания нет")
+        ch.ok(not bad, f"{tz}: разбор — {_cb_name(key)} {_dmy(shown)}: " + "; ".join(bad))
+
+    # 5. PDF «Главные транзиты» (тариф с горизонтом CB_PDF_MONTHS).
+    horizon = d0 + timedelta(days=round(CB_PDF_MONTHS * 30.44))
+    for it in main_transits(day_event.points(chart), d0, CB_PDF_MONTHS, CB_PDF_N):
+        key = (it["planet"], it["natal"], it["kind"])
+        evs = sorted((e for e in truth if e["key"] == key and ld(e["start"]) <= horizon and ld(e["end"]) >= d0),
+                     key=lambda e: e["start"])
+        if not evs:
+            ch.ok(False, f"{tz}: PDF — {_cb_name(key)}: в истине события нет")
+            continue
+        when, bad = it["when"], []
+        if len(evs) > 1:
+            bad.append(f"склеено {len(evs)} события через перерыв")
+        ends = _ru_dates(when)
+        end_year = ends[-1].year if ends else None
+        got = _ru_dates(when, end_year)
+        first, last = evs[0], evs[-1]
+        if when.startswith("до "):
+            if first["start_known"] and ld(first["start"]) > d0:
+                bad.append(f"«уже идёт», а начало {_dmy(ld(first['start']))}")
+            bad += bounds(last, None, got[-1] if got else None)
+        elif "продолжается и после" in when:
+            if last["end_known"] and ld(last["end"]) <= horizon:
+                bad.append(f"«продолжается», а конец {_dmy(ld(last['end']))}")
+        elif len(got) == 2:
+            bad += bounds(first, got[0], None) + bounds(last, None, got[1])
+        want = sorted({ld(t) for e in evs for t in e["touches"] if d0 <= ld(t) <= horizon})[:3]
+        if _ru_dates(it["exact"]) != want:
+            bad.append(f"касания {', '.join(map(_dmy, _ru_dates(it['exact']))) or 'нет'} "
+                       f"(истина {', '.join(map(_dmy, want)) or 'нет'})")
+        ch.ok(not bad, f"{tz}: PDF — {_cb_name(key)}: " + "; ".join(bad))
+
+    # 6. /transits: два соседних окна, как их листает веб; событие обязано
+    # иметь одни даты в обоих. Точки — как у ручки (chart_points.planets).
+    for w0, w1 in ((d0, d0 + timedelta(days=91)), (d0 + timedelta(days=91), d0 + timedelta(days=182))):
+        resp = calculate_transits(natal_planets(chart), w0, w1)
+        for e in truth:
+            if ld(e["end"]) < w0 or ld(e["start"]) > w1 or e["key"][0] == "Moon":
+                continue
+            got = [r for r in resp if (r.transit_planet, r.natal_planet, r.aspect_type) == e["key"]
+                   and r.start_date <= ld(e["end"]).isoformat() and r.end_date >= ld(e["start"]).isoformat()]
+            if not got:
+                ch.ok(False, f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(e['key'])}: на вебе нет")
+                continue
+            for r in got:
+                bad = bounds(e, date.fromisoformat(r.start_date), date.fromisoformat(r.end_date))
+                peak = date.fromisoformat(r.peak_date)
+                if (e["key"], peak) not in touch_days:
+                    bad.append(f"пик {_dmy(peak)}: касания нет")
+                ch.ok(not bad, f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(e['key'])}: " + "; ".join(bad))
+
+
 async def check_cA(ch: Check, birth: dict) -> None:
     from chat_eval import _chart
     from backend import day_event
@@ -566,6 +838,15 @@ async def run(args) -> None:
             guard(checks["c9"], check_c9, checks["c9"], [e for e in feed if d0 <= _dt(e["at"]).date() <= days[-1]])
             guard(checks["c7"], check_c7, checks["c7"], full, user, d0, tzs)
     guard(checks["c3"], check_c3, checks["c3"], chat_chart_data(stored, time_unknown), "consistency-full", days, tzs)
+    # cB: истина одна на все пояса (UTC), с запасом под горизонт PDF.
+    t0 = datetime.combine(d0, time()) - timedelta(days=1)
+    from backend.day_event import points
+    truth = guard(checks["cB"], truth_transits, points(_ns(stored, "consistency-full", tzs[0], time_unknown)),
+                  t0, t0 + timedelta(days=round(CB_PDF_MONTHS * 30.44) + 2))
+    if truth is not None:
+        for tz in tzs:
+            guard(checks["cB"], check_cB, checks["cB"], _ns(stored, "consistency-full", tz, time_unknown),
+                  chat_chart_data(stored, time_unknown), truth, d0, days, tz, args.tier)
     try:
         await check_cA(checks["cA"], birth)
     except Exception as e:  # noqa: BLE001
