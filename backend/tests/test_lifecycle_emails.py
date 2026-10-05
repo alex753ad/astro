@@ -20,6 +20,16 @@ from backend import lifecycle_emails as le
 from backend.models import EmailSentLog, PaymentEvent, User
 from backend.time_utils import utcnow
 
+from backend.lifecycle_emails import email_window_open as _REAL_WINDOW
+
+
+@pytest.fixture(autouse=True)
+def _email_window_open(monkeypatch):
+    """Окно писем 09–21 местного (#116) здесь не проверяется — его держит
+    test_email_window.py. Без этого тесты зависят от часа прогона: CI после
+    21:00 по Москве краснел (05.10.2026)."""
+    monkeypatch.setattr("backend.lifecycle_emails.email_window_open", lambda *a, **k: True)
+
 BACKEND = Path(__file__).resolve().parents[1]
 _n = itertools.count(1)
 
@@ -408,6 +418,8 @@ def test_transit_alert_first_run_after_9_local_once(db, sent, monkeypatch):
     """Письмо уходит прогоном писем, а не открытием /transits: в день точного
     касания, первым прогоном после 09:00 по местному времени, один раз;
     только Лира и Орион."""
+    # Здесь окно и проверяется — настоящее, с явным временем (фикстура выше его глушит).
+    monkeypatch.setattr("backend.lifecycle_emails.email_window_open", _REAL_WINDOW)
     from datetime import datetime
     from zoneinfo import ZoneInfo
     from backend.day_event import DayEvent
