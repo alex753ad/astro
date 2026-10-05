@@ -30,7 +30,8 @@ _BLOCK = """## Текущие транзиты (на сегодня, посчи�
 
 def test_chat_block_parsed():
     assert ce.parse_chat_block(_BLOCK) == [
-        {"transit": "Saturn", "natal": "Moon", "aspect": "opposition", "exact": date(2026, 10, 7)},
+        {"transit": "Saturn", "natal": "Moon", "aspect": "opposition", "exact": date(2026, 10, 7),
+         "period": (date(2026, 9, 11), date(2026, 11, 4))},  # cB
         {"transit": "Pluto", "natal": "North Node", "aspect": "conjunction", "exact": None},
     ]
 
