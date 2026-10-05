@@ -20,6 +20,14 @@ import pytest
 from backend.models import PushSentLog
 
 
+@pytest.fixture(autouse=True)
+def _email_window_open(monkeypatch):
+    """Окно писем 09–21 местного (#116) здесь не проверяется — его держит
+    test_email_window.py. Без этого тесты зависят от часа прогона: CI после
+    21:00 по Москве краснел (05.10.2026)."""
+    monkeypatch.setattr("backend.lifecycle_emails.email_window_open", lambda *a, **k: True)
+
+
 @pytest.fixture
 def pilot_user(user_free, db):
     user_free.pilot_started_at = utcnow() - timedelta(days=28)  # 2 дня до конца

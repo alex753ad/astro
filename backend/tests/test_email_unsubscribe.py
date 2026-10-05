@@ -11,6 +11,14 @@ from backend.models import PushSentLog, User
 from backend.profile.email_unsubscribe import unsubscribe_url
 from backend.time_utils import utcnow
 
+
+@pytest.fixture(autouse=True)
+def _email_window_open(monkeypatch):
+    """Окно писем 09–21 местного (#116) здесь не проверяется — его держит
+    test_email_window.py. Без этого тесты зависят от часа прогона: CI после
+    21:00 по Москве краснел (05.10.2026)."""
+    monkeypatch.setattr("backend.lifecycle_emails.email_window_open", lambda *a, **k: True)
+
 # Информационные письма — под отпиской: обязательный unsubscribe_url.
 INFORMATIONAL = [
     "send_welcome_email", "send_retention_day2", "send_retention_day7", "send_retention_day14",
