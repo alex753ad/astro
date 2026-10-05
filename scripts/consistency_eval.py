@@ -669,7 +669,7 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
 
     # 4. Разбор транзита: те же факты, что считает ручка
     # (main.interpret_transit_event), от meta.peak_date карточки ленты.
-    profile = {"planets": natal_planets(chart), "houses": [] if chart.time_unknown else chart.houses}
+    profile = {"planets": day_event.points(chart), "houses": [] if chart.time_unknown else chart.houses}
     seen = set()
     for c in cards:
         m = c["meta"]
