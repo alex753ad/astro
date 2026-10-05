@@ -26,11 +26,28 @@ logger = logging.getLogger("astro.tasks")
 
 @celery_app.task(name="tasks.send_lifecycle_emails")
 def send_lifecycle_emails() -> dict:
-    """Beat, раз в час 06:15–18:15 UTC: day2/day7/day14, lite_day14, pro_day30."""
+    """Beat, раз в час круглые сутки: day2/day7/day14, lite_day14, pro_day30,
+    «Важный транзит». Окно 09–21 местного — у каждого письма
+    (lifecycle_emails.email_window_open)."""
     from backend.lifecycle_emails import run_lifecycle_emails
     db = SessionLocal()
     try:
         return run_lifecycle_emails(db)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.pilot_tick", ignore_result=True)
+def pilot_tick() -> dict:
+    """Beat, ежечасно: прогон пилота (backend/pilot/cron.py). Письма пилота —
+    в окне 09–21 местного; раз в сутки (systemd-таймер, 06:20) у поясов
+    западнее Москвы окно не открывалось бы никогда. Таймер остался —
+    прогон идемпотентен."""
+    import asyncio
+    from backend.pilot.cron import run_tick
+    db = SessionLocal()
+    try:
+        return asyncio.run(run_tick(db))
     finally:
         db.close()
 
@@ -186,20 +203,23 @@ for _name in _RETIRED_TASK_NAMES:
 
 @celery_app.task(name="tasks.check_lunar_returns")
 def check_lunar_returns() -> dict:
-    """Daily Celery task: send email when Moon returns to user's natal sign.
+    """Beat, ежечасно: письмо «Лунный возврат» в местный день возврата, в
+    окне писем 09–21 местного (lifecycle_emails.email_window_open).
 
-    Should be triggered via Railway Cron POST /api/v1/internal/lunar-returns (09:00 МСК).
+    До 05.10.2026 — раз в сутки в 06:00 UTC по дате сервера: в Нью-Йорке
+    письмо приходило в 02:00. Журнал (kind lunar_return, ref — местная дата)
+    держит одно письмо на возврат при ежечасных прогонах.
     """
     import asyncio
-    from datetime import date as date_type
-    from backend.models import User, NatalChart
+    from backend.models import User
     from backend.transit.engine import get_next_lunar_return
     from backend.email_service import send_lunar_return_email
+    from backend.lifecycle_emails import email_window_open, send_once
     from backend.profile.email_unsubscribe import unsubscribe_url
+    from backend.time_utils import local_today, user_tz
 
     db = SessionLocal()
     sent = 0
-    today = date_type.today()
 
     try:
         users = db.query(User).filter(User.is_active == True).all()
@@ -211,57 +231,68 @@ def check_lunar_returns() -> dict:
             # шаг 3 аудита) — и «возврата» к ней тоже: письмо не уходит.
             if chart.time_unknown:
                 continue
+            if not email_window_open(user, chart):
+                continue
             try:
+                today = local_today(user_tz(None, user, chart))
                 natal_data = {"planets": chart.planets}
                 lunar_date = get_next_lunar_return(natal_data, today)
                 unsub_url = unsubscribe_url(user)
                 if lunar_date == today and unsub_url:
-                    asyncio.run(
-                        send_lunar_return_email(user, today, unsubscribe_url=unsub_url)
-                    )
-                    sent += 1
+                    if send_once(db, user.id, "lunar_return", today.isoformat(),
+                                 lambda u=user, d=today, s=unsub_url: send_lunar_return_email(
+                                     u, d, unsubscribe_url=s)):
+                        sent += 1
             except Exception as e:
                 logger.warning("Lunar return check failed user=%s: %s", user.id, e)
     finally:
         db.close()
 
     logger.info("check_lunar_returns: sent=%d", sent)
-    return {"sent": sent, "date": str(today)}
+    return {"sent": sent}
 
 
 @celery_app.task(name="tasks.send_weekly_digest_task")
 def send_weekly_digest_task() -> dict:
-    """Daily Celery Beat task: send weekly digest to users whose digest_day == today."""
-    import asyncio
-    from datetime import date as date_type
+    """Beat, ежечасно: дайджест Лиры и Ориона в их день недели
+    (digest_day_of_week) по МЕСТНОЙ дате, в окне писем 09–21 местного
+    (lifecycle_emails.email_window_open).
+
+    До 05.10.2026 — раз в сутки в 06:05 UTC по дню недели сервера: в
+    Нью-Йорке дайджест приходил в 02:05. Журнал (kind weekly_digest, ref —
+    местная дата) держит одно письмо в день при ежечасных прогонах.
+    """
+    from backend.chart_utils import get_primary_chart
     from backend.models import User
     from backend.email_service import send_weekly_digest
+    from backend.lifecycle_emails import email_window_open, send_once
+    from backend.time_utils import local_today, user_tz
 
     db = SessionLocal()
     sent = 0
-    today_weekday = date_type.today().weekday()
 
     try:
         users = db.query(User).filter(
             User.tier.in_(["pro", "premium"]),
-            User.digest_day_of_week == today_weekday,
             User.is_active == True,
             User.email_opt_out == False,  # noqa: E712 — отписка от писем (068)
         ).all()
         for user in users:
             try:
-                ok = asyncio.run(
-                    send_weekly_digest(user, db)
-                )
-                if ok:
+                chart = get_primary_chart(db, user)
+                today = local_today(user_tz(None, user, chart))
+                if today.weekday() != user.digest_day_of_week or not email_window_open(user, chart):
+                    continue
+                if send_once(db, user.id, "weekly_digest", today.isoformat(),
+                             lambda u=user: send_weekly_digest(u, db)):
                     sent += 1
             except Exception as e:
                 logger.warning("Weekly digest failed user=%s: %s", user.id, e)
     finally:
         db.close()
 
-    logger.info("send_weekly_digest_task: sent=%d weekday=%d", sent, today_weekday)
-    return {"sent": sent, "weekday": today_weekday}
+    logger.info("send_weekly_digest_task: sent=%d", sent)
+    return {"sent": sent}
 
 
 # ═══════════════════════════════════════════════════════════

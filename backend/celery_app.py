@@ -40,15 +40,17 @@ celery_app.conf.update(
 
     # ── Celery Beat — периодические задачи ──
     beat_schedule={
-        # Лунные возвращения — каждый день в 09:00 МСК (06:00 UTC)
+        # Лунные возвращения — ежечасно; письмо уходит в местный день
+        # возврата в окне 09–21 местного (решение владельца 05.10.2026).
         "check-lunar-returns-daily": {
             "task": "tasks.check_lunar_returns",
-            "schedule": crontab(hour=6, minute=0),
+            "schedule": crontab(minute=0),
         },
-        # Weekly digest — каждый день в 09:00 МСК (фильтрует по digest_day_of_week сам)
+        # Weekly digest — ежечасно; день недели и окно 09–21 — местные
+        # (решение владельца 05.10.2026), повтор держит журнал.
         "send-weekly-digest-daily": {
             "task": "tasks.send_weekly_digest_task",
-            "schedule": crontab(hour=6, minute=5),
+            "schedule": crontab(minute=5),
         },
         # Ежемесячная рассылка клиентам — ежедневно 09:10 МСК; задача сама шлёт только 1-го числа
         "send-client-broadcast-monthly": {
@@ -72,10 +74,10 @@ celery_app.conf.update(
             "task": "tasks.purge_pdf_reports",
             "schedule": crontab(hour=4, minute=40),
         },
-        # Письма онбординга и после покупки — раз в час, 06:15–18:15 UTC
-        # (09:15–21:15 МСК), решение владельца 23.09.2026. Ежечасно, а не раз
-        # в сутки: деплой в 06:15 не стоит суток задержки. Повтор прогона
-        # безопасен — выборка идёт по журналу (backend/lifecycle_emails.py).
+        # Письма онбординга и после покупки — раз в час (решение владельца
+        # 23.09.2026; с 05.10.2026 — круглые сутки, ниже). Ежечасно, а не раз
+        # в сутки: деплой не стоит суток задержки. Повтор прогона безопасен —
+        # выборка идёт по журналу (backend/lifecycle_emails.py).
         # «Неделя вперёд» письмом (флаг week_ahead) — ежечасно по вс и пн UTC:
         # окно у человека — вс 19:00 … пн 12:00 местного, и в поясах западнее
         # UTC оно целиком вне 06–18 UTC прогона ниже. Без флага прогон пуст.
@@ -83,11 +85,19 @@ celery_app.conf.update(
             "task": "tasks.send_week_ahead_emails",
             "schedule": crontab(day_of_week="sun,mon", minute=25),
         },
+        # Пилот — ежечасно: его письма уходят в окне 09–21 местного
+        # (решение владельца 05.10.2026); systemd-таймер раз в сутки остался,
+        # прогон идемпотентен (backend/pilot/cron.py).
+        "pilot-tick-hourly": {
+            "task": "tasks.pilot_tick",
+            "schedule": crontab(minute=35),
+        },
         "send-lifecycle-emails-hourly": {
             "task": "tasks.send_lifecycle_emails",
-            # Круглые сутки (решение владельца 05.10.2026): «Важный транзит»
-            # уходит первым прогоном после 09:00 местного, во Владивостоке —
-            # 23:15 UTC (lifecycle_emails._send_transit_alerts).
+            # Круглые сутки (решение владельца 05.10.2026): окно писем —
+            # 09–21 по местному времени человека, у каждого письма своё
+            # (lifecycle_emails.email_window_open); во Владивостоке 09:00 —
+            # 23:00 UTC.
             "schedule": crontab(minute=15),
         },
         # Самопроверка прогнозов на служебной карте — 07:30 МСК, до утренних

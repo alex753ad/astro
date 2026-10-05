@@ -71,6 +71,28 @@ PURCHASE = {
 WELCOME_KIND = {"lite": "lite_welcome", "pro": "pro_welcome", "premium": "premium_welcome"}
 
 
+# ── Окно отправки ───────────────────────────────────────────
+# Решение владельца 05.10.2026: письмо ПО РАСПИСАНИЮ уходит только с 09:00 до
+# 21:00 по местному времени человека (time_utils.user_tz); окно пропущено —
+# уходит в следующее (прогоны ежечасные, журнал не даёт повтора). Сразу, без
+# окна — только ответы на действие: код подтверждения почты, сброс пароля,
+# письма об оплате (приветствие тарифа). Ошибка, которую это закрывает: после
+# перевода прогона на круглые сутки (05.10.2026) онбординг уходил ночью.
+# ⚠️ Новое письмо по расписанию обязано звать email_window_open — это держит
+# test_email_window.py по всем отправителям.
+EMAIL_HOURS = (9, 21)
+
+
+def email_window_open(user, chart=None, now: datetime | None = None) -> bool:
+    """Открыто ли окно писем у человека. `now` — наивный UTC (utcnow) или aware."""
+    from zoneinfo import ZoneInfo
+    now = now or utcnow()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    hour = now.astimezone(ZoneInfo(user_tz(None, user, chart))).hour
+    return EMAIL_HOURS[0] <= hour < EMAIL_HOURS[1]
+
+
 # ── Отправка через журнал ───────────────────────────────────
 
 def send_once(
@@ -190,6 +212,8 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
         unsub = unsubscribe_url(user)
         if not unsub:
             continue  # отписка от писем (068); в журнал не пишем
+        if not email_window_open(user, charts.get(uid), now):
+            continue  # ночь у человека — следующий прогон в окне
         if kind == "retention_day14":
             send = lambda: email_service.send_retention_day14(email, unsubscribe_url=unsub)
         else:
@@ -242,15 +266,14 @@ def _transit_count(chart, today: date, days: int) -> int:
 
 # ── «Важный транзит» ────────────────────────────────────────
 # Решение владельца 02.10.2026 / 05.10.2026: письмо уходит в день точного
-# касания медленной планеты (transit.engine.alert_event), первым прогоном
-# после ALERT_HOUR по местному времени. До 05.10.2026 оно было побочным
+# касания медленной планеты (transit.engine.alert_event), первым прогоном в
+# окне писем (email_window_open, 09:00–21:00 местного). До 05.10.2026 оно было побочным
 # эффектом GET /transits и не уходило, пока человек не открыл транзиты на
 # вебе. Одно письмо в сутки — о самом сильном касании дня (ref — его ключ,
 # поэтому следующие прогоны того же дня его не повторят). Ретроградная петля
 # даёт до трёх точных касаний — до трёх писем за проход, это верно по сути.
 ALERT_KIND = "transit_alert"
 ALERT_TIERS = ("pro", "premium")   # Лира и Орион
-ALERT_HOUR = 9
 
 
 def _send_transit_alerts(db: Session, now: datetime) -> int:
@@ -269,10 +292,10 @@ def _send_transit_alerts(db: Session, now: datetime) -> int:
         chart = get_primary_chart(db, user)
         if not chart or not chart.planets:
             continue
+        if not email_window_open(user, chart, now):
+            continue
         tzname = user_tz(None, user, chart)
         local_now = now.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(tzname))
-        if local_now.hour < ALERT_HOUR:
-            continue
         ev = alert_event(chart, local_now.date(), tzname)
         if ev is None:
             continue
@@ -308,6 +331,8 @@ def _send_purchase(db: Session, kind: str, now: datetime) -> int:
         unsub = unsubscribe_url(user)
         if not unsub:
             continue  # отписка от писем (068)
+        if not email_window_open(user, None, now):
+            continue
         uid, email, name = user.id, user.email, user.name
         if send_once(db, uid, kind, str(pid), lambda: fn(email, name=name, unsubscribe_url=unsub)):
             sent += 1
