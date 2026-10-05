@@ -506,7 +506,8 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | 
     # v4 (04.10.2026, шаг 3): без времени рождения — без натальной Луны.
     # v5 (05.10.2026, шаг 5): точки — с ASC, MC и узлами, отбор по баллу.
     # v6 (05.10.2026): «Точный аспект» — только настоящее касание.
-    cache_key = f"chat_transits:v6:{chart_id}:{tz}:{today_str}"
+    # v7 (05.10.2026): касание к ASC/MC — со знаком, градусом и датами.
+    cache_key = f"chat_transits:v7:{chart_id}:{tz}:{today_str}"
 
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
