@@ -1361,7 +1361,8 @@ async def get_transits(
 
     # 3. Check cache
     # v4 (04.10.2026, шаг 3): без времени рождения — без натальной Луны.
-    cache_key = f"transit:v4:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
+    # v5 (05.10.2026): без событий без касания (TransitEvent.no_touch).
+    cache_key = f"transit:v5:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
     cached = transit_cache.get(cache_key)
     if cached:
         logger.info("Transit cache hit: %s", cache_key[:40])
@@ -1394,6 +1395,10 @@ async def get_transits(
     except Exception as e:
         logger.exception("Transit calculation failed")
         raise HTTPException(status_code=500, detail=f"Transit calculation error: {e}")
+
+    # Без касания (станция рядом с точкой) — не показываем, пока нет подписи
+    # «ближе всего» (аудит, О3): иначе веб назвал бы минимум орба пиком.
+    events = [e for e in events if not e.no_touch]
 
     # E2: пометить значимые (топ-2 → free_unlocked) — tier-независимо, кэшируется
     mark_transit_significance(events)
@@ -1533,6 +1538,8 @@ async def interpret_transits(
         from_date=from_dt,
         to_date=to_dt,
     )
+
+    events = [e for e in events if not e.no_touch]   # без касания — как в /transits
 
     # Build natal profile
     profile = {

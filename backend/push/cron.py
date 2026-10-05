@@ -575,10 +575,11 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
     """Точное касание медленной планетой аспекта к личной планете сегодня —
     с номером захода (1/2/3) для сценария директ→ретро→директ.
     """
-    from backend.transit.engine import ASPECTS, _angular_distance, NATAL_SPHERE
+    from backend.transit.engine import ASPECTS, PLANETS, _angular_distance, _find_exact_aspect, NATAL_SPHERE
 
     yday = today - timedelta(days=1)
     tmrw = today + timedelta(days=1)
+    noon = datetime(today.year, today.month, today.day, 12, 0)
     natal = {p["name"]: p["longitude"] for p in natal_planets(chart) if p["name"] in PERSONAL_NATAL}
 
     out: list[dict] = []
@@ -597,7 +598,10 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
                 orb_t = abs(_angular_distance(lt_t, nlon) - exact)
                 orb_m = abs(_angular_distance(lt_m, nlon) - exact)
                 # точное касание сегодня = локальный минимум ниже порога
-                if orb_t <= EXACT_TOUCH_ORB and orb_t <= orb_y and orb_t <= orb_m:
+                # …и настоящее касание рядом (корень, а не минимум орба): станция
+                # в 0,2° от точки — не касание (аудит 8.1, 05.10.2026).
+                if (orb_t <= EXACT_TOUCH_ORB and orb_t <= orb_y and orb_t <= orb_m
+                        and _find_exact_aspect(PLANETS[tp], nlon, exact, noon, 24) is not None):
                     phase = _count_touches_until(tp, nlon, exact, today)
                     title, tail_template = _TRIPLE_MSG.get(phase, _TRIPLE_MSG[1])
                     sphere = _sphere_short(NATAL_SPHERE.get((tp, npl)))
