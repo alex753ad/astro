@@ -297,6 +297,11 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
             "«что происходит сейчас», честно скажи, что заметных активаций сейчас нет.\n"
         )
 
+    # Факты — по тем же точкам, что и отбор. До 05.10.2026 сюда шла карта
+    # чата, где углов в planets нет: у касания к ASC/MC знак, градус и даты
+    # выходили пустыми (тот же баг, что у разбора транзита, #121). Без
+    # времени рождения углов нет и в points — chat_chart_data их обнуляет.
+    profile = {**chart, "planets": planets}
     lines = ["## Текущие транзиты (на сегодня, посчитаны точно)\n"]
     for e in top:
         try:
@@ -308,11 +313,11 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
             # аспект». Замер на карте владельца 02.10: Уран квадрат Меркурий —
             # чат «точный 27 сентября», лента «10 сентября». Настоящий пик
             # берётся из того же месячного чанка, что показывает лента.
-            window = compute_exact_facts(e.transit_planet, e.natal_planet, e.aspect_type, today, chart)
+            window = compute_exact_facts(e.transit_planet, e.natal_planet, e.aspect_type, today, profile)
             ev = _feed_peak(chart_id, planets, e, window)
             peak = _date.fromisoformat(ev["peak_date"]) if ev else None
             facts = compute_exact_facts(
-                e.transit_planet, e.natal_planet, e.aspect_type, peak or today, chart,
+                e.transit_planet, e.natal_planet, e.aspect_type, peak or today, profile,
             )
             if ev is None:
                 # Пика в чанках нет — честно без даты, чем с выдуманной.

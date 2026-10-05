@@ -623,6 +623,15 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
     def event_on(key, d):
         return next((e for e in truth if e["key"] == key and ld(e["start"]) <= d <= ld(e["end"])), None)
 
+    def no_touch(key, d) -> str:
+        """Нет касания в день d: у прохода касаний нет вовсе (станция рядом
+        с точкой) или оно в другой день — тогда ближайшее из истины. До
+        05.10.2026 оба случая писались «касания нет», и сдвиг на день
+        выглядел как выдуманное касание."""
+        e = event_on(key, d)
+        near = min((ld(t) for t in e["touches"]), key=lambda t: abs((t - d).days), default=None) if e else None
+        return f"касание в другой день (истина {_dmy(near)})" if near else "касания нет"
+
     def bounds(e, start, end) -> list[str]:
         bad = []
         if start is not None and e["start_known"] and start != ld(e["start"]):
@@ -640,7 +649,7 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
         if (key, d) not in feed_set:
             ch.ok(False, f"{tz}: лента — касания {_cb_name(key)} {_dmy(d)} нет")
         elif (key, d) not in in_win:
-            ch.ok(False, f"{tz}: лента — {_cb_name(key)} {_dmy(d)}: касания нет (станция?)")
+            ch.ok(False, f"{tz}: лента — {_cb_name(key)} {_dmy(d)}: {no_touch(key, d)}")
         else:
             ch.ok(True, "")
 
@@ -651,7 +660,8 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
                 continue
             key = (ev.transit, ev.natal, ev.aspect)
             ch.ok((key, ev.at_local.date()) in touch_days,
-                  f"{tz}: главное событие/письмо — {_cb_name(key)} {_dmy(ev.at_local)}: касания нет (станция?)")
+                  f"{tz}: главное событие/письмо — {_cb_name(key)} {_dmy(ev.at_local)}: "
+                  f"{no_touch(key, ev.at_local.date())}")
 
     # 3. Чат: «Точный аспект» и «Период влияния» из блока транзитов.
     for d in days:
@@ -664,7 +674,7 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
             per = it.get("period") or (None, None)
             bad = bounds(e, *per) if len(per) == 2 else ["период не разобран"]
             if it["exact"] and (key, it["exact"]) not in touch_days:
-                bad.append(f"точный {_dmy(it['exact'])}: касания нет")
+                bad.append(f"точный {_dmy(it['exact'])}: {no_touch(key, it['exact'])}")
             ch.ok(not bad, f"{tz}: чат {d} — {_cb_name(key)}: " + "; ".join(bad))
 
     # 4. Разбор транзита: те же факты, что считает ручка
@@ -687,7 +697,8 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
             continue
         bad = bounds(e, date.fromisoformat(f["period_start"]), date.fromisoformat(f["period_end"]))
         if f.get("exact_date") and (key, date.fromisoformat(f["exact_date"])) not in touch_days:
-            bad.append(f"точный {_dmy(date.fromisoformat(f['exact_date']))}: касания нет")
+            exact = date.fromisoformat(f["exact_date"])
+            bad.append(f"точный {_dmy(exact)}: {no_touch(key, exact)}")
         ch.ok(not bad, f"{tz}: разбор — {_cb_name(key)} {_dmy(shown)}: " + "; ".join(bad))
 
     # 5. PDF «Главные транзиты» (тариф с горизонтом CB_PDF_MONTHS).
@@ -737,7 +748,7 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
                 bad = bounds(e, date.fromisoformat(r.start_date), date.fromisoformat(r.end_date))
                 peak = date.fromisoformat(r.peak_date)
                 if (e["key"], peak) not in touch_days:
-                    bad.append(f"пик {_dmy(peak)}: касания нет")
+                    bad.append(f"пик {_dmy(peak)}: {no_touch(e['key'], peak)}")
                 ch.ok(not bad, f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(e['key'])}: " + "; ".join(bad))
 
 
