@@ -3,7 +3,7 @@
 Шаг 1 плана аудита (docs/audit_unified_model.md, раздел 7), только расчётная
 часть, без модели. Запускается из .github/workflows/consistency.yml.
 
-    python scripts/consistency_eval.py run --date 2026-10-03 --days 7 --out a.json
+    python scripts/consistency_eval.py run --date 2026-10-03 --days 7 --out a.json [--sky on]
     python scripts/consistency_eval.py report a.json [b.json] --out report.md
 
 Функции разделов зовутся НАПРЯМУЮ — те же, что у ручек (как в chat_eval).
@@ -800,6 +800,16 @@ async def run_morning(args) -> None:
 
 # ── прогон ────────────────────────────────────────────────────────────────────
 
+def _sky_switch(mode: str) -> None:
+    """`--sky on` — как у человека с флагом `sky_event` (задание 4.2): разделы
+    решают флаг через `day_event._sky_on(chart)`, у карт прогона базы нет —
+    подменяется сам ответ. В скрипте базы (до 4.2) переключателя нет: её
+    столбец — всегда «как на проде»."""
+    if mode == "on":
+        from backend import day_event
+        day_event._sky_on = lambda chart: True
+
+
 async def run(args) -> None:
     from chat_eval import _chart
     from backend.interpretation.rag import chat_chart_data
@@ -808,6 +818,7 @@ async def run(args) -> None:
     # В лог — только счётчики: модули проекта пишут окна расчёта с датами (INFO)
     # и данные в предупреждениях — логирование проекта в прогоне выключено целиком.
     logging.disable(logging.CRITICAL)
+    _sky_switch(args.sky)
     import backend.ephemeris.geo as geo
     # Одно место — один запрос к геокодеру: карт здесь шесть (с временем, без
     # него, четыре системы домов), а Nominatim пускает раз в секунду.
@@ -867,7 +878,7 @@ async def run(args) -> None:
                             capture_output=True, text=True).stdout.strip()
     out = {
         "meta": {"commit": commit, "date": d0.isoformat(), "days": args.days, "tzs": tzs,
-                 "tier": args.tier, "time_unknown": time_unknown},
+                 "tier": args.tier, "time_unknown": time_unknown, "sky": args.sky},
         "checks": {k: c.as_dict(CHECKS[k]) for k, c in checks.items()},
         "morning": morning(stored, time_unknown, days, tzs),
     }
@@ -905,13 +916,15 @@ def failed_line(run: dict) -> str:
 def report(args) -> None:
     runs = [json.loads(Path(p).read_text(encoding="utf-8")) for p in args.files]
     cur, base = runs[0], (runs[1] if len(runs) > 1 else None)
+    sky_file = getattr(args, "sky_file", None)
+    sky = json.loads(Path(sky_file).read_text(encoding="utf-8")) if sky_file and Path(sky_file).exists() else None
     lines = [failed_line(cur), "", "# Прогон согласованности разделов", "", f"* Стало: {_meta(cur['meta'])}"]
     if base:
         lines.append(f"* Было: {_meta(base['meta'])}")
     lines += ["", "Расхождение — место, где два раздела говорят разное об одном и том же. "
               "Фазы и станции — окно 31 день.", ""]
-    head = "| | Проверка |" + (" Было |" if base else "") + " Стало |"
-    lines += [head, "|---|---|" + ("---|" if base else "") + "---|"]
+    head = "| | Проверка |" + (" Было |" if base else "") + " Стало (как на проде) |" + (" Под флагом sky_event |" if sky else "")
+    lines += [head, "|---|---|" + ("---|" if base else "") + "---|" + ("---|" if sky else "")]
 
     def cell(r, k):
         c = r["checks"].get(k)
@@ -922,7 +935,8 @@ def report(args) -> None:
         return f"{len(c['bad'])} из {c['compared']}"
 
     for k, title in CHECKS.items():
-        lines.append(f"| {k} | {title} |" + (f" {cell(base, k)} |" if base else "") + f" {cell(cur, k)} |")
+        lines.append(f"| {k} | {title} |" + (f" {cell(base, k)} |" if base else "") + f" {cell(cur, k)} |"
+                     + (f" {cell(sky, k)} |" if sky else ""))
     for k, title in CHECKS.items():
         c = cur["checks"][k]
         lines += ["", f"## {k}. {title}", ""]
@@ -946,7 +960,31 @@ def report(args) -> None:
             if len(bad) > MAX_LINES:
                 lines.append(f"* … и ещё {len(bad) - MAX_LINES}")
     lines += morning_section(cur.get("morning"), getattr(args, "base_morning", None))
+    if sky:
+        lines += sky_section(cur, sky)
     Path(args.out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def sky_section(cur: dict, sky: dict) -> list[str]:
+    """Под флагом `sky_event` против «как на проде» (тот же коммит): что ушло и
+    что появилось по проверкам, и «Утро» — только изменившиеся строки."""
+    out = ["", "## Под флагом sky_event: отличие от «как на проде»", ""]
+    for k in CHECKS:
+        a, b = cur["checks"].get(k), sky["checks"].get(k)
+        if not a or not b or a["error"] or b["error"]:
+            continue
+        new = [x for x in b["bad"] if x not in set(a["bad"])]
+        gone = [x for x in a["bad"] if x not in set(b["bad"])]
+        if new or gone:
+            out += [f"**{k}:** новых {len(new)}, ушло {len(gone)}."]
+            out += [f"* новое: {x}" for x in new[:MAX_LINES]] + [f"* ушло: {x}" for x in gone[:MAX_LINES]] + [""]
+    prod = {(r["date"], r["tz"]): r["push"] for r in cur.get("morning") or []}
+    rows = [r for r in sky.get("morning") or [] if prod.get((r["date"], r["tz"])) != r["push"]]
+    out += ["", "### Утро под флагом", "", f"Изменилось: {len(rows)} из {len(prod)}."]
+    if rows:
+        out += ["", "| Дата | Пояс | Как на проде | Под флагом |", "|---|---|---|---|"]
+        out += [f"| {r['date']} | {r['tz']} | {prod.get((r['date'], r['tz']), '—')} | {r['push']} |" for r in rows]
+    return out
 
 
 def morning_section(cur: list[dict] | None, base_file: str | None) -> list[str]:
@@ -977,10 +1015,12 @@ def main() -> None:
     r.add_argument("--tzs", default=DEFAULT_TZS)
     r.add_argument("--tier", default="premium")
     r.add_argument("--out", required=True)
+    r.add_argument("--sky", choices=("on", "off"), default="off", help="флаг sky_event (4.2)")
     rep = sub.add_parser("report")
     rep.add_argument("files", nargs="+", help="стало.json [было.json]")
     rep.add_argument("--out", required=True)
     rep.add_argument("--base-morning", default=None, help="утро базы (подкоманда morning)")
+    rep.add_argument("--sky-file", default=None, help="прогон «под флагом» (run --sky on)")
     m = sub.add_parser("morning")
     m.add_argument("--date", required=True)
     m.add_argument("--days", type=int, default=7)

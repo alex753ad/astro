@@ -301,11 +301,37 @@ def _send_transit_alerts(db: Session, now: datetime) -> int:
         ev = alert_event(chart, local_now.date(), tzname)
         if ev is None:
             continue
+        if _alert_sent_nearby(db, uid, ev.key):
+            continue
         chart_id = str(chart.id)
         if send_once(db, uid, ALERT_KIND, ev.key,
                      lambda: send_transit_alert(email, chart_id, ev, unsub)):
             sent += 1
     return sent
+
+
+def _alert_sent_nearby(db: Session, user_id: str, key: str) -> bool:
+    """Письмо об этом касании уже уходило — с ключом на день раньше или позже.
+
+    Ключ — UTC-минута касания (`Плутон:Венера:square:2026-10-08T11:00`). У ядра
+    (флаг `sky_event`, задание 4.2) минута бывает на 1–2 больше или меньше,
+    чем у старого движка: без этой проверки в день включения флага ушло бы
+    второе письмо о том же касании. Сравнивается «что, к чему, аспект» и
+    дата ±1 день — у медленных планет (ALERT_PLANETS) два касания одной пары
+    за трое суток не бывает.
+    """
+    parts = key.split(":")           # transit, natal, aspect, YYYY-MM-DDTHH, MM
+    what, day = ":".join(parts[:3]), date.fromisoformat(parts[3][:10])
+    refs = db.query(EmailSentLog.ref).filter(
+        EmailSentLog.user_id == user_id, EmailSentLog.kind == ALERT_KIND,
+        EmailSentLog.ref.like(f"{what}:%")).all()
+    for (ref,) in refs:
+        try:
+            if abs((date.fromisoformat(ref[len(what) + 1:len(what) + 11]) - day).days) <= 1:
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _send_purchase(db: Session, kind: str, now: datetime) -> int:

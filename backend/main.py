@@ -808,6 +808,7 @@ async def _build_chart(request: Request, data: BirthDataInput, db: Session,
         db.add(chart_record)
         db.commit()
         db.refresh(chart_record)
+    _queue_sky_warm(db, chart_record)
 
     # Welcome-письмо после первой карты. Письма day2/day7/day14 отсюда больше
     # не ставятся: их шлёт Beat от даты регистрации (backend/lifecycle_emails.py).
@@ -910,7 +911,21 @@ async def claim_chart(
         send_claim_welcome_task.delay(user.id, chart.id)
     except Exception as e:  # noqa: BLE001 — письмо не должно ронять привязку
         logger.warning("claim welcome not queued: %s", e)
+    _queue_sky_warm(db, chart)
     return {"id": chart.id, "claimed": True}
+
+
+def _queue_sky_warm(db: Session, chart) -> None:
+    """Под флагом `sky_event` — прогреть чанки ядра в фоне (backend/sky.py,
+    «Прогрев»): первый же прогноз или виджет не должен считать их в запросе."""
+    try:
+        from backend.day_event import SKY_FLAG
+        from backend.flags import flag_on
+        if flag_on(db, SKY_FLAG, chart.user_id):
+            from backend.tasks import sky_warm
+            sky_warm.delay(chart.id)
+    except Exception as e:  # noqa: BLE001 — прогрев не должен ронять сохранение карты
+        logger.warning("sky warm not queued: %s", e)
 
 
 @app.get(

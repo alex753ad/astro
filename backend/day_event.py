@@ -353,9 +353,32 @@ def _targets(chart) -> list[dict]:
             for p in points(chart)]
 
 
-def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
+SKY_FLAG = "sky_event"
+
+
+def _sky_on(chart) -> bool:
+    """Флаг `sky_event` у владельца карты — через сессию самой карты.
+
+    ⚠️ Не через новую `SessionLocal`: функцию зовут из ручек, пушей, писем и
+    тестов, и у каждого уже есть сессия, в которой лежит карта. Карта не из
+    базы (dict, SimpleNamespace прогона согласованности) — флаг выключен;
+    прогон и тесты передают `sky` явно.
+    """
+    from sqlalchemy.orm import object_session
+    try:
+        db = object_session(chart)
+    except Exception:  # не ORM-объект
+        return False
+    if db is None:
+        return False
+    from backend.flags import flag_on
+    return flag_on(db, SKY_FLAG, getattr(chart, "user_id", None))
+
+
+def _candidates(chart, local_date: date, tz: ZoneInfo, sky: bool | None = None) -> list[DayEvent]:
+    """`sky` — касания из ядра `backend/sky.py` (задание 4.2); None — по флагу
+    `sky_event` владельца карты. Ключ — UTC-минута касания в обоих режимах."""
     from backend.push.cron import _phases_on_local_date
-    from backend.transit.engine import calculate_transits
 
     start = datetime(local_date.year, local_date.month, local_date.day, tzinfo=tz)
     nxt = local_date + timedelta(days=1)
@@ -364,22 +387,13 @@ def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
     e_utc = end.astimezone(timezone.utc).replace(tzinfo=None)
 
     out: dict[str, DayEvent] = {}
-    # Движок сканирует календарные даты UTC — окно с запасом в день с каждой
-    # стороны, в сутки попадает только то, чей точный момент внутри.
-    for e in calculate_transits(natal_planets=_targets(chart),
-                                from_date=s_utc.date() - timedelta(days=1),
-                                to_date=e_utc.date() + timedelta(days=1)):
-        if not e.exact_date or not counts(e.natal_planet, e.aspect_type):
-            continue
-        exact = datetime.fromisoformat(e.exact_date)
-        if not (s_utc <= exact < e_utc):
-            continue
-        key = f"{e.transit_planet}:{e.natal_planet}:{e.aspect_type}:{e.exact_date}"
+    for transit, natal, aspect, exact in (_sky_touches(chart, start, end) if (_sky_on(chart) if sky is None else sky)
+                                          else _engine_touches(chart, s_utc, e_utc)):
+        key = f"{transit}:{natal}:{aspect}:{exact:%Y-%m-%dT%H:%M}"
         out[key] = DayEvent(
             key=key, at_local=exact.replace(tzinfo=timezone.utc).astimezone(tz),
-            transit=e.transit_planet, natal=e.natal_planet, aspect=e.aspect_type,
-            score=score(e.transit_planet, e.natal_planet, e.aspect_type),
-            timed=True,
+            transit=transit, natal=natal, aspect=aspect,
+            score=score(transit, natal, aspect), timed=True,
         )
     for ph in _phases_on_local_date(local_date, str(tz)):
         # Время — до минуты, как было со строкой «HH:MM UTC»; ключ — дата UTC
@@ -390,7 +404,33 @@ def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
     return list(out.values())
 
 
-def main_event(chart, local_date: date, tzname: str, daily_time, quiet_from) -> DayEvent | None:
+def _sky_touches(chart, start: datetime, end: datetime):
+    """Касания ядра в [start, end): только корни (станция — не касание)."""
+    from backend.sky import sky_events
+    s, e = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    for ev in sky_events(chart, s, e):
+        for t in ev.touches:
+            if s <= t.at_utc < e:
+                yield ev.transit, ev.natal, ev.aspect, t.at_utc.replace(tzinfo=None)
+
+
+def _engine_touches(chart, s_utc: datetime, e_utc: datetime):
+    """Касания старого движка — как до 4.2 (флаг `sky_event` выключен)."""
+    from backend.transit.engine import calculate_transits
+    # Движок сканирует календарные даты UTC — окно с запасом в день с каждой
+    # стороны, в сутки попадает только то, чей точный момент внутри.
+    for e in calculate_transits(natal_planets=_targets(chart),
+                                from_date=s_utc.date() - timedelta(days=1),
+                                to_date=e_utc.date() + timedelta(days=1)):
+        if not e.exact_date or not counts(e.natal_planet, e.aspect_type):
+            continue
+        exact = datetime.fromisoformat(e.exact_date)
+        if s_utc <= exact < e_utc:
+            yield e.transit_planet, e.natal_planet, e.aspect_type, exact
+
+
+def main_event(chart, local_date: date, tzname: str, daily_time, quiet_from,
+               sky: bool | None = None) -> DayEvent | None:
     """Главное событие местных суток `local_date` или None."""
     from backend.push.cron import DEFAULT_TZ, _parse_hm, in_send_window
 
@@ -403,7 +443,7 @@ def main_event(chart, local_date: date, tzname: str, daily_time, quiet_from) -> 
     mid = ((lo[0] * 60 + lo[1]) + (hi[0] * 60 + hi[1])) / 2
 
     best = None
-    for ev in _candidates(chart, local_date, tz):
+    for ev in _candidates(chart, local_date, tz, sky):
         if not in_send_window(ev.at_local, daily_time, quiet_from):
             if ev.transit not in SLOW:
                 continue
@@ -443,13 +483,14 @@ _MONTHS_GEN = ("", "января", "февраля", "марта", "апреля
                "июля", "августа", "сентября", "октября", "ноября", "декабря")
 
 
-def week_top(chart, today: date, tzname: str, daily_time, quiet_from) -> DayEvent | None:
+def week_top(chart, today: date, tzname: str, daily_time, quiet_from,
+             sky: bool | None = None) -> DayEvent | None:
     """Самое важное событие дней today+1 … today+RETURN_DAYS (равный балл —
     раньше). Ниже RETURN_MIN_SCORE — None. Тот же отбор пригодится «Неделе
     вперёд»: своего правила там не заводить."""
     best = None
     for i in range(1, RETURN_DAYS + 1):
-        ev = main_event(chart, today + timedelta(days=i), tzname, daily_time, quiet_from)
+        ev = main_event(chart, today + timedelta(days=i), tzname, daily_time, quiet_from, sky)
         if ev and ev.score >= RETURN_MIN_SCORE and (best is None or ev.score > best.score):
             best = ev
     return best
@@ -488,9 +529,10 @@ def pick_week(events: list[DayEvent]) -> list[DayEvent]:
     return sorted(out, key=lambda e: e.at_local)
 
 
-def week_events(chart, today: date, tzname: str, daily_time, quiet_from) -> list[DayEvent]:
+def week_events(chart, today: date, tzname: str, daily_time, quiet_from,
+                sky: bool | None = None) -> list[DayEvent]:
     """События дней today+1 … today+RETURN_DAYS по правилу pick_week."""
-    evs = (main_event(chart, today + timedelta(days=i), tzname, daily_time, quiet_from)
+    evs = (main_event(chart, today + timedelta(days=i), tzname, daily_time, quiet_from, sky)
            for i in range(1, RETURN_DAYS + 1))
     return pick_week([e for e in evs if e])
 
