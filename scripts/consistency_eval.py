@@ -45,7 +45,9 @@ from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
 
-ROOT = Path(__file__).resolve().parent.parent
+# EVAL_ROOT — чужой корень: «утро» базы считается кодом базы этим же
+# скриптом (подкоманда morning, workflow «Consistency»): в скрипте базы её нет.
+ROOT = Path(os.environ.get("EVAL_ROOT") or Path(__file__).resolve().parent.parent).resolve()
 # Свой корень первым: при сравнении с прошлым коммитом его копия лежит рядом
 # (см. chat_eval.py).
 sys.path.insert(0, str(ROOT))
@@ -177,11 +179,16 @@ def check_c1_c2(ch1: Check, ch2: Check, chart, feed: list[dict], days: list[date
                     ev.transit, ev.natal, ev.aspect)
         ch1.ok(found, f"{d} {tz}: «{what}» — в ленте нет")
 
-        facts = compute_day(chart, d, ZoneInfo(tz))
-        first = facts.aspects[0] if facts.aspects else None
-        good = (ev.transit == "Moon" and first is not None and first["natal"] == ev.natal
-                and first["tone"] == TONE[ev.aspect])
-        got = f"Луна → {first['natal']} ({first['tone']})" if first else "нет фактов-касаний"
+        # Первый факт прогноза — facts.main (forecast/prompts._day_meanings
+        # ставит его первым пунктом). С шага 5 — любое главное событие, не
+        # только Луна (решение владельца 02.10.2026).
+        main = compute_day(chart, d, ZoneInfo(tz), *WINDOW).main
+        if ev.natal is None:
+            good = main == {"phase": ev.transit}
+        else:
+            good = main is not None and (main.get("transit"), main.get("natal"), main.get("tone")) == (
+                ev.transit, ev.natal, TONE[ev.aspect])
+        got = (main.get("phase") or f"{main['transit']} → {main['natal']} ({main['tone']})") if main else "нет"
         ch2.ok(good, f"{d} {tz}: главное «{what}», первый факт прогноза: {got}")
     return events
 
@@ -212,10 +219,13 @@ def parse_chat_block(text: str) -> list[dict]:
 
 
 def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: list[str]) -> None:
+    from backend.day_event import points
     from backend.feed.builder import _naive_utc_to_local_iso, _transit_chunk, _tz
     from backend.interpretation.rag import build_transits_block
 
-    planets = chat_chart["planets"]
+    # Набор точек — тот же, что у ленты и чата (чанк ленты кэшируется по
+    # карте, без набора в ключе: feed/builder._transit_chunk).
+    planets = points(chat_chart)
     # Блок чата — в поясе человека (rag_router передаёт user_tz), поэтому на
     # каждый пояс свой.
     for d, tz in ((d, tz) for d in days for tz in tzs):
@@ -414,8 +424,9 @@ def check_c8(ch: Check, stored: dict, chart, user, feed: list[dict], days: list[
     for d in days:
         ev = day_event.main_event(chart, d, tz, *WINDOW)
         ch.ok(not (ev and ev.natal in hidden), f"{d} {tz}: главное событие к {ev and ev.natal}")
-        f = compute_day(chart, d, ZoneInfo(tz))
-        ch.ok(not f.houses and all(a["natal"] not in hidden for a in f.aspects),
+        f = compute_day(chart, d, ZoneInfo(tz), *WINDOW)
+        main = [f.main] if f.main and "natal" in f.main else []
+        ch.ok(not f.houses and all(a["natal"] not in hidden for a in f.aspects + main),
               f"{d} {tz}: прогноз дня — дома {f.houses}, касания {[a['natal'] for a in f.aspects]}")
         cands = _collect_candidates(None, user, chart, d)
         bad = [c["kind"] for c in cands
@@ -442,7 +453,6 @@ def check_c8(ch: Check, stored: dict, chart, user, feed: list[dict], days: list[
 
 def check_c9(ch: Check, feed: list[dict]) -> None:
     from backend.forecast.meanings import TONE
-    from backend.lifecycle_emails import _POSITIVE_ASPECTS
     from backend.transit.engine import ASPECT_TONE
 
     for e in feed:
@@ -452,8 +462,8 @@ def check_c9(ch: Check, feed: list[dict]) -> None:
         got = {
             "пуш, виджет, сторис, письмо (ASPECT_TONE)": _CANON[ASPECT_TONE[a]],
             "прогнозы, чат (meanings.TONE)": _CANON[TONE[a]],
-            # «позитивные» аспекты онбординга и дайджеста
-            "письма («позитивные»)": "Гармония" if a in _POSITIVE_ASPECTS else TONE_DECIDED[a],
+            # «Позитивных» отборов в письмах с шага 5 нет: дайджест и онбординг
+            # берут главное событие дня, тон — ASPECT_TONE (строка выше).
         }
         wrong = [f"{k}: {v}" for k, v in got.items() if v != TONE_DECIDED[a]]
         ch.ok(not wrong, f"{a} ({TONE_DECIDED[a]}): " + "; ".join(wrong))
@@ -473,6 +483,36 @@ async def check_cA(ch: Check, birth: dict) -> None:
             # Только разница: сами долготы — данные карты (репозиторий публичный).
             diff = abs((t[name] - want + 180) % 360 - 180)
             ch.ok(diff < 0.01, f"{system}: {name} — расходится на {diff:.0f}°")
+
+
+def morning(stored: dict, time_unknown: bool, days: list[date], tzs: list[str]) -> list[dict]:
+    """Утренний пуш (main_event: заголовок и совет) по дням и поясам — для
+    раздела отчёта «утро: было / стало» (шаг 5, решение владельца 05.10.2026).
+    Не проверка: расхождением не считается, только показывается."""
+    from backend import day_event
+    out = []
+    for tz in tzs:
+        chart = _ns(stored, "consistency-full", tz, time_unknown)
+        for d in days:
+            ev = day_event.main_event(chart, d, tz, *WINDOW)
+            out.append({"date": d.isoformat(), "tz": tz,
+                        "push": f"{day_event.title(ev)} — «{day_event.advice(ev)}»" if ev else "нет события"})
+    return out
+
+
+async def run_morning(args) -> None:
+    """Только утро — для базы (EVAL_ROOT=<корень базы>): в её скрипте его нет."""
+    from chat_eval import _chart
+    import logging
+    logging.disable(logging.CRITICAL)
+    birth = json.loads(os.environ["CHAT_EVAL_BIRTH"])
+    d0 = date.fromisoformat(args.date)
+    days = [d0 + timedelta(days=i) for i in range(args.days)]
+    stored, _, time_unknown = await _chart(birth)
+    tzs = [t.strip() for t in args.tzs.split(",") if t.strip()]
+    data = {"morning": morning(stored, time_unknown, days, tzs)}
+    Path(args.out).write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"morning days={args.days} tzs={len(tzs)}")
 
 
 # ── прогон ────────────────────────────────────────────────────────────────────
@@ -537,6 +577,7 @@ async def run(args) -> None:
         "meta": {"commit": commit, "date": d0.isoformat(), "days": args.days, "tzs": tzs,
                  "tier": args.tier, "time_unknown": time_unknown},
         "checks": {k: c.as_dict(CHECKS[k]) for k, c in checks.items()},
+        "morning": morning(stored, time_unknown, days, tzs),
     }
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     # В лог — только счётчики (см. докстринг модуля).
@@ -612,7 +653,27 @@ def report(args) -> None:
                 "Расхождений нет." if c["compared"] else "Сравнивать было нечего (0 сравнений)."]
             if len(bad) > MAX_LINES:
                 lines.append(f"* … и ещё {len(bad) - MAX_LINES}")
+    lines += morning_section(cur.get("morning"), getattr(args, "base_morning", None))
     Path(args.out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def morning_section(cur: list[dict] | None, base_file: str | None) -> list[str]:
+    """«Утро: было / стало» — утренний пуш по дням и поясам."""
+    if not cur:
+        return []
+    base = {}
+    if base_file and Path(base_file).exists():
+        base = {(r["date"], r["tz"]): r["push"]
+                for r in json.loads(Path(base_file).read_text(encoding="utf-8"))["morning"]}
+    changed = sum(1 for r in cur if base and base.get((r["date"], r["tz"])) != r["push"])
+    out = ["", "## Утро: было / стало", ""]
+    out.append(f"Изменилось: {changed} из {len(cur)}." if base else "Базы нет — только «стало».")
+    out += ["", "| Дата | Пояс | Было | Стало |", "|---|---|---|---|"]
+    for r in cur:
+        old = base.get((r["date"], r["tz"]), "—")
+        mark = " **≠**" if base and old != r["push"] else ""
+        out.append(f"| {r['date']} | {r['tz']} | {old} | {r['push']}{mark} |")
+    return out
 
 
 def main() -> None:
@@ -627,9 +688,17 @@ def main() -> None:
     rep = sub.add_parser("report")
     rep.add_argument("files", nargs="+", help="стало.json [было.json]")
     rep.add_argument("--out", required=True)
+    rep.add_argument("--base-morning", default=None, help="утро базы (подкоманда morning)")
+    m = sub.add_parser("morning")
+    m.add_argument("--date", required=True)
+    m.add_argument("--days", type=int, default=7)
+    m.add_argument("--tzs", default=DEFAULT_TZS)
+    m.add_argument("--out", required=True)
     args = p.parse_args()
     if args.cmd == "run":
         asyncio.run(run(args))
+    elif args.cmd == "morning":
+        asyncio.run(run_morning(args))
     else:
         report(args)
 

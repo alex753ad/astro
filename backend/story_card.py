@@ -52,6 +52,9 @@ STORY_PHRASE = {
     "Ascendant": ("Сегодня меня видно", "Я остаюсь собой", "Я пробую новый образ"),
     "Midheaven": ("Сегодня я иду к своей цели", "Я держу курс без спешки", "Я ставлю новую цель"),
 }
+# Ось узлов (таблица владельца 05.10.2026): к узлам только соединение и
+# оппозиция, поэтому тонов два (day_event.NODE_ADVICE).
+NODE_PHRASE = {"new_cycle": "Я иду туда, где расту", "tense": "Я отпускаю старые привычки"}
 LUNATION_PHRASE = {
     "new_moon": "Я выбираю, с чего начать",
     "full_moon": "Я завершаю начатое",
@@ -122,6 +125,8 @@ def phrase(ev: day_event.DayEvent | None, phase: str) -> str:
         return LUNATION_PHRASE[ev.transit]
     from backend.transit.engine import ASPECT_TONE
     tone = ASPECT_TONE.get(ev.aspect, "tense")
+    if ev.natal == day_event.NODE:
+        return NODE_PHRASE[tone]
     return STORY_PHRASE[ev.natal][_TONE_INDEX[tone]]
 
 
@@ -141,6 +146,8 @@ def event_label(ev: day_event.DayEvent | None) -> str | None:
     назовёт фаза, вторые не называются."""
     if ev is None or ev.natal is None or ev.natal in _HIDDEN_NATAL:
         return None
+    if ev.natal == day_event.NODE:
+        return f"{PLANET_RU[ev.transit]} × ось узлов"
     natal = _MY[ev.natal] if ev.natal == ev.transit else PLANET_RU[ev.natal]
     return f"{PLANET_RU[ev.transit]} × {natal}"
 

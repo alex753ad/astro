@@ -76,3 +76,17 @@ def test_all_checks_ran_first_line(tmp_path):
     checks = {k: ce.Check() for k in ce.CHECKS}
     run = {"checks": {k: c.as_dict(t) for (k, t), c in zip(ce.CHECKS.items(), checks.values())}}
     assert ce.failed_line(run) == "Все проверки выполнились."
+
+
+def test_morning_section_marks_changed_days(tmp_path):
+    """«Утро: было / стало» (шаг 5): изменившийся день помечен, без базы — только «стало»."""
+    cur = [{"date": "2026-10-03", "tz": "Europe/Moscow", "push": "10:15 · Венера на оси узлов — «…»"},
+           {"date": "2026-10-04", "tz": "Europe/Moscow", "push": "нет события"}]
+    base = tmp_path / "b.json"
+    base.write_text(json.dumps({"morning": [
+        {"date": "2026-10-03", "tz": "Europe/Moscow", "push": "10:23 · Луна к твоей Венере — «…»"},
+        {"date": "2026-10-04", "tz": "Europe/Moscow", "push": "нет события"}]}), encoding="utf-8")
+    text = "\n".join(ce.morning_section(cur, str(base)))
+    assert "Изменилось: 1 из 2." in text
+    assert "10:23 · Луна к твоей Венере — «…» | 10:15 · Венера на оси узлов — «…» **≠**" in text
+    assert "Базы нет" in "\n".join(ce.morning_section(cur, None))

@@ -11,6 +11,9 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 import pytz
 
+from zoneinfo import ZoneInfo
+
+from backend import day_event as de
 from backend import flags
 from backend.day_event import (
     LUNATION_ADVICE, MOON_ADVICE, NATAL_PLANETS, PLANET_ADVICE, RETURN_MIN_SCORE, RETURN_TEXT,
@@ -303,3 +306,32 @@ def test_touch_is_to_the_angle(system):
             assert abs(_sep(lon, angles[ev.natal]) - ASPECTS[ev.aspect]) < 0.1, (system, ev)
             seen.add(ev.natal)
     assert seen == set(angles), f"{system}: за 4 дня нет касаний к углам — тест ничего не проверил"
+
+
+# ── Одна шкала и узлы (шаг 5 аудита, 05.10.2026) ──
+
+@pytest.mark.parametrize("tp, np_, asp, level", [
+    ("Moon", "Sun", "conjunction", "low"),        # Луна в ленте всегда low (балл 9)
+    ("Mars", "Sun", "conjunction", "high"),       # 3 × 3 × 3 = 27
+    ("Saturn", "Jupiter", "trine", "medium"),     # 5 × 1 × 2 = 10
+    ("Sun", "Saturn", "square", "low"),           # 2 × 1 × 2.5 = 5
+    ("Mercury", "Midheaven", "opposition", "high"),  # 2 × 3 × 2.5 = 15
+])
+def test_feed_level_by_score(tp, np_, asp, level):
+    assert de.feed_level(tp, np_, asp) == level
+
+
+def test_nodes_only_conjunction_and_opposition():
+    assert de.counts("North Node", "conjunction") and de.counts("North Node", "opposition")
+    assert not de.counts("North Node", "trine") and not de.counts("North Node", "square")
+    assert de.counts("Venus", "trine")
+
+
+def test_node_axis_texts():
+    at = datetime(2026, 10, 3, 10, 15, tzinfo=ZoneInfo("Europe/Moscow"))
+    ev = de.DayEvent(key="k", at_local=at, transit="Venus", natal="North Node",
+                     aspect="conjunction", score=6, timed=True)
+    assert de.title(ev) == "10:15 · Венера на оси узлов"
+    assert de.advice(ev) == "Побудь с теми, рядом с кем хочется расти."
+    slow = de.DayEvent(**{**ev.__dict__, "transit": "Saturn", "aspect": "opposition"})
+    assert de.advice(slow) == de.TONE_ADVICE["tense"]

@@ -13,12 +13,11 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 import os
 import httpx
 
 from backend.log_utils import mask_email
-from backend.ephemeris.ru_names import PLANET_RU as _PLANET_RU, ASPECT_RU as _ASP_RU
+from backend.ephemeris.ru_names import PLANET_RU as _PLANET_RU
 
 logger = logging.getLogger("astro.email")
 
@@ -517,6 +516,25 @@ async def send_retention_day2(to: str, transit_text: str, *, unsubscribe_url: st
     )
 
 
+async def send_retention_day2_calm(to: str, *, unsubscribe_url: str) -> bool:
+    """Retention Day 2, запасной вариант: за 7 дней нет ни одного главного
+    события дня (day_event.main_event) — таблица владельца 05.10.2026. Почти
+    не бывает: касания Луны — каждый день; нужен, чтобы письмо не молчало."""
+    body = (
+        _h2("🌙 Твоя неделя")
+        + f'<div style="background:#f0ebff;border-left:3px solid #9060C8;border-radius:8px;'
+          f'padding:16px 20px;margin:0 0 20px;color:#2D2540;font-size:15px;line-height:1.75;">'
+          f'На этой неделе у тебя ровный фон — без резких поворотов. Хорошее время спокойно '
+          f'заняться своими делами.<br><br>Каждое утро тебя ждёт прогноз на день по твоей карте.</div>'
+        + _btn("Смотреть полный прогноз", APP_URL)
+    )
+    return await _send_info(
+        to, "Твоя неделя",  # тема без «🌙» — решение владельца 05.10.2026
+        "Твоя неделя", "На этой неделе у тебя ровный фон — без резких поворотов.", body,
+        unsubscribe_url=unsubscribe_url,
+    )
+
+
 # Обратная совместимость
 send_retention_email = send_retention_day2
 
@@ -741,18 +759,19 @@ def week_phase_lines(first, last, tzname: str) -> list[str]:
     ]
 
 
+BEST_DAY_MIN_SCORE = 6   # = day_event.WEEK_FILL_MIN_SCORE: ниже — касания Луны к дальним точкам
+
+
 async def send_weekly_digest(user, db) -> bool:
-    """Weekly digest для Лиры/Ориона: главные события по общему правилу (day_event.week_events) + лунные фазы + лучшие дни + совет недели + A/B тема."""
+    """Weekly digest для Лиры/Ориона: главные события по общему правилу (day_event.pick_week) + лунные фазы + лучшие дни + A/B тема."""
     import random
     from datetime import timedelta
-    from backend.transit.engine import calculate_transits
 
     from backend.profile.email_unsubscribe import unsubscribe_url
     unsub_url = unsubscribe_url(user)
     if not unsub_url:
         return False  # отписка от писем (068)
 
-    # Транзиты недели
     try:
         from backend.chart_utils import get_primary_chart
         from backend.time_utils import local_today, user_tz
@@ -763,67 +782,33 @@ async def send_weekly_digest(user, db) -> bool:
         tzname = user_tz(None, user, chart)
         now = local_today(tzname)
         week_end = now + timedelta(days=7)
-        # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
-        events = await asyncio.to_thread(
-            calculate_transits, natal_planets=_chart_points.planets(chart), from_date=now, to_date=week_end
-        )
     except Exception as e:
-        logger.warning("Weekly digest transit fetch failed: %s", e)
+        logger.warning("Weekly digest chart fetch failed: %s", e)
         return False
 
     PLANET_RU = _PLANET_RU
-    ASP_RU = _ASP_RU
-    SPHERE_RU = {"Venus": "отношений и творчества", "Jupiter": "роста и новых возможностей",
-                 "Sun": "самовыражения и карьеры", "Mars": "действий и инициатив",
-                 "Mercury": "коммуникации и планирования"}
-    POSITIVE_ASP = {"trine", "sextile", "conjunction"}
-    POSITIVE_PLAN = {"Venus", "Jupiter", "Sun"}
-
-    # Топ-3 транзита (позитивные в приоритете)
-    sorted_events = sorted(
-        events,
-        key=lambda e: (
-            0 if (getattr(e, "transit_planet", "") in POSITIVE_PLAN
-                  and getattr(e, "aspect_type", "") in POSITIVE_ASP) else 1,
-            getattr(e, "peak_orb", None) or getattr(e, "orb", 9),
-        )
-    )
 
     # Главные события — то же правило, что у «Недели вперёд»
-    # (day_event.week_events, решение владельца 01.10.2026), а не свой отбор
-    # «позитивные первыми»: иначе письмо и приложение называли бы разные дни.
-    # week_events берёт дни ПОСЛЕ переданной даты — неделя письма с сегодня.
-    # Совет недели, лучшие дни и фазы ниже — прежние блоки дайджеста.
-    from backend.day_event import week_events
+    # (day_event.pick_week, решение владельца 01.10.2026): иначе письмо и
+    # приложение называли бы разные дни. Дни — с сегодня, семь.
+    # С 05.10.2026 (шаг 5 аудита) и «Лучшие дни» — из тех же главных событий
+    # дней, а не свой отбор «позитивных» (Венера, Юпитер, Солнце; трин,
+    # секстиль, соединение); «Совет недели от планировщика» убран (решение
+    # владельца): советы к событиям недели и так стоят в письме.
+    from backend.day_event import _MONTHS_GEN, _what, main_event, pick_week
+    from backend.transit.engine import ASPECT_TONE
     from backend.week_ahead import _ctx, _row
+    ctx = _ctx(user, chart)
     try:
-        week = await asyncio.to_thread(week_events, chart, now - timedelta(days=1), *_ctx(user, chart))
+        # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+        days = await asyncio.to_thread(
+            lambda: [main_event(chart, now + timedelta(days=i), *ctx) for i in range(7)])
     except Exception as e:
-        logger.warning("Weekly digest week_events failed: %s", e)
-        week = []
+        logger.warning("Weekly digest main events failed: %s", e)
+        days = []
+    week = pick_week([e for e in days if e])
     highlights = [{**_row(e), "score": e.score,
                    "planet": PLANET_RU.get(e.transit, e.transit) if e.natal else ""} for e in week]
-
-    # ── Совет недели от планировщика ──
-    tip_block = ""
-    first_positive = next(
-        (e for e in sorted_events if getattr(e, "transit_planet", "") in POSITIVE_PLAN
-         and getattr(e, "aspect_type", "") in POSITIVE_ASP),
-        sorted_events[0] if sorted_events else None,
-    )
-    if first_positive:
-        tp = getattr(first_positive, "transit_planet", "")
-        at = getattr(first_positive, "aspect_type", "")
-        peak = str(getattr(first_positive, "peak_date", None) or getattr(first_positive, "date", ""))
-        sphere = SPHERE_RU.get(tp, "важных дел")
-        tip_text = f"{peak}, когда {PLANET_RU.get(tp, tp)} {ASP_RU.get(at, at)} — хороший момент для {sphere}"
-        tip_block = (
-            f'<div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 10px 10px 0;'
-            f'padding:14px 18px;margin:0 0 20px;">'
-            f'<div style="color:#92400e;font-weight:700;font-size:13px;margin-bottom:6px;">💡 Совет недели от планировщика</div>'
-            f'<div style="color:#78350f;font-size:14px;line-height:1.6;">{tip_text}</div>'
-            f'</div>'
-        )
 
     # Лунные фазы недели
     lunar_block = ""
@@ -849,17 +834,15 @@ async def send_weekly_digest(user, db) -> bool:
     except Exception as e:
         logger.warning("Lunar phases fetch failed: %s", e)
 
-    # Лучшие дни
+    # Лучшие дни — дни, чьё главное событие — Гармония (трин, секстиль) с
+    # баллом ≥ 6, до трёх по дате (таблица владельца 05.10.2026).
     best_days_block = ""
-    best = [e for e in sorted_events
-            if getattr(e, "transit_planet", "") in POSITIVE_PLAN
-            and getattr(e, "aspect_type", "") in POSITIVE_ASP][:3]
+    best = [e for e in days if e and e.natal and ASPECT_TONE.get(e.aspect) == "harmonious"
+            and e.score >= BEST_DAY_MIN_SCORE][:3]
     if best:
         rows = "".join(
             f'<li style="margin:4px 0;color:#5a4a7a;font-size:14px;">'
-            f'{str(getattr(e, "peak_date", None) or getattr(e, "date", ""))} — '
-            f'{PLANET_RU.get(getattr(e, "transit_planet", ""), "")} '
-            f'{ASP_RU.get(getattr(e, "aspect_type", ""), "")}</li>'
+            f'{e.at_local.day} {_MONTHS_GEN[e.at_local.month]} — {_what(e)}</li>'
             for e in best
         )
         best_days_block = (
@@ -887,7 +870,6 @@ async def send_weekly_digest(user, db) -> bool:
         _h2(f"🔭 Твой дайджест на {week_label}")
         + _p("Главные астрологические события предстоящей недели по твоей карте:")
         + f'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">{items_html}</table>'
-        + tip_block
         + best_days_block
         + lunar_block
         + _btn("Открыть полный календарь", f"{APP_URL}/calendar")

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Optional
 from urllib.parse import quote
 
@@ -473,7 +473,9 @@ def get_transit_summary(events: list[TransitEvent]) -> dict:
 # TRANSIT ALERT — медленные планеты
 # ═══════════════════════════════════════════════════════════
 
-ALERT_PLANETS  = {"Jupiter", "Saturn", "Uranus", "Neptune"}
+# Плутон — с 05.10.2026 (шаг 5 аудита, решение владельца 02.10.2026): он был
+# в main_event, PDF и чате, а «Важный транзит» его не знал.
+ALERT_PLANETS  = {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}
 
 # Тон описания задаёт категория аспекта, а не сам транзитный планет.
 ASPECT_TONE = {
@@ -517,11 +519,58 @@ NATAL_SPHERE = {
     ("Neptune", "Mercury"):    "мышление — интуиция сильнее логики, факты стоит перепроверять",
     ("Neptune", "Ascendant"):  "образ себя — становится мягче и не таким чётким",
     ("Neptune", "Midheaven"):  "карьера — вдохновение важнее рутины, легко потерять ориентиры",
+
+    # Таблицы владельца 05.10.2026 (шаг 5): Плутон и все пары ALERT_PLANETS ×
+    # day_event.points — без пропусков, полноту держит
+    # test_points_dictionaries.py. ⚠️ Первая часть (до « — ») без запятой:
+    # пуш режет сферу по запятой (push/cron._sphere_short).
+    ("Pluto", "Sun"):          "сила и право решать за себя",
+    ("Pluto", "Moon"):         "чувства и ощущение опоры — меняется то, что казалось незыблемым",
+    ("Pluto", "Venus"):        "отношения и деньги — уходит то, что держится по привычке",
+    ("Pluto", "Mars"):         "воля и сила действовать",
+    ("Pluto", "Mercury"):      "мысли и разговоры — тянет докопаться до сути",
+    ("Pluto", "Ascendant"):    "образ себя — меняется глубоко и надолго",
+    ("Pluto", "Midheaven"):    "карьера и влияние",
+
+    ("Jupiter", "Jupiter"):    "планы и вера в свои силы — время выбрать, куда расти дальше",
+    ("Jupiter", "Saturn"):     "обязанности и правила — появляется опора для долгих дел",
+    ("Jupiter", "Uranus"):     "желание свободы и перемен — открываются новые пути",
+    ("Jupiter", "Neptune"):    "мечты и воображение — легче поверить в задуманное",
+    ("Jupiter", "Pluto"):      "влияние и сила желания — растут возможности что-то изменить",
+    ("Jupiter", "North Node"): "направление роста — легче сделать шаг к новому",
+
+    ("Saturn", "Jupiter"):     "планы и надежды — проверка на реальность",
+    ("Saturn", "Saturn"):      "жизненные рамки — время подвести итоги и пересобрать планы",
+    ("Saturn", "Uranus"):      "свобода и обязанности — поиск равновесия между ними",
+    ("Saturn", "Neptune"):     "мечты и иллюзии — время отделить реальное от желаемого",
+    ("Saturn", "Pluto"):       "власть и контроль — проверка того, что ты действительно держишь",
+    ("Saturn", "North Node"):  "направление роста — нужны терпение и последовательность",
+
+    ("Uranus", "Jupiter"):     "планы и убеждения — возможны неожиданные шансы",
+    ("Uranus", "Saturn"):      "привычный порядок — старые правила просят обновления",
+    ("Uranus", "Uranus"):      "потребность в свободе — тянет изменить привычный уклад",
+    ("Uranus", "Neptune"):     "мечты и идеалы — вдохновение приходит внезапно",
+    ("Uranus", "Pluto"):       "глубинные перемены — то, что долго копилось, выходит наружу",
+    ("Uranus", "North Node"):  "направление роста — возможен резкий поворот",
+
+    ("Neptune", "Jupiter"):    "вера и планы — легко переоценить возможности",
+    ("Neptune", "Saturn"):     "обязанности и границы — они становятся размытыми",
+    ("Neptune", "Uranus"):     "перемены и интуиция — важно не терять опору",
+    ("Neptune", "Neptune"):    "мечты и вдохновение — время прислушаться к себе",
+    ("Neptune", "Pluto"):      "глубокие чувства — тянет к тишине и уединению",
+    ("Neptune", "North Node"): "направление роста — ориентиры становятся менее чёткими",
+
+    ("Pluto", "Jupiter"):      "планы и убеждения — меняются взгляды на то, к чему стремиться",
+    ("Pluto", "Saturn"):       "обязанности и правила — то, что отслужило, уходит",
+    ("Pluto", "Uranus"):       "свобода и перемены — давняя потребность выходит на первый план",
+    ("Pluto", "Neptune"):      "мечты и идеалы — что-то из них приходится отпустить",
+    ("Pluto", "Pluto"):        "сила и контроль — время пересмотреть, на что ты тратишь силы",
+    ("Pluto", "North Node"):   "направление роста — перемены задают новый курс",
 }
 
 DESCRIPTION_TEMPLATES = {
     "harmonious": "{planet} сейчас поддерживает тему: {sphere}. Хорошее время сделать конкретный шаг именно здесь — момент работает на тебя.",
-    "tense":      "{planet} создаёт напряжение в теме: {sphere}. Это ощущается, но это не катастрофа — вложи усилие именно сюда, и точка напряжения станет опорой.",
+    "tense":      "{planet} создаёт напряжение в теме: {sphere}. Это ощущается, но с этим можно работать — вложи усилие именно сюда, и точка напряжения станет опорой.",
     "new_cycle":  "{planet} запускает новый цикл в теме: {sphere}. То, что ты начнёшь сейчас, будет определять эту сферу на годы вперёд.",
 }
 
@@ -539,17 +588,17 @@ def _build_transit_alert_description(transit_planet: str, natal_planet: str, asp
     return template.format(planet=planet_ru, sphere=sphere)
 
 
-# Тема письма — состояние/тема сначала, потом ход (см. документация/astrea_план_продаж.md,
+# Тема письма — без «🌟» (решение владельца 05.10.2026); состояние/тема сначала, потом ход (см. документация/astrea_план_продаж.md,
 # раздел 2 «Голос Astrea»). {sphere} — часть NATAL_SPHERE до « — », целиком. ⚠️ Не резать по
 # запятой: до 01.10.2026 тема выходила «Сатурн: твои границы и то — …» (сфера «твои границы
 # и то, за что ты берёшься отвечать»). Держит test_transit_alert_subject.py.
 SUBJECT_TEMPLATES = {
-    "harmonious": ("🌟 Окно открылось: {sphere} — что сделать · Aristea Timeline",
-                   "🌟 {planet} открывает благоприятный период — что сделать · Aristea Timeline"),
-    "tense":      ("🌟 {planet}: {sphere} — как использовать напряжение · Aristea Timeline",
-                   "🌟 {planet} проверяет на прочность — что делать · Aristea Timeline"),
-    "new_cycle":  ("🌟 {planet} запускает новый цикл: {sphere} · Aristea Timeline",
-                   "🌟 {planet} запускает новый цикл в твоей карте · Aristea Timeline"),
+    "harmonious": ("Окно открылось: {sphere} — что сделать · Aristea Timeline",
+                   "{planet} открывает благоприятный период — что сделать · Aristea Timeline"),
+    "tense":      ("{planet}: {sphere} — как использовать напряжение · Aristea Timeline",
+                   "{planet} проверяет на прочность — что делать · Aristea Timeline"),
+    "new_cycle":  ("{planet} запускает новый цикл: {sphere} · Aristea Timeline",
+                   "{planet} запускает новый цикл в твоей карте · Aristea Timeline"),
 }
 
 
@@ -563,83 +612,56 @@ def _build_transit_alert_subject(transit_planet: str, natal_planet: str, aspect_
     return without_sphere.format(planet=planet_ru)
 
 
-def _alert_already_sent(user_id: str, transit_key: str) -> bool:
-    """Проверяет Redis: отправляли ли уже алерт для этого транзита.
-    Ключ: alert:<user_id>:<transit_key>, TTL 60 дней.
+def alert_event(chart, local_date: date, tzname: str):
+    """Событие письма «Важный транзит» в местные сутки `local_date`: точное
+    касание медленной планеты (ALERT_PLANETS) к натальной точке, самое
+    сильное по баллу (одна шкала — day_event), или None.
+
+    Кандидаты — те же, что у main_event (day_event._candidates): точки
+    day_event.points, к узлам только соединение и оппозиция, момент — точный,
+    внутри местных суток. Окно уведомлений здесь не действует: это письмо.
     """
+    from zoneinfo import ZoneInfo
+    from backend.day_event import _candidates
     try:
-        from backend.cache import interpretation_cache
-        redis = interpretation_cache._redis
-        if not redis:
-            return False
-        key = f"alert:{user_id}:{transit_key}"
-        if redis.get(key):
-            return True
-        redis.set(key, "1", ex=60 * 24 * 3600)
-        return False
+        tz = ZoneInfo(tzname)
     except Exception:
-        return False
+        tz = ZoneInfo("Europe/Moscow")
+    evs = [e for e in _candidates(chart, local_date, tz) if e.natal and e.transit in ALERT_PLANETS]
+    return min(evs, key=lambda e: (-e.score, e.key), default=None)
 
 
-async def check_and_send_transit_alerts(user, new_transits: list[TransitEvent], chart_id: str | None = None) -> None:
-    """Отправляет email-алерт когда медленная планета начинает новый проход."""
+async def send_transit_alert(to: str, chart_id: str, ev, unsubscribe_url: str) -> bool:
+    """Письмо «Важный транзит» про событие `ev` (alert_event).
+
+    ⚠️ До 05.10.2026 письмо уходило только побочным эффектом GET /transits —
+    то есть если человек открыл транзиты на вебе (ошибка, решение владельца
+    02.10.2026). Теперь его шлёт ежечасный прогон писем
+    (lifecycle_emails._send_transit_alerts) в день точного касания.
+    """
     from backend.email_service import send_transit_alert_email, APP_URL
     from backend.ephemeris.ru_names import PLANET_RU, ASPECT_RU as ASP_RU
-    from backend.profile.email_unsubscribe import unsubscribe_url
 
-    unsub_url = unsubscribe_url(user)
-    if not unsub_url:
-        return  # отписка от писем (068)
-
-    from backend.time_utils import local_today, user_tz
-    today = local_today(user_tz(None, user))   # местное «сегодня», не UTC сервера
-
-    for t in new_transits:
-        if t.transit_planet not in ALERT_PLANETS:
-            continue
-
-        # Письмо только про событие, чей пик приходится на сегодня/завтра —
-        # иначе алерт уходит в момент запроса транзитов, а не в дату события
-        # (запрос транзитов на месяц/годы вперёд не должен слать письма заранее).
-        peak = date.fromisoformat(t.peak_date)
-        if not (today <= peak <= today + timedelta(days=1)):
-            continue
-
-        # Дедупликация — не спамить при каждом запросе транзитов
-        transit_key = f"{t.transit_planet}:{t.natal_planet}:{t.aspect_type}:{t.start_date[:7]}"
-        if _alert_already_sent(str(user.id), transit_key):
-            continue
-
-        planet_ru = PLANET_RU.get(t.transit_planet, t.transit_planet)
-        natal_ru  = PLANET_RU.get(t.natal_planet, t.natal_planet)
-        asp_ru    = ASP_RU.get(t.aspect_type, t.aspect_type)
-        desc      = _build_transit_alert_description(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
-        subject   = _build_transit_alert_subject(t.transit_planet, t.natal_planet, t.aspect_type, planet_ru)
-
-        # Ссылка ведёт прямо на этот транзит во вкладке "Транзиты" карты —
-        # event_key совпадает по формату с eventKey() во фронтенде
-        # (frontend/src/components/TransitTimeline.jsx), чтобы страница сама
-        # нашла и открыла именно это событие, а не просто список. quote() —
-        # natal_planet вида "North Node" содержит пробел, без кодирования
-        # ссылка невалидна и её может обрезать почтовый клиент/click-tracking.
-        event_key = f"{t.peak_date}-{t.transit_planet}-{t.natal_planet}-{t.aspect_type}"
-        link = f"{APP_URL}/chart/{chart_id}?tab=transits&event={quote(event_key)}" if chart_id else APP_URL
-
-        try:
-            await send_transit_alert_email(
-                to=user.email,
-                planet=planet_ru,
-                aspect=asp_ru,
-                natal_planet=natal_ru,
-                date_str=t.peak_date,
-                description=desc,
-                subject=subject,
-                link=link,
-                is_peak=False,
-                unsubscribe_url=unsub_url,
-            )
-        except Exception as e:
-            logger.warning("Transit alert email failed user=%s: %s", user.id, e)
+    tp, npl, asp = ev.transit, ev.natal, ev.aspect
+    planet_ru = PLANET_RU.get(tp, tp)
+    # Дата пика в формате движка — UTC-дата точного момента: event_key
+    # совпадает с eventKey() в TransitTimeline.jsx (вкладка «Транзиты»), и
+    # страница сама откроет это событие. quote() — "North Node" с пробелом.
+    peak_date = ev.at_local.astimezone(timezone.utc).date().isoformat()
+    event_key = f"{peak_date}-{tp}-{npl}-{asp}"
+    link = f"{APP_URL}/chart/{chart_id}?tab=transits&event={quote(event_key)}" if chart_id else APP_URL
+    return await send_transit_alert_email(
+        to=to,
+        planet=planet_ru,
+        aspect=ASP_RU.get(asp, asp),
+        natal_planet=PLANET_RU.get(npl, npl),
+        date_str=ev.at_local.date().isoformat(),
+        description=_build_transit_alert_description(tp, npl, asp, planet_ru),
+        subject=_build_transit_alert_subject(tp, npl, asp, planet_ru),
+        link=link,
+        is_peak=False,
+        unsubscribe_url=unsubscribe_url,
+    )
 
 
 # ═══════════════════════════════════════════════════════════

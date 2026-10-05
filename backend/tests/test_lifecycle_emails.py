@@ -400,3 +400,37 @@ def test_first_week_day7_is_summary(db, sent, with_chart, first_week_for, monkey
     le.run_lifecycle_emails(db)
     assert sent == [(u.email, "Твоя первая неделя с Aristea")]
     assert _kinds(db, u) == ["retention_day7"]
+
+
+# ── «Важный транзит» (шаг 5 аудита, 05.10.2026) ──────────────
+
+def test_transit_alert_first_run_after_9_local_once(db, sent, monkeypatch):
+    """Письмо уходит прогоном писем, а не открытием /transits: в день точного
+    касания, первым прогоном после 09:00 по местному времени, один раз;
+    только Лира и Орион."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from backend.day_event import DayEvent
+
+    ev = DayEvent(key="Pluto:Venus:square:2026-10-08T11:00:00",
+                  at_local=datetime(2026, 10, 8, 14, 0, tzinfo=ZoneInfo("Europe/Moscow")),
+                  transit="Pluto", natal="Venus", aspect="square", score=25, timed=True)
+    monkeypatch.setattr("backend.chart_utils.get_primary_chart",
+                        lambda db, u: SimpleNamespace(id="c1", planets=[{}], timezone="Europe/Moscow"))
+    monkeypatch.setattr("backend.transit.engine.alert_event", lambda c, d, tz: ev)
+    pro, free = _user(db, 100, tier="pro"), _user(db, 100)
+    from datetime import datetime as dt
+    assert le._send_transit_alerts(db, dt(2026, 10, 8, 5, 15)) == 0      # 08:15 МСК
+    assert le._send_transit_alerts(db, dt(2026, 10, 8, 6, 15)) == 1      # 09:15 МСК
+    assert le._send_transit_alerts(db, dt(2026, 10, 8, 7, 15)) == 0      # уже ушло
+    assert [to for to, _ in sent] == [pro.email]
+    subject = sent[0][1]
+    assert subject.startswith("Плутон: отношения и деньги") and "🌟" not in subject
+    assert free.email not in [to for to, _ in sent]
+
+
+def test_transits_endpoint_sends_no_alert():
+    """GET /transits больше не шлёт письмо побочным эффектом."""
+    src = (BACKEND / "main.py").read_text(encoding="utf-8")
+    assert "import check_and_send_transit_alerts" not in src
+    assert "import send_transit_alert" not in src and "send_transit_alert(" not in src

@@ -12,8 +12,25 @@ import re
 
 from backend.forecast.facts import DayFacts, LunationFacts
 from backend.forecast.meanings import (
-    HOUSE_FOCUS, MOON_SIGN_MOOD, NATAL_SPHERE, PHASE_RU, PLANET_RU, SIGN_MEANING, TONE_RU,
+    HOUSE_FOCUS, MOON_SIGN_MOOD, NATAL_SPHERE, PHASE_RU, PLANET_RU, SIGN_MEANING, TONE_RU, sphere_of,
 )
+
+# Главное событие дня — фаза Луны (таблица владельца 05.10.2026).
+MAIN_PHASE_LINE = {
+    "new_moon": "- Главное в дне — новолуние: время начать новое.",
+    "full_moon": "- Главное в дне — полнолуние: время подвести итог и завершить начатое.",
+}
+
+
+def _main_line(main: dict) -> str | None:
+    """Первый пункт смыслов — главное событие дня (day_event.main_event)."""
+    if "phase" in main:
+        return MAIN_PHASE_LINE[main["phase"]]
+    sphere = sphere_of(main["natal"], main["aspect"])
+    if not sphere:
+        return None
+    lead = "Главное в дне (фон нескольких дней)" if main["slow"] else "Главное в дне"
+    return f"- {lead} — {TONE_RU[main['tone']]} акцент на теме «{sphere}»."
 from backend.forecast.validate import date_ru
 
 # 2 — с 24.09.2026 текст без «сегодня/завтра/вчера»: один и тот же текст
@@ -26,8 +43,11 @@ from backend.forecast.validate import date_ru
 # В тот же выпуск (не отдельной версией — на прод v4 ещё не выезжала):
 # начало с сути дня, без «В этот день / Этот день / Сегодня» — на 30 днях
 # v3 так начинался 21 текст из 30, и подсказывал это сам промпт.
-DAILY_PROMPT_VERSION = 4
-LUNATION_PROMPT_VERSION = 2
+# 5 (дневной) и 3 (лунный) — 05.10.2026, шаг 5 аудита: точки — с ASC, MC и
+# узлами (к узлам только соединение и оппозиция); в дневном главное событие
+# дня — первым пунктом смыслов и первым абзацем, даже если это не Луна.
+DAILY_PROMPT_VERSION = 5
+LUNATION_PROMPT_VERSION = 3
 
 # Образец владельца, 23.09.2026 (свой текст, не со скрина).
 DAILY_SAMPLE = """Сегодня хороший день, чтобы разобрать то, что давно копилось: письма, счета, мелкие обещания. Голова ясная, решения даются без лишних сомнений — используй это для дел, где нужна точность.
@@ -76,6 +96,9 @@ _RULES_COMMON = """- Обращайся на «ты». Ни одного «вы�
 
 def _day_meanings(f: DayFacts) -> str:
     lines = []
+    main = _main_line(f.main) if f.main else None
+    if main:
+        lines.append(main)
     if f.houses:
         for h in f.houses:
             focus, actions = HOUSE_FOCUS[h]
@@ -83,10 +106,10 @@ def _day_meanings(f: DayFacts) -> str:
     else:
         lines.append(f"- Общий тон дня: {MOON_SIGN_MOOD.get(f.moon_sign, 'ровный день')}.")
     for a in f.aspects:
-        sphere = NATAL_SPHERE.get(a["natal"])
+        sphere = sphere_of(a["natal"], a.get("aspect"))
         if sphere:
             lines.append(f"- {TONE_RU[a['tone']].capitalize()} акцент на теме: {sphere}.")
-    if not f.aspects:
+    if not f.aspects and not main:
         lines.append("- Острых акцентов нет: день ровный, держись своего ритма.")
     return "\n".join(lines)
 
@@ -114,6 +137,12 @@ def _previous_rule(openings: list[str]) -> str:
             "не повторяй ни их первых слов, ни построения первой фразы.\n" + lines + "\n")
 
 
+def _main_rule(f: DayFacts) -> str:
+    if f.main and _main_line(f.main):
+        return "- Первый абзац — о главном в дне (первый пункт смыслов).\n"
+    return ""
+
+
 def build_daily_prompt(f: DayFacts, previous_openings: list[str] | None = None) -> str:
     return f"""Ты пишешь личный прогноз на один день для приложения. Читатель не знает астрологии, и знать её ему не нужно: внутри расчёт, наружу — только жизнь (работа, люди, деньги, отдых, границы).
 
@@ -125,7 +154,7 @@ def build_daily_prompt(f: DayFacts, previous_openings: list[str] | None = None) 
 - Без заголовков, списков и эмодзи.
 - Без дат, дней недели и времени по часам. Можно «с утра», «к вечеру».
 - Не пиши «сегодня», «завтра», «вчера»: этот текст читают и накануне вечером, и в сам день. Говори «днём», «к вечеру» или просто описывай день без привязки.
-- Начни сразу с сути дня для этого человека: первая фраза — конкретная картина дня своими словами, а не вводная формула. Не начинай текст со слов «В этот день», «Этот день», «Сегодня».
+{_main_rule(f)}- Начни сразу с сути дня для этого человека: первая фраза — конкретная картина дня своими словами, а не вводная формула. Не начинай текст со слов «В этот день», «Этот день», «Сегодня».
 {_previous_rule(previous_openings or [])}- Не называй планеты и знаки зодиака.
 {_RULES_COMMON}
 

@@ -262,31 +262,38 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
     `tz` — пояс человека (user_tz): дата «Точный аспект» — местная, та же,
     что у события в ленте. Без него — UTC (прогоны и старые тесты)."""
     from datetime import date as _date, datetime
-    from backend.transit.engine import calculate_transits, is_significant_pair, compute_exact_facts
+    from backend.day_event import SLOW, counts, points, score
+    from backend.transit.engine import calculate_transits, compute_exact_facts
     from backend.transit.prompts import _build_facts_block
 
     # `today` подаёт только прогон вопросов (scripts/chat_eval.py): «было» и
     # «стало» обязаны считаться на одну дату. Чат его не передаёт.
     today = today or _date.today()
-    planets = chart.get("planets") or []
-    if not planets:
+    if not chart.get("planets"):
         return "## Текущие транзиты\nНет данных натальной карты для расчёта транзитов.\n"
 
     try:
-        events = calculate_transits(natal_planets=planets, from_date=today, to_date=today)
+        # Набор точек — day_event.points, тот же, что у ленты: из её чанков
+        # берётся пик (_feed_peak), и чанк с другим набором лёг бы под тот же
+        # ключ кэша. Медленные планеты — как и раньше.
+        planets = points(chart)
+        events = calculate_transits(natal_planets=planets, from_date=today, to_date=today,
+                                    planet_filter=sorted(SLOW))
     except Exception as e:
         logger.warning("chat transits calc failed: %s", e)
         return "## Текущие транзиты\nНе удалось рассчитать (попробуй чуть позже).\n"
 
-    significant = [e for e in events if is_significant_pair(e.transit_planet, e.natal_planet)]
-    significant.sort(key=lambda e: e.peak_orb)
+    # Одна шкала (шаг 5 аудита): по баллу day_event.score, при равном — по
+    # орбу. До 05.10.2026 — «медленная к личной», топ по орбу.
+    significant = [e for e in events if counts(e.natal_planet, e.aspect_type)]
+    significant.sort(key=lambda e: (-score(e.transit_planet, e.natal_planet, e.aspect_type), e.peak_orb))
     top = significant[:max_transits]
 
     if not top:
         return (
             "## Текущие транзиты\n"
-            "Сейчас нет значимых активных транзитов (медленная планета к личной "
-            "натальной). Не выдумывай транзиты — если пользователь спрашивает "
+            "Сейчас нет значимых активных транзитов (медленная планета к точке "
+            "карты). Не выдумывай транзиты — если пользователь спрашивает "
             "«что происходит сейчас», честно скажи, что заметных активаций сейчас нет.\n"
         )
 

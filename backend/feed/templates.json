@@ -64,6 +64,8 @@
     "Neptune": "Нептун",
     "Pluto": "Плутон",
     "North Node": "Сев. узел",
-    "South Node": "Юж. узел"
+    "South Node": "Юж. узел",
+    "Ascendant": "Асцендент",
+    "Midheaven": "Середина неба"
   }
 }

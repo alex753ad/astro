@@ -146,6 +146,13 @@ def allowed_days(now_local: datetime) -> list[date]:
 PREVIOUS_OPENINGS_DAYS = 3
 
 
+def zone_key(tz_key: str, user) -> str:
+    """Пояс и окно уведомлений — часть ключа прогноза дня: главное событие
+    дня (первый факт, шаг 5) выбирается внутри окна (day_event.main_event)."""
+    from backend.push.cron import _daily_time_of, _quiet_from_of
+    return f"{tz_key}:{_daily_time_of(user)}-{_quiet_from_of(user)}"
+
+
 def _daily_key(chart_id, local_date: date, tz_key: str) -> str:
     return f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart_id}:{local_date.isoformat()}:{tz_key}"
 
@@ -166,7 +173,7 @@ def _previous_openings(chart_id, local_date: date, tz_key: str) -> list[str]:
     return out
 
 
-async def daily_forecast(chart, tz_name: str | None, day: date | None = None) -> dict:
+async def daily_forecast(chart, tz_name: str | None, day: date | None = None, user=None) -> dict:
     # tz_name — уже пояс человека (user_tz в ручке); пусто — пояс карты, Москва.
     tz = ZoneInfo(user_tz(tz_name, chart=chart))
     local_date = day or datetime.now(timezone.utc).astimezone(tz).date()
@@ -175,7 +182,11 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
     # ⚠️ Пояс в ключе обязателен: факты дня (знак Луны в полдень, дома)
     # считаются в поясе телефона. Без пояса человек, открывший прогноз в
     # Москве, а потом во Владивостоке, получал бы московский текст.
-    key = _daily_key(chart.id, local_date, tz.key)
+    # ⚠️ И окно уведомлений (zone_key).
+    from backend.push.cron import _daily_time_of, _quiet_from_of
+    daily_time, quiet_from = _daily_time_of(user), _quiet_from_of(user)
+    zkey = zone_key(tz.key, user)
+    key = _daily_key(chart.id, local_date, zkey)
     cached = interpretation_cache.get(key)
     if cached is not None:
         # Кэш-хит считается показом «из модели»: запасной текст не кэшируется
@@ -184,8 +195,8 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None) ->
         stats.record_outcome(chart.id, "today", "model", None)
         return cached
 
-    facts = await asyncio.to_thread(F.compute_day, chart, local_date, tz)
-    prompt = build_daily_prompt(facts, _previous_openings(chart.id, local_date, tz.key))
+    facts = await asyncio.to_thread(F.compute_day, chart, local_date, tz, daily_time, quiet_from)
+    prompt = build_daily_prompt(facts, _previous_openings(chart.id, local_date, zkey))
     paragraphs, source, reason = None, "fallback", None
     for attempt in range(ATTEMPTS):
         raw = await _ask_model(prompt, contour="forecast/today", json_mode=False, max_tokens=900)
@@ -244,7 +255,7 @@ async def get_forecast_day(
     zone = user_tz(tz, user, chart)
     if day not in allowed_days(datetime.now(timezone.utc).astimezone(ZoneInfo(zone))):
         raise HTTPException(status_code=404, detail="Прогноз на эту дату недоступен.")
-    return await daily_forecast(chart, zone, day)
+    return await daily_forecast(chart, zone, day, user)
 
 
 # ── Новолуние / полнолуние ─────────────────────────────────

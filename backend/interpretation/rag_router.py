@@ -418,7 +418,7 @@ async def _get_p1_block(chart: NatalChart, user: User, zone: str | None, left, p
     меняется с каждым сообщением.
     """
     from backend.cache import chat_transits_cache, interpretation_cache
-    from backend.forecast.router import _daily_key
+    from backend.forecast.router import _daily_key, zone_key
     from backend.interpretation import chat_context as cc
     from backend.push.cron import _daily_time_of, _quiet_from_of
     from backend.auth.rate_limits import usage_dates
@@ -428,10 +428,11 @@ async def _get_p1_block(chart: NatalChart, user: User, zone: str | None, left, p
     today = now_local(tzinfo.key).date()
     daily, quiet = _daily_time_of(user), _quiet_from_of(user)
 
-    forecast = interpretation_cache.get(_daily_key(chart.id, today, tzinfo.key))
+    forecast = interpretation_cache.get(_daily_key(chart.id, today, zone_key(tzinfo.key, user)))
     paragraphs = (forecast or {}).get("paragraphs") if isinstance(forecast, dict) else None
 
-    key = f"chat_p1:{chart.id}:{tzinfo.key}:{daily}:{quiet}:{user.tier}:{today.isoformat()}"
+    # v2 (05.10.2026, шаг 5): блок «День» — главное событие первым фактом.
+    key = f"chat_p1:v2:{chart.id}:{tzinfo.key}:{daily}:{quiet}:{user.tier}:{today.isoformat()}"
     cached = chat_transits_cache.get(key)
     if cached is None:
         def build():
@@ -503,7 +504,8 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | 
     # с прежними датами отдавались бы до полуночи после выката.
     # v3 (04.10.2026): дата «Точный аспект» — местная, поэтому пояс в ключе.
     # v4 (04.10.2026, шаг 3): без времени рождения — без натальной Луны.
-    cache_key = f"chat_transits:v4:{chart_id}:{tz}:{today_str}"
+    # v5 (05.10.2026, шаг 5): точки — с ASC, MC и узлами, отбор по баллу.
+    cache_key = f"chat_transits:v5:{chart_id}:{tz}:{today_str}"
 
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:

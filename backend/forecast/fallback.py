@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from backend.forecast.facts import DayFacts, LunationFacts
 from backend.forecast.meanings import (
-    HOUSE_FOCUS, MOON_SIGN_MOOD, NATAL_SPHERE, PHASE_RU, SIGN_ACTION, SIGN_MEANING, TONE_PHRASE,
+    HOUSE_FOCUS, MOON_SIGN_MOOD, PHASE_RU, SIGN_ACTION, SIGN_MEANING, TONE_PHRASE, sphere_of,
 )
 from backend.forecast.validate import date_ru
 
@@ -72,8 +72,11 @@ def daily_fallback(f: DayFacts) -> list[str]:
         first = pick(_MOOD_OPENING, n).format(mood=mood)
 
     middle = []
-    for i, a in enumerate(f.aspects[:2]):
-        sphere = NATAL_SPHERE.get(a["natal"])
+    # Главное событие дня — первым (шаг 5): из f.aspects касание Луны,
+    # ставшее главным, убрано (facts.compute_day), иначе оно бы пропало.
+    main = [f.main] if f.main and "natal" in f.main else []
+    for i, a in enumerate((main + f.aspects)[:2]):
+        sphere = sphere_of(a["natal"], a.get("aspect"))
         if sphere:
             middle.append(pick(TONE_PHRASE[a["tone"]], n, 1 + i).format(sphere=sphere))
     second = " ".join(middle) if middle else pick(_CALM, n, 1)

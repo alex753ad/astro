@@ -85,7 +85,10 @@ celery_app.conf.update(
         },
         "send-lifecycle-emails-hourly": {
             "task": "tasks.send_lifecycle_emails",
-            "schedule": crontab(hour="6-18", minute=15),
+            # Круглые сутки (решение владельца 05.10.2026): «Важный транзит»
+            # уходит первым прогоном после 09:00 местного, во Владивостоке —
+            # 23:15 UTC (lifecycle_emails._send_transit_alerts).
+            "schedule": crontab(minute=15),
         },
         # Самопроверка прогнозов на служебной карте — 07:30 МСК, до утренних
         # уведомлений (backend/selfcheck.py).

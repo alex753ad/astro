@@ -7,7 +7,10 @@ ETA дольше visibility timeout Redis-брокера выдавалась в
 онбординга»). Теперь:
 
 * **Один путь.** Beat-задача `tasks.send_lifecycle_emails` раз в час
-  (06:15–18:15 UTC) зовёт `run_lifecycle_emails`. Приветствие после оплаты —
+  круглые сутки (:15, решение владельца 05.10.2026; до того 06:15–18:15 UTC)
+  зовёт `run_lifecycle_emails`. Круглые сутки — ради «Важного транзита»: он
+  уходит первым прогоном после 09:00 по местному времени, а 09:00 во
+  Владивостоке — 23:00 UTC. Приветствие после оплаты —
   задача `tasks.send_purchase_welcome_task` сразу после активации: ждать до
   часа (а ночью — до утра) письма «оплата прошла» нельзя. Других вызовов
   send_retention_day*/send_*_day*/send_*_welcome в коде нет — это держит тест.
@@ -30,7 +33,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Awaitable, Callable
@@ -116,78 +118,29 @@ def _not_logged(kind: str, ref_expr):
     ))
 
 
-# ── Тексты day2 (перенесены из onboarding_router.py вместе с ручкой) ──
-
-_PLANET_RU = {
-    "Sun": "Солнце", "Moon": "Луна", "Mercury": "Меркурий",
-    "Venus": "Венера", "Mars": "Марс", "Jupiter": "Юпитер",
-    "Saturn": "Сатурн", "Uranus": "Уран", "Neptune": "Нептун", "Pluto": "Плутон",
-}
-_ASPECT_RU = {
-    "conjunction": "соединение", "sextile": "секстиль",
-    "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
-}
-_POSITIVE_ASPECTS = {"trine", "sextile", "conjunction"}
-_POSITIVE_PLANETS = {"Venus", "Jupiter", "Sun"}
-_TRANSIT_TEMPLATES = {
-    ("Venus",   "trine"):       "Венера образует гармоничный трин — прекрасное время для отношений, творчества и приятных встреч.",
-    ("Venus",   "sextile"):     "Венера в секстиле открывает возможности для новых знакомств и укрепления связей.",
-    ("Venus",   "conjunction"): "Венера в соединении усиливает твою привлекательность и желание гармонии.",
-    ("Jupiter", "trine"):       "Юпитер в трине приносит удачу и расширение возможностей — действуй смело.",
-    ("Jupiter", "sextile"):     "Юпитер в секстиле открывает двери там, где раньше были препятствия.",
-    ("Jupiter", "conjunction"): "Юпитер в соединении — один из лучших транзитов года. Энергия роста на максимуме.",
-    ("Sun",     "trine"):       "Солнечный трин наполняет энергией и уверенностью в собственных силах.",
-    ("Mars",    "trine"):       "Марс в трине даёт прилив сил и решимости — отличный момент для активных действий.",
-}
+# ── Текст day2 ──
+# С 05.10.2026 (шаг 5 аудита) — самое сильное главное событие дня
+# (day_event.main_event) из 7 дней, его заголовок и совет, как в пуше и
+# «Неделе вперёд». До того — свой отбор «позитивных» (Венера, Юпитер, Солнце;
+# трин, секстиль, соединение) и восемь своих фраз: письмо называло событием
+# недели не то, что приложение.
+DAY2_DAYS = 7
 
 
-# Натальная планета в творительном вместе с «твой натальный» — готовой фразой
-# по роду. До 24.09.2026 было «с вашим натальным {имя}» с именем в
-# именительном: «с вашим натальным Луна».
-_NATAL_WITH_YOURS = {
-    "Sun": "твоим натальным Солнцем", "Moon": "твоей натальной Луной",
-    "Mercury": "твоим натальным Меркурием", "Venus": "твоей натальной Венерой",
-    "Mars": "твоим натальным Марсом", "Jupiter": "твоим натальным Юпитером",
-    "Saturn": "твоим натальным Сатурном", "Uranus": "твоим натальным Ураном",
-    "Neptune": "твоим натальным Нептуном", "Pluto": "твоим натальным Плутоном",
-}
+def _day2_event(chart, user, today: date):
+    from backend.day_event import main_event
+    from backend.week_ahead import _ctx
+    ctx = _ctx(user, chart)
+    evs = (main_event(chart, today + timedelta(days=i), *ctx) for i in range(DAY2_DAYS))
+    return min((e for e in evs if e), key=lambda e: (-e.score, e.at_local), default=None)
 
 
-def _pick_best_transit(events: list):
-    for e in events:
-        if e.transit_planet in _POSITIVE_PLANETS and e.aspect_type in _POSITIVE_ASPECTS:
-            return e
-    for e in events:
-        if e.aspect_type in {"trine", "sextile"}:
-            return e
-    return events[0] if events else None
-
-
-_MONTHS_GEN = ("", "января", "февраля", "марта", "апреля", "мая", "июня",
-               "июля", "августа", "сентября", "октября", "ноября", "декабря")
-
-
-def _when(event, today: date) -> str:
-    """Когда транзит: точный день в окне недели, «Сейчас» — уже идёт, иначе
-    «С …». ⚠️ До 01.10.2026 здесь стояло «Сегодня» для любого транзита
-    недели — событие через пять дней называлось сегодняшним."""
-    exact = date.fromisoformat(event.exact_date[:10]) if event.exact_date else None
-    if exact and today <= exact <= today + timedelta(days=7):
-        return f"{exact.day} {_MONTHS_GEN[exact.month]}"
-    start = date.fromisoformat(event.start_date[:10])
-    if start <= today:
-        return "Сейчас"
-    return f"С {start.day} {_MONTHS_GEN[start.month]}"
-
-
-def _build_transit_text(event, today: date) -> str:
-    tp, np_, at = event.transit_planet, event.natal_planet, event.aspect_type
-    template = _TRANSIT_TEMPLATES.get((tp, at), "")
-    base = (
-        f"{_when(event, today)} <strong>{_PLANET_RU.get(tp, tp)}</strong> образует "
-        f"{_ASPECT_RU.get(at, at)} с <strong>{_NATAL_WITH_YOURS.get(np_, _PLANET_RU.get(np_, np_))}</strong>."
-    )
-    return f"{base}<br><br>{template}" if template else base
+def _day2_text(ev) -> str:
+    """«8 октября · <strong>Юпитер к твоей Венере</strong><br><br>совет» —
+    таблица владельца 05.10.2026."""
+    from backend.day_event import _MONTHS_GEN, _what, advice
+    d = ev.at_local
+    return f"{d.day} {_MONTHS_GEN[d.month]} · <strong>{_what(ev)}</strong><br><br>{advice(ev)}"
 
 
 def _latest_charts_by_user(db: Session, user_ids: list[str]) -> dict[str, NatalChart]:
@@ -226,7 +179,6 @@ def _onboarding_candidates(db: Session, kind: str, now: datetime) -> list[User]:
 def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
     from backend import email_service
     from backend.profile.email_unsubscribe import unsubscribe_url
-    from backend.transit.engine import calculate_transits
 
     users = _onboarding_candidates(db, kind, now)
     charts = _latest_charts_by_user(db, [u.id for u in users]) if kind != "retention_day14" else {}
@@ -261,22 +213,72 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
                     continue
             # Местное «сегодня» (user_tz); `now` — наивный UTC (utcnow).
             today = local_today(user_tz(None, user, chart), now.replace(tzinfo=timezone.utc))
-            horizon = 7 if kind == "retention_day2" else 30
-            events = calculate_transits(
-                natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=horizon),
-            )
             if kind == "retention_day2":
-                event = _pick_best_transit(events)
-                if not event:
-                    continue
-                text = _build_transit_text(event, today)
-                send = lambda: email_service.send_retention_day2(email, text, unsubscribe_url=unsub)
+                event = _day2_event(chart, user, today)
+                if event is None:
+                    send = lambda: email_service.send_retention_day2_calm(email, unsubscribe_url=unsub)
+                else:
+                    text = _day2_text(event)
+                    send = lambda: email_service.send_retention_day2(email, text, unsubscribe_url=unsub)
             else:
-                if not events:
+                count = _transit_count(chart, today, 30)
+                if not count:
                     continue  # звать разбирать нечего
-                count = len(events)
                 send = lambda: email_service.send_retention_day7(email, count, unsubscribe_url=unsub)
         if send_once(db, uid, kind, "", send):
+            sent += 1
+    return sent
+
+
+def _transit_count(chart, today: date, days: int) -> int:
+    """Транзиты за `days` дней — те же точки и правило узлов, что у ленты
+    (day_event.points/counts, шаг 5 аудита)."""
+    from backend.day_event import counts, points
+    from backend.transit.engine import calculate_transits
+    events = calculate_transits(natal_planets=points(chart), from_date=today,
+                                to_date=today + timedelta(days=days))
+    return sum(1 for e in events if counts(e.natal_planet, e.aspect_type))
+
+
+# ── «Важный транзит» ────────────────────────────────────────
+# Решение владельца 02.10.2026 / 05.10.2026: письмо уходит в день точного
+# касания медленной планеты (transit.engine.alert_event), первым прогоном
+# после ALERT_HOUR по местному времени. До 05.10.2026 оно было побочным
+# эффектом GET /transits и не уходило, пока человек не открыл транзиты на
+# вебе. Одно письмо в сутки — о самом сильном касании дня (ref — его ключ,
+# поэтому следующие прогоны того же дня его не повторят). Ретроградная петля
+# даёт до трёх точных касаний — до трёх писем за проход, это верно по сути.
+ALERT_KIND = "transit_alert"
+ALERT_TIERS = ("pro", "premium")   # Лира и Орион
+ALERT_HOUR = 9
+
+
+def _send_transit_alerts(db: Session, now: datetime) -> int:
+    from zoneinfo import ZoneInfo
+    from backend.chart_utils import get_primary_chart
+    from backend.profile.email_unsubscribe import unsubscribe_url
+    from backend.transit.engine import alert_event, send_transit_alert
+
+    users = db.query(User).filter(User.is_active.is_(True), User.tier.in_(ALERT_TIERS)).all()
+    sent = 0
+    for user in users:
+        email, uid = user.email, user.id
+        unsub = unsubscribe_url(user)
+        if not unsub:
+            continue  # отписка от писем (068)
+        chart = get_primary_chart(db, user)
+        if not chart or not chart.planets:
+            continue
+        tzname = user_tz(None, user, chart)
+        local_now = now.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(tzname))
+        if local_now.hour < ALERT_HOUR:
+            continue
+        ev = alert_event(chart, local_now.date(), tzname)
+        if ev is None:
+            continue
+        chart_id = str(chart.id)
+        if send_once(db, uid, ALERT_KIND, ev.key,
+                     lambda: send_transit_alert(email, chart_id, ev, unsub)):
             sent += 1
     return sent
 
@@ -330,6 +332,12 @@ def run_lifecycle_emails(db: Session, now: datetime | None = None) -> dict:
             db.rollback()
             logger.exception("lifecycle: %s упал", kind)
             result[kind] = None
+    try:
+        result[ALERT_KIND] = _send_transit_alerts(db, now)
+    except Exception:
+        db.rollback()
+        logger.exception("lifecycle: %s упал", ALERT_KIND)
+        result[ALERT_KIND] = None
     return result
 
 

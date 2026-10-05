@@ -686,7 +686,8 @@ def test_previous_openings_go_into_prompt(client, db, user_free, auth_headers_fr
     chart = _chart(db, user_free)
     today = _today_msk()
     for back, text in [(1, "Вчерашнее начало. Дальше."), (2, "Позавчерашнее начало! Дальше.")]:
-        R.interpretation_cache.set(R._daily_key(chart.id, today - timedelta(days=back), "Europe/Moscow"),
+        R.interpretation_cache.set(R._daily_key(chart.id, today - timedelta(days=back),
+                                                R.zone_key("Europe/Moscow", user_free)),
                                    {"paragraphs": [text, "второй"]})
     seen = []
 
@@ -705,3 +706,26 @@ def test_previous_openings_go_into_prompt(client, db, user_free, auth_headers_fr
 def test_no_previous_openings_rule_without_cache():
     f = F.DayFacts(date(2026, 9, 23), False, "Дева", houses=[4], aspects=[])
     assert "прошлых дней" not in build_daily_prompt(f)
+
+
+# ── Главное событие — первый факт (шаг 5 аудита, решение владельца 02.10.2026) ──
+
+@pytest.mark.parametrize("main, line", [
+    ({"transit": "Saturn", "natal": "Venus", "aspect": "square", "tone": "tense", "slow": True},
+     "- Главное в дне (фон нескольких дней) — напряжённый акцент на теме «близкие люди, удовольствия и деньги»."),
+    ({"transit": "Moon", "natal": "North Node", "aspect": "opposition", "tone": "tense", "slow": False},
+     "- Главное в дне — напряжённый акцент на теме «старые привычки и то, что пора отпустить»."),
+    ({"phase": "new_moon"}, "- Главное в дне — новолуние: время начать новое."),
+])
+def test_main_event_is_first_meaning(main, line):
+    f = F.DayFacts(date(2026, 10, 8), False, "Дева", houses=[4],
+                   aspects=[{"natal": "Sun", "aspect": "trine", "tone": "harmonious"}], main=main)
+    prompt = build_daily_prompt(f)
+    meanings = prompt.split("Смыслы дня, посчитанные по карте человека:\n")[1]
+    assert meanings.startswith(line + "\n")
+    assert "- Первый абзац — о главном в дне (первый пункт смыслов)." in prompt
+
+
+def test_no_main_no_rule():
+    f = F.DayFacts(date(2026, 10, 8), False, "Дева", houses=[4], aspects=[])
+    assert "о главном в дне" not in build_daily_prompt(f)

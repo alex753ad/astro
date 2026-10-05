@@ -159,18 +159,20 @@ def day_block(chart, local_date: date, tzname: str, daily_time, quiet_from,
     from zoneinfo import ZoneInfo
     from backend import day_event
     from backend.forecast.facts import compute_day
-    from backend.forecast.meanings import HOUSE_FOCUS, MOON_SIGN_MOOD, NATAL_SPHERE, TONE_RU
+    from backend.forecast.meanings import HOUSE_FOCUS, MOON_SIGN_MOOD, TONE_RU, sphere_of
 
-    facts = compute_day(chart, local_date, ZoneInfo(tzname))
+    facts = compute_day(chart, local_date, ZoneInfo(tzname), daily_time, quiet_from)
     lines = ["## День — то же, что человек видит в приложении (прогноз дня и уведомление)",
              f"Дата: {local_date:%d.%m.%Y}.",
              f"Луна в знаке {facts.moon_sign}: {MOON_SIGN_MOOD.get(facts.moon_sign, '')}."]
     for h in facts.houses:
         focus, actions = HOUSE_FOCUS[h]
         lines.append(f"Луна проходит {h} дом — {focus} (подходит: {actions}).")
+    # Касание Луны, ставшее главным событием, compute_day из списка убирает —
+    # оно названо ниже строкой «Главное событие дня».
     for a in facts.aspects:
         lines.append(f"Касание Луны к натальной точке {PLANET_RU.get(a['natal'], a['natal'])}: "
-                     f"{TONE_RU[a['tone']]}, тема — {NATAL_SPHERE.get(a['natal'], '')}.")
+                     f"{TONE_RU[a['tone']]}, тема — {sphere_of(a['natal'], a.get('aspect')) or ''}.")
     ev = day_event.main_event(chart, local_date, tzname, daily_time, quiet_from)
     if ev:
         lines.append(f"Главное событие дня (утреннее уведомление): «{day_event.title(ev)}». "

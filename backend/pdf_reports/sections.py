@@ -41,7 +41,9 @@ TIER_RANK = {"free": 0, "lite": 1, "pro": 2, "premium": 3}
 # 4 — без времени рождения без Луны и углов (шаг 3), 04.10.2026.
 ASPECTS_PROMPT_VERSION = 4
 # 5 — то же для главных транзитов, 04.10.2026.
-TRANSITS_PROMPT_VERSION = 5
+# 6 — шаг 5 аудита, 05.10.2026: точки и веса main_event (day_event), не свои.
+# Версия входит в отпечаток отчёта (fingerprint) — готовые PDF пересоберутся.
+TRANSITS_PROMPT_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -271,7 +273,8 @@ def aspect_title(a: dict) -> str:
 
 
 def aspects_prompt(chart, items: list[dict]) -> str:
-    by = {p.get("name"): p for p in chart.planets or []}
+    from backend.day_event import points
+    by = {p.get("name"): p for p in points(chart)}
     lines = []
     for i, a in enumerate(items, 1):
         p1, p2 = by.get(a["planet1"], {"name": a["planet1"]}), by.get(a["planet2"], {"name": a["planet2"]})
@@ -311,20 +314,25 @@ async def aspect_section(db, chart, tier: str) -> tuple[list[dict], float]:
 # ── Главные транзиты ───────────────────────────────────────
 
 _SLOW = ("Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
-_TARGETS = ("Sun", "Moon", "Mercury", "Venus", "Mars")
-_W_PLANET = {"Pluto": 5, "Neptune": 4, "Uranus": 4, "Saturn": 4, "Jupiter": 3}
-_W_NATAL = {"Sun": 3, "Moon": 3, "Venus": 2, "Mars": 2, "Mercury": 2}
-_W_ASPECT = {"conjunction": 3, "opposition": 2.5, "square": 2.5, "trine": 1.5, "sextile": 1}
+# Падежи натальных точек (таблица владельца 05.10.2026, шаг 5): набор точек —
+# day_event.points, полноту держит test_points_dictionaries.py.
 _DATIVE = {
     "Sun": "Солнцу", "Moon": "Луне", "Mercury": "Меркурию", "Venus": "Венере", "Mars": "Марсу",
+    "Jupiter": "Юпитеру", "Saturn": "Сатурну", "Uranus": "Урану", "Neptune": "Нептуну",
+    "Pluto": "Плутону", "Ascendant": "Асценденту", "Midheaven": "Середине неба",
 }
 # «соединение С Марсом», остальные — «квадрат К Марсу».
 _INSTR = {
     "Sun": "Солнцем", "Moon": "Луной", "Mercury": "Меркурием", "Venus": "Венерой", "Mars": "Марсом",
+    "Jupiter": "Юпитером", "Saturn": "Сатурном", "Uranus": "Ураном", "Neptune": "Нептуном",
+    "Pluto": "Плутоном", "Ascendant": "Асцендентом", "Midheaven": "Серединой неба",
 }
 
 
 def transit_title(tp: str, natal: str, asp: str) -> str:
+    from backend.day_event import NODE
+    if natal == NODE:
+        return f"{PLANET_RU[tp]} — на оси узлов"   # ось узлов — одно событие, как в ленте
     to = f"с {_INSTR[natal]}" if asp == "conjunction" else f"к {_DATIVE[natal]}"
     return f"{PLANET_RU[tp]} — {ASPECT_RU[asp]} {to}"
 
@@ -357,19 +365,26 @@ def _real_ends(natal, keys, horizon: date) -> dict[tuple, date | None]:
     return out
 
 
-def main_transits(planets, today: date, months: int, n: int) -> list[dict]:
-    """Медленные планеты к личным натальным за `months` месяцев вперёд.
-    Проходы одного транзита (ретроградные возвраты) склеиваются в один
-    отрезок; берутся n самых весомых, показываются по дате начала. Конец —
-    настоящий, а не горизонт тарифа (_real_ends)."""
+def main_transits(points, today: date, months: int, n: int) -> list[dict]:
+    """Медленные планеты к натальным точкам (`day_event.points`) за `months`
+    месяцев вперёд. Проходы одного транзита (ретроградные возвраты)
+    склеиваются в один отрезок; берутся n с наибольшим баллом main_event
+    (`day_event.score`, при равном — меньший орб), показываются по дате
+    начала. Конец — настоящий, а не горизонт тарифа (_real_ends).
+
+    До 05.10.2026 (шаг 5 аудита) — свои веса и только личные точки: одно
+    событие было главным в пуше и не попадало в PDF."""
+    from backend.day_event import POINT_NAMES, counts, score
     from backend.transit.engine import calculate_transits
 
     end = today + timedelta(days=round(months * 30.44))
-    natal = [p for p in planets or [] if p.get("name") in _TARGETS and p.get("longitude") is not None]
+    # Фильтр по POINT_NAMES — на случай, если передали chart.planets целиком
+    # (с Юж. узлом): у него нет падежей, и он — та же ось узлов.
+    natal = [p for p in points or [] if p.get("name") in POINT_NAMES and p.get("longitude") is not None]
     events = calculate_transits(natal, today, end, planet_filter=list(_SLOW))
     merged: dict[tuple, dict] = {}
     for e in events:
-        if e.aspect_type not in _W_ASPECT:
+        if not counts(e.natal_planet, e.aspect_type):
             continue
         k = (e.transit_planet, e.natal_planet, e.aspect_type)
         m = merged.setdefault(k, {"start": e.start_date, "end": e.end_date, "orb": e.peak_orb, "exact": []})
@@ -379,7 +394,7 @@ def main_transits(planets, today: date, months: int, n: int) -> list[dict]:
             m["exact"].append(e.exact_date[:10])
     ranked = sorted(
         merged.items(),
-        key=lambda kv: -(_W_PLANET[kv[0][0]] * _W_NATAL[kv[0][1]] * _W_ASPECT[kv[0][2]] + (1 if kv[1]["orb"] < 0.5 else 0)),
+        key=lambda kv: (-score(*kv[0]), kv[1]["orb"]),
     )[:n]
     # Движок досчитывает окно на 3 дня за to_date: конец не раньше горизонта
     # значит, что транзит к нему не кончился.
@@ -405,7 +420,8 @@ def main_transits(planets, today: date, months: int, n: int) -> list[dict]:
 
 
 def transits_prompt(chart, items: list[dict], months: int) -> str:
-    by = {p.get("name"): p for p in chart.planets or []}
+    from backend.day_event import points
+    by = {p.get("name"): p for p in points(chart)}
     lines = [
         f"{i}. {t['title']} ({t['when']}); натальное: {_where(by.get(t['natal'], {'name': t['natal']}))}"
         for i, t in enumerate(items, 1)
@@ -430,8 +446,8 @@ async def transit_section(db, chart, tier: str, today: date) -> tuple[list[dict]
     if cached:
         return cached, 0.0
     import asyncio
-    from backend.chart_points import planets as natal_planets
-    items = await asyncio.to_thread(main_transits, natal_planets(chart), today, plan.transit_months, plan.transits)
+    from backend.day_event import points
+    items = await asyncio.to_thread(main_transits, points(chart), today, plan.transit_months, plan.transits)
     if items:
         texts, cost = await _numbered_texts(
             chart, tier, transits_prompt(chart, items, plan.transit_months), len(items), "pdf_transits")

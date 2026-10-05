@@ -28,8 +28,10 @@ _WARNING_PLANETS = ["Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Ura
 
 
 def _natal_targets(chart) -> list[dict]:
-    from backend.chart_points import planets
-    return planets(chart)
+    # Один набор точек на проект (шаг 5 аудита): с ASC и MC, без Юж. узла;
+    # к узлам — только соединение и оппозиция (day_event.counts).
+    from backend.day_event import points
+    return points(chart)
 
 
 def _cusps(chart) -> list[float] | None:
@@ -47,10 +49,19 @@ class DayFacts:
     trimmed: bool
     moon_sign: str
     houses: list[int] = field(default_factory=list)      # по порядку за день, без повторов
-    aspects: list[dict] = field(default_factory=list)    # {natal, tone}
+    aspects: list[dict] = field(default_factory=list)    # {natal, aspect, tone}
+    # Главное событие дня (day_event.main_event) — первый факт прогноза,
+    # даже если это не Луна (решение владельца 02.10.2026, проверка c2).
+    # {transit, natal, aspect, tone} или {phase}; None — события нет.
+    main: dict | None = None
 
 
-def compute_day(chart, local_date: date, tz: ZoneInfo) -> DayFacts:
+def compute_day(chart, local_date: date, tz: ZoneInfo, daily_time=None, quiet_from=None) -> DayFacts:
+    """`daily_time`/`quiet_from` — окно уведомлений человека: главное событие
+    дня зависит от него (day_event.main_event), и прогноз обязан назвать то
+    же событие, что утренний пуш."""
+    from backend.day_event import SLOW, counts, main_event
+
     start = _utc_naive(datetime(local_date.year, local_date.month, local_date.day, tzinfo=tz))
     end = start + timedelta(days=1)
 
@@ -64,7 +75,7 @@ def compute_day(chart, local_date: date, tz: ZoneInfo) -> DayFacts:
     )
     aspects, seen = [], set()
     for e in sorted(events, key=lambda e: e.exact_date or ""):
-        if not e.exact_date:
+        if not e.exact_date or not counts(e.natal_planet, e.aspect_type):
             continue
         exact = datetime.fromisoformat(e.exact_date)
         if not (start <= exact < end):
@@ -73,7 +84,18 @@ def compute_day(chart, local_date: date, tz: ZoneInfo) -> DayFacts:
         if key in seen:
             continue
         seen.add(key)
-        aspects.append({"natal": e.natal_planet, "tone": TONE[e.aspect_type]})
+        aspects.append({"natal": e.natal_planet, "aspect": e.aspect_type, "tone": TONE[e.aspect_type]})
+
+    main = None
+    ev = main_event(chart, local_date, tz.key, daily_time, quiet_from)
+    if ev is not None and ev.natal is None:
+        main = {"phase": ev.transit}
+    elif ev is not None:
+        main = {"transit": ev.transit, "natal": ev.natal, "aspect": ev.aspect,
+                "tone": TONE[ev.aspect], "slow": ev.transit in SLOW}
+        if ev.transit == "Moon":
+            # То же касание Луны — не повторять вторым пунктом.
+            aspects = [a for a in aspects if (a["natal"], a["aspect"]) != (ev.natal, ev.aspect)]
 
     moon_id = PLANETS["Moon"]
     noon = start + timedelta(hours=12)
@@ -91,7 +113,7 @@ def compute_day(chart, local_date: date, tz: ZoneInfo) -> DayFacts:
 
     return DayFacts(
         local_date=local_date, trimmed=bool(chart.time_unknown),
-        moon_sign=moon_sign, houses=houses, aspects=aspects,
+        moon_sign=moon_sign, houses=houses, aspects=aspects, main=main,
     )
 
 
@@ -124,6 +146,8 @@ def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> Lunat
     moon_lon, *_ = _calc_planet_position(PLANETS["Moon"], jd)
     sign = _sign_ru(moon_lon)
 
+    from backend.day_event import counts
+
     targets = _natal_targets(chart)
     aspects = []
     for t_name, t_id in PLANETS.items():
@@ -133,7 +157,7 @@ def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> Lunat
         for p in targets:
             angle = _angular_distance(t_lon, p["longitude"])
             for asp, exact in ASPECTS.items():
-                if abs(angle - exact) <= TRANSIT_ORBS[asp]:
+                if abs(angle - exact) <= TRANSIT_ORBS[asp] and counts(p["name"], asp):
                     aspects.append({"planet": t_name, "natal": p["name"], "tone": TONE[asp]})
 
     cusps = _cusps(chart)
@@ -150,7 +174,7 @@ def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> Lunat
     )
     warnings, seen = [], set()
     for e in events:
-        if TONE[e.aspect_type] != "tense" or not e.exact_date:
+        if TONE[e.aspect_type] != "tense" or not e.exact_date or not counts(e.natal_planet, e.aspect_type):
             continue
         exact_local = datetime.fromisoformat(e.exact_date).replace(tzinfo=timezone.utc).astimezone(tz)
         d = exact_local.date()

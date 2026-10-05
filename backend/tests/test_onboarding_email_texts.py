@@ -1,36 +1,30 @@
 """Тексты писем онбординга дней 2, 7, 14 — без неправды (01.10.2026).
 
-* день 2 называл «сегодняшним» транзит из недели вперёд;
+* день 2 называл «сегодняшним» транзит из недели вперёд; с 05.10.2026 —
+  главное событие дня (day_event), дата в тексте — его местная дата;
 * день 7 говорил «мимо тебя проходят N транзитов … закрыты» и звал на Лиру —
   список транзитов бесплатный видит, первый платный шаг — Вега;
 * день 14 обещал «разбор карты (Вега и выше)», хотя один есть и бесплатно.
 """
-from datetime import date
 from types import SimpleNamespace
 
 import pytest
 
 from backend import email_service
 from backend.auth.rate_limits import TIER_FLAGS
-from backend.lifecycle_emails import _build_transit_text
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-TODAY = date(2026, 10, 1)
-
-
-def _ev(start, exact=None):
-    return SimpleNamespace(transit_planet="Venus", natal_planet="Sun", aspect_type="trine",
-                           start_date=start, exact_date=exact)
+from backend.day_event import DayEvent
+from backend.lifecycle_emails import _day2_text
 
 
-@pytest.mark.parametrize("ev, head", [
-    (_ev("2026-09-28", "2026-10-04T10:00"), "4 октября "),
-    (_ev("2026-09-28", "2026-09-30T10:00"), "Сейчас "),
-    (_ev("2026-10-05", None), "С 5 октября "),
-])
-def test_day2_names_real_date(ev, head):
-    text = _build_transit_text(ev, TODAY)
-    assert text.startswith(head)
-    assert not text.startswith("Сегодня")
+def test_day2_main_event_with_date_and_advice():
+    """Формат таблицы владельца 05.10.2026: «дата · событие», затем совет."""
+    ev = DayEvent(key="k", at_local=datetime(2026, 10, 8, 14, 0, tzinfo=ZoneInfo("Europe/Moscow")),
+                  transit="Venus", natal="Jupiter", aspect="square", score=5, timed=True)
+    assert _day2_text(ev) == ("8 октября · <strong>Венера к твоему Юпитеру</strong><br><br>"
+                              "Знай меру в покупках и обещаниях.")
 
 
 @pytest.fixture
@@ -61,3 +55,11 @@ async def test_day14_numbers_from_tier_flags(captured):
     assert "разбор карты, " not in body
     assert f"{TIER_FLAGS['lite']['transits_months']} месяцев вперёд" in body
     assert email_service.ACCESS_TERM in body
+
+
+async def test_day2_calm_fallback(captured):
+    """Запасной день 2 — таблица владельца 05.10.2026, тема без «🌙»."""
+    await email_service.send_retention_day2_calm("a@b.c", unsubscribe_url="u")
+    assert captured["subject"] == "Твоя неделя"
+    assert "🌙 Твоя неделя" in captured["body"]
+    assert "Каждое утро тебя ждёт прогноз на день по твоей карте." in captured["body"]
