@@ -17,8 +17,11 @@ POST /api/v1/internal/pilot-tick   (header X-Internal-Secret)
 Не возвращать пуш сюда без пересмотра лимита — docs/notifications.md,
 «Главное событие дня и лимит пушей».
 
-Расписание Railway Cron: раз в день (напр. 09:10). Идемпотентность позволяет
-запускать чаще без дублей.
+Расписание: systemd-таймер astro-pilot-tick (раз в сутки) и, с 05.10.2026,
+Celery Beat ежечасно (`tasks.pilot_tick`) — письма пилота уходят только в
+окне 09–21 по местному времени (lifecycle_emails.email_window_open, решение
+владельца 05.10.2026), а раз в сутки в 06:20 у Нью-Йорка окно не открыто
+никогда. Идемпотентность позволяет запускать чаще без дублей.
 """
 from __future__ import annotations
 
@@ -144,11 +147,15 @@ async def _process(db: Session, user: User) -> dict:
     # Отписка от писем (068): письмо не шлём, но шаг считаем сделанным
     # (email_ok=True) — иначе он не отметится и пуш рядом с письмом
     # повторялся бы на каждом тике.
+    from backend.lifecycle_emails import email_window_open
     from backend.profile.email_unsubscribe import unsubscribe_url
     unsub = unsubscribe_url(user)
+    # Письма — только в окне 09–21 местного; вне окна шаг не отмечается и
+    # уходит следующим прогоном в окне. Даунгрейд (шаг 3) от окна не зависит.
+    window = email_window_open(user, None, now)
 
     # 1) Прощание за ≤3 дня
-    if end - timedelta(days=FAREWELL_LEAD_DAYS) <= now < end:
+    if window and end - timedelta(days=FAREWELL_LEAD_DAYS) <= now < end:
         ref = f"farewell:{end.date().isoformat()}"
         if not _already(db, user.id, "farewell", ref):
             days_left = max(1, (end.date() - now.date()).days)
@@ -186,7 +193,7 @@ async def _process(db: Session, user: User) -> dict:
                 result["farewell"] = True
 
     # 2) Спящий 5/10/14 — только пока пилот активен (юзер платно не пользуется)
-    if now < end:
+    if window and now < end:
         last = _last_open_date(db, user)
         if last is not None:
             inactive = (now.date() - last).days
@@ -233,7 +240,7 @@ async def _process(db: Session, user: User) -> dict:
         result["downgraded"] = True
 
     # 4) End-of-month exit-survey — момент 3: месяц кончился, продолжения нет
-    if now >= end and (user.tier or "free") == "free":
+    if window and now >= end and (user.tier or "free") == "free":
         ref = f"eom:{end.date().isoformat()}"
         if not _already(db, user.id, "exit_eom", ref):
             email_ok = unsub is None
@@ -257,6 +264,11 @@ async def _process(db: Session, user: User) -> dict:
 async def pilot_tick(
     db: Session = Depends(get_db),
 ):
+    return await run_tick(db)
+
+
+async def run_tick(db: Session) -> dict:
+    """Один прогон пилота — ручка (systemd) и Celery Beat (`tasks.pilot_tick`)."""
     users = db.query(User).filter(User.pilot_started_at.isnot(None)).all()
     farewell = downgraded = dormant = eom = 0
     for user in users:

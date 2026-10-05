@@ -195,7 +195,7 @@ def run_emails(db: Session, now_utc: datetime | None = None) -> int:
     from backend.chart_utils import get_primary_chart
     from backend.email_service import APP_URL
     from backend.flags import flag_on
-    from backend.lifecycle_emails import send_once
+    from backend.lifecycle_emails import email_window_open, send_once
     from backend.models import EmailSentLog
     from backend.profile.email_unsubscribe import unsubscribe_url
 
@@ -209,6 +209,10 @@ def run_emails(db: Session, now_utc: datetime | None = None) -> int:
             continue
         sunday = sunday_of(now_utc.astimezone(pytz.timezone(_ctx(user, chart)[0])), EMAIL_MONDAY_UNTIL)
         if sunday is None or in_first_week(db, user, chart, sunday):
+            continue
+        # Окно писем 09–21 местного (lifecycle_emails.email_window_open): из
+        # «вс 19:00 … пн 12:00» остаются вс 19–21 и пн 09–12.
+        if not email_window_open(user, chart, now_utc):
             continue
         ref = (sunday + timedelta(days=1)).isoformat()
         # Журнал — до эфемерид: прогон идёт каждый час окна.
