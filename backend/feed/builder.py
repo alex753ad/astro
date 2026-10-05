@@ -250,7 +250,9 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
     # узла). ⚠️ Набор точек в ключ не входит: КАЖДЫЙ вызывающий (лента, чат —
     # rag._feed_peak, прогон согласованности) обязан передавать points(chart),
     # иначе чанк с чужим набором ляжет под тот же ключ.
-    cache_key = f"v3:{chart_id}:{year:04d}-{month:02d}"
+    # v4 (05.10.2026): без событий без касания (станция рядом с точкой,
+    # TransitEvent.no_touch) — до v4 минимум орба шёл в ленту как точный.
+    cache_key = f"v4:{chart_id}:{year:04d}-{month:02d}"
     cached = feed_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -295,6 +297,8 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
         # Пик внутри самого месяца, без PAD: PAD нужен движку, а не выдаче.
         # Так событие попадает ровно в один чанк и не двоится на стыке.
         if month_start.isoformat() <= e.peak_date <= month_end.isoformat()
+        # Без касания — не карточка, пока нет подписи «ближе всего» (О3).
+        and not e.no_touch
     ]
     feed_cache.set(cache_key, chunk)
     return chunk

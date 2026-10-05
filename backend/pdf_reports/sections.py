@@ -43,7 +43,8 @@ ASPECTS_PROMPT_VERSION = 4
 # 5 — то же для главных транзитов, 04.10.2026.
 # 6 — шаг 5 аудита, 05.10.2026: точки и веса main_event (day_event), не свои.
 # Версия входит в отпечаток отчёта (fingerprint) — готовые PDF пересоберутся.
-TRANSITS_PROMPT_VERSION = 6
+# 7 — без проходов без касания, касания — настоящие корни (аудит 8.1), 05.10.2026.
+TRANSITS_PROMPT_VERSION = 7
 
 
 @dataclass(frozen=True)
@@ -384,7 +385,9 @@ def main_transits(points, today: date, months: int, n: int) -> list[dict]:
     events = calculate_transits(natal, today, end, planet_filter=list(_SLOW))
     merged: dict[tuple, dict] = {}
     for e in events:
-        if not counts(e.natal_planet, e.aspect_type):
+        # Без касания (станция рядом с точкой) — не транзит для PDF, пока нет
+        # подписи «ближе всего» (аудит, О3).
+        if not counts(e.natal_planet, e.aspect_type) or e.no_touch:
             continue
         k = (e.transit_planet, e.natal_planet, e.aspect_type)
         m = merged.setdefault(k, {"start": e.start_date, "end": e.end_date, "orb": e.peak_orb, "exact": []})

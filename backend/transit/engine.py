@@ -22,8 +22,6 @@ from datetime import datetime, timedelta, date, timezone
 from typing import Optional
 from urllib.parse import quote
 
-import swisseph as swe
-
 from backend.ephemeris.calculator import (
     PLANETS,
     ZODIAC_SIGNS,
@@ -52,8 +50,6 @@ TRANSIT_ORBS = {
     "opposition":  2.0,
 }
 
-BISECT_ITERATIONS = 12
-
 
 @dataclass
 class TransitEvent:
@@ -73,6 +69,13 @@ class TransitEvent:
     # E2 (Free-витрина транзитов): значимость + топ-2, разблокированные для Free
     significant:    bool = False           # медленная планета к личной натальной
     free_unlocked:  bool = False           # входит в топ-2 значимых (AI-разбор для Free)
+    # Касания нет: ближайшее сближение ВНУТРИ окна (станция рядом с точкой), а
+    # корня разности долгот нет (_find_exact_aspect). У окна, обрезанного краем
+    # скана, минимум на краю — касание может быть за ним, это не no_touch.
+    # Лента, /transits и PDF такие события не показывают до решения владельца
+    # о подписи «ближе всего» (аудит, О3); главное событие и прогнозы и так
+    # берут только exact_date.
+    no_touch:       bool = False
 
     # ── convenience ──
     @property
@@ -228,6 +231,7 @@ def _make_event(w: _Window, exact_dt: Optional[datetime]) -> TransitEvent:
         peak_orb=round(w.peak_orb, 4),
         exact_date=exact_dt.strftime("%Y-%m-%dT%H:%M") if exact_dt else None,
         applying=w.applying,
+        no_touch=exact_dt is None and w.start_dt < w.peak_dt < w.last_dt,
     )
 
 
@@ -306,6 +310,11 @@ def get_planet_positions_for_date(query_date: date) -> list[dict]:
     return result
 
 
+def _signed(lon: float, natal_longitude: float, angle: float, side: int) -> float:
+    """Знаковая разность (t − n) ∓ угол, приведённая к (−180°, 180°]."""
+    return (lon - natal_longitude - side * angle + 180.0) % 360.0 - 180.0
+
+
 def _find_exact_aspect(
     transit_planet_id: int,
     natal_longitude: float,
@@ -313,42 +322,44 @@ def _find_exact_aspect(
     approx_dt: datetime,
     window_hours: int,
 ) -> Optional[datetime]:
-    dt_start = approx_dt - timedelta(hours=window_hours)
-    dt_end   = approx_dt + timedelta(hours=window_hours)
-    jd_start = _datetime_to_jd(dt_start)
-    jd_end   = _datetime_to_jd(dt_end)
+    """Момент ТОЧНОГО касания в [approx_dt ± window_hours] — корень знаковой
+    разности долгот `(t − n) ∓ угол`, ближайший к `approx_dt`, до минуты.
+    Касания нет — None.
 
-    def orb_at_jd(jd: float) -> float:
-        lon, _, _, _ = _calc_planet_position(transit_planet_id, round(jd, 6))
-        return abs(_angular_distance(lon, natal_longitude) - target_angle)
+    ⚠️ Не минимум орба (так было до 05.10.2026, аудит 8.1). Станция в 1,6° от
+    натальной точки — минимум орба, но не касание: разность не меняет знак.
+    Минимум выдавался за «точный», и главное событие дня, письмо «Важный
+    транзит» и лента называли касание, которого нет. Минимум движка
+    (`calculate_transits`) остаётся только подсказкой, где искать корень.
+    Единственный помощник «точного» в проекте — своих поисков не заводить.
+    """
+    def f(dt: datetime, side: int) -> float:
+        lon, _, _, _ = _calc_planet_position(transit_planet_id, round(_datetime_to_jd(dt), 6))
+        return _signed(lon, natal_longitude, target_angle, side)
 
-    best_jd  = jd_start
-    best_orb = orb_at_jd(jd_start)
-    steps    = 24
-    jd_step  = (jd_end - jd_start) / steps
-
-    for i in range(steps + 1):
-        jd  = jd_start + i * jd_step
-        orb = orb_at_jd(jd)
-        if orb < best_orb:
-            best_orb = orb
-            best_jd  = jd
-
-    lo = best_jd - jd_step
-    hi = best_jd + jd_step
-    for _ in range(BISECT_ITERATIONS):
-        m1, m2 = lo + (hi - lo) / 3, hi - (hi - lo) / 3
-        if orb_at_jd(m1) < orb_at_jd(m2):
-            hi = m2
-        else:
-            lo = m1
-
-    try:
-        year, month, day, hf = swe.revjul((lo + hi) / 2)
-        h, m = int(hf), int((hf - int(hf)) * 60)
-        return datetime(year, month, day, h, m)
-    except Exception:
+    start = approx_dt - timedelta(hours=window_hours)
+    step = timedelta(hours=window_hours) / 12
+    best: Optional[datetime] = None
+    for side in ((1,) if target_angle in (0, 180) else (1, -1)):
+        prev_t, prev_v = start, f(start, side)
+        for i in range(1, 25):
+            t = start + i * step
+            v = f(t, side)
+            # |v| < 90 — смена знака у 0°, а не скачок ±180° при приведении.
+            if (prev_v > 0) != (v > 0) and abs(prev_v) < 90 and abs(v) < 90:
+                lo, hi = prev_t, t
+                while hi - lo > timedelta(seconds=2):
+                    mid = lo + (hi - lo) / 2
+                    lo, hi = (mid, hi) if (f(mid, side) > 0) == (prev_v > 0) else (lo, mid)
+                root = lo + (hi - lo) / 2
+                if best is None or abs(root - approx_dt) < abs(best - approx_dt):
+                    best = root
+            prev_t, prev_v = t, v
+    if best is None:
         return None
+    # Секунды отбрасываются, как до 05.10.2026: минута входит в ключи главного
+    # события и письма «Важный транзит» — округление сдвинуло бы их и повторило письмо.
+    return best.replace(second=0, microsecond=0)
 
 
 def compute_exact_facts(
