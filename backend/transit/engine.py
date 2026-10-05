@@ -395,7 +395,8 @@ def compute_exact_facts(
         "transit_sign": None, "transit_degree": None, "transit_house": None,
         "transit_retrograde": False,
         "natal_sign": natal_entry.get("sign") if natal_entry else None,
-        "natal_degree": round(natal_entry.get("degree_in_sign", 0), 2) if natal_entry else None,
+        # Из долготы, не degree_in_sign: у ASC/MC (chart_points.targets) его нет.
+        "natal_degree": round(natal_lon % 30, 2) if natal_lon is not None else None,
         "natal_house": natal_entry.get("house") if natal_entry else None,
         "exact_orb": None, "exact_date": None,
         "period_start": None, "period_end": None,

@@ -1774,9 +1774,14 @@ async def interpret_transit_event(
     logger.info("Transit interp cache MISS key=%s", cache_key)
 
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
+    # Натальная точка — из day_event.points, как в ленте: в natal_planets
+    # углов нет, и до 05.10.2026 разбор касания к ASC/MC шёл без знака,
+    # градуса и дат (аудит 8.1). Без времени рождения углов нет и там.
+    from backend.day_event import points as day_points
     facts = await asyncio.to_thread(
         compute_exact_facts,
-        transit_planet, natal_planet, aspect_type, _date.fromisoformat(_ref_date_str), profile,
+        transit_planet, natal_planet, aspect_type, _date.fromisoformat(_ref_date_str),
+        {**profile, "planets": day_points(chart)},
     )
     transit_event_dict = {
         "transit_planet": transit_planet,

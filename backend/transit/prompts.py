@@ -21,7 +21,8 @@ from backend.interpretation.address import ADDRESS_RULE
 # 5 — творительный в ADDRESS_RULE, 30.09.2026.
 # 6 — без времени рождения без натальной Луны, углов и домов (шаг 3), 04.10.2026.
 # 7 — «Точный аспект» только у настоящего касания, не у станции рядом с точкой, 05.10.2026.
-TRANSIT_PROMPT_VERSION = 7
+# 8 — касания к ASC/MC с фактами: знак, градус, даты (были пустыми), 05.10.2026.
+TRANSIT_PROMPT_VERSION = 8
 
 ASPECT_LABELS_RU = {
     "conjunction": "соединение", "sextile": "секстиль",
