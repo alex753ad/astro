@@ -919,7 +919,9 @@ class TestPeakDateIsNotDerivedFromAt:
 
 
 class TestNodeAxisMerged:
-    """Аспект к Сев. и Юж. узлу — одно событие «… на оси узлов» (29.09.2026)."""
+    """Ось узлов — одно событие «… на оси узлов» (29.09.2026). С 05.10.2026
+    (шаг 5): к узлам у всех планет только соединение и оппозиция, Юж. узел
+    отдельной точкой не считается (day_event.points/counts)."""
 
     @staticmethod
     def _ev(natal, aspect, peak="2026-10-10", tp="Mars"):
@@ -927,7 +929,7 @@ class TestNodeAxisMerged:
                 "meta": {"transit_planet": tp, "natal_planet": natal,
                          "aspect_type": aspect, "peak_date": peak}}
 
-    def test_pair_becomes_one_axis_event(self):
+    def test_north_node_becomes_axis_event(self):
         from backend.feed.builder import _merge_node_axis
         out = _merge_node_axis([self._ev("North Node", "conjunction"), self._ev("South Node", "opposition")])
         assert len(out) == 1
@@ -935,36 +937,25 @@ class TestNodeAxisMerged:
         assert out[0]["meta"]["node_axis"] is True
         assert out[0]["text"] == "Марс на оси узлов"
 
-    def test_lone_node_and_other_dates_stay(self):
-        from backend.feed.builder import _merge_node_axis
-        evs = [self._ev("North Node", "trine"), self._ev("South Node", "sextile", peak="2026-11-01"),
-               self._ev("Sun", "square")]
-        out = _merge_node_axis(evs)
-        assert len(out) == 3
-        assert not any(e["meta"].get("node_axis") for e in out)
-
     def test_same_day_aspect_to_other_planet_untouched(self):
         """Луна к Сатурну в день прохода Луны по оси узлов — не «ось узлов»
         (приёмка 29.09.2026: 30.09, карта Анны)."""
         from backend.feed.builder import _merge_node_axis
         saturn = self._ev("Saturn", "trine", tp="Moon")
         saturn["text"] = "Луна к твоему Сатурну"
-        out = _merge_node_axis([self._ev("North Node", "conjunction", tp="Moon"),
-                                self._ev("South Node", "opposition", tp="Moon"), saturn])
+        out = _merge_node_axis([self._ev("North Node", "conjunction", tp="Moon"), saturn])
         assert len(out) == 2
         axis = [e for e in out if e["meta"].get("node_axis")]
-        assert len(axis) == 1 and axis[0]["meta"]["natal_planet"] == "North Node"
-        assert axis[0]["text"] == "Луна на оси узлов"
+        assert len(axis) == 1 and axis[0]["text"] == "Луна на оси узлов"
         assert "node_axis" not in saturn["meta"]
         assert saturn["text"] == "Луна к твоему Сатурну"
 
-    def test_moon_only_conjunction_and_opposition_to_axis(self):
-        """Луна к оси узлов — только соединение/оппозиция; у других планет все аспекты."""
+    def test_only_conjunction_and_opposition_to_axis_for_all(self):
+        """К узлам — только соединение и оппозиция, у всех планет (шаг 5)."""
         from backend.feed.builder import _merge_node_axis
-        evs = [self._ev("North Node", a, peak=f"2026-10-{i + 10}", tp="Moon")
+        evs = [self._ev("North Node", a, peak=f"2026-10-{i + 10}", tp=tp)
+               for tp in ("Moon", "Mars")
                for i, a in enumerate(("conjunction", "opposition", "square", "trine", "sextile"))]
-        evs.append(self._ev("South Node", "square", peak="2026-10-12", tp="Moon"))
-        evs.append(self._ev("North Node", "square", tp="Mars"))
         out = _merge_node_axis(evs)
         assert [(e["meta"]["transit_planet"], e["meta"]["aspect_type"]) for e in out] == [
-            ("Moon", "conjunction"), ("Moon", "opposition"), ("Mars", "square")]
+            ("Moon", "conjunction"), ("Moon", "opposition"), ("Mars", "conjunction"), ("Mars", "opposition")]

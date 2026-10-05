@@ -26,6 +26,13 @@
 
 Карта без времени рождения — как в forecast/facts.py: без натальной Луны,
 ASC и MC (они сдвинуты до ±6°, касание было бы шумом, выданным за событие).
+
+Шаг 5 аудита (решения владельца 02.10.2026, код 05.10.2026): этот модуль —
+ОДНА шкала и ОДИН набор точек для всех разделов. `points` — натальные точки,
+`counts` — правило узлов, `score` — балл. Лента (уровни), чат, PDF «Главные
+транзиты», «Важный транзит», прогноз дня, дайджест и онбординг берут их
+отсюда; своих весов и отборов не заводить — иначе пуш назовёт главным то,
+чего нет в ленте (проверки c1, c2 прогона согласованности).
 """
 from __future__ import annotations
 
@@ -48,6 +55,43 @@ SLOW = {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}
 LUNATION_SCORE = 12
 NATAL_PLANETS = ("Sun", "Moon", "Mercury", "Venus", "Mars",
                  "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto")
+# К узлам — только соединение и оппозиция (решение владельца 02.10.2026).
+# Юж. узел отдельной точкой не считается: соединение с ним — та же
+# оппозиция Сев. узлу в тот же момент, ось узлов — одно событие (как
+# «Марс на оси узлов» в ленте). Остаётся событие к Сев. узлу.
+NODE = "North Node"
+NODE_ASPECTS = ("conjunction", "opposition")
+POINT_NAMES = (*NATAL_PLANETS, "Ascendant", "Midheaven", NODE)
+
+
+def points(chart) -> list[dict]:
+    """Натальные точки всех разделов: Солнце–Плутон, ASC, MC, Сев. узел.
+    Состав карты (без времени рождения — без Луны, ASC, MC) — chart_points."""
+    from backend.chart_points import targets
+    return [p for p in targets(chart) if p["name"] in POINT_NAMES]
+
+
+def counts(natal: str, aspect: str) -> bool:
+    """Считается ли касание: к узлам — только соединение и оппозиция."""
+    return natal != NODE or aspect in NODE_ASPECTS
+
+
+def score(transit: str, natal: str, aspect: str) -> float:
+    """Балл события — единственная шкала важности проекта."""
+    return WEIGHT_TRANSIT[transit] * WEIGHT_NATAL.get(natal, 1) * WEIGHT_ASPECT[aspect]
+
+
+# Уровни ленты по баллу (решение владельца 02.10.2026); транзитная Луна в
+# ленте — всегда low, сколько бы ни набрала.
+FEED_HIGH = 12
+FEED_MEDIUM = 6
+
+
+def feed_level(transit: str, natal: str, aspect: str) -> str:
+    if transit == "Moon":
+        return "low"
+    s = score(transit, natal, aspect)
+    return "high" if s >= FEED_HIGH else "medium" if s >= FEED_MEDIUM else "low"
 
 # Натальная точка с «твой» в дательном: «Луна к твоему Сатурну».
 _YOURS_DAT = {
@@ -259,6 +303,22 @@ MARS_ADVICE = {
                   "Возьмись за рабочий проект, который давно ждёт."),
 }
 
+# Ось узлов (таблица владельца 05.10.2026): тон — по аспекту к Сев. узлу,
+# соединение — «Начало», оппозиция (= соединение с Юж.) — «Напряжение».
+# Медленные планеты на оси узлов — общий TONE_ADVICE.
+NODE_ADVICE = {
+    "Moon": {"new_cycle": "Сделай маленький шаг к тому, что давно манит.",
+             "tense": "Заметь старую привычку, которая тянет назад."},
+    "Sun": {"new_cycle": "Возьмись за непривычное, но важное для тебя.",
+            "tense": "Не возвращайся к старому только потому, что так проще."},
+    "Mercury": {"new_cycle": "Узнай то, что раньше казалось тебе чужим.",
+                "tense": "Не начинай старый спор заново — скажи по-новому."},
+    "Venus": {"new_cycle": "Побудь с теми, рядом с кем хочется расти.",
+              "tense": "Отпусти то, что радовало раньше, а теперь нет."},
+    "Mars": {"new_cycle": "Направь силы на новое дело, а не на старое.",
+             "tense": "Не трать силы на то, что пора закончить."},
+}
+
 PLANET_ADVICE = {"Moon": MOON_ADVICE, "Sun": SUN_ADVICE, "Mercury": MERCURY_ADVICE,
                  "Venus": VENUS_ADVICE, "Mars": MARS_ADVICE}
 _TONE_INDEX = {"harmonious": 0, "tense": 1, "new_cycle": 2}
@@ -288,12 +348,9 @@ class DayEvent:
 
 
 def _targets(chart) -> list[dict]:
-    # Состав карты — chart_points.targets (без времени рождения — без Луны,
-    # ASC, MC; углы из chart.ascendant/midheaven, не куспиды — проверка cA).
-    # Набор раздела: Солнце–Плутон и углы, без узлов (сведёт шаг 5).
-    from backend.chart_points import ANGLES, targets
+    # Углы из chart.ascendant/midheaven, не куспиды — проверка cA.
     return [{"name": p["name"], "longitude": p["longitude"], "sign": p.get("sign", "")}
-            for p in targets(chart) if p["name"] in NATAL_PLANETS or p["name"] in ANGLES]
+            for p in points(chart)]
 
 
 def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
@@ -312,7 +369,7 @@ def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
     for e in calculate_transits(natal_planets=_targets(chart),
                                 from_date=s_utc.date() - timedelta(days=1),
                                 to_date=e_utc.date() + timedelta(days=1)):
-        if not e.exact_date:
+        if not e.exact_date or not counts(e.natal_planet, e.aspect_type):
             continue
         exact = datetime.fromisoformat(e.exact_date)
         if not (s_utc <= exact < e_utc):
@@ -321,8 +378,7 @@ def _candidates(chart, local_date: date, tz: ZoneInfo) -> list[DayEvent]:
         out[key] = DayEvent(
             key=key, at_local=exact.replace(tzinfo=timezone.utc).astimezone(tz),
             transit=e.transit_planet, natal=e.natal_planet, aspect=e.aspect_type,
-            score=WEIGHT_TRANSIT[e.transit_planet] * WEIGHT_NATAL.get(e.natal_planet, 1)
-            * WEIGHT_ASPECT[e.aspect_type],
+            score=score(e.transit_planet, e.natal_planet, e.aspect_type),
             timed=True,
         )
     for ph in _phases_on_local_date(local_date, str(tz)):
@@ -370,6 +426,8 @@ def title(ev: DayEvent) -> str:
 def _what(ev: DayEvent) -> str:
     if ev.natal is None:
         return _LUNATION_RU[ev.transit].capitalize()
+    if ev.natal == NODE:
+        return f"{PLANET_RU[ev.transit]} на оси узлов"
     return f"{PLANET_RU[ev.transit]} к {_YOURS_DAT[ev.natal]}"
 
 
@@ -453,6 +511,8 @@ def advice(ev: DayEvent) -> str:
         return LUNATION_ADVICE[ev.transit]
     from backend.transit.engine import ASPECT_TONE
     tone = ASPECT_TONE.get(ev.aspect, "tense")
+    if ev.natal == NODE:
+        return NODE_ADVICE.get(ev.transit, TONE_ADVICE)[tone]
     if ev.transit in PLANET_ADVICE:
         return PLANET_ADVICE[ev.transit][ev.natal][_TONE_INDEX[tone]]
     return TONE_ADVICE[tone]
@@ -463,4 +523,4 @@ def short(ev: DayEvent) -> str:
     when = f"в {ev.at_local:%H:%M} " if ev.timed else ""
     if ev.natal is None:
         return f"{when}{_LUNATION_RU[ev.transit]}"
-    return f"{when}{PLANET_RU[ev.transit]} к {_YOURS_DAT[ev.natal]}"
+    return f"{when}{_what(ev)}"

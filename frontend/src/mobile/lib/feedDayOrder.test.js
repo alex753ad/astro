@@ -47,6 +47,15 @@ describe('splitDayEvents — порядок событий внутри дня',
     expect(times(folded)).toEqual(['02:00', '09:30']);
   });
 
+  it('нелунное low (балл < 6, шаг 5) — в потоке, не под «ещё N лунных»', () => {
+    const sunLow = { ...transit('11:00'), importance: 'low',
+      meta: { transit_planet: 'Sun', natal_planet: 'Saturn' } };
+    const day = { events: [transit('02:00', true), sunLow, transit('09:30', true)] };
+    const { inFlow, folded } = splitDayEvents(day);
+    expect(times(inFlow)).toEqual(['11:00']);
+    expect(times(folded)).toEqual(['02:00', '09:30']);
+  });
+
   it('свёртка сохраняет порядок событий внутри себя', () => {
     const day = { events: [transit('02:00', true), transit('09:30', true), transit('18:00', true)] };
     expect(times(splitDayEvents(day).folded)).toEqual(['02:00', '09:30', '18:00']);

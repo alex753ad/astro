@@ -110,6 +110,16 @@ jobs:
           python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/base.json"
           echo "BASE_RC=$?" >> "$GITHUB_ENV"
 
+      # «Утро: было / стало» (шаг 5, решение владельца 05.10.2026): в скрипте
+      # базы подкоманды morning нет — она идёт ЭТИМ скриптом на коде базы
+      # (EVAL_ROOT). Не проверка: сбой шага отчёт не роняет, раздел просто
+      # выйдет без «было».
+      - name: Утро (было)
+        if: inputs.compare_ref != ''
+        continue-on-error: true
+        run: |
+          EVAL_ROOT="$GITHUB_WORKSPACE/base" python scripts/consistency_eval.py morning --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --out "$RUNNER_TEMP/base_morning.json"
+
       - name: Отчёт в Telegram
         run: |
           api="https://api.telegram.org/bot$TG_TOKEN"
@@ -121,7 +131,7 @@ jobs:
           files="$RUNNER_TEMP/cur.json"
           [ -f "$RUNNER_TEMP/base.json" ] && files="$files $RUNNER_TEMP/base.json"
           out="$RUNNER_TEMP/consistency-$DATE-run$GITHUB_RUN_ID.md"
-          python scripts/consistency_eval.py report $files --out "$out"
+          python scripts/consistency_eval.py report $files --base-morning "$RUNNER_TEMP/base_morning.json" --out "$out"
           # Первая строка отчёта — какие проверки не выполнились (или «все»).
           code=$(curl -sS -o /dev/null -w '%{http_code}'             -F chat_id="$TG_CHAT" -F document=@"$out"             -F caption="$(head -n1 "$out") Прогон согласованности, $DATE, прогон $GITHUB_RUN_ID"             "$api/sendDocument")
           [ "$code" = "200" ] || { echo "::error::Telegram ответил $code"; exit 1; }

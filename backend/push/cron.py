@@ -716,8 +716,12 @@ def _transit_entry_candidates(chart: NatalChart, today: date_type, planner_url: 
         _angular_distance,
     )
 
+    from backend.day_event import counts, points
+
     yday = today - timedelta(days=1)
-    natal = {p["name"]: p["longitude"] for p in natal_planets(chart)}
+    # Точки и правило узлов — общие (шаг 5 аудита, 05.10.2026): с ASC и MC,
+    # без Юж. узла, к Сев. — только соединение и оппозиция.
+    natal = {p["name"]: p["longitude"] for p in points(chart)}
 
     # Не больше одного кандидата на транзитную планету в день — иначе
     # несколько аспектов одной планеты дают несколько одинаковых фрагментов
@@ -734,6 +738,8 @@ def _transit_entry_candidates(chart: NatalChart, today: date_type, planner_url: 
             continue
         for npl, nlon in natal.items():
             for aspect, exact in ASPECTS.items():
+                if not counts(npl, aspect):
+                    continue
                 limit = TRANSIT_ORBS[aspect]
                 orb_t = abs(_angular_distance(lon_t, nlon) - exact)
                 orb_y = abs(_angular_distance(lon_y, nlon) - exact)

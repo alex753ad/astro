@@ -69,6 +69,7 @@ import pytz
 
 from backend.cache import RedisCache, TTL_TRANSIT
 from backend.calendar.lunar_engine import jd_to_utc, sign_in
+from backend.day_event import NODE, counts, feed_level, points
 from backend.feed.horizon import feed_horizon
 
 # Скан месяца расширяется на столько суток в каждую сторону. Нужен только для
@@ -97,10 +98,6 @@ def _plus_months(d: date, months: int) -> date:
     month = total % 12 + 1
     return date(year, month, min(d.day, _calendar.monthrange(year, month)[1]))
 
-
-# Транзиты Луны — три четверти ленты (114 событий из 160 за август на
-# разведочной карте). Отдельный уровень важности заведён ровно под них.
-_LOW_IMPORTANCE_TRANSIT_PLANETS = {"Moon"}
 
 feed_cache = RedisCache("feed", TTL_TRANSIT)
 
@@ -249,7 +246,11 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
     """
     # v2 (04.10.2026, шаг 3): у карты без времени рождения — без натальной
     # Луны (chart_points.planets); чанки v1 её содержали.
-    cache_key = f"v2:{chart_id}:{year:04d}-{month:02d}"
+    # v3 (05.10.2026, шаг 5): точки — day_event.points (с ASC и MC, без Юж.
+    # узла). ⚠️ Набор точек в ключ не входит: КАЖДЫЙ вызывающий (лента, чат —
+    # rag._feed_peak, прогон согласованности) обязан передавать points(chart),
+    # иначе чанк с чужим набором ляжет под тот же ключ.
+    cache_key = f"v3:{chart_id}:{year:04d}-{month:02d}"
     cached = feed_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -325,12 +326,13 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
             if not (from_date.isoformat() <= at_iso[:10] <= to_date.isoformat()):
                 continue
 
-            if e["transit_planet"] in _LOW_IMPORTANCE_TRANSIT_PLANETS:
-                importance = IMPORTANCE_LOW
-            elif e["significant"]:
-                importance = IMPORTANCE_HIGH
-            else:
-                importance = IMPORTANCE_MEDIUM
+            # Одна шкала — балл main_event (шаг 5 аудита, решение владельца
+            # 02.10.2026): high ≥ 12, medium ≥ 6, иначе low; Луна — всегда low.
+            # До 05.10.2026 high было «медленная к личной» — своё правило,
+            # расходившееся с пушем. ⚠️ low теперь бывает и не у Луны:
+            # приложение сворачивает в «ещё N лунных» только Луну
+            # (FeedLunarFold.isLunarBackground), старый APK — всё low.
+            importance = feed_level(e["transit_planet"], e["natal_planet"], e["aspect_type"])
 
             out.append({
                 "key": _key("t", chart_id, e["transit_planet"],
@@ -388,49 +390,29 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
     return _merge_node_axis(out)
 
 
-# Узлы противоположны: аспект к Северному — это всегда аспект к Южному с тем же
-# моментом пика (соединение ↔ оппозиция, трин ↔ секстиль, квадрат ↔ квадрат).
-# Лента показывала два события про одно и то же. Решение владельца 29.09.2026:
-# одно событие «Марс на оси узлов». Остаётся событие к Северному узлу — его
-# natal_planet и аспект уходят в разбор транзита, как раньше; клиенту —
-# `meta.node_axis`, по нему подпись «ось узлов» и значок ☊☋.
-_AXIS_TEXT = {
-    "conjunction": "{t} на оси узлов",
-    "opposition": "{t} на оси узлов",
-    "square": "{t} в квадрате к оси узлов",
-    "trine": "{t} в гармонии с осью узлов",
-    "sextile": "{t} в гармонии с осью узлов",
-}
+# Узлы противоположны: соединение с Северным — это оппозиция Южному в тот же
+# момент. Лента показывала два события про одно и то же. Решение владельца
+# 29.09.2026: одно событие «Марс на оси узлов»; с 05.10.2026 (шаг 5) к узлам
+# у всех планет только соединение и оппозиция (day_event.counts), а Юж. узел
+# в набор точек не входит вовсе (day_event.points). Остаётся событие к
+# Северному — его natal_planet и аспект уходят в разбор транзита, как раньше;
+# клиенту — `meta.node_axis`, по нему подпись «ось узлов» и значок ☊☋.
+_AXIS_TEXT = "{t} на оси узлов"
 
 
 def _merge_node_axis(events: list[dict]) -> list[dict]:
-    south = {
-        (e["meta"]["transit_planet"], e["meta"]["peak_date"])
-        for e in events if e["meta"].get("natal_planet") == "South Node"
-    }
-    north = {
-        (e["meta"]["transit_planet"], e["meta"]["peak_date"])
-        for e in events if e["meta"].get("natal_planet") == "North Node"
-    }
-    both = south & north
     out = []
     for e in events:
         m = e["meta"]
-        # Луна проходит ось узлов 8 раз за месяц — в ленте только соединение и
-        # оппозиция (решение владельца 29.09.2026), остальные планеты — все аспекты.
-        if (m["transit_planet"] == "Moon" and m.get("natal_planet") in ("North Node", "South Node")
-                and m["aspect_type"] not in ("conjunction", "opposition")):
+        natal = m.get("natal_planet")
+        # Юж. узел в чанках v3 не бывает (points), но правило держится здесь,
+        # а не на составе чанка.
+        if natal == "South Node" or not counts(natal, m["aspect_type"]):
             continue
-        pair = (m["transit_planet"], m["peak_date"])
-        if pair in both and m.get("natal_planet") == "South Node":
-            continue
-        # ⚠️ Проверка natal_planet обязательна: пара (планета, день) — не
-        # признак узлового события. У Луны в тот же день десяток аспектов к
-        # другим планетам, без неё все они становились «на оси узлов».
-        if pair in both and m.get("natal_planet") == "North Node":
+        if natal == NODE:
             m["node_axis"] = True
             transit = TEMPLATES.get("transit_planets", {}).get(m["transit_planet"], m["transit_planet"])
-            e["text"] = _AXIS_TEXT.get(m["aspect_type"], "{t} и ось узлов").format(t=transit)
+            e["text"] = _AXIS_TEXT.format(t=transit)
         out.append(e)
     return out
 
@@ -808,8 +790,7 @@ def build_feed(*, chart, from_date: date, to_date: date, today: date,
     from backend.transit.planner_engine import now_local
     now = now or now_local(getattr(chart, "timezone", None))
 
-    from backend.chart_points import planets as natal_planets
-    events = _transit_events(chart_id, natal_planets(chart), from_date, to_date, tz, tier)
+    events = _transit_events(chart_id, points(chart), from_date, to_date, tz, tier)
     events += _lunar_events(from_date, to_date, tz)
 
     # Планер требует домов, а они есть только при известном времени рождения.

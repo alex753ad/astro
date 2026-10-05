@@ -1384,8 +1384,7 @@ async def get_transits(
         # а не мнимый.
         events = await asyncio.to_thread(
             calculate_transits,
-            # chart_points: без времени рождения — без натальной Луны (шаг 3);
-            # отсюда же письмо «Важный транзит» (check_and_send_transit_alerts).
+            # chart_points: без времени рождения — без натальной Луны (шаг 3).
             natal_planets=natal_planets(chart),
             from_date=from_dt,
             to_date=to_dt,
@@ -1399,16 +1398,9 @@ async def get_transits(
     # E2: пометить значимые (топ-2 → free_unlocked) — tier-независимо, кэшируется
     mark_transit_significance(events)
 
-    # Transit alerts для Pro/Premium (медленные планеты) — только по главной карте
-    is_primary = user is not None and (
-        (not user.primary_chart_id) or (str(user.primary_chart_id) == str(chart_id))
-    )
-    if user and getattr(user, "tier", "free") in ("pro", "premium") and is_primary:
-        try:
-            from backend.transit.engine import check_and_send_transit_alerts
-            asyncio.ensure_future(check_and_send_transit_alerts(user, events, chart_id=str(chart_id)))
-        except Exception as e:
-            logger.warning("Transit alert check failed: %s", e)
+    # Письмо «Важный транзит» отсюда больше не уходит (до 05.10.2026 —
+    # только если человек открыл транзиты на вебе): его шлёт ежечасный прогон
+    # писем, lifecycle_emails._send_transit_alerts.
 
     # 5. Build response
     events_resp = [
