@@ -79,7 +79,7 @@ def start(db, user, chart, wheel_png: str | None):
 
     tier = user.tier or "free"
     interp = sections.pick_interpretation(db, chart.id, tier)
-    fp = sections.fingerprint(interp.id if interp else None, tier, today_for(user, chart))
+    fp = sections.fingerprint(interp.id if interp else None, tier, today_for(user, chart), _sky(chart))
     if fp:
         same = (db.query(PdfReport)
                 .filter(PdfReport.user_id == user.id, PdfReport.chart_id == chart.id,
@@ -99,6 +99,12 @@ def start(db, user, chart, wheel_png: str | None):
     from backend.tasks import build_pdf_report
     build_pdf_report.delay(report.id, wheel_png)
     return report, True
+
+
+def _sky(chart) -> bool:
+    """Флаг sky_event владельца карты (4.7) — «Главные транзиты» из ядра."""
+    from backend import day_event
+    return day_event._sky_on(chart)
 
 
 def _step(db, report, progress: int, step: str) -> None:
@@ -130,7 +136,7 @@ async def _build(db, report, wheel_png: str | None) -> None:
     if plan.aspects:
         jobs["aspects"] = sections.aspect_section(db, chart, tier)
     if plan.transits:
-        jobs["transits"] = sections.transit_section(db, chart, tier, today)
+        jobs["transits"] = sections.transit_section(db, chart, tier, today, _sky(chart), user_tz(None, user, chart))
     done = [0]
 
     async def tick(coro):
@@ -169,7 +175,7 @@ async def _build(db, report, wheel_png: str | None) -> None:
 
     report.file_path = str(path)
     report.pages = len(re.findall(rb"/Type /Page[^s]", pdf))
-    report.fingerprint = sections.fingerprint(interp.id, tier, today)
+    report.fingerprint = sections.fingerprint(interp.id, tier, today, _sky(chart))
     report.cost_usd = round(cost, 4)
     report.status, report.progress, report.step = "ready", 100, None
     report.ready_at = utcnow()
