@@ -28,7 +28,7 @@
 ## Ключи кэша под флагом (рядом со старыми)
 | Раздел | Без флага | Под флагом |
 |---|---|---|
-| лента | `feed:v4:…` | `feed:v4-sky{sky.CACHE_VERSION}:…` |
+| лента | `feed:v4:…` | `feed:v5-sky{sky.CACHE_VERSION}:…` |
 | прогноз дня / лунный | `forecast_today:v6`, `forecast_lunation:v4` | `…:v6-sky`, `…:v4-sky` |
 | разбор транзита | `transit_interp:v8:{chart}:{tp}:{np}:{asp}:{дата}` | `transit_interp:v11:{chart}:{event.key}:{пояс}` |
 | чат | `chat_transits:v7`, `chat_p1:v2` | `chat_transits:v8-sky`, `chat_p1:v2-sky` |
