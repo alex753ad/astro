@@ -17,7 +17,7 @@ import os
 import httpx
 
 from backend.log_utils import mask_email
-from backend.ephemeris.ru_names import PLANET_RU as _PLANET_RU
+from backend.ephemeris.ru_names import ASPECT_RU, PLANET_RU as _PLANET_RU
 
 logger = logging.getLogger("astro.email")
 
@@ -322,6 +322,25 @@ def _paragraphs(text: str) -> str:
     return "".join(_p(c) for c in chunks)
 
 
+def broadcast_when(exact_date: str | None, peak_date: str | None, tz: str) -> str:
+    """День события для письма клиенту — словами, в поясе его карты:
+    «12 октября» (год не нужен: письмо — на месяц, он в заголовке).
+
+    `exact_date` — наивный UTC «YYYY-MM-DDTHH:MM» от движка: переводится в
+    пояс `tz`; нет его — `peak_date` как есть. До 06.10.2026 в письмо шла
+    ISO-дата «2026-10-12» по UTC и английский аспект «square»."""
+    from datetime import date as _date, datetime as _dt, timezone as _tz
+    from zoneinfo import ZoneInfo
+    from backend.transit.prompts import _MONTHS_RU
+    if exact_date:
+        d = _dt.fromisoformat(exact_date).replace(tzinfo=_tz.utc).astimezone(ZoneInfo(tz)).date()
+    elif peak_date:
+        d = _date.fromisoformat(str(peak_date)[:10])
+    else:
+        return ""
+    return f"{d.day} {_MONTHS_RU[d.month - 1]}"
+
+
 def build_client_broadcast(
     brand_name: str,
     period_label: str,
@@ -344,8 +363,9 @@ def build_client_broadcast(
         for t in transits:
             tp = _PLANET_RU.get(t.get("transit_planet", ""), t.get("transit_planet", ""))
             npl = _PLANET_RU.get(t.get("natal_planet", ""), t.get("natal_planet", ""))
-            asp = t.get("aspect_type", "")
-            when = str(t.get("peak_date") or t.get("exact_date") or "")[:10]
+            asp = ASPECT_RU.get(t.get("aspect_type", ""), t.get("aspect_type", ""))
+            # «12 октября» в поясе карты клиента (broadcast_when); без него — как было.
+            when = t.get("when") or str(t.get("peak_date") or t.get("exact_date") or "")[:10]
             when_html = f' &nbsp;·&nbsp; {when}' if when else ""
             rows.append(
                 '<tr><td style="padding:9px 0;border-bottom:1px solid #ece5f7;color:#3d3060;font-size:14px;">'

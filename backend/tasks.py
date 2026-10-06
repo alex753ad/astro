@@ -370,6 +370,8 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
     from datetime import date, timedelta
 
     from backend.models import AstrologerProfile, ClientProfile, ClientBroadcastLog, User
+    from backend.email_service import broadcast_when
+    from backend.time_utils import user_tz
     from backend.transit.engine import calculate_transits
     from backend.email_service import send_client_broadcast, ru_month_label
 
@@ -435,6 +437,8 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
                         "aspect_type": e.aspect_type,
                         "peak_date": getattr(e, "peak_date", None),
                         "peak_orb": getattr(e, "peak_orb", None),
+                        # Дата словами в поясе карты клиента (email_service.broadcast_when).
+                        "when": broadcast_when(e.exact_date, e.peak_date, user_tz(None, None, chart)),
                     }
                     for e in events
                 ]
