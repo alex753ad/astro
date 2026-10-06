@@ -446,6 +446,9 @@ class TransitEvent(BaseModel):
     applying: bool = True
     significant: bool = False
     free_unlocked: bool = False
+    # Под флагом sky_event (4.8): местная дата касания — по ней веб
+    # показывает и группирует карточки; peak_date тогда — UTC-дата, ключ.
+    touch_date: Optional[str] = None
 
     @property
     def date(self) -> str:

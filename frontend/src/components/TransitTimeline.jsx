@@ -182,6 +182,13 @@ function eventKey(e) {
   return `${e.peak_date || e.start_date || e.date}-${e.transit_planet}-${e.natal_planet}-${e.aspect_type}`;
 }
 
+// День карточки на экране. Под флагом sky_event (4.8) бэкенд присылает
+// touch_date — местную дату касания, а peak_date остаётся UTC-датой и служит
+// только ключом (eventKey, ссылка из письма, разбор). Без флага touch_date нет.
+function dayOf(e) {
+  return e.touch_date || e.peak_date || e.date || "";
+}
+
 // "Активен в этот день" — окно start_date…end_date включает dateStr. slice(0,10)
 // на случай, если где-то в данных дата придёт с временем (ISO datetime), а не
 // голым YYYY-MM-DD — иначе строковое сравнение ломается.
@@ -201,8 +208,8 @@ function mergeEvents(prev, incoming) {
   // Подгрузка прошлого добавляет события "в хвост" массива — пересортировываем
   // по дате, чтобы список остался хронологическим.
   merged.sort((a, b) => {
-    const da = a.peak_date || a.start_date || a.date || "";
-    const db = b.peak_date || b.start_date || b.date || "";
+    const da = dayOf(a) || a.start_date || "";
+    const db = dayOf(b) || b.start_date || "";
     return da < db ? -1 : da > db ? 1 : 0;
   });
   return merged;
@@ -530,7 +537,7 @@ function EventCard({ event, index, isSelected, onClick }) {
   const aspectColor  = ASPECT_COLORS[event.aspect_type] || "var(--accent)";
   const aspectBg     = ASPECT_BG[event.aspect_type]    || "rgba(112,64,168,0.06)";
   const planetAccent = PLANET_ACCENT[event.transit_planet] || "var(--accent-glow)";
-  const displayDate  = event.peak_date || event.exact_date || event.date || "";
+  const displayDate  = dayOf(event) || event.exact_date || "";
 
   return (
     <div
@@ -1025,8 +1032,8 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     // Выбран день — ближайший к нему пик сверху, при равенстве меньший орб выше.
     const activeMs = new Date(activeDate + "T00:00:00").getTime();
     return [...filtered].sort((a, b) => {
-      const da = Math.abs(new Date((a.peak_date || a.date) + "T00:00:00") - activeMs);
-      const db = Math.abs(new Date((b.peak_date || b.date) + "T00:00:00") - activeMs);
+      const da = Math.abs(new Date(dayOf(a) + "T00:00:00") - activeMs);
+      const db = Math.abs(new Date(dayOf(b) + "T00:00:00") - activeMs);
       if (da !== db) return da - db;
       return (a.peak_orb ?? a.orb ?? 0) - (b.peak_orb ?? b.orb ?? 0);
     });
@@ -1050,7 +1057,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const dates = useMemo(() => {
     if (!loadedFrom || !loadedUntil) {
       // mock/анонимный режим — loadedFrom/loadedUntil не выставляются
-      return [...new Set(events.map(e => e.peak_date || e.date))].sort();
+      return [...new Set(events.map(dayOf))].sort();
     }
     const prevYm = subMonthISO(`${viewMonth}-01`).slice(0, 7);
     const nextYm = addMonthISO(`${viewMonth}-01`).slice(0, 7);
@@ -1064,7 +1071,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   }, [loadedFrom, loadedUntil, viewMonth, events]);
   const eventCountByDate = useMemo(() => {
     const counts = {};
-    events.forEach(e => { counts[e.peak_date || e.date] = (counts[e.peak_date || e.date] || 0) + 1; });
+    events.forEach(e => { counts[dayOf(e)] = (counts[dayOf(e)] || 0) + 1; });
     return counts;
   }, [events]);
 
@@ -1096,7 +1103,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
   const currentMonthEvents = useMemo(() => {
     if (activeDate) return events.filter(e => isActiveOnDate(e, activeDate));
     return events.filter(e => {
-      const dateStr = (e.peak_date || e.start_date || e.date || "").slice(0, 10);
+      const dateStr = (dayOf(e) || e.start_date || "").slice(0, 10);
       return dateStr && dateStr >= focusRange.from && dateStr <= focusRange.to;
     });
   }, [events, activeDate, focusRange]);

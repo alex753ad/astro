@@ -855,9 +855,31 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
     # напрямую (до 06.10.2026 — два окна по 91 дню, которых веб не запрашивает).
     from backend.feed.builder import _plus_months
     from backend.transit.engine import window_events
+    sky_web = day_event._sky_on(chart)
     w0 = d0
     while w0 <= d0 + timedelta(days=182):
         w1 = _plus_months(w0, 1)
+        if sky_web:
+            # Под флагом (4.8) — карточка на касание: каждое касание истины с
+            # местной датой в окне — карточка, и наоборот; у карточки — границы
+            # всего события (как лента, п. 1).
+            resp = window_events(chart, w0, w1, sky=True, tz=tz)
+            web = {((r["transit_planet"], r["natal_planet"], r["aspect_type"]), date.fromisoformat(r["touch_date"])): r
+                   for r in resp}
+            want = {x for x in touch_days if w0 <= x[1] <= w1 and x[0][0] != "Moon"}
+            for key, d in sorted(want | {k for k in web if k[0][0] != "Moon"}, key=lambda x: (x[1], x[0])):
+                name = f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(key)}"
+                if (key, d) not in web:
+                    ch.ok(False, f"{name}: на вебе нет")
+                    continue
+                if (key, d) not in want:
+                    ch.ok(False, f"{name}: пик {_dmy(d)}: {no_touch(key, d)}")
+                    continue
+                r = web[(key, d)]
+                ch.ok(not (bad := bounds(event_on(key, d), date.fromisoformat(r["start_date"]),
+                                         date.fromisoformat(r["end_date"]))), f"{name}: " + "; ".join(bad))
+            w0 = w1 + timedelta(days=1)
+            continue
         resp = window_events(chart, w0, w1)
         for e in truth:
             if ld(e["end"]) < w0 or ld(e["start"]) > w1 or e["key"][0] == "Moon":

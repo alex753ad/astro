@@ -915,6 +915,21 @@ async def claim_chart(
     return {"id": chart.id, "claimed": True}
 
 
+def _queue_sky_warm_year(chart_id) -> None:
+    """Под флагом — год чанков ядра в фоне при первом открытии транзитов на
+    вебе в месяце (4.8, вариант В). Метка месяца — в `sky_cache`, чтобы
+    задача не ставилась на каждое листание."""
+    try:
+        from backend.sky import sky_cache
+        mark = f"warm-year:{chart_id}:{utcnow():%Y-%m}"
+        if sky_cache.get(mark) is None:
+            sky_cache.set(mark, 1, ttl=32 * 86400)
+            from backend.tasks import sky_warm_year
+            sky_warm_year.delay(str(chart_id))
+    except Exception as e:  # noqa: BLE001 — прогрев не должен ронять список транзитов
+        logger.warning("sky year warm not queued: %s", e)
+
+
 def _queue_sky_warm(db: Session, chart) -> None:
     """Под флагом `sky_event` — прогреть чанки ядра в фоне (backend/sky.py,
     «Прогрев»): первый же прогноз или виджет не должен считать их в запросе."""
@@ -1377,7 +1392,15 @@ async def get_transits(
     # 3. Check cache
     # v4 (04.10.2026, шаг 3): без времени рождения — без натальной Луны.
     # v5 (05.10.2026): без событий без касания (TransitEvent.no_touch).
-    cache_key = f"transit:v5:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}"
+    # v6-sky (06.10.2026, 4.8): под флагом sky_event — события ядра, даты
+    # местные, поэтому пояс в ключе; рядом со старым v5.
+    from backend import day_event
+    _sky = day_event._sky_on(chart)
+    _tz = user_tz(None, user, chart)
+    cache_key = (f"transit:v6-sky:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}:{_tz}" if _sky
+                 else f"transit:v5:{chart_id}:{from_date}:{to_date}:{planet}:{max_orb}")
+    if _sky:
+        _queue_sky_warm_year(chart.id)
     cached = transit_cache.get(cache_key)
     if cached:
         logger.info("Transit cache hit: %s", cache_key[:40])
@@ -1401,6 +1424,7 @@ async def get_transits(
         # а не мнимый.
         events = await asyncio.to_thread(
             window_events, chart, from_dt, to_dt, orb_filter=max_orb, planet_filter=planet_filter,
+            sky=_sky, tz=_tz,
         )
     except Exception as e:
         logger.exception("Transit calculation failed")
