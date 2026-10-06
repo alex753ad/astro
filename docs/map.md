@@ -4,7 +4,7 @@
 Обновлять, когда раздел переходит на ядро или появляется новый ключ кэша.
 
 ## sky.py
-- `compute` — события на отрезке без кэша; `_chunk` — UTC-месяц, кэш `sky:v1:{chart}:{YYYY-MM}`.
+- `compute` — события на отрезке без кэша; `_chunk` — UTC-месяц, кэш `sky:v2:{chart}:{YYYY-MM}` (zlib).
 - `sky_events(chart, from, to)` — события, пересекающие отрезок, из чанков.
 - `find_event` — событие по `peak_date` карточки; `interpret_facts` — факты разбора.
 - `warm` / `warm_chart` — прогрев трёх месяцев (`tasks.sky_warm`: beat и после сохранения карты).
