@@ -1184,7 +1184,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
     let positions = [];
     if (chartId && chartId !== 'anonymous' && !mockMode) {
       try {
-        const resp = await fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${next}`, {
+        const resp = await authFetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${next}`, {
           headers: chartAuthHeaders(),
         });
         if (resp.ok) { const data = await resp.json(); positions = data.planets || []; }
