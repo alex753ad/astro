@@ -29,3 +29,15 @@ describe('период влияния на карточке транзита', (
     expect(html).not.toContain('Период влияния');
   });
 });
+
+describe('касания и период в нижней панели', () => {
+  it('порядок как в разборе: касания, затем период', async () => {
+    const { default: FeedEventPanel } = await import('./FeedEventPanel');
+    const { MemoryRouter } = await import('react-router-dom');
+    const html = renderToStaticMarkup(<MemoryRouter><FeedEventPanel chartId="c" onClose={() => {}} event={transit({
+      period_line: LINE, touches_line: 'Точные касания: 21 октября, 27 октября и 29 ноября 2026' })} /></MemoryRouter>);
+    const t = html.indexOf('Точные касания');
+    expect(t).toBeGreaterThan(-1);
+    expect(html.indexOf('Период влияния')).toBeGreaterThan(t);
+  });
+});
