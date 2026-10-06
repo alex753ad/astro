@@ -132,3 +132,5 @@ frontend/.capacitor/
 frontend/capacitor.config.local.*
 *.keystore
 *.jks
+# Локальные файлы владельца (06.10.2026) — не в git
+private/
