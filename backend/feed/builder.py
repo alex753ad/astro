@@ -304,14 +304,87 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
     return chunk
 
 
+def _sky_chunk(chart, year: int, month: int) -> list[dict]:
+    """Касания ядра (`backend/sky.py`) с UTC-датой в месяце — строки того же
+    вида, что у `_transit_chunk`, плюс срок события (задание 4.4, флаг
+    `sky_event`).
+
+    Карточка — на КАЖДОЕ касание (О4): у петли их 1–3 (у Нептуна и Плутона до
+    5), `touch_n` — номер по порядку, `touches` — все касания события.
+    Проход без касания (станция рядом с точкой, `closest` с exact=False)
+    карточки не получает (О3). `peak_date` — UTC-дата касания: она идёт в
+    ключ карточки и в разбор (см. meta.peak_date ниже).
+
+    Кэш — свой, рядом с `v4`: версия ядра входит в ключ, поднимется
+    `sky.CACHE_VERSION` — перестанет читаться и этот. Набор точек в ключ не
+    входит по той же причине, что у `_transit_chunk`.
+    """
+    from datetime import timezone as _utc_tz
+
+    from backend import sky
+    from backend.transit.engine import FREE_UNLOCKED_TRANSITS, is_significant_pair
+
+    chart_id = str(chart.id)
+    cache_key = f"v4-sky{sky.CACHE_VERSION}:{chart_id}:{year:04d}-{month:02d}"
+    cached = feed_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    first = datetime(year, month, 1, tzinfo=_utc_tz.utc)
+    nxt = datetime(year + month // 12, month % 12 + 1, 1, tzinfo=_utc_tz.utc)
+    rows = []
+    for ev in sky.sky_events(chart, first, nxt):
+        touches = [t.at_utc.isoformat() for t in ev.touches]
+        for n, t in enumerate(ev.touches, 1):
+            if not (first <= t.at_utc < nxt):
+                continue
+            rows.append({
+                "transit_planet": ev.transit, "natal_planet": ev.natal, "aspect_type": ev.aspect,
+                "transit_sign": t.transit_sign, "transit_degree": t.transit_degree,
+                "natal_sign": ev.natal_sign,
+                "peak_date": t.at_utc.date().isoformat(),
+                "exact_date": t.at_utc.replace(tzinfo=None).isoformat(timespec="minutes"),
+                "peak_orb": t.orb,
+                # Как у движка: «applying» = планета идёт прямо (t_speed >= 0).
+                "applying": not t.retrograde,
+                "significant": is_significant_pair(ev.transit, ev.natal),
+                "free_unlocked": False,
+                "starts_at": ev.start_utc.isoformat(), "ends_at": ev.end_utc.isoformat(),
+                "touches": touches, "touch_n": n,
+            })
+    # free_unlocked — топ значимых месяца по орбу, как mark_transit_significance.
+    # У касаний орб ≈ 0 у всех, поэтому при равенстве — раньше по времени:
+    # иначе выбор зависел бы от порядка событий.
+    top = sorted((r for r in rows if r["significant"]), key=lambda r: (r["peak_orb"], r["exact_date"]))
+    for r in top[:FREE_UNLOCKED_TRANSITS]:
+        r["free_unlocked"] = True
+    feed_cache.set(cache_key, rows)
+    return rows
+
+
+def transit_cards(chart, from_date: date, to_date: date, tz, tier: Optional[str],
+                  sky: Optional[bool] = None) -> list[dict]:
+    """Карточки транзитов окна. `sky` — из ядра (флаг `sky_event`, задание
+    4.4); None — по флагу владельца карты (`day_event._sky_on`, через атрибут
+    модуля: его подменяет прогон согласованности `--sky on`)."""
+    from backend import day_event
+    if sky is None:
+        sky = day_event._sky_on(chart)
+    chunk = (lambda y, m: _sky_chunk(chart, y, m)) if sky else None
+    return _transit_events(str(chart.id), points(chart), from_date, to_date, tz, tier, chunk)
+
+
 def _transit_events(chart_id: str, natal_planets: list[dict],
-                    from_date: date, to_date: date, tz, tier: Optional[str]) -> list[dict]:
+                    from_date: date, to_date: date, tz, tier: Optional[str],
+                    chunk=None) -> list[dict]:
+    """`chunk(year, month)` — источник строк; None — старый движок (`_transit_chunk`)."""
     out: list[dict] = []
+    chunk = chunk or (lambda y, m: _transit_chunk(chart_id, natal_planets, y, m))
     # Чанки — по UTC-дате пика, окно — местные сутки: у краёв окна пик
     # соседнего UTC-месяца может лежать внутри местного окна, поэтому
     # месяцы берутся с запасом в сутки.
     for year, month in _months_between(from_date - timedelta(days=1), to_date + timedelta(days=1)):
-        for e in _transit_chunk(chart_id, natal_planets, year, month):
+        for e in chunk(year, month):
             peak = date.fromisoformat(e["peak_date"])
 
             # exact_date — момент пика с точностью до минуты, наивный UTC.
@@ -391,6 +464,15 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                     "significant": e["significant"],
                 },
             })
+            if "touch_n" in e:
+                # Срок события — только в meta (под флагом sky_event, 4.4).
+                # ⚠️ Верхний `ends_at` остаётся null: старый APK читает его
+                # как конец карточки. Подпись срока в приложении — 4.13.
+                loc = lambda s: _to_local_iso(datetime.fromisoformat(s), tz)
+                out[-1]["meta"].update(
+                    starts_at=loc(e["starts_at"]), ends_at=loc(e["ends_at"]),
+                    touches=[loc(t) for t in e["touches"]], touch_n=e["touch_n"],
+                )
     return _merge_node_axis(out)
 
 
@@ -753,8 +835,11 @@ _ECLIPSE_PHASE_MERGE_HOURS = 3
 # ── Сборка ───────────────────────────────────────────────────────────────────
 
 def build_feed(*, chart, from_date: date, to_date: date, today: date,
-               tier: Optional[str], now: Optional[datetime] = None) -> dict:
+               tier: Optional[str], now: Optional[datetime] = None,
+               sky: Optional[bool] = None) -> dict:
     """Лента событий за произвольное окно. Одна зона, одна сортировка.
+
+    `sky` — транзиты из ядра (флаг `sky_event`, задание 4.4), см. transit_cards.
 
     `now` — «сейчас» наивным МЕСТНЫМ временем карты. Нужен ровно одному
     правилу: завершившийся проход Луны по дому открыт на любом тарифе
@@ -794,7 +879,7 @@ def build_feed(*, chart, from_date: date, to_date: date, today: date,
     from backend.transit.planner_engine import now_local
     now = now or now_local(getattr(chart, "timezone", None))
 
-    events = _transit_events(chart_id, points(chart), from_date, to_date, tz, tier)
+    events = transit_cards(chart, from_date, to_date, tz, tier, sky)
     events += _lunar_events(from_date, to_date, tz)
 
     # Планер требует домов, а они есть только при известном времени рождения.
