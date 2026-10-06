@@ -20,7 +20,7 @@ _tf = TimezoneFinder()
 
 # ── Geocoding cache (24h TTL) ──
 from backend.cache import RedisCache
-_geo_cache = RedisCache("geo", 24 * 3600)
+_geo_cache = RedisCache("geo", 24 * 3600, cache=True)
 
 _NEGATIVE_TTL = 5 * 60  # неудачный геокодинг кэшируем ненадолго — не долбить API повторно
 

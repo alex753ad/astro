@@ -81,7 +81,7 @@ _EPOCH = datetime(2000, 1, 1, tzinfo=timezone.utc)
 # v2 (06.10.2026): чанк — zlib от JSON в base64 (`_pack`/`_unpack`). Год на
 # карте: 1,43 МБ JSON → ≈150 КБ (решение владельца, docs/decisions.md).
 # Несжатые v1 под этой версией не читаются — истекут сами.
-sky_cache = RedisCache("sky", TTL_TRANSIT)
+sky_cache = RedisCache("sky", TTL_TRANSIT, cache=True)
 CACHE_VERSION = "v2"
 
 
