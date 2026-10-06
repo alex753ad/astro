@@ -220,11 +220,33 @@ def parse_chat_block(text: str) -> list[dict]:
             cur["aspect"] = aspect.get(line[8:].split(",")[0].strip())
         elif cur is not None and (m := _CHAT_DATE.match(line)):
             cur["exact"] = date(int(m[3]), _MONTHS_RU.index(m[2]) + 1, int(m[1]))
+        elif cur is not None and line.startswith("Точные касания: "):
+            # Под флагом (4.6): «21 октября, 27 октября и 29 ноября 2026».
+            cur["touches"] = _fill_years(line)
         elif cur is not None and line.startswith("Период влияния: "):
-            # cB: «Период влияния: 4 октября 2027 — 18 октября 2027» (_format_date_ru).
-            cur["period"] = tuple(date(int(y), _MONTHS_RU.index(mo) + 1, int(d))
-                                  for d, mo, y in _RU_DATE.findall(line))
+            # «4 октября 2027 — 18 октября 2027» (_format_date_ru); под флагом —
+            # transit/prompts.period_ru: «17 октября — 1 декабря 2026, с
+            # перерывом с 30 октября по 28 ноября», год в перерывах — свой.
+            head, _, tail = line.partition(", с перерыв")
+            cur["period"] = tuple(_fill_years(head))
+            if tail and cur["period"]:
+                g = _fill_years(tail, cur["period"][-1].year)
+                cur["gaps"] = list(zip(g[::2], g[1::2]))
     return out
+
+
+def _fill_years(text: str, default_year: int | None = None) -> list[date]:
+    """Даты по порядку; дата без года — год следующей даты с годом, в конце
+    отрезка — `default_year` (правило transit/prompts.period_ru)."""
+    from backend.transit.prompts import _MONTHS_RU
+    found = re.findall(r"(\d{1,2}) (\w+)(?: (\d{4}))?", text)
+    out, year = [], default_year
+    for d, mo, y in reversed(found):
+        if mo not in _MONTHS_RU:
+            continue
+        year = int(y) if y else year
+        out.append(date(year, _MONTHS_RU.index(mo) + 1, int(d)))
+    return out[::-1]
 
 
 def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: list[str],
@@ -245,18 +267,20 @@ def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: 
     # каждый пояс свой.
     for d, tz in ((d, tz) for d in days for tz in tzs):
         for it in parse_chat_block(build_transits_block(chat_chart, 5, d, chart_id, tz)):
-            if it["exact"] is None:
-                continue  # чат честно без даты — сравнивать нечего
             key = (it["transit"], it["natal"], it["aspect"])
             if sky:
-                cards = [c for c in transit_cards(chart, it["exact"] - timedelta(days=45),
-                                                  it["exact"] + timedelta(days=45), _tz(tz), "premium")
-                         if (c["meta"]["transit_planet"], c["meta"]["natal_planet"], c["meta"]["aspect_type"]) == key]
-                shown = min((c["at"][:10] for c in cards),
-                            key=lambda s: abs(date.fromisoformat(s) - it["exact"]), default=None)
-                ch.ok(shown == it["exact"].isoformat(),
-                      f"{d} {tz}: {key} — чат {it['exact']}, лента {shown or 'события нет'}")
+                # Под флагом (4.6) у петли — все касания: каждое — карточка ленты.
+                for x in it.get("touches") or ([it["exact"]] if it["exact"] else []):
+                    cards = [c for c in transit_cards(chart, x - timedelta(days=45), x + timedelta(days=45),
+                                                      _tz(tz), "premium")
+                             if (c["meta"]["transit_planet"], c["meta"]["natal_planet"],
+                                 c["meta"]["aspect_type"]) == key]
+                    shown = min((c["at"][:10] for c in cards),
+                                key=lambda s: abs(date.fromisoformat(s) - x), default=None)
+                    ch.ok(shown == x.isoformat(), f"{d} {tz}: {key} — чат {x}, лента {shown or 'события нет'}")
                 continue
+            if it["exact"] is None:
+                continue  # чат честно без даты — сравнивать нечего
             near = []
             for k in (-1, 0, 1):
                 y, m = it["exact"].year, it["exact"].month + k
@@ -628,6 +652,8 @@ def cb_breakdown(bad: list[str]) -> str:
     sec = {s: 0 for s in _CB_SECTIONS}
     why = {"нет карточки": 0, "касания нет": 0, "другой день": 0}
     rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0, "у полуночи": 0}
+    chat = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "в истине события нет": 0,
+            "период не разобран": 0, "у полуночи": 0}
     for x in bad:
         body = x.split(": ", 1)[-1]
         name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
@@ -635,15 +661,17 @@ def cb_breakdown(bad: list[str]) -> str:
         if name == "лента":
             why["другой день" if "другой день" in body else
                 "касания нет" if body.endswith("касания нет") else "нет карточки"] += 1
-        if name == "разбор":
+        if name in ("разбор", "чат"):
+            r = rev if name == "разбор" else chat
             tail = body.split(": ", 1)[-1]
-            for k in rev:
-                rev[k] += any(part.startswith(k) for part in tail.split("; "))
-            rev["у полуночи"] += "у полуночи" in tail
+            for k in r:
+                r[k] += any(part.startswith(k) for part in tail.split("; "))
+            r["у полуночи"] += "у полуночи" in tail
     near = sum(x.count("у полуночи") for x in bad)
     return (", ".join(f"{k}={v}" for k, v in sec.items()) + f" | у полуночи: {near}"
             + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
-            + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items()))
+            + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items())
+            + " | чат: " + ", ".join(f"{k}={v}" for k, v in chat.items()))
 
 
 def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, days: list[date],
@@ -737,6 +765,12 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
             bad = bounds(e, *per) if len(per) == 2 else ["период не разобран"]
             if it["exact"] and (key, it["exact"]) not in touch_days:
                 bad.append(f"точный {_dmy(it['exact'])}: {no_touch(key, it['exact'])}")
+            if "touches" in it:
+                # Под флагом (4.6) — все касания события против истины, как у разбора.
+                got, want = set(it["touches"]), {ld(t) for t in e["touches"]}
+                if got != want:
+                    bad.append(f"касания {', '.join(map(_dmy, sorted(got)))} "
+                               f"(истина {', '.join(map(_dmy, sorted(want)))})")
             ch.ok(not bad, f"{tz}: чат {d} — {_cb_name(key)}: " + "; ".join(bad))
 
     # 4. Разбор транзита: те же факты, что считает ручка

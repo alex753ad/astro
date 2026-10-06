@@ -15,6 +15,28 @@
 - [HISTORY-security.md](HISTORY-security.md)
 - [HISTORY-testing.md](HISTORY-testing.md)
 
+## rtk проверен и снят 06.10.2026
+
+rtk v0.51.0 (github.com/rtk-ai/rtk, сборка `x86_64-pc-windows-msvc`, сумма
+сверена с `checksums.txt`) ставился хуком PreToolUse на Bash (`rtk init -g`:
+хук `rtk hook claude` в `~/.claude/settings.json`, `~/.claude/RTK.md` и
+`@RTK.md` в `~/.claude/CLAUDE.md`). Хук переписывает `git …`, `python -m
+pytest`, `gh …` в `rtk …`; команду с путём к `.venv` и составные — нет.
+
+Проверка на заведомо падающих тестах: имя теста, файл:строка и строка assert
+видны; **пропадают** фактические значения (`assert '2027-06-28' ==
+'2027-06-29'` и дифф), тип исключения (`IndexError: …`), внутренний кадр и
+локальные переменные (`s = '2027/06/29'`) — остаётся ссылка `rtk recall`.
+`git diff` — полный. Лог упавшего `gh run --log-failed` — не сжат вовсе.
+Ошибка теряется → по условию владельца снят: `rtk init -g --uninstall`,
+`settings.json` возвращён из копии до установки (uninstall оставлял пустой
+`"hooks"`), бинарник и каталоги данных rtk в AppData (история выводов)
+удалены.
+
+⚠️ Если ставить снова: хук зовёт `rtk` по имени, а PATH оболочки Bash
+снимается при старте сессии — после `init` каждая `git` сразу падала с
+`rtk: command not found`, пока бинарник не лёг в каталог, уже бывший в PATH.
+
 ## Переехало из CLAUDE.md 27.09.2026
 
 ## Зачистка токенов оформления принята 14.09.2026
