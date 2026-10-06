@@ -102,6 +102,14 @@ jobs:
           python scripts/consistency_eval.py run --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/cur.json"
           echo "CUR_RC=$?" >> "$GITHUB_ENV"
 
+      # Под флагом sky_event (задание 4.2): тот же код, разделы — из ядра
+      # backend/sky.py. В отчёте — столбец «Под флагом» и отличие от «стало».
+      - name: Под флагом
+        run: |
+          set +e
+          python scripts/consistency_eval.py run --sky on --date "$DATE" --days "$IN_DAYS" --tzs "$IN_TZS" --tier "$IN_TIER" --out "$RUNNER_TEMP/sky.json"
+          echo "SKY_RC=$?" >> "$GITHUB_ENV"
+
       - name: Было
         if: inputs.compare_ref != ''
         working-directory: base
@@ -131,7 +139,7 @@ jobs:
           files="$RUNNER_TEMP/cur.json"
           [ -f "$RUNNER_TEMP/base.json" ] && files="$files $RUNNER_TEMP/base.json"
           out="$RUNNER_TEMP/consistency-$DATE-run$GITHUB_RUN_ID.md"
-          python scripts/consistency_eval.py report $files --base-morning "$RUNNER_TEMP/base_morning.json" --out "$out"
+          python scripts/consistency_eval.py report $files --base-morning "$RUNNER_TEMP/base_morning.json" --sky-file "$RUNNER_TEMP/sky.json" --out "$out"
           # Первая строка отчёта — какие проверки не выполнились (или «все»).
           code=$(curl -sS -o /dev/null -w '%{http_code}'             -F chat_id="$TG_CHAT" -F document=@"$out"             -F caption="$(head -n1 "$out") Прогон согласованности, $DATE, прогон $GITHUB_RUN_ID"             "$api/sendDocument")
           [ "$code" = "200" ] || { echo "::error::Telegram ответил $code"; exit 1; }
@@ -140,3 +148,4 @@ jobs:
         run: |
           [ "${CUR_RC:-1}" = "0" ] || { echo "::error::Прогон «стало» не выполнил проверки (код $CUR_RC)"; exit 1; }
           [ "${BASE_RC:-0}" = "0" ] || { echo "::error::Прогон «было» не выполнил проверки (код $BASE_RC)"; exit 1; }
+          [ "${SKY_RC:-0}" = "0" ] || { echo "::error::Прогон «под флагом» не выполнил проверки (код $SKY_RC)"; exit 1; }

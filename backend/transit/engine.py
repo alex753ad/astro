@@ -624,7 +624,7 @@ def _build_transit_alert_subject(transit_planet: str, natal_planet: str, aspect_
     return without_sphere.format(planet=planet_ru)
 
 
-def alert_event(chart, local_date: date, tzname: str):
+def alert_event(chart, local_date: date, tzname: str, sky: bool | None = None):
     """Событие письма «Важный транзит» в местные сутки `local_date`: точное
     касание медленной планеты (ALERT_PLANETS) к натальной точке, самое
     сильное по баллу (одна шкала — day_event), или None.
@@ -639,7 +639,7 @@ def alert_event(chart, local_date: date, tzname: str):
         tz = ZoneInfo(tzname)
     except Exception:
         tz = ZoneInfo("Europe/Moscow")
-    evs = [e for e in _candidates(chart, local_date, tz) if e.natal and e.transit in ALERT_PLANETS]
+    evs = [e for e in _candidates(chart, local_date, tz, sky) if e.natal and e.transit in ALERT_PLANETS]
     return min(evs, key=lambda e: (-e.score, e.key), default=None)
 
 

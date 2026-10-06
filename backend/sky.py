@@ -322,7 +322,12 @@ def _chunk(chart, y: int, m: int) -> list[SkyEvent]:
             return [SkyEvent.from_dict(d) for d in cached]
     events = compute(chart, lo, hi)
     if chart_id is not None:
-        sky_cache.set(key, [e.to_dict() for e in events])
+        # Живёт до конца следующего месяца: месяц M нужен и как «прошлый»
+        # (местные сутки 1-го числа начинаются в UTC ещё в M−1). Раньше не
+        # истекает — иначе между прогревами холодный расчёт попал бы в запрос.
+        until = datetime(y + (m + 1) // 12, (m + 1) % 12 + 1, 1, tzinfo=timezone.utc) + timedelta(days=1)
+        ttl = max(int((until - datetime.now(timezone.utc)).total_seconds()), 86400)
+        sky_cache.set(key, [e.to_dict() for e in events], ttl=ttl)
     return events
 
 
@@ -335,3 +340,32 @@ def sky_events(chart, from_utc: datetime, to_utc: datetime) -> list[SkyEvent]:
             if e.end_utc >= from_utc and e.start_utc <= to_utc:
                 seen.setdefault(e.key, e)
     return sorted(seen.values(), key=lambda e: (e.start_utc, e.key))
+
+
+# ── Прогрев (задание 4.2) ─────────────────────────────────────────────────────
+# Холодный чанк — около секунды, год — 15 с: в запрос человека (виджет,
+# прогноз, сторис) это попадать не должно. Прогрев — `tasks.sky_warm`: beat
+# ежечасно для всех карт под флагом `sky_event` и сразу после сохранения
+# карты (`calculate`, `claim`). Считаются только недостающие чанки.
+
+def warm_chart(chart, now: datetime | None = None) -> None:
+    """Чанки прошлого, текущего и следующего UTC-месяца."""
+    now = now or datetime.now(timezone.utc)
+    first = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    sky_events(chart, first - timedelta(days=1), first + timedelta(days=62))
+
+
+def warm(db, chart_id: str | None = None) -> int:
+    """Прогреть карты, у владельцев которых флаг `sky_event` включён."""
+    from backend.day_event import SKY_FLAG
+    from backend.flags import flag_on
+    from backend.models import NatalChart
+    q = db.query(NatalChart)
+    if chart_id:
+        q = q.filter(NatalChart.id == chart_id)
+    n = 0
+    for chart in q.yield_per(100):
+        if chart.planets and flag_on(db, SKY_FLAG, chart.user_id):
+            warm_chart(chart)
+            n += 1
+    return n

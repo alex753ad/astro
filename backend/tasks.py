@@ -37,6 +37,18 @@ def send_lifecycle_emails() -> dict:
         db.close()
 
 
+@celery_app.task(name="tasks.sky_warm", ignore_result=True)
+def sky_warm(chart_id: str | None = None) -> int:
+    """Beat, ежечасно, и после сохранения карты: чанки ядра транзитов для
+    карт под флагом `sky_event` (backend/sky.py, «Прогрев»)."""
+    from backend.sky import warm
+    db = SessionLocal()
+    try:
+        return warm(db, chart_id)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.pilot_tick", ignore_result=True)
 def pilot_tick() -> dict:
     """Beat, ежечасно: прогон пилота (backend/pilot/cron.py). Письма пилота —

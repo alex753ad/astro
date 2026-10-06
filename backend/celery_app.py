@@ -128,6 +128,12 @@ celery_app.conf.update(
             "task": "tasks.retention_weekly",
             "schedule": crontab(day_of_week=1, hour=6, minute=0),
         },
+        # Ядро транзитов (флаг sky_event): чанки прошлого, текущего и
+        # следующего месяца, чтобы холодный расчёт не попадал в запрос.
+        "sky-warm-hourly": {
+            "task": "tasks.sky_warm",
+            "schedule": crontab(minute=40),
+        },
         "selfcheck-hourly": {
             "task": "tasks.selfcheck_hourly",
             "schedule": crontab(minute=50),
