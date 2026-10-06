@@ -37,12 +37,78 @@ PERSONAL_POINTS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
 MAX_ORB = 3.0  # «точный» транзит; поднимите, если нужно ловить шире
 
 
-def crm_events(chart, frm: date, to: date) -> list:
+def crm_events(chart, frm: date, to: date, sky: bool = False) -> list:
     """События неба клиента для CRM (дашборд, «Пора напомнить», групповой
-    прогноз, письмо) — одна функция, чтобы прогон согласованности (cB,
-    раздел CRM) проверял ровно то, что видит астролог. Синхронная."""
+    прогноз, письмо, бриф) — одна функция, чтобы прогон согласованности (cB,
+    раздел CRM) проверял ровно то, что видит астролог. Синхронная.
+
+    `sky` — флаг sky_event АСТРОЛОГА (`crm_sky`, 4.12): строка на каждое
+    касание ядра, чья местная дата (пояс карты клиента) в [frm, to]; проход
+    без касания (станция) — без строки. `peak_date` — местная дата касания,
+    `at_utc` — момент (порядок), `event` — событие ядра (письмо и бриф
+    пишут все касания и срок события). Точки — ядра (с ASC/MC, узлы — как
+    в ядре: Северный, соединение/оппозиция, решение владельца 06.10.2026)."""
+    if sky:
+        return _sky_crm_events(chart, frm, to)
     from backend.transit.engine import calculate_transits
     return calculate_transits(natal_planets=_chart_points.planets(chart), from_date=frm, to_date=to)
+
+
+def _sky_crm_events(chart, frm: date, to: date) -> list:
+    from types import SimpleNamespace
+    from zoneinfo import ZoneInfo
+
+    from backend.sky import sky_events
+    from backend.time_utils import local_day, user_tz
+
+    tz = user_tz(None, None, chart)
+    z = ZoneInfo(tz)
+    s, e = local_day(frm, tz)[0], local_day(to, tz)[1]
+    out = [
+        SimpleNamespace(
+            transit_planet=ev.transit, natal_planet=ev.natal, aspect_type=ev.aspect,
+            peak_date=t.at_utc.astimezone(z).date().isoformat(), peak_orb=t.orb,
+            at_utc=t.at_utc, event=ev, tz=tz,
+        )
+        for ev in sky_events(chart, s, e) for t in ev.touches if s <= t.at_utc < e
+    ]
+    out.sort(key=lambda r: r.at_utc)
+    return out
+
+
+def crm_sky(db: Session, user) -> bool:
+    """Флаг sky_event для CRM — по астрологу (поправка владельца 06.10.2026),
+    а не по клиенту: у карты клиента свой владелец не человек приложения."""
+    from backend.day_event import SKY_FLAG
+    from backend.flags import flag_on
+    return flag_on(db, SKY_FLAG, user)
+
+
+def crm_today(chart, sky: bool) -> date:
+    """«Сегодня» CRM: под флагом — местный день клиента (пояс его карты),
+    без флага — как было, день сервера."""
+    if not sky:
+        return date.today()
+    from backend.time_utils import local_today, user_tz
+    return local_today(user_tz(None, None, chart))
+
+
+def crm_when(ev, tz: str) -> tuple[str, str]:
+    """Касания и срок события ядра словами — общие `touches_ru` / `period_ru`
+    (как разбор, чат и PDF), даты местные в поясе карты клиента."""
+    from backend.sky import interpret_facts
+    from backend.transit.prompts import period_ru, touches_ru
+    f = interpret_facts(ev, tz, None)
+    return touches_ru(f["exact_dates"]), period_ru(f["period_start"], f["period_end"], f["gaps"])
+
+
+def by_event(rows) -> list:
+    """Строки-касания под флагом → по одной на событие (первое касание
+    окна): письмо и бриф — на событие, все касания пишет `crm_when`."""
+    seen = {}
+    for r in rows:
+        seen.setdefault(r.event.key, r)
+    return list(seen.values())
 
 
 def important(events, planet: str | None = None) -> list:
@@ -66,10 +132,7 @@ async def get_alerts(
     if not astrologer:
         return []
 
-    today = date.today()
-    frm = from_date or today
-    to = to_date or (today + timedelta(days=7))
-
+    sky = crm_sky(db, user)
     rows = (
         db.query(ClientProfile, NatalChart)
         .join(NatalChart, ClientProfile.natal_chart_id == NatalChart.id)
@@ -79,10 +142,14 @@ async def get_alerts(
 
     alerts = []
     for client, chart in rows:
+        # Под флагом «сегодня» и даты — местные клиента (у каждого свой пояс).
+        today = crm_today(chart, sky)
+        frm = from_date or today
+        to = to_date or (today + timedelta(days=7))
         try:
             # Swiss Ephemeris — синхронный, блокирует event loop (см.
             # CLAUDE.md). N клиентов на запрос — самое чувствительное место.
-            events = await asyncio.to_thread(crm_events, chart, frm, to)
+            events = await asyncio.to_thread(crm_events, chart, frm, to, sky)
         except Exception as e:
             logger.warning("Alerts: transit calc failed for client %s: %s", client.id, e)
             continue
@@ -127,11 +194,26 @@ def _astrologer_or_404(user: User, db: Session) -> AstrologerProfile:
     return astrologer
 
 
-def _month_transits(chart: NatalChart, today: date | None = None) -> list[dict]:
+def _month_transits(chart: NatalChart, today: date | None = None, sky: bool = False) -> list[dict]:
+    """События месяца для письма клиенту — предпросмотр и рассылка
+    (`tasks.send_client_broadcast_task`). Под флагом — строка на событие,
+    `when` — все касания словами (`crm_when`); без флага — как было."""
     from backend.email_service import broadcast_when
     from backend.time_utils import user_tz
-    today = today or date.today()
-    events = crm_events(chart, today, today + timedelta(days=30))
+    today = today or crm_today(chart, sky)
+    events = crm_events(chart, today, today + timedelta(days=30), sky)
+    if sky:
+        return [
+            {
+                "transit_planet": e.transit_planet,
+                "natal_planet": e.natal_planet,
+                "aspect_type": e.aspect_type,
+                "peak_date": e.peak_date,
+                "peak_orb": e.peak_orb,
+                "when": crm_when(e.event, e.tz)[0],
+            }
+            for e in by_event(events)
+        ]
     return [
         {
             "transit_planet": e.transit_planet,
@@ -170,7 +252,7 @@ async def broadcast_preview(
     brand = astrologer.display_name or "Ваш астролог"  # вы-разрешено: письмо клиенту астролога
     period_label = ru_month_label(date.today())
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
-    transits = await asyncio.to_thread(_month_transits, chart)
+    transits = await asyncio.to_thread(_month_transits, chart, None, crm_sky(db, user))
 
     if not client.unsubscribe_token:
         client.unsubscribe_token = uuid.uuid4().hex
@@ -603,6 +685,7 @@ async def crm_reactivation(
     """№16 — спящие клиенты (>N месяцев без консультаций) + повод (текущий транзит)."""
 
     astrologer = _get_or_create_astrologer(user, db)
+    sky = crm_sky(db, user)
     today = date.today()
     cutoff = today - timedelta(days=months * 30)
 
@@ -635,7 +718,8 @@ async def crm_reactivation(
             try:
                 # Swiss Ephemeris — синхронный, блокирует event loop (см.
                 # CLAUDE.md). N клиентов на запрос.
-                events = await asyncio.to_thread(crm_events, chart, today, today + timedelta(days=21))
+                t0 = crm_today(chart, sky)
+                events = await asyncio.to_thread(crm_events, chart, t0, t0 + timedelta(days=21), sky)
                 for e in important(events)[:1]:
                     reason = f"{e.transit_planet} {e.aspect_type} {e.natal_planet}"
             except Exception as ex:
@@ -673,8 +757,8 @@ async def group_forecast(
     if not payload.client_ids:
         return []
 
-    today = date.today()
-    to = today + timedelta(days=max(1, min(payload.days, 90)))
+    sky = crm_sky(db, user)
+    days = max(1, min(payload.days, 90))
 
     rows = (
         db.query(ClientProfile, NatalChart)
@@ -689,12 +773,17 @@ async def group_forecast(
         try:
             # Swiss Ephemeris — синхронный, блокирует event loop (см.
             # CLAUDE.md). N клиентов на запрос.
-            events = await asyncio.to_thread(crm_events, chart, today, to)
+            today = crm_today(chart, sky)
+            events = await asyncio.to_thread(crm_events, chart, today, today + timedelta(days=days), sky)
         except Exception as e:
             logger.warning("Group forecast transit calc failed for %s: %s", client.id, e)
             continue
+        # Порядок: под флагом — момент касания (UTC): у клиентов разные пояса,
+        # и местные даты разных строк между собой не сравнимы. Без флага — дата.
+        order = (lambda e: e.at_utc) if sky else (lambda e: str(getattr(e, "peak_date", "") or "")[:10])
+        found = sorted(important(events, payload.planet), key=order)
         matches = []
-        for e in important(events, payload.planet):
+        for e in found:
             orb = getattr(e, "peak_orb", None)
             matches.append({
                 "event": f"{e.transit_planet} {e.aspect_type} {e.natal_planet}",
@@ -702,8 +791,7 @@ async def group_forecast(
                 "orb": round(orb, 2) if orb is not None else None,
             })
         if matches:
-            matches.sort(key=lambda m: m["date"])
-            result.append({"client_id": client.id, "name": client.name, "events": matches})
+            result.append((order(found[0]), {"client_id": client.id, "name": client.name, "events": matches}))
 
-    result.sort(key=lambda r: r["events"][0]["date"])
-    return result
+    result.sort(key=lambda r: r[0])
+    return [r for _, r in result]

@@ -666,8 +666,7 @@ async def generate_brief(
     """SSE-бриф к встрече: натальные акценты + активные транзиты (месяц вперёд)
     + прошлая консультация → единый custom_prompt через InterpretationRouter.
     Прогрессии не включены (движка прогрессий в проекте нет)."""
-    from datetime import date as date_type, timedelta
-    from backend.transit.engine import calculate_transits
+    from datetime import timedelta
     from backend.interpretation.base import InterpretationRequest
     from backend.interpretation.router import get_router
     from backend.crm.brief_prompt import build_brief_prompt
@@ -692,26 +691,37 @@ async def generate_brief(
         "time_unknown": chart.time_unknown,
     }
 
-    today = date_type.today()
+    from backend.crm.dashboard_router import by_event, crm_events, crm_sky, crm_today, crm_when
+    sky = crm_sky(db, user)
+    today = crm_today(chart, sky)
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
-    events = await asyncio.to_thread(
-        calculate_transits,
-        natal_planets=_chart_points.planets(chart),
-        from_date=today,
-        to_date=today + timedelta(days=30),
-    )
-    transit_dicts = [
-        {
-            "date": e.date,
-            "transit_planet": e.transit_planet,
-            "transit_sign": e.transit_sign,
-            "natal_planet": e.natal_planet,
-            "aspect_type": e.aspect_type,
-            "orb": e.orb,
-            "exact_date": e.exact_date,
-        }
-        for e in events
-    ]
+    events = await asyncio.to_thread(crm_events, chart, today, today + timedelta(days=30), sky)
+    if sky:
+        # Под флагом (4.12) — событие ядра: касания точные, без «~»; срок и
+        # перерывы петли — общими touches_ru / period_ru.
+        transit_dicts = []
+        for e in by_event(events):
+            touches, period = crm_when(e.event, e.tz)
+            transit_dicts.append({
+                "transit_planet": e.transit_planet,
+                "natal_planet": e.natal_planet,
+                "aspect_type": e.aspect_type,
+                "touches": touches,
+                "period": period,
+            })
+    else:
+        transit_dicts = [
+            {
+                "date": e.date,
+                "transit_planet": e.transit_planet,
+                "transit_sign": e.transit_sign,
+                "natal_planet": e.natal_planet,
+                "aspect_type": e.aspect_type,
+                "orb": e.orb,
+                "exact_date": e.exact_date,
+            }
+            for e in events
+        ]
 
     last = (
         db.query(Consultation)

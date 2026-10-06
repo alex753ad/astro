@@ -366,12 +366,10 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
     Пропускает отписавшихся и уже отправленных в этом period_ym.
     """
     import asyncio
-    from datetime import date, timedelta
+    from datetime import date
 
     from backend.models import AstrologerProfile, ClientProfile, ClientBroadcastLog, User
-    from backend.crm.dashboard_router import crm_events
-    from backend.email_service import broadcast_when
-    from backend.time_utils import user_tz
+    from backend.crm.dashboard_router import _month_transits, crm_sky
     from backend.email_service import send_client_broadcast, ru_month_label
 
     db = SessionLocal()
@@ -386,6 +384,7 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
         brand = astrologer.display_name or "Ваш астролог"  # вы-разрешено: письмо клиенту астролога
         owner = db.query(User).filter(User.id == astrologer.user_id).first()
         tier = owner.tier if owner else "premium"
+        sky = crm_sky(db, astrologer.user_id)
 
         today = date.today()
         ym = period_ym or today.strftime("%Y-%m")
@@ -424,21 +423,9 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
                 continue
 
             try:
-                # Та же функция, что у предпросмотра и дашборда (crm_events) —
-                # её проверяет прогон согласованности (cB, CRM).
-                events = crm_events(chart, today, today + timedelta(days=30))
-                transits = [
-                    {
-                        "transit_planet": e.transit_planet,
-                        "natal_planet": e.natal_planet,
-                        "aspect_type": e.aspect_type,
-                        "peak_date": getattr(e, "peak_date", None),
-                        "peak_orb": getattr(e, "peak_orb", None),
-                        # Дата словами в поясе карты клиента (email_service.broadcast_when).
-                        "when": broadcast_when(e.exact_date, e.peak_date, user_tz(None, None, chart)),
-                    }
-                    for e in events
-                ]
+                # Та же функция, что у предпросмотра (crm_events внутри) — её
+                # проверяет прогон согласованности (cB, CRM). Флаг — по астрологу.
+                transits = _month_transits(chart, None, sky)
                 profile = {
                     "planets": chart.planets, "houses": chart.houses, "aspects": chart.aspects,
                     "ascendant": chart.ascendant, "midheaven": chart.midheaven,

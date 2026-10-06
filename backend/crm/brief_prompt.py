@@ -27,6 +27,13 @@ def _fmt_transits(transits: Optional[list[dict]]) -> str:
         return "значимых транзитов в ближайший месяц не найдено"
     lines = []
     for t in transits:
+        if t.get("touches"):
+            # Под флагом sky_event (4.12): касания ядра — точные, без «~».
+            lines.append(
+                f"- {t.get('transit_planet', '?')} {t.get('aspect_type', '?')} "
+                f"натальный {t.get('natal_planet', '?')} (точно {t['touches']}; срок {t['period']})"
+            )
+            continue
         when = t.get("exact_date") or t.get("date") or ""
         seg = (
             f"{t.get('transit_planet', '?')} {t.get('aspect_type', '?')} "

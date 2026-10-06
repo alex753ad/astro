@@ -16,6 +16,7 @@
 - чат — `interpretation/rag._sky_transits_block` (4.6);
 - PDF — `pdf_reports/sections._sky_main_transits` (4.7).
 - веб `/transits` — `transit/engine._sky_window_events ← window_events` (4.8); прогрев года — `sky.warm_year`.
+- CRM (дашборд, «Пора напомнить», групповой прогноз, письмо клиентам, бриф) — `crm/dashboard_router._sky_crm_events ← crm_events` (4.12); флаг — по астрологу, `crm_sky`.
 - `find_event`, `interpret_facts` ← `transit/engine.interpret_event_facts` ← ручка разбора (4.5), чат, Consistency.
 
 ## Флаг
