@@ -355,6 +355,15 @@ export default function FeedEventCard({ event, onOpen, major = false, collapsed 
         </div>
       )}
 
+      {/* Период влияния транзита (4.13, флаг sky_event) — строка с сервера
+          как есть: её пишет та же функция, что факты разбора и чата
+          (prompts._sky_date_lines), своего формата дат здесь нет намеренно.
+          Старый сервер поля не шлёт — строки нет. Закрытой карточке не
+          показываем: у заглушки свой текст окна (transitTeaser). */}
+      {!collapsed && !locked && event.kind === 'transit' && meta.period_line && (
+        <div style={rowStyle}>{meta.period_line}</div>
+      )}
+
       {/* Рекомендации периода (§5) — только у открытого, с непустым
           содержимым: у закрытого — только замочек у заголовка.
 

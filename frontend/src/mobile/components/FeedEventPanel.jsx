@@ -240,6 +240,12 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
               {degree}{signRu(meta.transit_sign)} → {signRu(meta.natal_sign)}
             </div>
           )}
+          {/* Период влияния и касания транзита (4.13, флаг sky_event) — как в
+              разборе: строки с сервера (prompts._sky_date_lines), без своего
+              формата дат. Старый сервер их не шлёт — строк нет. */}
+          {event.kind === 'transit' && !isLocked(event) && [meta.period_line, meta.touches_line].filter(Boolean).map((line) => (
+            <div key={line} style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>{line}</div>
+          ))}
           {plannerRange && (
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{plannerRange}</span>

@@ -304,6 +304,24 @@ def _transit_chunk(chart_id: str, natal_planets: list[dict], year: int, month: i
     return chunk
 
 
+def _term_meta(row: dict, tz) -> dict:
+    """Подпись срока для приложения (4.13, флаг sky_event): `gaps` — перерывы
+    петли в местных датах (выход, возврат), `touches_line` / `period_line` —
+    строки «Точные касания: …» / «Точный аспект: …» и «Период влияния: …»
+    той же функцией, что факты разбора и чата (`prompts._sky_date_lines`):
+    формулировки и правило года — одни на всё. Приложение выводит строки как
+    есть, своего форматирования дат у него нет."""
+    from backend.transit.prompts import _sky_date_lines
+    d = lambda s: datetime.fromisoformat(s).astimezone(tz).date().isoformat()
+    passes = row.get("passes") or []
+    gaps = [(d(a[1]), d(b[0])) for a, b in zip(passes, passes[1:])]
+    touches_line, period_line = _sky_date_lines({
+        "exact_dates": [d(t) for t in row["touches"]],
+        "period_start": d(row["starts_at"]), "period_end": d(row["ends_at"]), "gaps": gaps,
+    })
+    return {"gaps": gaps, "touches_line": touches_line, "period_line": period_line}
+
+
 def _sky_chunk(chart, year: int, month: int) -> list[dict]:
     """Касания ядра (`backend/sky.py`) с UTC-датой в месяце — строки того же
     вида, что у `_transit_chunk`, плюс срок события (задание 4.4, флаг
@@ -325,7 +343,8 @@ def _sky_chunk(chart, year: int, month: int) -> list[dict]:
     from backend.transit.engine import FREE_UNLOCKED_TRANSITS, is_significant_pair
 
     chart_id = str(chart.id)
-    cache_key = f"v4-sky{sky.CACHE_VERSION}:{chart_id}:{year:04d}-{month:02d}"
+    # v5 (4.13): в строках появились `passes` — перерывы петли для подписи срока.
+    cache_key = f"v5-sky{sky.CACHE_VERSION}:{chart_id}:{year:04d}-{month:02d}"
     cached = feed_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -351,6 +370,7 @@ def _sky_chunk(chart, year: int, month: int) -> list[dict]:
                 "free_unlocked": False,
                 "starts_at": ev.start_utc.isoformat(), "ends_at": ev.end_utc.isoformat(),
                 "touches": touches, "touch_n": n,
+                "passes": [[a.isoformat(), b.isoformat()] for a, b in ev.passes],
             })
     # free_unlocked — топ значимых месяца по орбу, как mark_transit_significance.
     # У касаний орб ≈ 0 у всех, поэтому при равенстве — раньше по времени:
@@ -472,6 +492,7 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                 out[-1]["meta"].update(
                     starts_at=loc(e["starts_at"]), ends_at=loc(e["ends_at"]),
                     touches=[loc(t) for t in e["touches"]], touch_n=e["touch_n"],
+                    **_term_meta(e, tz),
                 )
     return _merge_node_axis(out)
 
