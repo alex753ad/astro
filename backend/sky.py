@@ -342,6 +342,50 @@ def sky_events(chart, from_utc: datetime, to_utc: datetime) -> list[SkyEvent]:
     return sorted(seen.values(), key=lambda e: (e.start_utc, e.key))
 
 
+# ── Разбор транзита (задание 4.5) ─────────────────────────────────────────────
+
+def find_event(chart, transit: str, natal: str, aspect: str, on: date) -> SkyEvent | None:
+    """Событие, которое открывает карточка с `peak_date = on` (UTC-дата).
+
+    Сначала — событие с касанием в ±1 день от `on`: карточка ленты под флагом
+    шлёт UTC-дату касания, старая лента и веб (`/transits` до 4.8) — дату пика
+    движка, она с касанием расходится не больше чем на сутки. Нет такого —
+    событие, идущее в этот день (веб мог прислать станцию без касания).
+    None — события у ядра нет, разбор идёт старым путём."""
+    s = datetime(on.year, on.month, on.day, tzinfo=timezone.utc)
+    cands = [e for e in sky_events(chart, s - timedelta(days=1), s + timedelta(days=2))
+             if (e.transit, e.natal, e.aspect) == (transit, natal, aspect)]
+    near = [e for e in cands if any(abs((t.at_utc.date() - on).days) <= 1 for t in e.touches)]
+    return (near or [e for e in cands if e.start_utc < s + timedelta(days=1) and e.end_utc >= s] or [None])[0]
+
+
+def interpret_facts(ev: SkyEvent, tz: str, cusps: list[float] | None) -> dict:
+    """Факты разбора из события ядра: те же поля, что у
+    `engine.compute_exact_facts`, плюс все касания и перерывы петли.
+
+    Один разбор на событие (О5), поэтому положение транзитной планеты, орб и
+    «ретроградный» — на ПЕРВОМ касании (`closest`), а не на касании карточки:
+    иначе текст зависел бы от того, с какой карточки его открыли. Даты —
+    местные в поясе `tz`. `gaps` — перерывы петли (вне орба), местные даты
+    выхода и возврата; в промпт пока не идут (формулировка ждёт владельца)."""
+    from backend.ephemeris.calculator import ZODIAC_SIGNS, _find_house
+    z = ZoneInfo(tz)
+    d = lambda t: t.astimezone(z).date().isoformat()
+    c = ev.closest
+    lon = ZODIAC_SIGNS.index(c.transit_sign) * 30 + c.transit_degree
+    return {
+        "transit_sign": c.transit_sign, "transit_degree": c.transit_degree,
+        "transit_house": _find_house(lon, cusps) if cusps else None,
+        "transit_retrograde": c.retrograde,
+        "natal_sign": ev.natal_sign, "natal_degree": ev.natal_degree, "natal_house": ev.natal_house,
+        "exact_orb": round(c.orb, 2),
+        "exact_date": d(ev.touches[0].at_utc) if ev.touches else None,
+        "exact_dates": [d(t.at_utc) for t in ev.touches],
+        "period_start": d(ev.start_utc), "period_end": d(ev.end_utc),
+        "gaps": [(d(a[1]), d(b[0])) for a, b in zip(ev.passes, ev.passes[1:])],
+    }
+
+
 # ── Прогрев (задание 4.2) ─────────────────────────────────────────────────────
 # Холодный чанк — около секунды, год — 15 с: в запрос человека (виджет,
 # прогноз, сторис) это попадать не должно. Прогрев — `tasks.sky_warm`: beat

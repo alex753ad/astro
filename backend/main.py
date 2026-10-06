@@ -1708,6 +1708,7 @@ async def interpret_transit_event(
         tier_limiter.check_transit_trial(user, db)
     from backend.transit.prompts import (
         TRANSIT_PROMPT_VERSION,
+        TRANSIT_PROMPT_VERSION_SKY,
         build_transit_event_prompt,
         get_template_transit_text,
     )
@@ -1755,6 +1756,20 @@ async def interpret_transit_event(
     # peak_date в ключе обязателен — иначе разборы разных лет склеятся.
     cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION}:{chart_id}:{transit_planet}:{natal_planet}:{aspect_type}:{_ref_date_str}"
 
+    # Под флагом sky_event (задание 4.5) — событие ядра: один разбор на всё
+    # событие (О5), ключ — `ev.key` вместо даты карточки, поэтому все карточки
+    # касаний петли открывают один текст и квоту списывают один раз. Пояс — в
+    # ключе: даты в фактах местные. События у ядра нет (веб прислал дату без
+    # касания и без прохода) — старый путь.
+    from backend import day_event
+    from backend.transit.engine import interpret_event_facts
+    sky_tz = user_tz(body.get("tz"), user, chart)
+    sky_facts, sky_key = await asyncio.to_thread(
+        interpret_event_facts, chart, transit_planet, natal_planet, aspect_type,
+        _date.fromisoformat(_ref_date_str), sky_tz, day_event._sky_on(chart))
+    if sky_key is not None:
+        cache_key = f"transit_interp:v{TRANSIT_PROMPT_VERSION_SKY}:{chart_id}:{sky_key}:{sky_tz}"
+
     async def _yield_chunked(text: str):
         """Отдаём готовый текст тем же SSE-форматом, что и живой стрим —
         фронт не отличает кэш-хит от генерации.
@@ -1793,11 +1808,14 @@ async def interpret_transit_event(
     # углов нет, и до 05.10.2026 разбор касания к ASC/MC шёл без знака,
     # градуса и дат (аудит 8.1). Без времени рождения углов нет и там.
     from backend.day_event import points as day_points
-    facts = await asyncio.to_thread(
-        compute_exact_facts,
-        transit_planet, natal_planet, aspect_type, _date.fromisoformat(_ref_date_str),
-        {**profile, "planets": day_points(chart)},
-    )
+    if sky_facts is not None:
+        facts = sky_facts
+    else:
+        facts = await asyncio.to_thread(
+            compute_exact_facts,
+            transit_planet, natal_planet, aspect_type, _date.fromisoformat(_ref_date_str),
+            {**profile, "planets": day_points(chart)},
+        )
     transit_event_dict = {
         "transit_planet": transit_planet,
         "natal_planet": natal_planet,

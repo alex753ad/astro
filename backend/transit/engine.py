@@ -459,6 +459,24 @@ def compute_exact_facts(
     return facts
 
 
+def interpret_event_facts(chart, transit_planet: str, natal_planet: str, aspect_type: str,
+                          peak_date: date, tz: str, sky: bool) -> tuple[dict | None, str | None]:
+    """Факты разбора под флагом sky_event (задание 4.5) — ОДНА функция для
+    ручки разбора и прогона согласованности: скрипт сверяет то же, что
+    видит человек.
+
+    (факты, ключ события) из ядра; (None, None) — флаг выключен или события у
+    ядра нет: тогда вызывающий идёт старым путём (`compute_exact_facts`)."""
+    if not sky:
+        return None, None
+    from backend.chart_points import cusps
+    from backend.sky import find_event, interpret_facts
+    ev = find_event(chart, transit_planet, natal_planet, aspect_type, peak_date)
+    if ev is None:
+        return None, None
+    return interpret_facts(ev, tz, cusps(chart)), ev.key
+
+
 def get_transit_summary(events: list[TransitEvent]) -> dict:
     summary = {
         "total_events":      len(events),
