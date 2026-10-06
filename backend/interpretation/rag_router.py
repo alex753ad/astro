@@ -492,7 +492,8 @@ async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None
     return block
 
 
-async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | None = None) -> str:
+async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | None = None,
+                                     sky: bool = False) -> str:
     """Слой 3: транзиты на сегодня для этого чарта — раз в сутки, не на
     каждое сообщение чата (иначе каждая реплика пересчитывала бы эфемериды).
 
@@ -512,7 +513,8 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | 
     # v5 (05.10.2026, шаг 5): точки — с ASC, MC и узлами, отбор по баллу.
     # v6 (05.10.2026): «Точный аспект» — только настоящее касание.
     # v7 (05.10.2026): касание к ASC/MC — со знаком, градусом и датами.
-    cache_key = f"chat_transits:v7:{chart_id}:{tz}:{today_str}"
+    # v8-sky (06.10.2026, 4.6): под флагом sky_event — события ядра, рядом с v7.
+    cache_key = f"chat_transits:{'v8-sky' if sky else 'v7'}:{chart_id}:{tz}:{today_str}"
 
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
@@ -522,7 +524,7 @@ async def _get_transits_block_cached(chart_id: str, chart_data: dict, tz: str | 
     # Swiss Ephemeris — синхронный, блокирует event loop (см. CLAUDE.md).
     # Кэш на сутки смягчает частоту, но первый вызов в дне всё равно бьёт
     # напрямую в event loop без этого.
-    block = await asyncio.to_thread(build_transits_block, chart_data, 5, local_today, chart_id, tz)
+    block = await asyncio.to_thread(build_transits_block, chart_data, 5, local_today, chart_id, tz, sky)
 
     now = now_local(tz)   # до местной полуночи — ключ по местной дате
     midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
@@ -1046,7 +1048,9 @@ async def rag_chat(
     chart_summary = build_chart_summary(chart_data, time_unknown)
     memory_summary = _load_memory(db, user.id) if own_chart else ""
     zone = user_tz(tz, user, chart)
-    transits_block = await _get_transits_block_cached(chart_id, chart_data, zone)
+    # Флаг sky_event — по ORM-карте: chart_data — dict без сессии (4.6).
+    from backend import day_event
+    transits_block = await _get_transits_block_cached(chart_id, chart_data, zone, day_event._sky_on(chart))
     planner_block = p1_block = ""
     if flag_on(db, "chat_planner_context", user):
         planner_block = await _get_planner_block_cached(chart, user.tier, zone)

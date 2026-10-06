@@ -27,7 +27,8 @@ TRANSIT_PROMPT_VERSION = 8
 # старым: факты из ядра (местные даты, все касания, период всего события),
 # один разбор на событие. Включение и выключение флага ничего не сбрасывает.
 # 10 — формулировки касаний и перерыва, без слова «орб» (решение владельца 06.10.2026).
-TRANSIT_PROMPT_VERSION_SKY = 10
+# 11 — несколько перерывов петли, год в перерывах — отдельно (06.10.2026).
+TRANSIT_PROMPT_VERSION_SKY = 11
 
 ASPECT_LABELS_RU = {
     "conjunction": "соединение", "sextile": "секстиль",
@@ -103,43 +104,66 @@ def _build_facts_block(transit_event: dict) -> str:
     return "\n".join(lines)
 
 
-def _with_years(dates: list[str]) -> dict[str, str]:
-    """ISO-дата → «21 октября» / «29 ноября 2026»: год — только у последней
-    даты каждого года среди `dates` (решение владельца 06.10.2026)."""
+def _dates_ru(dates: list[str], hide_year: int | None = None) -> list[str]:
+    """Хронологический список ISO-дат → «21 октября», …, «29 ноября 2026»:
+    год — у последней даты каждого года (решение владельца 06.10.2026).
+    `hide_year` — год, который в этом отрезке не пишется (см. period_ru)."""
     from datetime import date as _date
-    last = {}
-    for x in sorted(set(dates)):
-        last[x[:4]] = x
-    out = {}
-    for x in set(dates):
+    last = {x[:4]: x for x in dates}
+    out = []
+    for x in dates:
         d = _date.fromisoformat(x)
-        out[x] = f"{d.day} {_MONTHS_RU[d.month - 1]}" + (f" {d.year}" if last[x[:4]] == x else "")
+        year = last[x[:4]] == x and d.year != hide_year
+        out.append(f"{d.day} {_MONTHS_RU[d.month - 1]}" + (f" {d.year}" if year else ""))
+    return out
+
+
+def _and(items: list[str]) -> str:
+    """«а», «а и б», «а, б и в» — последний через «и»."""
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} и {items[-1]}"
+
+
+def touches_ru(dates: list[str]) -> str:
+    """«21 октября, 27 октября и 29 ноября 2026» — касания события.
+    Общая для разбора, чата и PDF «Главные транзиты» (4.7)."""
+    return _and(_dates_ru(dates))
+
+
+def period_ru(start: str, end: str, gaps: list[tuple[str, str]]) -> str:
+    """«17 октября — 1 декабря 2026, с перерывом с 30 октября по 28 ноября»;
+    несколько перерывов — «с перерывами с … по … и с … по …», три и больше —
+    через запятую, последний через «и» (решения владельца 06.10.2026).
+    Общая для разбора, чата и PDF (4.7).
+
+    ⚠️ Год ставится по правилу «у последней даты каждого года» ОТДЕЛЬНО в
+    сроке и в перерывах, а в перерывах год конца события не пишется. Иначе
+    при перерыве через Новый год («1 ноября 2026 — 18 июля 2027, перерыв с
+    24 декабря 2026») начало осталось бы без года и читалось бы как 2027.
+    Читается так: дата без года — год следующей даты с годом, в перерывах —
+    в конце отрезка год конца события. Так же разбирает прогон согласованности."""
+    a, b = _dates_ru([start, end])
+    out = f"{a} — {b}"
+    if gaps:
+        names = _dates_ru([x for g in gaps for x in g], hide_year=int(end[:4]))
+        parts = [f"с {names[2 * i]} по {names[2 * i + 1]}" for i in range(len(gaps))]
+        out += (", с перерывом " if len(parts) == 1 else ", с перерывами ") + _and(parts)
     return out
 
 
 def _sky_date_lines(e: dict) -> list[str]:
-    """Даты фактов под флагом sky_event (задание 4.5, тексты — «да» владельца
-    06.10.2026): все касания, период всего события, перерыв петли.
+    """Даты фактов под флагом sky_event (задания 4.5, 4.6; тексты — «да»
+    владельца 06.10.2026): все касания, период всего события, перерывы петли.
 
     ⚠️ Слова «орб» в фактах под флагом нет (решение владельца): модель
-    пересказывала бы его человеку. Поэтому и строка «Аспект» — без орба.
-    Перерывов больше одного (Нептун, Плутон) — строка без перерывов:
-    формулировка для нескольких ждёт владельца (docs/handoff.md)."""
-    touches, gaps = e.get("exact_dates") or [], e.get("gaps") or []
+    пересказывала бы его человеку. Поэтому и строка «Аспект» — без орба."""
+    touches = e.get("exact_dates") or []
     lines = []
     if len(touches) == 1:
         lines.append(f"Точный аспект: {_format_date_ru(touches[0])}")
     elif touches:
-        w = _with_years(touches)
-        names = [w[x] for x in touches]
-        lines.append(f"Точные касания: {', '.join(names[:-1])} и {names[-1]}")
+        lines.append(f"Точные касания: {touches_ru(touches)}")
     if e.get("period_start") and e.get("period_end"):
-        gap = gaps if len(gaps) == 1 else []
-        w = _with_years([e["period_start"], e["period_end"], *(x for g in gap for x in g)])
-        line = f"Период влияния: {w[e['period_start']]} — {w[e['period_end']]}"
-        if gap:
-            line += f", с перерывом с {w[gap[0][0]]} по {w[gap[0][1]]}"
-        lines.append(line)
+        lines.append(f"Период влияния: {period_ru(e['period_start'], e['period_end'], e.get('gaps') or [])}")
     return lines
 
 

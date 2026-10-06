@@ -253,7 +253,7 @@ def build_chart_summary(chart: dict, time_unknown: bool = False) -> str:
 
 
 def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_id: str = "",
-                         tz: str | None = None) -> str:
+                         tz: str | None = None, sky: bool | None = None) -> str:
     """Блок текущих транзитов для system prompt чата — 3–5 самых значимых
     на сегодня, тем же фактологическим форматом, что и разбор одного
     транзита (см. backend/transit/prompts.py). Считается через Swiss
@@ -271,6 +271,12 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
     today = today or _date.today()
     if not chart.get("planets"):
         return "## Текущие транзиты\nНет данных натальной карты для расчёта транзитов.\n"
+    # `sky` — события ядра (флаг sky_event, задание 4.6); None — по флагу
+    # (`day_event._sky_on`: у dict-карты чата — выключен, ручка передаёт явно;
+    # прогон согласованности `--sky on` подменяет саму функцию).
+    from backend import day_event
+    if day_event._sky_on(chart) if sky is None else sky:
+        return _sky_transits_block(chart, max_transits, today, chart_id, tz)
 
     try:
         # Набор точек — day_event.points, тот же, что у ленты: из её чанков
@@ -343,6 +349,50 @@ def build_transits_block(chart: dict, max_transits: int = 5, today=None, chart_i
         except Exception as ex:
             logger.warning("chat transit fact build failed for %s: %s", e.transit_planet, ex)
 
+    return "\n".join(lines)
+
+
+def _sky_transits_block(chart: dict, max_transits: int, today, chart_id: str, tz: str | None) -> str:
+    """Блок транзитов под флагом sky_event (задание 4.6): события ядра,
+    идущие в местный день `today`, — медленные планеты, как без флага. Факты
+    — та же `interpret_event_facts`, что у разбора: все касания, период всего
+    события, перерывы петли, местные даты, те же формулировки. Без
+    `compute_exact_facts` и `_feed_peak`: даты и срок у чата — те же, что у
+    ленты и разбора, по построению.
+
+    Порядок — по баллу, при равном — раньше начавшееся: «орба на сегодня» у
+    событий ядра нет, а порядок должен быть один и тот же."""
+    from backend.day_event import SLOW
+    from backend.sky import sky_events
+    from backend.time_utils import local_day
+    from backend.transit.engine import interpret_event_facts
+    from backend.transit.prompts import _build_facts_block
+
+    zone = tz or "UTC"
+    sky_chart = {**chart, "id": chart_id or None}   # чанки sky:v1 кэшируются по id карты
+    try:
+        s, e = local_day(today, zone)
+        # Идёт сегодня — сегодня в орбе: в перерыве петли событие не
+        # активно (как и без флага — движок на один день его не видел).
+        events = [ev for ev in sky_events(sky_chart, s, e)
+                  if ev.transit in SLOW and any(a < e and b >= s for a, b in ev.passes)]
+    except Exception as ex:
+        logger.warning("chat sky transits calc failed: %s", ex)
+        return "## Текущие транзиты\nНе удалось рассчитать (попробуй чуть позже).\n"
+    if not events:
+        return (
+            "## Текущие транзиты\n"
+            "Сейчас нет значимых активных транзитов (медленная планета к точке "
+            "карты). Не выдумывай транзиты — если пользователь спрашивает "
+            "«что происходит сейчас», честно скажи, что заметных активаций сейчас нет.\n"
+        )
+    events.sort(key=lambda ev: (-ev.score, ev.start_utc, ev.key))
+    lines = ["## Текущие транзиты (на сегодня, посчитаны точно)\n"]
+    for ev in events[:max_transits]:
+        facts, _ = interpret_event_facts(sky_chart, ev.transit, ev.natal, ev.aspect, today, zone, True, ev)
+        lines.append(_build_facts_block({"transit_planet": ev.transit, "natal_planet": ev.natal,
+                                         "aspect_type": ev.aspect, **facts}))
+        lines.append("")
     return "\n".join(lines)
 
 
