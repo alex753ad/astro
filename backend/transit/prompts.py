@@ -143,11 +143,16 @@ def period_ru(start: str, end: str, gaps: list[tuple[str, str]]) -> str:
     в конце отрезка год конца события. Так же разбирает прогон согласованности."""
     a, b = _dates_ru([start, end])
     out = f"{a} — {b}"
-    if gaps:
-        names = _dates_ru([x for g in gaps for x in g], hide_year=int(end[:4]))
-        parts = [f"с {names[2 * i]} по {names[2 * i + 1]}" for i in range(len(gaps))]
-        out += (", с перерывом " if len(parts) == 1 else ", с перерывами ") + _and(parts)
-    return out
+    return out + (f", {gaps_ru(gaps, int(end[:4]))}" if gaps else "")
+
+
+def gaps_ru(gaps: list[tuple[str, str]], end_year: int) -> str:
+    """«с перерывом с 30 октября по 28 ноября» / «с перерывами с … по … и с
+    … по …»; `end_year` — год конца события, в перерывах он не пишется (см.
+    period_ru). PDF (4.7) ставит это после своего срока."""
+    names = _dates_ru([x for g in gaps for x in g], hide_year=end_year)
+    parts = [f"с {names[2 * i]} по {names[2 * i + 1]}" for i in range(len(gaps))]
+    return ("с перерывом " if len(parts) == 1 else "с перерывами ") + _and(parts)
 
 
 def _sky_date_lines(e: dict) -> list[str]:

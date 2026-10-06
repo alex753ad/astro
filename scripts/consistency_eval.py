@@ -527,8 +527,6 @@ CB_PDF_N = 10
 # Медленные — до 2,5 лет одного прохода с петлями (Плутон).
 _CB_MARGIN = {"Moon": 3, "Sun": 15, "Mercury": 120, "Venus": 150, "Mars": 240}
 _CB_STEP = {"Moon": 1, "Sun": 6, "Mercury": 6, "Venus": 6, "Mars": 6}
-_CB_MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля",
-              "августа", "сентября", "октября", "ноября", "декабря")
 
 
 def _dmy(d) -> str:
@@ -621,15 +619,6 @@ def truth_transits(points: list[dict], t0: datetime, t1: datetime) -> list[dict]
                             "start_known": e["start_known"], "end_known": e["end_known"],
                             "touches": [utc(r) for r in roots if e["start"] <= r <= e["end"]],
                         })
-    return out
-
-
-def _ru_dates(text: str, default_year: int | None = None) -> list[date]:
-    """«22 ноября 2026», «13 марта» (год — `default_year`) → даты по порядку."""
-    out = []
-    for d, mo, y in re.findall(r"(\d{1,2}) (\w+)(?: (\d{4}))?", text):
-        if mo in _CB_MONTHS and (y or default_year):
-            out.append(date(int(y or default_year), _CB_MONTHS.index(mo) + 1, int(d)))
     return out
 
 
@@ -814,19 +803,23 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
 
     # 5. PDF «Главные транзиты» (тариф с горизонтом CB_PDF_MONTHS).
     horizon = d0 + timedelta(days=round(CB_PDF_MONTHS * 30.44))
-    for it in main_transits(day_event.points(chart), d0, CB_PDF_MONTHS, CB_PDF_N):
+    # Под флагом (4.7) — как build.py: события ядра, местные даты пояса `tz`.
+    sky_pdf = day_event._sky_on(chart)
+    for it in main_transits(day_event.points(chart), d0, CB_PDF_MONTHS, CB_PDF_N,
+                            chart if sky_pdf else None, tz):
         key = (it["planet"], it["natal"], it["kind"])
         evs = sorted((e for e in truth if e["key"] == key and ld(e["start"]) <= horizon and ld(e["end"]) >= d0),
                      key=lambda e: e["start"])
         if not evs:
             ch.ok(False, f"{tz}: PDF — {_cb_name(key)}: в истине события нет")
             continue
-        when, bad = it["when"], []
+        # Под флагом срок продолжают перерывы петли («…, с перерывом с … по …»)
+        # — границы события только в части до них; даты без года — по
+        # правилу transit/prompts.period_ru (_fill_years).
+        when, bad = it["when"].partition(", с перерыв")[0], []
         if len(evs) > 1:
             bad.append(f"склеено {len(evs)} события через перерыв")
-        ends = _ru_dates(when)
-        end_year = ends[-1].year if ends else None
-        got = _ru_dates(when, end_year)
+        got = _fill_years(when)
         first, last = evs[0], evs[-1]
         if when.startswith("до "):
             if first["start_known"] and ld(first["start"]) > d0:
@@ -838,8 +831,8 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
         elif len(got) == 2:
             bad += bounds(first, got[0], None) + bounds(last, None, got[1])
         want = sorted({ld(t) for e in evs for t in e["touches"] if d0 <= ld(t) <= horizon})[:3]
-        if _ru_dates(it["exact"]) != want:
-            bad.append(f"касания {', '.join(map(_dmy, _ru_dates(it['exact']))) or 'нет'} "
+        if _fill_years(it["exact"]) != want:
+            bad.append(f"касания {', '.join(map(_dmy, _fill_years(it['exact']))) or 'нет'} "
                        f"(истина {', '.join(map(_dmy, want)) or 'нет'})")
         ch.ok(not bad, f"{tz}: PDF — {_cb_name(key)}: " + "; ".join(bad))
 

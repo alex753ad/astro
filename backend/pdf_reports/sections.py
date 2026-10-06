@@ -207,10 +207,12 @@ def aspects_key(tier: str) -> str | None:
     return f"aspects:v{ASPECTS_PROMPT_VERSION}:{n}" if n else None
 
 
-def transits_key(tier: str, today: date) -> str | None:
+def transits_key(tier: str, today: date, sky: bool = False) -> str | None:
+    """`sky` — флаг sky_event (4.7): раздел из ядра, своя версия рядом со
+    старой; через fingerprint готовые PDF под флагом пересоберутся."""
     if not plan_for(tier).transits:
         return None
-    return f"transits:v{TRANSITS_PROMPT_VERSION}:{today:%Y-%m}:{tier}"
+    return f"transits:v{TRANSITS_PROMPT_VERSION}{'-sky' if sky else ''}:{today:%Y-%m}:{tier}"
 
 
 # ── Модель: абзацы по списку ──────────────────────────────
@@ -366,7 +368,46 @@ def _real_ends(natal, keys, horizon: date) -> dict[tuple, date | None]:
     return out
 
 
-def main_transits(points, today: date, months: int, n: int) -> list[dict]:
+def _sky_main_transits(chart, today: date, months: int, n: int, tz: str) -> list[dict]:
+    """«Главные транзиты» под флагом sky_event (задание 4.7): события ядра.
+
+    Петля — одна строка: срок всего события и перерывы («до 18 июля 2027, с
+    перерывом с 24 января по 26 июня»), касания — все в окне (до трёх), даты
+    местные. Формулировки — общие с разбором и чатом (`transit/prompts`:
+    `touches_ru`, `gaps_ru`). Конец — настоящий всегда: ядро досчитывает
+    событие за край окна, `_real_ends` не нужен. Событие без касания (станция
+    рядом с точкой) — не строка, как без флага."""
+    from zoneinfo import ZoneInfo
+
+    from backend.sky import sky_events
+    from backend.time_utils import local_day
+    from backend.transit.prompts import gaps_ru, touches_ru
+
+    end = today + timedelta(days=round(months * 30.44))
+    s, e = local_day(today, tz)[0], local_day(end, tz)[1]
+    loc = lambda t: t.astimezone(ZoneInfo(tz)).date()
+    evs = [ev for ev in sky_events(chart, s, e)
+           if ev.transit in _SLOW and ev.touches and any(a < e and b >= s for a, b in ev.passes)]
+    top = sorted(evs, key=lambda ev: (-ev.score, ev.start_utc, ev.key))[:n]
+    out = []
+    for ev in sorted(top, key=lambda ev: (ev.start_utc, ev.key)):
+        sd, ed = loc(ev.start_utc), loc(ev.end_utc)
+        when = range_words(sd, ed, today)
+        gaps = [(loc(a[1]).isoformat(), loc(b[0]).isoformat()) for a, b in zip(ev.passes, ev.passes[1:])
+                if loc(b[0]) >= today]
+        if gaps:
+            when += ", " + gaps_ru(gaps, ed.year)
+        exact = [d.isoformat() for d in sorted({loc(t.at_utc) for t in ev.touches}) if today <= d <= end][:3]
+        out.append({
+            "planet": ev.transit, "natal": ev.natal, "kind": ev.aspect,
+            "title": transit_title(ev.transit, ev.natal, ev.aspect),
+            "when": when,
+            "exact": touches_ru(exact) if exact else "",
+        })
+    return out
+
+
+def main_transits(points, today: date, months: int, n: int, sky_chart=None, tz: str | None = None) -> list[dict]:
     """Медленные планеты к натальным точкам (`day_event.points`) за `months`
     месяцев вперёд. Проходы одного транзита (ретроградные возвраты)
     склеиваются в один отрезок; берутся n с наибольшим баллом main_event
@@ -374,7 +415,12 @@ def main_transits(points, today: date, months: int, n: int) -> list[dict]:
     начала. Конец — настоящий, а не горизонт тарифа (_real_ends).
 
     До 05.10.2026 (шаг 5 аудита) — свои веса и только личные точки: одно
-    событие было главным в пуше и не попадало в PDF."""
+    событие было главным в пуше и не попадало в PDF.
+
+    `sky_chart` — карта, если у владельца флаг sky_event (4.7): события ядра,
+    `_sky_main_transits`; `tz` — пояс человека для местных дат."""
+    if sky_chart is not None:
+        return _sky_main_transits(sky_chart, today, months, n, tz or "UTC")
     from backend.day_event import POINT_NAMES, counts, score
     from backend.transit.engine import calculate_transits
 
@@ -440,17 +486,19 @@ def transits_prompt(chart, items: list[dict], months: int) -> str:
     )
 
 
-async def transit_section(db, chart, tier: str, today: date) -> tuple[list[dict], float]:
+async def transit_section(db, chart, tier: str, today: date, sky: bool = False,
+                          tz: str | None = None) -> tuple[list[dict], float]:
     plan = plan_for(tier)
     if not plan.transits:
         return [], 0.0
-    key = transits_key(tier, today)
+    key = transits_key(tier, today, sky)
     cached = cache_get(db, chart.id, key)
     if cached:
         return cached, 0.0
     import asyncio
     from backend.day_event import points
-    items = await asyncio.to_thread(main_transits, points(chart), today, plan.transit_months, plan.transits)
+    items = await asyncio.to_thread(main_transits, points(chart), today, plan.transit_months, plan.transits,
+                                    chart if sky else None, tz)
     if items:
         texts, cost = await _numbered_texts(
             chart, tier, transits_prompt(chart, items, plan.transit_months), len(items), "pdf_transits")
@@ -497,11 +545,11 @@ def longterm_section(chart, today: date, tz: str | None = None) -> list[dict]:
 
 # ── Отпечаток ──────────────────────────────────────────────
 
-def fingerprint(interp_id: str | None, tier: str, today: date) -> str | None:
+def fingerprint(interp_id: str | None, tier: str, today: date, sky: bool = False) -> str | None:
     """Из чего собран отчёт. None — разбора под тариф нет, отчёт новый."""
     if not interp_id:
         return None
-    parts = [f"i:{interp_id}"] + [k for k in (aspects_key(tier), transits_key(tier, today)) if k]
+    parts = [f"i:{interp_id}"] + [k for k in (aspects_key(tier), transits_key(tier, today, sky)) if k]
     if plan_for(tier).longterm:
         # l2 (04.10.2026, шаг 2б): границы периодов — настоящие, а не край окна.
         parts.append(f"l2:{today:%Y-%m}")

@@ -201,7 +201,7 @@ def fake_sections(monkeypatch, tmp_path):
     async def aspects(db, chart, tier):
         return ASPECTS[:5], 0.001
 
-    async def transits(db, chart, tier, today):
+    async def transits(db, chart, tier, today, sky=False, tz=None):
         return TRANSITS[:6], 0.002
 
     monkeypatch.setattr(sections, "aspect_section", aspects)
