@@ -42,7 +42,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.models import DeviceToken, EmailSentLog, NatalChart, PaymentEvent, User
-from backend.time_utils import local_today, user_tz, utcnow
+from backend.time_utils import local_day, local_today, user_tz, utcnow
 
 logger = logging.getLogger("astro.lifecycle_emails")
 
@@ -247,7 +247,7 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
                     text = _day2_text(event)
                     send = lambda: email_service.send_retention_day2(email, text, unsubscribe_url=unsub)
             else:
-                count = _transit_count(chart, today, 30)
+                count = _transit_count(chart, today, 30, user_tz(None, user, chart))
                 if not count:
                     continue  # звать разбирать нечего
                 send = lambda: email_service.send_retention_day7(email, count, unsubscribe_url=unsub)
@@ -256,10 +256,19 @@ def _send_onboarding(db: Session, kind: str, now: datetime) -> int:
     return sent
 
 
-def _transit_count(chart, today: date, days: int) -> int:
+def _transit_count(chart, today: date, days: int, tz: str = "UTC") -> int:
     """Транзиты за `days` дней — те же точки и правило узлов, что у ленты
-    (day_event.points/counts, шаг 5 аудита)."""
-    from backend.day_event import counts, points
+    (day_event.points/counts, шаг 5 аудита).
+
+    Под флагом sky_event (4.12) — события ядра с касанием в местных днях
+    [today, today + days] (как лента: проход без касания не считается);
+    без флага — старый движок, как было."""
+    from backend.day_event import _sky_on, counts, points
+    if _sky_on(chart):
+        from backend.sky import sky_events
+        s, e = local_day(today, tz)[0], local_day(today + timedelta(days=days), tz)[1]
+        return sum(1 for ev in sky_events(chart, s, e)
+                   if any(s <= t.at_utc < e for t in ev.touches))
     from backend.transit.engine import calculate_transits
     events = calculate_transits(natal_planets=points(chart), from_date=today,
                                 to_date=today + timedelta(days=days))
