@@ -686,11 +686,18 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
         m = loc.hour * 60 + loc.minute + loc.second / 60
         return " у полуночи" if min(m, 1440 - m) <= CB_MIDNIGHT_MIN else ""
 
+    def same_day(d, t) -> bool:
+        """Дата раздела — дата момента истины с допуском ±CB_MIDNIGHT_MIN:
+        у полуночи пол и верх минуты дают разные даты, и это не расхождение
+        (решение владельца 06.10.2026; найдено на разборе под флагом, 4.5)."""
+        tol = timedelta(minutes=CB_MIDNIGHT_MIN)
+        return d in {ld(t - tol), ld(t), ld(t + tol)}
+
     def bounds(e, start, end) -> list[str]:
         bad = []
-        if start is not None and e["start_known"] and start != ld(e["start"]):
+        if start is not None and e["start_known"] and not same_day(start, e["start"]):
             bad.append(f"начало {_dmy(start)} (истина {_dmy(ld(e['start']))}{midnight(e['start'])})")
-        if end is not None and e["end_known"] and end != ld(e["end"]):
+        if end is not None and e["end_known"] and not same_day(end, e["end"]):
             bad.append(f"конец {_dmy(end)} (истина {_dmy(ld(e['end']))}{midnight(e['end'])})")
         return bad
 
