@@ -18,7 +18,7 @@
 
 **Расхождения и ловушки:**
 - Флаг `day_event._sky_on` читается по сессии ORM-карты: у копий (`SimpleNamespace`, dict) он выключен — ручки решают флаг по ORM-карте и передают `sky` явно. CRM — исключение: флаг по астрологу (`crm.crm_sky`), не по карте клиента.
-- Пилотные письма под флагом не проверяются Consistency (раздела нет) — держат тесты.
+- Пилотные письма Consistency не видит — держат тесты; расчёт через общую функцию ядра (`sky.sky_events`).
 - Heredoc в Bash съедает `\n`, `\r`, `\.` в python-строках — правки с обратной косой только через Edit/Write.
 - Тесты: `.venv/Scripts/python.exe -m pytest -q -x --tb=short <файлы>`; скрипты с импортом `backend` — `PYTHONPATH=.`.
 - Прод-Redis: один DB 0 на всё, maxmemory нет (noeviction), `mem_limit: 512m` — см. plans/redis_split.md.
