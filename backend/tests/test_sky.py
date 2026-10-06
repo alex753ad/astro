@@ -1,6 +1,7 @@
 """Ядро транзитов backend/sky.py (задание 4.1, аудит 8.2). Карта вымышленная,
 как в test_day_event.py и test_exact_touch.py: 08.03.1991 03:40 UTC, Москва."""
 import importlib.util
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -91,14 +92,28 @@ def test_key_does_not_depend_on_window(prefix, windows):
     assert a.to_dict() == b.to_dict()
 
 
+class _FakeRedis:
+    """Как настоящий: значение — строка (RedisCache кладёт json.dumps)."""
+    def __init__(self):
+        self.data = {}
+
+    def get(self, k):
+        return self.data.get(k)
+
+    def set(self, k, v, ex=None):
+        self.data[k] = v
+
+
 def test_cached_chunks_equal_direct_compute(monkeypatch):
-    """Чанки sky:v1 (через JSON) — те же события, что прямой расчёт."""
-    monkeypatch.setattr(sky.sky_cache, "_redis", None)
-    monkeypatch.setattr(sky.sky_cache, "_local", {})
+    """Чанки sky:v2 (zlib в строке Redis): запись → чтение — те же события,
+    что прямой расчёт; в Redis — сжатые строки, а не список событий."""
+    fake = _FakeRedis()
+    monkeypatch.setattr(sky.sky_cache, "_redis", fake)
     frm, to = _utc(2026, 10, 25), _utc(2026, 11, 5)
     chart = {**CHART, "id": "test-sky"}
     first = sky.sky_events(chart, frm, to)
-    assert sorted(sky.sky_cache._local) == ["sky:v1:test-sky:2026-10", "sky:v1:test-sky:2026-11"]
+    assert sorted(fake.data) == ["sky:v2:test-sky:2026-10", "sky:v2:test-sky:2026-11"]
+    assert all(isinstance(json.loads(v), str) for v in fake.data.values())
     assert [e.to_dict() for e in sky.sky_events(chart, frm, to)] == [e.to_dict() for e in first]
     assert {e.key for e in first} == {e.key for e in sky.compute(chart, frm, to)}
 

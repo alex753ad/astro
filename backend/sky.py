@@ -36,7 +36,10 @@
 """
 from __future__ import annotations
 
+import base64
+import json
 import math
+import zlib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import NamedTuple, Optional
@@ -75,8 +78,20 @@ _EPOCH = datetime(2000, 1, 1, tzinfo=timezone.utc)
 # v1 (05.10.2026, задание 4.1). ⚠️ Набор точек в ключ не входит, как у
 # `feed:v3`: точки берутся из карты здесь же, а карта под одним id не
 # меняется. Меняется расчёт — поднять версию.
+# v2 (06.10.2026): чанк — zlib от JSON в base64 (`_pack`/`_unpack`). Год на
+# карте: 1,43 МБ JSON → ≈150 КБ (решение владельца, docs/decisions.md).
+# Несжатые v1 под этой версией не читаются — истекут сами.
 sky_cache = RedisCache("sky", TTL_TRANSIT)
-CACHE_VERSION = "v1"
+CACHE_VERSION = "v2"
+
+
+def _pack(rows: list[dict]) -> str:
+    """JSON → zlib → base64: `RedisCache` хранит строки (decode_responses)."""
+    return base64.b64encode(zlib.compress(json.dumps(rows, ensure_ascii=False).encode(), 6)).decode()
+
+
+def _unpack(raw: str) -> list[dict]:
+    return json.loads(zlib.decompress(base64.b64decode(raw)))
 
 
 @dataclass
@@ -319,7 +334,7 @@ def _chunk(chart, y: int, m: int) -> list[SkyEvent]:
     if chart_id is not None:
         cached = sky_cache.get(key)
         if cached is not None:
-            return [SkyEvent.from_dict(d) for d in cached]
+            return [SkyEvent.from_dict(d) for d in _unpack(cached)]
     events = compute(chart, lo, hi)
     if chart_id is not None:
         # Живёт до конца следующего месяца: месяц M нужен и как «прошлый»
@@ -331,13 +346,13 @@ def _chunk(chart, y: int, m: int) -> list[SkyEvent]:
         until = max(datetime(y + (m + 1) // 12, (m + 1) % 12 + 1, 1, tzinfo=timezone.utc),
                     datetime(y + 1, 1, 1, tzinfo=timezone.utc)) + timedelta(days=1)
         ttl = max(int((until - datetime.now(timezone.utc)).total_seconds()), 86400)
-        sky_cache.set(key, [e.to_dict() for e in events], ttl=ttl)
+        sky_cache.set(key, _pack([e.to_dict() for e in events]), ttl=ttl)
     return events
 
 
 def sky_events(chart, from_utc: datetime, to_utc: datetime) -> list[SkyEvent]:
     """События, пересекающие [from_utc, to_utc] (aware UTC), из чанков
-    `sky:v1:{chart}:{YYYY-MM}`; по началу, затем по ключу."""
+    `sky:{CACHE_VERSION}:{chart}:{YYYY-MM}`; по началу, затем по ключу."""
     seen: dict[str, SkyEvent] = {}
     for y, m in _months(from_utc, to_utc):
         for e in _chunk(chart, y, m):
