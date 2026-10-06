@@ -49,6 +49,21 @@ def sky_warm(chart_id: str | None = None) -> int:
         db.close()
 
 
+@celery_app.task(name="tasks.sky_warm_year", ignore_result=True)
+def sky_warm_year(chart_id: str) -> None:
+    """Год чанков ядра вперёд — при первом открытии вкладки транзитов в
+    месяце (задание 4.8, backend/sky.py, warm_year)."""
+    from backend.models import NatalChart
+    from backend.sky import warm_year
+    db = SessionLocal()
+    try:
+        chart = db.get(NatalChart, chart_id)
+        if chart is not None and chart.planets:
+            warm_year(chart)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.pilot_tick", ignore_result=True)
 def pilot_tick() -> dict:
     """Beat, ежечасно: прогон пилота (backend/pilot/cron.py). Письма пилота —

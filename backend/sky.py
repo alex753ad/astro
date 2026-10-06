@@ -325,7 +325,11 @@ def _chunk(chart, y: int, m: int) -> list[SkyEvent]:
         # Живёт до конца следующего месяца: месяц M нужен и как «прошлый»
         # (местные сутки 1-го числа начинаются в UTC ещё в M−1). Раньше не
         # истекает — иначе между прогревами холодный расчёт попал бы в запрос.
-        until = datetime(y + (m + 1) // 12, (m + 1) % 12 + 1, 1, tzinfo=timezone.utc) + timedelta(days=1)
+        # С 4.8 — и не раньше конца своего года (прогрев года вкладкой
+        # транзитов, warm_year): иначе прогретые дальние месяцы истекали бы
+        # через месяц, и прогрев пришлось бы повторять.
+        until = max(datetime(y + (m + 1) // 12, (m + 1) % 12 + 1, 1, tzinfo=timezone.utc),
+                    datetime(y + 1, 1, 1, tzinfo=timezone.utc)) + timedelta(days=1)
         ttl = max(int((until - datetime.now(timezone.utc)).total_seconds()), 86400)
         sky_cache.set(key, [e.to_dict() for e in events], ttl=ttl)
     return events
@@ -397,6 +401,16 @@ def warm_chart(chart, now: datetime | None = None) -> None:
     now = now or datetime.now(timezone.utc)
     first = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
     sky_events(chart, first - timedelta(days=1), first + timedelta(days=62))
+
+
+def warm_year(chart, now: datetime | None = None) -> None:
+    """Год вперёд от текущего UTC-месяца (задание 4.8, вариант В): фоновой
+    задачей при первом открытии вкладки транзитов на вебе в месяце
+    (`main._queue_sky_warm_year`). Холодный год — около 15 с CPU, дальше —
+    один новый чанк в месяц; дальше года месяц считается в запросе (≈1 с)."""
+    now = now or datetime.now(timezone.utc)
+    first = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    sky_events(chart, first - timedelta(days=1), first + timedelta(days=366))
 
 
 def warm(db, chart_id: str | None = None) -> int:

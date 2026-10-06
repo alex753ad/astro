@@ -15,6 +15,7 @@
 - лента — `feed/builder._sky_chunk ← transit_cards` (4.4);
 - чат — `interpretation/rag._sky_transits_block` (4.6);
 - PDF — `pdf_reports/sections._sky_main_transits` (4.7).
+- веб `/transits` — `transit/engine._sky_window_events ← window_events` (4.8); прогрев года — `sky.warm_year`.
 - `find_event`, `interpret_facts` ← `transit/engine.interpret_event_facts` ← ручка разбора (4.5), чат, Consistency.
 
 ## Флаг
@@ -30,6 +31,7 @@
 | разбор транзита | `transit_interp:v8:{chart}:{tp}:{np}:{asp}:{дата}` | `transit_interp:v11:{chart}:{event.key}:{пояс}` |
 | чат | `chat_transits:v7`, `chat_p1:v2` | `chat_transits:v8-sky`, `chat_p1:v2-sky` |
 | PDF | `transits:v7:{YYYY-MM}:{tier}` | `transits:v7-sky:…` (и отпечаток отчёта) |
+| веб `/transits` | `transit:v5:…` | `transit:v6-sky:…:{пояс}` |
 
 ## Формулировки дат
 `transit/prompts.touches_ru`, `period_ru`, `gaps_ru` — одни для разбора, чата и PDF

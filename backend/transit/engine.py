@@ -363,12 +363,16 @@ def _find_exact_aspect(
 
 
 def window_events(chart, from_date: date, to_date: date, orb_filter: float | None = None,
-                  planet_filter: list[str] | None = None) -> list[dict]:
+                  planet_filter: list[str] | None = None, sky: bool = False,
+                  tz: str | None = None) -> list[dict]:
     """События окна для `GET /chart/{id}/transits` — поля `TransitEventSchema`.
 
     Вынесено из ручки (06.10.2026), чтобы прогон согласованности (cB,
     /transits) проверял ровно то, что отдаёт веб, теми же окнами, что листает
-    таймлайн. Синхронная (Swiss Ephemeris): из ручки — через `to_thread`."""
+    таймлайн. Синхронная (Swiss Ephemeris): из ручки — через `to_thread`.
+    `sky` — флаг sky_event (4.8): события ядра, `_sky_window_events`."""
+    if sky:
+        return _sky_window_events(chart, from_date, to_date, planet_filter, tz or "UTC")
     from backend.chart_points import planets as natal_planets
     events = calculate_transits(
         # chart_points: без времени рождения — без натальной Луны (шаг 3).
@@ -388,6 +392,57 @@ def window_events(chart, from_date: date, to_date: date, orb_filter: float | Non
         "peak_orb": e.peak_orb, "exact_date": e.exact_date, "applying": e.applying,
         "significant": e.significant, "free_unlocked": e.free_unlocked,
     } for e in events]
+
+
+def _sky_window_events(chart, from_date: date, to_date: date,
+                       planet_filter: list[str] | None, tz: str) -> list[dict]:
+    """/transits под флагом sky_event (задание 4.8): карточка на каждое
+    касание ядра, чья МЕСТНАЯ дата в окне (как лента, О4); проход без касания
+    — без карточки (О3).
+
+    * `start_date` / `end_date` — всего события, местные, окном не режутся;
+    * `peak_date` — UTC-дата касания: только ключ (разбор — `find_event`,
+      ссылка письма «Важный транзит» — `event={UTC-дата}-…`, `eventKey` веба);
+    * `touch_date` — местная дата касания: ей веб показывает, группирует и
+      сортирует карточки (решение владельца 06.10.2026); `exact_date` —
+      местное время касания «YYYY-MM-DDTHH:MM» (веб выводит его как есть);
+    * точки — `day_event.points` (с ASC/MC; без времени рождения — без них).
+    `orb_filter` не нужен: у касания орб ≈ 0, веб его не шлёт."""
+    from zoneinfo import ZoneInfo
+
+    from backend.sky import sky_events
+    from backend.time_utils import local_day
+
+    z = ZoneInfo(tz)
+    s, e = local_day(from_date, tz)[0], local_day(to_date, tz)[1]
+    out = []
+    for ev in sky_events(chart, s, e):
+        if planet_filter and ev.transit not in planet_filter:
+            continue
+        for t in ev.touches:
+            if not (s <= t.at_utc < e):
+                continue
+            loc = t.at_utc.astimezone(z)
+            out.append({
+                "start_date": ev.start_utc.astimezone(z).date().isoformat(),
+                "peak_date": t.at_utc.date().isoformat(),
+                "end_date": ev.end_utc.astimezone(z).date().isoformat(),
+                "touch_date": loc.date().isoformat(),
+                "transit_planet": ev.transit, "transit_sign": t.transit_sign,
+                "transit_degree": t.transit_degree, "natal_planet": ev.natal,
+                "natal_sign": ev.natal_sign, "aspect_type": ev.aspect,
+                "peak_orb": t.orb, "exact_date": loc.strftime("%Y-%m-%dT%H:%M"),
+                # Как у движка: «applying» = планета идёт прямо.
+                "applying": not t.retrograde,
+                "significant": is_significant_pair(ev.transit, ev.natal),
+                "free_unlocked": False,
+            })
+    # Топ значимых окна — как mark_transit_significance; орб касаний ≈ 0 у
+    # всех, поэтому при равенстве — раньше по времени.
+    for r in sorted((r for r in out if r["significant"]),
+                    key=lambda r: (r["peak_orb"], r["exact_date"]))[:FREE_UNLOCKED_TRANSITS]:
+        r["free_unlocked"] = True
+    return sorted(out, key=lambda r: (r["exact_date"], r["transit_planet"], r["natal_planet"]))
 
 
 def compute_exact_facts(
