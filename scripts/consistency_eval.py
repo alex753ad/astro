@@ -910,7 +910,9 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
     # истины в поясе карты клиента (`tz` прогона = пояс устройства/карты).
     from backend.crm.dashboard_router import crm_events, important
     crm_to = d0 + timedelta(days=30)
-    evs = crm_events(chart, d0, crm_to)
+    # Под флагом (`run --sky on`, 4.12) — строки-касания ядра, флаг астролога;
+    # у прогона владелец карты и астролог — один «человек», решает _sky_on.
+    evs = crm_events(chart, d0, crm_to, day_event._sky_on(chart))
     for kind, rows in (("важные", important(evs)), ("месяц", [e for e in evs if e.transit_planet != "Moon"])):
         for r in rows:
             key, d = (r.transit_planet, r.natal_planet, r.aspect_type), date.fromisoformat(r.peak_date[:10])
