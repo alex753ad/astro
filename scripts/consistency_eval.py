@@ -624,6 +624,7 @@ def cb_breakdown(bad: list[str]) -> str:
     строки с событиями и датами — в отчёт владельцу, не в публичный лог."""
     sec = {s: 0 for s in _CB_SECTIONS}
     why = {"нет карточки": 0, "касания нет": 0, "другой день": 0}
+    rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0}
     for x in bad:
         body = x.split(": ", 1)[-1]
         name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
@@ -631,7 +632,13 @@ def cb_breakdown(bad: list[str]) -> str:
         if name == "лента":
             why["другой день" if "другой день" in body else
                 "касания нет" if body.endswith("касания нет") else "нет карточки"] += 1
-    return ", ".join(f"{k}={v}" for k, v in sec.items()) + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
+        if name == "разбор":
+            tail = body.split(": ", 1)[-1]
+            for k in rev:
+                rev[k] += any(part.startswith(k) for part in tail.split("; "))
+    return (", ".join(f"{k}={v}" for k, v in sec.items())
+            + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
+            + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items()))
 
 
 def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, days: list[date],
