@@ -115,6 +115,9 @@ async def get_feed(
     from backend.transit.planner_engine import now_local  # отложенно: тянет Swiss Ephemeris
     zone = user_tz(tz, user, chart)
     now = now_local(zone)
+    # ⚠️ Флаг sky_event (4.4) — по ORM-карте здесь, а не внутри build_feed:
+    # копия из _with_timezone без сессии, и по ней флаг всегда «выключен».
+    from backend import day_event
     return await asyncio.to_thread(
         build_feed,
         chart=_with_timezone(chart, zone),
@@ -123,4 +126,5 @@ async def get_feed(
         today=now.date(),
         tier=tier,
         now=now,
+        sky=day_event._sky_on(chart),
     )

@@ -227,10 +227,16 @@ def parse_chat_block(text: str) -> list[dict]:
     return out
 
 
-def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: list[str]) -> None:
+def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: list[str],
+             chart=None) -> None:
+    from backend import day_event
     from backend.day_event import points
-    from backend.feed.builder import _naive_utc_to_local_iso, _transit_chunk, _tz
+    from backend.feed.builder import _naive_utc_to_local_iso, _transit_chunk, _tz, transit_cards
     from backend.interpretation.rag import build_transits_block
+
+    # Под флагом (`run --sky on`, задание 4.4) лента — карточки-касания ядра:
+    # сравнение с ними, а не со старым чанком, иначе c3 проверял бы не ту ленту.
+    sky = chart is not None and day_event._sky_on(chart)
 
     # Набор точек — тот же, что у ленты и чата (чанк ленты кэшируется по
     # карте, без набора в ключе: feed/builder._transit_chunk).
@@ -242,6 +248,15 @@ def check_c3(ch: Check, chat_chart: dict, chart_id: str, days: list[date], tzs: 
             if it["exact"] is None:
                 continue  # чат честно без даты — сравнивать нечего
             key = (it["transit"], it["natal"], it["aspect"])
+            if sky:
+                cards = [c for c in transit_cards(chart, it["exact"] - timedelta(days=45),
+                                                  it["exact"] + timedelta(days=45), _tz(tz), "premium")
+                         if (c["meta"]["transit_planet"], c["meta"]["natal_planet"], c["meta"]["aspect_type"]) == key]
+                shown = min((c["at"][:10] for c in cards),
+                            key=lambda s: abs(date.fromisoformat(s) - it["exact"]), default=None)
+                ch.ok(shown == it["exact"].isoformat(),
+                      f"{d} {tz}: {key} — чат {it['exact']}, лента {shown or 'события нет'}")
+                continue
             near = []
             for k in (-1, 0, 1):
                 y, m = it["exact"].year, it["exact"].month + k
@@ -600,6 +615,25 @@ def _cb_name(key) -> str:
     return f"{PLANET_RU.get(tp, tp)} {ASPECT_RU.get(asp, asp)} {PLANET_RU.get(np_, np_)}"
 
 
+_CB_SECTIONS = ("лента", "главное событие", "чат", "разбор", "PDF", "/transits")
+
+
+def cb_breakdown(bad: list[str]) -> str:
+    """Расхождения cB — числами по разделам, у ленты и по причине (задание
+    4.4: «сколько ушло у ленты и почему» видно из лога). Только счётчики:
+    строки с событиями и датами — в отчёт владельцу, не в публичный лог."""
+    sec = {s: 0 for s in _CB_SECTIONS}
+    why = {"нет карточки": 0, "касания нет": 0, "другой день": 0}
+    for x in bad:
+        body = x.split(": ", 1)[-1]
+        name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
+        sec[name] = sec.get(name, 0) + 1
+        if name == "лента":
+            why["другой день" if "другой день" in body else
+                "касания нет" if body.endswith("касания нет") else "нет карточки"] += 1
+    return ", ".join(f"{k}={v}" for k, v in sec.items()) + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
+
+
 def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, days: list[date],
              tz: str, tier: str) -> None:
     """Одно событие — одни границы и касания во всех разделах (п. 8.4 аудита).
@@ -610,7 +644,7 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
     """
     from backend import day_event
     from backend.chart_points import planets as natal_planets
-    from backend.feed.builder import _transit_events, _tz
+    from backend.feed.builder import _tz, transit_cards
     from backend.interpretation.rag import build_transits_block
     from backend.pdf_reports.sections import main_transits
     from backend.transit.engine import calculate_transits, compute_exact_facts
@@ -641,7 +675,8 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
         return bad
 
     # 1. Лента: каждая карточка транзита — касание из истины, и наоборот.
-    cards = _transit_events(chart.id, day_event.points(chart), d0, d1, _tz(tz), tier)
+    # transit_cards — по флагу (`run --sky on`): «как на проде» — старый движок.
+    cards = transit_cards(chart, d0, d1, _tz(tz), tier)
     feed_set = {((c["meta"]["transit_planet"], c["meta"]["natal_planet"], c["meta"]["aspect_type"]),
                  date.fromisoformat(c["at"][:10])) for c in cards}
     in_win = {x for x in touch_days if d0 <= x[1] <= d1}
@@ -859,7 +894,8 @@ async def run(args) -> None:
         if i == 0:
             guard(checks["c9"], check_c9, checks["c9"], [e for e in feed if d0 <= _dt(e["at"]).date() <= days[-1]])
             guard(checks["c7"], check_c7, checks["c7"], full, user, d0, tzs)
-    guard(checks["c3"], check_c3, checks["c3"], chat_chart_data(stored, time_unknown), "consistency-full", days, tzs)
+    guard(checks["c3"], check_c3, checks["c3"], chat_chart_data(stored, time_unknown), "consistency-full", days, tzs,
+          _ns(stored, "consistency-full", tzs[0], time_unknown))
     # cB: истина одна на все пояса (UTC), с запасом под горизонт PDF.
     t0 = datetime.combine(d0, time()) - timedelta(days=1)
     from backend.day_event import points
@@ -888,6 +924,7 @@ async def run(args) -> None:
     for k, c in checks.items():
         err = f" ошибка={c.error.split(':')[0]}" if c.error else ""
         print(f"  {k} сравнено={c.compared} расхождений={len(c.bad)}{err}")
+    print("  cB по разделам: " + cb_breakdown(checks["cB"].bad))
     # Упавшая проверка — провал прогона (workflow краснеет после отправки
     # отчёта); расхождения — нет.
     if any(c.error for c in checks.values()):
