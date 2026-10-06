@@ -362,6 +362,34 @@ def _find_exact_aspect(
     return best.replace(second=0, microsecond=0)
 
 
+def window_events(chart, from_date: date, to_date: date, orb_filter: float | None = None,
+                  planet_filter: list[str] | None = None) -> list[dict]:
+    """События окна для `GET /chart/{id}/transits` — поля `TransitEventSchema`.
+
+    Вынесено из ручки (06.10.2026), чтобы прогон согласованности (cB,
+    /transits) проверял ровно то, что отдаёт веб, теми же окнами, что листает
+    таймлайн. Синхронная (Swiss Ephemeris): из ручки — через `to_thread`."""
+    from backend.chart_points import planets as natal_planets
+    events = calculate_transits(
+        # chart_points: без времени рождения — без натальной Луны (шаг 3).
+        natal_planets=natal_planets(chart), from_date=from_date, to_date=to_date,
+        orb_filter=orb_filter, planet_filter=planet_filter,
+    )
+    # Без касания (станция рядом с точкой) — не показываем, пока нет подписи
+    # «ближе всего» (аудит, О3): иначе веб назвал бы минимум орба пиком.
+    events = [e for e in events if not e.no_touch]
+    # E2: пометить значимые (топ-2 → free_unlocked) — tier-независимо, кэшируется
+    mark_transit_significance(events)
+    return [{
+        "start_date": e.start_date, "peak_date": e.peak_date, "end_date": e.end_date,
+        "transit_planet": e.transit_planet, "transit_sign": e.transit_sign,
+        "transit_degree": e.transit_degree, "natal_planet": e.natal_planet,
+        "natal_sign": e.natal_sign, "aspect_type": e.aspect_type,
+        "peak_orb": e.peak_orb, "exact_date": e.exact_date, "applying": e.applying,
+        "significant": e.significant, "free_unlocked": e.free_unlocked,
+    } for e in events]
+
+
 def compute_exact_facts(
     transit_planet: str,
     natal_planet: str,

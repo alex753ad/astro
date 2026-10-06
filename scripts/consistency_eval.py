@@ -643,6 +643,8 @@ def cb_breakdown(bad: list[str]) -> str:
     rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0, "у полуночи": 0}
     chat = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "в истине события нет": 0,
             "период не разобран": 0, "у полуночи": 0}
+    web = {"на вебе нет": 0, "из них к ASC/MC": 0, "начало": 0, "конец": 0,
+           "пик без касания": 0, "пик в другой день": 0, "у полуночи": 0}
     for x in bad:
         body = x.split(": ", 1)[-1]
         name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
@@ -656,11 +658,23 @@ def cb_breakdown(bad: list[str]) -> str:
             for k in r:
                 r[k] += any(part.startswith(k) for part in tail.split("; "))
             r["у полуночи"] += "у полуночи" in tail
+        if name == "/transits":
+            tail = body.split(": ", 1)[-1]
+            parts = tail.split("; ")
+            if tail == "на вебе нет":
+                web["на вебе нет"] += 1
+                web["из них к ASC/MC"] += "Асцендент" in body or "Середина неба" in body
+            web["начало"] += any(p.startswith("начало") for p in parts)
+            web["конец"] += any(p.startswith("конец") for p in parts)
+            web["пик без касания"] += any(p.startswith("пик") and p.endswith("касания нет") for p in parts)
+            web["пик в другой день"] += any(p.startswith("пик") and "другой день" in p for p in parts)
+            web["у полуночи"] += "у полуночи" in tail
     near = sum(x.count("у полуночи") for x in bad)
     return (", ".join(f"{k}={v}" for k, v in sec.items()) + f" | у полуночи: {near}"
             + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
             + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items())
-            + " | чат: " + ", ".join(f"{k}={v}" for k, v in chat.items()))
+            + " | чат: " + ", ".join(f"{k}={v}" for k, v in chat.items())
+            + " | /transits: " + ", ".join(f"{k}={v}" for k, v in web.items()))
 
 
 def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, days: list[date],
@@ -672,11 +686,10 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
     разошедшиеся поля. Граница, упёршаяся в край скана истины, не сравнивается.
     """
     from backend import day_event
-    from backend.chart_points import planets as natal_planets
     from backend.feed.builder import _tz, transit_cards
     from backend.interpretation.rag import build_transits_block
     from backend.pdf_reports.sections import main_transits
-    from backend.transit.engine import calculate_transits, compute_exact_facts
+    from backend.transit.engine import compute_exact_facts
 
     zone = ZoneInfo(tz)
     ld = lambda t: t.astimezone(zone).date()
@@ -836,24 +849,31 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
                        f"(истина {', '.join(map(_dmy, want)) or 'нет'})")
         ch.ok(not bad, f"{tz}: PDF — {_cb_name(key)}: " + "; ".join(bad))
 
-    # 6. /transits: два соседних окна, как их листает веб; событие обязано
-    # иметь одни даты в обоих. Точки — как у ручки (chart_points.planets).
-    for w0, w1 in ((d0, d0 + timedelta(days=91)), (d0 + timedelta(days=91), d0 + timedelta(days=182))):
-        resp = calculate_transits(natal_planets(chart), w0, w1)
+    # 6. /transits: окна по месяцу, как листает таймлайн (TransitTimeline.jsx:
+    # первое — [сегодня, +1 месяц], дальше loadMore — месяц от следующего дня),
+    # на полгода; ответ — функция ручки (engine.window_events), не движок
+    # напрямую (до 06.10.2026 — два окна по 91 дню, которых веб не запрашивает).
+    from backend.feed.builder import _plus_months
+    from backend.transit.engine import window_events
+    w0 = d0
+    while w0 <= d0 + timedelta(days=182):
+        w1 = _plus_months(w0, 1)
+        resp = window_events(chart, w0, w1)
         for e in truth:
             if ld(e["end"]) < w0 or ld(e["start"]) > w1 or e["key"][0] == "Moon":
                 continue
-            got = [r for r in resp if (r.transit_planet, r.natal_planet, r.aspect_type) == e["key"]
-                   and r.start_date <= ld(e["end"]).isoformat() and r.end_date >= ld(e["start"]).isoformat()]
+            got = [r for r in resp if (r["transit_planet"], r["natal_planet"], r["aspect_type"]) == e["key"]
+                   and r["start_date"] <= ld(e["end"]).isoformat() and r["end_date"] >= ld(e["start"]).isoformat()]
             if not got:
                 ch.ok(False, f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(e['key'])}: на вебе нет")
                 continue
             for r in got:
-                bad = bounds(e, date.fromisoformat(r.start_date), date.fromisoformat(r.end_date))
-                peak = date.fromisoformat(r.peak_date)
+                bad = bounds(e, date.fromisoformat(r["start_date"]), date.fromisoformat(r["end_date"]))
+                peak = date.fromisoformat(r["peak_date"])
                 if (e["key"], peak) not in touch_days:
                     bad.append(f"пик {_dmy(peak)}: {no_touch(e['key'], peak)}")
                 ch.ok(not bad, f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(e['key'])}: " + "; ".join(bad))
+        w0 = w1 + timedelta(days=1)
 
 
 async def check_cA(ch: Check, birth: dict) -> None:
