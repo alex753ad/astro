@@ -99,7 +99,7 @@ def _plus_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, _calendar.monthrange(year, month)[1]))
 
 
-feed_cache = RedisCache("feed", TTL_TRANSIT)
+feed_cache = RedisCache("feed", TTL_TRANSIT, cache=True)
 
 _TEMPLATES_PATH = Path(__file__).parent / "templates.json"
 with open(_TEMPLATES_PATH, encoding="utf-8") as _f:

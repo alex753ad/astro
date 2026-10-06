@@ -1,6 +1,6 @@
 # План: кэш — в отдельный Redis (до включения `sky_event` всем)
 
-Статус: план, кода нет (06.10.2026). Сначала — `used_memory` с прода (владелец).
+Статус: шаг 1 (а) сделан 06.10.2026 — сервис `redis-cache` в обоих compose (не запущен: `05-update.sh` поднимает только api/bot/worker/beat), `cache.redis_url` / `RedisCache(..., cache=True)`; без `CACHE_REDIS_URL` всё в основном Redis. URL берётся из окружения, как у `RedisCache` до правки (не через `settings`). Шаги 2–4 (б–г) — только после «да» владельца. `used_memory` с прода — владелец.
 
 Почему: прод-Redis один (DB 0) на всё — кэши, очереди Celery, лимиты, коды входа, токены; maxmemory нет (noeviction), контейнер `mem_limit: 512m` — рост кэша кончится OOM-kill всего Redis, а не вытеснением.
 

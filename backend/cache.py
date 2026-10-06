@@ -19,17 +19,29 @@ TTL_INTERPRETATION = 30 * 24 * 3600   # 30 дней
 TTL_TRANSIT        =  7 * 24 * 3600   #  7 дней
 
 
+def redis_url(cache: bool = False) -> str:
+    """URL Redis: для пересчитываемых кэшей — `CACHE_REDIS_URL`, если задан,
+    иначе — основной `REDIS_URL` (без переменной на проде ничего не меняется)."""
+    return (cache and os.getenv("CACHE_REDIS_URL")) or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+
 class RedisCache:
     """Тонкая обёртка над redis-py с JSON-сериализацией и fallback."""
 
-    def __init__(self, prefix: str, default_ttl: int):
+    def __init__(self, prefix: str, default_ttl: int, cache: bool = False):
+        """`cache=True` — пересчитываемый кэш (sky, feed, transit,
+        chat_transits, geo): живёт в кэш-Redis `CACHE_REDIS_URL`, без него — в
+        основном `REDIS_URL` (docs/plans/redis_split.md, шаг а). ⚠️ Платным
+        текстам (interp, transit_interp) — False: в кэш-Redis вытеснение
+        (allkeys-lru), и вытесненный текст пришлось бы оплатить модели снова."""
         self._prefix = prefix
         self._default_ttl = default_ttl
+        self._cache = cache
         self._redis = self._connect()
         self._local: dict[str, Any] = {}  # in-memory fallback when Redis is down
 
     def _connect(self):
-        url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        url = redis_url(self._cache)
         try:
             import redis
             client = redis.from_url(url, decode_responses=True, socket_connect_timeout=2)
@@ -91,7 +103,7 @@ class RedisCache:
 
 # ── Singleton instances (импортируются из main.py) ──
 interpretation_cache = RedisCache("interp", TTL_INTERPRETATION)
-transit_cache        = RedisCache("transit", TTL_TRANSIT)
+transit_cache        = RedisCache("transit", TTL_TRANSIT, cache=True)
 # Отдельный кэш для AI-разборов ОДНОГО транзитного события (не путать с
 # transit_cache выше — тот хранит сырые списки рассчитанных транзитов на
 # период, TTL 7 дней ради свежести пересчёта; здесь — готовый текст
@@ -103,7 +115,7 @@ transit_interp_cache = RedisCache("transit_interp", TTL_INTERPRETATION)
 # Транзиты для системного промпта RAG-чата — считаются раз в сутки на чарт,
 # а не на каждое сообщение. TTL передаётся явно при set() (до конца текущих
 # суток), default_ttl здесь просто разумный fallback.
-chat_transits_cache = RedisCache("chat_transits", 24 * 3600)
+chat_transits_cache = RedisCache("chat_transits", 24 * 3600, cache=True)
 
 
 def make_profile_hash(profile: dict) -> str:

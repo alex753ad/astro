@@ -67,6 +67,37 @@ services:
     networks:
       - astro_net
 
+  # Кэш-Redis (план docs/plans/redis_split.md, шаг а, 06.10.2026): только
+  # пересчитываемые кэши (sky, feed, transit, chat_transits, geo). Пока НЕ
+  # используется: код берёт CACHE_REDIS_URL, а без переменной — REDIS_URL;
+  # 05-update.sh поднимает только api/bot/worker/beat, этот сервис стартует
+  # шагом б (scripts/cache_redis_on.sh, с согласия владельца).
+  # allkeys-lru и без снимков на диск — это кэш: вытеснение = пересчёт.
+  # ⚠️ Платные тексты (interp, transit_interp) сюда не переносить: вытеснение
+  # стоило бы повторной оплаты модели.
+  redis-cache:
+    image: redis:7-alpine
+    restart: always
+    command: >-
+      redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD не задан в .env}
+      --rename-command CONFIG ""
+      --maxmemory 200mb --maxmemory-policy allkeys-lru
+      --save "" --appendonly no --loglevel warning
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID]   # как у redis: entrypoint сбрасывает права через su-exec
+    mem_limit: 256m
+    logging: *default-logging
+    networks:
+      - astro_net
+
   api:
     image: astro-app:latest
     build: *app-build
