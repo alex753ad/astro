@@ -23,6 +23,10 @@ from backend.interpretation.address import ADDRESS_RULE
 # 7 — «Точный аспект» только у настоящего касания, не у станции рядом с точкой, 05.10.2026.
 # 8 — касания к ASC/MC с фактами: знак, градус, даты (были пустыми), 05.10.2026.
 TRANSIT_PROMPT_VERSION = 8
+# Под флагом sky_event (задание 4.5) — своя версия и свой ключ рядом со
+# старым: факты из ядра (местные даты, все касания, период всего события),
+# один разбор на событие. Включение и выключение флага ничего не сбрасывает.
+TRANSIT_PROMPT_VERSION_SKY = 9
 
 ASPECT_LABELS_RU = {
     "conjunction": "соединение", "sextile": "секстиль",
@@ -85,8 +89,14 @@ def _build_facts_block(transit_event: dict) -> str:
         aspect_line += f", орб {_format_degree(transit_event['exact_orb'])}"
 
     lines = [transit_line, natal_line, aspect_line]
-    if transit_event.get("exact_date"):
-        lines.append(f"Точный аспект: {_format_date_ru(transit_event['exact_date'])}")
+    # Под флагом sky_event — все касания события (петля — до трёх, у Нептуна
+    # и Плутона до пяти) прежней строкой через запятую. Подпись «Точные
+    # касания: …» и строка перерыва петли — предложение владельцу (аудит 8.3,
+    # «Тексты для людей»), пока не внедрены.
+    exact = transit_event.get("exact_dates") or (
+        [transit_event["exact_date"]] if transit_event.get("exact_date") else [])
+    if exact:
+        lines.append("Точный аспект: " + ", ".join(_format_date_ru(x) for x in exact))
     if transit_event.get("period_start") and transit_event.get("period_end"):
         lines.append(
             f"Период влияния: {_format_date_ru(transit_event['period_start'])} — "

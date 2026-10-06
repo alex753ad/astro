@@ -714,19 +714,34 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
 
     # 4. Разбор транзита: те же факты, что считает ручка
     # (main.interpret_transit_event), от meta.peak_date карточки ленты.
+    # Под флагом (4.5) — как ручка: событие ядра по peak_date карточки, один
+    # разбор на событие (О5) — сравнивается один раз, и с ВСЕМИ касаниями.
+    from backend.transit.engine import interpret_event_facts
+    sky = day_event._sky_on(chart)
     profile = {"planets": day_event.points(chart), "houses": [] if chart.time_unknown else chart.houses}
     seen = set()
     for c in cards:
         m = c["meta"]
         key = (m["transit_planet"], m["natal_planet"], m["aspect_type"])
-        if key[0] == "Moon" or (key, m["peak_date"]) in seen:
+        sf, skey = (interpret_event_facts(chart, *key, date.fromisoformat(m["peak_date"]), tz, sky)
+                    if key[0] != "Moon" else (None, None))
+        ref = skey or (key, m["peak_date"])
+        if key[0] == "Moon" or ref in seen:
             continue
-        seen.add((key, m["peak_date"]))
+        seen.add(ref)
         shown = date.fromisoformat(c["at"][:10])
         e = event_on(key, shown)
         if e is None:
             continue  # карточки без касания уже посчитаны в п. 1
-        f = compute_exact_facts(*key, date.fromisoformat(m["peak_date"]), profile)
+        if sf:
+            f = sf
+            got, want = set(f["exact_dates"]), {ld(t).isoformat() for t in e["touches"]}
+            if got != want:
+                ch.ok(False, f"{tz}: разбор — {_cb_name(key)} {_dmy(shown)}: касания "
+                             f"{', '.join(sorted(got))} (истина {', '.join(sorted(want))})")
+                continue
+        else:
+            f = compute_exact_facts(*key, date.fromisoformat(m["peak_date"]), profile)
         if not f.get("period_start"):
             ch.ok(False, f"{tz}: разбор — {_cb_name(key)} {_dmy(shown)}: без фактов")
             continue
