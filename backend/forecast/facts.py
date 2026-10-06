@@ -56,38 +56,72 @@ class DayFacts:
     main: dict | None = None
 
 
-def compute_day(chart, local_date: date, tz: ZoneInfo, daily_time=None, quiet_from=None) -> DayFacts:
-    """`daily_time`/`quiet_from` — окно уведомлений человека: главное событие
-    дня зависит от него (day_event.main_event), и прогноз обязан назвать то
-    же событие, что утренний пуш."""
-    from backend.day_event import SLOW, counts, main_event
+def sky_on(chart) -> bool:
+    """Флаг `sky_event` владельца карты (задание 4.3). Через атрибут модуля, а
+    не импортом имени: прогон согласованности `--sky on` подменяет
+    `day_event._sky_on`, и прогноз должен видеть подмену, как главное событие."""
+    from backend import day_event
+    return day_event._sky_on(chart)
 
+
+def _moon_touches(chart, local_date: date, tz: ZoneInfo, sky: bool):
+    """(натальная точка, аспект, aware UTC) — касания Луны в местные сутки.
+
+    `sky` — из ядра (`sky_events`, только корни: станция — не касание), сутки
+    — `local_day`. Иначе — старый движок, как до 4.3."""
+    if sky:
+        from backend.sky import sky_events
+        from backend.time_utils import local_day
+        s, e = local_day(local_date, tz.key)
+        for ev in sky_events(chart, s, e):
+            if ev.transit == "Moon":
+                for t in ev.touches:
+                    if s <= t.at_utc < e:
+                        yield ev.natal, ev.aspect, t.at_utc
+        return
+    from backend.day_event import counts
     start = _utc_naive(datetime(local_date.year, local_date.month, local_date.day, tzinfo=tz))
     end = start + timedelta(days=1)
-
     # Движок сканирует по календарным датам UTC; окно берётся с запасом в день
     # с каждой стороны, а в сутки попадает только то, чей ТОЧНЫЙ момент внутри.
-    events = calculate_transits(
+    for e in calculate_transits(
         natal_planets=_natal_targets(chart),
         from_date=start.date() - timedelta(days=1),
         to_date=end.date() + timedelta(days=1),
         planet_filter=["Moon"],
-    )
-    aspects, seen = [], set()
-    for e in sorted(events, key=lambda e: e.exact_date or ""):
+    ):
         if not e.exact_date or not counts(e.natal_planet, e.aspect_type):
             continue
         exact = datetime.fromisoformat(e.exact_date)
-        if not (start <= exact < end):
+        if start <= exact < end:
+            yield e.natal_planet, e.aspect_type, exact.replace(tzinfo=timezone.utc)
+
+
+def compute_day(chart, local_date: date, tz: ZoneInfo, daily_time=None, quiet_from=None,
+                sky: bool | None = None) -> DayFacts:
+    """`daily_time`/`quiet_from` — окно уведомлений человека: главное событие
+    дня зависит от него (day_event.main_event), и прогноз обязан назвать то
+    же событие, что утренний пуш.
+
+    `sky` — касания из ядра (флаг `sky_event`, задание 4.3); None — по флагу
+    владельца карты. ⚠️ Касания Луны и главное событие — из ОДНОГО источника:
+    иначе минута главного касания разошлась бы со списком Луны, и оно не
+    убралось бы из него — повторилось бы вторым пунктом."""
+    from backend.day_event import SLOW, main_event
+
+    if sky is None:
+        sky = sky_on(chart)
+    start = _utc_naive(datetime(local_date.year, local_date.month, local_date.day, tzinfo=tz))
+
+    aspects, seen = [], set()
+    for natal, aspect, _ in sorted(_moon_touches(chart, local_date, tz, sky), key=lambda x: x[2]):
+        if (natal, aspect) in seen:
             continue
-        key = (e.natal_planet, e.aspect_type)
-        if key in seen:
-            continue
-        seen.add(key)
-        aspects.append({"natal": e.natal_planet, "aspect": e.aspect_type, "tone": TONE[e.aspect_type]})
+        seen.add((natal, aspect))
+        aspects.append({"natal": natal, "aspect": aspect, "tone": TONE[aspect]})
 
     main = None
-    ev = main_event(chart, local_date, tz.key, daily_time, quiet_from)
+    ev = main_event(chart, local_date, tz.key, daily_time, quiet_from, sky)
     if ev is not None and ev.natal is None:
         main = {"phase": ev.transit}
     elif ev is not None:
@@ -140,7 +174,13 @@ def find_phase(phase: str, near: date) -> datetime | None:
     return min((x.at for x in found), key=lambda m: abs(m - noon), default=None)
 
 
-def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> LunationFacts:
+def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo,
+                     sky: bool | None = None) -> LunationFacts:
+    """`sky` — предупреждения из ядра (флаг `sky_event`, задание 4.3); None —
+    по флагу владельца карты. Касания в момент фазы (`aspects`) — орб в одну
+    минуту, ядру там заменять нечего."""
+    if sky is None:
+        sky = sky_on(chart)
     naive = at_utc.astimezone(timezone.utc).replace(tzinfo=None)
     jd = round(_datetime_to_jd(naive), 6)
     moon_lon, *_ = _calc_planet_position(PLANETS["Moon"], jd)
@@ -167,24 +207,18 @@ def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> Lunat
     # Модели эти даты передаются готовыми; своих она не придумывает
     # (validate.py сверяет каждую дату в тексте с этим списком).
     start = naive.date()
-    events = calculate_transits(
-        natal_planets=targets, from_date=start,
-        to_date=start + timedelta(days=LUNATION_WARNING_DAYS),
-        planet_filter=_WARNING_PLANETS,
-    )
     warnings, seen = [], set()
-    for e in events:
-        if TONE[e.aspect_type] != "tense" or not e.exact_date or not counts(e.natal_planet, e.aspect_type):
+    for planet, natal, aspect, exact in _warning_touches(chart, targets, start, tz, sky):
+        if TONE[aspect] != "tense":
             continue
-        exact_local = datetime.fromisoformat(e.exact_date).replace(tzinfo=timezone.utc).astimezone(tz)
-        d = exact_local.date()
+        d = exact.astimezone(tz).date()
         if not (start <= d <= start + timedelta(days=LUNATION_WARNING_DAYS)):
             continue
-        key = (e.transit_planet, e.natal_planet)
+        key = (planet, natal)
         if key in seen:
             continue
         seen.add(key)
-        warnings.append({"planet": e.transit_planet, "natal": e.natal_planet, "date": d})
+        warnings.append({"planet": planet, "natal": natal, "date": d})
     warnings.sort(key=lambda w: w["date"])
 
     return LunationFacts(
@@ -192,3 +226,30 @@ def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo) -> Lunat
         trimmed=bool(chart.time_unknown), house=house,
         aspects=aspects, warnings=warnings[:3],
     )
+
+
+def _warning_touches(chart, targets, start: date, tz: ZoneInfo, sky: bool):
+    """(планета, натальная точка, аспект, aware UTC) — касания для предупреждений.
+
+    ⚠️ Отбор по дате — в `compute_lunation`, одинаковый в обоих режимах (от
+    UTC-даты фазы `start`, по местной дате касания): под флагом меняется
+    только источник касаний. Ядро — по времени, чтобы `seen` взял первое
+    касание петли; иначе — старый движок, как до 4.3."""
+    if sky:
+        from backend.sky import sky_events
+        from backend.time_utils import local_day
+        s = local_day(start, tz.key)[0]
+        e = local_day(start + timedelta(days=LUNATION_WARNING_DAYS), tz.key)[1]
+        yield from sorted(((ev.transit, ev.natal, ev.aspect, t.at_utc)
+                           for ev in sky_events(chart, s, e) if ev.transit in _WARNING_PLANETS
+                           for t in ev.touches if s <= t.at_utc < e), key=lambda x: x[3])
+        return
+    from backend.day_event import counts
+    for e in calculate_transits(
+        natal_planets=targets, from_date=start,
+        to_date=start + timedelta(days=LUNATION_WARNING_DAYS),
+        planet_filter=_WARNING_PLANETS,
+    ):
+        if e.exact_date and counts(e.natal_planet, e.aspect_type):
+            yield (e.transit_planet, e.natal_planet, e.aspect_type,
+                   datetime.fromisoformat(e.exact_date).replace(tzinfo=timezone.utc))

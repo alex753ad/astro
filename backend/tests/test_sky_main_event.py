@@ -83,3 +83,30 @@ def test_c1_c2_zero_under_flag(monkeypatch):
     ce.check_c1_c2(c1, c2, chart, feed, days, tz)
     assert c1.compared and not c1.bad, c1.bad
     assert c2.compared and not c2.bad, c2.bad
+
+
+# ── Прогноз дня из ядра (задание 4.3) ─────────────────────────────────────────
+
+def _ns_chart():
+    return types.SimpleNamespace(**CHART, id=None, time_unknown=False)
+
+
+def test_day_forecast_first_fact_is_main_event_under_flag():
+    """c2 под флагом: первый факт прогноза дня — главное событие, и то же
+    касание Луны не повторяется вторым пунктом."""
+    from backend.forecast.facts import compute_day
+    from backend.forecast.meanings import TONE
+    d, tz = date(2027, 10, 18), "Europe/Moscow"
+    ev = de.main_event(CHART, d, tz, "08:00", "22:00", sky=True)
+    f = compute_day(_ns_chart(), d, ZoneInfo(tz), "08:00", "22:00", sky=True)
+    assert (f.main["transit"], f.main["natal"], f.main["tone"]) == (ev.transit, ev.natal, TONE[ev.aspect])
+    assert (ev.natal, ev.aspect) not in {(a["natal"], a["aspect"]) for a in f.aspects}
+
+
+def test_station_day_forecast_has_no_false_touch():
+    """18.10.2027 станция Плутона в 1,6° от Сатурна: под флагом в прогнозе
+    дня Плутона нет — ни главным событием, ни касанием."""
+    from backend.forecast.facts import compute_day
+    f = compute_day(_ns_chart(), date(2027, 10, 18), ZoneInfo("Europe/Moscow"), "08:00", "22:00", sky=True)
+    assert f.main and f.main.get("transit") != "Pluto"
+    assert f.main["transit"] == "Moon" and f.main["natal"] == "Saturn"
