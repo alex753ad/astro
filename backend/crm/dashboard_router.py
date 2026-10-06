@@ -37,6 +37,22 @@ PERSONAL_POINTS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
 MAX_ORB = 3.0  # «точный» транзит; поднимите, если нужно ловить шире
 
 
+def crm_events(chart, frm: date, to: date) -> list:
+    """События неба клиента для CRM (дашборд, «Пора напомнить», групповой
+    прогноз, письмо) — одна функция, чтобы прогон согласованности (cB,
+    раздел CRM) проверял ровно то, что видит астролог. Синхронная."""
+    from backend.transit.engine import calculate_transits
+    return calculate_transits(natal_planets=_chart_points.planets(chart), from_date=frm, to_date=to)
+
+
+def important(events, planet: str | None = None) -> list:
+    """Отбор «важных» CRM: медленная планета к личной точке, орб ≤ MAX_ORB."""
+    return [e for e in events
+            if e.transit_planet in SLOW_PLANETS and e.natal_planet in PERSONAL_POINTS
+            and (not planet or e.transit_planet == planet)
+            and (getattr(e, "peak_orb", None) is None or e.peak_orb <= MAX_ORB)]
+
+
 @router.get("/alerts")
 async def get_alerts(
     from_date: date = Query(None, alias="from"),
@@ -44,8 +60,6 @@ async def get_alerts(
     user: User = _premium,
     db: Session = Depends(get_db),
 ):
-    from backend.transit.engine import calculate_transits
-
     astrologer = db.query(AstrologerProfile).filter(
         AstrologerProfile.user_id == user.id
     ).first()
@@ -68,24 +82,13 @@ async def get_alerts(
         try:
             # Swiss Ephemeris — синхронный, блокирует event loop (см.
             # CLAUDE.md). N клиентов на запрос — самое чувствительное место.
-            events = await asyncio.to_thread(
-                calculate_transits,
-                natal_planets=_chart_points.planets(chart),
-                from_date=frm,
-                to_date=to,
-            )
+            events = await asyncio.to_thread(crm_events, chart, frm, to)
         except Exception as e:
             logger.warning("Alerts: transit calc failed for client %s: %s", client.id, e)
             continue
 
-        for ev in events:
-            if ev.transit_planet not in SLOW_PLANETS:
-                continue
-            if ev.natal_planet not in PERSONAL_POINTS:
-                continue
+        for ev in important(events):
             orb = getattr(ev, "peak_orb", None)
-            if orb is not None and orb > MAX_ORB:
-                continue
             alerts.append({
                 "client_id": client.id,
                 "name": client.name,
@@ -124,14 +127,11 @@ def _astrologer_or_404(user: User, db: Session) -> AstrologerProfile:
     return astrologer
 
 
-def _month_transits(chart: NatalChart) -> list[dict]:
+def _month_transits(chart: NatalChart, today: date | None = None) -> list[dict]:
     from backend.email_service import broadcast_when
     from backend.time_utils import user_tz
-    from backend.transit.engine import calculate_transits
-    today = date.today()
-    events = calculate_transits(
-        natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=30)
-    )
+    today = today or date.today()
+    events = crm_events(chart, today, today + timedelta(days=30))
     return [
         {
             "transit_planet": e.transit_planet,
@@ -601,7 +601,6 @@ async def crm_reactivation(
     db: Session = Depends(get_db),
 ):
     """№16 — спящие клиенты (>N месяцев без консультаций) + повод (текущий транзит)."""
-    from backend.transit.engine import calculate_transits
 
     astrologer = _get_or_create_astrologer(user, db)
     today = date.today()
@@ -636,16 +635,9 @@ async def crm_reactivation(
             try:
                 # Swiss Ephemeris — синхронный, блокирует event loop (см.
                 # CLAUDE.md). N клиентов на запрос.
-                events = await asyncio.to_thread(
-                    calculate_transits,
-                    natal_planets=_chart_points.planets(chart), from_date=today, to_date=today + timedelta(days=21)
-                )
-                for e in events:
-                    if e.transit_planet in SLOW_PLANETS and e.natal_planet in PERSONAL_POINTS:
-                        orb = getattr(e, "peak_orb", None)
-                        if orb is None or orb <= MAX_ORB:
-                            reason = f"{e.transit_planet} {e.aspect_type} {e.natal_planet}"
-                            break
+                events = await asyncio.to_thread(crm_events, chart, today, today + timedelta(days=21))
+                for e in important(events)[:1]:
+                    reason = f"{e.transit_planet} {e.aspect_type} {e.natal_planet}"
             except Exception as ex:
                 logger.warning("Reactivation transit calc failed for %s: %s", client.id, ex)
 
@@ -676,7 +668,6 @@ async def group_forecast(
     db: Session = Depends(get_db),
 ):
     """№18 — по выбранным клиентам: у кого значимый транзит в ближайший период."""
-    from backend.transit.engine import calculate_transits
 
     astrologer = _get_or_create_astrologer(user, db)
     if not payload.client_ids:
@@ -698,23 +689,13 @@ async def group_forecast(
         try:
             # Swiss Ephemeris — синхронный, блокирует event loop (см.
             # CLAUDE.md). N клиентов на запрос.
-            events = await asyncio.to_thread(
-                calculate_transits, natal_planets=_chart_points.planets(chart), from_date=today, to_date=to
-            )
+            events = await asyncio.to_thread(crm_events, chart, today, to)
         except Exception as e:
             logger.warning("Group forecast transit calc failed for %s: %s", client.id, e)
             continue
         matches = []
-        for e in events:
-            if e.transit_planet not in SLOW_PLANETS:
-                continue
-            if e.natal_planet not in PERSONAL_POINTS:
-                continue
-            if payload.planet and e.transit_planet != payload.planet:
-                continue
+        for e in important(events, payload.planet):
             orb = getattr(e, "peak_orb", None)
-            if orb is not None and orb > MAX_ORB:
-                continue
             matches.append({
                 "event": f"{e.transit_planet} {e.aspect_type} {e.natal_planet}",
                 "date": str(getattr(e, "peak_date", "") or "")[:10],

@@ -631,7 +631,7 @@ def _cb_name(key) -> str:
 # Допуск сравнения границ у местной полуночи, минуты (см. check_cB.midnight).
 CB_MIDNIGHT_MIN = 2
 
-_CB_SECTIONS = ("лента", "главное событие", "чат", "разбор", "PDF", "/transits")
+_CB_SECTIONS = ("лента", "главное событие", "чат", "разбор", "PDF", "/transits", "CRM")
 
 
 def cb_breakdown(bad: list[str]) -> str:
@@ -645,8 +645,13 @@ def cb_breakdown(bad: list[str]) -> str:
             "период не разобран": 0, "у полуночи": 0}
     web = {"на вебе нет": 0, "из них к ASC/MC": 0, "начало": 0, "конец": 0,
            "пик без касания": 0, "пик в другой день": 0, "у полуночи": 0}
+    crm = {"станция": 0, "другой день": 0, "пояс/UTC": 0, "точка/аспект": 0, "нет в CRM": 0}
     for x in bad:
         body = x.split(": ", 1)[-1]
+        if body.startswith("CRM"):
+            crm["станция" if "станция" in body else "пояс/UTC" if "пояс:" in body
+                else "другой день" if "другой день" in body else "нет в CRM" if body.endswith("нет в CRM")
+                else "точка/аспект"] += 1
         name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
         sec[name] = sec.get(name, 0) + 1
         if name == "лента":
@@ -674,7 +679,8 @@ def cb_breakdown(bad: list[str]) -> str:
             + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
             + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items())
             + " | чат: " + ", ".join(f"{k}={v}" for k, v in chat.items())
-            + " | /transits: " + ", ".join(f"{k}={v}" for k, v in web.items()))
+            + " | /transits: " + ", ".join(f"{k}={v}" for k, v in web.items())
+            + " | CRM: " + ", ".join(f"{k}={v}" for k, v in crm.items()))
 
 
 def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, days: list[date],
@@ -896,6 +902,41 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
                     bad.append(f"пик {_dmy(peak)}: {no_touch(e['key'], peak)}")
                 ch.ok(not bad, f"{tz}: /transits {_dmy(w0)}–{_dmy(w1)} — {_cb_name(e['key'])}: " + "; ".join(bad))
         w0 = w1 + timedelta(days=1)
+
+    # 7. CRM (06.10.2026, перед 4.12): «важные» — дашборд, «Пора напомнить»,
+    # групповой прогноз (медленная к личной, crm.important) — и все события
+    # месяца — письмо клиентам и бриф; расчёт — crm.crm_events, как у ручек.
+    # Дата строки — та, что видит астролог (peak_date), против касаний
+    # истины в поясе карты клиента (`tz` прогона = пояс устройства/карты).
+    from backend.crm.dashboard_router import crm_events, important
+    crm_to = d0 + timedelta(days=30)
+    evs = crm_events(chart, d0, crm_to)
+    for kind, rows in (("важные", important(evs)), ("месяц", [e for e in evs if e.transit_planet != "Moon"])):
+        for r in rows:
+            key, d = (r.transit_planet, r.natal_planet, r.aspect_type), date.fromisoformat(r.peak_date[:10])
+            if (key, d) in touch_days:
+                ch.ok(True, "")
+                continue
+            e = event_on(key, d)
+            if e is None:
+                why = "точки или аспекта нет в истине"
+            elif not e["touches"]:
+                why = "станция, касания нет"
+            elif any(t.date() == d for t in e["touches"]):
+                why = "пояс: дата касания по UTC"
+            else:
+                why = f"другой день (истина {', '.join(_dmy(ld(t)) for t in e['touches'])})"
+            ch.ok(False, f"{tz}: CRM {kind} — {_cb_name(key)} {_dmy(d)}: {why}")
+        # Касания истины в окне без строки CRM (у петли — второе касание прохода).
+        for key, d in sorted(touch_days, key=lambda x: (x[1], x[0])):
+            if not (d0 <= d <= crm_to) or key[0] == "Moon":
+                continue
+            if kind == "важные" and not important([types.SimpleNamespace(
+                    transit_planet=key[0], natal_planet=key[1], aspect_type=key[2], peak_orb=0)]):
+                continue
+            if not any((r.transit_planet, r.natal_planet, r.aspect_type) == key
+                       and date.fromisoformat(r.peak_date[:10]) == d for r in rows):
+                ch.ok(False, f"{tz}: CRM {kind} — {_cb_name(key)} {_dmy(d)}: нет в CRM")
 
 
 async def check_cA(ch: Check, birth: dict) -> None:
