@@ -615,6 +615,9 @@ def _cb_name(key) -> str:
     return f"{PLANET_RU.get(tp, tp)} {ASPECT_RU.get(asp, asp)} {PLANET_RU.get(np_, np_)}"
 
 
+# Допуск сравнения границ у местной полуночи, минуты (см. check_cB.midnight).
+CB_MIDNIGHT_MIN = 2
+
 _CB_SECTIONS = ("лента", "главное событие", "чат", "разбор", "PDF", "/transits")
 
 
@@ -636,7 +639,8 @@ def cb_breakdown(bad: list[str]) -> str:
             tail = body.split(": ", 1)[-1]
             for k in rev:
                 rev[k] += any(part.startswith(k) for part in tail.split("; "))
-    return (", ".join(f"{k}={v}" for k, v in sec.items())
+    near = sum(x.count("у полуночи") for x in bad)
+    return (", ".join(f"{k}={v}" for k, v in sec.items()) + f" | у полуночи: {near}"
             + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
             + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items()))
 
@@ -673,12 +677,20 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
         near = min((ld(t) for t in e["touches"]), key=lambda t: abs((t - d).days), default=None) if e else None
         return f"касание в другой день (истина {_dmy(near)})" if near else "касания нет"
 
+    def midnight(t) -> str:
+        """« у полуночи», если момент истины в CB_MIDNIGHT_MIN от местной
+        полуночи: ядро берёт пол минуты, истина — верх, и у полуночи 1–2
+        минуты разницы — это уже другая дата."""
+        loc = t.astimezone(zone)
+        m = loc.hour * 60 + loc.minute + loc.second / 60
+        return " у полуночи" if min(m, 1440 - m) <= CB_MIDNIGHT_MIN else ""
+
     def bounds(e, start, end) -> list[str]:
         bad = []
         if start is not None and e["start_known"] and start != ld(e["start"]):
-            bad.append(f"начало {_dmy(start)} (истина {_dmy(ld(e['start']))})")
+            bad.append(f"начало {_dmy(start)} (истина {_dmy(ld(e['start']))}{midnight(e['start'])})")
         if end is not None and e["end_known"] and end != ld(e["end"]):
-            bad.append(f"конец {_dmy(end)} (истина {_dmy(ld(e['end']))})")
+            bad.append(f"конец {_dmy(end)} (истина {_dmy(ld(e['end']))}{midnight(e['end'])})")
         return bad
 
     # 1. Лента: каждая карточка транзита — касание из истины, и наоборот.
