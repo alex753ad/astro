@@ -153,11 +153,18 @@ def zone_key(tz_key: str, user) -> str:
     return f"{tz_key}:{_daily_time_of(user)}-{_quiet_from_of(user)}"
 
 
-def _daily_key(chart_id, local_date: date, tz_key: str) -> str:
-    return f"forecast_today:v{DAILY_PROMPT_VERSION}:{chart_id}:{local_date.isoformat()}:{tz_key}"
+def _ver(v: int, sky: bool) -> str:
+    """Версия кэша прогноза. Под флагом `sky_event` (задание 4.3) — своя,
+    рядом со старой: факты другие — другой текст, а включение и выключение
+    флага ничего не сбрасывает (аудит 8.3)."""
+    return f"v{v}-sky" if sky else f"v{v}"
 
 
-def _previous_openings(chart_id, local_date: date, tz_key: str) -> list[str]:
+def _daily_key(chart_id, local_date: date, tz_key: str, sky: bool = False) -> str:
+    return f"forecast_today:{_ver(DAILY_PROMPT_VERSION, sky)}:{chart_id}:{local_date.isoformat()}:{tz_key}"
+
+
+def _previous_openings(chart_id, local_date: date, tz_key: str, sky: bool = False) -> list[str]:
     """Первые фразы прогнозов прошлых дней из кэша — ближайший день первым.
 
     Берутся только ответы модели (запасной текст не кэшируется) и только той
@@ -166,7 +173,7 @@ def _previous_openings(chart_id, local_date: date, tz_key: str) -> list[str]:
     """
     out = []
     for back in range(1, PREVIOUS_OPENINGS_DAYS + 1):
-        prev = interpretation_cache.get(_daily_key(chart_id, local_date - timedelta(days=back), tz_key))
+        prev = interpretation_cache.get(_daily_key(chart_id, local_date - timedelta(days=back), tz_key, sky))
         paragraphs = (prev or {}).get("paragraphs") or []
         if paragraphs:
             out.append(first_sentence(paragraphs[0]))
@@ -186,7 +193,8 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None, us
     from backend.push.cron import _daily_time_of, _quiet_from_of
     daily_time, quiet_from = _daily_time_of(user), _quiet_from_of(user)
     zkey = zone_key(tz.key, user)
-    key = _daily_key(chart.id, local_date, zkey)
+    sky = F.sky_on(chart)
+    key = _daily_key(chart.id, local_date, zkey, sky)
     cached = interpretation_cache.get(key)
     if cached is not None:
         # Кэш-хит считается показом «из модели»: запасной текст не кэшируется
@@ -195,8 +203,8 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None, us
         stats.record_outcome(chart.id, "today", "model", None)
         return cached
 
-    facts = await asyncio.to_thread(F.compute_day, chart, local_date, tz, daily_time, quiet_from)
-    prompt = build_daily_prompt(facts, _previous_openings(chart.id, local_date, zkey))
+    facts = await asyncio.to_thread(F.compute_day, chart, local_date, tz, daily_time, quiet_from, sky)
+    prompt = build_daily_prompt(facts, _previous_openings(chart.id, local_date, zkey, sky))
     paragraphs, source, reason = None, "fallback", None
     for attempt in range(ATTEMPTS):
         raw = await _ask_model(prompt, contour="forecast/today", json_mode=False, max_tokens=900)
@@ -268,13 +276,14 @@ async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) 
     # Ключ — по моменту фазы в UTC, а не по дате из запроса: запрос с соседней
     # даты попадает в тот же ключ. Пояс в ключе нужен: даты и время фазы в
     # тексте подписаны по местному времени читателя.
-    key =f"forecast_lunation:v{LUNATION_PROMPT_VERSION}:{chart.id}:{phase}:{at_utc.strftime('%Y-%m-%dT%H:%M')}:{tz.key}"
+    sky = F.sky_on(chart)
+    key = f"forecast_lunation:{_ver(LUNATION_PROMPT_VERSION, sky)}:{chart.id}:{phase}:{at_utc.strftime('%Y-%m-%dT%H:%M')}:{tz.key}"
     cached = interpretation_cache.get(key)
     if cached is not None:
         stats.record_outcome(chart.id, "lunation", "model", None)   # см. daily_forecast
         return cached
 
-    facts = await asyncio.to_thread(F.compute_lunation, chart, phase, at_utc, tz)
+    facts = await asyncio.to_thread(F.compute_lunation, chart, phase, at_utc, tz, sky)
     prompt = build_lunation_prompt(facts)
     dates, times = lunation_allowed(facts)
     need_warning = lunation_needs_warning(facts)

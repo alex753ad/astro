@@ -418,6 +418,7 @@ async def _get_p1_block(chart: NatalChart, user: User, zone: str | None, left, p
     меняется с каждым сообщением.
     """
     from backend.cache import chat_transits_cache, interpretation_cache
+    from backend.forecast.facts import sky_on
     from backend.forecast.router import _daily_key, zone_key
     from backend.interpretation import chat_context as cc
     from backend.push.cron import _daily_time_of, _quiet_from_of
@@ -428,11 +429,15 @@ async def _get_p1_block(chart: NatalChart, user: User, zone: str | None, left, p
     today = now_local(tzinfo.key).date()
     daily, quiet = _daily_time_of(user), _quiet_from_of(user)
 
-    forecast = interpretation_cache.get(_daily_key(chart.id, today, zone_key(tzinfo.key, user)))
+    # Под флагом sky_event прогноз лежит под своей версией (задание 4.3) —
+    # ключ тот же, что у ручки прогноза, иначе чат его не найдёт.
+    sky = sky_on(chart)
+    forecast = interpretation_cache.get(_daily_key(chart.id, today, zone_key(tzinfo.key, user), sky))
     paragraphs = (forecast or {}).get("paragraphs") if isinstance(forecast, dict) else None
 
     # v2 (05.10.2026, шаг 5): блок «День» — главное событие первым фактом.
-    key = f"chat_p1:v2:{chart.id}:{tzinfo.key}:{daily}:{quiet}:{user.tier}:{today.isoformat()}"
+    # «-sky»: блок «День» под флагом — из фактов ядра (4.3), кэш рядом со старым.
+    key = f"chat_p1:v2{'-sky' if sky else ''}:{chart.id}:{tzinfo.key}:{daily}:{quiet}:{user.tier}:{today.isoformat()}"
     cached = chat_transits_cache.get(key)
     if cached is None:
         def build():
