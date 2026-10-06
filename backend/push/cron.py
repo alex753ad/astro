@@ -619,26 +619,30 @@ def _triple_touch_candidates(chart: NatalChart, today: date_type, planner_url: s
 
 
 # ── Тексты ──
-def _daily_body(chart: NatalChart, today: date_type) -> str:
+def _daily_body(chart: NatalChart, today: date_type, tzname: str = "UTC", sky: bool = False) -> str:
     """Короткий тизер прогноза на день из активных транзитов (без жаргона).
 
     На «ты» — как и сам прогноз в приложении (решение владельца 23.09.2026).
     Текст прогноза сюда НЕ кладётся: он генерируется при первом открытии
     карточки «Сегодня» (backend/forecast/), а уведомление только зовёт к ней.
+
+    `sky` (флаг sky_event, 4.12) — события ядра, у которых в местные сутки
+    проход в орбе (в перерыве петли событие не активно — как в чате, 4.6);
+    без флага — старый движок за день по UTC, как было.
     """
     try:
-        from backend.transit.engine import calculate_transits
-        events = calculate_transits(
-            natal_planets=natal_planets(chart), from_date=today, to_date=today
-        )
-        best = None
-        for e in events:
-            if e.aspect_type in ("trine", "sextile", "conjunction"):
-                best = e
-                break
-        best = best or (events[0] if events else None)
-        if best:
-            if best.aspect_type in ("trine", "sextile", "conjunction"):
+        if sky:
+            from backend.sky import sky_events
+            from backend.time_utils import local_day
+            s, e = local_day(today, tzname)
+            aspects = [ev.aspect for ev in sky_events(chart, s, e)
+                       if any(a < e and b > s for a, b in ev.passes)]
+        else:
+            from backend.transit.engine import calculate_transits
+            aspects = [ev.aspect_type for ev in calculate_transits(
+                natal_planets=natal_planets(chart), from_date=today, to_date=today)]
+        if aspects:
+            if any(a in ("trine", "sextile", "conjunction") for a in aspects):
                 return "Сегодня многое складывается чуть легче обычного. Загляни в прогноз."
             return "Сегодня активный день — его стоит прожить осознанно. Загляни в прогноз."
     except Exception as e:
@@ -845,6 +849,8 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
     cands: list[dict] = []
     planner_url = f"/planner/{chart.id}"
     tzname = user_tz(None, user, chart)
+    from backend import day_event
+    sky = day_event._sky_on(chart)
 
     # 1) Ежедневный прогноз (soft). Под флагом push_day_event — с главным
     # событием дня в тексте; ключ дедупа тот же, `daily:<дата>`.
@@ -863,7 +869,7 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
         cands.append({
             "kind": "daily", "ref": today.isoformat(),
             "priority": "soft", "weight": 10, "frag": frag,
-            "title": title_, "body": body or _daily_body(chart, today),
+            "title": title_, "body": body or _daily_body(chart, today, tzname, sky),
             # url — для веб-пуша, его не трогаем (веб в этой задаче не
             # меняется). Приложение ведёт по target: открыть ленту и
             # развернуть карточку «Сегодня» (решение владельца 23.09.2026).
@@ -920,7 +926,11 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
             logger.warning("planner candidates failed user=%s: %s", user.id, e)
 
     # 5) Важные транзиты — вход значимого транзита в орб сегодня (significant)
-    if getattr(user, "push_key_transits", True):
+    # ⚠️ Под флагом sky_event (4.12) эти три вида не собираются вовсе: у них
+    # свои циклы мимо ядра («вошёл в орб», «за 4°», «тройное касание»), их
+    # даты расходятся с лентой; виды уходят на шаге 7 (решение владельца
+    # 06.10.2026). Держит test_sky_pushes.py.
+    if getattr(user, "push_key_transits", True) and not sky:
         try:
             cands.extend(_transit_entry_candidates(chart, today, planner_url))
         except Exception as e:

@@ -17,6 +17,7 @@
 - PDF — `pdf_reports/sections._sky_main_transits` (4.7).
 - веб `/transits` — `transit/engine._sky_window_events ← window_events` (4.8); прогрев года — `sky.warm_year`.
 - CRM (дашборд, «Пора напомнить», групповой прогноз, письмо клиентам, бриф) — `crm/dashboard_router._sky_crm_events ← crm_events` (4.12); флаг — по астрологу, `crm_sky`.
+- пилотные письма — `pilot/cron._sky_windows`; письмо дня 7 — `lifecycle_emails._transit_count`; строка утреннего пуша — `push/cron._daily_body` (4.12). Старые пуши «вошёл в орб», «за 4°», «тройное касание» под флагом не собираются (`push/cron._collect_candidates`).
 - `find_event`, `interpret_facts` ← `transit/engine.interpret_event_facts` ← ручка разбора (4.5), чат, Consistency.
 
 ## Флаг

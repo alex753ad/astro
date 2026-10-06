@@ -115,6 +115,9 @@ def _upcoming_windows(db: Session, user: User) -> list[str]:
     chart = _get_primary_chart(db, user)
     if not chart or not chart.planets:
         return []
+    from backend import day_event
+    if day_event._sky_on(chart):
+        return _sky_windows(chart, user)
     today = date_type.today()
     try:
         events = calculate_transits(
@@ -134,6 +137,34 @@ def _upcoming_windows(db: Session, user: User) -> list[str]:
         end = _fmt_day(str(getattr(e, "end_date", "") or ""))
         rng = f"{start}–{end}" if start and end and start != end else (start or end)
         out.append(f"{pr} {rng} — влияет на твою карту, посмотри, что делать")
+    return out
+
+
+def _sky_windows(chart, user: User) -> list[str]:
+    """`_upcoming_windows` под флагом sky_event (4.12): события ядра медленных
+    планет с касанием в ближайшие 30 местных дней; срок — всего события в
+    местных датах (без флага начало резалось окном и было «сегодня»).
+    Проход без касания (станция) — не окно, как в ленте."""
+    from backend.sky import sky_events
+    from backend.time_utils import local_day, local_today, user_tz
+    from backend.transit.engine import ALERT_PLANETS
+
+    tz = user_tz(None, user, chart)
+    today = local_today(tz)
+    s, e = local_day(today, tz)[0], local_day(today + timedelta(days=30), tz)[1]
+    try:
+        events = [ev for ev in sky_events(chart, s, e)
+                  if ev.transit in ALERT_PLANETS and any(s <= t.at_utc < e for t in ev.touches)]
+    except Exception as ex:
+        logger.warning("windows calc failed user=%s: %s", user.id, ex)
+        return []
+    events.sort(key=lambda ev: ev.start_utc)
+    out: list[str] = []
+    for ev in events[:3]:
+        loc = ev.local(tz)
+        start, end = _fmt_day(loc.start_day.isoformat()), _fmt_day(loc.end_day.isoformat())
+        rng = f"{start}–{end}" if start != end else start
+        out.append(f"{PLANET_RU.get(ev.transit, ev.transit)} {rng} — влияет на твою карту, посмотри, что делать")
     return out
 
 
