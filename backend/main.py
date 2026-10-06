@@ -1320,7 +1320,7 @@ async def get_transits(
     """
     # E2: список транзитов виден всем тарифам (Free — с блюром AI-разбора на клиенте).
     from datetime import date as date_type
-    from backend.transit.engine import calculate_transits, mark_transit_significance
+    from backend.transit.engine import window_events
     from backend.cache import transit_cache, make_profile_hash
 
     # 1. Load natal chart
@@ -1388,7 +1388,8 @@ async def get_transits(
             events=[TransitEventSchema(**e) for e in cached],
         )
 
-    # 4. Calculate transits
+    # 4. Calculate transits — engine.window_events: та же функция у прогона
+    # согласованности (cB, /transits), чтобы он проверял ровно ответ веба.
     planet_filter = [planet] if planet else None
 
     try:
@@ -1399,49 +1400,18 @@ async def get_transits(
         # время вызова расширения pyswisseph, так что параллелизм настоящий,
         # а не мнимый.
         events = await asyncio.to_thread(
-            calculate_transits,
-            # chart_points: без времени рождения — без натальной Луны (шаг 3).
-            natal_planets=natal_planets(chart),
-            from_date=from_dt,
-            to_date=to_dt,
-            orb_filter=max_orb,
-            planet_filter=planet_filter,
+            window_events, chart, from_dt, to_dt, orb_filter=max_orb, planet_filter=planet_filter,
         )
     except Exception as e:
         logger.exception("Transit calculation failed")
         raise HTTPException(status_code=500, detail=f"Transit calculation error: {e}")
-
-    # Без касания (станция рядом с точкой) — не показываем, пока нет подписи
-    # «ближе всего» (аудит, О3): иначе веб назвал бы минимум орба пиком.
-    events = [e for e in events if not e.no_touch]
-
-    # E2: пометить значимые (топ-2 → free_unlocked) — tier-независимо, кэшируется
-    mark_transit_significance(events)
 
     # Письмо «Важный транзит» отсюда больше не уходит (до 05.10.2026 —
     # только если человек открыл транзиты на вебе): его шлёт ежечасный прогон
     # писем, lifecycle_emails._send_transit_alerts.
 
     # 5. Build response
-    events_resp = [
-        TransitEventSchema(
-            start_date=getattr(e, "start_date", None) or getattr(e, "date", ""),
-            peak_date=getattr(e, "peak_date", None) or getattr(e, "date", ""),
-            end_date=getattr(e, "end_date", None) or getattr(e, "date", ""),
-            transit_planet=e.transit_planet,
-            transit_sign=getattr(e, "transit_sign", ""),
-            transit_degree=getattr(e, "transit_degree", 0.0),
-            natal_planet=e.natal_planet,
-            natal_sign=getattr(e, "natal_sign", ""),
-            aspect_type=e.aspect_type,
-            peak_orb=getattr(e, "peak_orb", None) or getattr(e, "orb", 0.0),
-            exact_date=getattr(e, "exact_date", None),
-            applying=getattr(e, "applying", True),
-            significant=getattr(e, "significant", False),
-            free_unlocked=getattr(e, "free_unlocked", False),
-        )
-        for e in events
-    ]
+    events_resp = [TransitEventSchema(**e) for e in events]
 
     # 6. Cache result (7 days TTL)
     transit_cache.set(
