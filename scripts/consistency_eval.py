@@ -627,7 +627,7 @@ def cb_breakdown(bad: list[str]) -> str:
     строки с событиями и датами — в отчёт владельцу, не в публичный лог."""
     sec = {s: 0 for s in _CB_SECTIONS}
     why = {"нет карточки": 0, "касания нет": 0, "другой день": 0}
-    rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0}
+    rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0, "у полуночи": 0}
     for x in bad:
         body = x.split(": ", 1)[-1]
         name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
@@ -639,6 +639,7 @@ def cb_breakdown(bad: list[str]) -> str:
             tail = body.split(": ", 1)[-1]
             for k in rev:
                 rev[k] += any(part.startswith(k) for part in tail.split("; "))
+            rev["у полуночи"] += "у полуночи" in tail
     near = sum(x.count("у полуночи") for x in bad)
     return (", ".join(f"{k}={v}" for k, v in sec.items()) + f" | у полуночи: {near}"
             + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
