@@ -113,5 +113,21 @@ def test_loop_cards_open_one_interpretation(client, db, user_free, auth_headers_
     db.expire_all()
     assert get_monthly_usage(db, str(user_free.id), "transit_ai") == 1
     prompt = router.engine.prompts[0]
-    assert "Точный аспект: 21 октября 2026, 27 октября 2026, 29 ноября 2026" in prompt
-    assert "Период влияния: 17 октября 2026 — 1 декабря 2026" in prompt
+    assert "Точные касания: 21 октября, 27 октября и 29 ноября 2026" in prompt
+    assert "Период влияния: 17 октября — 1 декабря 2026, с перерывом с 30 октября по 28 ноября" in prompt
+    assert "орб" not in prompt.split("## ФАКТЫ")[1].split("## ПРАВИЛА")[0]
+
+
+def test_facts_lines_year_at_last_date_of_each_year():
+    """Год — у последней даты каждого года (решение владельца 06.10.2026)."""
+    from backend.transit.prompts import _sky_date_lines
+    lines = _sky_date_lines({
+        "exact_dates": ["2026-11-22", "2027-01-02", "2027-07-07"],
+        "period_start": "2026-11-01", "period_end": "2027-07-18",
+        "gaps": [("2027-01-24", "2027-06-26")],
+    })
+    assert lines == ["Точные касания: 22 ноября 2026, 2 января и 7 июля 2027",
+                     "Период влияния: 1 ноября 2026 — 18 июля 2027, с перерывом с 24 января по 26 июня"]
+    one = _sky_date_lines({"exact_dates": ["2027-04-17"], "gaps": [],
+                           "period_start": "2027-04-06", "period_end": "2027-04-30"})
+    assert one == ["Точный аспект: 17 апреля 2027", "Период влияния: 6 апреля — 30 апреля 2027"]

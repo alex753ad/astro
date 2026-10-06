@@ -615,6 +615,9 @@ def _cb_name(key) -> str:
     return f"{PLANET_RU.get(tp, tp)} {ASPECT_RU.get(asp, asp)} {PLANET_RU.get(np_, np_)}"
 
 
+# Допуск сравнения границ у местной полуночи, минуты (см. check_cB.midnight).
+CB_MIDNIGHT_MIN = 2
+
 _CB_SECTIONS = ("лента", "главное событие", "чат", "разбор", "PDF", "/transits")
 
 
@@ -624,7 +627,7 @@ def cb_breakdown(bad: list[str]) -> str:
     строки с событиями и датами — в отчёт владельцу, не в публичный лог."""
     sec = {s: 0 for s in _CB_SECTIONS}
     why = {"нет карточки": 0, "касания нет": 0, "другой день": 0}
-    rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0}
+    rev = {"касания": 0, "начало": 0, "конец": 0, "точный": 0, "без фактов": 0, "у полуночи": 0}
     for x in bad:
         body = x.split(": ", 1)[-1]
         name = next((s for s in _CB_SECTIONS if body.startswith(s)), "прочее")
@@ -636,7 +639,9 @@ def cb_breakdown(bad: list[str]) -> str:
             tail = body.split(": ", 1)[-1]
             for k in rev:
                 rev[k] += any(part.startswith(k) for part in tail.split("; "))
-    return (", ".join(f"{k}={v}" for k, v in sec.items())
+            rev["у полуночи"] += "у полуночи" in tail
+    near = sum(x.count("у полуночи") for x in bad)
+    return (", ".join(f"{k}={v}" for k, v in sec.items()) + f" | у полуночи: {near}"
             + " | лента: " + ", ".join(f"{k}={v}" for k, v in why.items())
             + " | разбор: " + ", ".join(f"{k}={v}" for k, v in rev.items()))
 
@@ -673,12 +678,27 @@ def check_cB(ch: Check, chart, chat_chart: dict, truth: list[dict], d0: date, da
         near = min((ld(t) for t in e["touches"]), key=lambda t: abs((t - d).days), default=None) if e else None
         return f"касание в другой день (истина {_dmy(near)})" if near else "касания нет"
 
+    def midnight(t) -> str:
+        """« у полуночи», если момент истины в CB_MIDNIGHT_MIN от местной
+        полуночи: ядро берёт пол минуты, истина — верх, и у полуночи 1–2
+        минуты разницы — это уже другая дата."""
+        loc = t.astimezone(zone)
+        m = loc.hour * 60 + loc.minute + loc.second / 60
+        return " у полуночи" if min(m, 1440 - m) <= CB_MIDNIGHT_MIN else ""
+
+    def same_day(d, t) -> bool:
+        """Дата раздела — дата момента истины с допуском ±CB_MIDNIGHT_MIN:
+        у полуночи пол и верх минуты дают разные даты, и это не расхождение
+        (решение владельца 06.10.2026; найдено на разборе под флагом, 4.5)."""
+        tol = timedelta(minutes=CB_MIDNIGHT_MIN)
+        return d in {ld(t - tol), ld(t), ld(t + tol)}
+
     def bounds(e, start, end) -> list[str]:
         bad = []
-        if start is not None and e["start_known"] and start != ld(e["start"]):
-            bad.append(f"начало {_dmy(start)} (истина {_dmy(ld(e['start']))})")
-        if end is not None and e["end_known"] and end != ld(e["end"]):
-            bad.append(f"конец {_dmy(end)} (истина {_dmy(ld(e['end']))})")
+        if start is not None and e["start_known"] and not same_day(start, e["start"]):
+            bad.append(f"начало {_dmy(start)} (истина {_dmy(ld(e['start']))}{midnight(e['start'])})")
+        if end is not None and e["end_known"] and not same_day(end, e["end"]):
+            bad.append(f"конец {_dmy(end)} (истина {_dmy(ld(e['end']))}{midnight(e['end'])})")
         return bad
 
     # 1. Лента: каждая карточка транзита — касание из истины, и наоборот.
