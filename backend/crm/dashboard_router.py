@@ -125,6 +125,8 @@ def _astrologer_or_404(user: User, db: Session) -> AstrologerProfile:
 
 
 def _month_transits(chart: NatalChart) -> list[dict]:
+    from backend.email_service import broadcast_when
+    from backend.time_utils import user_tz
     from backend.transit.engine import calculate_transits
     today = date.today()
     events = calculate_transits(
@@ -137,6 +139,7 @@ def _month_transits(chart: NatalChart) -> list[dict]:
             "aspect_type": e.aspect_type,
             "peak_date": getattr(e, "peak_date", None),
             "peak_orb": getattr(e, "peak_orb", None),
+            "when": broadcast_when(e.exact_date, e.peak_date, user_tz(None, None, chart)),
         }
         for e in events
     ]
