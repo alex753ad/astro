@@ -395,3 +395,31 @@ jobs:
             set -euo pipefail
             cd /opt/astro
             ./05-update.sh
+
+  # Итог ручного запуска владельцу в Telegram — тот же личный чат, что у
+  # notify.py (секреты TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID, как в
+  # consistency.yml). Отдельным джобом с always(): если тесты красные, deploy
+  # пропускается целиком, и шаг внутри него ничего бы не прислал. Claude Code
+  # деплой не ждёт (CLAUDE.md, «Экономия контекста») — итог приходит отсюда.
+  notify-deploy:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Итог деплоя в Telegram
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESULT: ${{ needs.deploy.result }}
+          SHA: ${{ github.sha }}
+        run: |
+          health=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://aristeatime.ru/health || true)
+          case "$RESULT" in
+            success) head="✅ Деплой ${SHA:0:7} выкачен" ;;
+            skipped) head="⚠️ Деплой ${SHA:0:7} не начат: тесты или проверки красные" ;;
+            *)       head="❌ Деплой ${SHA:0:7}: $RESULT" ;;
+          esac
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -d chat_id="$TG_CHAT" \
+            --data-urlencode text="$head; /health ${health:-нет ответа}; прогон $GITHUB_RUN_ID" \
+            "https://api.telegram.org/bot$TG_TOKEN/sendMessage")
+          [ "$code" = "200" ] || { echo "::error::Telegram ответил $code"; exit 1; }
