@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 
-from backend import chart_points as _chart_points  # без времени рождения — без натальной Луны (шаг 3)
 from backend.time_utils import utcnow
 
 from backend.celery_app import celery_app
@@ -370,9 +369,9 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
     from datetime import date, timedelta
 
     from backend.models import AstrologerProfile, ClientProfile, ClientBroadcastLog, User
+    from backend.crm.dashboard_router import crm_events
     from backend.email_service import broadcast_when
     from backend.time_utils import user_tz
-    from backend.transit.engine import calculate_transits
     from backend.email_service import send_client_broadcast, ru_month_label
 
     db = SessionLocal()
@@ -425,11 +424,9 @@ def send_client_broadcast_task(astrologer_id: int, client_ids=None, period_ym: s
                 continue
 
             try:
-                events = calculate_transits(
-                    natal_planets=_chart_points.planets(chart),
-                    from_date=today,
-                    to_date=today + timedelta(days=30),
-                )
+                # Та же функция, что у предпросмотра и дашборда (crm_events) —
+                # её проверяет прогон согласованности (cB, CRM).
+                events = crm_events(chart, today, today + timedelta(days=30))
                 transits = [
                     {
                         "transit_planet": e.transit_planet,
