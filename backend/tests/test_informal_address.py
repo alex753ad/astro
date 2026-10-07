@@ -210,7 +210,6 @@ def test_every_prompt_asks_for_ty():
         "синастрия": adv.SYNASTRY_PROMPT,
         "релокация": adv.RELOCATION_PROMPT,
         "транзит": tp.TRANSIT_EVENT_PROMPT,
-        "период транзитов": tp.TRANSIT_PERIOD_PROMPT,
         "чат": _system_prompt("карта", []),
     }
     # Календаря (build_general_calendar_prompt) здесь нет с 03.10.2026: модель

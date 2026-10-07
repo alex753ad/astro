@@ -16,7 +16,6 @@ from datetime import date, datetime
 
 from backend.transit.engine import (
     calculate_transits,
-    get_transit_summary,
     TransitEvent,
     TRANSIT_ORBS,
     _find_exact_aspect,
@@ -24,7 +23,6 @@ from backend.transit.engine import (
 from backend.transit.prompts import (
     get_template_transit_text,
     build_transit_event_prompt,
-    build_transit_period_prompt,
 )
 from backend.ephemeris.calculator import PLANETS
 
@@ -201,32 +199,6 @@ class TestExactDateRefinement:
                 )
 
 
-class TestTransitSummary:
-    """Test transit summary generation."""
-
-    def test_summary_structure(self):
-        events = calculate_transits(
-            natal_planets=SAMPLE_NATAL_PLANETS,
-            from_date=date(2026, 4, 1),
-            to_date=date(2026, 4, 30),
-        )
-        summary = get_transit_summary(events)
-        assert "total_events" in summary
-        assert "by_aspect" in summary
-        assert "by_transit_planet" in summary
-        assert "significant" in summary
-        assert summary["total_events"] == len(events)
-
-    def test_significant_limited_to_10(self):
-        events = calculate_transits(
-            natal_planets=SAMPLE_NATAL_PLANETS,
-            from_date=date(2026, 1, 1),
-            to_date=date(2026, 12, 31),
-        )
-        summary = get_transit_summary(events)
-        assert len(summary["significant"]) <= 10
-
-
 class TestTransitTemplates:
     """Test template-based transit interpretation (fallback)."""
 
@@ -279,20 +251,6 @@ class TestTransitPromptBuilder:
         assert "Сатурн" in prompt
         assert "соединение" in prompt
         assert "Не вычисляй" in prompt
-
-    def test_period_prompt_limits_events(self):
-        """Period prompt should limit to top 20 events."""
-        events = [
-            {"date": f"2026-04-{i:02d}", "transit_planet": "Moon",
-             "natal_planet": "Sun", "aspect_type": "conjunction", "orb": float(i)}
-            for i in range(1, 30)
-        ]
-        profile = {"planets": SAMPLE_NATAL_PLANETS, "houses": [], "aspects": []}
-        prompt = build_transit_period_prompt(
-            events, profile, "2026-04-01", "2026-04-30"
-        )
-        # Should contain transit data but not all 29 events
-        assert "Moon" in prompt
 
 
 class TestTransitsEndpoint:

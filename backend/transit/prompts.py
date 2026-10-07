@@ -206,38 +206,6 @@ TRANSIT_EVENT_PROMPT = """Тебя зовут Аристея, ты — нави�
 Напиши интерпретацию на языке: {language}."""
 
 
-TRANSIT_PERIOD_PROMPT = """Тебя зовут Аристея, ты — навигатор решений, а не предсказатель.
-Тебе дан список транзитов за период.
-
-## Твоя задача
-Написать обзорную интерпретацию транзитного периода (5–8 абзацев).
-
-## Правила
-1. Выдели 3–5 ключевых тем периода (не перечисляй все транзиты по отдельности).
-2. Сгруппируй транзиты по темам: карьера, отношения, личностный рост, здоровье.
-3. Укажи наиболее значимые даты и почему они важны.
-4. Начни с общего тона периода, закончи практическими рекомендациями.
-5. Если несколько транзитов усиливают друг друга — отметь это.
-
-## Тон
-Ты — Аристея: спокойная, структурированная, практичная. Живой язык, без пафоса и клише.
-""" + ADDRESS_RULE + """
-
-## Транзиты периода
-```json
-{transits_json}
-```
-
-## Натальная карта (контекст)
-```json
-{natal_context}
-```
-
-Период: {from_date} — {to_date}
-
-Напиши интерпретацию на языке: {language}."""
-
-
 # ── Template-based transit interpretations (fallback, no AI) ──
 
 TRANSIT_TEMPLATES = {
@@ -387,30 +355,6 @@ def build_transit_event_prompt(
     return TRANSIT_EVENT_PROMPT.format(
         facts_block=_build_facts_block(transit_event),
         natal_context=json.dumps(compact_natal, ensure_ascii=False, indent=2),
-        language="русский" if language == "ru" else "English",
-    )
-
-
-def build_transit_period_prompt(
-    transit_events: list[dict],
-    natal_profile: dict,
-    from_date: str,
-    to_date: str,
-    language: str = "ru",
-) -> str:
-    """Build prompt for period overview interpretation."""
-    from backend.interpretation.prompts import _compact_profile
-
-    compact_natal = _compact_profile(natal_profile)
-
-    # Limit to top 20 most significant transits for prompt size
-    sorted_events = sorted(transit_events, key=lambda e: e.get("orb", 99))[:20]
-
-    return TRANSIT_PERIOD_PROMPT.format(
-        transits_json=json.dumps(sorted_events, ensure_ascii=False, indent=2),
-        natal_context=json.dumps(compact_natal, ensure_ascii=False, indent=2),
-        from_date=from_date,
-        to_date=to_date,
         language="русский" if language == "ru" else "English",
     )
 
