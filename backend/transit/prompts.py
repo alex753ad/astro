@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+from backend.ephemeris.ru_names import ASPECT_RU, PLANET_RU
 from backend.interpretation.address import ADDRESS_RULE
 
 # Версия промпта разбора транзитного события — часть ключа кэша
@@ -30,10 +31,6 @@ TRANSIT_PROMPT_VERSION = 8
 # 11 — несколько перерывов петли, год в перерывах — отдельно (06.10.2026).
 TRANSIT_PROMPT_VERSION_SKY = 11
 
-ASPECT_LABELS_RU = {
-    "conjunction": "соединение", "sextile": "секстиль",
-    "square": "квадрат", "trine": "трин", "opposition": "оппозиция",
-}
 
 _MONTHS_RU = [
     "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -62,14 +59,14 @@ def _format_date_ru(iso_date: str | None) -> str:
 def _build_facts_block(transit_event: dict) -> str:
     """Человекочитаемый блок ФАКТЫ из полей, посчитанных compute_exact_facts —
     ничего из клиентского body здесь не используется как источник фактов."""
-    from backend.interpretation.rag import _PLANET_RU, _SIGN_RU
+    from backend.interpretation.rag import _SIGN_RU
 
     tp = transit_event.get("transit_planet", "?")
     natal_p = transit_event.get("natal_planet", "?")
     aspect = transit_event.get("aspect_type", "?")
-    aspect_ru = ASPECT_LABELS_RU.get(aspect, aspect)
-    tp_ru = _PLANET_RU.get(tp, tp)
-    natal_p_ru = _PLANET_RU.get(natal_p, natal_p)
+    aspect_ru = ASPECT_RU.get(aspect, aspect)
+    tp_ru = PLANET_RU.get(tp, tp)
+    natal_p_ru = PLANET_RU.get(natal_p, natal_p)
 
     transit_line = f"Транзитная планета: {tp_ru}"
     if transit_event.get("transit_sign"):

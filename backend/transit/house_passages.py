@@ -17,6 +17,7 @@ from backend.ephemeris.calculator import (
     _datetime_to_jd,
     _find_house,
 )
+from backend.ephemeris.ru_names import PLANET_RU
 from backend.time_utils import local_day, utc_naive_to_local, valid_timezone
 
 
@@ -57,17 +58,22 @@ STEP_HOURS = {
 }
 
 DAY_RU_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+# Название — из ephemeris/ru_names (шаг 7, 07.10.2026); здесь только слаг и
+# значок. Ключи — десять планет проходов по домам, узлов нет (метки узлов —
+# в feed/templates.json, см. test_feed).
 PLANET_NAMES_RU = {
-    "Sun":     ("Солнце",   "sun",     "☀️"),
-    "Moon":    ("Луна",     "moon",    "🌙"),
-    "Mercury": ("Меркурий", "mercury", "⚕️"),
-    "Venus":   ("Венера",   "venus",   "♀️"),
-    "Mars":    ("Марс",     "mars",    "🔴"),
-    "Jupiter": ("Юпитер",   "jupiter", "♃"),
-    "Saturn":  ("Сатурн",   "saturn",  "♄"),
-    "Uranus":  ("Уран",     "uranus",  "♅"),
-    "Neptune": ("Нептун",   "neptune", "♆"),
-    "Pluto":   ("Плутон",   "pluto",   "♇"),
+    k: (PLANET_RU[k], slug, emoji) for k, slug, emoji in (
+        ("Sun",     "sun",     "☀️"),
+        ("Moon",    "moon",    "🌙"),
+        ("Mercury", "mercury", "⚕️"),
+        ("Venus",   "venus",   "♀️"),
+        ("Mars",    "mars",    "🔴"),
+        ("Jupiter", "jupiter", "♃"),
+        ("Saturn",  "saturn",  "♄"),
+        ("Uranus",  "uranus",  "♅"),
+        ("Neptune", "neptune", "♆"),
+        ("Pluto",   "pluto",   "♇"),
+    )
 }
 
 # Те же строки, что meta.lead в methodology.json (планер) — лента и планер
