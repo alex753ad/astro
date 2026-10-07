@@ -130,7 +130,7 @@ class TemplateEngine(InterpretationEngine):
             parts.append("\n### Карьера и профессиональная реализация\n")
             if mc and mc.get("sign"):
                 parts.append(
-                    f"Середина Неба (MC) в {SIGN_RU.get(mc['sign'], mc['sign'])} указывает на направление "
+                    f"Середина неба (MC) в {SIGN_RU.get(mc['sign'], mc['sign'])} указывает на направление "
                     f"твоей профессиональной самореализации и публичный образ."
                 )
             saturn = planets.get("Saturn", {})
