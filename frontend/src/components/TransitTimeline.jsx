@@ -215,15 +215,6 @@ function mergeEvents(prev, incoming) {
   return merged;
 }
 
-// Возвращает индекс события, которое открыто для free-пользователей
-// (первый транзит Венеры или Юпитера с позитивным аспектом)
-function getFreeUnlockedIndex(events) {
-  const idx = events.findIndex(
-    e => (e.transit_planet === "Venus" || e.transit_planet === "Jupiter") && isHarmonic(e.aspect_type)
-  );
-  return idx >= 0 ? idx : 0; // fallback — первое событие
-}
-
 // ═══════════════════════════════════════════════════════════
 // SKELETON LOADER
 // ═══════════════════════════════════════════════════════════

@@ -56,9 +56,6 @@ JSONS = ["interpretation/knowledge_base.json", "feed/templates.json"]
         "запрет в промпте разбора карты (interpretation/prompts.py)",
     "без эзотерики, без мистических обещаний, без слов «энергия Вселенной», «карма», «чакры»":
         "запрет в промпте PDF (pdf_reports/sections._STYLE)",
-    "развитие творческих талантов, эзотерические практики, работа с интуицией":
-        "мёртвый код, шаг 7: PLANET_HOUSE_MEANINGS читает только "
-        "build_monthly_planner_prompt, а её никто не зовёт",
 }
 
 
@@ -82,19 +79,13 @@ STRINGS = list(_strings())
 
 
 def test_scanner_sees_the_hints():
-    assert len(STRINGS) > 100
-
-
-# Мёртвый код, шаг 7 плана аудита (docs/audit_unified_model.md, 6.3): словарь
-# читает только build_monthly_planner_prompt, а её никто не зовёт — планер
-# собирается из methodology.json без модели. Удаляется вместе с ней, не правится.
-DEAD = {"PLANET_HOUSE_MEANINGS/Neptune/1"}
+    # HOUSE_SPHERE_MAP: 12 домов × name/emoji/hint. Словари месячного планера
+    # удалены 07.10.2026 (шаг 7) — отсюда 36, а не прежние > 100.
+    assert len(STRINGS) >= 36
 
 
 @pytest.mark.parametrize("path,text", STRINGS, ids=[p for p, _ in STRINGS])
 def test_no_esoteric_words_in_prompt_hints(path, text):
-    if path in DEAD:
-        pytest.skip("мёртвый код, шаг 7")
     assert not FORBIDDEN.search(text) and not EXTRA.search(text), f"{path}: {text}"
 
 
