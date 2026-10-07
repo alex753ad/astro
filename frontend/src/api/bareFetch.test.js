@@ -14,7 +14,11 @@ import { fileURLToPath } from "node:url";
  *
  * Список файлов растёт по мере перевода (roadmap, «Голые fetch»).
  */
-const FILES = ["../pages/ChartPage.jsx", "../components/TransitTimeline.jsx"];
+const FILES = [
+  "../pages/ChartPage.jsx",
+  "../components/TransitTimeline.jsx",
+  "../components/RagChat.jsx",
+];
 
 describe("нет голого fetch в файлах с авторизацией", () => {
   for (const rel of FILES) {
