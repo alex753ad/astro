@@ -18,6 +18,10 @@ const FILES = [
   "../pages/ChartPage.jsx",
   "../components/TransitTimeline.jsx",
   "../components/RagChat.jsx",
+  "../pages/CRMPage.jsx",
+  "../components/FeedbackButton.jsx",
+  "../components/PaymentHistory.jsx",
+  // ExitSurveyModal не здесь: GET /exit-survey/reasons публичный, голый fetch законен.
 ];
 
 describe("нет голого fetch в файлах с авторизацией", () => {

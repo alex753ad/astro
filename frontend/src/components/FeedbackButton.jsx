@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { BACKEND_BASE as API_BASE } from "../config";
+import { authFetch } from "../api/client";
 
 // E8 — «Здесь что-то не так». Плавающая кнопка на каждом экране.
 // Монтируется ОДИН раз в корне приложения (App.jsx), появляется поверх всего.
@@ -83,7 +84,7 @@ export default function FeedbackButton() {
       form.append("user_agent", navigator.userAgent);
       if (screenshot) form.append("screenshot", screenshot);
 
-      const res = await fetch(`${API_BASE}/api/v1/feedback`, {
+      const res = await authFetch(`${API_BASE}/api/v1/feedback`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
