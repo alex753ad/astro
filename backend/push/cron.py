@@ -916,7 +916,8 @@ def _collect_candidates(db: Session, user: User, chart: NatalChart, today: date_
                         cands.append({
                             "kind": "planner_week", "ref": f"{planet}:{house}:{wk.isoformat()}",
                             "priority": "significant", "weight": 70, "frag": frag,
-                            "title": "Через неделю — новое окно",
+                            # «период» вместо «окна» — шаг 9, под sky_event.
+                            "title": "Через неделю — новый период" if sky else "Через неделю — новое окно",
                             "body": body,
                             "url": _with_topic(planner_url, _topic_key("planner_week", planet=planet, house=house)),
                         })
@@ -1111,8 +1112,10 @@ def _process_user(db: Session, user: User) -> int:
             if c["frag"] not in seen_frags:
                 seen_frags.add(c["frag"])
                 frags.append(c["frag"])
+        from backend.day_event import _sky_on
         payload = {
-            "title": "Твоё окно сегодня",
+            # Шаг 9 (термины, под sky_event): «окна» в текстах нет.
+            "title": "Твой день в карте" if _sky_on(chart) else "Твоё окно сегодня",
             "body": " · ".join(frags),
             "url": to_send[0]["url"],
             "keys": keys,

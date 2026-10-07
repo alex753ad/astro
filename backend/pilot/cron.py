@@ -107,6 +107,16 @@ def _survey_url(user: User, moment: str) -> str:
     return f"{base}/exit-survey?m={moment}&u={user.id}"
 
 
+def _sky_user(db: Session, user: User) -> bool:
+    """Флаг sky_event у человека — по его основной карте (как везде, через
+    `day_event._sky_on`). Нужен письмам пилота: «периоды» вместо «окон»
+    (шаг 9). Нет карты — флаг выключен."""
+    from backend import day_event
+    from backend.tasks import _get_primary_chart
+    chart = _get_primary_chart(db, user)
+    return bool(chart) and day_event._sky_on(chart)
+
+
 def _upcoming_windows(db: Session, user: User) -> list[str]:
     """1–3 ближайших значимых окна пользователя (для персонального прощания)."""
     from backend.tasks import _get_primary_chart
@@ -212,6 +222,7 @@ async def _process(db: Session, user: User) -> dict:
                         checkout_url=checkout_url,
                         deadline=PROMO_DEADLINE, days_left=days_left,
                         unsubscribe_url=unsub,
+                        sky=_sky_user(db, user),
                     )
             except Exception as e:
                 logger.warning("farewell email failed user=%s: %s", user.id, e)
@@ -249,6 +260,7 @@ async def _process(db: Session, user: User) -> dict:
                             missed_count=(len(windows) or None),
                             survey_url=survey_url,
                             unsubscribe_url=unsub,
+                            sky=_sky_user(db, user),
                         )
                 except Exception as e:
                     logger.warning("dormant%s email failed user=%s: %s", step, user.id, e)
@@ -281,6 +293,7 @@ async def _process(db: Session, user: User) -> dict:
                     email_ok = await send_end_of_month_survey(
                         user.email, _survey_url(user, "end_of_month"),
                         unsubscribe_url=unsub,
+                        sky=_sky_user(db, user),
                     )
             except Exception as e:
                 logger.warning("eom survey email failed user=%s: %s", user.id, e)

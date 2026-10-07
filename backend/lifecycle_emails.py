@@ -313,8 +313,10 @@ def _send_transit_alerts(db: Session, now: datetime) -> int:
         if _alert_sent_nearby(db, uid, ev.key):
             continue
         chart_id = str(chart.id)
+        from backend.day_event import _sky_on
+        sky = _sky_on(chart)   # термины шага 9
         if send_once(db, uid, ALERT_KIND, ev.key,
-                     lambda: send_transit_alert(email, chart_id, ev, unsub)):
+                     lambda: send_transit_alert(email, chart_id, ev, unsub, sky)):
             sent += 1
     return sent
 
