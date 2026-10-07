@@ -18,6 +18,7 @@ import { useState as _useStateD, useEffect as _useEffectD } from 'react';
 import { TIER_NAMES } from '../constants';
 import useIsMobile from '../hooks/useIsMobile';
 import { todayLocalISO } from '../utils/dateISO';
+import { authFetch as authFetchRaw } from '../api/client';
 
 // Резолвит var(--...) в fill/stroke/stop-color в реальные цвета, читая computed
 // style с ЖИВОГО узла: сериализованный отдельно SVG (Blob → <img>) не видит стили
@@ -356,7 +357,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
     setBriefLoading(true);
     setBriefText('');
     try {
-      const res = await fetch(`${API}/clients/${client.id}/brief`, {
+      const res = await authFetchRaw(`${API}/clients/${client.id}/brief`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('astro_access_token')}` },
       });
@@ -487,7 +488,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
     setAiLoading(true);
     setAiText('');
     try {
-      const res = await fetch(`/api/v1/chart/${client.natal_chart_id}/interpret`, {
+      const res = await authFetchRaw(`/api/v1/chart/${client.natal_chart_id}/interpret`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('astro_access_token')}` },
       });
       const reader = res.body.getReader();
@@ -530,7 +531,7 @@ function ClientCard({ client, authFetch, onBack, onUpdated, initialTab }) {
       // Колесо клиента из DOM, если открыта вкладка "Карта" — то же колесо, что на экране.
       // Нет в DOM — backend сам нарисует (fallback уже есть).
       const wheelPng = await captureChartPng(setChartForExport);
-      const res = await fetch(`${API}/clients/${client.id}/report`, {
+      const res = await authFetchRaw(`${API}/clients/${client.id}/report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

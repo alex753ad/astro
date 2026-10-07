@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BACKEND_BASE as API_BASE } from "../config";
+import { authFetch } from "../api/client";
 
 // E10 — Exit-survey. Два режима одним компонентом:
 //   1) Модалка перед активным уходом (удаление аккаунта / отключение):
@@ -41,7 +42,7 @@ export default function ExitSurveyModal({
       catch { userId = null; }
     }
     try {
-      await fetch(`${API_BASE}/api/v1/exit-survey`, {
+      await authFetch(`${API_BASE}/api/v1/exit-survey`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

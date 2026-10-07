@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { API_BASE } from '../config';
+import { authFetch as authFetchRaw } from '../api/client';
 import { TIER_NAMES } from '../constants';
 
 const KIND_LABEL = { payment: 'Оплата', refund: 'Возврат', review: 'На проверке' };
@@ -36,7 +37,7 @@ export default function PaymentHistory({ authFetch, cardStyle, titleStyle }) {
       form.append('url', window.location.href);
       form.append('user_agent', navigator.userAgent);
       const token = localStorage.getItem('astro_access_token');
-      const resp = await fetch(`${API_BASE}/feedback`, {
+      const resp = await authFetchRaw(`${API_BASE}/feedback`, {
         method: 'POST', body: form,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
