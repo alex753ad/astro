@@ -443,12 +443,7 @@ _SUN_INSIGHTS: dict[str, str] = {
     "Pisces":      "Ты чувствуешь невидимое — интуиция и сострадание твои главные инструменты.",
 }
 
-_SIGN_RU: dict[str, str] = {
-    "Aries": "Овен", "Taurus": "Телец", "Gemini": "Близнецы",
-    "Cancer": "Рак", "Leo": "Лев", "Virgo": "Дева",
-    "Libra": "Весы", "Scorpio": "Скорпион", "Sagittarius": "Стрелец",
-    "Capricorn": "Козерог", "Aquarius": "Водолей", "Pisces": "Рыбы",
-}
+from backend.ephemeris.ru_names import SIGN_RU as _SIGN_RU  # noqa: E402 — копия до 07.10.2026
 
 
 def _get_sun_sign(planets: list[dict]) -> str | None:
