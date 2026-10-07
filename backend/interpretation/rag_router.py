@@ -472,7 +472,7 @@ async def _get_p1_block(chart: NatalChart, user: User, zone: str | None, left, p
     return day + "\n" + cached["upcoming"] + "\n" + cc.tier_block(user.tier or "free", left, period, dates) + "\n"
 
 
-async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None) -> str:
+async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None, sky: bool = False) -> str:
     """Планер для промпта (флаг chat_planner_context) — раз в сутки на карту,
     тариф и пояс: тариф в ключе, иначе после покупки чат до полуночи видел бы
     замки; пояс — иначе проходы Луны считались бы в поясе первого спросившего.
@@ -488,7 +488,8 @@ async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None
         return ""  # без времени рождения планера нет (/planner/monthly)
     now = now_local(tz)
     # v2 (04.10.2026, шаг 2б): настоящие границы периодов вместо края окна.
-    cache_key = f"chat_planner:v2:{chart.id}:{tier}:{tz}:{now.date().isoformat()}"
+    # «-sky» — шаг 9.6: подпись ретроградности под флагом.
+    cache_key = f"chat_planner:v2{'-sky' if sky else ''}:{chart.id}:{tier}:{tz}:{now.date().isoformat()}"
     cached = chat_transits_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -500,7 +501,7 @@ async def _get_planner_block_cached(chart: NatalChart, tier: str, tz: str | None
         "midheaven": chart.midheaven or {},
     }
     # Swiss Ephemeris — синхронный, блокирует event loop (backend/CLAUDE.md).
-    block = await asyncio.to_thread(build_planner_block, natal_profile, tier, tz, now.date())
+    block = await asyncio.to_thread(build_planner_block, natal_profile, tier, tz, now.date(), sky)
     midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time())
     chat_transits_cache.set(cache_key, block, ttl=max(60, int((midnight - now).total_seconds())))
     return block
@@ -1063,16 +1064,16 @@ async def rag_chat(
 
     # Собираем system prompt (+ память Аристеи о пользователе, слой 2,
     # + текущие транзиты, слой 3 — считаются раз в сутки на чарт, не на реплику)
-    chart_summary = build_chart_summary(chart_data, time_unknown)
-    memory_summary = _load_memory(db, user.id) if own_chart else ""
-    zone = user_tz(tz, user, chart)
     # Флаг sky_event — по ORM-карте: chart_data — dict без сессии (4.6).
     from backend import day_event
     sky = day_event._sky_on(chart)
+    chart_summary = build_chart_summary(chart_data, time_unknown, sky)
+    memory_summary = _load_memory(db, user.id) if own_chart else ""
+    zone = user_tz(tz, user, chart)
     transits_block = await _get_transits_block_cached(chart_id, chart_data, zone, sky)
     planner_block = p1_block = ""
     if flag_on(db, "chat_planner_context", user):
-        planner_block = await _get_planner_block_cached(chart, user.tier, zone)
+        planner_block = await _get_planner_block_cached(chart, user.tier, zone, sky)
         p1_block = await _get_p1_block(chart, user, zone, _left, _period, db)
     from backend.transit.planner_engine import now_local
     system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block, planner_block,

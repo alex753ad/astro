@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useFlag } from '../lib/flags';
 
 const TOOLTIPS = [
   {
@@ -29,6 +30,7 @@ const TOOLTIPS = [
 ];
 
 export default function OnboardingTooltips() {
+  const sky = useFlag('sky_event');   // шаг 9.6: «Середина неба»
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -58,7 +60,7 @@ export default function OnboardingTooltips() {
 
   if (!visible || dismissed) return null;
 
-  const tip = TOOLTIPS[step];
+  const tip = sky && TOOLTIPS[step].id === 'mc' ? { ...TOOLTIPS[step], title: 'Середина неба (MC)' } : TOOLTIPS[step];
 
   return (
     <div style={s.overlay} onClick={dismiss}>

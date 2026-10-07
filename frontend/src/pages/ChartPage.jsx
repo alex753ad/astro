@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useFlag } from '../lib/flags';
 import MotionButton from '../components/MotionButton';
 import { authFetch, fetchChart, getSubscription } from '../api/client';
 import { API_BASE, BACKEND_BASE } from '../config';
@@ -1111,6 +1112,7 @@ const TOOLTIPS = {
 
 function TooltipBadge({ term }) {
   const [visible, setVisible] = React.useState(false);
+  const sky = useFlag("sky_event");   // шаг 9.6: «Середина неба»
   return (
     <span style={{ position: 'relative', display: 'inline-block' }}>
       <span
@@ -1138,7 +1140,7 @@ function TooltipBadge({ term }) {
           pointerEvents: 'none',
         }}>
           <strong style={{ color: 'var(--accent-glow)' }}>{term}</strong><br />
-          {TOOLTIPS[term]}
+          {sky ? TOOLTIPS[term].replace('Середина Неба', 'Середина неба') : TOOLTIPS[term]}
         </div>
       )}
     </span>
