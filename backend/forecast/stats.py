@@ -32,6 +32,9 @@ SELFCHECK_CHART_ID = "selfcheck"
 # Причины запасного текста. Порядок важен только для сообщения владельцу.
 FALLBACK_REASONS = ("no_key", "budget", "model_error", "rejected")
 
+# Виды text_check без рода: род уже считает `gendered_you`.
+TEXT_KINDS = ("ai", "formal_you", "esoteric")
+
 
 def _redis():
     return interpretation_cache._redis
@@ -100,5 +103,11 @@ def summarize(counts: dict[str, int]) -> dict:
         # разбор карты, транзита, чат. Только число — сигнала нет (решение
         # владельца 28.09.2026).
         "gendered_you": counts.get("gendered_you", 0),
+        # Голос в текстах модели (interpretation/text_check.py, шаг 8): поля
+        # `text:<вид>:<раздел>`, здесь — сумма по виду. Разделы — в логе.
+        "text_voice": {
+            kind: sum(v for k, v in counts.items() if k.startswith(f"text:{kind}:"))
+            for kind in TEXT_KINDS
+        },
         "total": model + fallback,
     }
