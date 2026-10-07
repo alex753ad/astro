@@ -222,10 +222,14 @@ def _stream_interpretation(prompt: str, profile: dict, context: str, tier: str, 
                     continue
                 try:
                     streamed = False
+                    collected: list[str] = []
                     async for chunk in engine.stream(interp_request):
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
+                        collected.append(chunk)
                     if streamed:
+                        from backend.interpretation.text_check import report as text_report
+                        text_report("".join(collected), context)
                         # Ключ расхода совпадает с ключом проверки выше
                         # (_check_budget(engine.name)). Токены — из движка.
                         ai_router._track_spend(

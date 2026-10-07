@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -41,6 +42,7 @@ from backend.forecast.prompts import (
     lunation_allowed, lunation_needs_warning,
 )
 from backend.forecast.validate import check_daily, check_lunation, is_tone_problem, parse_json_reply
+from backend.interpretation.text_check import report as text_report
 from backend.limiter import limiter
 from backend.models import ForecastFeedback, User
 
@@ -232,6 +234,7 @@ async def daily_forecast(chart, tz_name: str | None, day: date | None = None, us
         "prompt_version": DAILY_PROMPT_VERSION,   # клиент возвращает её с 👍/👎
     }
     if source == "model":
+        text_report("\n".join(paragraphs), "forecast_today")
         interpretation_cache.set(key, result, ttl=TTL_TODAY)
     return result
 
@@ -316,6 +319,8 @@ async def lunation_forecast(chart, phase: str, near: date, tz_name: str | None) 
         "prompt_version": LUNATION_PROMPT_VERSION,
     }
     if source == "model":
+        # Ключи блока латиницей — счётчикам не мешают.
+        text_report(json.dumps(block, ensure_ascii=False), "forecast_lunation")
         interpretation_cache.set(key, result, ttl=TTL_LUNATION)
     return result
 

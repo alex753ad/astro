@@ -151,6 +151,8 @@ async def _get_share_quote(
             # гарантируем завершающий знак, если ответ оборвался
             if quote and quote[-1] not in ".!?":
                 quote += "."
+            from backend.interpretation.text_check import report as text_report
+            text_report(quote, "share_quote")
     except Exception as exc:
         logger.error("share quote LLM failed: %s", exc)
         quote = f"С {combo} скучно точно не бывает — я это гарантирую. Астрология предупреждала, но кто её слушает!"

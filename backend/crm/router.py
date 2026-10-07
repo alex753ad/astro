@@ -757,10 +757,14 @@ async def generate_brief(
                     continue
                 try:
                     streamed = False
+                    collected: list[str] = []
                     async for chunk in eng.stream(interp_request):
                         yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
                         streamed = True
+                        collected.append(chunk)
                     if streamed:
+                        from backend.interpretation.text_check import report as text_report
+                        text_report("".join(collected), "crm_brief")
                         # Ключ расхода совпадает с ключом проверки выше
                         # (_check_budget(eng.name)). Токены — из движка.
                         ai_router._track_spend(

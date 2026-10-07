@@ -21,10 +21,11 @@ from pathlib import Path
 import pytest
 
 import backend.transit.forecast_prompt as fp
+from backend.interpretation.text_check import ESOTERIC_EXTRA
 from backend.tests.test_planner_texts import ESOTERIC, FORBIDDEN
 
 # «мисти» — в ESOTERIC, с начала слова: подстрокой оно ловило «оптимистичный».
-EXTRA = re.compile(r"оккульт|целител|тонки\w* энерги|рейки|энергопрактик|энергетическ\w* практик", re.I)
+EXTRA = re.compile(ESOTERIC_EXTRA, re.I)
 WIDE = re.compile(ESOTERIC, re.I)
 
 BACKEND = Path(__file__).resolve().parents[1]
