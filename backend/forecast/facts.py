@@ -54,6 +54,7 @@ class DayFacts:
     # даже если это не Луна (решение владельца 02.10.2026, проверка c2).
     # {transit, natal, aspect, tone} или {phase}; None — события нет.
     main: dict | None = None
+    sky: bool = False   # флаг sky_event — термины промпта (шаг 9.5)
 
 
 def sky_on(chart) -> bool:
@@ -147,7 +148,7 @@ def compute_day(chart, local_date: date, tz: ZoneInfo, daily_time=None, quiet_fr
 
     return DayFacts(
         local_date=local_date, trimmed=bool(chart.time_unknown),
-        moon_sign=moon_sign, houses=houses, aspects=aspects, main=main,
+        moon_sign=moon_sign, houses=houses, aspects=aspects, main=main, sky=sky,
     )
 
 
@@ -161,6 +162,7 @@ class LunationFacts:
     house: int | None
     aspects: list[dict] = field(default_factory=list)   # {planet, natal, tone}
     warnings: list[dict] = field(default_factory=list)  # {planet, natal, date: date}
+    sky: bool = False   # флаг sky_event — термины промпта (шаг 9.5)
 
 
 def find_phase(phase: str, near: date) -> datetime | None:
@@ -224,7 +226,7 @@ def compute_lunation(chart, phase: str, at_utc: datetime, tz: ZoneInfo,
     return LunationFacts(
         phase=phase, at_utc=at_utc, at_local=at_utc.astimezone(tz), sign=sign,
         trimmed=bool(chart.time_unknown), house=house,
-        aspects=aspects, warnings=warnings[:3],
+        aspects=aspects, warnings=warnings[:3], sky=sky,
     )
 
 

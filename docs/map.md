@@ -29,10 +29,10 @@
 | Раздел | Без флага | Под флагом |
 |---|---|---|
 | лента | `feed:v4:…` | `feed:v5-sky{sky.CACHE_VERSION}:…` |
-| прогноз дня / лунный | `forecast_today:v6`, `forecast_lunation:v4` | `…:v6-sky`, `…:v4-sky` |
+| прогноз дня / лунный | `forecast_today:v6`, `forecast_lunation:v4` | `…:v6-sky2`, `…:v4-sky2` (sky2 — 9.5, `TONE_RU_SKY`) |
 | разбор транзита | `transit_interp:v8:{chart}:{tp}:{np}:{asp}:{дата}` | `transit_interp:v11:{chart}:{event.key}:{пояс}` |
 | чат | `chat_transits:v7`, `chat_p1:v2` | `chat_transits:v8-sky`, `chat_p1:v2-sky` |
-| PDF | `transits:v7:{YYYY-MM}:{tier}` | `transits:v7-sky:…` (и отпечаток отчёта) |
+| PDF | `transits:v7:{YYYY-MM}:{tier}` | `transits:v7-sky:…` (и отпечаток отчёта, `|g9` — группы аспектов 9.5) |
 | веб `/transits` | `transit:v5:…` | `transit:v6-sky:…:{пояс}` |
 
 ## Формулировки дат

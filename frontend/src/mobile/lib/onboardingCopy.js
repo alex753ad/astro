@@ -133,6 +133,12 @@ export const CHART_HINTS = [
   },
 ];
 
+// Шаг 9.5, под флагом sky_event: характер аспекта — «гармония / напряжение»,
+// как в ленте и на карточке транзита. Без флага — CHART_HINTS слово в слово.
+export const CHART_HINTS_SKY = CHART_HINTS.map((h) => (h.key === 'aspects'
+  ? { ...h, text: 'Линии внутри круга — аспекты, углы между планетами. Зелёные — гармония, красные — напряжение.' }
+  : h));
+
 /** Подсказки экрана «Лента» (SPEC_ONBOARDING.md §11). */
 export const FEED_HINTS = [
   {

@@ -166,6 +166,12 @@ ASPECT_GROUPS = (
     ("Гармоничные — трин и секстиль", ("trine", "sextile")),
     ("Напряжённые — квадрат и оппозиция", ("square", "opposition")),
 )
+# Шаг 9.5, под флагом sky_event: те же термины, что в ленте и на карточке.
+ASPECT_GROUPS_SKY = (
+    ("Соединение", ("conjunction",)),
+    ("Гармония — трин и секстиль", ("trine", "sextile")),
+    ("Напряжение — квадрат и оппозиция", ("square", "opposition")),
+)
 # Узлы в эфемериде «ретроградны» всегда (средний узел) — метка ℞ у них шум.
 _NODES = ("North Node", "South Node")
 RETRO = "℞"
@@ -442,10 +448,10 @@ def _houses_table(fl: _Flow, houses):
     fl.y -= half * row + 10
 
 
-def _aspects_table(fl: _Flow, aspects):
+def _aspects_table(fl: _Flow, aspects, sky: bool = False):
     row = 19
     groups = []
-    for title, kinds in ASPECT_GROUPS:
+    for title, kinds in (ASPECT_GROUPS_SKY if sky else ASPECT_GROUPS):
         items = [a for a in aspects if _field(a, "aspect_type") in kinds]
         if items:
             groups.append((title, sorted(items, key=lambda a: float(_field(a, "orb", 0) or 0))))
@@ -676,7 +682,7 @@ def _render(c, d: dict, total: int | None) -> int:
     if d.get("aspects"):
         fl.y -= 10
         fl.title("Аспекты")
-        _aspects_table(fl, d["aspects"])
+        _aspects_table(fl, d["aspects"], d.get("sky", False))
     _interpretation(fl, d.get("interpretation"))
     extra = d.get("report")
     if extra is not None:
@@ -722,6 +728,8 @@ def generate_pdf_bytes(chart, interpretation: str = "", astrologer_name: str | N
     data["interpretation"] = data.get("interpretation") or interpretation
     data["astrologer_name"] = data.get("astrologer_name") or astrologer_name
     data["wheel_png"] = wheel_png
+    from backend import day_event
+    data["sky"] = day_event._sky_on(chart)   # ORM-карта; dict — флаг выключен
     # pdf_reports.sections.Report: аспекты, транзиты, долгосрочные периоды
     # Веги и Лиры; None — отчёт как у бесплатного.
     data["report"] = report
