@@ -112,6 +112,8 @@ class TestTemplateEngine:
         )
         result = await engine.generate(req)
         assert "Карьер" in result.content or "карьер" in result.content
+        # «неба» со строчной — орфография (07.10.2026), без флага.
+        assert "Середина неба (MC)" in result.content and "Неба" not in result.content
 
 
 class TestPromptBuilder:
