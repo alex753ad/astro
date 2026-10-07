@@ -196,3 +196,25 @@ describe('чего нет в meta — не выдумываем', () => {
     expect(transitTeaserText(ev('Chiron', 'Sun', 'square'))).not.toBe('');
   });
 });
+
+describe('термины под флагом sky_event (шаг 9)', () => {
+  // Без флага строка прежняя слово в слово — тесты выше; здесь — под флагом.
+  it('«период влияния» вместо «окна», тон вместо названия группы', () => {
+    expect(transitTeaserText(ev('Sun', 'Neptune', 'square'), { sky: true }))
+      .toBe('Солнце к твоему Нептуну: тема ясности и иллюзий. Напряжение, период влияния — около недели.');
+    expect(transitTeaserText(ev('Saturn', 'Venus', 'trine'), { sky: true }))
+      .toContain('Гармония, период влияния — несколько месяцев.');
+    expect(transitTeaserText(ev('Mars', 'Sun', 'conjunction'), { sky: true }))
+      .toContain('Соединение, период влияния — около двух недель.');
+  });
+
+  it('слова «окно» под флагом нет ни у одной планеты', () => {
+    const planets = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn',
+      'Uranus', 'Neptune', 'Pluto', 'North Node', 'South Node'];
+    for (const p of planets) {
+      const s = transitTeaserText(ev(p, 'Venus', 'sextile'), { sky: true });
+      expect(s).toContain('период влияния');
+      expect(s).not.toMatch(/окно|Мягкий|Напряжённый аспект/);
+    }
+  });
+});
