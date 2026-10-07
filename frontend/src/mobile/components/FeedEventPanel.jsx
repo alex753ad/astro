@@ -24,6 +24,7 @@ import { hasLunationForecast } from '../lib/lunationPhase';
 import { isLocked, isPlannerEvent } from './FeedEventCard';
 import { dateRangeShort, eventTitle, moonRangeShort, periodRange, signRu, timePart } from '../lib/feedTime';
 import { transitTeaserText } from '../lib/transitTeaser';
+import { useFlag } from '../../lib/flags';
 import { lockedPlannerText, upgradeOpensIt } from '../lib/plannerAccess';
 import SupportLink from './SupportLink';
 import { openPaySheet } from '../lib/paySheetBus';
@@ -58,6 +59,9 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   const [text, setText] = useState('');
   const [status, setStatus] = useState('idle');   // idle | loading | done | failed
   const [failure, setFailure] = useState(null);
+  // Термины под sky_event (шаг 9): «период влияния», «гармония/напряжение».
+  // Хук — до раннего `return null` ниже.
+  const sky = useFlag('sky_event');
   const runIdRef = useRef(0);
 
   // Смена события — сбрасываем всё: панель переиспользуется под разные
@@ -140,7 +144,7 @@ export default function FeedEventPanel({ event, chartId, onClose, onUpgrade }) {
   });
   const hasSigns = meta.transit_sign && meta.natal_sign;
   // null, если данных в meta не хватило — тогда покажется серверный текст.
-  const composedTeaser = transitTeaserText(event);
+  const composedTeaser = transitTeaserText(event, { sky });
 
   // ── Событие планера: срок, тема, рекомендации ──────────────────────────────
   //

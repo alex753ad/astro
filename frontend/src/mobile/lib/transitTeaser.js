@@ -66,7 +66,22 @@ const ASPECT_KIND = {
 };
 
 /**
- * Типичная длительность окна транзита — по ТРАНЗИТНОЙ планете.
+ * Характер аспекта под флагом `sky_event` (шаг 9, решение владельца
+ * 07.10.2026): тон, как в ярлыке ленты («Сатурн и Венера: напряжение»), —
+ * один термин во всём, что видит человек. Без флага — `ASPECT_KIND`: строка
+ * обязана остаться прежней слово в слово, пока флаг выключен.
+ */
+const ASPECT_TONE = {
+  conjunction: 'Соединение',
+  opposition: 'Напряжение',
+  square: 'Напряжение',
+  trine: 'Гармония',
+  sextile: 'Гармония',
+};
+
+/**
+ * Типичная длительность транзита — по ТРАНЗИТНОЙ планете. Только срок: слово
+ * перед ним («окно» / «период влияния» под `sky_event`) ставит `transitTeaserText`.
  *
  * ⚠️ Это единственное в строке, чего нет в `meta`, и об этом надо знать.
  * Лента не отдаёт границ транзита ВООБЩЕ: `ends_at` и `duration_days` у него
@@ -82,19 +97,19 @@ const ASPECT_KIND = {
  * Понадобится точное окно — его должна прислать лента, и это отдельная
  * работа на бэкенде.
  */
-const TRANSIT_WINDOW = {
-  Moon: 'окно несколько часов',
-  Sun: 'окно около недели',
-  Mercury: 'окно около недели',
-  Venus: 'окно около недели',
-  Mars: 'окно около двух недель',
-  Jupiter: 'окно около месяца',
-  Saturn: 'окно несколько месяцев',
-  Uranus: 'окно до года',
-  Neptune: 'окно до года',
-  Pluto: 'окно до года',
-  'North Node': 'окно несколько недель',
-  'South Node': 'окно несколько недель',
+const TRANSIT_PERIOD = {
+  Moon: 'несколько часов',
+  Sun: 'около недели',
+  Mercury: 'около недели',
+  Venus: 'около недели',
+  Mars: 'около двух недель',
+  Jupiter: 'около месяца',
+  Saturn: 'несколько месяцев',
+  Uranus: 'до года',
+  Neptune: 'до года',
+  Pluto: 'до года',
+  'North Node': 'несколько недель',
+  'South Node': 'несколько недель',
 };
 
 /**
@@ -153,16 +168,20 @@ function pairTheme(transitPlanet, natalPlanet) {
  * Строка тизера или `null`, если данных не хватило.
  *
  * @param {object} event — событие ленты
+ * @param {{sky?: boolean}} [opts] — `sky`: флаг `sky_event` у человека
  * @returns {string|null}
  */
-export function transitTeaserText(event) {
+export function transitTeaserText(event, { sky = false } = {}) {
   if (event?.kind !== 'transit') return null;
   const meta = event.meta || {};
 
   const subject = planetRu(meta.transit_planet);
   const target = planetDativeRu(meta.natal_planet);
-  const kind = ASPECT_KIND[meta.aspect_type];
-  const window = TRANSIT_WINDOW[meta.transit_planet];
+  const kind = (sky ? ASPECT_TONE : ASPECT_KIND)[meta.aspect_type];
+  const period = TRANSIT_PERIOD[meta.transit_planet];
+  // «Период влияния» — термин карточки и разбора под флагом (4.13); без
+  // флага — прежнее «окно».
+  const window = period && (sky ? `период влияния — ${period}` : `окно ${period}`);
   const own = meta.transit_planet === meta.natal_planet;
   const theme = own
     ? PLANET_THEME[meta.transit_planet]
