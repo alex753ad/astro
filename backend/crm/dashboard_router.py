@@ -530,11 +530,7 @@ async def intake_public_submit(token: str, payload: IntakeSubmitIn, db: Session 
 
 # ── Practice analytics (09 / 15 / 16) ──
 
-_SIGN_RU = {
-    "Aries": "Овен", "Taurus": "Телец", "Gemini": "Близнецы", "Cancer": "Рак",
-    "Leo": "Лев", "Virgo": "Дева", "Libra": "Весы", "Scorpio": "Скорпион",
-    "Sagittarius": "Стрелец", "Capricorn": "Козерог", "Aquarius": "Водолей", "Pisces": "Рыбы",
-}
+from backend.ephemeris.ru_names import SIGN_RU as _SIGN_RU  # noqa: E402 — копия до 07.10.2026
 _ELEMENTS = {
     "огонь": {"Aries", "Leo", "Sagittarius"},
     "земля": {"Taurus", "Virgo", "Capricorn"},
