@@ -9,6 +9,7 @@ import { readSseLines } from "../lib/sseLines";
 import { useToast } from "./Toast";
 import { addDaysISO, addMonthISO, subMonthISO, monthEndISO } from "../utils/dateISO";
 import TierOfferModal from "./TierOfferModal";
+import { useFlag } from "../lib/flags";
 
 // ═══════════════════════════════════════════════════════════
 // MOCK DATA
@@ -717,14 +718,34 @@ function InterpretationPanel({ event, chartId, onClose }) {
 // LOCKED TRANSIT PANEL (inline тизер вместо разбора)
 // ═══════════════════════════════════════════════════════════
 
-function transitLabel(e) {
-  return `${PLANET_LABELS_RU[e.transit_planet] || e.transit_planet} ${ASPECT_LABELS_RU[e.aspect_type] || e.aspect_type} ${PLANET_LABELS_RU[e.natal_planet] || e.natal_planet}`;
+// Шаг 9 (флаг sky_event): «Сатурн и Венера: напряжение», к своей же точке —
+// «Сатурн и твой Сатурн: …». Та же подпись, что у ленты (backend/feed/
+// templates.json: pattern_sky, tones, own_natal) — правя здесь, правь и там.
+const TONE_LABELS_RU = {
+  conjunction: "соединение", sextile: "гармония", square: "напряжение",
+  trine: "гармония", opposition: "напряжение",
+};
+const OWN_NATAL_RU = {
+  Sun: "твоё Солнце", Moon: "твоя Луна", Mercury: "твой Меркурий", Venus: "твоя Венера",
+  Mars: "твой Марс", Jupiter: "твой Юпитер", Saturn: "твой Сатурн", Uranus: "твой Уран",
+  Neptune: "твой Нептун", Pluto: "твой Плутон",
+};
+
+export function transitLabel(e, sky = false) {
+  const transit = PLANET_LABELS_RU[e.transit_planet] || e.transit_planet;
+  const natal = PLANET_LABELS_RU[e.natal_planet] || e.natal_planet;
+  if (sky) {
+    const own = e.transit_planet === e.natal_planet && OWN_NATAL_RU[e.natal_planet];
+    return `${transit} и ${own || natal}: ${TONE_LABELS_RU[e.aspect_type] || e.aspect_type}`;
+  }
+  return `${transit} ${ASPECT_LABELS_RU[e.aspect_type] || e.aspect_type} ${natal}`;
 }
 
 // Тексты — по каталогу витрины (lib/tierCatalog.js): числа из LIMITS, дата
 // «Следующие — с …, после продления» — число и даты сервера (usageDatesFrom).
 function LockedTransitPanel({ event, reason = "free", resetsOn, onClose, onOpenAccess }) {
-  const key = transitLabel(event);
+  // `key` — подпись, а не ключ: только выводится (шаг 9, отчёт 07.10.2026).
+  const key = transitLabel(event, useFlag("sky_event"));
   const intro = `${quotaEndedText("transit", reason === "lite-limit" ? "month" : "trial", resetsOn)}.`;
   const outro = reason === "lite-limit"
     ? "Без лимита — на Лире."
@@ -768,6 +789,7 @@ function fetchTransits(url) {
 }
 
 export default function TransitTimeline({ chartId, onDateSelect, mockMode, userTier, focusEventKey }) {
+  const sky = useFlag("sky_event");   // подпись транзита, шаг 9
   const toast = useToast();
   const [events,        setEvents]        = useState([]);
   const [loadError,     setLoadError]     = useState(false);  // явная ошибка загрузки — не путать с "0 транзитов"
@@ -1340,7 +1362,7 @@ export default function TransitTimeline({ chartId, onDateSelect, mockMode, userT
         onClose={() => setPaywallEvent(null)}
         feature={isLite ? "transit_limit" : "transit"}
         tier={userTier || "free"}
-        contextLabel={paywallEvent?.transit_planet ? transitLabel(paywallEvent) : null}
+        contextLabel={paywallEvent?.transit_planet ? transitLabel(paywallEvent, sky) : null}
         state={quotaEndedText("transit", isLite ? "month" : "trial", resetsOn)}
         onChoose={(t) => handleCheckout(t)}
         busy={checkoutLoading}

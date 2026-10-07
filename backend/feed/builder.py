@@ -185,7 +185,8 @@ def _naive_local_to_iso(naive: datetime, tz) -> str:
 
 # ── Шаблонный текст ──────────────────────────────────────────────────────────
 
-def transit_text(transit_planet: str, natal_planet: str, aspect_type: str) -> Optional[str]:
+def transit_text(transit_planet: str, natal_planet: str, aspect_type: str,
+                 sky: bool = False) -> Optional[str]:
     """Заголовок транзита из templates.json. Ни ИИ, ни квоты.
 
     Собирается ровно как строка `key` в LockedTransitPanel на вебе
@@ -195,6 +196,18 @@ def transit_text(transit_planet: str, natal_planet: str, aspect_type: str) -> Op
     None возвращается, только если в файле нет какой-то из трёх частей: тогда
     подписи не будет вовсе, и это заметно, а не молча подставленная заглушка.
     """
+    if sky:
+        # Шаг 9 (флаг sky_event): «Сатурн и Венера: напряжение»; к своей же
+        # точке — «Сатурн и твой Сатурн: …» (own_natal, с родом).
+        tone = TEMPLATES.get("tones", {}).get(aspect_type, "")
+        transit = TEMPLATES.get("transit_planets", {}).get(transit_planet, "")
+        natal = (TEMPLATES.get("own_natal", {}).get(natal_planet, "")
+                 if transit_planet == natal_planet
+                 else TEMPLATES.get("natal_labels", {}).get(natal_planet, ""))
+        if not (tone and transit and natal):
+            return None
+        return (TEMPLATES["pattern_sky"].replace("{transit}", transit)
+                .replace("{natal}", natal).replace("{tone}", tone))
     aspect = TEMPLATES.get("aspects", {}).get(aspect_type, "")
     transit = TEMPLATES.get("transit_planets", {}).get(transit_planet, "")
     natal = TEMPLATES.get("natal_labels", {}).get(natal_planet, "")
@@ -391,13 +404,15 @@ def transit_cards(chart, from_date: date, to_date: date, tz, tier: Optional[str]
     if sky is None:
         sky = day_event._sky_on(chart)
     chunk = (lambda y, m: _sky_chunk(chart, y, m)) if sky else None
-    return _transit_events(str(chart.id), points(chart), from_date, to_date, tz, tier, chunk)
+    return _transit_events(str(chart.id), points(chart), from_date, to_date, tz, tier, chunk, sky)
 
 
 def _transit_events(chart_id: str, natal_planets: list[dict],
                     from_date: date, to_date: date, tz, tier: Optional[str],
-                    chunk=None) -> list[dict]:
-    """`chunk(year, month)` — источник строк; None — старый движок (`_transit_chunk`)."""
+                    chunk=None, sky: bool = False) -> list[dict]:
+    """`chunk(year, month)` — источник строк; None — старый движок (`_transit_chunk`).
+    `sky` — флаг sky_event: подпись `text` по шагу 9. Подпись строится после
+    кэша — версии кэша ленты от неё не зависят."""
     out: list[dict] = []
     chunk = chunk or (lambda y, m: _transit_chunk(chart_id, natal_planets, y, m))
     # Чанки — по UTC-дате пика, окно — местные сутки: у краёв окна пик
@@ -450,7 +465,7 @@ def _transit_events(chart_id: str, natal_planets: list[dict],
                 # подключает check_transit_access, чтобы не закрыть витрину).
                 # Платный там только AI-разбор, а его лента не отдаёт вовсе.
                 "locked": False,
-                "text": transit_text(e["transit_planet"], e["natal_planet"], e["aspect_type"]),
+                "text": transit_text(e["transit_planet"], e["natal_planet"], e["aspect_type"], sky),
                 "teaser": transit_teaser(tier, e["free_unlocked"]),
                 "meta": {
                     "transit_planet": e["transit_planet"],
