@@ -202,10 +202,12 @@ def test_clean_morning_sends_exactly_one_message(monkeypatch):
 
     monkeypatch.setattr(S, "run_steps", steps)
     monkeypatch.setattr(S, "read_feedback", lambda **k: None)
-    monkeypatch.setattr(stats, "read_window", lambda **k: {"gendered_you": 3})
+    monkeypatch.setattr(stats, "read_window", lambda **k: {
+        "gendered_you": 3, "text:esoteric:chat": 2, "text:esoteric:natal": 1, "text:ai:transit": 1})
     monkeypatch.setattr("backend.notifications.telegram.send_support_message", box)
     asyncio.run(S.run_daily(r))
-    assert box.sent == ["✅ Утренняя самопроверка: всё в порядке\nРодовые формы за 24 ч: 3"]
+    assert box.sent == ["✅ Утренняя самопроверка: всё в порядке\nРодовые формы за 24 ч: 3\n"
+                        "В текстах модели за 24 ч: «ИИ» 1, «вы» 0, эзотерика 3"]
 
 
 # ── Часовая проверка ────────────────────────────────────────

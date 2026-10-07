@@ -475,13 +475,18 @@ async def run_daily(redis) -> dict:
     return results
 
 
-def morning_text(results: dict, gendered: int) -> str:
+def morning_text(results: dict, gendered: int, voice: dict | None = None) -> str:
     """Итог утра одним сообщением: «всё в порядке» или число проблем с
-    названиями, и счётчик родовых форм за сутки (gender_check)."""
+    названиями, счётчик родовых форм за сутки (gender_check) и голос в
+    текстах модели (text_check, шаг 8) — нули тоже, чтобы было видно, что
+    счётчик жив."""
     names = [TITLES.get(n) or TITLES.get(n.split(":")[0], n) for n, p in results.items() if p]
     head = ("✅ Утренняя самопроверка: всё в порядке" if not names
             else f"🟡 Утренняя самопроверка: проблем — {len(names)} ({', '.join(names)})")
-    return f"{head}\nРодовые формы за 24 ч: {gendered}"
+    v = voice or {}
+    return (f"{head}\nРодовые формы за 24 ч: {gendered}\n"
+            f"В текстах модели за 24 ч: «ИИ» {v.get('ai', 0)}, «вы» {v.get('formal_you', 0)}, "  # вы-разрешено: название счётчика для владельца
+            f"эзотерика {v.get('esoteric', 0)}")
 
 
 async def send_morning_summary(results: dict, *, send=None) -> bool:
@@ -493,10 +498,11 @@ async def send_morning_summary(results: dict, *, send=None) -> bool:
         from backend.notifications.telegram import send_support_message as send
     from backend.forecast import stats
     try:
-        gendered = stats.summarize(stats.read_window()).get("gendered_you", 0)
+        summary = stats.summarize(stats.read_window())
+        gendered, voice = summary.get("gendered_you", 0), summary.get("text_voice")
     except Exception:
-        gendered = 0
-    text = morning_text(results, gendered)
+        gendered, voice = 0, None
+    text = morning_text(results, gendered, voice)
     try:
         if await send(text):
             return True
