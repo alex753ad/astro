@@ -681,10 +681,14 @@ SUBJECT_TEMPLATES = {
 }
 
 
-def _build_transit_alert_subject(transit_planet: str, natal_planet: str, aspect_type: str, planet_ru: str) -> str:
+def _build_transit_alert_subject(transit_planet: str, natal_planet: str, aspect_type: str, planet_ru: str,
+                                 sky: bool = False) -> str:
     tone   = ASPECT_TONE.get(aspect_type, "tense")
     sphere = NATAL_SPHERE.get((transit_planet, natal_planet))
     with_sphere, without_sphere = SUBJECT_TEMPLATES[tone]
+    if sky and tone == "harmonious":
+        # Шаг 9 (термины, под sky_event): «период», не «окно».
+        with_sphere = "{planet} открывает период: {sphere} — что сделать · Aristea Timeline"
     if sphere:
         sphere_short = sphere.split(" — ")[0]
         return with_sphere.format(planet=planet_ru, sphere=sphere_short)
@@ -710,7 +714,7 @@ def alert_event(chart, local_date: date, tzname: str, sky: bool | None = None):
     return min(evs, key=lambda e: (-e.score, e.key), default=None)
 
 
-async def send_transit_alert(to: str, chart_id: str, ev, unsubscribe_url: str) -> bool:
+async def send_transit_alert(to: str, chart_id: str, ev, unsubscribe_url: str, sky: bool = False) -> bool:
     """Письмо «Важный транзит» про событие `ev` (alert_event).
 
     ⚠️ До 05.10.2026 письмо уходило только побочным эффектом GET /transits —
@@ -736,10 +740,11 @@ async def send_transit_alert(to: str, chart_id: str, ev, unsubscribe_url: str) -
         natal_planet=PLANET_RU.get(npl, npl),
         date_str=ev.at_local.date().isoformat(),
         description=_build_transit_alert_description(tp, npl, asp, planet_ru),
-        subject=_build_transit_alert_subject(tp, npl, asp, planet_ru),
+        subject=_build_transit_alert_subject(tp, npl, asp, planet_ru, sky),
         link=link,
         is_peak=False,
         unsubscribe_url=unsubscribe_url,
+        sky=sky,
     )
 
 

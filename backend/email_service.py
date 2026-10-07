@@ -727,6 +727,7 @@ async def send_transit_alert_email(
     is_peak: bool = True,
     *,
     unsubscribe_url: str,
+    sky: bool = False,
 ) -> bool:
     """Transit Alert — точечное уведомление об важном транзите (пик или начало).
 
@@ -739,7 +740,8 @@ async def send_transit_alert_email(
         if is_peak else ""
     )
     body = (
-        _h2(f"🌟 Твоё окно{' — сегодня пик' if is_peak else ''}")
+        # Шаг 9 (термины, под sky_event): «Период влияния», как на карточке.
+        _h2(f"🌟 {'Твой период влияния' if sky else 'Твоё окно'}{' — сегодня пик' if is_peak else ''}")
         + f'<div style="background:#f0ebff;border-radius:12px;padding:20px 24px;margin:0 0 20px;">'
           f'  <div style="color:#9060C8;font-size:13px;font-weight:700;margin-bottom:8px;">'
           f'    {date_str}{badge}'
@@ -922,7 +924,10 @@ async def send_weekly_digest(user, db) -> bool:
     # раннее, как в week_top); у фазы Луны планеты нет — тогда тема B.
     h0 = max(highlights, key=lambda h: h["score"], default=None)
     if variant == "A" and h0 and h0["planet"]:
-        subject = f"{h0['planet']} открывает окно в твоей карте — что сделать · Aristea"
+        # Шаг 9 (термины, под sky_event): «период», не «окно».
+        from backend.day_event import _sky_on
+        noun = "период" if _sky_on(chart) else "окно"
+        subject = f"{h0['planet']} открывает {noun} в твоей карте — что сделать · Aristea"
     else:
         subject = f"Твоя неделя {week_label} — что важно и что делать · Aristea"
 
@@ -1263,8 +1268,11 @@ async def send_pilot_farewell(
     days_left: int = 3,
     *,
     unsubscribe_url: str,
+    sky: bool = False,
 ) -> bool:
     """Письмо за 3 дня до конца пилота.
+
+    sky — флаг sky_event: «периоды» вместо «окон» (шаг 9).
 
     windows    — человекочитаемые ближайшие окна пользователя.
     promo_code — код на продолжение (напр. "astropro90").
@@ -1288,7 +1296,7 @@ async def send_pilot_farewell(
         )
     else:
         windows_html = _p(
-            "В ближайшие недели у тебя есть активные окна — жаль, если они пройдут мимо."
+            f"В ближайшие недели у тебя есть активные {'периоды' if sky else 'окна'} — жаль, если они пройдут мимо."
         )
 
     stay_html = ""
@@ -1313,7 +1321,8 @@ async def send_pilot_farewell(
     return await _send_info(
         to,
         "Твой месяц в Aristea заканчивается",
-        "Твой месяц заканчивается", "Ближайшие окна, которые могут пройти мимо", body,
+        "Твой месяц заканчивается",
+        f"Ближайшие {'периоды' if sky else 'окна'}, которые могут пройти мимо", body,
         unsubscribe_url=unsubscribe_url,
     )
 
@@ -1326,6 +1335,7 @@ async def send_dormant(
     survey_url: str | None = None,  # ссылка на exit-survey (день 10/14)
     *,
     unsubscribe_url: str,
+    sky: bool = False,              # флаг sky_event: «период», не «окно» (шаг 9)
 ) -> bool:
     """Письмо спящему. День 5 — мягкое напоминание; 10 — с вопросом; 14 — последнее."""
     if day == 5:
@@ -1333,15 +1343,18 @@ async def send_dormant(
         body = (
             _h2("Давно не виделись")
             + _p(f"Тебя не было 5 дней, а в твоей карте сейчас идёт {w}.")
-            + _p("Такие окна не повторяются — они приходят раз в несколько месяцев. "
-                 "Не хочется, чтобы оно прошло мимо тебя.")
+            + (_p("Такие периоды не повторяются — они приходят раз в несколько месяцев. "
+                  "Не хочется, чтобы он прошёл мимо тебя.") if sky else
+               _p("Такие окна не повторяются — они приходят раз в несколько месяцев. "
+                  "Не хочется, чтобы оно прошло мимо тебя."))
             + _btn("Открыть Timeline", (survey_url or "").replace("/exit-survey", "/planner") or "/planner")
         )
-        subj, prev = "В твоей карте сейчас активное окно", "Тебя не было 5 дней"
+        subj = "В твоей карте сейчас активный период" if sky else "В твоей карте сейчас активное окно"
+        prev = "Тебя не было 5 дней"
 
     elif day == 10:
         missed = f"{missed_count} активных периодов" if missed_count else "несколько активных периодов"
-        tail = window or "ближайшее окно скоро закроется"
+        tail = window or ("ближайший период скоро закончится" if sky else "ближайшее окно скоро закроется")
         body = (
             _h2("10 дней без Timeline")
             + _p(f"За это время у тебя прошло {missed} — мы смотрели на твою карту "
@@ -1366,7 +1379,8 @@ async def send_dormant(
     return await _send_info(to, subj, subj, prev, body, unsubscribe_url=unsubscribe_url)
 
 
-async def send_end_of_month_survey(to: str, survey_url: str, *, unsubscribe_url: str) -> bool:
+async def send_end_of_month_survey(to: str, survey_url: str, *, unsubscribe_url: str,
+                                   sky: bool = False) -> bool:
     """Момент 3: месяц закончился, продолжения не было — «почему не остались»."""
     body = (
         _h2("Твой месяц закончился")
@@ -1374,8 +1388,8 @@ async def send_end_of_month_survey(to: str, survey_url: str, *, unsubscribe_url:
         + _p("Если не сложно, скажи почему: это 30 секунд и один вопрос. "
              "Твой ответ помогает нам стать лучше.")
         + _btn("Ответить на один вопрос", survey_url)
-        + _p("Твоя карта останется с тобой и на бесплатном тарифе — окна будут видны "
-             "как даты.")
+        + _p("Твоя карта останется с тобой и на бесплатном тарифе — "
+             f"{'периоды' if sky else 'окна'} будут видны как даты.")
     )
     return await _send_info(
         to, "Твой месяц в Aristea закончился",
