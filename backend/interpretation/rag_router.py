@@ -131,6 +131,12 @@ OFF_TOPIC_REPLIES = {
 # Запасной текст: метка пришла незнакомая (модель ответила чем-то своим).
 OFF_TOPIC_REPLY = OFF_TOPIC_REPLIES["life"]
 
+# Шаг 9 (термины, под sky_event): «период», не «окно». Без флага — прежний
+# текст из OFF_TOPIC_REPLIES слово в слово.
+OFF_TOPIC_WORLD_SKY = OFF_TOPIC_REPLIES["world"].replace(
+    "а где открытое окно", "а где благоприятный период")
+assert OFF_TOPIC_WORLD_SKY != OFF_TOPIC_REPLIES["world"]  # фраза сменилась — править и здесь
+
 _TOPIC_CLASSIFIER_PROMPT = """Ты определяешь, относится ли вопрос к работе астролога, который разбирает натальную карту собеседника.
 
 Ответь РОВНО ОДНИМ словом из списка: astrology, money, world, life, tariffs, quota, cancel, navigation.
@@ -291,7 +297,10 @@ def _system_prompt(
     planner_block: str = "",
     today: date | None = None,
     p1_block: str = "",
+    sky: bool = False,
 ) -> str:
+    # `sky` — флаг sky_event: термины шага 9 («периоды», не «окна»). У промпта
+    # чата нет версии и кэша ответов (docs/chat.md) — поднимать нечего.
     kb_text = "\n".join(f"- {c}" for c in context_chunks) if context_chunks else "—"
     # `today` — только для прогона вопросов (scripts/chat_eval.py), см. rag.py.
     today = (today or date.today()).strftime("%d.%m.%Y")
@@ -322,7 +331,7 @@ def _system_prompt(
 
 Как пишешь. Просто и живо, как человек, а не как гороскоп. Без пафоса и общих фраз вроде «твой путь — раскрыть потенциал», без нанизанных красивых оборотов и обязательных троек. Конкретика вместо абстракций. Чередуй короткие и длинные фразы. Не выделяй жирным каждый термин. {ADDRESS_RULE}
 
-Сегодня {today}. Сроки и «окна» считай только от этой даты и вперёд, на прошедшие периоды не ссылайся.
+Сегодня {today}. {"Сроки и периоды" if sky else "Сроки и «окна»"} считай только от этой даты и вперёд, на прошедшие периоды не ссылайся.
 
 {chart_summary}
 
@@ -335,7 +344,7 @@ def _system_prompt(
 Отвечая на вопросы о характере и предрасположенностях — на натальную карту.
 Не вычисляй астрономические данные сам, используй только переданные.
 Если нужного транзита {not_found} — скажи, что сейчас его не видишь, не выдумывай.
-{_P0_RULES}{planner_rules}{WHERE_RULES if p1_block else ""}
+{_P0_RULES_SKY if sky else _P0_RULES}{planner_rules}{WHERE_RULES if p1_block else ""}
 ## Границы:
 1. Говори только по этой карте — конкретные планеты, знаки, дома. Никаких общих советов «для всех Тельцов».
 2. Без страшилок и фатальных предсказаний. Напряжённое — зона работы, а не приговор.
@@ -391,6 +400,11 @@ _P0_RULES = """
 ## Это приложение
 Человек пишет тебе из Aristea Timeline. Уведомления, прогноз дня, лента и планер — из этого же приложения и посчитаны по карте этого человека. Никогда не называй их чужим сервисом, общим гороскопом или шаблоном по знаку Солнца. Если человек спрашивает о них, а их текста у тебя нет, не пересказывай его наугад: скажи, что видишь его карту и текущие транзиты, и ответь по ним.
 """
+
+# Шаг 9 (под sky_event): «периоды», не «окна».
+_P0_RULES_SKY = _P0_RULES.replace("свои окна и интервалы", "свои периоды и интервалы")
+assert _P0_RULES_SKY != _P0_RULES  # фраза сменилась — править и здесь
+
 
 
 # Правило согласовано владельцем 02.10.2026 (таблица до кода). Правило 7 —
@@ -1012,6 +1026,10 @@ async def rag_chat(
         if topic in PRODUCT_TOPICS:
             dates = usage_dates(db, str(user.id)) if _period == "month" else None
             reply = product_reply(topic, user.tier or "free", _left, _period, dates)
+        elif topic == "world":
+            from backend import day_event
+            if day_event._sky_on(chart):   # ORM-карта ручки — флаг читается верно
+                reply = OFF_TOPIC_WORLD_SKY
         return StreamingResponse(
             _off_topic_sse(user.id, chart_id, question, history, topic, reply),
             media_type="text/event-stream",
@@ -1050,14 +1068,15 @@ async def rag_chat(
     zone = user_tz(tz, user, chart)
     # Флаг sky_event — по ORM-карте: chart_data — dict без сессии (4.6).
     from backend import day_event
-    transits_block = await _get_transits_block_cached(chart_id, chart_data, zone, day_event._sky_on(chart))
+    sky = day_event._sky_on(chart)
+    transits_block = await _get_transits_block_cached(chart_id, chart_data, zone, sky)
     planner_block = p1_block = ""
     if flag_on(db, "chat_planner_context", user):
         planner_block = await _get_planner_block_cached(chart, user.tier, zone)
         p1_block = await _get_p1_block(chart, user, zone, _left, _period, db)
     from backend.transit.planner_engine import now_local
     system = _system_prompt(chart_summary, context_chunks, memory_summary, transits_block, planner_block,
-                            today=now_local(zone).date(), p1_block=p1_block)
+                            today=now_local(zone).date(), p1_block=p1_block, sky=sky)
 
     # История берётся с сервера, а не из тела запроса: клиентская история
     # позволяла подделывать реплики ассистента и переопределять поведение модели.

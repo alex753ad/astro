@@ -437,6 +437,9 @@ export default function FeedScreen({
   // периода — факт неба, а не платное (docs/feed.md, «Полоса планет»).
   const guest = isGuest();
   const storyCard = useFlag(STORY_CARD_FLAG);
+  // Шаг 9 (термины, под sky_event): «окно» только в смысле срока транзита
+  // было, здесь — диапазон дат, и под флагом слова нет вовсе.
+  const sky = useFlag('sky_event');
   const allEvents = feed?.events || [];
   const events = allEvents.filter((e) => e.kind !== 'planner_longterm' && !(guest && e.locked));
   // Дни с карточкой прогноза (сегодня, с 19:00 — завтра) есть в
@@ -695,7 +698,7 @@ export default function FeedScreen({
   }
 
   if (days.length === 0) {
-    return <CenteredNotice title="В этом окне событий нет" text="Попробуй обновить ленту позже." action="Обновить" onAction={load} />;
+    return <CenteredNotice title={sky ? "За эти дни событий нет" : "В этом окне событий нет"} text="Попробуй обновить ленту позже." action="Обновить" onAction={load} />;
   }
 
   /**
