@@ -1664,8 +1664,8 @@ async def interpret_transit_event(
                             {"content": "".join(collected), "engine": eng.name},
                         )
                         tier_limiter.commit_transit_ai(user, db)
-                        from backend.interpretation.gender_check import report as _gender_report
-                        _gender_report("".join(collected), "transit")
+                        from backend.interpretation.text_check import report as _text_report
+                        _text_report("".join(collected), "transit")
                         yield "data: [DONE]\n\n"
                         return
                 except Exception as e:

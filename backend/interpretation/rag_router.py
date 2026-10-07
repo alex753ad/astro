@@ -713,7 +713,7 @@ def _split_ready(buf: str) -> tuple[str, str]:
 async def _fix_gender(text: str, turn: dict | None) -> str:
     """Фраза без рода. Не вышло (сбой, пусто, снова род, длина уехала) —
     исходная фраза: незаконченный или искажённый ответ хуже оборота с родом,
-    а остаток посчитает gender_report в _finish_turn."""
+    а остаток посчитает text_check.report в _finish_turn."""
     from backend.interpretation.gender_check import gendered_you
 
     hits = gendered_you(text)
@@ -1110,8 +1110,8 @@ async def _finish_turn(user_id: str, tier: str, question: str, history: list, tu
         await _update_memory(user_id, question, history, turn)
     if not turn.get("answer"):
         return
-    from backend.interpretation.gender_check import report as gender_report
-    gender_report(turn["answer"], "chat")
+    from backend.interpretation.text_check import report as text_report
+    text_report(turn["answer"], "chat")
     db = SessionLocal()
     try:
         tier_limiter.commit_chat(user_id, tier, db)

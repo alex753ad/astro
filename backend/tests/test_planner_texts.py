@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.interpretation.text_check import ESOTERIC
 from backend.transit.house_passages import PLANET_SUBTITLES
 
 SRC = Path(__file__).resolve().parents[1] / "transit" / "methodology.json"
@@ -30,10 +31,8 @@ SRC = Path(__file__).resolve().parents[1] / "transit" / "methodology.json"
 # владельца 03.10.2026). «мисти» — только с начала слова, иначе ловится
 # «оптимистичный»; «маги…» — без «магазин» и «магистр». «медитац», «духовн»,
 # «намерени» не запрещены намеренно (решение владельца 03.10.2026).
-ESOTERIC = (
-    r"эзотери|чакр|карм|\bмаги(?:я|и|ю|ей|ческ)|Вселенн|\bгуру\b|мест\w* силы|нумеролог"
-    r"|\bмисти|ритуал|аффирмац|\bгадан|\bтаро\b|\bастрал|\bоберег|\bзаговор(?:а|ы|ов)?\b|сакральн"
-)
+# С 07.10.2026 словарь (ESOTERIC) живёт в interpretation/text_check.py: им же
+# шаг 8 считает эзотерику в текстах модели — один список на тесты и счётчики.
 FORBIDDEN = re.compile(
     r"\bИИ\b|\bAI\b|т\.д|беременн|подруг|он-лайн|" + ESOTERIC,
     re.I,
