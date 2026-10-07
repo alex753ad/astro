@@ -306,6 +306,12 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # Только no-undef (frontend/eslint.config.js): сборка Vite необъявленную
+      # переменную пропускает, и она падает уже у людей (3bae9b7, #123).
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
       - name: Test
         working-directory: frontend
         run: npm test
