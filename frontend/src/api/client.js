@@ -439,12 +439,14 @@ export async function getChart(chartId) {
  * и истории браузера. Тикет живёт ~минуту и гасится при первом использовании,
  * поэтому запрашивается заново на каждое подключение (включая реконнекты).
  * Возвращает null для анонима — SSE-эндпоинты доступны и без авторизации.
+ * Через authFetch: голым fetch протухший (15 мин) токен давал 401 → null, и
+ * поток уходил без тикета, как у анонима (07.10.2026).
  */
 async function _sseTicket() {
   const token = localStorage.getItem('astro_access_token');
   if (!token) return null;
   try {
-    const resp = await fetch(`${API_BASE}/auth/sse-ticket`, {
+    const resp = await authFetch(`${API_BASE}/auth/sse-ticket`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
