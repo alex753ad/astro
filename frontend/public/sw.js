@@ -29,6 +29,10 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Не-http(s) (chrome-extension:, data: и т. п.) — мимо воркера: Cache API
+  // такие запросы не принимает, cache.put бросает TypeError.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   // Кэшируем сохранённые карты в отдельный кэш
   if (request.method === 'GET' && /^\/api\/v1\/chart\/[^/]+$/.test(url.pathname)) {
     event.respondWith(networkFirstWithChartsCache(request));
