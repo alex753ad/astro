@@ -942,6 +942,7 @@ function LoadingState() {
 // ── Главный компонент ─────────────────────────────────────────────────────────
 
 export default function PlannerPage() {
+  const sky = useFlag("sky_event");   // шаг 9.6: заголовки и ретроградность
   const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1055,7 +1056,7 @@ export default function PlannerPage() {
     setLunar(res.filter(Boolean));
   }
 
-  const upcoming = useMemo(() => buildUpcoming(planData, lunar), [planData, lunar]);
+  const upcoming = useMemo(() => buildUpcoming(planData, lunar, new Date(), sky), [planData, lunar, sky]);
 
   // Из подписи «Ближайших 30 дней» — к карточке планеты. Вкладку переключаем,
   // только если карточки нет на текущей. Таймаут — дождаться рендера новой
@@ -1218,7 +1219,7 @@ export default function PlannerPage() {
               {tab === "week" && (
                 <div>
                   <div className="week-header-row">
-                    <SectionHeader planet="moon" emoji="🌙" title={planData?.week_title || "Транзитная Луна по домам"} subtitle="Лучшие дни недели для каждой темы" />
+                    <SectionHeader planet="moon" emoji="🌙" title={sky ? "Луна по домам" : (planData?.week_title || "Транзитная Луна по домам")} subtitle="Лучшие дни недели для каждой темы" />
                     {weekNav && (
                       <div className="month-nav">
                         <MotionButton
@@ -1255,7 +1256,7 @@ export default function PlannerPage() {
 
               {tab === "longterm" && (
                 <div>
-                  <SectionHeader emoji="🪐" title={planData?.longterm_title || "Долгосрочные транзиты"} subtitle="Социальные и высшие планеты — тренды на годы" />
+                  <SectionHeader emoji="🪐" title={sky ? "Долгосрочные периоды" : (planData?.longterm_title || "Долгосрочные транзиты")} subtitle="Социальные и высшие планеты — тренды на годы" />
                   {(planData?.longterm || []).map((lt, i) => (
                     <div key={i} id={`plan-lt-${lt.planet}`} style={{ marginBottom: 20, scrollMarginTop: 80 }}>
                       <SectionHeader planet={lt.planet}

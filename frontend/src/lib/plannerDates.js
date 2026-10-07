@@ -65,7 +65,7 @@ export function houseTo(house) {
  * short — подпись «с заглавной», её страница ставит после даты:
  * «26 окт · Полнолуние».
  */
-export function buildUpcoming(planData, lunar, now = new Date()) {
+export function buildUpcoming(planData, lunar, now = new Date(), sky = false) {
   const from = isoDay(now);
   const to = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + UPCOMING_DAYS));
   const events = [];
@@ -96,7 +96,9 @@ export function buildUpcoming(planData, lunar, now = new Date()) {
       const retro = e.status === 'start';
       events.push({
         id: `up-${i}`, date: e.date, dot: { type: e.planet, retro }, planet: e.planet,
-        short: `${planet} разворачивается ${retro ? 'назад' : 'вперёд'}`,
+        // Шаг 9.6, под sky_event: подпись ленты «Уран: начало ретроградности».
+        short: sky ? `${planet}: ${retro ? 'начало' : 'конец'} ретроградности`
+          : `${planet} разворачивается ${retro ? 'назад' : 'вперёд'}`,
         detail: retro
           ? `${planet} останавливается и начинает попятное движение — ретроградность.`
           : `${planet} заканчивает ретроградность и снова идёт вперёд.`,

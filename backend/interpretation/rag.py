@@ -177,7 +177,7 @@ def chat_chart_data(chart: dict, time_unknown: bool) -> dict:
     return data
 
 
-def build_chart_summary(chart: dict, time_unknown: bool = False) -> str:
+def build_chart_summary(chart: dict, time_unknown: bool = False, sky: bool = False) -> str:
     """Компактный текстовый дамп карты для system prompt (≈400 токенов).
 
     `time_unknown` — карта без времени рождения. Приложение такую карту
@@ -216,7 +216,9 @@ def build_chart_summary(chart: dict, time_unknown: bool = False) -> str:
     mc = chart.get("midheaven") or {}
     if mc.get("sign"):
         sign = _SIGN_RU.get(mc["sign"], mc["sign"])
-        lines.append(f"**MC (Середина Неба):** {sign} {mc.get('degree', '')}°")
+        # Шаг 9.6, под sky_event: «Середина неба» — как в текстах для человека.
+        mc_name = "Середина неба" if sky else "Середина Неба"
+        lines.append(f"**MC ({mc_name}):** {sign} {mc.get('degree', '')}°")
 
     # Управители домов (по знаку на куспиде) — считаем явно, не даём ИИ угадывать
     houses = chart.get("houses") or []
@@ -441,7 +443,8 @@ def _locked_line(head: str, opens_on: str) -> str:
     return f"{head}. Подробный разбор закрыт, открыт на {opens_on}."
 
 
-def build_planner_block(chart: dict, tier: str | None, user_timezone: str | None, today) -> str:
+def build_planner_block(chart: dict, tier: str | None, user_timezone: str | None, today,
+                        sky: bool = False) -> str:
     """Планер человека для промпта чата (флаг chat_planner_context).
 
     Источник — тот же build_planner, что отдаёт /planner/monthly, с тем же
@@ -503,5 +506,7 @@ def build_planner_block(chart: dict, tier: str | None, user_timezone: str | None
                 # Без глагола: род у планет разный («Венера становится
                 # ретроградным» — ровно так вышло в первом прогоне).
                 turn = "начало ретроградного движения" if u["status"] == "start" else "конец ретроградного движения"
+                if sky:  # шаг 9.6: та же подпись, что в планере и ленте
+                    turn = "начало ретроградности" if u["status"] == "start" else "конец ретроградности"
                 lines.append(f"{d} {u['planet_name']}: {turn}")
     return "\n".join(lines) + "\n"

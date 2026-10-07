@@ -2,6 +2,7 @@
  * AspectGrid.jsx — треугольная матрица аспектов
  */
 import React from 'react';
+import { useFlag } from '../lib/flags';
 
 const PLANET_ORDER = [
   'Sun','Moon','Mercury','Venus','Mars','Jupiter',
@@ -43,6 +44,9 @@ const ASPECT_COLOR = {
 };
 
 export default function AspectGrid({ aspects = [], planets = [] }) {
+  // Шаг 9.6, под sky_event: «Сев. узел» — как в ленте и на /transits.
+  const sky = useFlag('sky_event');
+  const names = sky ? { ...PLANET_RU, 'North Node': 'Сев. узел' } : PLANET_RU;
   // determine which planets actually appear in the chart
   const present = new Set(planets.map(p => p.name));
   const order = PLANET_ORDER.filter(n => present.has(n) || n === 'Ascendant' || n === 'Midheaven');
@@ -74,7 +78,7 @@ export default function AspectGrid({ aspects = [], planets = [] }) {
                   return (
                     <td
                       key={colPlanet}
-                      title={asp ? `${PLANET_RU[rowPlanet] || rowPlanet} ${ASPECT_RU[asp.type] || asp.type} ${PLANET_RU[colPlanet] || colPlanet} (орб ${asp.orb?.toFixed(1)}°)` : (isDiag ? (PLANET_RU[rowPlanet] || rowPlanet) : '')}
+                      title={asp ? `${names[rowPlanet] || rowPlanet} ${ASPECT_RU[asp.type] || asp.type} ${names[colPlanet] || colPlanet} (орб ${asp.orb?.toFixed(1)}°)` : (isDiag ? (names[rowPlanet] || rowPlanet) : '')}
                       style={{
                         width: CELL, height: CELL,
                         border: '0.5px solid rgba(139,143,163,0.25)',

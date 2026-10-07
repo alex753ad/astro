@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useState, useRef, useEffect } from 'react';
+import { useFlag } from '../lib/flags';
 import { motion, useReducedMotion } from 'framer-motion';
 // ?inline — Vite всегда отдаёт готовую data: URI (base64), независимо от
 // размера файла. Единственный источник — src/assets/fonts/, см. README там.
@@ -675,6 +676,7 @@ function NatalChartInner({
  * чтобы держать его ради анимации.
  */
 export default function NatalChart({ loading = false, compact: _compactProp, forExport = false, onboarding = true, ...props }) {
+  const sky = useFlag('sky_event');   // шаг 9.6: «Середина неба»
   // Touch state
   const containerRef = useRef(null);
   const [scale,    setScale]    = useState(1);
@@ -720,7 +722,7 @@ export default function NatalChart({ loading = false, compact: _compactProp, for
 
   const TOOLTIPS = [
     { key: 'asc', label: 'ASC', text: 'Асцендент — твоя маска для мира, то как тебя воспринимают с первого взгляда' },
-    { key: 'mc', label: 'MC', text: 'Середина Неба — твоё призвание и публичный образ' },
+    { key: 'mc', label: 'MC', text: `${sky ? 'Середина неба' : 'Середина Неба'} — твоё призвание и публичный образ` },
     { key: 'aspects', label: 'Аспекты', text: 'Красные линии — напряжение и точки роста. Синие — природные таланты' },
   ];
 

@@ -40,6 +40,11 @@ describe('«Ближайшие 30 дней»', () => {
     expect(ev[4].detail).toBe('Полнолуние в Тельце, 07:12.');
   });
 
+  it('под sky_event — подпись ретроградности как в ленте (шаг 9.6)', () => {
+    const sky = buildUpcoming(plan, lunar, now, true).map((e) => e.short);
+    expect([sky[0], sky[2]]).toEqual(['Венера: начало ретроградности', 'Плутон: конец ретроградности']);
+  });
+
   it('рельс: узлы в пределах 0..1, соседи не ближе зазора', () => {
     const { pos, gap } = railPositions(['2026-10-03', '2026-10-03', '2026-10-04', '2026-10-29'], now);
     expect(pos[0]).toBeGreaterThanOrEqual(0);
