@@ -23,8 +23,9 @@
 ## Шаг 7 — слой смыслов
 Список — `docs/audit_unified_model.md` §8.5 и `docs/archive/audit_unified_model_done.md` §6.2. План утверждён владельцем 07.10.2026:
 - [x] 7.1 — мёртвый код без флага: `get_active_transits`, `TransitEvent.is_active_on`, промпт месячного планера (`build_monthly_planner_prompt`, `MOON_HOUSE_ACTIONS`, `PLANET_HOUSE_MEANINGS`), корневые `engine.py`/`house_passages.py`/`prompts.py`, `getFreeUnlockedIndex`, CRM `MAX_ORB`.
-- [ ] 7.2 — `/transits/interpret` и `get_transit_summary`. Перед удалением — проверить, не зовёт ли ручку старый APK.
-- [ ] 7.3 — словари названий → `ephemeris/ru_names` (`meanings.PLANET_RU`, `PLANET_NAMES_RU`, `ASPECT_LABELS_RU`) там, где строки совпадают; расхождения — таблицей владельцу до кода.
+- [x] 7.2 — `/transits/interpret`, `get_transit_summary`, промпт обзора периода (#167). Старый APK ручку не зовёт: веб-обёртка удалена 30.08, приложение с 05.09 ходит на `event/interpret`, в бандлах APK пути нет.
+- [x] 7.3 — `ASPECT_LABELS_RU`, `PLANET_NAMES_RU` → `ephemeris/ru_names` (#168). `forecast/meanings.PLANET_RU` не объединять: в промпте узлы полные, в UI — сокращения (владелец 07.10.2026).
+- [x] 7.3б — копии знаков `_SIGN_RU` (`rag.py`, `email_service.py`, `crm/dashboard_router.py`) → `ru_names.SIGN_RU` (#170).
 - [ ] 7.4 — старый путь (`sky_event` выключен) — **только после включения `sky_event` всем** (решение владельца 07.10.2026): удаление его до включения = включение флага. Пуши «вошёл в орб», «тройное касание», «за 4°» (`_lon_on`), старые ветки rag/`_feed_peak`, `_transit_chunk`, PDF `_real_ends`, `forecast/facts`, lifecycle, pilot, `day_event`, бриф CRM, `mark_transit_significance`, алиасы `.date`/`.orb`, `NATAL_SPHERE` по паре. Запасной `compute_exact_facts` в `main.py` (≈1809, ядро не нашло событие) — оставить; решить в 7.4 по частоте срабатывания.
 - Остаются (живые): `calculate_transits` (CRM `/crm/{id}/transits` без флага), `_find_exact_aspect`, `is_significant_pair`, `get_slow_aspects` (месячный календарь), `_retro_now`, цикл фаз `_compute_lunar_calendar` (на `lunations_local`), `featuredTransitIndex`/`isActiveOnDate`/`mergeEvents`; `TRANSIT_WINDOW` — к шагу 9.
 
