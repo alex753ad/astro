@@ -14,6 +14,7 @@ import Interpretation from '../components/Interpretation';
 import { useWebTier } from '../lib/webTier';
 import { shareDisclosure } from '../mobile/lib/shareRules';
 import TransitTimeline from '../components/TransitTimeline';
+import TabBoundary from '../components/TabBoundary';
 import AspectGrid from '../components/AspectGrid';
 import useIsMobile from '../hooks/useIsMobile';
 import { todayLocalISO } from '../utils/dateISO';
@@ -709,6 +710,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
 
       {/* ── Натальная карта: 3 колонки ── */}
       {topTab === 'chart' && (
+        <TabBoundary key="chart">
         <div style={s.threeCol}>
 
           {/* ── Мобильный порядок: баннер+онбординг → Построить карту/Транзиты →
@@ -870,10 +872,12 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
           )}
 
         </div>
+        </TabBoundary>
       )}
 
       {/* ── Транзиты ── */}
       {topTab === 'transits' && (
+        <TabBoundary key="transits">
         <div style={{ position: 'relative' }}>
           {/* До 05.10.2026 здесь был блюр по showPaywall — состоянию старого
               PaywallModal, удалённого 28.09 (3bae9b7) без этой ссылки:
@@ -908,6 +912,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
             </main>
           </div>
         </div>
+        </TabBoundary>
       )}
 
 
