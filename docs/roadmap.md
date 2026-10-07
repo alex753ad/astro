@@ -14,10 +14,10 @@
 - [x] Consistency: под флагом cB = 0 во всех разделах (прогон 37504975201, 06.10.2026)
 
 ## Мелкие ошибки
-- Голые `fetch` с Bearer (401 через 15 мин) — 3 PR: ChartPage + TransitTimeline; RagChat + `_sseTicket`; формы + CRM.
-- eslint `no-undef` в CI.
-- `sw.js` — не кэшировать не-http(s).
-- Error boundary вокруг вкладок ChartPage.
+- [x] Голые `fetch` с Bearer (401 через 15 мин) — #157 (ChartPage + TransitTimeline), #158 (RagChat + `_sseTicket`), #159 (формы + CRM).
+- [x] eslint `no-undef` в CI — #161.
+- [x] `sw.js` — не кэшировать не-http(s) — #162.
+- [x] Error boundary вокруг вкладок ChartPage — #163.
 - [x] Владивосток 07.10 — главное событие без времени: закрыто 07.10.2026 — работает по правилу notifications.md:263, гипотеза #132 не подтвердилась. Правило держит `backend/tests/test_main_event_vladivostok.py`.
 
 ## Шаг 7 — слой смыслов
