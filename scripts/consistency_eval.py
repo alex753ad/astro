@@ -204,11 +204,11 @@ _RU_DATE = re.compile(r"(\d{1,2}) (\w+) (\d{4})")
 def parse_chat_block(text: str) -> list[dict]:
     """Блок транзитов чата (rag.build_transits_block) → [{transit, natal,
     aspect, exact}]. Разбор по меткам _build_facts_block (transit/prompts.py)."""
-    from backend.ephemeris.ru_names import PLANET_RU
-    from backend.transit.prompts import ASPECT_LABELS_RU, _MONTHS_RU
+    from backend.ephemeris.ru_names import ASPECT_RU, PLANET_RU
+    from backend.transit.prompts import _MONTHS_RU
 
     planet = {v: k for k, v in PLANET_RU.items()}
-    aspect = {v: k for k, v in ASPECT_LABELS_RU.items()}
+    aspect = {v: k for k, v in ASPECT_RU.items()}
     out, cur = [], None
     for line in text.splitlines():
         if line.startswith("Транзитная планета: "):
