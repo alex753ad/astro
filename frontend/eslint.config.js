@@ -5,7 +5,9 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
-  { ignores: ["dist/**", "dist-mobile/**", "android/**", "node_modules/**", "public/**", "!public/sw.js"] },
+  // ⚠️ "public/*", а не "public/**": при "public/**" исключение !public/sw.js
+  // не срабатывает и sw.js молча выпадает из проверки (07.10.2026).
+  { ignores: ["dist/**", "dist-mobile/**", "android/**", "node_modules/**", "public/*", "!public/sw.js"] },
   {
     files: ["**/*.{js,jsx,mjs}"],
     languageOptions: {
