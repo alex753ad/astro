@@ -2,12 +2,12 @@
 
 Key changes vs v1:
 - TransitEvent now has start_date / peak_date / end_date (full period in orb)
-- get_active_transits(date) returns all transits active on a given day
 - get_planet_positions_for_date(date) returns all transit planet longitudes
   so the frontend can show planet movement on the wheel
 
 Algorithm:
-1. Scan the period in daily steps for slow planets, 4-hour steps for fast ones.
+1. Scan the period in FAST_STEP_HOURS steps for all planets (the Moon needs it);
+   SLOW_STEP_HOURS is only the bracket for refining the exact moment.
 2. When a (transit_planet, natal_planet, aspect) combo enters orb → open a window.
 3. While still in orb → update current orb; track minimum (peak).
 4. When it leaves orb → close the window, emit one TransitEvent with the full span.
@@ -87,11 +87,6 @@ class TransitEvent:
     def orb(self) -> float:
         """Alias for peak_orb."""
         return self.peak_orb
-
-    def is_active_on(self, d: date) -> bool:
-        s = date.fromisoformat(self.start_date)
-        e = date.fromisoformat(self.end_date)
-        return s <= d <= e
 
 
 @dataclass
@@ -267,14 +262,6 @@ def mark_transit_significance(events: list[TransitEvent]) -> None:
     top = sorted(significant, key=lambda e: e.peak_orb)[:FREE_UNLOCKED_TRANSITS]
     for e in top:
         e.free_unlocked = True
-
-
-def get_active_transits(
-    events: list[TransitEvent],
-    on_date: date,
-) -> list[TransitEvent]:
-    """Filter transit events to those active on a specific date."""
-    return [e for e in events if e.is_active_on(on_date)]
 
 
 def get_planet_positions_for_date(query_date: date) -> list[dict]:

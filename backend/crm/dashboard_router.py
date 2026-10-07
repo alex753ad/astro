@@ -3,7 +3,9 @@
 GET /api/v1/crm/alerts?from=&to= → важные периоды по всем клиентам астролога.
 
 Алерт = медленная планета в аспекте к личной точке натала, пик которого
-попадает в окно [from, to] и укладывается в порог точности (peak_orb ≤ MAX_ORB).
+попадает в окно [from, to]. Отдельного порога точности нет: орб ограничен
+TRANSIT_ORBS (≤ 2°) — и у старого движка, и у ядра sky; MAX_ORB = 3.0 ничего
+не отсекал и удалён 07.10.2026 (шаг 7 аудита).
 Фильтр по типу аспекта не применяется: транзитный движок и так отдаёт только
 реальные аспекты в пределах своего орба. Считается на лету (без кэша/таблицы).
 """
@@ -34,7 +36,6 @@ _premium = Depends(require_tier("premium"))
 
 SLOW_PLANETS = {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}
 PERSONAL_POINTS = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
-MAX_ORB = 3.0  # «точный» транзит; поднимите, если нужно ловить шире
 
 
 def crm_events(chart, frm: date, to: date, sky: bool = False) -> list:
@@ -112,11 +113,10 @@ def by_event(rows) -> list:
 
 
 def important(events, planet: str | None = None) -> list:
-    """Отбор «важных» CRM: медленная планета к личной точке, орб ≤ MAX_ORB."""
+    """Отбор «важных» CRM: медленная планета к личной точке."""
     return [e for e in events
             if e.transit_planet in SLOW_PLANETS and e.natal_planet in PERSONAL_POINTS
-            and (not planet or e.transit_planet == planet)
-            and (getattr(e, "peak_orb", None) is None or e.peak_orb <= MAX_ORB)]
+            and (not planet or e.transit_planet == planet)]
 
 
 @router.get("/alerts")

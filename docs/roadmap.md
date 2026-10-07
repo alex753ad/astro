@@ -21,7 +21,15 @@
 - [x] Владивосток 07.10 — главное событие без времени: закрыто 07.10.2026 — работает по правилу notifications.md:263, гипотеза #132 не подтвердилась. Правило держит `backend/tests/test_main_event_vladivostok.py`.
 
 ## Шаг 7 — слой смыслов
-Смыслы и словари, мёртвый код: `/transits/interpret`, старые пуши «вошёл в орб», «за 4°», «тройное касание» — список `docs/audit_unified_model.md` §8.5; план — `docs/archive/audit_unified_model_done.md` §6.3, строка 7.
+Список — `docs/audit_unified_model.md` §8.5 и `docs/archive/audit_unified_model_done.md` §6.2. План утверждён владельцем 07.10.2026:
+- [x] 7.1 — мёртвый код без флага: `get_active_transits`, `TransitEvent.is_active_on`, промпт месячного планера (`build_monthly_planner_prompt`, `MOON_HOUSE_ACTIONS`, `PLANET_HOUSE_MEANINGS`), корневые `engine.py`/`house_passages.py`/`prompts.py`, `getFreeUnlockedIndex`, CRM `MAX_ORB`.
+- [ ] 7.2 — `/transits/interpret` и `get_transit_summary`. Перед удалением — проверить, не зовёт ли ручку старый APK.
+- [ ] 7.3 — словари названий → `ephemeris/ru_names` (`meanings.PLANET_RU`, `PLANET_NAMES_RU`, `ASPECT_LABELS_RU`) там, где строки совпадают; расхождения — таблицей владельцу до кода.
+- [ ] 7.4 — старый путь (`sky_event` выключен) — **только после включения `sky_event` всем** (решение владельца 07.10.2026): удаление его до включения = включение флага. Пуши «вошёл в орб», «тройное касание», «за 4°» (`_lon_on`), старые ветки rag/`_feed_peak`, `_transit_chunk`, PDF `_real_ends`, `forecast/facts`, lifecycle, pilot, `day_event`, бриф CRM, `mark_transit_significance`, алиасы `.date`/`.orb`, `NATAL_SPHERE` по паре. Запасной `compute_exact_facts` в `main.py` (≈1809, ядро не нашло событие) — оставить; решить в 7.4 по частоте срабатывания.
+- Остаются (живые): `calculate_transits` (CRM `/crm/{id}/transits` без флага), `_find_exact_aspect`, `is_significant_pair`, `get_slow_aspects` (месячный календарь), `_retro_now`, цикл фаз `_compute_lunar_calendar` (на `lunations_local`), `featuredTransitIndex`/`isActiveOnDate`/`mergeEvents`; `TRANSIT_WINDOW` — к шагу 9.
+
+## Дайджест: «Лучшие дни недели»
+Блок письма-дайджеста делает свой отбор (гармония по `ASPECT_TONE`, `score >= BEST_DAY_MIN_SCORE`, первые 3; `email_service.py` ≈860) поверх тех же 7 `main_event`, не через `week_events`. Решение владельца 07.10.2026 — не трогать; отдельный пункт на будущее.
 
 ## Шаг 8 — проверка текста
 `text_check` на всех генерациях, «ё» — там же, §6.3, строка 8.
