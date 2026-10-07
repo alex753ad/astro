@@ -449,11 +449,13 @@ function DateNav({ dates, activeDate, onDateClick, eventCountByDate, viewMonth, 
 // ═══════════════════════════════════════════════════════════
 
 function StatsSummary({ events }) {
+  // Шаг 9.5 (под sky_event): характер аспекта — «Гармония / Напряжение / Соединение».
+  const sky = useFlag("sky_event");
   const stats = [
     { label: "Всего",        value: events.length,                                          color: "var(--tt-s1-fg)", bg: "var(--tt-s1-bg)" },
-    { label: "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "var(--tt-s2-fg)", bg: "var(--tt-s2-bg)" },
-    { label: "Напряжённых",  value: events.filter(e => isTense(e.aspect_type)).length,      color: "var(--tt-s3-fg)", bg: "var(--tt-s3-bg)" },
-    { label: "Соединений",   value: events.filter(e => e.aspect_type === "conjunction").length, color: "var(--tt-s4-fg)", bg: "var(--tt-s4-bg)" },
+    { label: sky ? "Гармония" : "Гармоничных",  value: events.filter(e => isHarmonic(e.aspect_type)).length,   color: "var(--tt-s2-fg)", bg: "var(--tt-s2-bg)" },
+    { label: sky ? "Напряжение" : "Напряжённых",  value: events.filter(e => isTense(e.aspect_type)).length,      color: "var(--tt-s3-fg)", bg: "var(--tt-s3-bg)" },
+    { label: sky ? "Соединение" : "Соединений",   value: events.filter(e => e.aspect_type === "conjunction").length, color: "var(--tt-s4-fg)", bg: "var(--tt-s4-bg)" },
   ];
   return (
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

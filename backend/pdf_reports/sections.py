@@ -553,6 +553,10 @@ def fingerprint(interp_id: str | None, tier: str, today: date, sky: bool = False
     if plan_for(tier).longterm:
         # l2 (04.10.2026, шаг 2б): границы периодов — настоящие, а не край окна.
         parts.append(f"l2:{today:%Y-%m}")
+    if sky:
+        # g9 — шаг 9.5: заголовки групп аспектов под флагом; готовый отчёт
+        # со старыми заголовками не отдавать.
+        parts.append("g9")
     return "|".join(p for p in parts if p)
 
 

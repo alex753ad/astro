@@ -33,7 +33,8 @@ import useReconnect from '../lib/useReconnect';
 import OfflineNote from '../components/OfflineNote';
 import SupportLink from '../components/SupportLink';
 import { birthDateWords, shortPlace } from '../lib/chartFormat';
-import { CHART_HINTS } from '../lib/onboardingCopy';
+import { CHART_HINTS, CHART_HINTS_SKY } from '../lib/onboardingCopy';
+import { useFlag } from '../../lib/flags';
 import useHints from '../lib/useHints';
 import useAuth from '../../hooks/useAuth.jsx';
 import { isGuest } from '../lib/guestChart';
@@ -98,6 +99,7 @@ function ChartLoading() {
 }
 
 export default function ChartScreen({ active = true, onHintsToggle, onChartCreated, chartsVersion = 0, onChartResolved }) {
+  const sky = useFlag('sky_event');   // шаг 9.5: подсказка про аспекты
   // 'loading' | 'ready' | 'error' | 'no-chart'
   const [status, setStatus] = useState('loading');
   const [chart, setChart] = useState(null);
@@ -563,7 +565,7 @@ export default function ChartScreen({ active = true, onHintsToggle, onChartCreat
       <ChartSheet chart={chart} onRefresh={refresh} />
 
       {hints.open && (
-        <HintOverlay steps={CHART_HINTS} anchors={hintAnchors} onClose={hints.close} />
+        <HintOverlay steps={sky ? CHART_HINTS_SKY : CHART_HINTS} anchors={hintAnchors} onClose={hints.close} />
       )}
 
       {shareOpen && (

@@ -158,8 +158,10 @@ def zone_key(tz_key: str, user) -> str:
 def _ver(v: int, sky: bool) -> str:
     """Версия кэша прогноза. Под флагом `sky_event` (задание 4.3) — своя,
     рядом со старой: факты другие — другой текст, а включение и выключение
-    флага ничего не сбрасывает (аудит 8.3)."""
-    return f"v{v}-sky" if sky else f"v{v}"
+    флага ничего не сбрасывает (аудит 8.3).
+    sky2 — 07.10.2026, шаг 9.5: характер аспекта в промпте «гармония /
+    напряжение / соединение» (meanings.TONE_RU_SKY); без флага ключ прежний."""
+    return f"v{v}-sky2" if sky else f"v{v}"
 
 
 def _daily_key(chart_id, local_date: date, tz_key: str, sky: bool = False) -> str:

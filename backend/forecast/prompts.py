@@ -12,7 +12,7 @@ import re
 
 from backend.forecast.facts import DayFacts, LunationFacts
 from backend.forecast.meanings import (
-    HOUSE_FOCUS, MOON_SIGN_MOOD, NATAL_SPHERE, PHASE_RU, PLANET_RU, SIGN_MEANING, TONE_RU, sphere_of,
+    HOUSE_FOCUS, MOON_SIGN_MOOD, NATAL_SPHERE, PHASE_RU, PLANET_RU, SIGN_MEANING, sphere_of, tone_accent,
 )
 
 # Главное событие дня — фаза Луны (таблица владельца 05.10.2026).
@@ -22,7 +22,7 @@ MAIN_PHASE_LINE = {
 }
 
 
-def _main_line(main: dict) -> str | None:
+def _main_line(main: dict, sky: bool = False) -> str | None:
     """Первый пункт смыслов — главное событие дня (day_event.main_event)."""
     if "phase" in main:
         return MAIN_PHASE_LINE[main["phase"]]
@@ -30,7 +30,7 @@ def _main_line(main: dict) -> str | None:
     if not sphere:
         return None
     lead = "Главное в дне (фон нескольких дней)" if main["slow"] else "Главное в дне"
-    return f"- {lead} — {TONE_RU[main['tone']]} акцент на теме «{sphere}»."
+    return f"- {lead} — {tone_accent(main['tone'], sky)} на теме «{sphere}»."
 from backend.forecast.validate import date_ru
 
 # 2 — с 24.09.2026 текст без «сегодня/завтра/вчера»: один и тот же текст
@@ -98,7 +98,7 @@ _RULES_COMMON = """- Обращайся на «ты». Ни одного «вы�
 
 def _day_meanings(f: DayFacts) -> str:
     lines = []
-    main = _main_line(f.main) if f.main else None
+    main = _main_line(f.main, f.sky) if f.main else None
     if main:
         lines.append(main)
     if f.houses:
@@ -110,7 +110,7 @@ def _day_meanings(f: DayFacts) -> str:
     for a in f.aspects:
         sphere = sphere_of(a["natal"], a.get("aspect"))
         if sphere:
-            lines.append(f"- {TONE_RU[a['tone']].capitalize()} акцент на теме: {sphere}.")
+            lines.append(f"- {tone_accent(a['tone'], f.sky).capitalize()} на теме: {sphere}.")
     if not f.aspects and not main:
         lines.append("- Острых акцентов нет: день ровный, держись своего ритма.")
     return "\n".join(lines)
@@ -140,7 +140,7 @@ def _previous_rule(openings: list[str]) -> str:
 
 
 def _main_rule(f: DayFacts) -> str:
-    if f.main and _main_line(f.main):
+    if f.main and _main_line(f.main, f.sky):
         return "- Первый абзац — о главном в дне (первый пункт смыслов).\n"
     return ""
 
@@ -188,7 +188,7 @@ def _lunation_meanings(f: LunationFacts) -> str:
         sphere = NATAL_SPHERE.get(a["natal"])
         if sphere:
             lines.append(
-                f"- {PLANET_RU.get(a['planet'], a['planet'])}: {TONE_RU[a['tone']]} акцент на теме «{sphere}»."
+                f"- {PLANET_RU.get(a['planet'], a['planet'])}: {tone_accent(a['tone'], f.sky)} на теме «{sphere}»."
             )
     for w in f.warnings:
         sphere = NATAL_SPHERE.get(w["natal"])
