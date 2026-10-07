@@ -50,7 +50,7 @@ function ReportModal({ chartId, onClose, setForExport }) {
       const token = localStorage.getItem('astro_access_token');
       const wheelPng = await captureChartPng(setForExport);
       const body = wheelPng ? JSON.stringify({ wheel_png: wheelPng }) : undefined;
-      const resp = await fetch(`${API_BASE}/chart/${chartId}/pdf`, {
+      const resp = await authFetch(`${API_BASE}/chart/${chartId}/pdf`, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -372,7 +372,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     }
     setShareLoading(true);
     try {
-      const resp = await fetch(
+      const resp = await authFetch(
         `${API_BASE}/charts/${chartId}/share${shareQuery}`,
         { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
       );
@@ -398,7 +398,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     // Запрос каждый раз, а не прежняя ссылка из состояния: он же ставит флаг
     // «дата и место», и картинка обязана соответствовать выбору сейчас.
     let url = null;
-    const resp = await fetch(
+    const resp = await authFetch(
       `${API_BASE}/charts/${chartId}/share${shareQuery}`,
       { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
     );
@@ -492,7 +492,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     if (!chart || !chartId || chartId === 'anonymous' || chart.time_unknown) return;
     const token = localStorage.getItem('astro_access_token');
     const chartTok = sessionStorage.getItem('chart_token');
-    fetch(withTz(`${API_BASE}/chart/${chartId}/planner/monthly`), {
+    authFetch(withTz(`${API_BASE}/chart/${chartId}/planner/monthly`), {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(chartTok ? { 'X-Chart-Token': chartTok } : {}),
@@ -513,7 +513,7 @@ export default function ChartPage({ currentUser, onShowAuth, dark = false }) {
     try {
       const token = localStorage.getItem('astro_access_token');
       const chartTok = sessionStorage.getItem('chart_token');
-      const resp = await fetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${dateStr}`, {
+      const resp = await authFetch(`${API_BASE}/chart/${chartId}/transits/positions?on_date=${dateStr}`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(chartTok ? { 'X-Chart-Token': chartTok } : {}),
