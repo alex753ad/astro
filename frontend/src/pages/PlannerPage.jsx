@@ -10,6 +10,7 @@ import { lockBanner, lockShort, lockText, plannerMonthsAhead } from "../lib/tier
 import { offerFor } from "../lib/offerRule";
 import { buildUpcoming, datesInWords, formatWeekRange, planetCardTarget, railPositions, shortDate } from "../lib/plannerDates";
 import { deviceTimeZone } from "../lib/deviceTimezone";
+import { useFlag } from "../lib/flags";
 const GCAL_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GCAL_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
@@ -817,11 +818,13 @@ function LockMark({ color }) {
 }
 
 function LockedTeaser({ trigger, onUpgrade, color }) {
+  // Шаг 9 (термины, под sky_event): «периода», не «окна».
+  const sky = useFlag("sky_event");
   return (
     <div className="locked-teaser">
       <ul className="period-items decoy" aria-hidden="true">
         <li><span className="dot" style={{ background: "var(--border)" }} />Тема этого периода</li>
-        <li><span className="dot" style={{ background: "var(--border)" }} />Ключевые действия окна</li>
+        <li><span className="dot" style={{ background: "var(--border)" }} />Ключевые действия {sky ? "периода" : "окна"}</li>
         <li><span className="dot" style={{ background: "var(--border)" }} />Рекомендации по сферам</li>
       </ul>
       {trigger && (
