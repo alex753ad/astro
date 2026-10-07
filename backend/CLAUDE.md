@@ -7,7 +7,6 @@
 ```
 POST /api/v1/chart/calculate
 GET  /api/v1/chart/{id}/interpret       # SSE
-GET  /api/v1/chart/{id}/transits/interpret  # SSE
 GET  /api/v1/chart/{id}/forecast/day|lunation   # приложение, DeepSeek, без квоты
 POST /api/v1/auth/register
 POST /api/v1/auth/login

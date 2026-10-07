@@ -561,28 +561,6 @@ def interpret_event_facts(chart, transit_planet: str, natal_planet: str, aspect_
     return interpret_facts(ev, tz, cusps(chart)), ev.key
 
 
-def get_transit_summary(events: list[TransitEvent]) -> dict:
-    summary = {
-        "total_events":      len(events),
-        "by_aspect":         {},
-        "by_transit_planet": {},
-        "significant":       [],
-    }
-    for e in events:
-        summary["by_aspect"][e.aspect_type]             = summary["by_aspect"].get(e.aspect_type, 0) + 1
-        summary["by_transit_planet"][e.transit_planet]  = summary["by_transit_planet"].get(e.transit_planet, 0) + 1
-
-    for e in sorted(events, key=lambda x: x.peak_orb)[:10]:
-        summary["significant"].append({
-            "date":        e.peak_date,
-            "description": f"{e.transit_planet} {e.aspect_type} {e.natal_planet}",
-            "orb":         e.peak_orb,
-            "exact_date":  e.exact_date,
-            "period":      f"{e.start_date} → {e.end_date}",
-        })
-    return summary
-
-
 # ═══════════════════════════════════════════════════════════
 # TRANSIT ALERT — медленные планеты
 # ═══════════════════════════════════════════════════════════
